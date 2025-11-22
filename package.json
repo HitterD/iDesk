@@ -1,0 +1,12 @@
+{
+    "name": "idesk-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "start": "concurrently \"npm run start:dev --prefix apps/backend\" \"npm run dev --prefix apps/frontend\"",
+        "install:all": "npm install && npm install --prefix apps/backend && npm install --prefix apps/frontend"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}

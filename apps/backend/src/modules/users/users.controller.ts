@@ -1,0 +1,110 @@
+import {
+    Controller,
+    Post,
+    Body,
+    UseGuards,
+    Get,
+    UseInterceptors,
+    UploadedFile,
+    Req,
+    Patch,
+    Param,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { UsersService } from './users.service';
+import { CreateAgentDto } from './dto/create-agent.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { Roles } from '../../shared/core/decorators/roles.decorator';
+import { UserRole } from './enums/user-role.enum';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+
+@ApiTags('Users')
+@Controller('users')
+export class UsersController {
+    constructor(private readonly usersService: UsersService) { }
+
+    @Post('agents')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Create a new agent' })
+    @ApiResponse({ status: 201, description: 'The agent has been successfully created.' })
+    @ApiResponse({ status: 403, description: 'Forbidden.' })
+    async createAgent(@Body() createAgentDto: CreateAgentDto) {
+        return this.usersService.createAgent(createAgentDto);
+    }
+
+    @Post()
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Create a new user (Admin)' })
+    @ApiResponse({ status: 201, description: 'User created successfully.' })
+    async createUser(@Body() createUserDto: CreateUserDto) {
+        return this.usersService.createUser(createUserDto);
+    }
+
+    @Post('avatar')
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(FileInterceptor('file', {
+        storage: diskStorage({
+            destination: './uploads',
+            filename: (req, file, cb) => {
+                const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+                cb(null, `${randomName}${extname(file.originalname)}`);
+            },
+        }),
+    }))
+    @ApiOperation({ summary: 'Upload user avatar' })
+    @ApiResponse({ status: 201, description: 'Avatar uploaded successfully.' })
+    async uploadAvatar(@Req() req, @UploadedFile() file: Express.Multer.File) {
+        const userId = req.user.userId;
+        const avatarUrl = `/uploads/${file.filename}`;
+        return this.usersService.updateAvatar(userId, avatarUrl, file.path);
+    }
+
+    @Get('agents')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Get all agents' })
+    @ApiResponse({ status: 200, description: 'Return all agents.' })
+    async getAgents() {
+        return this.usersService.getAgents();
+    }
+
+    @Post('import')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @UseInterceptors(FileInterceptor('file'))
+    @ApiOperation({ summary: 'Import users from CSV' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 201, description: 'Users imported successfully.' })
+    async importUsers(@UploadedFile() file: Express.Multer.File) {
+        return this.usersService.importUsers(file);
+    }
+
+    @Patch(':id/role')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Update user role' })
+    @ApiResponse({ status: 200, description: 'User role updated.' })
+    async updateRole(
+        @Param('id') userId: string,
+        @Body('role') role: UserRole,
+    ) {
+        return this.usersService.updateRole(userId, role);
+    }
+}
