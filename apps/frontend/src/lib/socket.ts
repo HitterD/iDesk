@@ -1,18 +1,35 @@
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
+import { useEffect, useState, useRef } from 'react';
 
 // In a real app, this URL would come from env vars
 const SOCKET_URL = 'http://localhost:5050';
 
-export const socket = io(SOCKET_URL, {
-    autoConnect: true,
-});
+// Lazy socket instance - only one per app
+let socketInstance: Socket | null = null;
 
-import { useEffect, useState } from 'react';
+const getSocket = (): Socket => {
+    if (!socketInstance) {
+        socketInstance = io(SOCKET_URL, {
+            autoConnect: false,
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 10000,
+        });
+    }
+    return socketInstance;
+};
+
+export const socket = getSocket();
 
 export const useSocket = () => {
-    const [isConnected, setIsConnected] = useState(socket.connected);
+    const [isConnected, setIsConnected] = useState(false);
+    const connectionRef = useRef(false);
 
     useEffect(() => {
+        const currentSocket = getSocket();
+
         function onConnect() {
             setIsConnected(true);
         }
@@ -21,14 +38,23 @@ export const useSocket = () => {
             setIsConnected(false);
         }
 
-        socket.on('connect', onConnect);
-        socket.on('disconnect', onDisconnect);
+        currentSocket.on('connect', onConnect);
+        currentSocket.on('disconnect', onDisconnect);
+
+        // Only connect if not already connected
+        if (!currentSocket.connected && !connectionRef.current) {
+            connectionRef.current = true;
+            currentSocket.connect();
+        }
+
+        // Set initial state
+        setIsConnected(currentSocket.connected);
 
         return () => {
-            socket.off('connect', onConnect);
-            socket.off('disconnect', onDisconnect);
+            currentSocket.off('connect', onConnect);
+            currentSocket.off('disconnect', onDisconnect);
         };
     }, []);
 
-    return { socket, isConnected };
+    return { socket: getSocket(), isConnected };
 };

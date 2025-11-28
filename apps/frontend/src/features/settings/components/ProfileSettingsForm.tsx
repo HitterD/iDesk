@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
+import { useAuth } from '../../../stores/useAuth';
 
 interface Department {
     id: string;
@@ -22,6 +23,7 @@ interface ProfileFormValues {
 
 export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
     const queryClient = useQueryClient();
+    const { token, login } = useAuth();
     const { register, handleSubmit, reset } = useForm<ProfileFormValues>({
         defaultValues: {
             fullName: user?.fullName || '',
@@ -59,9 +61,13 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
             const res = await api.patch('/users/me', data);
             return res.data;
         },
-        onSuccess: () => {
+        onSuccess: (updatedUser) => {
             toast.success('Profile updated successfully');
             queryClient.invalidateQueries({ queryKey: ['auth-user'] });
+            // Update local auth store
+            if (token) {
+                login(token, updatedUser);
+            }
         },
         onError: () => {
             toast.error('Failed to update profile');
@@ -78,16 +84,16 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
         mutationFn: async (file: File) => {
             const formData = new FormData();
             formData.append('file', file);
-            const res = await api.post('/users/avatar', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            const res = await api.post('/users/avatar', formData);
             return res.data;
         },
-        onSuccess: () => {
+        onSuccess: (updatedUser) => {
             toast.success('Avatar updated successfully');
             queryClient.invalidateQueries({ queryKey: ['auth-user'] });
-            // Force reload to update avatar everywhere immediately if needed, 
-            // but invalidateQueries should handle it if components use useAuth or react-query
+            // Update local auth store
+            if (token) {
+                login(token, updatedUser);
+            }
         },
         onError: () => {
             toast.error('Failed to upload avatar');
@@ -105,6 +111,13 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
         }
     };
 
+    const getImageUrl = (url?: string) => {
+        if (!url) return null;
+        if (url.startsWith('http') || url.startsWith('blob:')) return url;
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+        return `${apiUrl}${url}`;
+    };
+
     return (
         <div className="max-w-2xl bg-navy-light border border-white/10 rounded-xl p-6 space-y-6">
             <div className="flex items-center gap-6">
@@ -112,7 +125,11 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                     <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 p-[2px]">
                         <div className="w-full h-full rounded-full bg-navy-main flex items-center justify-center overflow-hidden">
                             {user?.avatarUrl ? (
-                                <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+                                <img 
+                                    src={getImageUrl(user.avatarUrl) || ''} 
+                                    alt={user.fullName} 
+                                    className="w-full h-full object-cover" 
+                                />
                             ) : (
                                 <User className="w-10 h-10 text-white" />
                             )}
@@ -148,7 +165,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                         <label className="text-sm font-medium text-slate-300">Full Name</label>
                         <input
                             {...register('fullName')}
-                            className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                         />
                     </div>
                     <div className="space-y-2">
@@ -156,14 +173,14 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                         <input
                             {...register('email')}
                             readOnly
-                            className="w-full bg-navy-main/50 border border-white/10 rounded-lg px-4 py-2 text-slate-400 cursor-not-allowed"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-400 cursor-not-allowed"
                         />
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-300">Employee ID (NIP)</label>
                         <input
                             {...register('employeeId')}
-                            className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                             placeholder="e.g. EMP-2024-001"
                         />
                     </div>
@@ -171,7 +188,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                         <label className="text-sm font-medium text-slate-300">Job Title</label>
                         <input
                             {...register('jobTitle')}
-                            className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                             placeholder="e.g. Senior Developer"
                         />
                     </div>
@@ -179,7 +196,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                         <label className="text-sm font-medium text-slate-300">Phone Number</label>
                         <input
                             {...register('phoneNumber')}
-                            className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                             placeholder="+1 234 567 890"
                         />
                     </div>
@@ -187,11 +204,11 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                         <label className="text-sm font-medium text-slate-300">Department</label>
                         <select
                             {...register('departmentId')}
-                            className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                         >
-                            <option value="">Select Department</option>
+                            <option value="" className="bg-slate-800">Select Department</option>
                             {departments?.map((dept) => (
-                                <option key={dept.id} value={dept.id}>
+                                <option key={dept.id} value={dept.id} className="bg-slate-800">
                                     {dept.name} ({dept.code})
                                 </option>
                             ))}

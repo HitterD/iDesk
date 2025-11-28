@@ -10,44 +10,109 @@ import {
     UploadedFiles,
     Patch,
     Req,
+    Query,
 } from '@nestjs/common';
-import { TicketService } from '../ticket.service';
+import { TicketCreateService } from '../services/ticket-create.service';
+import { TicketUpdateService } from '../services/ticket-update.service';
+import { TicketMessagingService } from '../services/ticket-messaging.service';
+import { TicketQueryService } from '../services/ticket-query.service';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
+import { PaginationDto } from '../dto/pagination.dto';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ReplyMessageDto } from '../dto/reply-message.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { CacheInterceptor } from '@nestjs/cache-manager';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import {
+    UpdateTicketStatusDto,
+    UpdateTicketPriorityDto,
+    UpdateTicketCategoryDto,
+    UpdateTicketDeviceDto,
+    AssignTicketDto,
+    CancelTicketDto
+} from '../dto/update-ticket.dto';
 
 @ApiTags('Tickets')
 @Controller('tickets')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TicketsController {
-    constructor(private readonly ticketService: TicketService) { }
+    constructor(
+        private readonly ticketCreateService: TicketCreateService,
+        private readonly ticketUpdateService: TicketUpdateService,
+        private readonly ticketMessagingService: TicketMessagingService,
+        private readonly ticketQueryService: TicketQueryService,
+    ) { }
 
     @Post()
     @ApiOperation({ summary: 'Create a new ticket' })
     @ApiResponse({ status: 201, description: 'Ticket created successfully.' })
-    async createTicket(@Request() req, @Body() createTicketDto: CreateTicketDto) {
-        return this.ticketService.createTicket(req.user.userId, createTicketDto);
+    @UseInterceptors(FilesInterceptor('files', 5, {
+        storage: diskStorage({
+            destination: './uploads',
+            filename: (req, file, cb) => {
+                const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+                cb(null, `${randomName}${extname(file.originalname)}`);
+            },
+        }),
+    }))
+    async createTicket(
+        @Request() req,
+        @Body() createTicketDto: CreateTicketDto,
+        @UploadedFiles() files: Express.Multer.File[],
+    ) {
+        console.log('Create Ticket Body:', createTicketDto);
+        console.log('Create Ticket Files:', files);
+        const filePaths = files ? files.map(f => `/uploads/${f.filename}`) : [];
+        return this.ticketCreateService.createTicket(req.user.userId, createTicketDto, filePaths);
     }
 
     @Get()
     @ApiOperation({ summary: 'Get all tickets' })
     @ApiResponse({ status: 200, description: 'Return all tickets.' })
     async findAll(@Request() req) {
-        return this.ticketService.findAll(req.user.userId, req.user.role);
+        return this.ticketQueryService.findAll(req.user.userId, req.user.role);
+    }
+
+    @Get('paginated')
+    @ApiOperation({ summary: 'Get paginated tickets with filtering' })
+    @ApiResponse({ status: 200, description: 'Return paginated tickets.' })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    @ApiQuery({ name: 'sortBy', required: false, type: String })
+    @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+    @ApiQuery({ name: 'status', required: false, type: String })
+    @ApiQuery({ name: 'priority', required: false, type: String })
+    @ApiQuery({ name: 'category', required: false, type: String })
+    @ApiQuery({ name: 'search', required: false, type: String })
+    async findAllPaginated(@Request() req, @Query() pagination: PaginationDto) {
+        return this.ticketQueryService.findAllPaginated(req.user.userId, req.user.role, pagination);
+    }
+
+    @Get('dashboard/stats')
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @UseInterceptors(CacheInterceptor)
+    @ApiOperation({ summary: 'Get dashboard statistics' })
+    @ApiResponse({ status: 200, description: 'Return dashboard statistics.' })
+    async getDashboardStats(@Request() req) {
+        return this.ticketQueryService.getDashboardStats(req.user.userId, req.user.role);
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Get ticket details' })
+    @ApiResponse({ status: 200, description: 'Return ticket details.' })
+    async findOne(@Param('id') id: string) {
+        return this.ticketQueryService.findOne(id);
     }
 
     @Get(':id/messages')
     @ApiOperation({ summary: 'Get ticket messages' })
     @ApiResponse({ status: 200, description: 'Return ticket messages.' })
     async getMessages(@Param('id') id: string) {
-        return this.ticketService.getMessages(id);
+        return this.ticketMessagingService.getMessages(id);
     }
 
     @Post(':id/reply')
@@ -81,7 +146,7 @@ export class TicketsController {
             parsedMentionedUserIds = mentionedUserIds;
         }
 
-        return this.ticketService.replyToTicket(id, req.user.userId, content, filePaths, parsedMentionedUserIds);
+        return this.ticketMessagingService.replyToTicket(id, req.user.userId, content, filePaths, parsedMentionedUserIds);
     }
 
     @Patch(':id/status')
@@ -90,10 +155,10 @@ export class TicketsController {
     @ApiResponse({ status: 200, description: 'Ticket status updated.' })
     async updateStatus(
         @Param('id') id: string,
-        @Body('status') status: any,
+        @Body() dto: UpdateTicketStatusDto,
         @Request() req,
     ) {
-        return this.ticketService.updateTicket(id, { status }, req.user.userId);
+        return this.ticketUpdateService.updateTicket(id, { status: dto.status }, req.user.userId);
     }
 
     @Patch(':id/priority')
@@ -102,10 +167,34 @@ export class TicketsController {
     @ApiResponse({ status: 200, description: 'Ticket priority updated.' })
     async updatePriority(
         @Param('id') id: string,
-        @Body('priority') priority: any,
+        @Body() dto: UpdateTicketPriorityDto,
         @Request() req,
     ) {
-        return this.ticketService.updateTicket(id, { priority }, req.user.userId);
+        return this.ticketUpdateService.updateTicket(id, { priority: dto.priority }, req.user.userId);
+    }
+
+    @Patch(':id/category')
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Update ticket category' })
+    @ApiResponse({ status: 200, description: 'Ticket category updated.' })
+    async updateCategory(
+        @Param('id') id: string,
+        @Body() dto: UpdateTicketCategoryDto,
+        @Request() req,
+    ) {
+        return this.ticketUpdateService.updateTicket(id, { category: dto.category }, req.user.userId);
+    }
+
+    @Patch(':id/device')
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Update ticket device' })
+    @ApiResponse({ status: 200, description: 'Ticket device updated.' })
+    async updateDevice(
+        @Param('id') id: string,
+        @Body() dto: UpdateTicketDeviceDto,
+        @Request() req,
+    ) {
+        return this.ticketUpdateService.updateTicket(id, { device: dto.device }, req.user.userId);
     }
     @Patch(':id/assign')
     @Roles(UserRole.ADMIN, UserRole.AGENT)
@@ -113,9 +202,20 @@ export class TicketsController {
     @ApiResponse({ status: 200, description: 'Ticket assigned successfully.' })
     async assignTicket(
         @Param('id') id: string,
-        @Body('assigneeId') assigneeId: string,
+        @Body() dto: AssignTicketDto,
         @Request() req,
     ) {
-        return this.ticketService.assignTicket(id, assigneeId, req.user.userId);
+        return this.ticketUpdateService.assignTicket(id, dto.assigneeId, req.user.userId);
+    }
+
+    @Patch(':id/cancel')
+    @ApiOperation({ summary: 'Cancel a ticket' })
+    @ApiResponse({ status: 200, description: 'Ticket cancelled successfully.' })
+    async cancelTicket(
+        @Param('id') id: string,
+        @Body() dto: CancelTicketDto,
+        @Request() req,
+    ) {
+        return this.ticketUpdateService.cancelTicket(id, req.user.userId, req.user.role, dto.reason);
     }
 }

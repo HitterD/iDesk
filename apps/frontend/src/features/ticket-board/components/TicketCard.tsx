@@ -31,7 +31,7 @@ const priorityColors = {
     CRITICAL: 'bg-red-500/20 text-red-400 border-red-500/50',
 };
 
-export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onClick }) => {
+const TicketCardComponent: React.FC<TicketCardProps> = ({ ticket, onClick }) => {
     const { attributes, listeners, setNodeRef, transform } = useDraggable({
         id: ticket.id,
         data: { ticket },
@@ -104,3 +104,15 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onClick }) => {
         </div>
     );
 };
+
+// Memoize to prevent unnecessary re-renders when parent updates
+export const TicketCard = React.memo(TicketCardComponent, (prevProps, nextProps) => {
+    // Custom comparison - only re-render if ticket data or onClick changed
+    return (
+        prevProps.ticket.id === nextProps.ticket.id &&
+        prevProps.ticket.status === nextProps.ticket.status &&
+        prevProps.ticket.priority === nextProps.ticket.priority &&
+        prevProps.ticket.isOverdue === nextProps.ticket.isOverdue &&
+        prevProps.onClick === nextProps.onClick
+    );
+});

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as fs from 'fs';
@@ -9,6 +9,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
 import * as csv from 'csv-parser';
 import { Readable } from 'stream';
+import * as crypto from 'crypto';
 
 import { MailerService } from '@nestjs-modules/mailer';
 
@@ -21,6 +22,11 @@ export class UsersService {
     ) { }
 
     async createAgent(dto: CreateAgentDto): Promise<User> {
+        const existingUser = await this.userRepo.findOne({ where: { email: dto.email } });
+        if (existingUser) {
+            throw new ConflictException('Email already exists');
+        }
+
         const hashedPassword = await bcrypt.hash(dto.password, 10);
         const user = this.userRepo.create({
             ...dto,
@@ -47,14 +53,40 @@ export class UsersService {
             },
         };
     }
-    async update(userId: string, updateData: any): Promise<User> {
+
+    async update(userId: string, updateData: Partial<User>): Promise<User> {
         await this.userRepo.update(userId, updateData);
-        return this.userRepo.findOne({ where: { id: userId }, relations: ['department'] });
+        const updatedUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['department'] });
+        if (!updatedUser) {
+            throw new NotFoundException('User not found');
+        }
+        return updatedUser;
+    }
+
+    async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+        if (!isValidPassword) {
+            throw new BadRequestException('Current password is incorrect');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await this.userRepo.update(userId, { password: hashedPassword });
+
+        return { success: true };
     }
 
     async updateRole(userId: string, role: UserRole): Promise<User> {
         await this.userRepo.update(userId, { role });
-        return this.userRepo.findOne({ where: { id: userId } });
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+        return user;
     }
 
     async importUsers(file: Express.Multer.File): Promise<any> {
@@ -74,17 +106,19 @@ export class UsersService {
                         try {
                             // Validation
                             if (!row.email || !row.fullName || !row.role) {
-                                throw new Error(`Missing required fields in row: ${JSON.stringify(row)}`);
+                                throw new BadRequestException(`Missing required fields in row: ${JSON.stringify(row)}`);
                             }
 
                             // Check duplicate
                             const existingUser = await this.userRepo.findOne({ where: { email: row.email } });
                             if (existingUser) {
-                                throw new Error(`Email ${row.email} already exists`);
+                                throw new ConflictException(`Email ${row.email} already exists`);
                             }
 
-                            // Create User
-                            const hashedPassword = await bcrypt.hash('Helpdesk@2025', 10);
+                            // Generate Random Password
+                            const randomPassword = crypto.randomBytes(8).toString('hex') + 'A1!'; // Ensure complexity
+                            const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
                             const newUser = this.userRepo.create({
                                 email: row.email,
                                 fullName: row.fullName,
@@ -105,7 +139,7 @@ export class UsersService {
                                     context: {
                                         name: newUser.fullName,
                                         email: newUser.email,
-                                        password: 'Helpdesk@2025',
+                                        password: randomPassword,
                                     },
                                 });
                             } catch (emailError) {
@@ -133,19 +167,29 @@ export class UsersService {
     }
     async getAgents(): Promise<User[]> {
         return this.userRepo.find({
-            where: { role: UserRole.AGENT },
+            where: [
+                { role: UserRole.AGENT },
+                { role: UserRole.ADMIN }
+            ],
             order: { fullName: 'ASC' },
+        });
+    }
+
+    async getAllUsers(): Promise<User[]> {
+        return this.userRepo.find({
+            order: { fullName: 'ASC' },
+            relations: ['department'],
         });
     }
     async createUser(dto: CreateUserDto): Promise<User> {
         const existingUser = await this.userRepo.findOne({ where: { email: dto.email } });
         if (existingUser) {
-            throw new Error('Email already exists');
+            throw new ConflictException('Email already exists');
         }
 
         let password = dto.password;
         if (dto.autoGeneratePassword || !password) {
-            password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8); // Simple random password
+            password = crypto.randomBytes(8).toString('hex') + 'A1!';
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -180,13 +224,16 @@ export class UsersService {
     }
     async updateAvatar(userId: string, avatarUrl: string, filePath: string): Promise<User> {
         const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
 
         // Delete old avatar if it exists and is a local file (starts with /uploads/)
         if (user.avatarUrl && user.avatarUrl.startsWith('/uploads/')) {
             const oldFilePath = `.${user.avatarUrl}`; // Convert /uploads/xyz.jpg to ./uploads/xyz.jpg
             if (fs.existsSync(oldFilePath)) {
                 try {
-                    fs.unlinkSync(oldFilePath);
+                    await fs.promises.unlink(oldFilePath);
                 } catch (err) {
                     console.error('Failed to delete old avatar:', err);
                 }
@@ -197,7 +244,44 @@ export class UsersService {
         return this.userRepo.save(user);
     }
 
+    async findById(id: string): Promise<User | undefined> {
+        return this.userRepo.findOne({ where: { id }, relations: ['department'] });
+    }
+
     async findByEmail(email: string): Promise<User | undefined> {
         return this.userRepo.findOne({ where: { email } });
+    }
+
+    async updatePassword(userId: string, newPasswordHash: string): Promise<void> {
+        await this.userRepo.update(userId, { password: newPasswordHash });
+    }
+
+    async resetPassword(userId: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await this.userRepo.update(userId, { password: hashedPassword });
+
+        return { success: true, message: 'Password reset successfully' };
+    }
+
+    async deleteUser(userId: string, adminId: string): Promise<{ success: boolean; message: string }> {
+        // Prevent deleting self
+        if (userId === adminId) {
+            throw new BadRequestException('Cannot delete your own account');
+        }
+
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // Soft delete - mark as deleted but keep record
+        await this.userRepo.delete(userId);
+
+        return { success: true, message: `User ${user.fullName} deleted successfully` };
     }
 }

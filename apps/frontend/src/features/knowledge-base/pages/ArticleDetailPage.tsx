@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Calendar, Tag } from 'lucide-react';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { formatDate } from '@/lib/utils';
 
 interface Article {
     id: string;
@@ -59,7 +60,7 @@ export const ArticleDetailPage = () => {
                     </span>
                     <span className="flex items-center text-slate-500 text-sm">
                         <Calendar className="w-4 h-4 mr-1" />
-                        {new Date(article.updatedAt).toLocaleDateString()}
+                        {formatDate(article.updatedAt)}
                     </span>
                 </div>
 

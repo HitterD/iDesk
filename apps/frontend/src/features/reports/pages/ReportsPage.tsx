@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatDate } from '@/lib/utils';
 
 interface MonthlyStats {
     month: number;
@@ -73,7 +74,7 @@ export const ReportsPage = () => {
                         <SelectContent>
                             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                                 <SelectItem key={m} value={m.toString()}>
-                                    {new Date(0, m - 1).toLocaleString('default', { month: 'long' })}
+                                    {new Date(0, m - 1).toLocaleString('en-US', { month: 'long', timeZone: 'Asia/Jakarta' })}
                                 </SelectItem>
                             ))}
                         </SelectContent>

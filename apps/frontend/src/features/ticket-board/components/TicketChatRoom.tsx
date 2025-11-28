@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty, CommandGroup } from '../../../components/ui/command';
 import { RichTextEditor } from '../../../components/ui/RichTextEditor';
 import api from '../../../lib/api';
+import { formatDate } from '../../../lib/utils';
 
 interface Message {
     id: string;
@@ -182,7 +183,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                                     onImageClick={setSelectedImage}
                                 />
                                 <span className="text-[10px] opacity-50 mt-1 block">
-                                    {new Date(msg.createdAt).toLocaleTimeString()}
+                                    {formatDate(msg.createdAt)}
                                 </span>
                             </div>
                         </div>

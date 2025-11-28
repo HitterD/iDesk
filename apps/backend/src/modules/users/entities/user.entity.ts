@@ -51,6 +51,16 @@ export class User {
     @Column({ nullable: true })
     avatarUrl: string;
 
+    // Telegram Integration
+    @Column({ type: 'bigint', nullable: true, unique: true })
+    telegramId: string;
+
+    @Column({ type: 'bigint', nullable: true })
+    telegramChatId: string;
+
+    @Column({ default: true })
+    telegramNotifications: boolean;
+
     @ManyToOne(() => Department)
     @JoinColumn({ name: 'departmentId' })
     department: Department;

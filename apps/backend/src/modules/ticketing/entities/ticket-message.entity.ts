@@ -7,7 +7,7 @@ import {
     JoinColumn,
 } from 'typeorm';
 import { Ticket } from './ticket.entity';
-// import { User } from '../../users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('ticket_messages')
 export class TicketMessage {
@@ -26,6 +26,9 @@ export class TicketMessage {
     @Column({ default: false })
     isSystemMessage: boolean;
 
+    @Column({ default: 'WEB' })
+    source: string; // 'WEB' | 'TELEGRAM' | 'EMAIL'
+
     @ManyToOne(() => Ticket, (ticket) => ticket.messages)
     @JoinColumn({ name: 'ticketId' })
     ticket: Ticket;
@@ -33,10 +36,10 @@ export class TicketMessage {
     @Column()
     ticketId: string;
 
-    // @ManyToOne(() => User)
-    // @JoinColumn({ name: 'senderId' })
-    // sender: User;
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'senderId' })
+    sender: User;
 
-    @Column()
+    @Column({ nullable: true })
     senderId: string;
 }

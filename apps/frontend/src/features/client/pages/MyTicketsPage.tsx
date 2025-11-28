@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Clock } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 // Mock API
 const fetchMyTickets = async () => {
@@ -83,7 +84,7 @@ export const MyTicketsPage: React.FC = () => {
                             <div className="text-right">
                                 <div className="flex items-center text-sm text-slate-500 mb-1">
                                     <Clock className="w-4 h-4 mr-1" />
-                                    {new Date(ticket.updatedAt).toLocaleDateString()}
+                                    {formatDate(ticket.updatedAt)}
                                 </div>
                             </div>
                         </div>

@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Param, UseGuards, Delete } from '@nestjs/common';
 import { SlaConfigService } from '../sla-config.service';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
@@ -16,7 +16,6 @@ export class SlaConfigController {
     @Get()
     @ApiOperation({ summary: 'Get all SLA configurations' })
     async findAll() {
-        console.log('SlaConfigController.findAll called');
         return this.slaConfigService.findAll();
     }
 
@@ -24,8 +23,26 @@ export class SlaConfigController {
     @ApiOperation({ summary: 'Update SLA configuration' })
     async update(
         @Param('id') id: string,
-        @Body('resolutionTimeMinutes') resolutionTimeMinutes: number,
+        @Body() body: { resolutionTimeMinutes?: number; responseTimeMinutes?: number },
     ) {
-        return this.slaConfigService.update(id, resolutionTimeMinutes);
+        return this.slaConfigService.update(id, body);
+    }
+
+    @Post()
+    @ApiOperation({ summary: 'Create new SLA configuration' })
+    async create(@Body() body: { priority: string; resolutionTimeMinutes: number; responseTimeMinutes?: number }) {
+        return this.slaConfigService.create(body.priority, body.resolutionTimeMinutes, body.responseTimeMinutes);
+    }
+
+    @Post('reset')
+    @ApiOperation({ summary: 'Reset SLA configurations to defaults' })
+    async reset() {
+        return this.slaConfigService.resetToDefaults();
+    }
+
+    @Delete(':id')
+    @ApiOperation({ summary: 'Delete SLA configuration' })
+    async delete(@Param('id') id: string) {
+        return this.slaConfigService.delete(id);
     }
 }

@@ -27,4 +27,9 @@ export class DepartmentsController {
         }
         return this.departmentRepo.find();
     }
+    @Post()
+    async create(@Body() body: { name: string; code: string }) {
+        const department = this.departmentRepo.create(body);
+        return this.departmentRepo.save(department);
+    }
 }

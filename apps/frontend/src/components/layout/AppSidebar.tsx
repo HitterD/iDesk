@@ -12,7 +12,9 @@ import {
     Plus,
     FileSpreadsheet,
     BookOpen,
-    Clock
+    Clock,
+    Bell,
+    CalendarClock
 } from 'lucide-react';
 import { useAuth } from '../../stores/useAuth';
 import { CreateTicketDialog } from '../../features/ticket-board/components/CreateTicketDialog';
@@ -31,6 +33,8 @@ export const AppSidebar: React.FC = () => {
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/kanban', icon: Kanban, label: 'Kanban Board' },
         { path: '/tickets/list', icon: List, label: 'All Tickets' },
+        { path: '/notifications', icon: Bell, label: 'Notification Center' },
+        { path: '/renewal', icon: CalendarClock, label: 'Renewals' },
         { path: '/agents', icon: Users, label: 'Agents' },
         { path: '/reports', icon: FileSpreadsheet, label: 'Reports' },
         { path: '/sla', icon: Clock, label: 'SLA Settings' },

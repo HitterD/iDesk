@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { StatusSelect } from './sidebar/StatusSelect';
@@ -6,7 +6,126 @@ import { PrioritySelect } from './sidebar/PrioritySelect';
 import { AssigneeSelect } from './sidebar/AssigneeSelect';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Clock, Tag } from 'lucide-react';
+import { Clock, Tag, X, FileText, Download } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
+import { MessageSourceBadge } from '@/components/ui/TelegramBadge';
+import { useTicketSocket } from '@/hooks/useTicketSocket';
+
+// Image Lightbox Component
+const ImageLightbox: React.FC<{
+    src: string;
+    alt: string;
+    onClose: () => void;
+}> = ({ src, alt, onClose }) => {
+    return (
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <button
+                onClick={onClose}
+                className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+                <X className="w-6 h-6" />
+            </button>
+            <img
+                src={src}
+                alt={alt}
+                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            />
+            <a
+                href={src}
+                download
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+            >
+                <Download className="w-4 h-4" />
+                Download
+            </a>
+        </div>
+    );
+};
+
+// Attachment Preview Component
+const AttachmentPreview: React.FC<{
+    attachments: string[];
+    onImageClick: (url: string) => void;
+}> = ({ attachments, onImageClick }) => {
+    if (!attachments || attachments.length === 0) return null;
+
+    // Get the full URL for attachments (prepend backend URL if relative path)
+    const getFullUrl = (url: string) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+        }
+        // Prepend backend URL for relative paths
+        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+        return `${backendUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    };
+
+    const isImage = (url: string) => {
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+        const lowerUrl = url.toLowerCase();
+        return imageExtensions.some(ext => lowerUrl.includes(ext)) || lowerUrl.includes('/uploads/telegram/');
+    };
+
+    const getFileName = (url: string) => {
+        const parts = url.split('/');
+        return parts[parts.length - 1] || 'file';
+    };
+
+    return (
+        <div className="mt-2 space-y-2">
+            {attachments.map((url, index) => {
+                const fullUrl = getFullUrl(url);
+                
+                if (isImage(url)) {
+                    return (
+                        <div 
+                            key={index}
+                            className="cursor-pointer group relative inline-block"
+                            onClick={() => onImageClick(fullUrl)}
+                        >
+                            <img
+                                src={fullUrl}
+                                alt={`Attachment ${index + 1}`}
+                                className="max-w-[200px] max-h-[150px] rounded-lg object-cover border border-white/10 group-hover:border-neon-green/50 transition-colors"
+                                onError={(e) => {
+                                    // Show placeholder for broken images
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    target.parentElement?.classList.add('broken-image');
+                                }}
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 rounded-lg transition-colors flex items-center justify-center">
+                                <span className="opacity-0 group-hover:opacity-100 text-white text-xs bg-black/60 px-2 py-1 rounded">
+                                    🔍 Perbesar
+                                </span>
+                            </div>
+                        </div>
+                    );
+                } else {
+                    return (
+                        <a
+                            key={index}
+                            href={fullUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                        >
+                            <FileText className="w-4 h-4 text-slate-400" />
+                            <span className="text-xs text-slate-300 truncate max-w-[150px]">
+                                {getFileName(url)}
+                            </span>
+                            <Download className="w-3 h-3 text-slate-500" />
+                        </a>
+                    );
+                }
+            })}
+        </div>
+    );
+};
 
 interface TicketDetailViewProps {
     ticketId: string;
@@ -14,7 +133,17 @@ interface TicketDetailViewProps {
 
 export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) => {
     const [newMessage, setNewMessage] = useState('');
+    const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const queryClient = useQueryClient();
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Real-time socket connection for live updates
+    useTicketSocket({ ticketId });
+
+    // Auto-scroll to bottom when messages change
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
     // Fetch Ticket Details
     const { data: ticket, isLoading: ticketLoading } = useQuery({
@@ -32,13 +161,19 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
 
     // Fetch Messages
     const { data: messages = [] } = useQuery({
-        queryKey: ['messages', ticketId],
+        queryKey: ['ticket-messages', ticketId],
         queryFn: async () => {
             const res = await api.get(`/tickets/${ticketId}/messages`);
             return res.data;
         },
         enabled: !!ticketId,
+        refetchInterval: 5000, // Fallback polling every 5 seconds
     });
+
+    // Scroll to bottom when messages update
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
     // Mutations
     const updateStatusMutation = useMutation({
@@ -47,7 +182,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-            queryClient.invalidateQueries({ queryKey: ['messages', ticketId] }); // System message added
+            queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
         },
     });
 
@@ -57,7 +192,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-            queryClient.invalidateQueries({ queryKey: ['messages', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
         },
     });
 
@@ -67,7 +202,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-            queryClient.invalidateQueries({ queryKey: ['messages', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
         },
     });
 
@@ -76,8 +211,11 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
             await api.post(`/tickets/${ticketId}/messages`, { content });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['messages', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
             setNewMessage('');
+        },
+        onError: (error) => {
+            console.error('Failed to send message:', error);
         },
     });
 
@@ -122,16 +260,41 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                                         : 'bg-neon-green/10 text-neon-green border border-neon-green/20 rounded-br-none'
                                     }`}
                             >
-                                <p>{msg.content}</p>
+                                {/* Message Content - hide if only [Photo] placeholder */}
+                                {msg.content && !msg.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (
+                                    <p>{msg.content}</p>
+                                )}
+                                
+                                {/* Attachment Preview */}
+                                {msg.attachments && msg.attachments.length > 0 && (
+                                    <AttachmentPreview 
+                                        attachments={msg.attachments} 
+                                        onImageClick={(url) => setLightboxImage(url)}
+                                    />
+                                )}
+                                
                                 {!msg.isSystemMessage && (
-                                    <span className="text-[10px] opacity-50 block mt-1 text-right">
-                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                                    <div className="flex items-center justify-between mt-2 gap-2">
+                                        <MessageSourceBadge source={msg.source} />
+                                        <span className="text-[10px] opacity-50">
+                                            {formatDate(msg.createdAt)}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         </div>
                     ))}
+                    <div ref={messagesEndRef} />
                 </div>
+                
+                {/* Image Lightbox */}
+                {lightboxImage && (
+                    <ImageLightbox
+                        src={lightboxImage}
+                        alt="Attachment"
+                        onClose={() => setLightboxImage(null)}
+                    />
+                )}
 
                 {/* Input Area */}
                 <div className="p-4 border-t border-white/10 bg-white/5">
@@ -208,7 +371,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                     <div className="space-y-3 text-sm">
                         <div className="flex justify-between">
                             <span className="text-slate-500 flex items-center gap-2"><Clock className="w-3 h-3" /> Created</span>
-                            <span className="text-slate-300">{new Date(ticket.createdAt).toLocaleDateString()}</span>
+                            <span className="text-slate-300">{formatDate(ticket.createdAt)}</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-slate-500 flex items-center gap-2"><Tag className="w-3 h-3" /> ID</span>

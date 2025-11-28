@@ -10,11 +10,23 @@ export class CreateTicketDto {
     @IsNotEmpty()
     description: string;
 
-    @IsEnum(TicketPriority)
+    @IsString()
     @IsNotEmpty()
     priority: TicketPriority;
 
+    @IsString()
+    @IsOptional()
+    category?: string;
+
     @IsEnum(TicketSource)
-    @IsNotEmpty()
-    source: TicketSource;
+    @IsOptional()
+    source?: TicketSource;
+
+    @IsString()
+    @IsOptional()
+    device?: string;
+
+    @IsString()
+    @IsOptional()
+    software?: string;
 }

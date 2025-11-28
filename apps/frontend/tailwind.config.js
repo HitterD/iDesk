@@ -20,11 +20,11 @@ module.exports = {
                 border: 'hsl(var(--border))',
                 input: 'hsl(var(--input))',
                 ring: 'hsl(var(--ring))',
-                background: '#0f172a', // Navy Background
+                background: 'hsl(var(--background))',
                 foreground: 'hsl(var(--foreground))',
                 primary: {
-                    DEFAULT: '#39ff14', // Neon Green
-                    foreground: '#0f172a',
+                    DEFAULT: 'hsl(var(--primary))',
+                    foreground: 'hsl(var(--primary-foreground))',
                 },
                 secondary: {
                     DEFAULT: 'hsl(var(--secondary))',
@@ -50,10 +50,6 @@ module.exports = {
                     DEFAULT: 'hsl(var(--card))',
                     foreground: 'hsl(var(--card-foreground))',
                 },
-                warning: '#ffaa00', // Warning Orange
-                'navy-main': '#0f172a',
-                'neon-green': '#39ff14',
-                'neon-orange': '#ffaa00',
             },
             borderRadius: {
                 lg: 'var(--radius)',

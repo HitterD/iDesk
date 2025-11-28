@@ -2,9 +2,9 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
-import { Ticket, TicketStatus, TicketPriority } from './entities/ticket.entity';
+import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { MailerService } from '@nestjs-modules/mailer';
-import { IChatPlatform } from './domain/ports/chat-platform.interface';
+
 import { CustomerSession } from '../users/entities/customer-session.entity';
 import { SlaConfigService } from './sla-config.service';
 
@@ -18,8 +18,7 @@ export class SlaCheckerService {
         @InjectRepository(CustomerSession)
         private sessionRepo: Repository<CustomerSession>,
         private readonly mailerService: MailerService,
-        @Inject('ChatPlatform')
-        private chatPlatform: IChatPlatform,
+
         private readonly slaConfigService: SlaConfigService,
     ) { }
 

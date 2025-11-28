@@ -9,6 +9,7 @@ import {
     Req,
     Patch,
     Param,
+    Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -20,12 +21,43 @@ import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
+
+    @Get('me')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Get current user profile' })
+    @ApiResponse({ status: 200, description: 'Return current user profile.' })
+    async getProfile(@Req() req) {
+        const userId = req.user.userId;
+        return this.usersService.findById(userId);
+    }
+
+    @Patch('me')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Update own profile' })
+    @ApiResponse({ status: 200, description: 'Profile updated successfully.' })
+    async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
+        const userId = req.user.userId;
+        return this.usersService.update(userId, updateUserDto);
+    }
+
+    @Post('change-password')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Change password' })
+    @ApiResponse({ status: 200, description: 'Password changed successfully.' })
+    async changePassword(
+        @Req() req,
+        @Body() body: { currentPassword: string; newPassword: string },
+    ) {
+        const userId = req.user.userId;
+        return this.usersService.changePassword(userId, body.currentPassword, body.newPassword);
+    }
 
     @Post('agents')
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -74,6 +106,15 @@ export class UsersController {
         return this.usersService.getAgents();
     }
 
+    @Get()
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Get all users' })
+    @ApiResponse({ status: 200, description: 'Return all users.' })
+    async findAll() {
+        return this.usersService.getAllUsers();
+    }
+
     @Post('import')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
@@ -106,5 +147,26 @@ export class UsersController {
         @Body('role') role: UserRole,
     ) {
         return this.usersService.updateRole(userId, role);
+    }
+
+    @Post(':id/reset-password')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Reset user password (Admin/Agent)' })
+    @ApiResponse({ status: 200, description: 'Password reset successfully.' })
+    async resetUserPassword(
+        @Param('id') userId: string,
+        @Body() body: { newPassword: string },
+    ) {
+        return this.usersService.resetPassword(userId, body.newPassword);
+    }
+
+    @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Delete a user (Admin only)' })
+    @ApiResponse({ status: 200, description: 'User deleted successfully.' })
+    async deleteUser(@Param('id') userId: string, @Req() req) {
+        return this.usersService.deleteUser(userId, req.user.userId);
     }
 }

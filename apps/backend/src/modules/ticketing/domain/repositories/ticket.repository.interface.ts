@@ -1,4 +1,4 @@
-import { Ticket } from '@prisma/client'; // Using Prisma types for simplicity in this phase, ideally should be Domain Entity
+import { Ticket } from '../../entities/ticket.entity';
 
 export interface ITicketRepository {
     create(data: any): Promise<Ticket>;

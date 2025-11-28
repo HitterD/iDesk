@@ -58,6 +58,10 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
         },
     });
 
+    const [isAddingDept, setIsAddingDept] = React.useState(false);
+    const [newDeptName, setNewDeptName] = React.useState('');
+    const [newDeptCode, setNewDeptCode] = React.useState('');
+
     const autoGeneratePassword = watch('autoGeneratePassword');
 
     const { data: departments = [] } = useQuery({
@@ -69,13 +73,36 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
         enabled: isOpen,
     });
 
+    const createDeptMutation = useMutation({
+        mutationFn: async (data: { name: string; code: string }) => {
+            const res = await api.post('/departments', data);
+            return res.data;
+        },
+        onSuccess: (newDept) => {
+            toast.success('Department added successfully');
+            queryClient.invalidateQueries({ queryKey: ['departments'] });
+            setValue('departmentId', newDept.id);
+            setIsAddingDept(false);
+            setNewDeptName('');
+            setNewDeptCode('');
+        },
+        onError: () => {
+            toast.error('Failed to add department');
+        }
+    });
+
+    const handleAddDept = () => {
+        if (!newDeptName || !newDeptCode) return;
+        createDeptMutation.mutate({ name: newDeptName, code: newDeptCode });
+    };
+
     const createUserMutation = useMutation({
         mutationFn: async (data: CreateUserFormValues) => {
             await api.post('/users', data);
         },
         onSuccess: () => {
             toast.success('User created successfully');
-            queryClient.invalidateQueries({ queryKey: ['agents'] }); // Assuming we list agents/users
+            queryClient.invalidateQueries({ queryKey: ['users'] });
             onClose();
             reset();
         },
@@ -141,17 +168,54 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Department</Label>
-                            <Select onValueChange={(val) => setValue('departmentId', val)}>
-                                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                                    <SelectValue placeholder="Select dept" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-navy-main border-white/10 text-white">
-                                    {departments.map((dept: any) => (
-                                        <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="flex justify-between items-center">
+                                <Label>Department</Label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddingDept(!isAddingDept)}
+                                    className="text-xs text-neon-green hover:underline"
+                                >
+                                    {isAddingDept ? 'Cancel' : '+ Add New'}
+                                </button>
+                            </div>
+                            {isAddingDept ? (
+                                <div className="space-y-2 p-2 bg-white/5 rounded-lg border border-white/10">
+                                    <Input
+                                        placeholder="Dept Name (e.g. IT)"
+                                        value={newDeptName}
+                                        onChange={(e) => setNewDeptName(e.target.value)}
+                                        className="h-8 text-xs bg-black/20 border-white/10"
+                                    />
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="Code (e.g. IT)"
+                                            value={newDeptCode}
+                                            onChange={(e) => setNewDeptCode(e.target.value)}
+                                            className="h-8 text-xs bg-black/20 border-white/10"
+                                        />
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={handleAddDept}
+                                            disabled={createDeptMutation.isPending}
+                                            className="h-8 bg-neon-green text-navy-dark hover:bg-neon-green/90"
+                                        >
+                                            Add
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <Select onValueChange={(val) => setValue('departmentId', val)}>
+                                    <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                                        <SelectValue placeholder="Select dept" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-navy-main border-white/10 text-white">
+                                        {departments.map((dept: any) => (
+                                            <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
                     </div>
 

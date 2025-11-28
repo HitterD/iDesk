@@ -20,8 +20,8 @@ async function bootstrap() {
         console.log('Creating Super Admin...');
         const adminDto: CreateAgentDto = {
             email: adminEmail,
-            fullName: 'Super Admin',
-            password: 'admin123',
+            fullName: 'Administrator',
+            password: 'Admin123',
         };
 
         // We use createAgent but manually update role to ADMIN afterwards since createAgent defaults to AGENT

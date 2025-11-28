@@ -7,11 +7,10 @@ export class SlaConfig {
     id: string;
 
     @Column({
-        type: 'enum',
-        enum: TicketPriority,
         unique: true,
+        nullable: true,
     })
-    priority: TicketPriority;
+    priority: string;
 
     @Column({ type: 'int', default: 1440 }) // 24 hours
     resolutionTimeMinutes: number;
