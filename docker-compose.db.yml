@@ -8,13 +8,23 @@ services:
     image: postgres:15-alpine
     container_name: idesk-postgres
     environment:
+version: '3.8'
+
+# Development Docker Compose - PostgreSQL + Redis only
+# Run: docker-compose -f docker-compose.db.yml up -d
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: idesk-postgres
+    environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_DATABASE:-idesk_db}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./backups/postgres:/var/lib/postgresql/data
     networks:
       - idesk-network
     healthcheck:
@@ -30,7 +40,7 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     volumes:
-      - redis_data:/data
+      - ./backups/redis:/data
     networks:
       - idesk-network
     healthcheck:
@@ -38,10 +48,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-volumes:
-  postgres_data:
-  redis_data:
 
 
 networks:
