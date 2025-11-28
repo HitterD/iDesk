@@ -14,7 +14,7 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - idesk-network
     healthcheck:
@@ -30,7 +30,7 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     volumes:
-      - ./redis-data:/data
+      - redis_data:/data
     networks:
       - idesk-network
     healthcheck:
@@ -86,6 +86,11 @@ services:
       - backend
     networks:
       - idesk-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
 
 networks:
   idesk-network:
