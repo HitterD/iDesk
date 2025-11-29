@@ -128,7 +128,7 @@ export const BentoTopbar = () => {
                         }}
                         onFocus={() => setIsOpen(true)}
                         placeholder="Search tickets, articles..."
-                        className="w-full pl-12 pr-10 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-none rounded-2xl shadow-sm focus:ring-2 focus:ring-primary/20 focus:shadow-md transition-all duration-300 placeholder:text-slate-400 text-slate-700 dark:text-slate-200"
+                        className="w-full pl-12 pr-10 py-3 bg-white dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm focus:ring-2 focus:ring-primary/20 focus:shadow-md focus:border-primary/30 transition-all duration-300 placeholder:text-slate-400 text-slate-700 dark:text-slate-200"
                     />
                     {searchQuery && (
                         <button

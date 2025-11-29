@@ -21,6 +21,7 @@ export class AuthController {
     }
 
     @Post('register')
+    @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 registrations per minute
     @ApiOperation({ summary: 'User registration' })
     async register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto);
@@ -28,6 +29,7 @@ export class AuthController {
 
     @Post('change-password')
     @UseGuards(JwtAuthGuard)
+    @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 attempts per minute
     @ApiBearerAuth()
     @HttpCode(200)
     @ApiOperation({ summary: 'Change password' })

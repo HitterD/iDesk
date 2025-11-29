@@ -8,7 +8,7 @@ interface NotificationRoute {
     baseUrl: string;
 }
 
-const NOTIFICATION_ROUTES: Record<NotificationCategory, NotificationRoute> = {
+export const NOTIFICATION_ROUTES: Record<NotificationCategory, NotificationRoute> = {
     [NotificationCategory.CATEGORY_TICKET]: {
         category: NotificationCategory.CATEGORY_TICKET,
         baseUrl: '/ticket/view',

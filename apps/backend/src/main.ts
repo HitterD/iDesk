@@ -45,18 +45,20 @@ async function bootstrap() {
 
     // Ensure uploads directories exist
     const fs = require('fs');
-    const uploadDir = './uploads';
-    const kbUploadDir = './uploads/kb';
-    const telegramUploadDir = './uploads/telegram';
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    if (!fs.existsSync(kbUploadDir)) {
-        fs.mkdirSync(kbUploadDir, { recursive: true });
-    }
-    if (!fs.existsSync(telegramUploadDir)) {
-        fs.mkdirSync(telegramUploadDir, { recursive: true });
-    }
+    const uploadDirs = [
+        './uploads',
+        './uploads/kb',
+        './uploads/telegram',
+        './uploads/avatars',
+        './uploads/contracts',
+        './uploads/documents',
+        './uploads/temp',
+    ];
+    uploadDirs.forEach(dir => {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+    });
 
     // Serve static files from uploads directory
     app.useStaticAssets(join(__dirname, '..', 'uploads'), {
@@ -71,10 +73,30 @@ async function bootstrap() {
     app.useGlobalFilters(new HttpExceptionFilter());
     app.useGlobalInterceptors(new LoggingInterceptor());
 
-    // Security Headers - configured to allow images
+    // Security Headers - Enhanced Configuration (Section 5.5.B)
     app.use(helmet({
         crossOriginResourcePolicy: { policy: 'cross-origin' },
         crossOriginEmbedderPolicy: false,
+        contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+                styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+                fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+                imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+                connectSrc: ["'self'", 'ws:', 'wss:', 'http://localhost:*', 'https://*.sentry.io'],
+                frameSrc: ["'none'"],
+                objectSrc: ["'none'"],
+            },
+        } : false,
+        hsts: process.env.NODE_ENV === 'production' ? {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true,
+        } : false,
+        noSniff: true,
+        xssFilter: true,
+        referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }));
 
     // Enable Gzip compression
@@ -83,9 +105,17 @@ async function bootstrap() {
     // Swagger Documentation
     const config = new DocumentBuilder()
         .setTitle('iDesk API')
-        .setDescription('The iDesk Helpdesk API description')
+        .setDescription('The iDesk Helpdesk API documentation.')
         .setVersion('1.0')
         .addBearerAuth()
+        .addTag('Auth', 'Authentication endpoints')
+        .addTag('Tickets', 'Ticket management endpoints')
+        .addTag('Users', 'User management endpoints')
+        .addTag('Uploads', 'File upload endpoints')
+        .addTag('Notifications', 'Notification endpoints')
+        .addTag('Reports', 'Reporting endpoints')
+        .addTag('Knowledge Base', 'Knowledge base articles')
+        .addTag('Renewal Contracts', 'Contract renewal management')
         .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);

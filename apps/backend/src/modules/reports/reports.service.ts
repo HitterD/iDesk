@@ -8,6 +8,7 @@ import { Response } from 'express';
 import { AgentPerformanceReport, DateRange } from './generators/agent-performance.report';
 import { TicketVolumeReport } from './generators/ticket-volume.report';
 import { PDFGeneratorService } from './generators/pdf-generator.service';
+import { CacheService } from '../../shared/core/cache';
 
 @Injectable()
 export class ReportsService {
@@ -19,33 +20,39 @@ export class ReportsService {
         private readonly agentPerformanceReport: AgentPerformanceReport,
         private readonly ticketVolumeReport: TicketVolumeReport,
         private readonly pdfGenerator: PDFGeneratorService,
+        private readonly cacheService: CacheService,
     ) { }
 
     /**
-     * OPTIMIZED: Get monthly stats using SQL aggregations
+     * OPTIMIZED: Get monthly stats using SQL aggregations with caching
+     * Cache TTL: 5 minutes for monthly stats
      */
     async getMonthlyStats(month: number, year: number) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59);
+        const cacheKey = `reports:monthly:${year}-${month}`;
+        
+        return this.cacheService.getOrSet(cacheKey, async () => {
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59);
 
-        // Single optimized query with SQL aggregations
-        const stats = await this.ticketRepo
-            .createQueryBuilder('ticket')
-            .select('COUNT(*)', 'totalTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolvedTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' THEN 1 ELSE 0 END)`, 'openTickets')
-            .addSelect(`AVG(CASE WHEN ticket.status = 'RESOLVED' THEN EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
-            .where('ticket."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate })
-            .getRawOne();
+            // Single optimized query with SQL aggregations
+            const stats = await this.ticketRepo
+                .createQueryBuilder('ticket')
+                .select('COUNT(*)', 'totalTickets')
+                .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolvedTickets')
+                .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' THEN 1 ELSE 0 END)`, 'openTickets')
+                .addSelect(`AVG(CASE WHEN ticket.status = 'RESOLVED' THEN EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
+                .where('ticket."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate })
+                .getRawOne();
 
-        return {
-            month,
-            year,
-            totalTickets: parseInt(stats.totalTickets) || 0,
-            resolvedTickets: parseInt(stats.resolvedTickets) || 0,
-            openTickets: parseInt(stats.openTickets) || 0,
-            avgResolutionTimeHours: parseFloat(stats.avgResolutionTimeHours)?.toFixed(2) || 0,
-        };
+            return {
+                month,
+                year,
+                totalTickets: parseInt(stats.totalTickets) || 0,
+                resolvedTickets: parseInt(stats.resolvedTickets) || 0,
+                openTickets: parseInt(stats.openTickets) || 0,
+                avgResolutionTimeHours: parseFloat(stats.avgResolutionTimeHours)?.toFixed(2) || 0,
+            };
+        }, 300); // 5 minutes cache
     }
 
     async generateExcelReport(res: Response, month: number, year: number) {

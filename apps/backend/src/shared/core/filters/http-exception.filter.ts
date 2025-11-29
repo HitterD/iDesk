@@ -71,11 +71,27 @@ export class HttpExceptionFilter implements ExceptionFilter {
                 ? exception.getResponse()
                 : (exception as any).message || 'Internal server error';
 
+        const isProduction = process.env.NODE_ENV === 'production';
+        
+        // Extract the actual message
+        const actualMessage = typeof message === 'object' && 'message' in message 
+            ? (message as any).message 
+            : message;
+        
+        // In production, hide internal error details for 500 errors
+        const safeMessage = isProduction && status === HttpStatus.INTERNAL_SERVER_ERROR
+            ? 'Internal server error'
+            : actualMessage;
+
         const errorResponse = {
             statusCode: status,
             timestamp: new Date().toISOString(),
             path: request?.url || 'unknown',
-            message: typeof message === 'object' && 'message' in message ? (message as any).message : message,
+            message: safeMessage,
+            // Only include error details in development
+            ...((!isProduction && status === HttpStatus.INTERNAL_SERVER_ERROR) && {
+                error: (exception as any).message,
+            }),
         };
 
         this.logger.error(

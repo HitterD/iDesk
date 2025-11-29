@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Clock, Plus, Ticket, Search, Filter, CheckCircle, CircleDot, Hourglass, Inbox, AlertCircle } from 'lucide-react';
+import { Clock, Plus, Ticket, Search, CheckCircle, CircleDot, Hourglass, Inbox } from 'lucide-react';
 import api from '@/lib/api';
 
 interface TicketItem {
@@ -91,7 +91,7 @@ export const BentoMyTicketsPage: React.FC = () => {
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                             <Inbox className="w-5 h-5 text-blue-600" />
@@ -102,7 +102,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
                             <CircleDot className="w-5 h-5 text-yellow-600" />
@@ -113,7 +113,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                             <CheckCircle className="w-5 h-5 text-green-600" />
@@ -157,7 +157,7 @@ export const BentoMyTicketsPage: React.FC = () => {
             {/* Ticket List */}
             <div className="space-y-4">
                 {filteredTickets.length === 0 ? (
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-12 text-center">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-12 text-center">
                         <Ticket className="w-16 h-16 text-slate-200 dark:text-slate-600 mx-auto mb-4" />
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">No tickets found</h3>
                         <p className="text-slate-500 dark:text-slate-400 mb-6">
@@ -181,7 +181,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                             <Link
                                 key={ticket.id}
                                 to={`/client/tickets/${ticket.id}`}
-                                className="block bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-5 hover:shadow-lg hover:border-primary/30 transition-all group"
+                                className="block bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 hover:shadow-lg hover:border-primary/30 transition-all group"
                             >
                                 <div className="flex items-start gap-4">
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'RESOLVED' ? 'bg-green-100 dark:bg-green-900/30' :

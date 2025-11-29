@@ -143,7 +143,7 @@ export const BentoManageArticlesPage = () => {
             {/* Stats Cards */}
             {stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                                 <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -156,7 +156,7 @@ export const BentoManageArticlesPage = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                                 <Send className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -169,7 +169,7 @@ export const BentoManageArticlesPage = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                                 <Eye className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -182,7 +182,7 @@ export const BentoManageArticlesPage = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
                                 <BarChart3 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -199,7 +199,7 @@ export const BentoManageArticlesPage = () => {
             )}
 
             {/* Filters & Search */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
                 <form onSubmit={handleSearch} className="flex flex-wrap items-center gap-4">
                     <div className="flex-1 min-w-[200px] relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -243,7 +243,7 @@ export const BentoManageArticlesPage = () => {
             </div>
 
             {/* Articles Table */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                 {loading ? (
                     <div className="p-12 text-center text-slate-400 dark:text-slate-500">
                         Loading articles...
@@ -369,8 +369,8 @@ export const BentoManageArticlesPage = () => {
                         const article = articles.find(a => a.id === openDropdown);
                         if (!article) return null;
                         return (
-                            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 py-3 z-50">
-                                <div className="px-4 pb-3 mb-2 border-b border-slate-100 dark:border-slate-700">
+                            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 py-3 z-50">
+                                <div className="px-4 pb-3 mb-2 border-b border-slate-200 dark:border-slate-700">
                                     <p className="font-bold text-slate-800 dark:text-white text-sm line-clamp-1">
                                         {article.title}
                                     </p>
@@ -390,7 +390,7 @@ export const BentoManageArticlesPage = () => {
                                     <Edit className="w-4 h-4" />
                                     Edit Article
                                 </Link>
-                                <div className="border-t border-slate-100 dark:border-slate-700 my-2" />
+                                <div className="border-t border-slate-200 dark:border-slate-700 my-2" />
                                 {article.status !== 'published' && (
                                     <button
                                         onClick={() => handleUpdateStatus(article.id, 'published')}
@@ -418,7 +418,7 @@ export const BentoManageArticlesPage = () => {
                                         Archive
                                     </button>
                                 )}
-                                <div className="border-t border-slate-100 dark:border-slate-700 my-2" />
+                                <div className="border-t border-slate-200 dark:border-slate-700 my-2" />
                                 <button
                                     onClick={() => handleDelete(article.id)}
                                     className="flex items-center gap-3 w-full px-4 py-2.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

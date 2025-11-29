@@ -18,7 +18,7 @@ export const DashboardSkeleton = () => {
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {[...Array(6)].map((_, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700">
+                    <div key={i} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700">
                         <div className="flex items-start justify-between mb-3">
                             <Skeleton className="h-10 w-10 rounded-xl" />
                         </div>
@@ -33,7 +33,7 @@ export const DashboardSkeleton = () => {
                 {/* Left Column - Charts */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Weekly Activity Chart */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div className="space-y-2">
                                 <Skeleton className="h-6 w-32" />
@@ -46,7 +46,7 @@ export const DashboardSkeleton = () => {
                     {/* Status & Priority Charts */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {[...Array(2)].map((_, i) => (
-                            <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                            <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                                 <Skeleton className="h-6 w-32 mb-4" />
                                 <div className="flex items-center gap-6">
                                     <Skeleton className="h-32 w-32 rounded-full" />
@@ -64,8 +64,8 @@ export const DashboardSkeleton = () => {
                     </div>
 
                     {/* Recent Tickets */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                             <Skeleton className="h-6 w-32" />
                             <Skeleton className="h-4 w-16" />
                         </div>
@@ -92,7 +92,7 @@ export const DashboardSkeleton = () => {
                 {/* Right Column - Stats & Info */}
                 <div className="space-y-6">
                     {/* SLA Compliance */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <Skeleton className="h-6 w-40 mb-4" />
                         <div className="flex items-center gap-4">
                             <Skeleton className="h-24 w-24 rounded-full" />
@@ -104,7 +104,7 @@ export const DashboardSkeleton = () => {
                     </div>
 
                     {/* Quick Stats */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <Skeleton className="h-6 w-40 mb-4" />
                         <div className="space-y-4">
                             {[...Array(3)].map((_, i) => (
@@ -117,7 +117,7 @@ export const DashboardSkeleton = () => {
                     </div>
 
                     {/* Top Agents */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <Skeleton className="h-6 w-32 mb-4" />
                         <div className="space-y-3">
                             {[...Array(5)].map((_, i) => (
@@ -133,7 +133,7 @@ export const DashboardSkeleton = () => {
                     </div>
 
                     {/* Categories */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <Skeleton className="h-6 w-32 mb-4" />
                         <div className="space-y-2">
                             {[...Array(5)].map((_, i) => (

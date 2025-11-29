@@ -239,8 +239,8 @@ export const ClientTicketDetailPage: React.FC = () => {
                 {/* Main Content */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Messages */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <MessageSquare className="w-5 h-5 text-primary" />
                                 Conversation
@@ -313,7 +313,7 @@ export const ClientTicketDetailPage: React.FC = () => {
 
                         {/* Reply Box */}
                         {!isClosed && (
-                            <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
                                 <div className="flex gap-3">
                                     <input
                                         type="file"
@@ -363,7 +363,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                         )}
 
                         {isResolved && (
-                            <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-green-50 dark:bg-green-900/20 text-center">
+                            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-green-50 dark:bg-green-900/20 text-center">
                                 <p className="text-sm text-green-600 dark:text-green-400 flex items-center justify-center gap-2">
                                     <CheckCircle className="w-4 h-4" />
                                     This ticket has been resolved
@@ -372,7 +372,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                         )}
 
                         {isCancelled && (
-                            <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-red-50 dark:bg-red-900/20 text-center">
+                            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-red-50 dark:bg-red-900/20 text-center">
                                 <p className="text-sm text-red-600 dark:text-red-400 flex items-center justify-center gap-2">
                                     <Ban className="w-4 h-4" />
                                     This ticket has been cancelled
@@ -385,7 +385,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 {/* Sidebar */}
                 <div className="space-y-6">
                     {/* Ticket Info */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4">Ticket Details</h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
@@ -442,7 +442,7 @@ export const ClientTicketDetailPage: React.FC = () => {
 
                     {/* SLA Info */}
                     {ticket.slaTarget && !isResolved && (
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <Clock className="w-5 h-5 text-primary" />
                                 Expected Resolution

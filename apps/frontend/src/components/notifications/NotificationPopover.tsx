@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Popover from '@radix-ui/react-popover';
-import { Bell, Check, Ticket, UserPlus, MessageSquare, AlertTriangle, Clock, Trash2 } from 'lucide-react';
+import { Bell, Check, Ticket, UserPlus, MessageSquare, AlertTriangle, Clock, Trash2, RefreshCw, CheckCheck, FileText, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '../../lib/socket';
 import { useAuth } from '../../stores/useAuth';
 import api from '../../lib/api';
+import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 interface Notification {
     id: string;
@@ -25,10 +27,45 @@ const NOTIFICATION_ICONS: Record<string, any> = {
     TICKET_UPDATED: Ticket,
     TICKET_RESOLVED: Check,
     TICKET_REPLY: MessageSquare,
+    TICKET_COMMENT: MessageSquare,
     MENTION: MessageSquare,
     SLA_WARNING: Clock,
     SLA_BREACHED: AlertTriangle,
+    CONTRACT_EXPIRING: Calendar,
+    CONTRACT_RENEWED: FileText,
+    SURVEY_RECEIVED: CheckCheck,
     SYSTEM: Bell,
+};
+
+// Get notification route based on type and data
+const getNotificationRoute = (notification: Notification): string => {
+    const { type, ticketId, link } = notification;
+    
+    // If link is explicitly provided, use it
+    if (link) return link;
+    
+    // Route based on notification type
+    switch (type) {
+        case 'TICKET_CREATED':
+        case 'TICKET_ASSIGNED':
+        case 'TICKET_UPDATED':
+        case 'TICKET_RESOLVED':
+        case 'TICKET_REPLY':
+        case 'TICKET_COMMENT':
+        case 'MENTION':
+        case 'SLA_WARNING':
+        case 'SLA_BREACHED':
+        case 'SURVEY_RECEIVED':
+            return ticketId ? `/tickets/${ticketId}` : '/tickets/list';
+            
+        case 'CONTRACT_EXPIRING':
+        case 'CONTRACT_RENEWED':
+            return '/renewal';
+            
+        case 'SYSTEM':
+        default:
+            return '/dashboard';
+    }
 };
 
 const formatTimeAgo = (dateString: string): string => {
@@ -150,15 +187,24 @@ export const NotificationPopover: React.FC = () => {
         };
     }, [socket, user, refetch, queryClient, navigate]);
 
-    const handleNotificationClick = async (notification: Notification) => {
-        if (!notification.isRead) {
-            markAsReadMutation.mutate(notification.id);
-        }
-        if (notification.link) {
-            navigate(notification.link);
+    const handleNotificationClick = useCallback(async (notification: Notification) => {
+        try {
+            // Mark as read first
+            if (!notification.isRead) {
+                markAsReadMutation.mutate(notification.id);
+            }
+            
+            // Get the correct route based on notification type
+            const route = getNotificationRoute(notification);
+            
+            // Navigate to the route
+            navigate(route);
             setIsOpen(false);
+        } catch (error) {
+            logger.error('Failed to handle notification click:', error);
+            toast.error('Failed to open notification');
         }
-    };
+    }, [navigate, markAsReadMutation]);
 
     const getNotificationIcon = (type: string) => {
         const Icon = NOTIFICATION_ICONS[type] || Bell;
@@ -201,7 +247,7 @@ export const NotificationPopover: React.FC = () => {
                     align="end"
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
                         <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <Bell className="w-4 h-4" />
                             Notifications
@@ -284,7 +330,7 @@ export const NotificationPopover: React.FC = () => {
 
                     {/* Footer */}
                     {notifications.length > 0 && (
-                        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                        <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
                             <Link
                                 to="/notifications"
                                 onClick={() => setIsOpen(false)}

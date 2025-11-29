@@ -36,7 +36,7 @@ export const BentoLoginPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
             {/* Abstract Background Shapes */}
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/30 rounded-full blur-3xl animate-pulse delay-1000"></div>

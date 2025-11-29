@@ -15,6 +15,13 @@ export class SurveysService {
     ) { }
 
     async createSurvey(ticket: Ticket) {
+        // Check if survey already exists for this ticket
+        const existingSurvey = await this.surveyRepo.findOne({ where: { ticketId: ticket.id } });
+        if (existingSurvey) {
+            console.log(`[Survey] Survey already exists for ticket ${ticket.id}, skipping creation`);
+            return existingSurvey;
+        }
+
         const token = uuidv4();
         const survey = this.surveyRepo.create({
             ticketId: ticket.id,

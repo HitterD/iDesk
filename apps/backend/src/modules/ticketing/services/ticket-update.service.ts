@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
@@ -90,9 +90,10 @@ export class TicketUpdateService {
         Object.assign(ticket, updateData);
         const savedTicket = await this.ticketRepo.save(ticket);
 
-        // Invalidate dashboard cache
-        this.cacheService.delByPattern('dashboard:stats:*');
+        // Invalidate dashboard cache (await to ensure completion before emitting events)
+        await this.cacheService.delByPattern('dashboard:stats:*');
         this.eventsGateway.notifyDashboardStatsUpdate();
+        this.eventsGateway.notifyTicketListUpdate();
 
         // Log changes as system messages
         if (changes.length > 0) {
@@ -176,6 +177,7 @@ export class TicketUpdateService {
         this.eventsGateway.server.emit('ticket:updated', { ticketId });
         this.eventsGateway.server.emit('NEW_MESSAGE', systemMessage);
         this.eventsGateway.notifyDashboardStatsUpdate();
+        this.eventsGateway.notifyTicketListUpdate();
 
         // Emit Domain Event
         this.eventEmitter.emit(
@@ -253,5 +255,93 @@ export class TicketUpdateService {
         );
 
         return savedTicket;
+    }
+
+    async bulkUpdate(
+        ticketIds: string[],
+        updateData: { status?: TicketStatus; priority?: string; assigneeId?: string; category?: string },
+        userId: string,
+    ): Promise<{ updated: number; failed: string[] }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const tickets = await this.ticketRepo.find({
+            where: { id: In(ticketIds) },
+            relations: ['user', 'assignedTo'],
+        });
+
+        if (tickets.length === 0) {
+            throw new NotFoundException('No tickets found');
+        }
+
+        let assignee: User | null = null;
+        if (updateData.assigneeId) {
+            assignee = await this.userRepo.findOne({ where: { id: updateData.assigneeId } });
+            if (!assignee) {
+                throw new NotFoundException('Assignee not found');
+            }
+            if (assignee.role !== UserRole.AGENT && assignee.role !== UserRole.ADMIN) {
+                throw new BadRequestException('Assignee must be an AGENT or ADMIN');
+            }
+        }
+
+        const updated: string[] = [];
+        const failed: string[] = [];
+
+        for (const ticket of tickets) {
+            try {
+                const changes: string[] = [];
+
+                if (updateData.status && updateData.status !== ticket.status) {
+                    if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
+                        failed.push(ticket.id);
+                        continue;
+                    }
+                    changes.push(`Status: ${ticket.status} → ${updateData.status}`);
+                    ticket.status = updateData.status;
+                }
+
+                if (updateData.priority && updateData.priority !== ticket.priority) {
+                    changes.push(`Priority: ${ticket.priority} → ${updateData.priority}`);
+                    ticket.priority = updateData.priority as any;
+                }
+
+                if (updateData.category && updateData.category !== ticket.category) {
+                    changes.push(`Category: ${ticket.category} → ${updateData.category}`);
+                    ticket.category = updateData.category;
+                }
+
+                if (assignee && ticket.assignedTo?.id !== assignee.id) {
+                    changes.push(`Assigned to: ${assignee.fullName}`);
+                    ticket.assignedTo = assignee;
+                }
+
+                if (changes.length > 0) {
+                    await this.ticketRepo.save(ticket);
+
+                    const systemMessage = this.messageRepo.create({
+                        content: `System: Bulk update by ${user.fullName} - ${changes.join(', ')}`,
+                        ticket,
+                        senderId: userId,
+                        isSystemMessage: true,
+                    });
+                    await this.messageRepo.save(systemMessage);
+
+                    updated.push(ticket.id);
+                }
+            } catch (error) {
+                failed.push(ticket.id);
+            }
+        }
+
+        if (updated.length > 0) {
+            await this.cacheService.delByPattern('dashboard:stats:*');
+            this.eventsGateway.notifyDashboardStatsUpdate();
+            this.eventsGateway.notifyTicketListUpdate();
+        }
+
+        return { updated: updated.length, failed };
     }
 }

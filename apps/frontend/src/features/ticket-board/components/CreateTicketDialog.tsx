@@ -7,6 +7,7 @@ import { X, Loader2 } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
+import { logger } from '@/lib/logger';
 
 const createTicketSchema = z.object({
     requesterName: z.string().min(1, 'Requester name is required'),
@@ -65,12 +66,13 @@ ${data.description}
         onSuccess: () => {
             toast.success('Ticket created successfully');
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             reset();
             onClose();
         },
         onError: (error: any) => {
             // Error handling is done globally by api.ts, but we can add specific logic here if needed
-            console.error('Failed to create ticket:', error);
+            logger.error('Failed to create ticket:', error);
         },
     });
 

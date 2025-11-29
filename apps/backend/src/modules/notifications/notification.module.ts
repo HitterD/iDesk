@@ -27,9 +27,6 @@ import { TicketCreateService } from '../ticketing/services/ticket-create.service
 import { TicketUpdateService } from '../ticketing/services/ticket-update.service';
 import { TicketMessagingService } from '../ticketing/services/ticket-messaging.service';
 
-// Gateways
-import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
-
 @Module({
     imports: [
         TypeOrmModule.forFeature([
@@ -54,9 +51,7 @@ import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway
         EmailChannelService,
         TelegramChannelService,
         InAppChannelService,
-
-        // Gateway for in-app notifications
-        EventsGateway,
+        // Note: EventsGateway is imported from TicketingModule, not provided here
     ],
     exports: [
         NotificationService,

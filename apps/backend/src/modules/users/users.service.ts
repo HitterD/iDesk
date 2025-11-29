@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as fs from 'fs';
 import { User } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
@@ -12,12 +12,15 @@ import { Readable } from 'stream';
 import * as crypto from 'crypto';
 
 import { MailerService } from '@nestjs-modules/mailer';
+import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
 
 @Injectable()
 export class UsersService {
     constructor(
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        @InjectRepository(Ticket)
+        private readonly ticketRepo: Repository<Ticket>,
         private readonly mailerService: MailerService,
     ) { }
 
@@ -283,5 +286,91 @@ export class UsersService {
         await this.userRepo.delete(userId);
 
         return { success: true, message: `User ${user.fullName} deleted successfully` };
+    }
+
+    /**
+     * Get agent performance statistics computed on the server side
+     * Returns ticket counts for each agent
+     */
+    async getAgentStats(): Promise<any> {
+        const agents = await this.userRepo.find({
+            where: { role: In([UserRole.ADMIN, UserRole.AGENT]) },
+            select: ['id', 'fullName', 'email', 'role', 'avatarUrl'],
+            relations: ['department'],
+        });
+
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const agentStats = await Promise.all(
+            agents.map(async (agent) => {
+                // Get ticket counts using SQL aggregation for better performance
+                const stats = await this.ticketRepo
+                    .createQueryBuilder('ticket')
+                    .select([
+                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.TODO}') as "openTickets"`,
+                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.IN_PROGRESS}') as "inProgressTickets"`,
+                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}') as "resolvedTotal"`,
+                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfWeek) as "resolvedThisWeek"`,
+                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfMonth) as "resolvedThisMonth"`,
+                    ])
+                    .where('ticket."assignedToId" = :agentId', { agentId: agent.id })
+                    .setParameter('startOfWeek', startOfWeek)
+                    .setParameter('startOfMonth', startOfMonth)
+                    .getRawOne();
+
+                // Calculate SLA compliance
+                const slaStats = await this.ticketRepo
+                    .createQueryBuilder('ticket')
+                    .select([
+                        'COUNT(*) as "totalWithSla"',
+                        `COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status = '${TicketStatus.RESOLVED}') as "withinSla"`,
+                    ])
+                    .where('ticket."assignedToId" = :agentId', { agentId: agent.id })
+                    .andWhere('ticket."slaTarget" IS NOT NULL')
+                    .getRawOne();
+
+                const totalWithSla = parseInt(slaStats?.totalWithSla || '0');
+                const withinSla = parseInt(slaStats?.withinSla || '0');
+                const slaCompliance = totalWithSla > 0 ? Math.round((withinSla / totalWithSla) * 100) : 100;
+
+                return {
+                    id: agent.id,
+                    fullName: agent.fullName,
+                    email: agent.email,
+                    role: agent.role,
+                    avatarUrl: agent.avatarUrl,
+                    department: agent.department?.name || null,
+                    openTickets: parseInt(stats?.openTickets || '0'),
+                    inProgressTickets: parseInt(stats?.inProgressTickets || '0'),
+                    resolvedTotal: parseInt(stats?.resolvedTotal || '0'),
+                    resolvedThisWeek: parseInt(stats?.resolvedThisWeek || '0'),
+                    resolvedThisMonth: parseInt(stats?.resolvedThisMonth || '0'),
+                    slaCompliance,
+                };
+            })
+        );
+
+        // Calculate summary stats
+        const totalAgents = agentStats.length;
+        const onlineAgents = agentStats.length; // Placeholder - would need presence tracking
+        const totalResolved = agentStats.reduce((sum, a) => sum + a.resolvedThisMonth, 0);
+        const avgTicketsPerAgent = totalAgents > 0 ? Math.round(totalResolved / totalAgents) : 0;
+        const topPerformer = agentStats.sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
+
+        return {
+            summary: {
+                totalAgents,
+                onlineAgents,
+                totalResolvedThisMonth: totalResolved,
+                avgTicketsPerAgent,
+                topPerformer: topPerformer?.fullName || null,
+            },
+            agents: agentStats,
+        };
     }
 }

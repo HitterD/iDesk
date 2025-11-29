@@ -66,7 +66,7 @@ export class FeatureErrorBoundary extends Component<Props, State> {
                         <RefreshCw className="w-4 h-4" />
                         Try Again
                     </button>
-                    {process.env.NODE_ENV === 'development' && this.state.error && (
+                    {import.meta.env.DEV && this.state.error && (
                         <details className="mt-4 text-left w-full">
                             <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400">
                                 Error Details (Dev Only)

@@ -76,8 +76,8 @@ export class TicketCreateService {
 
             await this.ticketRepo.save(ticket);
 
-            // Invalidate dashboard cache
-            this.cacheService.delByPattern('dashboard:stats:*');
+            // Invalidate dashboard cache (await to ensure completion before emitting events)
+            await this.cacheService.delByPattern('dashboard:stats:*');
             this.eventsGateway.notifyDashboardStatsUpdate();
 
             // Save initial message with attachments

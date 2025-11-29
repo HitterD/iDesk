@@ -144,12 +144,8 @@ export class TicketQueryService {
     }
 
     async getDashboardStats(userId: string, role: UserRole) {
-        const cacheKey = CacheKeys.dashboardStats(userId);
-
-        // Try to get from cache first (60 second TTL)
-        return this.cacheService.getOrSet(cacheKey, async () => {
-            return this.computeDashboardStats();
-        }, 60);
+        // Always compute fresh stats (cache disabled for real-time accuracy)
+        return this.computeDashboardStats();
     }
 
     private async computeDashboardStats() {

@@ -2,8 +2,10 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TicketsController } from './presentation/tickets.controller';
+import { TicketTemplatesController } from './presentation/ticket-templates.controller';
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
+import { TicketTemplate } from './entities/ticket-template.entity';
 import { User } from '../users/entities/user.entity';
 import { CustomerSession } from '../users/entities/customer-session.entity';
 import { EventsGateway } from './presentation/gateways/events.gateway';
@@ -33,6 +35,8 @@ import { TicketCreateService } from './services/ticket-create.service';
 import { TicketUpdateService } from './services/ticket-update.service';
 import { TicketMessagingService } from './services/ticket-messaging.service';
 import { TicketQueryService } from './services/ticket-query.service';
+import { TicketTemplateService } from './services/ticket-template.service';
+import { TicketMergeService } from './services/ticket-merge.service';
 
 // Legacy/Partial refactored services (keeping for safety if used elsewhere)
 import { TicketRepository } from './repositories/ticket.repository';
@@ -42,7 +46,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Ticket, TicketMessage, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute]),
+        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketTemplate, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute]),
         ReportsModule,
         KnowledgeBaseModule,
         MailerModule,
@@ -52,13 +56,15 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         forwardRef(() => NotificationModule),
         CacheModule.register(),
     ],
-    controllers: [TicketsController, SlaConfigController, SavedRepliesController, SurveysController, TicketAttributesController],
+    controllers: [TicketsController, TicketTemplatesController, SlaConfigController, SavedRepliesController, SurveysController, TicketAttributesController],
     providers: [
         // Core services (Split)
         TicketCreateService,
         TicketUpdateService,
         TicketMessagingService,
         TicketQueryService,
+        TicketTemplateService,
+        TicketMergeService,
 
         SlaCheckerService,
         SlaConfigService,
@@ -77,6 +83,8 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketUpdateService,
         TicketMessagingService,
         TicketQueryService,
+        TicketTemplateService,
+        TicketMergeService,
         EventsGateway,
         TicketRepository,
         TicketNotificationService,

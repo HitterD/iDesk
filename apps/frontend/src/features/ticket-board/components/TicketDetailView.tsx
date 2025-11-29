@@ -183,6 +183,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
             queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
     });
 
@@ -193,6 +195,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
             queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
     });
 
@@ -203,6 +207,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
             queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
     });
 

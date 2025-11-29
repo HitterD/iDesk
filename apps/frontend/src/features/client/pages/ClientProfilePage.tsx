@@ -120,7 +120,7 @@ export const ClientProfilePage: React.FC = () => {
             </div>
 
             {/* Profile Card */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center gap-4 mb-6">
                     <div className="relative">
                         <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary">
@@ -381,7 +381,7 @@ export const ClientProfilePage: React.FC = () => {
                                         : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                             >
-                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-yellow-500 shadow-sm border border-slate-100">
+                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-yellow-500 shadow-sm border border-slate-200">
                                     <Sun className="w-5 h-5" />
                                 </div>
                                 <div>

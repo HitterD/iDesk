@@ -10,6 +10,8 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
     cors: {
@@ -23,6 +25,11 @@ export class EventsGateway
     private logger: Logger = new Logger('EventsGateway');
     // Map to store socketId -> userId
     private connectedUsers: Map<string, string> = new Map();
+    
+    constructor(
+        private readonly jwtService: JwtService,
+        private readonly configService: ConfigService,
+    ) {}
 
     afterInit(server: Server) {
         this.logger.log('EventsGateway Initialized');
@@ -44,8 +51,32 @@ export class EventsGateway
 
     handleConnection(client: Socket, ...args: any[]) {
         this.logger.log(`Client connected: ${client.id}`);
-        // Note: Actual authentication and userId mapping happens in 'identify' event or via query params
-        // For now, we rely on a manual 'identify' message from client
+        
+        // Try to authenticate via token in handshake
+        try {
+            const token = client.handshake.auth?.token || 
+                          client.handshake.headers?.authorization?.split(' ')[1] ||
+                          client.handshake.query?.token;
+            
+            if (token) {
+                const payload = this.jwtService.verify(token, {
+                    secret: this.configService.get('JWT_SECRET'),
+                });
+                
+                if (payload && payload.sub) {
+                    // Auto-identify user from token
+                    client.data.userId = payload.sub;
+                    client.data.role = payload.role;
+                    this.connectedUsers.set(client.id, payload.sub);
+                    client.join(`user:${payload.sub}`);
+                    this.server.emit('user:online', { userId: payload.sub });
+                    this.logger.log(`User auto-authenticated: ${payload.sub} (Socket: ${client.id})`);
+                }
+            }
+        } catch (error) {
+            // Token verification failed - allow connection but require manual identify
+            this.logger.debug(`Token verification failed for ${client.id}: ${error.message}`);
+        }
     }
 
     @SubscribeMessage('identify')

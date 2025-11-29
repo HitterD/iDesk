@@ -1,9 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { X, Upload, FileText, Loader2, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { useUploadContract, useUpdateContract } from '../hooks/useRenewalApi';
 import { UploadResponse, ValidationInfo, isUploadWarning } from '../types/renewal.types';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface ContractUploadModalProps {
     isOpen: boolean;
@@ -13,9 +15,11 @@ interface ContractUploadModalProps {
 export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen, onClose }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
     const [showScannedWarning, setShowScannedWarning] = useState(false);
     const [validationInfo, setValidationInfo] = useState<ValidationInfo | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         poNumber: '',
         vendorName: '',
@@ -58,13 +62,28 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
     const handleUpload = async (forceUpload = false) => {
         if (!file) return;
 
+        setUploadError(null);
+        setUploadProgress(0);
+        
+        // Simulate progress for better UX
+        const progressInterval = setInterval(() => {
+            setUploadProgress(prev => {
+                if (prev >= 90) return prev;
+                return prev + Math.random() * 15;
+            });
+        }, 200);
+
         try {
             const result = await uploadMutation.mutateAsync({ file, forceUpload });
+            
+            clearInterval(progressInterval);
+            setUploadProgress(100);
             
             // Check if this is a validation warning
             if (isUploadWarning(result)) {
                 setValidationInfo(result.validation);
                 setShowScannedWarning(true);
+                setUploadProgress(0);
                 return;
             }
 
@@ -85,8 +104,12 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
             } else {
                 toast.success('PDF extracted successfully! Please review the data.');
             }
-        } catch (error) {
-            toast.error('Failed to upload and extract PDF');
+        } catch (error: any) {
+            clearInterval(progressInterval);
+            setUploadProgress(0);
+            const errorMessage = error?.response?.data?.message || error?.message || 'Failed to upload and extract PDF';
+            setUploadError(errorMessage);
+            toast.error(errorMessage);
         }
     };
 
@@ -127,6 +150,8 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
         setUploadResult(null);
         setShowScannedWarning(false);
         setValidationInfo(null);
+        setUploadProgress(0);
+        setUploadError(null);
         setFormData({
             poNumber: '',
             vendorName: '',
@@ -206,6 +231,30 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                                 )}
                             </div>
 
+                            {/* Upload Progress */}
+                            {uploadMutation.isPending && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-slate-600 dark:text-slate-300">
+                                            {uploadProgress < 50 ? 'Uploading...' : 'Extracting data...'}
+                                        </span>
+                                        <span className="text-slate-500">{Math.round(uploadProgress)}%</span>
+                                    </div>
+                                    <Progress value={uploadProgress} className="h-2" />
+                                </div>
+                            )}
+
+                            {/* Error Display */}
+                            {uploadError && (
+                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
+                                    <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="font-medium text-red-800 dark:text-red-300">Upload Failed</p>
+                                        <p className="text-sm text-red-600 dark:text-red-400">{uploadError}</p>
+                                    </div>
+                                </div>
+                            )}
+
                             <Button
                                 onClick={() => handleUpload(false)}
                                 disabled={!file || uploadMutation.isPending}
@@ -214,7 +263,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                                 {uploadMutation.isPending ? (
                                     <>
                                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        Extracting Data...
+                                        Processing...
                                     </>
                                 ) : (
                                     <>

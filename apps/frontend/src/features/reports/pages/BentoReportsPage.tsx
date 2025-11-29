@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-    Download, FileSpreadsheet, BarChart3, Clock, AlertCircle,
+    FileSpreadsheet, BarChart3, Clock, AlertCircle,
     Users, FileText, Calendar, TrendingUp, Target, CheckCircle,
-    Loader2
+    Loader2, ChevronDown
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
+import { DATE_PRESETS, getDefaultDateRange } from '@/lib/constants/date-presets';
+import { cn } from '@/lib/utils';
 
+// Types
 interface MonthlyStats {
     month: number;
     year: number;
@@ -43,10 +48,19 @@ interface TicketVolumeData {
     };
 }
 
-const ReportCard = ({ title, value, icon: Icon, color, subtext }: any) => (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all duration-300 group">
+type ReportTab = 'monthly' | 'agent' | 'volume';
+
+// Reusable Report Card Component
+const ReportCard: React.FC<{
+    title: string;
+    value: string | number;
+    icon: React.ElementType;
+    color: string;
+    subtext?: string;
+}> = ({ title, value, icon: Icon, color, subtext }) => (
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 hover:shadow-md transition-all duration-300 group">
         <div className="flex justify-between items-start mb-4">
-            <div className={`p-3 rounded-2xl ${color} text-white group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+            <div className={cn("p-3 rounded-2xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg", color)}>
                 <Icon className="w-6 h-6" />
             </div>
         </div>
@@ -56,74 +70,144 @@ const ReportCard = ({ title, value, icon: Icon, color, subtext }: any) => (
     </div>
 );
 
-type ReportTab = 'monthly' | 'agent' | 'volume';
+// Loading Skeleton
+const ReportSkeleton: React.FC = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 animate-pulse">
+                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700 rounded-2xl mb-4" />
+                <div className="w-20 h-4 bg-slate-200 dark:bg-slate-700 rounded mb-2" />
+                <div className="w-16 h-8 bg-slate-200 dark:bg-slate-700 rounded" />
+            </div>
+        ))}
+    </div>
+);
 
-export const BentoReportsPage = () => {
+// Date Range Picker with Presets
+const DateRangePicker: React.FC<{
+    startDate: string;
+    endDate: string;
+    onStartDateChange: (date: string) => void;
+    onEndDateChange: (date: string) => void;
+}> = ({ startDate, endDate, onStartDateChange, onEndDateChange }) => {
+    const [showPresets, setShowPresets] = useState(false);
+
+    const handlePresetSelect = (preset: typeof DATE_PRESETS[0]) => {
+        const { startDate: start, endDate: end } = preset.getValue();
+        onStartDateChange(start);
+        onEndDateChange(end);
+        setShowPresets(false);
+    };
+
+    return (
+        <div className="flex flex-wrap gap-4 items-center">
+            <div className="relative">
+                <button
+                    onClick={() => setShowPresets(!showPresets)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                    Quick Select
+                    <ChevronDown className="w-4 h-4" />
+                </button>
+                {showPresets && (
+                    <div className="absolute top-full mt-2 left-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-2 min-w-[160px]">
+                        {DATE_PRESETS.map((preset) => (
+                            <button
+                                key={preset.label}
+                                onClick={() => handlePresetSelect(preset)}
+                                className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            >
+                                {preset.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400">From:</span>
+                <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => onStartDateChange(e.target.value)}
+                    className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
+                />
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400">To:</span>
+                <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => onEndDateChange(e.target.value)}
+                    className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
+                />
+            </div>
+        </div>
+    );
+};
+
+export const BentoReportsPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ReportTab>('monthly');
-    const [month, setMonth] = useState<string>(new Date().getMonth() + 1 + '');
-    const [year, setYear] = useState<string>(new Date().getFullYear() + '');
-    const [startDate, setStartDate] = useState<string>(() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return d.toISOString().split('T')[0];
-    });
-    const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-
-    const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
-    const [agentMetrics, setAgentMetrics] = useState<AgentMetrics[]>([]);
-    const [volumeData, setVolumeData] = useState<TicketVolumeData | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [month, setMonth] = useState<string>((new Date().getMonth() + 1).toString());
+    const [year, setYear] = useState<string>(new Date().getFullYear().toString());
+    
+    const defaultDateRange = useMemo(() => getDefaultDateRange(), []);
+    const [startDate, setStartDate] = useState<string>(defaultDateRange.startDate);
+    const [endDate, setEndDate] = useState<string>(defaultDateRange.endDate);
     const [exporting, setExporting] = useState(false);
 
-    // Fetch Monthly Stats
-    const fetchMonthlyStats = async () => {
-        setLoading(true);
-        try {
+    // Monthly Stats Query
+    const {
+        data: monthlyStats,
+        isLoading: monthlyLoading,
+        error: monthlyError,
+    } = useQuery<MonthlyStats>({
+        queryKey: ['reports', 'monthly', month, year],
+        queryFn: async () => {
             const response = await api.get(`/reports/monthly?month=${month}&year=${year}`);
-            setMonthlyStats(response.data);
-        } catch (error) {
-            console.error('Failed to fetch stats:', error);
-            toast.error('Failed to fetch monthly statistics');
-        } finally {
-            setLoading(false);
-        }
-    };
+            return response.data;
+        },
+        enabled: activeTab === 'monthly',
+        staleTime: 60000, // 1 minute
+        retry: 2,
+    });
 
-    // Fetch Agent Performance
-    const fetchAgentPerformance = async () => {
-        setLoading(true);
-        try {
+    // Agent Performance Query
+    const {
+        data: agentMetricsData,
+        isLoading: agentLoading,
+        error: agentError,
+    } = useQuery<{ data: AgentMetrics[] }>({
+        queryKey: ['reports', 'agent-performance', startDate, endDate],
+        queryFn: async () => {
             const response = await api.get(`/reports/agent-performance?startDate=${startDate}&endDate=${endDate}`);
-            setAgentMetrics(response.data.data || []);
-        } catch (error) {
-            console.error('Failed to fetch agent performance:', error);
-            toast.error('Failed to fetch agent performance data');
-        } finally {
-            setLoading(false);
-        }
-    };
+            return response.data;
+        },
+        enabled: activeTab === 'agent',
+        staleTime: 60000,
+        retry: 2,
+    });
 
-    // Fetch Ticket Volume
-    const fetchTicketVolume = async () => {
-        setLoading(true);
-        try {
+    const agentMetrics = agentMetricsData?.data || [];
+
+    // Ticket Volume Query
+    const {
+        data: volumeDataResponse,
+        isLoading: volumeLoading,
+        error: volumeError,
+    } = useQuery<{ data: TicketVolumeData }>({
+        queryKey: ['reports', 'ticket-volume', startDate, endDate],
+        queryFn: async () => {
             const response = await api.get(`/reports/ticket-volume?startDate=${startDate}&endDate=${endDate}`);
-            setVolumeData(response.data.data || null);
-        } catch (error) {
-            console.error('Failed to fetch ticket volume:', error);
-            toast.error('Failed to fetch ticket volume data');
-        } finally {
-            setLoading(false);
-        }
-    };
+            return response.data;
+        },
+        enabled: activeTab === 'volume',
+        staleTime: 60000,
+        retry: 2,
+    });
 
-    useEffect(() => {
-        if (activeTab === 'monthly') fetchMonthlyStats();
-        else if (activeTab === 'agent') fetchAgentPerformance();
-        else if (activeTab === 'volume') fetchTicketVolume();
-    }, [activeTab, month, year, startDate, endDate]);
+    const volumeData = volumeDataResponse?.data || null;
 
-    // Download handlers
+    // Download handler with proper error handling
     const downloadFile = async (url: string, filename: string) => {
         setExporting(true);
         try {
@@ -135,9 +219,10 @@ export const BentoReportsPage = () => {
             document.body.appendChild(link);
             link.click();
             link.remove();
+            window.URL.revokeObjectURL(blobUrl);
             toast.success('Report downloaded successfully');
         } catch (error) {
-            console.error('Failed to download report:', error);
+            logger.error('Failed to download report:', error);
             toast.error('Failed to download report');
         } finally {
             setExporting(false);
@@ -164,11 +249,19 @@ export const BentoReportsPage = () => {
         downloadFile(`/reports/export/excel/custom?startDate=${startDate}&endDate=${endDate}`, `comprehensive-report-${startDate}-to-${endDate}.xlsx`);
     };
 
+    // Show error if any query failed
+    const currentError = activeTab === 'monthly' ? monthlyError : activeTab === 'agent' ? agentError : volumeError;
+    if (currentError) {
+        logger.error('Report fetch error:', currentError);
+    }
+
     const tabs = [
         { id: 'monthly' as ReportTab, label: 'Monthly Summary', icon: Calendar },
         { id: 'agent' as ReportTab, label: 'Agent Performance', icon: Users },
         { id: 'volume' as ReportTab, label: 'Ticket Volume', icon: BarChart3 },
     ];
+
+    const loading = activeTab === 'monthly' ? monthlyLoading : activeTab === 'agent' ? agentLoading : volumeLoading;
 
     return (
         <div className="space-y-8">
@@ -186,10 +279,12 @@ export const BentoReportsPage = () => {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${activeTab === tab.id
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all",
+                            activeTab === tab.id
                                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
                                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                            }`}
+                        )}
                     >
                         <tab.icon className="w-4 h-4" />
                         {tab.label}
@@ -224,7 +319,7 @@ export const BentoReportsPage = () => {
                         </Select>
                         <button
                             onClick={handleExportMonthlyExcel}
-                            disabled={exporting}
+                            disabled={exporting || monthlyLoading}
                             className="flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-all disabled:opacity-50"
                         >
                             {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
@@ -232,7 +327,7 @@ export const BentoReportsPage = () => {
                         </button>
                         <button
                             onClick={handleExportMonthlyPDF}
-                            disabled={exporting}
+                            disabled={exporting || monthlyLoading}
                             className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-all disabled:opacity-50"
                         >
                             {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
@@ -240,11 +335,9 @@ export const BentoReportsPage = () => {
                         </button>
                     </div>
 
-                    {loading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                        </div>
-                    ) : monthlyStats && (
+                    {monthlyLoading ? (
+                        <ReportSkeleton />
+                    ) : monthlyStats ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <ReportCard title="Total Tickets" value={monthlyStats.totalTickets} icon={FileSpreadsheet} color="bg-blue-500" />
                             <ReportCard
@@ -257,6 +350,8 @@ export const BentoReportsPage = () => {
                             <ReportCard title="Open Tickets" value={monthlyStats.openTickets} icon={AlertCircle} color="bg-orange-500" />
                             <ReportCard title="Avg Resolution Time" value={`${monthlyStats.avgResolutionTimeHours}h`} icon={Clock} color="bg-purple-500" />
                         </div>
+                    ) : (
+                        <div className="text-center py-12 text-slate-500">No data available for selected period</div>
                     )}
                 </div>
             )}
@@ -264,44 +359,34 @@ export const BentoReportsPage = () => {
             {/* Agent Performance Tab */}
             {activeTab === 'agent' && (
                 <div className="space-y-6">
-                    <div className="flex flex-wrap gap-4 items-center">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-500 dark:text-slate-400">From:</span>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
-                            />
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                        <DateRangePicker
+                            startDate={startDate}
+                            endDate={endDate}
+                            onStartDateChange={setStartDate}
+                            onEndDateChange={setEndDate}
+                        />
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleExportAgentPDF}
+                                disabled={exporting || agentLoading}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-all disabled:opacity-50"
+                            >
+                                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                                Export PDF
+                            </button>
+                            <button
+                                onClick={handleExportCustomExcel}
+                                disabled={exporting || agentLoading}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-all disabled:opacity-50"
+                            >
+                                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                                Export Excel
+                            </button>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-500 dark:text-slate-400">To:</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
-                            />
-                        </div>
-                        <button
-                            onClick={handleExportAgentPDF}
-                            disabled={exporting}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-all disabled:opacity-50"
-                        >
-                            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                            Export PDF
-                        </button>
-                        <button
-                            onClick={handleExportCustomExcel}
-                            disabled={exporting}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-all disabled:opacity-50"
-                        >
-                            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                            Export Excel
-                        </button>
                     </div>
 
-                    {loading ? (
+                    {agentLoading ? (
                         <div className="flex items-center justify-center py-20">
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         </div>
@@ -331,19 +416,23 @@ export const BentoReportsPage = () => {
                                             <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">{agent.totalAssigned}</td>
                                             <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">{agent.totalResolved}</td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${agent.resolutionRate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                        agent.resolutionRate >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                                    }`}>
+                                                <span className={cn(
+                                                    "px-2 py-1 rounded-full text-xs font-medium",
+                                                    agent.resolutionRate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                    agent.resolutionRate >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                )}>
                                                     {agent.resolutionRate.toFixed(1)}%
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">{agent.avgResponseTimeMinutes}m</td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${agent.slaComplianceRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                        agent.slaComplianceRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                                    }`}>
+                                                <span className={cn(
+                                                    "px-2 py-1 rounded-full text-xs font-medium",
+                                                    agent.slaComplianceRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                    agent.slaComplianceRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                )}>
                                                     {agent.slaComplianceRate.toFixed(1)}%
                                                 </span>
                                             </td>
@@ -359,48 +448,36 @@ export const BentoReportsPage = () => {
             {/* Ticket Volume Tab */}
             {activeTab === 'volume' && (
                 <div className="space-y-6">
-                    <div className="flex flex-wrap gap-4 items-center">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-500 dark:text-slate-400">From:</span>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
-                            />
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                        <DateRangePicker
+                            startDate={startDate}
+                            endDate={endDate}
+                            onStartDateChange={setStartDate}
+                            onEndDateChange={setEndDate}
+                        />
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleExportVolumePDF}
+                                disabled={exporting || volumeLoading}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-all disabled:opacity-50"
+                            >
+                                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                                Export PDF
+                            </button>
+                            <button
+                                onClick={handleExportCustomExcel}
+                                disabled={exporting || volumeLoading}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-all disabled:opacity-50"
+                            >
+                                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                                Export Excel
+                            </button>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-500 dark:text-slate-400">To:</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
-                            />
-                        </div>
-                        <button
-                            onClick={handleExportVolumePDF}
-                            disabled={exporting}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-all disabled:opacity-50"
-                        >
-                            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                            Export PDF
-                        </button>
-                        <button
-                            onClick={handleExportCustomExcel}
-                            disabled={exporting}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-all disabled:opacity-50"
-                        >
-                            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                            Export Excel
-                        </button>
                     </div>
 
-                    {loading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                        </div>
-                    ) : volumeData && (
+                    {volumeLoading ? (
+                        <ReportSkeleton />
+                    ) : volumeData ? (
                         <>
                             {/* Summary Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -423,11 +500,13 @@ export const BentoReportsPage = () => {
                                     <div className="space-y-3">
                                         {Object.entries(volumeData.byPriority).map(([priority, count]) => (
                                             <div key={priority} className="flex items-center justify-between">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${priority === 'CRITICAL' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                                        priority === 'HIGH' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                                            priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                                'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                    }`}>
+                                                <span className={cn(
+                                                    "px-3 py-1 rounded-full text-xs font-medium",
+                                                    priority === 'CRITICAL' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                                    priority === 'HIGH' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                                                    priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                )}>
                                                     {priority}
                                                 </span>
                                                 <span className="font-semibold text-slate-700 dark:text-slate-200">{count}</span>
@@ -441,11 +520,13 @@ export const BentoReportsPage = () => {
                                     <div className="space-y-3">
                                         {Object.entries(volumeData.byStatus).map(([status, count]) => (
                                             <div key={status} className="flex items-center justify-between">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${status === 'RESOLVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                        status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                            status === 'TODO' ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' :
-                                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                                    }`}>
+                                                <span className={cn(
+                                                    "px-3 py-1 rounded-full text-xs font-medium",
+                                                    status === 'RESOLVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                    status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                    status === 'TODO' ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' :
+                                                    'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                                )}>
                                                     {status.replace('_', ' ')}
                                                 </span>
                                                 <span className="font-semibold text-slate-700 dark:text-slate-200">{count}</span>
@@ -484,9 +565,13 @@ export const BentoReportsPage = () => {
                                 </div>
                             </div>
                         </>
+                    ) : (
+                        <div className="text-center py-12 text-slate-500">No data available for selected period</div>
                     )}
                 </div>
             )}
         </div>
     );
 };
+
+export default BentoReportsPage;

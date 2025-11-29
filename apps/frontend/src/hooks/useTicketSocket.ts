@@ -143,6 +143,7 @@ export const useTicketListSocket = (options?: { onNewTicket?: (ticket: any) => v
 
         const handleStatusChange = () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         };
 
         const handleNewTicket = (ticket: any) => {
@@ -160,15 +161,22 @@ export const useTicketListSocket = (options?: { onNewTicket?: (ticket: any) => v
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         };
 
+        const handleTicketUpdated = () => {
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        };
+
         socket.on('tickets:listUpdated', handleListUpdate);
         socket.on('tickets:statusChanged', handleStatusChange);
         socket.on('ticket:created', handleNewTicket);
+        socket.on('ticket:updated', handleTicketUpdated);
         socket.on('dashboard:stats:update', handleDashboardStatsUpdate);
 
         return () => {
             socket.off('tickets:listUpdated', handleListUpdate);
             socket.off('tickets:statusChanged', handleStatusChange);
             socket.off('ticket:created', handleNewTicket);
+            socket.off('ticket:updated', handleTicketUpdated);
             socket.off('dashboard:stats:update', handleDashboardStatsUpdate);
         };
     }, [isConnected, socket, queryClient, options?.onNewTicket]);

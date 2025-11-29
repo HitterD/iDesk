@@ -1,4 +1,3 @@
-import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const TicketListSkeleton = () => {
@@ -22,7 +21,7 @@ export const TicketListSkeleton = () => {
             {/* Stats Cards */}
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                 {[...Array(6)].map((_, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-slate-100 dark:border-slate-700">
+                    <div key={i} className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center gap-3">
                             <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
                             <div className="min-w-0 flex-1 space-y-1">
@@ -35,7 +34,7 @@ export const TicketListSkeleton = () => {
             </div>
 
             {/* Search & Filters */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-wrap items-center gap-4">
                     <Skeleton className="flex-1 h-12 rounded-xl min-w-[250px]" />
                     <Skeleton className="h-12 w-32 rounded-xl" />
@@ -44,9 +43,9 @@ export const TicketListSkeleton = () => {
             </div>
 
             {/* Tickets List */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {/* Table Header */}
-                <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
                     <div className="col-span-4"><Skeleton className="h-4 w-16" /></div>
                     <div className="col-span-2"><Skeleton className="h-4 w-20" /></div>
                     <div className="col-span-2"><Skeleton className="h-4 w-16" /></div>

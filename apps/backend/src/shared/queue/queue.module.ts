@@ -11,6 +11,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
  * - REDIS_ENABLED: Set to 'true' to enable Redis queues (default: false)
  * 
  * When Redis is disabled, the system uses in-memory processing.
+ * 
+ * Available Queues:
+ * - notifications: For in-app and push notifications
+ * - emails: For email sending (transactional, bulk, ticket notifications)
+ * - file-processing: For file processing tasks
+ * - reports: For report generation tasks
  */
 @Global()
 @Module({})
@@ -69,7 +75,9 @@ export class QueueModule {
                     },
                 }),
                 BullModule.registerQueue({ name: 'notifications' }),
+                BullModule.registerQueue({ name: 'emails' }),
                 BullModule.registerQueue({ name: 'file-processing' }),
+                BullModule.registerQueue({ name: 'reports' }),
             ],
             exports: [BullModule],
         };

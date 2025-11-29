@@ -12,8 +12,7 @@ import {
     Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -23,6 +22,7 @@ import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
 
 @ApiTags('Users')
 @Controller('users')
@@ -80,20 +80,15 @@ export class UsersController {
 
     @Post('avatar')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FileInterceptor('file', {
-        storage: diskStorage({
-            destination: './uploads',
-            filename: (req, file, cb) => {
-                const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
-                cb(null, `${randomName}${extname(file.originalname)}`);
-            },
-        }),
-    }))
+    @Throttle({ default: UPLOAD_RATE_LIMITS.avatar })
+    @UseInterceptors(FileInterceptor('file', MULTER_OPTIONS.avatar))
     @ApiOperation({ summary: 'Upload user avatar' })
+    @ApiConsumes('multipart/form-data')
     @ApiResponse({ status: 201, description: 'Avatar uploaded successfully.' })
+    @ApiResponse({ status: 400, description: 'Invalid file type or size.' })
     async uploadAvatar(@Req() req, @UploadedFile() file: Express.Multer.File) {
         const userId = req.user.userId;
-        const avatarUrl = `/uploads/${file.filename}`;
+        const avatarUrl = `/uploads/avatars/${file.filename}`;
         return this.usersService.updateAvatar(userId, avatarUrl, file.path);
     }
 
@@ -104,6 +99,15 @@ export class UsersController {
     @ApiResponse({ status: 200, description: 'Return all agents.' })
     async getAgents() {
         return this.usersService.getAgents();
+    }
+
+    @Get('agents/stats')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Get agent performance statistics' })
+    @ApiResponse({ status: 200, description: 'Return agent stats with ticket counts.' })
+    async getAgentStats() {
+        return this.usersService.getAgentStats();
     }
 
     @Get()
@@ -118,7 +122,8 @@ export class UsersController {
     @Post('import')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    @UseInterceptors(FileInterceptor('file'))
+    @Throttle({ default: UPLOAD_RATE_LIMITS.import })
+    @UseInterceptors(FileInterceptor('file', MULTER_OPTIONS.csv))
     @ApiOperation({ summary: 'Import users from CSV' })
     @ApiConsumes('multipart/form-data')
     @ApiBody({
@@ -133,6 +138,7 @@ export class UsersController {
         },
     })
     @ApiResponse({ status: 201, description: 'Users imported successfully.' })
+    @ApiResponse({ status: 400, description: 'Invalid file type or size.' })
     async importUsers(@UploadedFile() file: Express.Multer.File) {
         return this.usersService.importUsers(file);
     }
@@ -152,6 +158,7 @@ export class UsersController {
     @Post(':id/reset-password')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 resets per minute
     @ApiOperation({ summary: 'Reset user password (Admin/Agent)' })
     @ApiResponse({ status: 200, description: 'Password reset successfully.' })
     async resetUserPassword(

@@ -21,6 +21,8 @@ import { Department } from './modules/users/entities/department.entity';
 import { SlaConfig } from './modules/ticketing/entities/sla-config.entity';
 import { SavedReply } from './modules/ticketing/entities/saved-reply.entity';
 import { TicketSurvey } from './modules/ticketing/entities/ticket-survey.entity';
+import { TicketTemplate } from './modules/ticketing/entities/ticket-template.entity';
+import { AuditLog } from './modules/audit/entities/audit-log.entity';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -44,6 +46,7 @@ import { RenewalContract } from './modules/renewal/entities/renewal-contract.ent
 import { AppCacheModule } from './shared/core/cache';
 import { QueueModule } from './shared/queue';
 import { UploadModule } from './shared/upload';
+import { AuditModule } from './modules/audit';
 
 @Module({
     imports: [
@@ -63,13 +66,20 @@ import { UploadModule } from './shared/upload';
             username: process.env.DB_USERNAME || 'postgres',
             password: process.env.DB_PASSWORD || 'postgres',
             database: process.env.DB_DATABASE || 'idesk_db',
-            entities: [User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig, SavedReply, TicketSurvey, TicketAttribute, Article, ArticleView, Notification, NotificationPreference, NotificationLog, TelegramSession, SavedSearch, RenewalContract],
+            entities: [User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig, SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article, ArticleView, Notification, NotificationPreference, NotificationLog, TelegramSession, SavedSearch, RenewalContract, AuditLog],
             // SECURITY: Use migrations in production, never auto-sync
             synchronize: process.env.NODE_ENV !== 'production',
             // Enable migrations for production
             migrationsRun: process.env.NODE_ENV === 'production',
             migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
             logging: process.env.DB_LOGGING === 'true',
+            // Connection Pool Configuration (Section 5.3.B)
+            extra: {
+                max: parseInt(process.env.DB_POOL_MAX, 10) || 20,
+                min: parseInt(process.env.DB_POOL_MIN, 10) || 5,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 5000,
+            },
         }),
         ServeStaticModule.forRoot({
             rootPath: join(process.cwd(), 'uploads'),
@@ -112,6 +122,7 @@ import { UploadModule } from './shared/upload';
         AppCacheModule,
         QueueModule.forRoot(),
         UploadModule,
+        AuditModule,
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 100, // 100 requests per minute

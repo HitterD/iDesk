@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { io, Socket } from 'socket.io-client';
 import { useEffect } from 'react';
 import { useSocket } from '@/lib/socket';
 

@@ -4,45 +4,43 @@ import {
     UseInterceptors,
     UploadedFiles,
     BadRequestException,
+    UseGuards,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS, FILE_SIZE_LIMITS } from '../../shared/core/config/upload.config';
 
+@ApiTags('Uploads')
+@ApiBearerAuth()
 @Controller('uploads')
 export class UploadsController {
     @Post()
+    @UseGuards(JwtAuthGuard)
+    @Throttle({ default: UPLOAD_RATE_LIMITS.attachment })
     @UseInterceptors(
         FilesInterceptor('files', 10, {
-            storage: diskStorage({
-                destination: './uploads',
-                filename: (req, file, callback) => {
-                    const uniqueSuffix = uuidv4();
-                    const ext = extname(file.originalname);
-                    callback(null, `${uniqueSuffix}${ext}`);
-                },
-            }),
-            fileFilter: (req, file, callback) => {
-                if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-                    return callback(
-                        new BadRequestException('Only image files are allowed!'),
-                        false,
-                    );
-                }
-                callback(null, true);
-            },
-            limits: {
-                fileSize: 5 * 1024 * 1024, // 5MB
-            },
+            ...MULTER_OPTIONS.image,
+            limits: { fileSize: FILE_SIZE_LIMITS.IMAGE },
         }),
     )
+    @ApiOperation({ summary: 'Upload multiple image files' })
+    @ApiConsumes('multipart/form-data')
+    @ApiResponse({ status: 201, description: 'Files uploaded successfully.' })
+    @ApiResponse({ status: 400, description: 'Invalid file type or size.' })
+    @ApiResponse({ status: 429, description: 'Too many upload requests.' })
     uploadFiles(@UploadedFiles() files: Array<Express.Multer.File>) {
-        const urls = files.map((file) => {
-            // Assuming the server is running on localhost:5050
-            // In production, this should use an environment variable
-            return `http://localhost:5050/uploads/${file.filename}`;
-        });
-        return { urls };
+        if (!files || files.length === 0) {
+            throw new BadRequestException('No files uploaded');
+        }
+        
+        const baseUrl = process.env.API_URL || 'http://localhost:5050';
+        const urls = files.map((file) => `${baseUrl}/uploads/${file.filename}`);
+        return { 
+            success: true,
+            urls,
+            count: files.length,
+        };
     }
 }

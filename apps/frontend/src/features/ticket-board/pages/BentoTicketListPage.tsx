@@ -11,16 +11,17 @@ import {
     CircleDot,
     Hourglass,
     MessageSquare,
-    Tag,
     X,
     ChevronRight,
     Inbox,
-    TrendingUp
+    TrendingUp,
+    Flame,
+    Calendar
 } from 'lucide-react';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { toast } from 'sonner';
@@ -32,10 +33,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Agent } from '../components/ticket-detail/types';
+import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+import { format } from 'date-fns';
 
-// Data Type
 interface Ticket {
     id: string;
     ticketNumber?: string;
@@ -65,31 +66,159 @@ interface Ticket {
     messages?: any[];
 }
 
-const STATUS_CONFIG = {
-    TODO: { label: 'Open', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', icon: Inbox },
-    IN_PROGRESS: { label: 'In Progress', color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', icon: CircleDot },
-    WAITING_VENDOR: { label: 'Waiting', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400', icon: Hourglass },
-    RESOLVED: { label: 'Resolved', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
-    CANCELLED: { label: 'Cancelled', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400', icon: AlertTriangle },
+const StatsCard: React.FC<{
+    icon: React.ElementType;
+    label: string;
+    value: number;
+    color: string;
+    bgColor: string;
+    highlight?: boolean;
+}> = ({ icon: Icon, label, value, color, bgColor, highlight }) => (
+    <div className={cn(
+        "bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700",
+        "hover:shadow-lg transition-all duration-300",
+        highlight && value > 0 && "ring-2 ring-red-500/50 border-red-300 dark:border-red-800"
+    )}>
+        <div className="flex items-center gap-3">
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", bgColor)}>
+                <Icon className={cn("w-6 h-6", color)} />
+            </div>
+            <div>
+                <p className={cn("text-2xl font-bold", color)}>{value}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+            </div>
+        </div>
+    </div>
+);
+
+const PriorityDropdown: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}> = ({ value, onChange, disabled }) => {
+    const config = PRIORITY_CONFIG[value] || PRIORITY_CONFIG.MEDIUM;
+    const Icon = config.icon;
+
+    if (disabled) {
+        return (
+            <span className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap", config.badgeColor)}>
+                {Icon && <Icon className={cn("w-3 h-3", config.iconClass)} />}
+                <span className={cn("w-2 h-2 rounded-full", config.dot)} />
+                {config.label}
+            </span>
+        );
+    }
+
+    return (
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className={cn("h-7 w-auto min-w-0 border-0 text-xs font-medium px-2 gap-1", config.badgeColor)}>
+                <SelectValue>
+                    <span className="inline-flex items-center gap-1">
+                        {Icon && <Icon className={cn("w-3 h-3", config.iconClass)} />}
+                        <span className={cn("w-2 h-2 rounded-full", config.dot)} />
+                        {config.label}
+                    </span>
+                </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+                {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => {
+                    const PIcon = cfg.icon;
+                    return (
+                        <SelectItem key={key} value={key}>
+                            <span className="inline-flex items-center gap-1.5">
+                                {PIcon && <PIcon className={cn("w-3 h-3", cfg.iconClass)} />}
+                                <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                                {cfg.label}
+                            </span>
+                        </SelectItem>
+                    );
+                })}
+            </SelectContent>
+        </Select>
+    );
 };
 
-const PRIORITY_CONFIG = {
-    LOW: { label: 'Low', color: 'text-slate-400 bg-slate-50 dark:bg-slate-800', dot: 'bg-slate-400' },
-    MEDIUM: { label: 'Medium', color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20', dot: 'bg-yellow-500' },
-    HIGH: { label: 'High', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', dot: 'bg-orange-500' },
-    CRITICAL: { label: 'Critical', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', dot: 'bg-red-500 animate-pulse' },
+const StatusDropdown: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}> = ({ value, onChange, disabled }) => {
+    const config = STATUS_CONFIG[value] || STATUS_CONFIG.TODO;
+    const Icon = config.icon;
+
+    if (disabled) {
+        return (
+            <span className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap", config.color)}>
+                <Icon className="w-3 h-3" />
+                {config.label}
+            </span>
+        );
+    }
+
+    return (
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className={cn("h-7 w-auto min-w-0 border-0 text-xs font-medium px-2 gap-1", config.color)}>
+                <SelectValue>
+                    <span className="inline-flex items-center gap-1">
+                        <Icon className="w-3 h-3" />
+                        {config.label}
+                    </span>
+                </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+                {Object.entries(STATUS_CONFIG).filter(([key]) => key !== 'CANCELLED').map(([key, cfg]) => {
+                    const SIcon = cfg.icon;
+                    return (
+                        <SelectItem key={key} value={key}>
+                            <span className="inline-flex items-center gap-1.5">
+                                <SIcon className="w-3 h-3" />
+                                {cfg.label}
+                            </span>
+                        </SelectItem>
+                    );
+                })}
+            </SelectContent>
+        </Select>
+    );
+};
+
+const TargetDateCell: React.FC<{ slaTarget?: string; status: string }> = ({ slaTarget, status }) => {
+    if (!slaTarget || status === 'RESOLVED' || status === 'CANCELLED') {
+        return <span className="text-xs text-slate-400">-</span>;
+    }
+
+    const target = new Date(slaTarget);
+    const now = new Date();
+    const diffHours = (target.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    const isOverdue = diffHours < 0;
+    const isApproaching = diffHours > 0 && diffHours <= 4;
+
+    return (
+        <div className={cn(
+            "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium",
+            isOverdue && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+            isApproaching && !isOverdue && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+            !isOverdue && !isApproaching && "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+        )}>
+            {isOverdue && <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />}
+            {isApproaching && !isOverdue && <Clock className="w-3.5 h-3.5" />}
+            {!isOverdue && !isApproaching && <Calendar className="w-3.5 h-3.5" />}
+            <span>{format(target, 'dd MMM HH:mm')}</span>
+            {isOverdue && <span className="text-[10px]">(Overdue)</span>}
+        </div>
+    );
 };
 
 export const BentoTicketListPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
+    const queryClient = useQueryClient();
 
-    // Handle new ticket notification for admins/agents
     const handleNewTicket = useCallback((ticket: any) => {
-        // Only show toast for admins/agents
         if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-            toast.info('🎫 New Ticket', {
+            toast.info('New Ticket', {
                 description: `${ticket.ticketNumber || ''}: ${ticket.title}`,
                 action: {
                     label: 'View',
@@ -100,14 +229,12 @@ export const BentoTicketListPage: React.FC = () => {
         }
     }, [user, navigate]);
 
-    // Real-time updates for ticket list with new ticket notification
     useTicketListSocket({ onNewTicket: handleNewTicket });
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [priorityFilter, setPriorityFilter] = useState<string>('');
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
 
-    const queryClient = useQueryClient();
     const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
         queryKey: ['tickets'],
         queryFn: async () => {
@@ -131,13 +258,41 @@ export const BentoTicketListPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Ticket assigned successfully');
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
         onError: () => {
             toast.error('Failed to assign ticket');
         },
     });
 
-    // Filter tickets
+    const updateStatusMutation = useMutation({
+        mutationFn: async ({ ticketId, status }: { ticketId: string; status: string }) => {
+            await api.patch(`/tickets/${ticketId}/status`, { status });
+        },
+        onSuccess: () => {
+            toast.success('Status updated');
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        },
+        onError: () => {
+            toast.error('Failed to update status');
+        },
+    });
+
+    const updatePriorityMutation = useMutation({
+        mutationFn: async ({ ticketId, priority }: { ticketId: string; priority: string }) => {
+            await api.patch(`/tickets/${ticketId}/priority`, { priority });
+        },
+        onSuccess: () => {
+            toast.success('Priority updated');
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        },
+        onError: () => {
+            toast.error('Failed to update priority');
+        },
+    });
+
     const filteredTickets = useMemo(() => {
         let result = tickets;
 
@@ -166,7 +321,6 @@ export const BentoTicketListPage: React.FC = () => {
         return result;
     }, [tickets, showAssignedToMe, user, searchQuery, statusFilter, priorityFilter]);
 
-    // Stats
     const stats = useMemo(() => ({
         total: tickets.length,
         open: tickets.filter((t) => t.status === 'TODO').length,
@@ -184,8 +338,7 @@ export const BentoTicketListPage: React.FC = () => {
     };
 
     const hasActiveFilters = searchQuery || statusFilter || priorityFilter || showAssignedToMe;
-
-
+    const canEdit = user?.role === 'ADMIN' || user?.role === 'AGENT';
 
     if (isLoading) {
         return <TicketListSkeleton />;
@@ -200,7 +353,7 @@ export const BentoTicketListPage: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400">View and manage all support requests</p>
                 </div>
                 <div className="flex gap-3">
-                    {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
+                    {canEdit && (
                         <button
                             onClick={() => {
                                 if (showAssignedToMe) {
@@ -209,10 +362,12 @@ export const BentoTicketListPage: React.FC = () => {
                                     setSearchParams({ filter: 'assigned_to_me' });
                                 }
                             }}
-                            className={`flex items-center gap-2 px-4 py-2 border rounded-2xl transition-colors shadow-sm ${showAssignedToMe
-                                ? 'bg-primary text-slate-900 border-primary font-bold'
-                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                }`}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 border rounded-2xl transition-colors shadow-sm",
+                                showAssignedToMe
+                                    ? 'bg-primary text-slate-900 border-primary font-bold'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                            )}
                         >
                             <UserCheck className="w-4 h-4" />
                             My Tasks
@@ -236,32 +391,18 @@ export const BentoTicketListPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                {[
-                    { icon: TrendingUp, label: 'Total', value: stats.total, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-                    { icon: Inbox, label: 'Open', value: stats.open, color: 'text-slate-400', bg: 'bg-slate-500/10' },
-                    { icon: CircleDot, label: 'In Progress', value: stats.inProgress, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-                    { icon: CheckCircle2, label: 'Resolved', value: stats.resolved, color: 'text-green-400', bg: 'bg-green-500/10' },
-                    { icon: AlertTriangle, label: 'Overdue', value: stats.overdue, color: 'text-red-400', bg: 'bg-red-500/10' },
-                    { icon: Clock, label: 'Critical', value: stats.critical, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-                ].map((stat, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className={`text-2xl font-bold ${stat.color} leading-none`}>{stat.value}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{stat.label}</p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+            {/* Stats Cards - Dashboard Style */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/30" />
+                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-slate-600" bgColor="bg-slate-100 dark:bg-slate-700" />
+                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/30" />
+                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-green-600" bgColor="bg-green-100 dark:bg-green-900/30" />
+                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/30" highlight />
+                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/30" highlight />
             </div>
 
             {/* Search & Filters */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-wrap items-center gap-4">
                     <div className="flex-1 min-w-[250px] relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -307,8 +448,8 @@ export const BentoTicketListPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Tickets List - Compact Table Style */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+            {/* Tickets List Table */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {filteredTickets.length === 0 ? (
                     <div className="p-12 text-center">
                         <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
@@ -317,40 +458,39 @@ export const BentoTicketListPage: React.FC = () => {
                 ) : (
                     <>
                         {/* Table Header */}
-                        <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/50 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
-                            <div className="col-span-3">Ticket</div>
-                            <div className="col-span-2">Requester</div>
-                            <div className="col-span-1">Status</div>
-                            <div className="col-span-2">Assigned</div>
-                            <div className="col-span-2">Target Date</div>
-                            <div className="col-span-2">Date</div>
+                        <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/50 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                            <div className="flex-[3] min-w-0">Ticket</div>
+                            <div className="w-28 shrink-0">Priority</div>
+                            <div className="w-36 shrink-0">Status</div>
+                            <div className="flex-[2] min-w-0">Requester</div>
+                            <div className="flex-[2] min-w-0">Assigned To</div>
+                            <div className="flex-[2] min-w-0">Target Date</div>
+                            <div className="w-20 shrink-0">Created</div>
                         </div>
 
                         <div className="divide-y divide-slate-100 dark:divide-slate-700">
                             {filteredTickets.map((ticket) => {
-                                const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
                                 const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
-                                const StatusIcon = statusConfig.icon;
+                                const PriorityIcon = priorityConfig.icon;
 
                                 return (
                                     <div
                                         key={ticket.id}
-                                        onClick={() => navigate(`/tickets/${ticket.id}`)}
-                                        className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group items-center"
+                                        className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group"
                                     >
                                         {/* Ticket Info */}
-                                        <div className="col-span-3 flex items-center gap-3 min-w-0">
-                                            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityConfig.dot}`}></div>
+                                        <div className="flex-[3] flex items-center gap-3 min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
+                                            <div className={cn("w-1 h-12 rounded-full shrink-0", priorityConfig.barColor)} />
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="font-mono text-[11px] text-slate-400">
+                                                    <span className="font-mono text-[11px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
                                                         #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                                     </span>
-                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityConfig.color}`}>
-                                                        {priorityConfig.label}
-                                                    </span>
                                                     {ticket.isOverdue && (
-                                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                                    )}
+                                                    {ticket.priority === 'CRITICAL' && (
+                                                        <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" />
                                                     )}
                                                 </div>
                                                 <h3 className="font-semibold text-sm text-slate-800 dark:text-white group-hover:text-primary transition-colors truncate">
@@ -359,9 +499,27 @@ export const BentoTicketListPage: React.FC = () => {
                                             </div>
                                         </div>
 
+                                        {/* Priority Dropdown */}
+                                        <div className="w-28 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <PriorityDropdown
+                                                value={ticket.priority}
+                                                onChange={(value) => updatePriorityMutation.mutate({ ticketId: ticket.id, priority: value })}
+                                                disabled={!canEdit}
+                                            />
+                                        </div>
+
+                                        {/* Status Dropdown */}
+                                        <div className="w-36 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <StatusDropdown
+                                                value={ticket.status}
+                                                onChange={(value) => updateStatusMutation.mutate({ ticketId: ticket.id, status: value })}
+                                                disabled={!canEdit}
+                                            />
+                                        </div>
+
                                         {/* Requester */}
-                                        <div className="col-span-2 flex items-center gap-2 min-w-0">
-                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                                        <div className="flex-[2] flex items-center gap-2 min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                                                 {ticket.user?.fullName?.charAt(0) || '?'}
                                             </div>
                                             <div className="min-w-0 hidden md:block">
@@ -370,17 +528,9 @@ export const BentoTicketListPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Status */}
-                                        <div className="col-span-1">
-                                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color}`}>
-                                                <StatusIcon className="w-3 h-3" />
-                                                <span className="hidden xl:inline">{statusConfig.label}</span>
-                                            </span>
-                                        </div>
-
-                                        {/* Assigned To - with dropdown */}
-                                        <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
-                                            {(user?.role === 'ADMIN' || user?.role === 'AGENT') ? (
+                                        {/* Assigned To Dropdown */}
+                                        <div className="flex-[2] min-w-0" onClick={(e) => e.stopPropagation()}>
+                                            {canEdit ? (
                                                 <Select
                                                     value={ticket.assignedTo?.id || "unassigned"}
                                                     onValueChange={(value) => {
@@ -389,7 +539,7 @@ export const BentoTicketListPage: React.FC = () => {
                                                         }
                                                     }}
                                                 >
-                                                    <SelectTrigger className="h-8 w-full text-xs bg-transparent border-slate-200 dark:border-slate-700">
+                                                    <SelectTrigger className="h-7 w-full text-xs bg-transparent border-slate-200 dark:border-slate-700">
                                                         <SelectValue placeholder="Unassigned" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -420,25 +570,16 @@ export const BentoTicketListPage: React.FC = () => {
                                         </div>
 
                                         {/* Target Date */}
-                                        <div className="col-span-2">
-                                            {ticket.slaTarget ? (
-                                                <div className="flex items-center gap-1.5 text-xs">
-                                                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                                    <span className={`${new Date(ticket.slaTarget) < new Date() ? 'text-red-500 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
-                                                        {formatDate(ticket.slaTarget)}
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-slate-400">-</span>
-                                            )}
+                                        <div className="flex-[2] min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
+                                            <TargetDateCell slaTarget={ticket.slaTarget} status={ticket.status} />
                                         </div>
 
-                                        {/* Date & Actions */}
-                                        <div className="col-span-2 flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                                                <span className="hidden sm:inline">{formatDate(ticket.createdAt)}</span>
+                                        {/* Created Date & Actions */}
+                                        <div className="w-20 shrink-0 flex items-center justify-between gap-1" onClick={() => navigate(`/tickets/${ticket.id}`)}>
+                                            <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                                                <span>{format(new Date(ticket.createdAt), 'dd MMM')}</span>
                                                 {ticket.messages && ticket.messages.length > 0 && (
-                                                    <span className="flex items-center gap-1">
+                                                    <span className="flex items-center gap-0.5">
                                                         <MessageSquare className="w-3 h-3" />
                                                         {ticket.messages.length}
                                                     </span>

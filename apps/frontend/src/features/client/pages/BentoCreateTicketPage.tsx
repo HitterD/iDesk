@@ -1,10 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Send, Paperclip, AlertCircle, Clock, Tag, Monitor, Box, FileText } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Send, Paperclip, AlertCircle, Clock, Tag, Monitor, Box, FileText, Save, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '../../../stores/useAuth';
+import { logger } from '@/lib/logger';
+
+const DRAFT_KEY = 'ticket-draft';
+
+interface TicketDraft {
+    title: string;
+    description: string;
+    priority: string;
+    category: string;
+    device: string;
+    software: string;
+    savedAt: string;
+}
 
 interface SlaConfig {
     id: string;
@@ -33,6 +46,7 @@ const formatDuration = (minutes: number): string => {
 
 export const BentoCreateTicketPage: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [attributes, setAttributes] = useState<any>({ categories: [], devices: [], software: [] });
@@ -46,6 +60,9 @@ export const BentoCreateTicketPage: React.FC = () => {
         device: '',
         software: '',
     });
+    const [hasDraft, setHasDraft] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Fetch SLA configs for priorities
     const { data: slaConfigs = [] } = useQuery<SlaConfig[]>({
@@ -54,18 +71,94 @@ export const BentoCreateTicketPage: React.FC = () => {
             const res = await api.get('/sla-config');
             return res.data;
         },
+        staleTime: 60000,
     });
 
+    // Load draft on mount
     useEffect(() => {
+        try {
+            const savedDraft = localStorage.getItem(DRAFT_KEY);
+            if (savedDraft) {
+                const draft: TicketDraft = JSON.parse(savedDraft);
+                setFormData({
+                    title: draft.title || '',
+                    description: draft.description || '',
+                    priority: draft.priority || 'MEDIUM',
+                    category: draft.category || '',
+                    device: draft.device || '',
+                    software: draft.software || '',
+                });
+                setLastSaved(new Date(draft.savedAt));
+                setHasDraft(true);
+                toast.info('Draft restored', { description: 'Your previous unsaved ticket has been restored.' });
+            }
+        } catch (error) {
+            logger.error('Failed to load draft:', error);
+        }
         fetchAttributes();
     }, []);
+
+    // Auto-save draft every 10 seconds when form has content
+    const saveDraft = useCallback(() => {
+        if (!formData.title && !formData.description) {
+            return; // Don't save empty drafts
+        }
+        
+        try {
+            const draft: TicketDraft = {
+                ...formData,
+                savedAt: new Date().toISOString(),
+            };
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+            setLastSaved(new Date());
+            setHasDraft(true);
+        } catch (error) {
+            logger.error('Failed to save draft:', error);
+        }
+    }, [formData]);
+
+    // Auto-save on form change (debounced)
+    useEffect(() => {
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+        
+        autoSaveTimerRef.current = setTimeout(() => {
+            saveDraft();
+        }, 3000); // Auto-save after 3 seconds of inactivity
+        
+        return () => {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+            }
+        };
+    }, [formData, saveDraft]);
+
+    const clearDraft = () => {
+        try {
+            localStorage.removeItem(DRAFT_KEY);
+            setHasDraft(false);
+            setLastSaved(null);
+            setFormData({
+                title: '',
+                description: '',
+                priority: 'MEDIUM',
+                category: '',
+                device: '',
+                software: '',
+            });
+            toast.success('Draft cleared');
+        } catch (error) {
+            logger.error('Failed to clear draft:', error);
+        }
+    };
 
     const fetchAttributes = async () => {
         try {
             const res = await api.get('/ticket-attributes');
             setAttributes(res.data);
         } catch (error) {
-            console.error('Failed to fetch attributes:', error);
+            logger.error('Failed to fetch attributes:', error);
         }
     };
 
@@ -78,7 +171,7 @@ export const BentoCreateTicketPage: React.FC = () => {
             setShowAddModal({ type: '', show: false });
             fetchAttributes();
         } catch (error: any) {
-            console.error('Failed to add attribute:', error);
+            logger.error('Failed to add attribute:', error);
             toast.error(error.response?.data?.message || 'Failed to add attribute');
         }
     };
@@ -115,14 +208,20 @@ export const BentoCreateTicketPage: React.FC = () => {
                     'Content-Type': 'multipart/form-data',
                 },
             });
+            
+            // Clear draft on successful submission
+            localStorage.removeItem(DRAFT_KEY);
+            
             toast.success('Ticket created successfully!');
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
                 navigate('/tickets/list');
             } else {
                 navigate('/client/my-tickets');
             }
         } catch (error) {
-            console.error('Failed to create ticket:', error);
+            logger.error('Failed to create ticket:', error);
             toast.error('Failed to create ticket. Please try again.');
         } finally {
             setIsLoading(false);
@@ -132,24 +231,49 @@ export const BentoCreateTicketPage: React.FC = () => {
     return (
         <div className="max-w-3xl mx-auto space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={() => navigate(-1)}
-                    className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Create New Ticket</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Submit a support request</p>
+            <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Create New Ticket</h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">Submit a support request</p>
+                    </div>
                 </div>
+                
+                {/* Draft indicator */}
+                {hasDraft && (
+                    <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg">
+                            <Save className="w-4 h-4" />
+                            Draft saved
+                            {lastSaved && (
+                                <span className="text-xs text-green-500/70">
+                                    ({lastSaved.toLocaleTimeString()})
+                                </span>
+                            )}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={clearDraft}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Clear draft"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Main Form Card */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                     {/* Subject */}
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                    <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                         <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block flex items-center gap-2">
                             <FileText className="w-4 h-4 text-primary" />
                             Subject
@@ -165,7 +289,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     </div>
 
                     {/* Priority Selection - From SLA Config */}
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                    <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                         <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 block flex items-center gap-2">
                             <AlertCircle className="w-4 h-4 text-primary" />
                             Priority
@@ -208,7 +332,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     </div>
 
                     {/* Category & Device */}
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 border-b border-slate-200 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
@@ -258,7 +382,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     </div>
 
                     {/* Software */}
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                    <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                         <div className="flex justify-between items-center mb-2">
                             <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                 <Box className="w-4 h-4 text-primary" />
@@ -295,7 +419,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 </div>
 
                 {/* Attachments & Submit */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div>
                             <input

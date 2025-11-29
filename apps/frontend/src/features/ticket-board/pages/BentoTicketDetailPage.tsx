@@ -13,6 +13,7 @@ import { TicketInfoCard } from '../components/ticket-detail/TicketInfoCard';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
+import { logger } from '@/lib/logger';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -47,7 +48,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                 const res = await api.get('/ticket-attributes');
                 setAttributes(res.data);
             } catch (error) {
-                console.error('Failed to fetch attributes:', error);
+                logger.error('Failed to fetch attributes:', error);
             }
         };
         fetchAttributes();
@@ -112,6 +113,8 @@ export const BentoTicketDetailPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Ticket updated successfully');
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             navigate('/tickets/list');
         },
         onError: () => {
@@ -132,6 +135,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             toast.success('Ticket cancelled successfully');
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
         onError: () => {
             toast.error('Failed to cancel ticket');

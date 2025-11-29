@@ -53,16 +53,18 @@ export const BentoSidebar = () => {
     return (
         <aside
             className={cn(
-                "bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-white/20 dark:border-slate-800 h-screen flex flex-col shadow-soft transition-all duration-300 relative",
+                "bg-white dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 h-screen flex flex-col shadow-sm transition-all duration-300 relative",
                 isCollapsed ? "w-20 p-4" : "w-64 p-6"
             )}
         >
             {/* Toggle Button */}
             <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="absolute -right-3 top-10 w-6 h-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-slate-500 hover:text-primary transition-colors shadow-sm z-50"
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!isCollapsed}
+                className="absolute -right-3 top-10 w-6 h-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-slate-500 hover:text-primary transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
             >
-                {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                {isCollapsed ? <ChevronRight className="w-4 h-4" aria-hidden="true" /> : <ChevronLeft className="w-4 h-4" aria-hidden="true" />}
             </button>
 
             {/* Logo */}
@@ -78,15 +80,16 @@ export const BentoSidebar = () => {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-2">
+            <nav aria-label="Main navigation" className="flex-1 space-y-2">
                 {navItems.map((item) => (
                     <NavLink
                         key={item.path}
                         to={item.path}
                         title={isCollapsed ? item.label : undefined}
+                        aria-label={item.label}
                         className={({ isActive }) =>
                             cn(
-                                "flex items-center gap-3 rounded-2xl transition-all duration-300 group",
+                                "flex items-center gap-3 rounded-2xl transition-all duration-300 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                                 isCollapsed ? "justify-center p-3" : "px-4 py-3",
                                 isActive
                                     ? 'bg-muted text-blue-600 dark:text-blue-400 shadow-md shadow-blue-100 dark:shadow-none scale-105'
@@ -94,7 +97,7 @@ export const BentoSidebar = () => {
                             )
                         }
                     >
-                        <item.icon className="w-5 h-5 shrink-0" />
+                        <item.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
                         {!isCollapsed && (
                             <span className="font-medium animate-in fade-in duration-300 whitespace-nowrap">
                                 {item.label}
@@ -105,7 +108,7 @@ export const BentoSidebar = () => {
             </nav>
 
             {/* Footer / User Profile */}
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
                 <div className={cn("flex items-center gap-3 mb-2", isCollapsed ? "justify-center px-0" : "px-4 py-3")}>
                     <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-yellow-700 font-bold shrink-0">
                         {user?.fullName?.charAt(0) || 'U'}
@@ -120,12 +123,13 @@ export const BentoSidebar = () => {
                 <button
                     onClick={handleLogout}
                     title={isCollapsed ? "Logout" : undefined}
+                    aria-label="Logout"
                     className={cn(
-                        "w-full flex items-center gap-3 rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-all duration-300 group",
+                        "w-full flex items-center gap-3 rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-all duration-300 group focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2",
                         isCollapsed ? "justify-center p-3" : "px-4 py-3"
                     )}
                 >
-                    <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform shrink-0" />
+                    <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform shrink-0" aria-hidden="true" />
                     {!isCollapsed && <span className="font-medium animate-in fade-in duration-300">Logout</span>}
                 </button>
             </div>

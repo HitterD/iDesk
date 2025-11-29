@@ -41,13 +41,14 @@ export class TicketStatsService {
 
     /**
      * Get dashboard statistics with caching
+     * Cache TTL: 120 seconds for dashboard stats (frequently updated but expensive to compute)
      */
     async getDashboardStats(userId: string, _role: UserRole): Promise<DashboardStats> {
         const cacheKey = CacheKeys.dashboardStats(userId);
         
         return this.cacheService.getOrSet(cacheKey, async () => {
             return this.computeDashboardStats();
-        }, 60);
+        }, 120); // 2 minutes cache
     }
 
     /**

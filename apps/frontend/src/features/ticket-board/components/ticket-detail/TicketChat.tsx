@@ -108,7 +108,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 <div className={`max-w-[75%] ${isRequester ? 'text-right' : ''}`}>
                                     <div className={`rounded-2xl p-4 shadow-md ${isRequester
                                         ? 'bg-gradient-to-br from-primary to-primary/90 text-slate-900 rounded-tr-sm'
-                                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-tl-sm border border-slate-100 dark:border-slate-600'
+                                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-tl-sm border border-slate-200 dark:border-slate-600'
                                         }`}>
                                         {/* Hide [Photo] placeholder if attachments exist */}
                                         {message.content && !message.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (

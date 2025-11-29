@@ -21,24 +21,24 @@ export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket }) => {
         <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 overflow-hidden shadow-lg shadow-slate-200/40 dark:shadow-slate-900/40">
             {/* Quick Info Bar */}
             <div className="flex flex-wrap items-center gap-3 px-6 py-4 bg-gradient-to-r from-slate-100/80 to-slate-50/80 dark:from-slate-900/60 dark:to-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/60">
-                <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                     <User className="w-4 h-4 text-primary" />
                     <span className="text-slate-500 dark:text-slate-400">Requester:</span>
                     <span className="font-bold text-slate-800 dark:text-white">{ticket.user.fullName}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                     <Building className="w-4 h-4 text-blue-500" />
                     <span className="text-slate-500 dark:text-slate-400">Dept:</span>
                     <span className="font-bold text-slate-800 dark:text-white">{ticket.user.department?.name || 'N/A'}</span>
                 </div>
                 {ticket.category && (
-                    <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                         <Tag className="w-4 h-4 text-purple-500" />
                         <span className="font-medium text-slate-700 dark:text-slate-200">{ticket.category}</span>
                     </div>
                 )}
                 {ticket.device && (
-                    <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                         <Monitor className="w-4 h-4 text-cyan-500" />
                         <span className="font-medium text-slate-700 dark:text-slate-200">{ticket.device}</span>
                     </div>

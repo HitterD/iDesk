@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { MessageCircle, Link2, Unlink, Copy, Check, RefreshCw, Loader2 } from 'lucide-react';
+import { MessageCircle, Link2, Copy, Check, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
 

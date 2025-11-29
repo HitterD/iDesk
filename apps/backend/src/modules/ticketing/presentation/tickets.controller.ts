@@ -11,6 +11,7 @@ import {
     Patch,
     Req,
     Query,
+    BadRequestException,
 } from '@nestjs/common';
 import { TicketCreateService } from '../services/ticket-create.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
@@ -27,6 +28,7 @@ import { CacheInterceptor } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import {
     UpdateTicketStatusDto,
     UpdateTicketPriorityDto,
@@ -35,6 +37,9 @@ import {
     AssignTicketDto,
     CancelTicketDto
 } from '../dto/update-ticket.dto';
+import { BulkUpdateTicketsDto } from '../dto/bulk-update.dto';
+import { MergeTicketsDto } from '../dto/ticket-merge.dto';
+import { TicketMergeService } from '../services/ticket-merge.service';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -45,6 +50,7 @@ export class TicketsController {
         private readonly ticketUpdateService: TicketUpdateService,
         private readonly ticketMessagingService: TicketMessagingService,
         private readonly ticketQueryService: TicketQueryService,
+        private readonly ticketMergeService: TicketMergeService,
     ) { }
 
     @Post()
@@ -64,8 +70,13 @@ export class TicketsController {
         @Body() createTicketDto: CreateTicketDto,
         @UploadedFiles() files: Express.Multer.File[],
     ) {
-        console.log('Create Ticket Body:', createTicketDto);
-        console.log('Create Ticket Files:', files);
+        if (files && files.length > 0) {
+            for (const file of files) {
+                if (!validateFileMagicBytes(file)) {
+                    throw new BadRequestException('File type not allowed or file is corrupted');
+                }
+            }
+        }
         const filePaths = files ? files.map(f => `/uploads/${f.filename}`) : [];
         return this.ticketCreateService.createTicket(req.user.userId, createTicketDto, filePaths);
     }
@@ -133,6 +144,13 @@ export class TicketsController {
         @Body('mentionedUserIds') mentionedUserIds: string | string[],
         @UploadedFiles() files: Express.Multer.File[],
     ) {
+        if (files && files.length > 0) {
+            for (const file of files) {
+                if (!validateFileMagicBytes(file)) {
+                    throw new BadRequestException('File type not allowed or file is corrupted');
+                }
+            }
+        }
         const filePaths = files ? files.map(f => `/uploads/${f.filename}`) : [];
 
         let parsedMentionedUserIds: string[] = [];
@@ -217,5 +235,41 @@ export class TicketsController {
         @Request() req,
     ) {
         return this.ticketUpdateService.cancelTicket(id, req.user.userId, req.user.role, dto.reason);
+    }
+
+    @Patch('bulk/update')
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Bulk update multiple tickets' })
+    @ApiResponse({ status: 200, description: 'Tickets updated successfully.' })
+    async bulkUpdate(
+        @Body() dto: BulkUpdateTicketsDto,
+        @Request() req,
+    ): Promise<{ updated: number; failed: string[] }> {
+        return this.ticketUpdateService.bulkUpdate(
+            dto.ticketIds,
+            {
+                status: dto.status,
+                priority: dto.priority,
+                assigneeId: dto.assigneeId,
+                category: dto.category,
+            },
+            req.user.userId,
+        );
+    }
+
+    @Post('merge')
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Merge multiple tickets into one' })
+    @ApiResponse({ status: 200, description: 'Tickets merged successfully.' })
+    async mergeTickets(
+        @Body() dto: MergeTicketsDto,
+        @Request() req,
+    ) {
+        return this.ticketMergeService.mergeTickets(
+            dto.primaryTicketId,
+            dto.secondaryTicketIds,
+            req.user.userId,
+            dto.reason,
+        );
     }
 }

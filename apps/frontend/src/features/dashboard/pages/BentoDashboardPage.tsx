@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -156,7 +156,7 @@ const StatCard: React.FC<{
     subtitle?: string;
     trend?: 'up' | 'down';
 }> = ({ title, value, icon: Icon, color, subtitle, trend }) => (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-all group relative flex items-center gap-5">
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all group relative flex items-center gap-5">
         <div className={`p-4 rounded-2xl ${color} text-white shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform shrink-0`}>
             <Icon className="w-8 h-8" />
         </div>
@@ -224,30 +224,157 @@ export const BentoDashboardPage = () => {
     // Real-time updates for dashboard stats
     useTicketListSocket({ onNewTicket: handleNewTicket });
 
+    // Fetch actual tickets (same as tickets page) for accurate stats
+    const { data: tickets = [] } = useQuery<any[]>({
+        queryKey: ['tickets'],
+        queryFn: async () => {
+            const res = await api.get('/tickets');
+            return res.data;
+        },
+        staleTime: 0,
+        refetchOnWindowFocus: true,
+    });
+
+    // Compute all stats from actual tickets
+    const liveStats = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const thisWeekStart = new Date(today);
+        thisWeekStart.setDate(today.getDate() - today.getDay());
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Basic counts
+        const total = tickets.length;
+        const open = tickets.filter((t) => t.status === 'TODO').length;
+        const inProgress = tickets.filter((t) => t.status === 'IN_PROGRESS').length;
+        const waitingVendor = tickets.filter((t) => t.status === 'WAITING_VENDOR').length;
+        const resolved = tickets.filter((t) => t.status === 'RESOLVED').length;
+        const overdue = tickets.filter((t) => t.isOverdue).length;
+
+        // Priority counts
+        const byPriority = {
+            CRITICAL: tickets.filter((t) => t.priority === 'CRITICAL').length,
+            HIGH: tickets.filter((t) => t.priority === 'HIGH').length,
+            MEDIUM: tickets.filter((t) => t.priority === 'MEDIUM').length,
+            LOW: tickets.filter((t) => t.priority === 'LOW').length,
+        };
+
+        // Category counts
+        const byCategory: Record<string, number> = {};
+        tickets.forEach((t) => {
+            const cat = t.category || 'GENERAL';
+            byCategory[cat] = (byCategory[cat] || 0) + 1;
+        });
+
+        // Time-based counts
+        const todayTickets = tickets.filter((t) => new Date(t.createdAt) >= today).length;
+        const thisWeekTickets = tickets.filter((t) => new Date(t.createdAt) >= thisWeekStart).length;
+        const thisMonthTickets = tickets.filter((t) => new Date(t.createdAt) >= thisMonthStart).length;
+        const resolvedToday = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= today).length;
+        const resolvedThisWeek = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= thisWeekStart).length;
+
+        // Last 7 days
+        const last7Days: { date: string; created: number; resolved: number }[] = [];
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(today.getDate() - i);
+            const nextDate = new Date(date);
+            nextDate.setDate(date.getDate() + 1);
+            
+            const created = tickets.filter((t) => {
+                const d = new Date(t.createdAt);
+                return d >= date && d < nextDate;
+            }).length;
+            
+            const resolvedCount = tickets.filter((t) => {
+                if (t.status !== 'RESOLVED') return false;
+                const d = new Date(t.updatedAt);
+                return d >= date && d < nextDate;
+            }).length;
+
+            last7Days.push({
+                date: date.toLocaleDateString('en-US', { weekday: 'short' }),
+                created,
+                resolved: resolvedCount,
+            });
+        }
+
+        // Top agents
+        const agentStats: Record<string, { name: string; resolved: number; inProgress: number }> = {};
+        tickets.forEach((t) => {
+            if (t.assignedTo) {
+                const agentId = t.assignedTo.id;
+                if (!agentStats[agentId]) {
+                    agentStats[agentId] = { name: t.assignedTo.fullName, resolved: 0, inProgress: 0 };
+                }
+                if (t.status === 'RESOLVED') {
+                    agentStats[agentId].resolved++;
+                } else if (t.status === 'IN_PROGRESS') {
+                    agentStats[agentId].inProgress++;
+                }
+            }
+        });
+        const topAgents = Object.values(agentStats)
+            .sort((a, b) => b.resolved - a.resolved)
+            .slice(0, 5);
+
+        // Recent tickets
+        const recentTickets = [...tickets]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 5);
+
+        // SLA compliance
+        const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
+
+        return {
+            total,
+            open,
+            inProgress,
+            waitingVendor,
+            resolved,
+            overdue,
+            byPriority,
+            byCategory,
+            todayTickets,
+            thisWeekTickets,
+            thisMonthTickets,
+            resolvedToday,
+            resolvedThisWeek,
+            last7Days,
+            topAgents,
+            recentTickets,
+            slaCompliance,
+        };
+    }, [tickets]);
+
     const { data: stats, isLoading } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats'],
         queryFn: async () => {
             const res = await api.get('/tickets/dashboard/stats');
             return res.data;
         },
+        staleTime: 0,
+        gcTime: 0,
+        refetchOnWindowFocus: true,
+        refetchOnMount: 'always',
     });
 
-    if (isLoading || !stats) {
+    if (isLoading && tickets.length === 0) {
         return <DashboardSkeleton />;
     }
 
     const statusData = [
-        { label: 'Open', value: stats.open, color: '#94a3b8' },
-        { label: 'In Progress', value: stats.inProgress, color: '#60a5fa' },
-        { label: 'Waiting', value: stats.waitingVendor, color: '#fb923c' },
-        { label: 'Resolved', value: stats.resolved, color: '#4ade80' },
+        { label: 'Open', value: liveStats.open, color: '#94a3b8' },
+        { label: 'In Progress', value: liveStats.inProgress, color: '#60a5fa' },
+        { label: 'Waiting', value: liveStats.waitingVendor, color: '#fb923c' },
+        { label: 'Resolved', value: liveStats.resolved, color: '#4ade80' },
     ];
 
     const priorityData = [
-        { label: 'Critical', value: stats.byPriority.CRITICAL, color: '#ef4444' },
-        { label: 'High', value: stats.byPriority.HIGH, color: '#f97316' },
-        { label: 'Medium', value: stats.byPriority.MEDIUM, color: '#eab308' },
-        { label: 'Low', value: stats.byPriority.LOW, color: '#94a3b8' },
+        { label: 'Critical', value: liveStats.byPriority.CRITICAL, color: '#ef4444' },
+        { label: 'High', value: liveStats.byPriority.HIGH, color: '#f97316' },
+        { label: 'Medium', value: liveStats.byPriority.MEDIUM, color: '#eab308' },
+        { label: 'Low', value: liveStats.byPriority.LOW, color: '#94a3b8' },
     ];
 
     const categoryColors = [
@@ -289,12 +416,12 @@ export const BentoDashboardPage = () => {
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <StatCard title="Total Tickets" value={stats.total} icon={Ticket} color="bg-blue-500" />
-                <StatCard title="Open" value={stats.open} icon={CircleDot} color="bg-slate-500" />
-                <StatCard title="In Progress" value={stats.inProgress} icon={Hourglass} color="bg-blue-400" />
-                <StatCard title="Resolved" value={stats.resolved} icon={CheckCircle} color="bg-green-500" />
-                <StatCard title="Overdue" value={stats.overdue} icon={AlertTriangle} color="bg-red-500" />
-                <StatCard title="Avg Resolution" value={stats.avgResolutionTime} icon={Clock} color="bg-purple-500" />
+                <StatCard title="Total Tickets" value={liveStats.total} icon={Ticket} color="bg-blue-500" />
+                <StatCard title="Open" value={liveStats.open} icon={CircleDot} color="bg-slate-500" />
+                <StatCard title="In Progress" value={liveStats.inProgress} icon={Hourglass} color="bg-blue-400" />
+                <StatCard title="Resolved" value={liveStats.resolved} icon={CheckCircle} color="bg-green-500" />
+                <StatCard title="Overdue" value={liveStats.overdue} icon={AlertTriangle} color="bg-red-500" />
+                <StatCard title="Avg Resolution" value={stats?.avgResolutionTime || '-'} icon={Clock} color="bg-purple-500" />
             </div>
 
             {/* Main Grid */}
@@ -302,7 +429,7 @@ export const BentoDashboardPage = () => {
                 {/* Left Column - Charts */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Weekly Activity Chart */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -320,7 +447,7 @@ export const BentoDashboardPage = () => {
                                 </span>
                             </div>
                         </div>
-                        <MiniBarChart data={stats.last7Days} />
+                        <MiniBarChart data={liveStats.last7Days} />
                     </div>
 
                     {/* SLA & Activity Summary Row */}
@@ -337,28 +464,28 @@ export const BentoDashboardPage = () => {
                                         <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-200 dark:text-slate-700" />
                                         <circle
                                             cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="none"
-                                            strokeDasharray={`${stats.slaCompliance * 2.51} 251`}
+                                            strokeDasharray={`${liveStats.slaCompliance * 2.51} 251`}
                                             className="text-primary"
                                             strokeLinecap="round"
                                         />
                                     </svg>
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-2xl font-bold text-slate-800 dark:text-white">{stats.slaCompliance}%</span>
+                                        <span className="text-2xl font-bold text-slate-800 dark:text-white">{liveStats.slaCompliance}%</span>
                                     </div>
                                 </div>
                                 <div>
                                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                                        <span className="font-bold text-green-600">{stats.total - stats.overdue}</span> on time
+                                        <span className="font-bold text-green-600">{liveStats.total - liveStats.overdue}</span> on time
                                     </p>
                                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                                        <span className="font-bold text-red-600">{stats.overdue}</span> overdue
+                                        <span className="font-bold text-red-600">{liveStats.overdue}</span> overdue
                                     </p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Activity Summary */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <CalendarDays className="w-5 h-5 text-primary" />
                                 Activity Summary
@@ -367,20 +494,20 @@ export const BentoDashboardPage = () => {
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">Today</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm"><span className="font-bold text-blue-600">{stats.todayTickets}</span> new</span>
-                                        <span className="text-sm"><span className="font-bold text-green-600">{stats.resolvedToday}</span> resolved</span>
+                                        <span className="text-sm"><span className="font-bold text-blue-600">{liveStats.todayTickets}</span> new</span>
+                                        <span className="text-sm"><span className="font-bold text-green-600">{liveStats.resolvedToday}</span> resolved</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">This Week</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm"><span className="font-bold text-blue-600">{stats.thisWeekTickets}</span> new</span>
-                                        <span className="text-sm"><span className="font-bold text-green-600">{stats.resolvedThisWeek}</span> resolved</span>
+                                        <span className="text-sm"><span className="font-bold text-blue-600">{liveStats.thisWeekTickets}</span> new</span>
+                                        <span className="text-sm"><span className="font-bold text-green-600">{liveStats.resolvedThisWeek}</span> resolved</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">This Month</span>
-                                    <span className="text-sm"><span className="font-bold text-blue-600">{stats.thisMonthTickets}</span> tickets</span>
+                                    <span className="text-sm"><span className="font-bold text-blue-600">{liveStats.thisMonthTickets}</span> tickets</span>
                                 </div>
                             </div>
                         </div>
@@ -389,7 +516,7 @@ export const BentoDashboardPage = () => {
                     {/* Status & Priority Charts */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* By Status */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <PieChart className="w-5 h-5 text-primary" />
                                 By Status
@@ -411,7 +538,7 @@ export const BentoDashboardPage = () => {
                         </div>
 
                         {/* By Priority */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <AlertCircle className="w-5 h-5 text-primary" />
                                 By Priority
@@ -437,13 +564,13 @@ export const BentoDashboardPage = () => {
                 {/* Right Column - Stats & Info */}
                 <div className="space-y-6">
                     {/* Top Agents */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                             <Users className="w-5 h-5 text-primary" />
                             Top Agents
                         </h3>
                         <div className="space-y-3">
-                            {stats.topAgents.length > 0 ? stats.topAgents.map((agent, i) => (
+                            {liveStats.topAgents.length > 0 ? liveStats.topAgents.map((agent, i) => (
                                 <div key={i} className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                                         {agent.name.charAt(0)}
@@ -462,10 +589,10 @@ export const BentoDashboardPage = () => {
                     </div>
 
                     {/* Categories */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4">By Category</h3>
                         <div className="space-y-4">
-                            {Object.entries(stats.byCategory).map(([cat, count], index) => (
+                            {Object.entries(liveStats.byCategory).map(([cat, count], index) => (
                                 <div key={cat} className="space-y-1">
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-slate-600 dark:text-slate-300">{cat}</span>
@@ -474,7 +601,7 @@ export const BentoDashboardPage = () => {
                                     <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                         <div
                                             className={`h-full rounded-full ${categoryColors[index % categoryColors.length]}`}
-                                            style={{ width: `${(count / Math.max(...Object.values(stats.byCategory), 1)) * 100}%` }}
+                                            style={{ width: `${(count / Math.max(...Object.values(liveStats.byCategory), 1)) * 100}%` }}
                                         />
                                     </div>
                                 </div>
@@ -483,8 +610,8 @@ export const BentoDashboardPage = () => {
                     </div>
 
                     {/* Recent Tickets */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <Ticket className="w-5 h-5 text-primary" />
                                 Recent Tickets
@@ -497,7 +624,7 @@ export const BentoDashboardPage = () => {
                             </button>
                         </div>
                         <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {stats.recentTickets.length > 0 ? stats.recentTickets.slice(0, 5).map((ticket: any) => (
+                            {liveStats.recentTickets.length > 0 ? liveStats.recentTickets.slice(0, 5).map((ticket: any) => (
                                 <div
                                     key={ticket.id}
                                     onClick={() => navigate(`/tickets/${ticket.id}`)}
