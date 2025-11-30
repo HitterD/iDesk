@@ -8,6 +8,15 @@ import { TelegramService } from './telegram.service';
 import { TelegramChatBridgeService } from './telegram-chat-bridge.service';
 import { TelegramUpdate } from './telegram.update';
 import { TelegramController } from './telegram.controller';
+import { WebAppController } from './webapp/webapp.controller';
+import { WebAppService } from './webapp/webapp.service';
+// Handlers (17.8)
+import { StartHandler } from './handlers/start.handler';
+import { TicketHandler } from './handlers/ticket.handler';
+import { ChatHandler } from './handlers/chat.handler';
+import { SettingsHandler } from './handlers/settings.handler';
+import { AgentHandler } from './handlers/agent.handler';
+import { InlineHandler } from './handlers/inline.handler';
 import { User } from '../users/entities/user.entity';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
@@ -95,9 +104,32 @@ import { AppCacheModule } from '../../shared/core/cache';
             },
         }),
     ],
-    providers: [TelegramService, TelegramChatBridgeService, TelegramUpdate],
-    controllers: [TelegramController],
-    exports: [TelegramService, TelegramChatBridgeService],
+    providers: [
+        TelegramService, 
+        TelegramChatBridgeService, 
+        TelegramUpdate, 
+        WebAppService,
+        // Handlers (17.8)
+        StartHandler,
+        TicketHandler,
+        ChatHandler,
+        SettingsHandler,
+        AgentHandler,
+        InlineHandler,
+    ],
+    controllers: [TelegramController, WebAppController],
+    exports: [
+        TelegramService, 
+        TelegramChatBridgeService, 
+        WebAppService,
+        // Export handlers for external use
+        StartHandler,
+        TicketHandler,
+        ChatHandler,
+        SettingsHandler,
+        AgentHandler,
+        InlineHandler,
+    ],
 })
 export class TelegramModule implements OnModuleInit {
     private readonly logger = new Logger('TelegramModule');

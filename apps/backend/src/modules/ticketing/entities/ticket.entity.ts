@@ -115,4 +115,27 @@ export class Ticket {
 
     @Column({ nullable: true })
     slaTarget: Date;
+
+    // === SLA Enhancement Fields ===
+
+    @Column({ nullable: true })
+    slaStartedAt: Date;
+
+    @Column({ nullable: true })
+    firstResponseAt: Date;
+
+    @Column({ nullable: true })
+    firstResponseTarget: Date;
+
+    @Column({ default: false })
+    isFirstResponseBreached: boolean;
+
+    @Column({ nullable: true })
+    resolvedAt: Date;
+
+    @Column({ nullable: true })
+    waitingVendorAt: Date;
+
+    @Column({ type: 'int', default: 0 })
+    totalWaitingVendorMinutes: number;
 }

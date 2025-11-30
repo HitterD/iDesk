@@ -18,8 +18,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
+import { useAuth } from '@/stores/useAuth';
 import { NotificationCategory, NotificationType, Notification, NotificationCountByCategory } from './types/notification.types';
-import { getNotificationRedirectPath } from './utils/notificationRouter';
+import { getNotificationRedirectPath, UserRole } from './utils/notificationRouter';
 
 type TabValue = 'all' | 'tickets' | 'renewals';
 type FilterValue = 'all' | 'unread' | 'read';
@@ -112,6 +113,8 @@ const groupNotificationsByDate = (notifications: Notification[]): Map<string, No
 export const NotificationCenter: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const userRole = (user?.role || 'ADMIN') as UserRole;
     const [activeTab, setActiveTab] = useState<TabValue>('all');
     const [readFilter, setReadFilter] = useState<FilterValue>('all');
 
@@ -182,7 +185,7 @@ export const NotificationCenter: React.FC = () => {
         if (!notification.isRead) {
             markAsReadMutation.mutate(notification.id);
         }
-        const path = getNotificationRedirectPath(notification);
+        const path = getNotificationRedirectPath(notification, userRole);
         navigate(path);
     };
 

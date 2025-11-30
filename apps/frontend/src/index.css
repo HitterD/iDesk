@@ -4,42 +4,47 @@
 
 @layer base {
   :root {
-    /* Soft Gray Background - Less bright than pure white */
-    --background: 220 14% 96%; /* #F1F3F5 */
-    --foreground: 222.2 84% 4.9%;
+    /* Warm Cream Background - Easy on the eyes */
+    --background: 40 23% 96%; /* #F7F5F2 - Warm off-white */
+    --foreground: 220 15% 15%; /* Softer dark text */
 
-    /* Card - Slightly off-white */
+    /* Card - Pure white with contrast against cream background */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 15% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 15% 15%;
 
-    /* Mint Green - Primary */
-    --primary: 157 52% 78%; /* #A8E6CF */
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Mint Green - Primary (Darker for better contrast) */
+    --primary: 150 50% 50%; /* #5CB88A - Darker mint */
+    --primary-foreground: 0 0% 100%; /* White text on primary */
 
     /* Pale Yellow - Secondary/Pending */
     --secondary: 38 100% 85%; /* #FFE4B5 */
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary-foreground: 220 15% 15%;
 
     /* Sky Blue - Muted/Navigation */
-    --muted: 212 100% 92%; /* Lighter for better contrast */
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 40 15% 92%; /* Warm gray-cream */
+    --muted-foreground: 220 10% 45%; /* Better contrast */
 
     /* Soft Coral - Accent */
     --accent: 6 93% 71%; /* #FF8B94 */
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent-foreground: 220 15% 15%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* More visible borders */
-    --border: 220 13% 84%; /* Darker border for visibility */
-    --input: 220 13% 88%;
-    --ring: 157 52% 78%;
+    /* Visible borders in light mode */
+    --border: 40 10% 85%; /* Warm gray border */
+    --input: 40 10% 90%;
+    --ring: 150 50% 50%;
 
     --radius: 2rem; /* 32px */
+
+    /* Light mode shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
   }
 
   .dark {
@@ -300,4 +305,106 @@
   .dark .glass {
     background: rgba(30, 30, 30, 0.7);
   }
+}
+
+/* ========================================
+   LIGHT MODE IMPROVEMENTS - Section 16.2
+   ======================================== */
+
+/* Light mode specific styles */
+@layer utilities {
+  /* Light mode card with subtle shadow */
+  .light-card {
+    @apply bg-white border border-border;
+    box-shadow: var(--shadow-md);
+  }
+  
+  /* Light mode elevated card */
+  .light-card-elevated {
+    @apply bg-white border border-border;
+    box-shadow: var(--shadow-lg);
+  }
+  
+  /* Light mode subtle background */
+  .light-subtle-bg {
+    @apply bg-[hsl(40,23%,96%)];
+  }
+  
+  /* Light mode text contrast classes */
+  .light-text-primary {
+    @apply text-[hsl(220,15%,15%)];
+  }
+  
+  .light-text-secondary {
+    @apply text-[hsl(220,10%,45%)];
+  }
+  
+  .light-text-muted {
+    @apply text-[hsl(220,10%,55%)];
+  }
+}
+
+/* Light mode component overrides (non-dark mode) */
+:root:not(.dark) {
+  /* Cards with visible shadows */
+  .card,
+  [class*="rounded"][class*="bg-white"],
+  [class*="rounded"][class*="bg-card"] {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  }
+  
+  /* Hover states with better feedback */
+  .hover\:bg-slate-50:hover,
+  .hover\:bg-gray-50:hover {
+    background-color: hsl(40, 15%, 94%);
+  }
+  
+  /* Input fields with better visibility */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    background-color: hsl(40, 15%, 98%);
+    border-color: hsl(40, 10%, 82%);
+  }
+  
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  textarea:focus,
+  select:focus {
+    border-color: hsl(150, 50%, 50%);
+    box-shadow: 0 0 0 2px hsla(150, 50%, 50%, 0.15);
+  }
+  
+  /* Better dividers */
+  hr,
+  [class*="divide-"] > *:not(:last-child) {
+    border-color: hsl(40, 10%, 88%);
+  }
+  
+  /* Primary button with better contrast */
+  .bg-primary {
+    background-color: hsl(150, 50%, 50%);
+  }
+  
+  .text-primary {
+    color: hsl(150, 50%, 45%);
+  }
+  
+  /* Sidebar and navigation backgrounds */
+  [class*="bg-slate-50"],
+  [class*="bg-gray-50"] {
+    background-color: hsl(40, 15%, 94%);
+  }
+  
+  /* Skeleton loading states */
+  [class*="animate-pulse"] {
+    background-color: hsl(40, 15%, 90%);
+  }
+}
+
+/* Dark mode should keep original styles - no changes needed */
+.dark {
+  /* Shadows for dark mode */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }

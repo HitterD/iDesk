@@ -9,7 +9,7 @@ import { useKeyboardShortcuts, KeyboardShortcutsHelp } from '@/hooks/useKeyboard
 export const BentoLayout = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-    
+
     // Initialize keyboard shortcuts with custom actions
     useKeyboardShortcuts([
         { key: '?', shift: true, action: () => setShowShortcutsHelp(true), description: 'Show shortcuts help' },
@@ -19,13 +19,13 @@ export const BentoLayout = () => {
         <div className="flex h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300">
             {/* Mobile Overlay */}
             {isMobileMenuOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-black/50 z-40 lg:hidden"
                     onClick={() => setIsMobileMenuOpen(false)}
                     aria-hidden="true"
                 />
             )}
-            
+
             {/* Sidebar - Hidden on mobile by default */}
             <aside className={cn(
                 "fixed lg:relative inset-y-0 left-0 z-50 transition-transform duration-300 lg:translate-x-0",
@@ -41,11 +41,11 @@ export const BentoLayout = () => {
                     <X className="w-6 h-6" aria-hidden="true" />
                 </button>
             </aside>
-            
+
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Mobile menu button */}
                 <div className="lg:hidden flex items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                    <button 
+                    <button
                         className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         onClick={() => setIsMobileMenuOpen(true)}
                         aria-label="Open menu"
@@ -60,7 +60,7 @@ export const BentoLayout = () => {
                         <span className="font-bold text-slate-800 dark:text-white">iDesk</span>
                     </div>
                 </div>
-                
+
                 <div className="hidden lg:block">
                     <BentoTopbar />
                 </div>
@@ -70,11 +70,11 @@ export const BentoLayout = () => {
                     </div>
                 </main>
             </div>
-            
+
             {/* Keyboard Shortcuts Help Modal */}
-            <KeyboardShortcutsHelp 
-                isOpen={showShortcutsHelp} 
-                onClose={() => setShowShortcutsHelp(false)} 
+            <KeyboardShortcutsHelp
+                isOpen={showShortcutsHelp}
+                onClose={() => setShowShortcutsHelp(false)}
             />
         </div>
     );

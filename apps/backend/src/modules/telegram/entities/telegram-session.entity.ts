@@ -9,6 +9,14 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
+export interface TelegramPreferences {
+    notifyNewReply: boolean;
+    notifyStatusChange: boolean;
+    notifySlaWarning: boolean;
+    quietHoursStart?: string; // "22:00"
+    quietHoursEnd?: string;   // "07:00"
+}
+
 @Entity('telegram_sessions')
 export class TelegramSession {
     @PrimaryGeneratedColumn('uuid')
@@ -49,6 +57,28 @@ export class TelegramSession {
     // Track last activity for session management
     @Column({ nullable: true })
     lastActivityAt: Date;
+
+    // NEW FIELDS (V7 Redesign)
+    @Column({ default: 'id' })
+    language: string; // 'id' | 'en'
+
+    @Column({ default: true })
+    notificationsEnabled: boolean;
+
+    @Column({ 
+        type: 'jsonb', 
+        default: '{"notifyNewReply": true, "notifyStatusChange": true, "notifySlaWarning": true}' 
+    })
+    preferences: TelegramPreferences;
+
+    @Column({ type: 'jsonb', default: '[]' })
+    quickReplies: string[]; // Saved quick reply templates
+
+    @Column({ default: 0 })
+    ticketsCreated: number;
+
+    @Column({ default: 0 })
+    messagesCount: number;
 
     @CreateDateColumn()
     createdAt: Date;

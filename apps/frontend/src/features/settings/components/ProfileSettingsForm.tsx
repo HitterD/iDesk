@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Save, Loader2 } from 'lucide-react';
+import { Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
 import { useAuth } from '../../../stores/useAuth';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface Department {
     id: string;
@@ -23,7 +24,7 @@ interface ProfileFormValues {
 
 export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
     const queryClient = useQueryClient();
-    const { token, login } = useAuth();
+    const { updateUser } = useAuth();
     const { register, handleSubmit, reset } = useForm<ProfileFormValues>({
         defaultValues: {
             fullName: user?.fullName || '',
@@ -64,10 +65,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
         onSuccess: (updatedUser) => {
             toast.success('Profile updated successfully');
             queryClient.invalidateQueries({ queryKey: ['auth-user'] });
-            // Update local auth store
-            if (token) {
-                login(token, updatedUser);
-            }
+            updateUser(updatedUser);
         },
         onError: () => {
             toast.error('Failed to update profile');
@@ -90,10 +88,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
         onSuccess: (updatedUser) => {
             toast.success('Avatar updated successfully');
             queryClient.invalidateQueries({ queryKey: ['auth-user'] });
-            // Update local auth store
-            if (token) {
-                login(token, updatedUser);
-            }
+            updateUser(updatedUser);
         },
         onError: () => {
             toast.error('Failed to upload avatar');
@@ -111,29 +106,17 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
         }
     };
 
-    const getImageUrl = (url?: string) => {
-        if (!url) return null;
-        if (url.startsWith('http') || url.startsWith('blob:')) return url;
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
-        return `${apiUrl}${url}`;
-    };
-
     return (
         <div className="max-w-2xl bg-navy-light border border-white/10 rounded-xl p-6 space-y-6">
             <div className="flex items-center gap-6">
                 <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                     <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 p-[2px]">
-                        <div className="w-full h-full rounded-full bg-navy-main flex items-center justify-center overflow-hidden">
-                            {user?.avatarUrl ? (
-                                <img 
-                                    src={getImageUrl(user.avatarUrl) || ''} 
-                                    alt={user.fullName} 
-                                    className="w-full h-full object-cover" 
-                                />
-                            ) : (
-                                <User className="w-10 h-10 text-white" />
-                            )}
-                        </div>
+                        <UserAvatar 
+                            useCurrentUser 
+                            size="xl" 
+                            showFallbackIcon 
+                            className="w-full h-full"
+                        />
                     </div>
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <span className="text-xs font-bold text-white">Edit</span>

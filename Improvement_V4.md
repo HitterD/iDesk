@@ -3745,4 +3745,2293 @@ const tickets = await this.ticketRepo
 
 ---
 
-*Dokumen diupdate pada 29 November 2025 - Versi 4.9 (Phase 1-5 Implementation Complete)*
+## 16. Notification System & Light Mode Improvements (V6)
+
+### 16.1 Notification System Issues
+
+#### Current Problems:
+1. **Wrong routing path**: `notificationRouter.ts` uses `/ticket/view/${ticketId}` but actual routes are:
+   - Admin/Agent: `/tickets/${id}`
+   - Client/User: `/client/tickets/${id}`
+
+2. **No role-based routing**: Notification router doesn't consider user role when determining destination path
+
+3. **User role restrictions**: 
+   - Users can see NotificationPopover but no NotificationCenter page in client routes
+   - Need to add `/client/notifications` route for User role
+
+4. **Mixed notifications**: Notifications might be showing across roles inappropriately
+
+#### Solution Plan:
+
+**A. Fix Notification Router (`notificationRouter.ts`)**
+```typescript
+// Add role parameter to routing function
+export function getNotificationRedirectPath(
+    notification: Notification, 
+    userRole: 'ADMIN' | 'AGENT' | 'USER'
+): string {
+    const { category, ticketId, referenceId, link } = notification;
+    
+    // Base path based on role
+    const ticketBasePath = userRole === 'USER' ? '/client/tickets' : '/tickets';
+    
+    switch (category) {
+        case NotificationCategory.CATEGORY_TICKET:
+            return ticketId ? `${ticketBasePath}/${ticketId}` : 
+                   userRole === 'USER' ? '/client/my-tickets' : '/tickets/list';
+        
+        case NotificationCategory.CATEGORY_RENEWAL:
+            // Only Admin can access renewal
+            if (userRole !== 'ADMIN') return '/client/my-tickets';
+            return referenceId ? `/renewal` : '/renewal';
+        
+        default:
+            return userRole === 'USER' ? '/client/my-tickets' : '/dashboard';
+    }
+}
+```
+
+**B. Add Client Notification Center Route (`App.tsx`)**
+```typescript
+// Add to client routes
+<Route path="notifications" element={
+    <FeatureErrorBoundary featureName="Notifications">
+        <Suspense fallback={<PageLoader />}>
+            <ClientNotificationCenter />
+        </Suspense>
+    </FeatureErrorBoundary>
+} />
+```
+
+**C. Update NotificationPopover and NotificationCenter**
+- Pass user role from `useAuth()` to routing function
+- Filter notifications by role-appropriate categories:
+  - USER: Only CATEGORY_TICKET (their own tickets)
+  - AGENT: CATEGORY_TICKET (assigned tickets)
+  - ADMIN: CATEGORY_TICKET + CATEGORY_RENEWAL
+
+**D. Backend: Filter notifications by role**
+- Add role-based filtering in notification queries
+- Users should only see notifications for their own tickets
+- Agents see notifications for assigned tickets
+- Admins see all notifications
+
+#### Files to Modify:
+- `apps/frontend/src/components/notifications/utils/notificationRouter.ts`
+- `apps/frontend/src/components/notifications/NotificationPopover.tsx`
+- `apps/frontend/src/components/notifications/NotificationCenter.tsx`
+- `apps/frontend/src/App.tsx` (add client notification route)
+- `apps/frontend/src/features/client/pages/ClientNotificationCenter.tsx` (new file)
+- `apps/backend/src/modules/notifications/notification.service.ts`
+
+---
+
+### 16.2 Light Mode Improvements
+
+#### Current Problems:
+1. **Background too bright**: Pure white (#FFFFFF) is harsh on eyes
+2. **Low contrast**: Effects and some text not visible on bright background
+3. **Primary color visibility**: Mint green (#A8E6CF) has low contrast on white
+4. **Card/border definition**: Cards blend into background
+
+#### Solution Plan - Warm Off-White Theme:
+
+**A. Update CSS Variables (`index.css`)**
+```css
+:root {
+    /* Warm Off-White Background (Bone/Cream) */
+    --background: 40 20% 96%;        /* #F7F5F2 - Warm cream */
+    --foreground: 220 20% 20%;       /* Darker text for contrast */
+    
+    /* Card - Slightly warmer white */
+    --card: 40 15% 98%;              /* #FDFCFA */
+    --card-foreground: 220 20% 15%;
+    
+    /* Popover */
+    --popover: 40 15% 99%;
+    --popover-foreground: 220 20% 15%;
+    
+    /* Primary - Slightly darker mint for better contrast */
+    --primary: 157 45% 55%;          /* #5CB88A - Darker mint */
+    --primary-foreground: 0 0% 100%; /* White text on primary */
+    
+    /* Secondary - Warmer yellow */
+    --secondary: 38 80% 80%;         /* Warmer tone */
+    --secondary-foreground: 220 20% 15%;
+    
+    /* Muted - Warm gray */
+    --muted: 40 10% 90%;             /* Warm gray */
+    --muted-foreground: 220 10% 40%;
+    
+    /* Borders - More visible */
+    --border: 40 15% 82%;            /* Visible warm border */
+    --input: 40 15% 88%;
+    
+    /* Ring - Match primary */
+    --ring: 157 45% 55%;
+    
+    /* Shadows for depth */
+    --shadow-color: 40 20% 70%;
+}
+```
+
+**B. Add Light Mode Specific Styles**
+```css
+/* Light mode specific enhancements */
+@media (prefers-color-scheme: light) {
+    .light {
+        /* Subtle shadows for depth */
+        --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.1);
+        --shadow-md: 0 4px 6px hsl(var(--shadow-color) / 0.1);
+        --shadow-lg: 0 10px 15px hsl(var(--shadow-color) / 0.1);
+    }
+}
+
+/* Card styling for light mode */
+.light .card, 
+.light [class*="bg-white"],
+.light [class*="bg-slate-800"] {
+    background: hsl(var(--card));
+    box-shadow: 0 1px 3px hsl(var(--shadow-color) / 0.08);
+    border: 1px solid hsl(var(--border));
+}
+
+/* Text contrast improvements */
+.light .text-slate-400 { color: hsl(220 10% 50%); }
+.light .text-slate-500 { color: hsl(220 10% 40%); }
+.light .text-slate-600 { color: hsl(220 15% 30%); }
+
+/* Primary button - ensure visibility */
+.light .bg-primary {
+    background: hsl(157 45% 50%);
+    color: white;
+    font-weight: 600;
+}
+
+/* Hover states more visible */
+.light [class*="hover:bg-slate-100"]:hover {
+    background: hsl(40 15% 92%);
+}
+```
+
+**C. Component-Level Updates**
+- Update `BentoLayout.tsx` sidebar for light mode contrast
+- Update `BentoSidebar.tsx` active states
+- Update `BentoTopbar.tsx` background and icons
+- Update all card components with proper borders in light mode
+
+#### Color Palette Summary:
+| Element | Current | Proposed | Notes |
+|---------|---------|----------|-------|
+| Background | #F1F3F5 (cool gray) | #F7F5F2 (warm cream) | Easier on eyes |
+| Card | #FFFFFF | #FDFCFA | Subtle warmth |
+| Primary | #A8E6CF (78% L) | #5CB88A (55% L) | Better contrast |
+| Border | #D4D7DC | #D6D1CA | Visible definition |
+| Text Primary | #1A202C | #2D3748 | Softer black |
+| Text Secondary | #A0AEC0 | #6B7280 | More readable |
+
+#### Files to Modify:
+- `apps/frontend/src/index.css` (CSS variables)
+- `apps/frontend/src/components/layout/BentoLayout.tsx`
+- `apps/frontend/src/components/layout/BentoSidebar.tsx`
+- `apps/frontend/src/components/layout/BentoTopbar.tsx`
+- `apps/frontend/src/components/layout/ClientLayout.tsx`
+
+---
+
+### 16.3 Implementation Priority
+
+| Task | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| Fix notification routing | HIGH | 2h | Critical - users can't navigate |
+| Add client notification page | HIGH | 1h | Users need notification access |
+| Role-based notification filtering | MEDIUM | 3h | Data isolation |
+| Light mode background colors | HIGH | 1h | UX - eye strain |
+| Light mode contrast fixes | MEDIUM | 2h | Accessibility |
+| Light mode shadow/depth | LOW | 1h | Visual polish |
+
+### 16.4 Testing Checklist
+
+**Notifications:**
+- [ ] Admin clicks ticket notification → navigates to `/tickets/{id}`
+- [ ] Agent clicks ticket notification → navigates to `/tickets/{id}`
+- [ ] User clicks ticket notification → navigates to `/client/tickets/{id}`
+- [ ] User can access `/client/notifications` page
+- [ ] User only sees own ticket notifications
+- [ ] Agent only sees assigned ticket notifications
+- [ ] Admin sees all notifications including renewals
+
+**Light Mode:**
+- [ ] Background is warm cream, not harsh white
+- [ ] Cards have visible borders/shadows
+- [ ] Primary buttons are readable (white text on darker mint)
+- [ ] All text meets WCAG AA contrast (4.5:1 for normal text)
+- [ ] Hover states are visible
+- [ ] Active navigation states are clear
+- [ ] No "invisible" elements
+
+---
+
+## 17. Telegram Bot Total Redesign & Improvement (V7)
+
+> **STATUS: ✅ FULLY COMPLETED** (30 November 2025)
+> 
+> ### Section Completion Status:
+> 
+> | Section | Description | Status |
+> |---------|-------------|--------|
+> | 17.1 | Current State Analysis | ✅ Documented |
+> | 17.2 | Redesign Goals | ✅ All goals achieved |
+> | 17.3 | Architecture Redesign | ✅ Full module structure |
+> | 17.4 | Feature Specifications | ✅ All features implemented |
+> | 17.5 | Message Templates Redesign | ✅ ID/EN templates |
+> | 17.6 | New Commands & Actions | ✅ All commands |
+> | 17.7 | Implementation Priority | ✅ All phases |
+> | 17.8 | Phase 1 Implementation | ✅ Handlers refactored |
+> | 17.9 | Database Migrations | ✅ Migration created |
+> | 17.10 | Testing Checklist | ⏭️ Skipped |
+> | 17.11 | Monitoring & Analytics | ✅ Logging middleware |
+> | 17.12 | Security Considerations | ✅ Guards & validation |
+> 
+> ### Complete Module Structure (17.3.1):
+> ```
+> apps/backend/src/modules/telegram/
+> ├── telegram.module.ts          ✅
+> ├── telegram.service.ts         ✅
+> ├── telegram.controller.ts      ✅
+> ├── telegram.update.ts          ✅
+> ├── telegram-chat-bridge.service.ts ✅
+> ├── index.ts                    ✅
+> │
+> ├── handlers/                   ✅
+> │   ├── index.ts
+> │   ├── start.handler.ts
+> │   ├── ticket.handler.ts
+> │   ├── chat.handler.ts
+> │   ├── settings.handler.ts
+> │   ├── agent.handler.ts
+> │   └── inline.handler.ts
+> │
+> ├── keyboards/                  ✅
+> │   ├── index.ts
+> │   ├── main-menu.keyboard.ts
+> │   ├── ticket-actions.keyboard.ts
+> │   ├── priority.keyboard.ts
+> │   ├── category.keyboard.ts
+> │   ├── agent-actions.keyboard.ts
+> │   ├── settings.keyboard.ts
+> │   └── survey.keyboard.ts
+> │
+> ├── templates/                  ✅
+> │   ├── index.ts
+> │   ├── messages.id.ts
+> │   └── messages.en.ts
+> │
+> ├── middleware/                 ✅
+> │   ├── index.ts
+> │   ├── auth.middleware.ts
+> │   ├── rate-limit.middleware.ts
+> │   ├── language.middleware.ts
+> │   └── logging.middleware.ts
+> │
+> ├── webapp/                     ✅
+> │   ├── index.ts
+> │   ├── webapp.controller.ts
+> │   └── webapp.service.ts
+> │
+> ├── entities/                   ✅
+> │   └── telegram-session.entity.ts
+> │
+> ├── enums/                      ✅
+> │   ├── index.ts
+> │   ├── telegram-state.enum.ts
+> │   ├── telegram-command.enum.ts
+> │   └── telegram-language.enum.ts
+> │
+> ├── dto/                        ✅
+> │   ├── index.ts
+> │   ├── webapp-ticket.dto.ts
+> │   └── quick-reply.dto.ts
+> │
+> ├── interfaces/                 ✅
+> │   ├── index.ts
+> │   └── telegram-context.interface.ts
+> │
+> └── utils/                      ✅
+>     ├── index.ts
+>     ├── message-formatter.ts
+>     ├── keyboard-builder.ts
+>     └── media-handler.ts
+> ```
+> 
+> ### Commands Implemented (17.6):
+> | Command | Description | Status |
+> |---------|-------------|--------|
+> | /start | Main menu | ✅ |
+> | /tiket [text] | Quick ticket | ✅ |
+> | /ticket [text] | Alias | ✅ |
+> | /list, /mytickets | List tickets | ✅ |
+> | /status [no] | Check status | ✅ |
+> | /chat | Start chat mode | ✅ |
+> | /end, /endchat | End chat | ✅ |
+> | /cari [query] | Search KB | ✅ |
+> | /search [query] | Alias | ✅ |
+> | /bahasa | Change language | ✅ |
+> | /language | Alias | ✅ |
+> | /settings | Settings menu | ✅ |
+> | /queue | Agent: view queue | ✅ |
+> | /assign [no] | Agent: take ticket | ✅ |
+> | /resolve [no] | Agent: resolve | ✅ |
+> | /stats | Agent: statistics | ✅ |
+> | /link | Link account | ✅ |
+> | /unlink | Unlink account | ✅ |
+> | /help | Show help | ✅ |
+> 
+> ### Callback Actions (17.6):
+> - ✅ main_menu, my_tickets, settings, help
+> - ✅ new_ticket, ticket_wizard, ticket_quick_guide
+> - ✅ view_ticket, enter_chat, exit_chat
+> - ✅ change_priority, set_priority
+> - ✅ select_category, select_priority
+> - ✅ toggle_notifications, change_language, set_language
+> - ✅ survey_rating, skip_survey
+> - ✅ assign_ticket, search_kb
+> 
+> ### migrations/ (17.9):
+> - ✅ 1732924800000-AddTelegramSessionV7Fields.ts
+> 
+> **NOTE:** Restart backend untuk menerapkan perubahan!
+
+### 17.1 Current State Analysis
+
+#### 17.1.1 Existing Features
+| Feature | Status | Quality |
+|---------|--------|---------|
+| Account Linking | ✅ Working | Good |
+| Ticket Creation | ✅ Working | Basic |
+| Ticket Listing | ✅ Working | Basic |
+| Chat Mode | ✅ Working | Good |
+| Priority Change | ✅ Working | Basic |
+| Notifications | ✅ Working | Basic |
+| Photo/Document | ✅ Working | Good |
+| Agent Notifications | ✅ Working | Basic |
+
+#### 17.1.2 Current Pain Points
+1. **UX Issues:**
+   - Menu navigation tidak intuitif
+   - Pesan terlalu panjang/verbose
+   - Tidak ada quick actions
+   - Flow pembuatan tiket terlalu banyak langkah
+
+2. **Missing Features:**
+   - Tidak ada inline mode untuk quick search
+   - Tidak ada Web App (Mini App) integration
+   - Tidak ada voice message support
+   - Tidak ada multi-language
+   - Tidak ada scheduled notifications
+   - Tidak ada satisfaction survey
+
+3. **Agent Experience:**
+   - Agent tidak bisa assign tiket dari Telegram
+   - Tidak ada quick reply templates
+   - Tidak ada ticket filtering
+
+4. **Performance:**
+   - Tidak ada message batching
+   - Tidak ada smart caching
+   - Rate limiting basic
+
+---
+
+### 17.2 Redesign Goals
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    TELEGRAM BOT V2 GOALS                        │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Faster Ticket Creation    → From 4 steps to 1-2 steps       │
+│ 2. Better Agent Experience   → Quick actions, templates        │
+│ 3. Rich Media Support        → Voice, location, contact        │
+│ 4. Web App Integration       → Full ticket form in Mini App    │
+│ 5. Smart Notifications       → Batched, prioritized, scheduled │
+│ 6. Multi-language            → ID/EN with auto-detect          │
+│ 7. Analytics Dashboard       → Usage stats, response times     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 17.3 Architecture Redesign
+
+#### 17.3.1 New Module Structure
+```
+apps/backend/src/modules/telegram/
+├── telegram.module.ts
+├── telegram.service.ts              # Core service
+├── telegram.controller.ts           # Webhook & API
+├── telegram.update.ts               # Bot handlers (refactored)
+├── telegram-chat-bridge.service.ts  # Chat bridging
+│
+├── handlers/                        # NEW: Modular handlers
+│   ├── start.handler.ts
+│   ├── ticket.handler.ts
+│   ├── chat.handler.ts
+│   ├── settings.handler.ts
+│   ├── agent.handler.ts
+│   └── inline.handler.ts
+│
+├── keyboards/                       # NEW: Keyboard builders
+│   ├── main-menu.keyboard.ts
+│   ├── ticket-actions.keyboard.ts
+│   ├── priority.keyboard.ts
+│   ├── category.keyboard.ts
+│   └── agent-actions.keyboard.ts
+│
+├── templates/                       # NEW: Message templates
+│   ├── messages.id.ts               # Indonesian
+│   ├── messages.en.ts               # English
+│   └── index.ts
+│
+├── middleware/                      # NEW: Bot middleware
+│   ├── auth.middleware.ts
+│   ├── rate-limit.middleware.ts
+│   ├── language.middleware.ts
+│   └── logging.middleware.ts
+│
+├── webapp/                          # NEW: Mini App support
+│   ├── webapp.controller.ts
+│   ├── webapp.service.ts
+│   └── dto/
+│
+├── entities/
+│   └── telegram-session.entity.ts   # Updated
+│
+├── enums/
+│   ├── telegram-state.enum.ts
+│   ├── telegram-command.enum.ts     # NEW
+│   └── telegram-language.enum.ts    # NEW
+│
+├── dto/
+│   ├── create-ticket-bot.dto.ts
+│   ├── webapp-ticket.dto.ts         # NEW
+│   └── quick-reply.dto.ts           # NEW
+│
+├── interfaces/
+│   └── telegram-context.interface.ts
+│
+└── utils/
+    ├── message-formatter.ts         # NEW
+    ├── keyboard-builder.ts          # NEW
+    └── media-handler.ts             # NEW
+```
+
+#### 17.3.2 Updated Entity
+```typescript
+// telegram-session.entity.ts
+@Entity('telegram_sessions')
+export class TelegramSession {
+    @PrimaryGeneratedColumn('uuid')
+    id: string;
+
+    @Column({ type: 'bigint', unique: true })
+    telegramId: string;
+
+    @Column({ nullable: true })
+    telegramUsername: string;
+
+    @Column({ nullable: true })
+    telegramFirstName: string;
+
+    @Column({ type: 'bigint' })
+    chatId: string;
+
+    @Column({ nullable: true })
+    userId: string;
+
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'userId' })
+    user: User;
+
+    @Column({ default: 'IDLE' })
+    state: string;
+
+    @Column({ type: 'jsonb', nullable: true })
+    stateData: any;
+
+    @Column({ nullable: true })
+    linkedAt: Date;
+
+    @Column({ nullable: true })
+    activeTicketId: string;
+
+    @Column({ nullable: true })
+    lastActivityAt: Date;
+
+    // NEW FIELDS
+    @Column({ default: 'id' })
+    language: string; // 'id' | 'en'
+
+    @Column({ default: true })
+    notificationsEnabled: boolean;
+
+    @Column({ type: 'jsonb', default: '{}' })
+    preferences: {
+        notifyNewReply: boolean;
+        notifyStatusChange: boolean;
+        notifySlaWarning: boolean;
+        quietHoursStart?: string; // "22:00"
+        quietHoursEnd?: string;   // "07:00"
+    };
+
+    @Column({ type: 'jsonb', default: '[]' })
+    quickReplies: string[]; // Saved quick reply templates
+
+    @Column({ default: 0 })
+    ticketsCreated: number;
+
+    @Column({ default: 0 })
+    messagesCount: number;
+
+    @CreateDateColumn()
+    createdAt: Date;
+
+    @UpdateDateColumn()
+    updatedAt: Date;
+}
+```
+
+---
+
+### 17.4 Feature Specifications
+
+#### 17.4.1 Quick Ticket Creation (One-Step)
+```
+USER: /tiket Laptop tidak bisa connect WiFi
+
+BOT:  🎫 Tiket Express Dibuat!
+      
+      #301124-IT-0012
+      📌 Laptop tidak bisa connect WiFi
+      
+      ⚡ Prioritas: Medium (auto)
+      📁 Kategori: Network (auto)
+      
+      ━━━━━━━━━━━━━━━━━━━━━━
+      [💬 Chat] [⚡ Ubah Prioritas] [📋 Detail]
+```
+
+**Implementation:**
+```typescript
+// handlers/ticket.handler.ts
+@Command('tiket')
+@Command('ticket')
+async onQuickTicket(@Ctx() ctx: Context) {
+    const text = ctx.message.text.replace(/^\/(tiket|ticket)\s*/i, '').trim();
+    
+    if (!text) {
+        return this.showTicketWizard(ctx);
+    }
+    
+    // AI-powered auto-categorization
+    const { category, priority } = await this.aiService.analyzeTicket(text);
+    
+    const ticket = await this.ticketService.create({
+        title: text.substring(0, 100),
+        description: text,
+        category,
+        priority,
+        userId: session.userId,
+        source: 'TELEGRAM_QUICK',
+    });
+    
+    await ctx.replyWithHTML(
+        this.templates.quickTicketCreated(ticket, session.language),
+        this.keyboards.ticketActions(ticket.id)
+    );
+}
+```
+
+#### 17.4.2 Telegram Web App (Mini App)
+```
+BOT: 🎫 Buat Tiket Baru
+     
+     Pilih cara membuat tiket:
+     
+     [⚡ Quick (1 pesan)]
+     [📝 Form Lengkap (Web App)]  ← Opens Mini App
+     [❌ Batal]
+```
+
+**Web App Features:**
+- Full ticket form dengan validation
+- File upload dengan preview
+- Category dropdown
+- Priority selector
+- Rich text description
+- Draft auto-save
+
+**Implementation:**
+```typescript
+// webapp/webapp.controller.ts
+@Controller('telegram/webapp')
+export class WebAppController {
+    @Post('ticket')
+    @UseGuards(TelegramWebAppGuard)
+    async createTicketFromWebApp(
+        @Body() dto: WebAppTicketDto,
+        @TelegramUser() user: TelegramWebAppUser
+    ) {
+        // Validate Web App data
+        const isValid = this.telegramService.validateWebAppData(dto.initData);
+        if (!isValid) throw new UnauthorizedException();
+        
+        const ticket = await this.ticketService.create({
+            ...dto,
+            source: 'TELEGRAM_WEBAPP',
+            userId: user.id,
+        });
+        
+        // Send confirmation to chat
+        await this.telegramService.sendTicketConfirmation(
+            user.telegramChatId,
+            ticket
+        );
+        
+        return { success: true, ticketId: ticket.id };
+    }
+}
+```
+
+#### 17.4.3 Redesigned Main Menu
+```
+🏠 Menu Utama iDesk
+
+Halo, Budi! 👋
+
+📊 Tiket Aktif: 3
+   └ 1 menunggu balasan
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+[🎫 Buat Tiket]     [📋 Tiket Saya]
+[💬 Chat Support]   [🔍 Cari KB]
+[⚙️ Pengaturan]     [❓ Bantuan]
+```
+
+**Keyboard Builder:**
+```typescript
+// keyboards/main-menu.keyboard.ts
+export class MainMenuKeyboard {
+    static build(session: TelegramSession, stats: UserStats) {
+        const t = getTemplates(session.language);
+        
+        return Markup.inlineKeyboard([
+            [
+                Markup.button.callback(t.btn.newTicket, 'new_ticket'),
+                Markup.button.callback(t.btn.myTickets, 'my_tickets'),
+            ],
+            [
+                Markup.button.callback(t.btn.chat, 'start_chat'),
+                Markup.button.callback(t.btn.searchKb, 'search_kb'),
+            ],
+            [
+                Markup.button.callback(t.btn.settings, 'settings'),
+                Markup.button.callback(t.btn.help, 'help'),
+            ],
+        ]);
+    }
+}
+```
+
+#### 17.4.4 Voice Message Support
+```
+USER: [🎤 Voice Message: 15 detik]
+
+BOT:  🎤 Pesan suara diterima!
+      
+      📝 Transkripsi:
+      "Printer di lantai 3 tidak bisa print,
+       error paper jam tapi tidak ada kertas
+       nyangkut"
+      
+      ━━━━━━━━━━━━━━━━━━━━━━
+      [✅ Kirim] [✏️ Edit] [❌ Batal]
+```
+
+**Implementation:**
+```typescript
+// handlers/voice.handler.ts
+@On('voice')
+async onVoice(@Ctx() ctx: Context) {
+    const session = await this.getSession(ctx);
+    
+    if (session.state !== TelegramState.CHAT_MODE) {
+        return ctx.reply(this.t('voice.needChatMode', session.language));
+    }
+    
+    // Download voice file
+    const voice = ctx.message.voice;
+    const fileLink = await ctx.telegram.getFileLink(voice.file_id);
+    const audioPath = await this.uploadService.downloadFromUrl({
+        url: fileLink.href,
+        folder: 'telegram/voice',
+    });
+    
+    // Transcribe using Whisper/Google Speech
+    const transcription = await this.speechService.transcribe(audioPath);
+    
+    // Show transcription for confirmation
+    await ctx.replyWithHTML(
+        this.templates.voiceTranscription(transcription, session.language),
+        Markup.inlineKeyboard([
+            [
+                Markup.button.callback('✅ Kirim', `send_voice:${audioPath}`),
+                Markup.button.callback('✏️ Edit', `edit_voice:${audioPath}`),
+            ],
+            [Markup.button.callback('❌ Batal', 'cancel_voice')],
+        ])
+    );
+}
+```
+
+#### 17.4.5 Inline Mode for Quick Search
+```
+USER: @idesk_bot printer error
+
+RESULTS:
+┌─────────────────────────────────────┐
+│ 📄 Cara Reset Printer HP           │
+│    Knowledge Base • 5 min read     │
+├─────────────────────────────────────┤
+│ 🎫 Tiket: Printer lantai 2 error   │
+│    #281124-IT-0023 • Resolved      │
+├─────────────────────────────────────┤
+│ 🎫 Tiket: Paper jam printer Epson  │
+│    #251124-IT-0018 • In Progress   │
+└─────────────────────────────────────┘
+```
+
+**Implementation:**
+```typescript
+// handlers/inline.handler.ts
+@InlineQuery()
+async onInlineQuery(@Ctx() ctx: Context) {
+    const query = ctx.inlineQuery.query.trim();
+    const from = ctx.inlineQuery.from;
+    
+    if (query.length < 2) {
+        return ctx.answerInlineQuery([]);
+    }
+    
+    const session = await this.getSession(String(from.id));
+    const results: InlineQueryResult[] = [];
+    
+    // Search Knowledge Base
+    const articles = await this.kbService.search(query, { limit: 3 });
+    for (const article of articles) {
+        results.push({
+            type: 'article',
+            id: `kb_${article.id}`,
+            title: `📄 ${article.title}`,
+            description: article.excerpt,
+            input_message_content: {
+                message_text: `📄 *${article.title}*\n\n${article.excerpt}\n\n[Baca selengkapnya](${FRONTEND_URL}/client/kb/articles/${article.id})`,
+                parse_mode: 'Markdown',
+            },
+        });
+    }
+    
+    // Search user's tickets (if linked)
+    if (session?.userId) {
+        const tickets = await this.ticketService.search(query, {
+            userId: session.userId,
+            limit: 3,
+        });
+        
+        for (const ticket of tickets) {
+            results.push({
+                type: 'article',
+                id: `ticket_${ticket.id}`,
+                title: `🎫 ${ticket.title}`,
+                description: `#${ticket.ticketNumber} • ${ticket.status}`,
+                input_message_content: {
+                    message_text: this.formatTicketInline(ticket),
+                    parse_mode: 'HTML',
+                },
+            });
+        }
+    }
+    
+    await ctx.answerInlineQuery(results, { cache_time: 60 });
+}
+```
+
+#### 17.4.6 Agent Features
+```
+🎫 Tiket Baru Masuk!
+
+#301124-IT-0012
+📌 Laptop tidak bisa connect WiFi
+👤 Budi Santoso (IT Department)
+⚡ Medium | 📁 Network
+
+━━━━━━━━━━━━━━━━━━━━━━
+[✋ Ambil] [👀 Detail] [⏭️ Skip]
+```
+
+**Agent Quick Actions:**
+```typescript
+// handlers/agent.handler.ts
+@Action(/assign_ticket:(.+)/)
+async onAssignTicket(@Ctx() ctx: Context) {
+    const ticketId = ctx.match[1];
+    const agentTelegramId = String(ctx.from.id);
+    
+    const session = await this.getSession(agentTelegramId);
+    if (!session?.userId) {
+        return ctx.answerCbQuery('❌ Link akun dulu');
+    }
+    
+    const agent = await this.userRepo.findOne({ where: { id: session.userId } });
+    if (agent.role !== 'AGENT' && agent.role !== 'ADMIN') {
+        return ctx.answerCbQuery('❌ Akses ditolak');
+    }
+    
+    // Assign ticket
+    const ticket = await this.ticketService.assign(ticketId, agent.id);
+    
+    await ctx.answerCbQuery('✅ Tiket diambil!');
+    await ctx.editMessageText(
+        this.templates.ticketAssigned(ticket, agent, session.language),
+        Markup.inlineKeyboard([
+            [Markup.button.callback('💬 Balas', `enter_chat:${ticketId}`)],
+            [Markup.button.callback('📋 Detail', `view_ticket:${ticketId}`)],
+        ])
+    );
+    
+    // Notify user
+    await this.notifyTicketAssigned(ticket, agent);
+}
+
+// Quick reply templates for agents
+@Action('quick_replies')
+async onQuickReplies(@Ctx() ctx: Context) {
+    const templates = [
+        'Terima kasih sudah menghubungi. Saya akan segera membantu.',
+        'Mohon informasikan detail lebih lanjut: ...',
+        'Sudah saya cek, masalah sedang dalam proses perbaikan.',
+        'Masalah sudah teratasi. Silakan cek kembali.',
+        'Apakah ada kendala lain yang bisa saya bantu?',
+    ];
+    
+    const buttons = templates.map((t, i) => [
+        Markup.button.callback(
+            t.substring(0, 40) + '...',
+            `send_quick:${i}`
+        )
+    ]);
+    
+    await ctx.replyWithHTML(
+        '📝 <b>Quick Replies</b>\n\nPilih template:',
+        Markup.inlineKeyboard(buttons)
+    );
+}
+```
+
+#### 17.4.7 Multi-Language Support
+```typescript
+// templates/messages.id.ts
+export const messagesId = {
+    welcome: {
+        title: '👋 Selamat Datang di iDesk!',
+        subtitle: 'Saya dapat membantu Anda:',
+        features: [
+            '• Membuat tiket support',
+            '• Melacak status tiket',
+            '• Mencari artikel bantuan',
+        ],
+    },
+    btn: {
+        newTicket: '🎫 Buat Tiket',
+        myTickets: '📋 Tiket Saya',
+        chat: '💬 Chat',
+        searchKb: '🔍 Cari KB',
+        settings: '⚙️ Pengaturan',
+        help: '❓ Bantuan',
+    },
+    ticket: {
+        created: '✅ Tiket Berhasil Dibuat!',
+        notFound: '❌ Tiket tidak ditemukan',
+        updated: '🔄 Tiket diupdate',
+    },
+    errors: {
+        notLinked: '⚠️ Akun belum terhubung. Gunakan /link',
+        unauthorized: '❌ Anda tidak memiliki akses',
+        serverError: '❌ Terjadi kesalahan server',
+    },
+};
+
+// templates/messages.en.ts
+export const messagesEn = {
+    welcome: {
+        title: '👋 Welcome to iDesk!',
+        subtitle: 'I can help you:',
+        features: [
+            '• Create support tickets',
+            '• Track ticket status',
+            '• Search help articles',
+        ],
+    },
+    // ... rest in English
+};
+
+// templates/index.ts
+export function getTemplates(lang: string = 'id') {
+    return lang === 'en' ? messagesEn : messagesId;
+}
+```
+
+#### 17.4.8 Smart Notifications
+```typescript
+// notification batching & scheduling
+interface NotificationQueue {
+    userId: string;
+    notifications: QueuedNotification[];
+    scheduledAt: Date;
+}
+
+// telegram.service.ts
+async queueNotification(userId: string, notification: Notification) {
+    const session = await this.getSessionByUserId(userId);
+    if (!session || !session.notificationsEnabled) return;
+    
+    // Check quiet hours
+    if (this.isQuietHours(session.preferences)) {
+        return this.scheduleForLater(userId, notification);
+    }
+    
+    // Batch similar notifications
+    const pending = await this.getPendingNotifications(userId);
+    if (pending.length > 0 && this.canBatch(pending[0], notification)) {
+        return this.addToBatch(userId, notification);
+    }
+    
+    // Send immediately if high priority
+    if (notification.priority === 'HIGH' || notification.type === 'SLA_BREACH') {
+        return this.sendImmediately(userId, notification);
+    }
+    
+    // Queue for batch send (every 5 minutes)
+    await this.addToQueue(userId, notification);
+}
+
+// Batch notification format
+async sendBatchNotification(userId: string, notifications: Notification[]) {
+    const session = await this.getSessionByUserId(userId);
+    
+    const message = 
+        `📬 <b>Update Tiket Anda</b>\n\n` +
+        notifications.map(n => `• ${n.title}`).join('\n') +
+        `\n\n<i>${notifications.length} notifikasi</i>`;
+    
+    await this.sendMessage(session.chatId, message, {
+        reply_markup: {
+            inline_keyboard: [[
+                { text: '📋 Lihat Semua', callback_data: 'my_tickets' }
+            ]]
+        }
+    });
+}
+```
+
+#### 17.4.9 Satisfaction Survey
+```
+✅ Tiket #301124-IT-0012 Selesai!
+
+"Laptop tidak bisa connect WiFi"
+Ditangani oleh: Andi (IT Support)
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+Bagaimana pengalaman Anda?
+
+[😍 Sangat Puas] [😊 Puas]
+[😐 Cukup]      [😕 Kurang]
+
+[⏭️ Lewati Survey]
+```
+
+**Implementation:**
+```typescript
+// handlers/survey.handler.ts
+@Action(/survey_rating:(.+):(.+)/)
+async onSurveyRating(@Ctx() ctx: Context) {
+    const [ticketId, rating] = ctx.match.slice(1);
+    
+    await this.surveyService.submitRating({
+        ticketId,
+        rating: parseInt(rating),
+        source: 'TELEGRAM',
+    });
+    
+    await ctx.answerCbQuery('Terima kasih atas feedback Anda! 🙏');
+    await ctx.editMessageText(
+        '✅ <b>Terima Kasih!</b>\n\n' +
+        'Feedback Anda sangat berharga untuk meningkatkan layanan kami.',
+        { parse_mode: 'HTML' }
+    );
+}
+```
+
+#### 17.4.10 QR Code Quick Linking
+```
+🔗 Hubungkan Akun via QR Code
+
+Scan QR code ini dengan kamera HP
+atau buka di browser:
+
+[QR CODE IMAGE]
+
+📱 Link: idesk.app/link/abc123
+
+Atau masukkan kode: 847291
+
+⏱️ Berlaku 5 menit
+```
+
+---
+
+### 17.5 Message Templates Redesign
+
+#### Before (Verbose):
+```
+📝 Membuat Tiket Baru
+
+Langkah 1/4: Masukkan judul tiket
+(atau /cancel untuk membatalkan)
+```
+
+#### After (Compact & Clear):
+```
+📝 Judul tiket? (min. 5 karakter)
+```
+
+#### Ticket Card Redesign:
+```
+┌─────────────────────────────────────┐
+│ 🎫 #301124-IT-0012                  │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ 📌 Laptop tidak bisa connect WiFi  │
+│                                     │
+│ 🟡 In Progress  ⚡ Medium           │
+│ 👤 Andi         🕐 2h ago           │
+│                                     │
+│ [💬 Chat] [📋 Detail] [⚡ Priority] │
+└─────────────────────────────────────┘
+```
+
+---
+
+### 17.6 New Commands & Actions
+
+#### User Commands:
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/start` | Menu utama | - |
+| `/tiket <text>` | Quick ticket creation | `/tiket printer error` |
+| `/tiket` | Ticket wizard | - |
+| `/list` | Daftar tiket | - |
+| `/status <no>` | Cek status | `/status 301124-IT-0012` |
+| `/chat` | Mode chat | - |
+| `/end` | Keluar chat | - |
+| `/cari <query>` | Cari KB | `/cari reset password` |
+| `/bahasa` | Ganti bahasa | - |
+| `/settings` | Pengaturan | - |
+| `/help` | Bantuan | - |
+
+#### Agent Commands:
+| Command | Description | Access |
+|---------|-------------|--------|
+| `/queue` | Lihat antrian tiket | Agent/Admin |
+| `/assign <no>` | Ambil tiket | Agent/Admin |
+| `/resolve <no>` | Selesaikan tiket | Agent/Admin |
+| `/stats` | Statistik hari ini | Agent/Admin |
+
+#### Callback Actions:
+```typescript
+enum CallbackAction {
+    // Navigation
+    MAIN_MENU = 'main_menu',
+    MY_TICKETS = 'my_tickets',
+    SETTINGS = 'settings',
+    
+    // Ticket
+    NEW_TICKET = 'new_ticket',
+    NEW_TICKET_WEBAPP = 'new_ticket_webapp',
+    VIEW_TICKET = 'view_ticket',
+    ENTER_CHAT = 'enter_chat',
+    EXIT_CHAT = 'exit_chat',
+    
+    // Priority
+    CHANGE_PRIORITY = 'change_priority',
+    SET_PRIORITY = 'set_priority',
+    
+    // Category
+    SELECT_CATEGORY = 'select_category',
+    
+    // Agent
+    ASSIGN_TICKET = 'assign_ticket',
+    RESOLVE_TICKET = 'resolve_ticket',
+    QUICK_REPLY = 'quick_reply',
+    
+    // Survey
+    SURVEY_RATING = 'survey_rating',
+    SKIP_SURVEY = 'skip_survey',
+    
+    // Settings
+    TOGGLE_NOTIFICATIONS = 'toggle_notifications',
+    CHANGE_LANGUAGE = 'change_language',
+    SET_QUIET_HOURS = 'set_quiet_hours',
+}
+```
+
+---
+
+### 17.7 Implementation Priority
+
+| Phase | Features | Effort | Priority |
+|-------|----------|--------|----------|
+| **Phase 1** | Quick Ticket, Menu Redesign, Templates | 3 days | HIGH |
+| **Phase 2** | Multi-language, Notification Batching | 2 days | HIGH |
+| **Phase 3** | Agent Features, Quick Replies | 2 days | HIGH |
+| **Phase 4** | Voice Support, Inline Mode | 3 days | MEDIUM |
+| **Phase 5** | Web App Integration | 3 days | MEDIUM |
+| **Phase 6** | Survey, Analytics, QR Linking | 2 days | LOW |
+
+**Total Estimate: 15 days**
+
+---
+
+### 17.8 Phase 1 Implementation Detail
+
+#### 17.8.1 Refactor Update Handler
+```typescript
+// telegram.update.ts (simplified - delegates to handlers)
+@Update()
+export class TelegramUpdate {
+    constructor(
+        private startHandler: StartHandler,
+        private ticketHandler: TicketHandler,
+        private chatHandler: ChatHandler,
+        private settingsHandler: SettingsHandler,
+        private agentHandler: AgentHandler,
+    ) {}
+
+    @Start()
+    async onStart(@Ctx() ctx: Context) {
+        return this.startHandler.handle(ctx);
+    }
+
+    @Command('tiket')
+    @Command('ticket')
+    async onTicket(@Ctx() ctx: Context) {
+        return this.ticketHandler.handleQuickTicket(ctx);
+    }
+
+    @Command('list')
+    @Command('mytickets')
+    async onList(@Ctx() ctx: Context) {
+        return this.ticketHandler.handleList(ctx);
+    }
+
+    @Command('chat')
+    async onChat(@Ctx() ctx: Context) {
+        return this.chatHandler.handleStartChat(ctx);
+    }
+
+    @Command('end')
+    @Command('endchat')
+    async onEndChat(@Ctx() ctx: Context) {
+        return this.chatHandler.handleEndChat(ctx);
+    }
+
+    @On('text')
+    async onText(@Ctx() ctx: Context) {
+        // Route based on state
+        const session = await this.telegramService.getSession(String(ctx.from.id));
+        
+        if (session?.state === TelegramState.CHAT_MODE) {
+            return this.chatHandler.handleMessage(ctx);
+        }
+        
+        return this.handleStatefulMessage(ctx, session);
+    }
+
+    @On('callback_query')
+    async onCallback(@Ctx() ctx: Context) {
+        return this.handleCallback(ctx);
+    }
+}
+```
+
+#### 17.8.2 Start Handler
+```typescript
+// handlers/start.handler.ts
+@Injectable()
+export class StartHandler {
+    constructor(
+        private telegramService: TelegramService,
+        private ticketService: TicketService,
+    ) {}
+
+    async handle(ctx: Context) {
+        const from = ctx.from;
+        const session = await this.telegramService.getOrCreateSession(
+            String(from.id),
+            String(ctx.chat.id),
+            from
+        );
+
+        const t = getTemplates(session.language);
+        const isLinked = !!session.userId;
+
+        if (isLinked) {
+            // Get stats
+            const stats = await this.ticketService.getUserStats(session.userId);
+            
+            const message = this.buildWelcomeMessage(t, session, stats);
+            await ctx.replyWithHTML(message, MainMenuKeyboard.build(session, stats));
+        } else {
+            await this.showLinkPrompt(ctx, t);
+        }
+    }
+
+    private buildWelcomeMessage(t: any, session: TelegramSession, stats: UserStats) {
+        return `
+🏠 <b>${t.welcome.title}</b>
+
+Halo, ${session.telegramFirstName}! 👋
+
+📊 Tiket Aktif: <b>${stats.activeTickets}</b>
+   └ ${stats.waitingReply} menunggu balasan
+
+━━━━━━━━━━━━━━━━━━━━━━
+        `.trim();
+    }
+}
+```
+
+#### 17.8.3 Quick Ticket Handler
+```typescript
+// handlers/ticket.handler.ts
+@Injectable()
+export class TicketHandler {
+    async handleQuickTicket(ctx: Context) {
+        const session = await this.telegramService.getSession(String(ctx.from.id));
+        const t = getTemplates(session?.language);
+
+        if (!session?.userId) {
+            return ctx.replyWithHTML(t.errors.notLinked);
+        }
+
+        const text = (ctx.message as any).text
+            .replace(/^\/(tiket|ticket)\s*/i, '')
+            .trim();
+
+        if (!text) {
+            // Show ticket creation options
+            return ctx.replyWithHTML(
+                '📝 <b>Buat Tiket</b>\n\nPilih cara:',
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('⚡ Quick (1 pesan)', 'ticket_quick_guide')],
+                    [Markup.button.callback('📝 Step-by-step', 'ticket_wizard')],
+                    [Markup.button.webApp('🌐 Form Lengkap', `${WEBAPP_URL}/ticket/create`)],
+                    [Markup.button.callback('❌ Batal', 'main_menu')],
+                ])
+            );
+        }
+
+        // Quick ticket creation
+        try {
+            const { category, priority } = await this.analyzeTicketText(text);
+            
+            const ticket = await this.ticketService.create({
+                title: text.length > 100 ? text.substring(0, 97) + '...' : text,
+                description: text,
+                category,
+                priority,
+                userId: session.userId,
+                source: TicketSource.TELEGRAM,
+            });
+
+            await ctx.replyWithHTML(
+                this.formatQuickTicketSuccess(ticket, t),
+                TicketActionsKeyboard.build(ticket.id)
+            );
+
+            // Notify agents
+            await this.telegramService.notifyNewTicketToAgents(ticket);
+
+        } catch (error) {
+            this.logger.error('Quick ticket creation failed:', error);
+            await ctx.reply(t.errors.serverError);
+        }
+    }
+
+    private async analyzeTicketText(text: string): Promise<{ category: string; priority: string }> {
+        // Simple keyword-based categorization (can be replaced with AI)
+        const lowerText = text.toLowerCase();
+        
+        let category = 'GENERAL';
+        if (lowerText.includes('printer') || lowerText.includes('laptop') || lowerText.includes('komputer')) {
+            category = 'HARDWARE';
+        } else if (lowerText.includes('wifi') || lowerText.includes('internet') || lowerText.includes('network')) {
+            category = 'NETWORK';
+        } else if (lowerText.includes('email') || lowerText.includes('outlook')) {
+            category = 'EMAIL';
+        } else if (lowerText.includes('password') || lowerText.includes('login') || lowerText.includes('akun')) {
+            category = 'ACCOUNT';
+        } else if (lowerText.includes('aplikasi') || lowerText.includes('software') || lowerText.includes('install')) {
+            category = 'SOFTWARE';
+        }
+
+        let priority = 'MEDIUM';
+        if (lowerText.includes('urgent') || lowerText.includes('segera') || lowerText.includes('darurat')) {
+            priority = 'HIGH';
+        } else if (lowerText.includes('tidak bisa') || lowerText.includes('error') || lowerText.includes('gagal')) {
+            priority = 'MEDIUM';
+        }
+
+        return { category, priority };
+    }
+
+    private formatQuickTicketSuccess(ticket: Ticket, t: any): string {
+        const priorityEmoji = {
+            LOW: '🟢',
+            MEDIUM: '🟡',
+            HIGH: '🟠',
+            CRITICAL: '🔴',
+        };
+
+        return `
+🎫 <b>Tiket Express Dibuat!</b>
+
+<b>#${ticket.ticketNumber}</b>
+📌 ${ticket.title}
+
+${priorityEmoji[ticket.priority]} Prioritas: ${ticket.priority} (auto)
+📁 Kategori: ${ticket.category} (auto)
+
+━━━━━━━━━━━━━━━━━━━━━━
+Tim support akan segera merespon.
+        `.trim();
+    }
+}
+```
+
+---
+
+### 17.9 Database Migrations
+
+```sql
+-- Migration: Add new telegram session fields
+ALTER TABLE telegram_sessions 
+ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'id',
+ADD COLUMN IF NOT EXISTS notifications_enabled BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{"notifyNewReply": true, "notifyStatusChange": true, "notifySlaWarning": true}',
+ADD COLUMN IF NOT EXISTS quick_replies JSONB DEFAULT '[]',
+ADD COLUMN IF NOT EXISTS tickets_created INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS messages_count INTEGER DEFAULT 0;
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_telegram_sessions_user_id ON telegram_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_sessions_active_ticket ON telegram_sessions(active_ticket_id);
+```
+
+---
+
+### 17.10 Testing Checklist
+
+#### Unit Tests:
+- [ ] Quick ticket text analysis
+- [ ] Message template formatting
+- [ ] Keyboard builders
+- [ ] Session state management
+- [ ] Notification batching logic
+
+#### Integration Tests:
+- [ ] Full ticket creation flow
+- [ ] Chat mode message bridging
+- [ ] Agent assignment flow
+- [ ] Survey submission
+
+#### E2E Tests:
+- [ ] /start command → menu display
+- [ ] /tiket quick creation
+- [ ] Inline mode search
+- [ ] Web App ticket creation
+
+#### Manual Tests:
+- [ ] Test dengan akun Telegram real
+- [ ] Test semua button callbacks
+- [ ] Test notification delivery
+- [ ] Test quiet hours
+- [ ] Test multi-language switching
+
+---
+
+### 17.11 Monitoring & Analytics
+
+```typescript
+// Track bot usage
+interface TelegramAnalytics {
+    dailyActiveUsers: number;
+    ticketsCreatedViaBot: number;
+    averageResponseTime: number;
+    commandUsage: Record<string, number>;
+    errorRate: number;
+    satisfactionScore: number;
+}
+
+// Log all bot interactions
+async logInteraction(ctx: Context, action: string, metadata?: any) {
+    await this.analyticsService.log({
+        source: 'TELEGRAM_BOT',
+        action,
+        userId: session?.userId,
+        telegramId: ctx.from.id,
+        metadata,
+        timestamp: new Date(),
+    });
+}
+```
+
+---
+
+### 17.12 Security Considerations
+
+1. **Webhook Verification:**
+   ```typescript
+   // Verify Telegram webhook requests
+   @Post('webhook')
+   async webhook(@Req() req: Request, @Res() res: Response) {
+       const secretToken = req.headers['x-telegram-bot-api-secret-token'];
+       if (secretToken !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+           throw new UnauthorizedException();
+       }
+       // Process update...
+   }
+   ```
+
+2. **Web App Data Validation:**
+   ```typescript
+   validateWebAppData(initData: string): boolean {
+       const urlParams = new URLSearchParams(initData);
+       const hash = urlParams.get('hash');
+       urlParams.delete('hash');
+       
+       const dataCheckString = Array.from(urlParams.entries())
+           .sort(([a], [b]) => a.localeCompare(b))
+           .map(([key, value]) => `${key}=${value}`)
+           .join('\n');
+       
+       const secretKey = crypto
+           .createHmac('sha256', 'WebAppData')
+           .update(process.env.TELEGRAM_BOT_TOKEN)
+           .digest();
+       
+       const expectedHash = crypto
+           .createHmac('sha256', secretKey)
+           .update(dataCheckString)
+           .digest('hex');
+       
+       return hash === expectedHash;
+   }
+   ```
+
+3. **Rate Limiting:**
+   ```typescript
+   // Per-user rate limiting
+   @UseGuards(TelegramRateLimitGuard)
+   // 20 requests per minute per user
+   ```
+
+4. **Input Sanitization:**
+   - Sanitize all user input sebelum display
+   - Escape HTML entities
+   - Limit message length
+
+---
+
+*Dokumen diupdate pada 29 November 2025 - Versi 6.0 (Telegram Bot Redesign Planning)*
+
+---
+
+## 18. SLA System Complete Overhaul (V8) - CRITICAL PRIORITY
+
+**Tanggal:** 30 November 2025  
+**Status:** PENDING IMPLEMENTATION  
+**Priority:** CRITICAL - Fixes core business logic
+
+### 18.1 Current Issues Analysis
+
+| Issue | Description | Impact |
+|-------|-------------|--------|
+| **Overdue Tidak Terhitung** | SLA overdue check menggunakan `createdAt` bukan waktu mulai kerja | Semua tiket tampak overdue meski baru dibuat |
+| **Target Date Langsung Aktif** | `slaTarget` dihitung dari `createdAt`, bukan dari status IN_PROGRESS | SLA tidak akurat, tidak fair bagi agent |
+| **First Response Time Tidak Berfungsi** | Field `responseTimeMinutes` ada di config tapi tidak di-track di ticket | Tidak ada monitoring first response SLA |
+| **Waiting Vendor Notification** | Tidak ada notifikasi khusus saat status WAITING_VENDOR | User tidak informed tentang jadwal vendor |
+
+---
+
+### 18.2 Database Schema Changes
+
+**File:** `apps/backend/src/modules/ticketing/entities/ticket.entity.ts`
+
+```typescript
+// TAMBAHKAN field-field berikut ke Ticket entity:
+
+@Entity('tickets')
+export class Ticket {
+    // ... existing fields ...
+
+    // === SLA Enhancement Fields ===
+    
+    @Column({ nullable: true })
+    slaStartedAt: Date;  // Waktu SLA mulai dihitung (saat status -> IN_PROGRESS)
+
+    @Column({ nullable: true })
+    firstResponseAt: Date;  // Waktu first response dari agent
+
+    @Column({ nullable: true })
+    firstResponseTarget: Date;  // Target waktu first response
+
+    @Column({ default: false })
+    isFirstResponseBreached: boolean;  // Flag breach first response
+
+    @Column({ nullable: true })
+    resolvedAt: Date;  // Waktu tiket resolved
+
+    @Column({ nullable: true })
+    waitingVendorAt: Date;  // Waktu masuk waiting vendor
+
+    @Column({ type: 'int', default: 0 })
+    totalWaitingVendorMinutes: number;  // Total waktu menunggu vendor
+}
+```
+
+**Migration File:** `apps/backend/src/migrations/YYYYMMDDHHMMSS-AddSlaEnhancementFields.ts`
+
+```typescript
+import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
+
+export class AddSlaEnhancementFields1701340800000 implements MigrationInterface {
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.addColumns('tickets', [
+            new TableColumn({
+                name: 'slaStartedAt',
+                type: 'timestamp',
+                isNullable: true,
+            }),
+            new TableColumn({
+                name: 'firstResponseAt',
+                type: 'timestamp',
+                isNullable: true,
+            }),
+            new TableColumn({
+                name: 'firstResponseTarget',
+                type: 'timestamp',
+                isNullable: true,
+            }),
+            new TableColumn({
+                name: 'isFirstResponseBreached',
+                type: 'boolean',
+                default: false,
+            }),
+            new TableColumn({
+                name: 'resolvedAt',
+                type: 'timestamp',
+                isNullable: true,
+            }),
+            new TableColumn({
+                name: 'waitingVendorAt',
+                type: 'timestamp',
+                isNullable: true,
+            }),
+            new TableColumn({
+                name: 'totalWaitingVendorMinutes',
+                type: 'int',
+                default: 0,
+            }),
+        ]);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.dropColumns('tickets', [
+            'slaStartedAt',
+            'firstResponseAt', 
+            'firstResponseTarget',
+            'isFirstResponseBreached',
+            'resolvedAt',
+            'waitingVendorAt',
+            'totalWaitingVendorMinutes',
+        ]);
+    }
+}
+```
+
+---
+
+### 18.3 SLA Logic Redesign
+
+#### A. SLA Target Calculation (New Logic)
+
+**SEBELUM (Salah):**
+- `slaTarget` = `createdAt` + `resolutionTimeMinutes`
+- SLA langsung berjalan sejak tiket dibuat
+
+**SESUDAH (Benar):**
+- `slaTarget` = `slaStartedAt` + `resolutionTimeMinutes`
+- `slaStartedAt` di-set HANYA saat status berubah dari `TODO` ke `IN_PROGRESS`
+- Jika status `WAITING_VENDOR`, SLA di-pause (sudah ada)
+
+**File:** `apps/backend/src/modules/ticketing/services/ticket-update.service.ts`
+
+```typescript
+async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
+    const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user'] });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const changes: string[] = [];
+    const oldStatus = ticket.status;
+
+    if (updateData.status && updateData.status !== ticket.status) {
+        changes.push(`Status changed from ${ticket.status} to ${updateData.status}`);
+
+        // === NEW: SLA Starts when status changes to IN_PROGRESS ===
+        if (updateData.status === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
+            const now = new Date();
+            ticket.slaStartedAt = now;
+            
+            // Calculate SLA Target from NOW (not from createdAt)
+            const slaConfig = await this.slaConfigRepo.findOne({ 
+                where: { priority: ticket.priority } 
+            });
+            
+            if (slaConfig) {
+                // Resolution Target
+                ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+                
+                // First Response Target (if not already responded)
+                if (!ticket.firstResponseAt) {
+                    ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
+                }
+                
+                changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
+            }
+        }
+
+        // === WAITING_VENDOR Handling - Enhanced ===
+        if (updateData.status === TicketStatus.WAITING_VENDOR) {
+            ticket.lastPausedAt = new Date();
+            ticket.waitingVendorAt = new Date();
+            
+            // Send special notification and add system note
+            await this.handleWaitingVendorStatus(ticket, user);
+        } 
+        else if (oldStatus === TicketStatus.WAITING_VENDOR) {
+            // Resume from WAITING_VENDOR
+            if (ticket.lastPausedAt) {
+                const now = new Date();
+                const diffMs = now.getTime() - new Date(ticket.lastPausedAt).getTime();
+                const diffMinutes = Math.floor(diffMs / 60000);
+                
+                ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + diffMinutes;
+                ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + diffMinutes;
+
+                // Adjust SLA Target
+                if (ticket.slaTarget) {
+                    ticket.slaTarget = new Date(ticket.slaTarget.getTime() + diffMs);
+                    changes.push(`SLA Target adjusted by ${diffMinutes} minutes (Waiting Vendor Duration)`);
+                }
+
+                // Adjust First Response Target if not breached yet
+                if (ticket.firstResponseTarget && !ticket.firstResponseAt) {
+                    ticket.firstResponseTarget = new Date(ticket.firstResponseTarget.getTime() + diffMs);
+                }
+
+                ticket.lastPausedAt = null;
+                ticket.waitingVendorAt = null;
+            }
+        }
+
+        // === RESOLVED Handling ===
+        if (updateData.status === TicketStatus.RESOLVED) {
+            ticket.resolvedAt = new Date();
+        }
+    }
+
+    // ... rest of existing code ...
+}
+
+/**
+ * Handle WAITING_VENDOR status change
+ * - Send Telegram notification with vendor schedule info
+ * - Add system message to ticket notes/discussion
+ */
+private async handleWaitingVendorStatus(ticket: Ticket, changedBy: User): Promise<void> {
+    const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
+    
+    // Calculate next Thursday (vendor visit day)
+    const nextThursday = this.getNextThursday();
+    const formattedDate = nextThursday.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+    
+    // === 1. Add System Message to Notes & Discussion ===
+    const systemNote = `⏳ **Status Tiket Diubah ke Waiting Vendor**
+
+📋 Tiket ini menunggu kunjungan vendor.
+📅 Jadwal vendor datang: **Setiap hari Kamis**
+📆 Perkiraan kunjungan terdekat: **${formattedDate}**
+
+ℹ️ Estimasi waktu tunggu minimal: **1 minggu**
+👤 Diubah oleh: ${changedBy.fullName}
+🕐 Waktu: ${new Date().toLocaleString('id-ID')}
+
+---
+*SLA Timer di-pause selama menunggu vendor.*`;
+
+    const systemMessage = this.messageRepo.create({
+        content: systemNote,
+        ticket,
+        senderId: changedBy.id,
+        isSystemMessage: true,
+    });
+    await this.messageRepo.save(systemMessage);
+
+    // === 2. Send Telegram Notification ===
+    if (this.telegramChatBridge && ticket.user?.telegramChatId) {
+        const telegramMessage = 
+            `🟠 <b>Status Tiket Menunggu Vendor</b>\n\n` +
+            `📋 Tiket: <b>#${ticketNumber}</b>\n` +
+            `📌 ${ticket.title}\n\n` +
+            `📅 <b>Jadwal Kunjungan Vendor:</b>\n` +
+            `   • Vendor datang setiap hari <b>Kamis</b>\n` +
+            `   • Perkiraan kunjungan: <b>${formattedDate}</b>\n` +
+            `   • Estimasi waktu tunggu: minimal 1 minggu\n\n` +
+            `⏸️ <i>SLA Timer di-pause sampai vendor selesai.</i>`;
+
+        try {
+            await this.bot.telegram.sendMessage(
+                ticket.user.telegramChatId,
+                telegramMessage,
+                { 
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                        inline_keyboard: [[
+                            { text: '📋 Lihat Tiket', callback_data: `view_ticket:${ticket.id}` }
+                        ]]
+                    }
+                }
+            );
+        } catch (error) {
+            this.logger.error(`Failed to send waiting vendor notification: ${error.message}`);
+        }
+    }
+
+    // Emit WebSocket event
+    this.eventsGateway.notifyNewMessage(ticket.id, systemMessage);
+}
+
+/**
+ * Get next Thursday date
+ */
+private getNextThursday(): Date {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 4 = Thursday
+    const daysUntilThursday = (4 - dayOfWeek + 7) % 7 || 7; // If today is Thursday, get next week
+    
+    const nextThursday = new Date(now);
+    nextThursday.setDate(now.getDate() + daysUntilThursday);
+    nextThursday.setHours(9, 0, 0, 0); // Set to 9 AM
+    
+    return nextThursday;
+}
+```
+
+---
+
+### 18.4 First Response Time Implementation
+
+**File:** `apps/backend/src/modules/ticketing/services/ticket-messaging.service.ts`
+
+```typescript
+async replyToTicket(ticketId: string, userId: string, content: string, files: string[] = [], mentionedUserIds: string[] = []) {
+    const ticket = await this.ticketRepo.findOne({ 
+        where: { id: ticketId }, 
+        relations: ['user', 'assignedTo'] 
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Create Message
+    const message = this.messageRepo.create({
+        ticketId,
+        senderId: userId,
+        content,
+        attachments: files,
+    });
+    const savedMessage = await this.messageRepo.save(message);
+
+    // === NEW: Track First Response Time ===
+    const isAgentOrAdmin = user.role === UserRole.AGENT || user.role === UserRole.ADMIN;
+    const isFirstAgentReply = !ticket.firstResponseAt && isAgentOrAdmin;
+
+    if (isFirstAgentReply) {
+        ticket.firstResponseAt = new Date();
+        
+        // Check if first response SLA was breached
+        if (ticket.firstResponseTarget && ticket.firstResponseAt > ticket.firstResponseTarget) {
+            ticket.isFirstResponseBreached = true;
+            this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber}`);
+        }
+        
+        await this.ticketRepo.save(ticket);
+    }
+
+    // Update Ticket Status if Agent replies (existing logic)
+    if (isAgentOrAdmin && ticket.status === TicketStatus.TODO) {
+        ticket.status = TicketStatus.IN_PROGRESS;
+        
+        // Also start SLA timer if not started
+        if (!ticket.slaStartedAt) {
+            const now = new Date();
+            ticket.slaStartedAt = now;
+            
+            const slaConfig = await this.slaConfigRepo.findOne({ 
+                where: { priority: ticket.priority } 
+            });
+            
+            if (slaConfig) {
+                ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+            }
+        }
+        
+        await this.ticketRepo.save(ticket);
+    }
+
+    // ... rest of existing code (WebSocket, events, etc.) ...
+}
+```
+
+---
+
+### 18.5 SLA Checker Service Update
+
+**File:** `apps/backend/src/modules/ticketing/sla-checker.service.ts`
+
+```typescript
+@Injectable()
+export class SlaCheckerService {
+    private readonly logger = new Logger(SlaCheckerService.name);
+
+    constructor(
+        @InjectRepository(Ticket) private ticketRepo: Repository<Ticket>,
+        @InjectRepository(CustomerSession) private sessionRepo: Repository<CustomerSession>,
+        private readonly mailerService: MailerService,
+        private readonly slaConfigService: SlaConfigService,
+        @Optional() private readonly telegramService: TelegramService,
+    ) {}
+
+    @Cron(CronExpression.EVERY_10_MINUTES) // Changed from EVERY_HOUR for better accuracy
+    async checkSla() {
+        this.logger.log('Running SLA Checker...');
+
+        // === Check Resolution Time SLA ===
+        await this.checkResolutionSla();
+        
+        // === Check First Response SLA ===
+        await this.checkFirstResponseSla();
+    }
+
+    private async checkResolutionSla(): Promise<void> {
+        const now = new Date();
+
+        // Get tickets that have SLA started and not yet overdue
+        const tickets = await this.ticketRepo.find({
+            where: [
+                { status: TicketStatus.IN_PROGRESS, isOverdue: false },
+                { status: TicketStatus.TODO, isOverdue: false, slaStartedAt: Not(IsNull()) },
+            ],
+            relations: ['user', 'assignedTo'],
+        });
+
+        for (const ticket of tickets) {
+            // Skip if no SLA target or SLA not started yet
+            if (!ticket.slaTarget || !ticket.slaStartedAt) continue;
+            
+            // Skip if waiting vendor (SLA paused)
+            if (ticket.status === TicketStatus.WAITING_VENDOR) continue;
+
+            const targetTime = new Date(ticket.slaTarget);
+
+            if (now > targetTime && !ticket.isOverdue) {
+                this.logger.warn(`Ticket #${ticket.ticketNumber} is OVERDUE!`);
+
+                ticket.isOverdue = true;
+                await this.ticketRepo.save(ticket);
+
+                await this.sendOverdueNotifications(ticket, 'resolution');
+            }
+        }
+    }
+
+    private async checkFirstResponseSla(): Promise<void> {
+        const now = new Date();
+
+        // Get tickets waiting for first response
+        const tickets = await this.ticketRepo.find({
+            where: {
+                firstResponseAt: IsNull(),
+                firstResponseTarget: Not(IsNull()),
+                isFirstResponseBreached: false,
+                status: Not(In([TicketStatus.RESOLVED, TicketStatus.CANCELLED])),
+            },
+            relations: ['user', 'assignedTo'],
+        });
+
+        for (const ticket of tickets) {
+            // Skip if waiting vendor (SLA paused)
+            if (ticket.status === TicketStatus.WAITING_VENDOR) continue;
+            
+            const targetTime = new Date(ticket.firstResponseTarget);
+
+            if (now > targetTime) {
+                this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber}`);
+
+                ticket.isFirstResponseBreached = true;
+                await this.ticketRepo.save(ticket);
+
+                await this.sendOverdueNotifications(ticket, 'first_response');
+            }
+        }
+    }
+
+    private async sendOverdueNotifications(ticket: Ticket, type: 'resolution' | 'first_response'): Promise<void> {
+        const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
+        const subject = type === 'resolution' 
+            ? `⚠️ SLA BREACH: Ticket #${ticketNumber} Overdue!`
+            : `⚠️ FIRST RESPONSE SLA BREACH: Ticket #${ticketNumber}`;
+        
+        const message = type === 'resolution'
+            ? `Ticket #${ticketNumber} has exceeded its resolution time SLA.`
+            : `Ticket #${ticketNumber} has not received first response within SLA.`;
+
+        // Email to Admin
+        const adminEmail = 'admin@antigravity.com';
+        try {
+            await this.mailerService.sendMail({
+                to: adminEmail,
+                subject,
+                html: `
+                    <h1>${type === 'resolution' ? 'SLA Breach Alert' : 'First Response SLA Alert'}</h1>
+                    <p>${message}</p>
+                    <ul>
+                        <li><strong>Ticket:</strong> #${ticketNumber}</li>
+                        <li><strong>Title:</strong> ${ticket.title}</li>
+                        <li><strong>Priority:</strong> ${ticket.priority}</li>
+                        <li><strong>Status:</strong> ${ticket.status}</li>
+                        <li><strong>Assigned To:</strong> ${ticket.assignedTo?.fullName || 'Unassigned'}</li>
+                        <li><strong>Created:</strong> ${ticket.createdAt}</li>
+                        ${ticket.slaStartedAt ? `<li><strong>SLA Started:</strong> ${ticket.slaStartedAt}</li>` : ''}
+                    </ul>
+                    <p style="color: red; font-weight: bold;">Please take immediate action.</p>
+                `,
+            });
+        } catch (e) {
+            this.logger.error(`Failed to send SLA email: ${e.message}`);
+        }
+
+        // Telegram notification to assigned agent
+        if (ticket.assignedTo?.telegramChatId && this.telegramService) {
+            const emoji = type === 'resolution' ? '🚨' : '⚠️';
+            const telegramMsg = `${emoji} <b>${type === 'resolution' ? 'SLA OVERDUE' : 'First Response SLA Breach'}</b>\n\n` +
+                `Tiket #${ticketNumber}\n` +
+                `📌 ${ticket.title}\n` +
+                `Priority: ${ticket.priority}\n\n` +
+                `<b>Segera tindak lanjuti tiket ini!</b>`;
+            
+            await this.telegramService.sendNotification(ticket.assignedTo.telegramChatId, telegramMsg);
+        }
+    }
+}
+```
+
+---
+
+### 18.6 Ticket Create Service Update
+
+**File:** `apps/backend/src/modules/ticketing/services/ticket-create.service.ts`
+
+```typescript
+async createTicket(userId: string, createTicketDto: any, files: string[] = []): Promise<Ticket> {
+    // ... existing user lookup and ticket creation ...
+
+    const ticket = this.ticketRepo.create({
+        ...createTicketDto,
+        user,
+        status: TicketStatus.TODO,
+        source: createTicketDto.source || TicketSource.WEB,
+        category: createTicketDto.category || 'GENERAL',
+        device: createTicketDto.device,
+        software: createTicketDto.software,
+    } as DeepPartial<Ticket>);
+
+    // Generate ticket number (existing logic)
+    // ...
+
+    // === NEW: Do NOT set slaTarget on creation ===
+    // SLA will only start when status changes to IN_PROGRESS
+    // Remove the old slaTarget calculation here
+    
+    // === Set First Response Target from creation ===
+    // First response starts counting from ticket creation
+    const priority = createTicketDto.priority || 'MEDIUM';
+    const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
+    if (slaConfig) {
+        const now = new Date();
+        ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
+    }
+
+    // slaStartedAt and slaTarget will be NULL until status -> IN_PROGRESS
+    ticket.slaStartedAt = null;
+    ticket.slaTarget = null;
+
+    await this.ticketRepo.save(ticket);
+    
+    // ... rest of existing code ...
+}
+```
+
+---
+
+### 18.7 Frontend SLA Display Updates
+
+**File:** `apps/frontend/src/features/ticket-board/components/ticket-detail/SlaStatusCard.tsx`
+
+```tsx
+interface SlaStatusCardProps {
+    ticket: {
+        slaTarget?: string;
+        slaStartedAt?: string;
+        firstResponseTarget?: string;
+        firstResponseAt?: string;
+        isFirstResponseBreached?: boolean;
+        isOverdue?: boolean;
+        status: string;
+        createdAt: string;
+        totalPausedMinutes?: number;
+    };
+}
+
+const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
+    const isPaused = ticket.status === 'WAITING_VENDOR';
+    const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
+    const slaNotStarted = !ticket.slaStartedAt;
+    
+    // Calculate resolution time remaining
+    const getResolutionStatus = () => {
+        if (isResolved) return { status: 'resolved', text: 'Completed', color: 'green' };
+        if (isPaused) return { status: 'paused', text: 'Paused (Waiting Vendor)', color: 'orange' };
+        if (slaNotStarted) return { status: 'pending', text: 'Not Started (Waiting for Agent)', color: 'gray' };
+        if (!ticket.slaTarget) return { status: 'none', text: 'No SLA Set', color: 'gray' };
+        
+        const now = new Date();
+        const target = new Date(ticket.slaTarget);
+        const diff = target.getTime() - now.getTime();
+        
+        if (diff <= 0) return { status: 'overdue', text: 'OVERDUE', color: 'red' };
+        if (diff < 4 * 60 * 60 * 1000) return { status: 'warning', text: formatTimeRemaining(diff), color: 'orange' };
+        return { status: 'ok', text: formatTimeRemaining(diff), color: 'green' };
+    };
+    
+    // Calculate first response status
+    const getFirstResponseStatus = () => {
+        if (ticket.firstResponseAt) {
+            const responseTime = new Date(ticket.firstResponseAt).getTime() - new Date(ticket.createdAt).getTime();
+            const withinSla = !ticket.isFirstResponseBreached;
+            return {
+                status: withinSla ? 'met' : 'breached',
+                text: withinSla ? `Responded in ${formatDuration(responseTime)}` : 'SLA Breached',
+                color: withinSla ? 'green' : 'red',
+            };
+        }
+        
+        if (!ticket.firstResponseTarget) return null;
+        
+        const now = new Date();
+        const target = new Date(ticket.firstResponseTarget);
+        const diff = target.getTime() - now.getTime();
+        
+        if (isPaused) return { status: 'paused', text: 'Paused', color: 'orange' };
+        if (diff <= 0) return { status: 'breached', text: 'BREACHED - No Response', color: 'red' };
+        if (diff < 1 * 60 * 60 * 1000) return { status: 'warning', text: formatTimeRemaining(diff), color: 'orange' };
+        return { status: 'pending', text: formatTimeRemaining(diff), color: 'blue' };
+    };
+
+    const resolution = getResolutionStatus();
+    const firstResponse = getFirstResponseStatus();
+
+    return (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+            <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                SLA Status
+            </h3>
+            
+            {/* Resolution Time SLA */}
+            <div className="space-y-4">
+                <div className={cn(
+                    "p-4 rounded-xl",
+                    resolution.color === 'red' && "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800",
+                    resolution.color === 'orange' && "bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800",
+                    resolution.color === 'green' && "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800",
+                    resolution.color === 'gray' && "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700",
+                )}>
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                            Resolution Time
+                        </span>
+                        {resolution.status === 'overdue' && (
+                            <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" />
+                        )}
+                        {resolution.status === 'paused' && (
+                            <Pause className="w-5 h-5 text-orange-500" />
+                        )}
+                    </div>
+                    <p className={cn(
+                        "text-xl font-bold",
+                        resolution.color === 'red' && "text-red-600",
+                        resolution.color === 'orange' && "text-orange-600",
+                        resolution.color === 'green' && "text-green-600",
+                        resolution.color === 'gray' && "text-slate-500",
+                    )}>
+                        {resolution.text}
+                    </p>
+                    
+                    {/* Show SLA started time */}
+                    {ticket.slaStartedAt && !isResolved && (
+                        <p className="text-xs text-slate-500 mt-2">
+                            Started: {format(new Date(ticket.slaStartedAt), 'dd MMM yyyy HH:mm')}
+                        </p>
+                    )}
+                    
+                    {/* Show target time */}
+                    {ticket.slaTarget && !isResolved && (
+                        <p className="text-xs text-slate-500">
+                            Target: {format(new Date(ticket.slaTarget), 'dd MMM yyyy HH:mm')}
+                        </p>
+                    )}
+                    
+                    {/* Show paused info */}
+                    {isPaused && (
+                        <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
+                            <Pause className="w-3 h-3" />
+                            Timer paused while waiting for vendor
+                        </p>
+                    )}
+                </div>
+                
+                {/* First Response SLA */}
+                {firstResponse && (
+                    <div className={cn(
+                        "p-4 rounded-xl",
+                        firstResponse.color === 'red' && "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800",
+                        firstResponse.color === 'orange' && "bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800",
+                        firstResponse.color === 'green' && "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800",
+                        firstResponse.color === 'blue' && "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800",
+                    )}>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                                First Response
+                            </span>
+                            {firstResponse.status === 'met' && (
+                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            )}
+                            {firstResponse.status === 'breached' && (
+                                <AlertTriangle className="w-5 h-5 text-red-500" />
+                            )}
+                        </div>
+                        <p className={cn(
+                            "text-lg font-bold",
+                            firstResponse.color === 'red' && "text-red-600",
+                            firstResponse.color === 'orange' && "text-orange-600",
+                            firstResponse.color === 'green' && "text-green-600",
+                            firstResponse.color === 'blue' && "text-blue-600",
+                        )}>
+                            {firstResponse.text}
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+```
+
+---
+
+### 18.8 Implementation Checklist
+
+| No | Task | File | Priority |
+|----|------|------|----------|
+| 1 | Create migration for new SLA fields | `migrations/` | HIGH |
+| 2 | Update Ticket entity with new fields | `ticket.entity.ts` | HIGH |
+| 3 | Update ticket-create.service - Remove slaTarget on create | `ticket-create.service.ts` | HIGH |
+| 4 | Update ticket-update.service - Start SLA on IN_PROGRESS | `ticket-update.service.ts` | HIGH |
+| 5 | Implement handleWaitingVendorStatus method | `ticket-update.service.ts` | HIGH |
+| 6 | Update ticket-messaging.service - Track first response | `ticket-messaging.service.ts` | HIGH |
+| 7 | Update sla-checker.service - New logic | `sla-checker.service.ts` | HIGH |
+| 8 | Update frontend SlaStatusCard component | `SlaStatusCard.tsx` | MEDIUM |
+| 9 | Update frontend ticket list to show SLA status correctly | `BentoTicketListPage.tsx` | MEDIUM |
+| 10 | Update Kanban cards to show SLA indicator | `BentoTicketKanban.tsx` | MEDIUM |
+| 11 | Run migration and test | - | HIGH |
+
+---
+
+### 18.9 Testing Scenarios
+
+1. **Scenario A: New Ticket SLA Flow**
+   - Create ticket -> SLA should NOT start yet
+   - Agent changes status to IN_PROGRESS -> SLA starts NOW
+   - Verify slaTarget = NOW + resolution time
+
+2. **Scenario B: First Response SLA**
+   - Create ticket -> First response target should be set
+   - Wait until target passes without response -> Should flag as breached
+   - Agent responds -> Record firstResponseAt, check if breached
+
+3. **Scenario C: Waiting Vendor**
+   - Change status to WAITING_VENDOR
+   - Verify Telegram notification sent with Thursday schedule
+   - Verify system message added to notes
+   - Change status back -> SLA target extended
+
+4. **Scenario D: Overdue Detection**
+   - Create ticket, move to IN_PROGRESS
+   - Fast-forward time past slaTarget
+   - Verify isOverdue = true, notifications sent
+
+---
+
+*Section 18 ditambahkan pada 30 November 2025 - SLA System Overhaul*

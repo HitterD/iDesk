@@ -9,6 +9,7 @@ import { useAuth } from '../../stores/useAuth';
 import api from '../../lib/api';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { getNotificationCenterPath, UserRole } from './utils/notificationRouter';
 
 interface Notification {
     id: string;
@@ -37,12 +38,24 @@ const NOTIFICATION_ICONS: Record<string, any> = {
     SYSTEM: Bell,
 };
 
-// Get notification route based on type and data
-const getNotificationRoute = (notification: Notification): string => {
+// Get notification route based on type, data, and user role
+const getNotificationRoute = (notification: Notification, userRole: UserRole): string => {
     const { type, ticketId, link } = notification;
     
-    // If link is explicitly provided, use it
-    if (link) return link;
+    // Base paths based on user role
+    const ticketBasePath = userRole === 'USER' ? '/client/tickets' : '/tickets';
+    const ticketListPath = userRole === 'USER' ? '/client/my-tickets' : '/tickets/list';
+    const dashboardPath = userRole === 'USER' ? '/client/my-tickets' : '/dashboard';
+    
+    // If link is explicitly provided and starts with appropriate path, use it
+    if (link) {
+        // Adjust link based on role if it's a ticket link
+        if (link.includes('/tickets/') && userRole === 'USER') {
+            const ticketId = link.split('/tickets/')[1];
+            return `/client/tickets/${ticketId}`;
+        }
+        return link;
+    }
     
     // Route based on notification type
     switch (type) {
@@ -56,15 +69,17 @@ const getNotificationRoute = (notification: Notification): string => {
         case 'SLA_WARNING':
         case 'SLA_BREACHED':
         case 'SURVEY_RECEIVED':
-            return ticketId ? `/tickets/${ticketId}` : '/tickets/list';
+            return ticketId ? `${ticketBasePath}/${ticketId}` : ticketListPath;
             
         case 'CONTRACT_EXPIRING':
         case 'CONTRACT_RENEWED':
+            // Only Admin can access renewal
+            if (userRole !== 'ADMIN') return dashboardPath;
             return '/renewal';
             
         case 'SYSTEM':
         default:
-            return '/dashboard';
+            return dashboardPath;
     }
 };
 
@@ -194,8 +209,9 @@ export const NotificationPopover: React.FC = () => {
                 markAsReadMutation.mutate(notification.id);
             }
             
-            // Get the correct route based on notification type
-            const route = getNotificationRoute(notification);
+            // Get the correct route based on notification type and user role
+            const userRole = (user?.role || 'USER') as UserRole;
+            const route = getNotificationRoute(notification, userRole);
             
             // Navigate to the route
             navigate(route);
@@ -204,7 +220,7 @@ export const NotificationPopover: React.FC = () => {
             logger.error('Failed to handle notification click:', error);
             toast.error('Failed to open notification');
         }
-    }, [navigate, markAsReadMutation]);
+    }, [navigate, markAsReadMutation, user?.role]);
 
     const getNotificationIcon = (type: string) => {
         const Icon = NOTIFICATION_ICONS[type] || Bell;
@@ -332,7 +348,7 @@ export const NotificationPopover: React.FC = () => {
                     {notifications.length > 0 && (
                         <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
                             <Link
-                                to="/notifications"
+                                to={getNotificationCenterPath((user?.role || 'USER') as UserRole)}
                                 onClick={() => setIsOpen(false)}
                                 className="block text-xs text-primary font-medium hover:underline w-full text-center"
                             >

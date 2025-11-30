@@ -1,9 +1,10 @@
-import { Update, Start, Help, Command, On, Ctx, Action } from 'nestjs-telegraf';
+import { Update, Start, Help, Command, On, Ctx, Action, InlineQuery } from 'nestjs-telegraf';
 import { Context, Markup } from 'telegraf';
 import { TelegramService } from './telegram.service';
 import { TelegramChatBridgeService } from './telegram-chat-bridge.service';
 import { TelegramState } from './enums/telegram-state.enum';
 import { Logger } from '@nestjs/common';
+import { getTemplates } from './templates';
 
 @Update()
 export class TelegramUpdate {
@@ -13,31 +14,28 @@ export class TelegramUpdate {
         private readonly telegramService: TelegramService,
         private readonly chatBridge: TelegramChatBridgeService,
     ) {
-        this.logger.log('TelegramUpdate handler registered');
+        this.logger.log('TelegramUpdate initialized');
     }
 
-    // =====================
-    // Main Menu & Navigation
-    // =====================
+    // ========================================
+    // SECTION 1: MAIN MENU & START
+    // ========================================
 
     @Start()
     async onStart(@Ctx() ctx: Context) {
-        this.logger.log('Received /start command');
-        
-        try {
-            const from = ctx.from;
-            if (!from) return;
+        const from = ctx.from;
+        if (!from) return;
 
+        try {
             await this.telegramService.getOrCreateSession(
                 String(from.id),
                 String(ctx.chat?.id),
                 from
             );
-
             await this.showMainMenu(ctx);
         } catch (error) {
             this.logger.error('Error in onStart:', error);
-            await ctx.reply('❌ Maaf, terjadi kesalahan. Silakan coba lagi.');
+            await ctx.reply('❌ Terjadi kesalahan. Silakan coba lagi.');
         }
     }
 
@@ -46,542 +44,73 @@ export class TelegramUpdate {
         if (!from) return;
 
         const session = await this.telegramService.getSession(String(from.id));
-        const isLinked = session?.userId;
+        const t = getTemplates(session?.language || 'id');
 
-        if (isLinked) {
-            const message = 
-                `🏠 <b>Menu Utama</b>\n\n` +
-                `Halo! Selamat datang di <b>iDesk Support</b>.\n\n` +
-                `Pilih menu di bawah untuk melanjutkan:`;
-
-            await ctx.replyWithHTML(message, this.telegramService.getMainMenuKeyboard());
+        if (session?.userId) {
+            // User sudah terhubung - tampilkan menu lengkap
+            const stats = await this.telegramService.getUserStats(session.userId);
+            
+            // Gunakan nama dari akun iDesk yang terhubung, bukan nama Telegram
+            const userName = session.user?.fullName || session.telegramFirstName || 'User';
+            
+            await ctx.replyWithHTML(
+                t.welcome.linkedGreeting(
+                    userName,
+                    stats.activeTickets,
+                    stats.waitingReply
+                ),
+                Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback('🎫 Buat Tiket', 'new_ticket'),
+                        Markup.button.callback('📋 Tiket Saya', 'my_tickets'),
+                    ],
+                    [
+                        Markup.button.callback('💬 Chat Support', 'start_chat'),
+                        Markup.button.callback('🔍 Cari KB', 'search_kb'),
+                    ],
+                    [
+                        Markup.button.callback('⚙️ Pengaturan', 'settings'),
+                        Markup.button.callback('❓ Bantuan', 'help'),
+                    ],
+                ])
+            );
         } else {
-            const message = 
-                `👋 <b>Selamat Datang di iDesk!</b>\n\n` +
-                `Untuk menggunakan bot ini, hubungkan akun Anda:\n\n` +
-                `1️⃣ Login ke <b>iDesk web</b>\n` +
-                `2️⃣ Buka <b>Settings → Telegram</b>\n` +
-                `3️⃣ Klik <b>"Generate Link Code"</b>\n` +
-                `4️⃣ Kirim kode 6 digit ke sini`;
-
-            await ctx.replyWithHTML(message, Markup.inlineKeyboard([
-                [Markup.button.callback('🔗 Masukkan Kode', 'enter_code')],
-                [Markup.button.callback('❓ Bantuan', 'help')],
-            ]));
+            // User belum terhubung - minta link akun
+            await ctx.replyWithHTML(
+                t.welcome.unlinkedGreeting,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+                    [Markup.button.callback('❓ Bantuan', 'help')],
+                ])
+            );
         }
     }
 
     @Action('main_menu')
     async onMainMenu(@Ctx() ctx: Context) {
         await ctx.answerCbQuery();
-        // Clear any ongoing state
         const from = ctx.from;
         if (from) {
-            await this.chatBridge.exitChatMode(String(from.id));
             await this.telegramService.clearState(String(from.id));
+            await this.chatBridge.exitChatMode(String(from.id));
         }
         await this.showMainMenu(ctx);
     }
 
+    // ========================================
+    // SECTION 2: HELP & INFO
+    // ========================================
+
+    @Command('help')
     @Help()
     async onHelp(@Ctx() ctx: Context) {
-        const helpMessage = 
-            `📚 <b>Bantuan iDesk Bot</b>\n\n` +
-            `<b>🎫 Tiket</b>\n` +
-            `• Buat tiket untuk melaporkan masalah\n` +
-            `• Lihat dan kelola tiket Anda\n` +
-            `• Chat langsung dengan tim support\n\n` +
-            `<b>⌨️ Perintah Cepat</b>\n` +
-            `<code>/start</code> - Menu utama\n` +
-            `<code>/newticket</code> - Buat tiket baru\n` +
-            `<code>/mytickets</code> - Lihat tiket\n` +
-            `<code>/chat</code> - Mode chat\n` +
-            `<code>/endchat</code> - Keluar chat\n` +
-            `<code>/cancel</code> - Batalkan\n\n` +
-            `<b>💡 Tips</b>\n` +
-            `Dalam mode chat, kirim pesan langsung untuk berkomunikasi dengan tim support.`;
-
-        await ctx.replyWithHTML(helpMessage, this.telegramService.getBackHomeKeyboard());
-    }
-
-    // =====================
-    // Account Linking
-    // =====================
-
-    @Command('link')
-    async onLink(@Ctx() ctx: Context) {
         const from = ctx.from;
-        if (!from) return;
-
-        const session = await this.telegramService.getSession(String(from.id));
+        const session = from ? await this.telegramService.getSession(String(from.id)) : null;
+        const t = getTemplates(session?.language || 'id');
         
-        if (session?.userId) {
-            await ctx.replyWithHTML(
-                `✅ <b>Akun Sudah Terhubung</b>\n\n` +
-                `Akun Telegram Anda sudah terhubung dengan akun iDesk.`,
-                this.telegramService.getBackHomeKeyboard()
-            );
-            return;
-        }
-
-        await this.telegramService.setState(String(from.id), TelegramState.AWAITING_LINK_CODE);
-        
-        await ctx.replyWithHTML(
-            `🔗 <b>Hubungkan Akun</b>\n\n` +
-            `Langkah-langkah:\n\n` +
-            `1️⃣ Login ke <b>iDesk web</b>\n` +
-            `2️⃣ Buka <b>Settings → Telegram</b>\n` +
-            `3️⃣ Klik <b>"Generate Link Code"</b>\n` +
-            `4️⃣ Kirim kode 6 digit ke sini\n\n` +
-            `⏱️ <i>Kode berlaku 5 menit</i>`,
-            Markup.inlineKeyboard([
-                [
-                    Markup.button.callback('❌ Batal', 'main_menu'),
-                ],
-            ])
-        );
-    }
-
-    @Command('unlink')
-    async onUnlink(@Ctx() ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const result = await this.telegramService.unlinkAccount(String(from.id));
-        await ctx.replyWithHTML(result.message, this.telegramService.getBackHomeKeyboard());
-    }
-
-    // =====================
-    // Ticket Management
-    // =====================
-
-    @Command('newticket')
-    async onNewTicket(@Ctx() ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const session = await this.telegramService.getSession(String(from.id));
-        
-        if (!session?.userId) {
-            await ctx.replyWithHTML(
-                `⚠️ <b>Akun Belum Terhubung</b>\n\n` +
-                `Hubungkan akun terlebih dahulu untuk membuat tiket.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
-
-        await this.telegramService.setState(String(from.id), TelegramState.CREATING_TICKET_TITLE);
-        
-        await ctx.replyWithHTML(
-            `🎫 <b>Buat Tiket Baru</b>\n\n` +
-            `📝 <b>Langkah 1/2</b>\n` +
-            `Masukkan judul tiket:\n\n` +
-            `<i>💡 Contoh: "Laptop tidak bisa connect WiFi"</i>`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('❌ Batal', 'main_menu')],
-            ])
-        );
-    }
-
-    @Command('mytickets')
-    async onMyTickets(@Ctx() ctx: Context) {
-        await this.showMyTickets(ctx);
-    }
-
-    private async showMyTickets(ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const session = await this.telegramService.getSession(String(from.id));
-        
-        if (!session?.userId) {
-            await ctx.replyWithHTML(
-                `⚠️ <b>Akun Belum Terhubung</b>\n\n` +
-                `Hubungkan akun terlebih dahulu.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
-
-        const tickets = await this.telegramService.getMyTickets(session.userId);
-        
-        if (tickets.length === 0) {
-            await ctx.replyWithHTML(
-                `📋 <b>Tiket Saya</b>\n\n` +
-                `📭 Anda belum memiliki tiket.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🎫 Buat Tiket Baru', 'new_ticket')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
-
-        let message = `📋 <b>Tiket Saya</b>\n\n`;
-        const buttons: any[] = [];
-
-        for (const ticket of tickets) {
-            const status = this.telegramService.formatTicketStatus(ticket.status);
-            message += `${status} <b>#${ticket.ticketNumber}</b>\n`;
-            message += `└ ${ticket.title.substring(0, 35)}${ticket.title.length > 35 ? '...' : ''}\n\n`;
-            
-            buttons.push([
-                Markup.button.callback(
-                    `📋 #${ticket.ticketNumber} - ${ticket.title.substring(0, 20)}...`,
-                    `ticket_actions:${ticket.id}`
-                )
-            ]);
-        }
-
-        buttons.push([
-            Markup.button.callback('🎫 Buat Baru', 'new_ticket'),
-            Markup.button.callback('🏠 Menu', 'main_menu'),
-        ]);
-
-        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
-    }
-
-    @Command('cancel')
-    async onCancel(@Ctx() ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        await this.chatBridge.exitChatMode(String(from.id));
-        await this.telegramService.clearState(String(from.id));
-        await ctx.replyWithHTML(
-            `✅ <b>Dibatalkan</b>\n\n` +
-            `Operasi dibatalkan. Kembali ke menu utama.`,
-            this.telegramService.getMainMenuKeyboard()
-        );
-    }
-
-    // =====================
-    // Status & Chat Commands
-    // =====================
-
-    @Command('status')
-    async onStatus(@Ctx() ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const args = (ctx.message as any).text.split(' ').slice(1);
-        const ticketNumber = args[0];
-
-        if (!ticketNumber) {
-            await ctx.replyWithHTML(
-                `🔍 <b>Cek Status Tiket</b>\n\n` +
-                `Cara penggunaan:\n` +
-                `<code>/status [nomor_tiket]</code>\n\n` +
-                `<i>💡 Contoh: /status 271124-IT-0001</i>`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('📋 Lihat Tiket Saya', 'my_tickets')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
-
-        const ticket = await this.chatBridge.getTicketByNumber(ticketNumber);
-
-        if (!ticket) {
-            await ctx.replyWithHTML(
-                `❌ <b>Tiket Tidak Ditemukan</b>\n\n` +
-                `Tiket dengan nomor <code>${ticketNumber}</code> tidak ditemukan.`,
-                this.telegramService.getBackHomeKeyboard('my_tickets')
-            );
-            return;
-        }
-
-        await this.showTicketDetail(ctx, ticket);
-    }
-
-    private async showTicketDetail(ctx: Context, ticket: any) {
-        const status = this.telegramService.formatTicketStatus(ticket.status);
-        const priority = this.telegramService.formatPriority(ticket.priority);
-        const lastUpdate = new Date(ticket.updatedAt).toLocaleString('id-ID');
-        const messageCount = ticket.messages?.length || 0;
-
-        await ctx.replyWithHTML(
-            `📋 <b>Detail Tiket</b>\n\n` +
-            `<b>#${ticket.ticketNumber}</b>\n` +
-            `${ticket.title}\n\n` +
-            `┌ 📊 Status: ${status}\n` +
-            `├ ⚡ Prioritas: ${priority}\n` +
-            `├ 👤 Agent: ${ticket.assignedTo?.fullName || 'Belum ada'}\n` +
-            `├ 💬 Pesan: ${messageCount}\n` +
-            `└ 🕐 Update: ${lastUpdate}`,
-            this.telegramService.getTicketActionsKeyboard(ticket.id)
-        );
-    }
-
-    @Command('chat')
-    async onChat(@Ctx() ctx: Context) {
-        await this.startChatMode(ctx);
-    }
-
-    private async startChatMode(ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const session = await this.telegramService.getSession(String(from.id));
-
-        if (!session?.userId) {
-            await ctx.replyWithHTML(
-                `⚠️ <b>Akun Belum Terhubung</b>\n\n` +
-                `Hubungkan akun terlebih dahulu.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
-
-        const tickets = await this.chatBridge.getActiveTickets(session.userId);
-
-        if (tickets.length === 0) {
-            await ctx.replyWithHTML(
-                `📭 <b>Tidak Ada Tiket Aktif</b>\n\n` +
-                `Buat tiket baru untuk memulai chat dengan tim support.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🎫 Buat Tiket Baru', 'new_ticket')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
-
-        if (tickets.length === 1) {
-            await this.enterChatModeForTicket(ctx, tickets[0].id);
-            return;
-        }
-
-        // Multiple tickets - show selection
-        const buttons = tickets.map(t => [
-            Markup.button.callback(
-                `${this.telegramService.formatTicketStatus(t.status).split(' ')[0]} #${t.ticketNumber}`,
-                `enter_chat:${t.id}`
-            )
-        ]);
-
-        buttons.push([
-            Markup.button.callback('◀️ Kembali', 'my_tickets'),
-            Markup.button.callback('🏠 Menu', 'main_menu'),
-        ]);
-
-        await ctx.replyWithHTML(
-            `💬 <b>Pilih Tiket untuk Chat</b>\n\n` +
-            `Pilih tiket yang ingin Anda chat:`,
-            Markup.inlineKeyboard(buttons)
-        );
-    }
-
-    private async enterChatModeForTicket(ctx: Context, ticketId: string) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const result = await this.chatBridge.enterChatMode(String(from.id), ticketId);
-        
-        if (!result.success) {
-            await ctx.replyWithHTML(
-                `❌ ${result.message}`,
-                this.telegramService.getBackHomeKeyboard('my_tickets')
-            );
-            return;
-        }
-
-        const ticket = await this.chatBridge.getActiveChatTicket(String(from.id));
-
-        await ctx.replyWithHTML(
-            `💬 <b>Mode Chat Aktif</b>\n\n` +
-            `📋 Tiket: <b>#${ticket?.ticketNumber}</b>\n` +
-            `${ticket?.title}\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `✏️ Ketik pesan Anda langsung\n` +
-            `📎 Kirim foto/dokumen jika perlu\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n\n` +
-            `<i>Pesan akan diteruskan ke tim support</i>`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('🛑 Keluar Chat', 'exit_chat')],
-                [Markup.button.callback('📋 Lihat Detail', `view_ticket:${ticket?.id}`)],
-            ])
-        );
-    }
-
-    @Command('endchat')
-    async onEndChat(@Ctx() ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const activeTicket = await this.chatBridge.getActiveChatTicket(String(from.id));
-
-        if (!activeTicket) {
-            await ctx.replyWithHTML(
-                `ℹ️ <b>Tidak Ada Chat Aktif</b>\n\n` +
-                `Anda tidak sedang dalam mode chat.`,
-                this.telegramService.getMainMenuKeyboard()
-            );
-            return;
-        }
-
-        await this.chatBridge.exitChatMode(String(from.id));
-        await ctx.replyWithHTML(
-            `✅ <b>Chat Diakhiri</b>\n\n` +
-            `Mode chat untuk tiket <b>#${activeTicket.ticketNumber}</b> telah diakhiri.\n\n` +
-            `<i>Tiket tetap aktif dan Anda akan menerima notifikasi jika ada balasan.</i>`,
-            this.telegramService.getMainMenuKeyboard()
-        );
-    }
-
-    @Command('priority')
-    async onPriority(@Ctx() ctx: Context) {
-        const from = ctx.from;
-        if (!from) return;
-
-        const session = await this.telegramService.getSession(String(from.id));
-        if (!session?.userId) {
-            await ctx.reply('⚠️ Anda belum menghubungkan akun. Gunakan /link terlebih dahulu.');
-            return;
-        }
-
-        const args = (ctx.message as any)?.text?.split(' ').slice(1) || [];
-        
-        if (args.length === 0) {
-            // Show help for priority command
-            await ctx.replyWithHTML(
-                `⚡ <b>Ubah Prioritas Tiket</b>\n\n` +
-                `<b>Format:</b>\n` +
-                `<code>/priority [nomor_tiket] [prioritas]</code>\n\n` +
-                `<b>Contoh:</b>\n` +
-                `<code>/priority TKT-001 high</code>\n\n` +
-                `<b>Prioritas tersedia:</b>\n` +
-                `• <code>low</code> - Rendah\n` +
-                `• <code>medium</code> - Sedang\n` +
-                `• <code>high</code> - Tinggi\n` +
-                `• <code>urgent</code> - Mendesak`
-            );
-            return;
-        }
-
-        if (args.length === 1) {
-            // Only ticket number provided, show priority options
-            const ticketNumber = args[0].toUpperCase();
-            const ticket = await this.chatBridge.getTicketByNumber(ticketNumber);
-            
-            if (!ticket) {
-                await ctx.reply(`❌ Tiket ${ticketNumber} tidak ditemukan.`);
-                return;
-            }
-
-            // Check if user owns the ticket
-            if (ticket.userId !== session.userId) {
-                await ctx.reply(`⚠️ Anda tidak memiliki akses ke tiket ini.`);
-                return;
-            }
-
-            await ctx.replyWithHTML(
-                `⚡ <b>Ubah Prioritas Tiket #${ticket.ticketNumber}</b>\n\n` +
-                `Prioritas saat ini: <b>${ticket.priority}</b>\n\n` +
-                `Pilih prioritas baru:`,
-                Markup.inlineKeyboard([
-                    [
-                        Markup.button.callback('🟢 Low', `set_priority:${ticket.id}:LOW`),
-                        Markup.button.callback('🟡 Medium', `set_priority:${ticket.id}:MEDIUM`),
-                    ],
-                    [
-                        Markup.button.callback('🟠 High', `set_priority:${ticket.id}:HIGH`),
-                        Markup.button.callback('🔴 Urgent', `set_priority:${ticket.id}:URGENT`),
-                    ],
-                    [Markup.button.callback('❌ Batal', 'cancel')],
-                ])
-            );
-            return;
-        }
-
-        // Both ticket number and priority provided
-        const ticketNumber = args[0].toUpperCase();
-        const priorityArg = args[1].toUpperCase();
-        
-        const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-        if (!validPriorities.includes(priorityArg)) {
-            await ctx.reply(`❌ Prioritas tidak valid. Gunakan: low, medium, high, atau urgent`);
-            return;
-        }
-
-        const result = await this.chatBridge.requestPriorityChange(
-            String(from.id),
-            ticketNumber,
-            priorityArg
-        );
-
-        if (result.success) {
-            await ctx.replyWithHTML(
-                `✅ <b>Prioritas Diubah</b>\n\n` +
-                `Tiket #${ticketNumber} sekarang memiliki prioritas <b>${priorityArg}</b>.`
-            );
-        } else {
-            await ctx.reply(`❌ ${result.message}`);
-        }
-    }
-
-    // =====================
-    // Callback Actions
-    // =====================
-
-    @Action('enter_code')
-    async onEnterCode(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        const from = ctx.from;
-        if (!from) return;
-
-        await this.telegramService.setState(String(from.id), TelegramState.AWAITING_LINK_CODE);
-        await ctx.replyWithHTML(
-            `🔗 <b>Masukkan Kode</b>\n\n` +
-            `Kirim kode 6 digit dari iDesk web:`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('❌ Batal', 'main_menu')],
-            ])
-        );
-    }
-
-    @Action('new_ticket')
-    async onNewTicketAction(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await this.onNewTicket(ctx);
-    }
-
-    @Action('my_tickets')
-    async onMyTicketsAction(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await this.showMyTickets(ctx);
-    }
-
-    @Action('start_chat')
-    async onStartChatAction(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await this.startChatMode(ctx);
-    }
-
-    @Action('check_status')
-    async onCheckStatusAction(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await ctx.replyWithHTML(
-            `🔍 <b>Cek Status Tiket</b>\n\n` +
-            `Kirim nomor tiket dengan format:\n` +
-            `<code>/status NOMOR_TIKET</code>\n\n` +
-            `<i>💡 Contoh: /status 271124-IT-0001</i>`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('📋 Lihat Tiket Saya', 'my_tickets')],
-                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-            ])
-        );
+        await ctx.replyWithHTML(t.help, Markup.inlineKeyboard([
+            [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+        ]));
     }
 
     @Action('help')
@@ -590,63 +119,276 @@ export class TelegramUpdate {
         await this.onHelp(ctx);
     }
 
-    @Action('cancel')
-    async onCancelAction(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await this.onCancel(ctx);
+    // ========================================
+    // SECTION 3: ACCOUNT LINKING
+    // ========================================
+
+    @Command('link')
+    async onLink(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (session?.userId) {
+            await ctx.replyWithHTML(t.link.alreadyLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ]));
+            return;
+        }
+
+        await this.telegramService.setState(String(from.id), TelegramState.AWAITING_LINK_CODE);
+        await ctx.replyWithHTML(t.link.instructions, Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Batal', 'main_menu')],
+        ]));
     }
 
-    @Action(/ticket_actions:(.+)/)
-    async onTicketActions(@Ctx() ctx: Context) {
+    @Action('enter_code')
+    async onEnterCode(@Ctx() ctx: Context) {
         await ctx.answerCbQuery();
-        const match = (ctx as any).match;
-        const ticketId = match[1];
+        const from = ctx.from;
+        if (!from) return;
 
-        const ticket = await this.telegramService.getTicketById(ticketId);
-        if (!ticket) {
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        await this.telegramService.setState(String(from.id), TelegramState.AWAITING_LINK_CODE);
+        await ctx.replyWithHTML(t.link.enterCode, Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Batal', 'main_menu')],
+        ]));
+    }
+
+    @Command('unlink')
+    async onUnlink(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (!session?.userId) {
+            await ctx.reply('ℹ️ Akun belum terhubung.');
+            return;
+        }
+
+        await this.telegramService.unlinkAccount(String(from.id));
+        await ctx.replyWithHTML(t.link.unlinked, Markup.inlineKeyboard([
+            [Markup.button.callback('🔗 Hubungkan Lagi', 'enter_code')],
+        ]));
+    }
+
+    // ========================================
+    // SECTION 4: TICKET CREATION
+    // ========================================
+
+    @Command('tiket')
+    @Command('ticket')
+    async onQuickTicket(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (!session?.userId) {
+            await ctx.replyWithHTML(t.errors.notLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+            ]));
+            return;
+        }
+
+        // Ambil teks setelah command
+        const text = ((ctx.message as any)?.text || '').replace(/^\/(tiket|ticket)\s*/i, '').trim();
+
+        if (!text) {
+            // Tampilkan pilihan buat tiket
             await ctx.replyWithHTML(
-                `❌ <b>Tiket Tidak Ditemukan</b>`,
-                this.telegramService.getBackHomeKeyboard('my_tickets')
+                `📝 <b>Buat Tiket Baru</b>\n\nPilih cara membuat tiket:`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('⚡ Quick (1 pesan)', 'ticket_quick_guide')],
+                    [Markup.button.callback('📝 Step-by-step', 'ticket_wizard')],
+                    [Markup.button.callback('❌ Batal', 'main_menu')],
+                ])
             );
             return;
         }
 
-        await this.showTicketDetail(ctx, ticket);
+        // Quick ticket dengan auto-kategorisasi
+        try {
+            const { category, priority } = this.analyzeTicketText(text);
+            const ticket = await this.telegramService.createTicket(
+                session,
+                text.length > 100 ? text.substring(0, 97) + '...' : text,
+                text,
+                category,
+                priority
+            );
+
+            await ctx.replyWithHTML(
+                t.ticket.quickCreated(ticket.ticketNumber, ticket.title, ticket.category, ticket.priority),
+                Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback('💬 Chat', `enter_chat:${ticket.id}`),
+                        Markup.button.callback('📋 Detail', `view_ticket:${ticket.id}`),
+                    ],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+
+            await this.telegramService.notifyNewTicketToAgents(ticket);
+        } catch (error) {
+            this.logger.error('Quick ticket error:', error);
+            await ctx.reply(t.errors.serverError);
+        }
+    }
+
+    @Action('new_ticket')
+    async onNewTicketAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (!session?.userId) {
+            await ctx.replyWithHTML(t.errors.notLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+            ]));
+            return;
+        }
+
+        await ctx.replyWithHTML(
+            `📝 <b>Buat Tiket Baru</b>\n\nPilih cara membuat tiket:`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('⚡ Quick (1 pesan)', 'ticket_quick_guide')],
+                [Markup.button.callback('📝 Step-by-step', 'ticket_wizard')],
+                [Markup.button.callback('❌ Batal', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('ticket_quick_guide')
+    async onTicketQuickGuide(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        const session = from ? await this.telegramService.getSession(String(from.id)) : null;
+        const t = getTemplates(session?.language || 'id');
+
+        await ctx.replyWithHTML(t.ticket.quickGuide, Markup.inlineKeyboard([
+            [Markup.button.callback('📝 Step-by-step', 'ticket_wizard')],
+            [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+        ]));
+    }
+
+    @Action('ticket_wizard')
+    async onTicketWizard(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_TICKET_TITLE);
+        await ctx.replyWithHTML(t.ticket.wizardStep1, Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Batal', 'main_menu')],
+        ]));
+    }
+
+    // ========================================
+    // SECTION 5: TICKET LIST & DETAILS
+    // ========================================
+
+    @Command('list')
+    @Command('mytickets')
+    async onMyTickets(@Ctx() ctx: Context) {
+        await this.showMyTickets(ctx);
+    }
+
+    @Action('my_tickets')
+    async onMyTicketsAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.showMyTickets(ctx);
+    }
+
+    private async showMyTickets(ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (!session?.userId) {
+            await ctx.replyWithHTML(t.errors.notLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+            ]));
+            return;
+        }
+
+        const tickets = await this.telegramService.getMyTickets(session.userId);
+
+        if (tickets.length === 0) {
+            await ctx.replyWithHTML(t.ticket.listEmpty, Markup.inlineKeyboard([
+                [Markup.button.callback('🎫 Buat Tiket', 'new_ticket')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ]));
+            return;
+        }
+
+        let message = `📋 <b>Tiket Saya</b> (${tickets.length})\n\n`;
+        const buttons: any[][] = [];
+
+        tickets.slice(0, 10).forEach((ticket, i) => {
+            const statusEmoji = this.getStatusEmoji(ticket.status);
+            message += `${i + 1}. ${statusEmoji} <b>#${ticket.ticketNumber}</b>\n`;
+            message += `   ${ticket.title.substring(0, 40)}${ticket.title.length > 40 ? '...' : ''}\n\n`;
+            
+            buttons.push([
+                Markup.button.callback(`${statusEmoji} #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
+            ]);
+        });
+
+        buttons.push([
+            Markup.button.callback('🎫 Buat Tiket Baru', 'new_ticket'),
+        ]);
+        buttons.push([
+            Markup.button.callback('🏠 Menu Utama', 'main_menu'),
+        ]);
+
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
     }
 
     @Action(/view_ticket:(.+)/)
     async onViewTicket(@Ctx() ctx: Context) {
         await ctx.answerCbQuery();
-        const match = (ctx as any).match;
-        const ticketId = match[1];
+        const ticketId = (ctx as any).match[1];
 
         const ticket = await this.telegramService.getTicketById(ticketId);
         if (!ticket) {
-            await ctx.replyWithHTML(
-                `❌ <b>Tiket Tidak Ditemukan</b>`,
-                this.telegramService.getBackHomeKeyboard('my_tickets')
-            );
+            await ctx.reply('❌ Tiket tidak ditemukan.');
             return;
         }
 
-        const status = this.telegramService.formatTicketStatus(ticket.status);
-        const priority = this.telegramService.formatPriority(ticket.priority);
-        const createdAt = new Date(ticket.createdAt).toLocaleString('id-ID');
+        const statusEmoji = this.getStatusEmoji(ticket.status);
+        const priorityEmoji = this.getPriorityEmoji(ticket.priority);
+        const createdAt = new Date(ticket.createdAt).toLocaleDateString('id-ID');
 
         await ctx.replyWithHTML(
-            `📜 <b>Detail Lengkap Tiket</b>\n\n` +
+            `📋 <b>Detail Tiket</b>\n\n` +
             `<b>#${ticket.ticketNumber}</b>\n` +
-            `${ticket.title}\n\n` +
-            `┌ 📊 Status: ${status}\n` +
-            `├ ⚡ Prioritas: ${priority}\n` +
-            `├ 📁 Kategori: ${ticket.category}\n` +
-            `├ 👤 Agent: ${ticket.assignedTo?.fullName || 'Belum ada'}\n` +
-            `└ 📅 Dibuat: ${createdAt}\n\n` +
-            `📝 <b>Deskripsi:</b>\n${ticket.description?.substring(0, 300)}${ticket.description?.length > 300 ? '...' : ''}`,
+            `📌 ${ticket.title}\n\n` +
+            `${statusEmoji} Status: <b>${ticket.status}</b>\n` +
+            `${priorityEmoji} Prioritas: <b>${ticket.priority}</b>\n` +
+            `📁 Kategori: ${ticket.category}\n` +
+            `👤 Agent: ${ticket.assignedTo?.fullName || 'Belum ada'}\n` +
+            `📅 Dibuat: ${createdAt}\n\n` +
+            (ticket.description ? `📝 ${ticket.description.substring(0, 200)}${ticket.description.length > 200 ? '...' : ''}` : ''),
             Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('💬 Chat', `enter_chat:${ticketId}`),
-                    Markup.button.callback('⚡ Prioritas', `change_priority:${ticketId}`),
+                    Markup.button.callback('💬 Chat', `enter_chat:${ticket.id}`),
+                    Markup.button.callback('⚡ Prioritas', `change_priority:${ticket.id}`),
                 ],
                 [
                     Markup.button.callback('◀️ Kembali', 'my_tickets'),
@@ -659,8 +401,7 @@ export class TelegramUpdate {
     @Action(/change_priority:(.+)/)
     async onChangePriority(@Ctx() ctx: Context) {
         await ctx.answerCbQuery();
-        const match = (ctx as any).match;
-        const ticketId = match[1];
+        const ticketId = (ctx as any).match[1];
 
         const ticket = await this.telegramService.getTicketById(ticketId);
         if (!ticket) {
@@ -671,8 +412,7 @@ export class TelegramUpdate {
         await ctx.replyWithHTML(
             `⚡ <b>Ubah Prioritas</b>\n\n` +
             `Tiket: <b>#${ticket.ticketNumber}</b>\n` +
-            `Prioritas saat ini: <b>${this.telegramService.formatPriority(ticket.priority)}</b>\n\n` +
-            `Pilih prioritas baru:`,
+            `Saat ini: <b>${ticket.priority}</b>`,
             Markup.inlineKeyboard([
                 [
                     Markup.button.callback('🟢 Low', `set_priority:${ticketId}:LOW`),
@@ -680,248 +420,503 @@ export class TelegramUpdate {
                 ],
                 [
                     Markup.button.callback('🟠 High', `set_priority:${ticketId}:HIGH`),
-                    Markup.button.callback('🔴 Urgent', `set_priority:${ticketId}:URGENT`),
+                    Markup.button.callback('🔴 Critical', `set_priority:${ticketId}:CRITICAL`),
                 ],
-                [
-                    Markup.button.callback('◀️ Kembali', `ticket_actions:${ticketId}`),
-                    Markup.button.callback('🏠 Menu', 'main_menu'),
-                ],
+                [Markup.button.callback('❌ Batal', `view_ticket:${ticketId}`)],
             ])
         );
-    }
-
-    @Action(/enter_chat:(.+)/)
-    async onEnterChat(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        const match = (ctx as any).match;
-        const ticketId = match[1];
-        await this.enterChatModeForTicket(ctx, ticketId);
-    }
-
-    @Action('exit_chat')
-    async onExitChat(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await this.onEndChat(ctx);
-    }
-
-    @Action(/quick_reply:(.+)/)
-    async onQuickReply(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        const match = (ctx as any).match;
-        const ticketId = match[1];
-        await this.enterChatModeForTicket(ctx, ticketId);
     }
 
     @Action(/set_priority:(.+):(.+)/)
     async onSetPriority(@Ctx() ctx: Context) {
         await ctx.answerCbQuery();
-        const from = ctx.from;
-        if (!from) return;
+        const [ticketId, priority] = (ctx as any).match.slice(1);
 
-        const match = (ctx as any).match;
-        const ticketId = match[1];
-        const priority = match[2];
-
-        const result = await this.chatBridge.changePriorityById(
-            String(from.id),
-            ticketId,
-            priority
-        );
-
+        const result = await this.telegramService.updateTicketPriority(ticketId, priority);
         if (result.success) {
-            const priorityEmoji: Record<string, string> = {
-                'LOW': '🟢',
-                'MEDIUM': '🟡',
-                'HIGH': '🟠',
-                'URGENT': '🔴',
-            };
             await ctx.replyWithHTML(
-                `✅ <b>Prioritas Diubah</b>\n\n` +
-                `Tiket <b>#${result.ticketNumber}</b> sekarang:\n` +
-                `${priorityEmoji[priority] || ''} <b>${priority}</b>`,
+                `✅ Prioritas tiket diubah ke <b>${priority}</b>`,
                 Markup.inlineKeyboard([
-                    [Markup.button.callback('📋 Lihat Tiket', `ticket_actions:${ticketId}`)],
+                    [Markup.button.callback('📋 Lihat Tiket', `view_ticket:${ticketId}`)],
                     [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
                 ])
             );
         } else {
-            await ctx.replyWithHTML(
-                `❌ ${result.message}`,
-                this.telegramService.getBackHomeKeyboard('my_tickets')
-            );
+            await ctx.reply(`❌ ${result.message || 'Gagal mengubah prioritas'}`);
         }
     }
 
-    // =====================
-    // Text Message Handler
-    // =====================
+    // ========================================
+    // SECTION 6: CHAT MODE
+    // ========================================
 
-    @On('text')
-    async onText(@Ctx() ctx: Context) {
+    @Command('chat')
+    async onChat(@Ctx() ctx: Context) {
+        await this.startChatMode(ctx);
+    }
+
+    @Action('start_chat')
+    async onStartChatAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.startChatMode(ctx);
+    }
+
+    private async startChatMode(ctx: Context) {
         const from = ctx.from;
-        const message = (ctx.message as any)?.text;
-        if (!from || !message) return;
-
-        // Ignore commands
-        if (message.startsWith('/')) return;
+        if (!from) return;
 
         const session = await this.telegramService.getSession(String(from.id));
-        if (!session) return;
+        const t = getTemplates(session?.language || 'id');
 
-        // Handle chat mode first (highest priority)
-        if (session.state === TelegramState.CHAT_MODE && session.activeTicketId) {
-            await this.handleChatMessage(ctx, message, session);
+        if (!session?.userId) {
+            await ctx.replyWithHTML(t.errors.notLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+            ]));
             return;
         }
 
-        switch (session.state) {
-            case TelegramState.AWAITING_LINK_CODE:
-                await this.handleLinkCode(ctx, message);
-                break;
+        const tickets = await this.chatBridge.getActiveTickets(session.userId);
 
-            case TelegramState.CREATING_TICKET_TITLE:
-                await this.handleTicketTitle(ctx, message);
-                break;
-
-            case TelegramState.CREATING_TICKET_DESCRIPTION:
-                await this.handleTicketDescription(ctx, message, session);
-                break;
-
-            case TelegramState.REPLYING_TO_TICKET:
-                await this.handleTicketReply(ctx, message, session);
-                break;
-
-            default:
-                // Default response for unlinked users
-                if (!session.userId) {
-                    await ctx.reply(
-                        'Silakan hubungkan akun Anda terlebih dahulu dengan /link'
-                    );
-                }
-                break;
+        if (tickets.length === 0) {
+            await ctx.replyWithHTML(t.chat.noActiveTickets, Markup.inlineKeyboard([
+                [Markup.button.callback('🎫 Buat Tiket', 'new_ticket')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ]));
+            return;
         }
+
+        if (tickets.length === 1) {
+            // Langsung masuk chat jika hanya ada 1 tiket
+            await this.enterChat(ctx, tickets[0].id);
+            return;
+        }
+
+        // Pilih tiket untuk chat
+        const buttons = tickets.slice(0, 5).map(ticket => [
+            Markup.button.callback(
+                `${this.getStatusEmoji(ticket.status)} #${ticket.ticketNumber}`,
+                `enter_chat:${ticket.id}`
+            )
+        ]);
+        buttons.push([Markup.button.callback('🏠 Menu Utama', 'main_menu')]);
+
+        await ctx.replyWithHTML(t.chat.selectTicket, Markup.inlineKeyboard(buttons));
     }
 
-    // =====================
-    // Photo & Document Handlers
-    // =====================
+    @Action(/enter_chat:(.+)/)
+    async onEnterChat(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const ticketId = (ctx as any).match[1];
+        await this.enterChat(ctx, ticketId);
+    }
 
-    @On('photo')
-    async onPhoto(@Ctx() ctx: Context) {
+    private async enterChat(ctx: Context, ticketId: string) {
         const from = ctx.from;
         if (!from) return;
 
-        const photos = (ctx.message as any).photo;
-        const largestPhoto = photos[photos.length - 1]; // Get highest resolution
-        const caption = (ctx.message as any).caption || '';
-        const messageId = (ctx.message as any).message_id;
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
 
-        const result = await this.chatBridge.handlePhoto(
-            String(from.id),
-            String(ctx.chat?.id),
-            largestPhoto.file_id,
-            caption,
-            messageId
-        );
-
-        if (!result.success && result.message) {
-            await ctx.reply(result.message);
+        const result = await this.chatBridge.enterChatMode(String(from.id), ticketId);
+        if (!result.success) {
+            await ctx.reply(`❌ ${result.message}`);
+            return;
         }
+
+        const ticket = await this.telegramService.getTicketById(ticketId);
+        if (!ticket) return;
+
+        await ctx.replyWithHTML(
+            t.chat.modeActive(ticket.ticketNumber, ticket.title),
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🛑 Keluar Chat', 'exit_chat')],
+                [Markup.button.callback('📋 Lihat Detail', `view_ticket:${ticketId}`)],
+            ])
+        );
     }
 
-    @On('document')
-    async onDocument(@Ctx() ctx: Context) {
+    @Command('end')
+    @Command('endchat')
+    async onEndChat(@Ctx() ctx: Context) {
+        await this.exitChat(ctx);
+    }
+
+    @Action('exit_chat')
+    async onExitChat(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.exitChat(ctx);
+    }
+
+    private async exitChat(ctx: Context) {
         const from = ctx.from;
         if (!from) return;
 
-        const document = (ctx.message as any).document;
-        const caption = (ctx.message as any).caption || '';
-        const messageId = (ctx.message as any).message_id;
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
 
-        const result = await this.chatBridge.handleDocument(
-            String(from.id),
-            String(ctx.chat?.id),
-            document.file_id,
-            document.file_name,
-            caption,
-            messageId
-        );
-
-        if (!result.success && result.message) {
-            await ctx.reply(result.message);
+        const activeTicket = await this.chatBridge.getActiveChatTicket(String(from.id));
+        if (!activeTicket) {
+            await ctx.replyWithHTML(t.chat.noActiveChat, Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ]));
+            return;
         }
+
+        await this.chatBridge.exitChatMode(String(from.id));
+        await ctx.replyWithHTML(
+            t.chat.modeEnded(activeTicket.ticketNumber),
+            Markup.inlineKeyboard([
+                [Markup.button.callback('📋 Tiket Saya', 'my_tickets')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
     }
 
-    // =====================
-    // State Handlers
-    // =====================
+    // ========================================
+    // SECTION 7: SETTINGS
+    // ========================================
 
-    /**
-     * Handle message in chat mode - forward to ticket
-     */
-    private async handleChatMessage(ctx: Context, message: string, session: any) {
+    @Command('settings')
+    async onSettings(@Ctx() ctx: Context) {
+        await this.showSettings(ctx);
+    }
+
+    @Action('settings')
+    async onSettingsAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.showSettings(ctx);
+    }
+
+    private async showSettings(ctx: Context) {
         const from = ctx.from;
         if (!from) return;
 
-        const messageId = (ctx.message as any).message_id;
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
 
-        const result = await this.chatBridge.forwardToTicket(
-            String(from.id),
-            String(ctx.chat?.id),
-            message,
-            messageId
+        if (!session?.userId) {
+            await ctx.replyWithHTML(t.errors.notLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+            ]));
+            return;
+        }
+
+        const notifEnabled = session.notificationsEnabled ?? true;
+        const lang = session.language || 'id';
+
+        await ctx.replyWithHTML(
+            `⚙️ <b>Pengaturan</b>\n\n` +
+            `🔔 Notifikasi: ${notifEnabled ? '✅ Aktif' : '❌ Nonaktif'}\n` +
+            `🌐 Bahasa: ${lang === 'en' ? 'English' : 'Indonesia'}`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback(notifEnabled ? '🔕 Matikan Notif' : '🔔 Aktifkan Notif', 'toggle_notifications')],
+                [Markup.button.callback('🌐 Ganti Bahasa', 'change_language')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
         );
+    }
 
-        if (!result.success && result.message) {
+    @Action('toggle_notifications')
+    async onToggleNotifications(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const newValue = !(session?.notificationsEnabled ?? true);
+
+        await this.telegramService.updateSessionPreferences(String(from.id), {
+            notificationsEnabled: newValue
+        });
+
+        await ctx.replyWithHTML(
+            newValue ? '🔔 Notifikasi <b>diaktifkan</b>' : '🔕 Notifikasi <b>dinonaktifkan</b>',
+            Markup.inlineKeyboard([
+                [Markup.button.callback('⚙️ Kembali ke Pengaturan', 'settings')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('change_language')
+    async onChangeLanguage(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+            `🌐 <b>Pilih Bahasa / Select Language</b>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🇮🇩 Indonesia', 'set_language:id')],
+                [Markup.button.callback('🇬🇧 English', 'set_language:en')],
+                [Markup.button.callback('❌ Batal', 'settings')],
+            ])
+        );
+    }
+
+    @Action(/set_language:(.+)/)
+    async onSetLanguage(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const lang = (ctx as any).match[1];
+        await this.telegramService.updateSessionPreferences(String(from.id), { language: lang });
+
+        const t = getTemplates(lang);
+        await ctx.replyWithHTML(
+            `✅ ${lang === 'en' ? 'Language changed to English' : 'Bahasa diubah ke Indonesia'}`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('⚙️ ' + t.btn.settings, 'settings')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Command('bahasa')
+    @Command('language')
+    async onLanguageCommand(@Ctx() ctx: Context) {
+        await ctx.replyWithHTML(
+            `🌐 <b>Pilih Bahasa / Select Language</b>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🇮🇩 Indonesia', 'set_language:id')],
+                [Markup.button.callback('🇬🇧 English', 'set_language:en')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    // ========================================
+    // SECTION 8: SEARCH
+    // ========================================
+
+    @Command('cari')
+    @Command('search')
+    async onSearch(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const query = ((ctx.message as any)?.text || '').replace(/^\/(cari|search)\s*/i, '').trim();
+        
+        if (!query) {
             await ctx.replyWithHTML(
-                `❌ ${result.message}`,
+                `🔍 <b>Cari Knowledge Base</b>\n\n` +
+                `Ketik: <code>/cari [kata kunci]</code>\n\n` +
+                `<i>Contoh: /cari reset password</i>`,
                 Markup.inlineKeyboard([
                     [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
                 ])
             );
-
-            // Exit chat mode if ticket is closed or error
-            if (result.message.includes('ditutup') || result.message.includes('tidak ditemukan')) {
-                await this.chatBridge.exitChatMode(String(from.id));
-            }
+            return;
         }
-        // Message sent successfully - no confirmation needed to avoid spam
+
+        const results = await this.telegramService.searchKnowledgeBase(query);
+        
+        if (results.length === 0) {
+            await ctx.replyWithHTML(
+                `🔍 Tidak ditemukan hasil untuk "<b>${query}</b>"`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('🎫 Buat Tiket', 'new_ticket')],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        let message = `🔍 <b>Hasil Pencarian: "${query}"</b>\n\n`;
+        results.forEach((r, i) => {
+            message += `${i + 1}. 📄 ${r.title}\n`;
+            if (r.excerpt) message += `   ${r.excerpt.substring(0, 50)}...\n`;
+            message += '\n';
+        });
+
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard([
+            [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+        ]));
+    }
+
+    @Action('search_kb')
+    async onSearchKbAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+            `🔍 <b>Cari Knowledge Base</b>\n\n` +
+            `Ketik: <code>/cari [kata kunci]</code>\n\n` +
+            `<i>Contoh: /cari reset password</i>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    // ========================================
+    // SECTION 9: AGENT COMMANDS
+    // ========================================
+
+    @Command('queue')
+    async onQueue(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) {
+            await ctx.reply('⚠️ Hubungkan akun terlebih dahulu dengan /link');
+            return;
+        }
+
+        const isAgent = await this.telegramService.checkIsAgent(session.userId);
+        if (!isAgent) {
+            await ctx.reply('❌ Perintah ini hanya untuk Agent/Admin.');
+            return;
+        }
+
+        const tickets = await this.telegramService.getUnassignedTickets();
+        if (tickets.length === 0) {
+            await ctx.reply('📭 Tidak ada tiket dalam antrian.');
+            return;
+        }
+
+        let message = `📋 <b>Antrian Tiket</b> (${tickets.length})\n\n`;
+        const buttons: any[][] = [];
+
+        tickets.slice(0, 10).forEach((ticket, i) => {
+            const priorityEmoji = this.getPriorityEmoji(ticket.priority);
+            message += `${i + 1}. ${priorityEmoji} <b>#${ticket.ticketNumber}</b>\n`;
+            message += `   ${ticket.title.substring(0, 40)}...\n\n`;
+            
+            buttons.push([
+                Markup.button.callback(`✋ Ambil #${ticket.ticketNumber}`, `assign_ticket:${ticket.id}`)
+            ]);
+        });
+
+        buttons.push([Markup.button.callback('🏠 Menu Utama', 'main_menu')]);
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
+    }
+
+    @Action(/assign_ticket:(.+)/)
+    async onAssignTicketAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const ticketId = (ctx as any).match[1];
+        const session = await this.telegramService.getSession(String(from.id));
+
+        if (!session?.userId) {
+            await ctx.reply('⚠️ Hubungkan akun terlebih dahulu.');
+            return;
+        }
+
+        const result = await this.telegramService.assignTicketToAgentById(ticketId, session.userId);
+        if (result.success) {
+            await ctx.replyWithHTML(
+                `✅ <b>Tiket Diambil!</b>\n\n#${result.ticketNumber} sekarang Anda tangani.`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('💬 Balas', `enter_chat:${ticketId}`)],
+                    [Markup.button.callback('📋 Antrian', 'queue_action')],
+                ])
+            );
+        } else {
+            await ctx.reply(`❌ ${result.message}`);
+        }
+    }
+
+    @Command('stats')
+    async onStats(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) {
+            await ctx.reply('⚠️ Hubungkan akun terlebih dahulu.');
+            return;
+        }
+
+        const isAgent = await this.telegramService.checkIsAgent(session.userId);
+        if (!isAgent) {
+            await ctx.reply('❌ Perintah ini hanya untuk Agent/Admin.');
+            return;
+        }
+
+        const stats = await this.telegramService.getAgentStats(session.userId);
+        await ctx.replyWithHTML(
+            `📊 <b>Statistik Hari Ini</b>\n\n` +
+            `📋 Tiket Ditangani: <b>${stats.ticketsHandled}</b>\n` +
+            `✅ Tiket Selesai: <b>${stats.ticketsResolved}</b>\n` +
+            `💬 Pesan Dibalas: <b>${stats.messagesReplied}</b>\n` +
+            `📈 Belum Diassign: <b>${stats.unassignedCount}</b>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('📋 Lihat Antrian', 'queue_action')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('queue_action')
+    async onQueueAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.onQueue(ctx);
+    }
+
+    // ========================================
+    // SECTION 10: TEXT & MEDIA HANDLERS
+    // ========================================
+
+    @On('text')
+    async onText(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const text = (ctx.message as any).text;
+        if (text.startsWith('/')) return; // Ignore commands
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session) return;
+
+        // Handle based on state
+        switch (session.state) {
+            case TelegramState.AWAITING_LINK_CODE:
+                await this.handleLinkCode(ctx, text);
+                break;
+
+            case TelegramState.CREATING_TICKET_TITLE:
+                await this.handleTicketTitle(ctx, text);
+                break;
+
+            case TelegramState.CREATING_TICKET_DESCRIPTION:
+                await this.handleTicketDescription(ctx, text);
+                break;
+
+            case TelegramState.CHAT_MODE:
+                await this.handleChatMessage(ctx, text);
+                break;
+
+            default:
+                // Jika tidak ada state, abaikan atau tampilkan menu
+                break;
+        }
     }
 
     private async handleLinkCode(ctx: Context, code: string) {
         const from = ctx.from;
         if (!from) return;
 
-        // Validate code format (6 digits)
-        if (!/^\d{6}$/.test(code.trim())) {
-            await ctx.replyWithHTML(
-                `❌ <b>Format Tidak Valid</b>\n\n` +
-                `Masukkan 6 digit angka.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('❌ Batal', 'main_menu')],
-                ])
-            );
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (!/^\d{6}$/.test(code)) {
+            await ctx.replyWithHTML(t.link.invalidFormat);
             return;
         }
 
-        const result = await this.telegramService.verifyAndLink(String(from.id), code.trim());
-        
+        const result = await this.telegramService.linkAccountByCode(String(from.id), code);
+        await this.telegramService.clearState(String(from.id));
+
         if (result.success) {
-            await ctx.replyWithHTML(
-                `🎉 <b>Berhasil!</b>\n\n` +
-                `${result.message}\n\n` +
-                `Sekarang Anda bisa menggunakan semua fitur bot.`,
-                this.telegramService.getMainMenuKeyboard()
-            );
+            await ctx.replyWithHTML(t.link.success(result.userName || 'User'), Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ]));
         } else {
-            await ctx.replyWithHTML(
-                `❌ <b>Gagal</b>\n\n` +
-                `${result.message}`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🔄 Coba Lagi', 'enter_code')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
+            await ctx.replyWithHTML(`❌ ${result.message || t.link.failed}`, Markup.inlineKeyboard([
+                [Markup.button.callback('🔄 Coba Lagi', 'enter_code')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ]));
         }
     }
 
@@ -929,76 +924,42 @@ export class TelegramUpdate {
         const from = ctx.from;
         if (!from) return;
 
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
         if (title.length < 5) {
-            await ctx.replyWithHTML(
-                `❌ <b>Judul Terlalu Pendek</b>\n\n` +
-                `Minimal 5 karakter. Coba lagi:`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('❌ Batal', 'main_menu')],
-                ])
-            );
+            await ctx.replyWithHTML(t.errors.titleTooShort);
             return;
         }
 
-        await this.telegramService.setState(
-            String(from.id),
-            TelegramState.CREATING_TICKET_DESCRIPTION,
-            { title }
-        );
-
-        await ctx.replyWithHTML(
-            `🎫 <b>Buat Tiket Baru</b>\n\n` +
-            `✅ Judul: <b>${title}</b>\n\n` +
-            `📝 <b>Langkah 2/4</b>\n` +
-            `Jelaskan masalah Anda secara detail:`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('❌ Batal', 'main_menu')],
-            ])
-        );
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_TICKET_DESCRIPTION, { title });
+        await ctx.replyWithHTML(t.ticket.wizardStep2(title), Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Batal', 'main_menu')],
+        ]));
     }
 
-    private async handleTicketDescription(ctx: Context, description: string, session: any) {
+    private async handleTicketDescription(ctx: Context, description: string) {
         const from = ctx.from;
         if (!from) return;
 
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
         if (description.length < 10) {
-            await ctx.replyWithHTML(
-                `❌ <b>Deskripsi Terlalu Pendek</b>\n\n` +
-                `Minimal 10 karakter. Jelaskan lebih detail:`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('❌ Batal', 'main_menu')],
-                ])
-            );
+            await ctx.replyWithHTML(t.errors.descTooShort);
             return;
         }
 
-        const title = session.stateData?.title;
-        if (!title) {
-            await this.telegramService.clearState(String(from.id));
-            await ctx.replyWithHTML(
-                `❌ <b>Terjadi Kesalahan</b>\n\n` +
-                `Silakan mulai ulang.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🎫 Buat Tiket Baru', 'new_ticket')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-            return;
-        }
+        const stateData = session?.stateData || {};
+        const title = stateData.title || description.substring(0, 100);
 
-        // Move to category selection
-        await this.telegramService.setState(
-            String(from.id),
-            TelegramState.CREATING_TICKET_CATEGORY,
-            { title, description }
-        );
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_TICKET_CATEGORY, {
+            title,
+            description
+        });
 
         await ctx.replyWithHTML(
-            `🎫 <b>Buat Tiket Baru</b>\n\n` +
-            `✅ Judul: <b>${title}</b>\n` +
-            `✅ Deskripsi: <i>${description.substring(0, 50)}...</i>\n\n` +
-            `📁 <b>Langkah 3/4</b>\n` +
-            `Pilih kategori tiket:`,
+            `✅ Judul: <b>${title}</b>\n\n📁 Pilih kategori:`,
             Markup.inlineKeyboard([
                 [
                     Markup.button.callback('💻 Hardware', 'select_category:HARDWARE'),
@@ -1006,11 +967,11 @@ export class TelegramUpdate {
                 ],
                 [
                     Markup.button.callback('🌐 Network', 'select_category:NETWORK'),
-                    Markup.button.callback('👤 Account', 'select_category:ACCOUNT'),
+                    Markup.button.callback('📧 Email', 'select_category:EMAIL'),
                 ],
                 [
-                    Markup.button.callback('📧 Email', 'select_category:EMAIL'),
-                    Markup.button.callback('🔧 Other', 'select_category:GENERAL'),
+                    Markup.button.callback('👤 Account', 'select_category:ACCOUNT'),
+                    Markup.button.callback('🔧 Lainnya', 'select_category:GENERAL'),
                 ],
                 [Markup.button.callback('❌ Batal', 'main_menu')],
             ])
@@ -1023,35 +984,17 @@ export class TelegramUpdate {
         const from = ctx.from;
         if (!from) return;
 
-        const match = (ctx as any).match;
-        const category = match[1];
-
+        const category = (ctx as any).match[1];
         const session = await this.telegramService.getSession(String(from.id));
-        if (!session || session.state !== TelegramState.CREATING_TICKET_CATEGORY) {
-            await ctx.reply('❌ Sesi tidak valid. Silakan mulai ulang.');
-            return;
-        }
+        const stateData = session?.stateData || {};
 
-        const { title, description } = session.stateData || {};
-        if (!title || !description) {
-            await this.telegramService.clearState(String(from.id));
-            await ctx.reply('❌ Data tidak lengkap. Silakan mulai ulang.');
-            return;
-        }
-
-        // Move to priority selection
-        await this.telegramService.setState(
-            String(from.id),
-            TelegramState.CREATING_TICKET_PRIORITY,
-            { title, description, category }
-        );
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_TICKET_PRIORITY, {
+            ...stateData,
+            category
+        });
 
         await ctx.replyWithHTML(
-            `🎫 <b>Buat Tiket Baru</b>\n\n` +
-            `✅ Judul: <b>${title}</b>\n` +
-            `✅ Kategori: <b>${category}</b>\n\n` +
-            `⚡ <b>Langkah 4/4</b>\n` +
-            `Pilih tingkat prioritas:`,
+            `✅ Kategori: <b>${category}</b>\n\n⚡ Pilih prioritas:`,
             Markup.inlineKeyboard([
                 [
                     Markup.button.callback('🟢 Low', 'select_priority:LOW'),
@@ -1072,48 +1015,29 @@ export class TelegramUpdate {
         const from = ctx.from;
         if (!from) return;
 
-        const match = (ctx as any).match;
-        const priority = match[1];
-
+        const priority = (ctx as any).match[1];
         const session = await this.telegramService.getSession(String(from.id));
-        if (!session || session.state !== TelegramState.CREATING_TICKET_PRIORITY) {
-            await ctx.reply('❌ Sesi tidak valid. Silakan mulai ulang.');
-            return;
-        }
+        const t = getTemplates(session?.language || 'id');
+        const stateData = session?.stateData || {};
 
-        const { title, description, category } = session.stateData || {};
-        if (!title || !description) {
-            await this.telegramService.clearState(String(from.id));
-            await ctx.reply('❌ Data tidak lengkap. Silakan mulai ulang.');
+        if (!session?.userId) {
+            await ctx.reply(t.errors.notLinked);
             return;
         }
 
         try {
             const ticket = await this.telegramService.createTicket(
-                session, 
-                title, 
-                description, 
-                category || 'GENERAL',
+                session,
+                stateData.title || 'Tiket Baru',
+                stateData.description || stateData.title || 'Tiket Baru',
+                stateData.category || 'GENERAL',
                 priority
             );
+
             await this.telegramService.clearState(String(from.id));
 
-            const priorityEmoji: Record<string, string> = {
-                'LOW': '🟢',
-                'MEDIUM': '🟡',
-                'HIGH': '🟠',
-                'CRITICAL': '🔴',
-            };
-
             await ctx.replyWithHTML(
-                `🎉 <b>Tiket Berhasil Dibuat!</b>\n\n` +
-                `🎫 <b>#${ticket.ticketNumber}</b>\n` +
-                `📌 ${ticket.title}\n\n` +
-                `┌ 📁 Kategori: <b>${ticket.category}</b>\n` +
-                `└ ${priorityEmoji[priority] || '🟡'} Prioritas: <b>${priority}</b>\n\n` +
-                `━━━━━━━━━━━━━━━━━━━━\n` +
-                `Tim support akan segera merespon.\n` +
-                `Anda akan menerima notifikasi update.`,
+                t.ticket.created(ticket.ticketNumber, ticket.title, ticket.category, ticket.priority),
                 Markup.inlineKeyboard([
                     [
                         Markup.button.callback('💬 Chat', `enter_chat:${ticket.id}`),
@@ -1123,61 +1047,187 @@ export class TelegramUpdate {
                 ])
             );
 
-            // Notify agents
             await this.telegramService.notifyNewTicketToAgents(ticket);
-
         } catch (error) {
-            this.logger.error('Failed to create ticket:', error);
-            await ctx.replyWithHTML(
-                `❌ <b>Gagal Membuat Tiket</b>\n\n` +
-                `Silakan coba lagi.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🔄 Coba Lagi', 'new_ticket')],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
+            this.logger.error('Ticket creation error:', error);
+            await ctx.reply(t.errors.serverError);
         }
     }
 
-    private async handleTicketReply(ctx: Context, content: string, session: any) {
+    private async handleChatMessage(ctx: Context, message: string) {
         const from = ctx.from;
         if (!from) return;
 
-        const ticketId = session.stateData?.ticketId;
-        if (!ticketId || !session.userId) {
-            await this.telegramService.clearState(String(from.id));
+        const messageId = (ctx.message as any).message_id;
+        const result = await this.chatBridge.forwardToTicket(
+            String(from.id),
+            String(ctx.chat?.id),
+            message,
+            messageId
+        );
+
+        if (!result.success && result.message) {
+            await ctx.reply(`❌ ${result.message}`);
+        }
+    }
+
+    @On('photo')
+    async onPhoto(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (session?.state !== TelegramState.CHAT_MODE) {
+            await ctx.reply('ℹ️ Foto hanya dapat dikirim dalam mode chat. Gunakan /chat');
+            return;
+        }
+
+        const photo = (ctx.message as any).photo;
+        const caption = (ctx.message as any).caption || '';
+        const fileId = photo[photo.length - 1].file_id;
+        const messageId = (ctx.message as any).message_id;
+
+        const result = await this.chatBridge.forwardPhotoToTicket(
+            String(from.id),
+            String(ctx.chat?.id),
+            fileId,
+            caption,
+            messageId
+        );
+
+        if (!result.success && result.message) {
+            await ctx.reply(`❌ ${result.message}`);
+        }
+    }
+
+    @On('document')
+    async onDocument(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (session?.state !== TelegramState.CHAT_MODE) {
+            await ctx.reply('ℹ️ Dokumen hanya dapat dikirim dalam mode chat. Gunakan /chat');
+            return;
+        }
+
+        const document = (ctx.message as any).document;
+        const caption = (ctx.message as any).caption || '';
+        const messageId = (ctx.message as any).message_id;
+
+        const result = await this.chatBridge.forwardDocumentToTicket(
+            String(from.id),
+            String(ctx.chat?.id),
+            document.file_id,
+            document.file_name,
+            caption,
+            messageId
+        );
+
+        if (!result.success && result.message) {
+            await ctx.reply(`❌ ${result.message}`);
+        }
+    }
+
+    @On('voice')
+    async onVoice(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (session?.state !== TelegramState.CHAT_MODE) {
             await ctx.replyWithHTML(
-                `❌ <b>Terjadi Kesalahan</b>\n\n` +
-                `Silakan coba lagi.`,
-                this.telegramService.getMainMenuKeyboard()
+                `🎤 <b>Pesan Suara</b>\n\nPesan suara hanya dapat dikirim dalam mode chat.`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('💬 Mulai Chat', 'start_chat')],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
             );
             return;
         }
 
-        try {
-            await this.telegramService.replyToTicket(ticketId, session.userId, content);
-            await this.telegramService.clearState(String(from.id));
+        const voice = (ctx.message as any).voice;
+        const messageId = (ctx.message as any).message_id;
 
-            await ctx.replyWithHTML(
-                `✅ <b>Balasan Terkirim!</b>`,
-                Markup.inlineKeyboard([
-                    [
-                        Markup.button.callback('� Lanjut Chat', `enter_chat:${ticketId}`),
-                        Markup.button.callback('�� Lihat Tiket', `view_ticket:${ticketId}`),
-                    ],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
-        } catch (error) {
-            this.logger.error('Failed to reply to ticket:', error);
-            await ctx.replyWithHTML(
-                `❌ <b>Gagal Mengirim</b>\n\n` +
-                `Silakan coba lagi.`,
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('🔄 Coba Lagi', `reply_ticket:${ticketId}`)],
-                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-                ])
-            );
+        const result = await this.chatBridge.handleVoice(
+            String(from.id),
+            String(ctx.chat?.id),
+            voice.file_id,
+            voice.duration,
+            messageId
+        );
+
+        if (!result.success && result.message) {
+            await ctx.reply(`❌ ${result.message}`);
         }
+    }
+
+    @Command('cancel')
+    async onCancel(@Ctx() ctx: Context) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        await this.telegramService.clearState(String(from.id));
+        await this.chatBridge.exitChatMode(String(from.id));
+
+        await ctx.replyWithHTML(t.errors.cancelled, Markup.inlineKeyboard([
+            [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+        ]));
+    }
+
+    // ========================================
+    // HELPER METHODS
+    // ========================================
+
+    private analyzeTicketText(text: string): { category: string; priority: string } {
+        const lowerText = text.toLowerCase();
+        
+        let category = 'GENERAL';
+        if (/printer|laptop|komputer|mouse|keyboard|monitor|pc|hardware/i.test(lowerText)) {
+            category = 'HARDWARE';
+        } else if (/wifi|internet|network|jaringan|koneksi|vpn|lan/i.test(lowerText)) {
+            category = 'NETWORK';
+        } else if (/email|outlook|gmail|mail/i.test(lowerText)) {
+            category = 'EMAIL';
+        } else if (/password|login|akun|account|lupa|reset|user/i.test(lowerText)) {
+            category = 'ACCOUNT';
+        } else if (/aplikasi|software|install|update|error|crash|app/i.test(lowerText)) {
+            category = 'SOFTWARE';
+        }
+
+        let priority = 'MEDIUM';
+        if (/urgent|segera|darurat|critical|penting|emergency|asap/i.test(lowerText)) {
+            priority = 'HIGH';
+        } else if (/tidak bisa|error|gagal|rusak|mati|down|broken/i.test(lowerText)) {
+            priority = 'MEDIUM';
+        } else if (/tolong|mohon|bisa|request|minta|pertanyaan/i.test(lowerText)) {
+            priority = 'LOW';
+        }
+
+        return { category, priority };
+    }
+
+    private getStatusEmoji(status: string): string {
+        const map: Record<string, string> = {
+            'TODO': '🔵',
+            'IN_PROGRESS': '🟡',
+            'WAITING_VENDOR': '🟠',
+            'RESOLVED': '🟢',
+            'CANCELLED': '🔴',
+        };
+        return map[status] || '⚪';
+    }
+
+    private getPriorityEmoji(priority: string): string {
+        const map: Record<string, string> = {
+            'LOW': '🟢',
+            'MEDIUM': '🟡',
+            'HIGH': '🟠',
+            'CRITICAL': '🔴',
+        };
+        return map[priority] || '⚪';
     }
 }

@@ -40,6 +40,7 @@ const BentoSlaSettingsPage = lazy(() => import('./features/admin/pages/BentoSlaS
 const BentoFeedbackPage = lazy(() => import('./features/public/pages/BentoFeedbackPage').then(m => ({ default: m.BentoFeedbackPage })));
 const RenewalDashboardPage = lazy(() => import('./features/renewal/pages/RenewalDashboardPage').then(m => ({ default: m.RenewalDashboardPage })));
 const NotificationCenterPage = lazy(() => import('./features/notifications/pages/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
+const ClientNotificationCenter = lazy(() => import('./features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -206,6 +207,7 @@ function App() {
                             <Route path="my-tickets" element={<FeatureErrorBoundary featureName="My Tickets"><Suspense fallback={<PageLoader />}><BentoMyTicketsPage /></Suspense></FeatureErrorBoundary>} />
                             <Route path="create" element={<FeatureErrorBoundary featureName="Create Ticket"><Suspense fallback={<PageLoader />}><BentoCreateTicketPage /></Suspense></FeatureErrorBoundary>} />
                             <Route path="tickets/:id" element={<FeatureErrorBoundary featureName="Ticket Detail"><Suspense fallback={<PageLoader />}><ClientTicketDetailPage /></Suspense></FeatureErrorBoundary>} />
+                            <Route path="notifications" element={<FeatureErrorBoundary featureName="Notifications"><Suspense fallback={<PageLoader />}><ClientNotificationCenter /></Suspense></FeatureErrorBoundary>} />
                             <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><ClientKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
                             <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><ClientArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
                             <Route path="profile" element={<FeatureErrorBoundary featureName="Profile"><Suspense fallback={<PageLoader />}><ClientProfilePage /></Suspense></FeatureErrorBoundary>} />

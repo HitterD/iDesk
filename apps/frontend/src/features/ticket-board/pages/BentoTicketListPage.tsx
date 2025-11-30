@@ -9,7 +9,6 @@ import {
     AlertTriangle,
     CheckCircle2,
     CircleDot,
-    Hourglass,
     MessageSquare,
     X,
     ChevronRight,
@@ -18,6 +17,7 @@ import {
     Flame,
     Calendar
 } from 'lucide-react';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -519,9 +519,10 @@ export const BentoTicketListPage: React.FC = () => {
 
                                         {/* Requester */}
                                         <div className="flex-[2] flex items-center gap-2 min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
-                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                                                {ticket.user?.fullName?.charAt(0) || '?'}
-                                            </div>
+                                            <UserAvatar 
+                                                user={{ fullName: ticket.user?.fullName }} 
+                                                size="sm" 
+                                            />
                                             <div className="min-w-0 hidden md:block">
                                                 <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{ticket.user?.fullName || 'Unknown'}</p>
                                                 <p className="text-[10px] text-slate-400 truncate">{ticket.user?.department?.name || '-'}</p>
@@ -555,9 +556,10 @@ export const BentoTicketListPage: React.FC = () => {
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     {ticket.assignedTo ? (
                                                         <>
-                                                            <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
-                                                                <UserCheck className="w-3 h-3 text-green-600" />
-                                                            </div>
+                                                            <UserAvatar 
+                                                                user={ticket.assignedTo} 
+                                                                size="xs" 
+                                                            />
                                                             <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
                                                                 {ticket.assignedTo.fullName}
                                                             </span>

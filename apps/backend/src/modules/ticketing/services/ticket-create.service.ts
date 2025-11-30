@@ -66,13 +66,20 @@ export class TicketCreateService {
 
             ticket.ticketNumber = `${dateStr}-${division}-${number}`;
 
-            // Set initial SLA Target based on priority
+            // === SLA Enhancement: New Logic ===
+            // slaTarget and slaStartedAt will be NULL until status changes to IN_PROGRESS
+            // Only firstResponseTarget is set on creation
             const priority = createTicketDto.priority || 'MEDIUM';
             const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
             if (slaConfig) {
                 const now = new Date();
-                ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+                // First Response Target - starts counting from ticket creation
+                ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
             }
+
+            // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
+            ticket.slaStartedAt = null;
+            ticket.slaTarget = null;
 
             await this.ticketRepo.save(ticket);
 

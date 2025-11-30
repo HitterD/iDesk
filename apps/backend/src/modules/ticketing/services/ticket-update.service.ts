@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -13,9 +13,12 @@ import { CacheService } from '../../../shared/core/cache';
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
+import { TelegramService } from '../../telegram/telegram.service';
 
 @Injectable()
 export class TicketUpdateService {
+    private readonly logger = new Logger(TicketUpdateService.name);
+
     constructor(
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
@@ -29,6 +32,8 @@ export class TicketUpdateService {
         private readonly surveysService: SurveysService,
         private readonly cacheService: CacheService,
         private readonly eventEmitter: EventEmitter2,
+        @Optional() @Inject(forwardRef(() => TelegramService))
+        private readonly telegramService: TelegramService,
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
@@ -43,46 +48,80 @@ export class TicketUpdateService {
         }
 
         const changes: string[] = [];
+        const oldStatus = ticket.status;
 
         if (updateData.status && updateData.status !== ticket.status) {
             changes.push(`Status changed from ${ticket.status} to ${updateData.status}`);
 
-            // SLA Pausing Logic
+            // === NEW: SLA Starts when status changes to IN_PROGRESS ===
+            if (updateData.status === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
+                const now = new Date();
+                ticket.slaStartedAt = now;
+
+                // Calculate SLA Target from NOW (not from createdAt)
+                const slaConfig = await this.slaConfigRepo.findOne({
+                    where: { priority: ticket.priority }
+                });
+
+                if (slaConfig) {
+                    // Resolution Target
+                    ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+                    changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
+                }
+            }
+
+            // === WAITING_VENDOR Handling - Enhanced ===
             if (updateData.status === TicketStatus.WAITING_VENDOR) {
-                // Start Pausing
                 ticket.lastPausedAt = new Date();
-            } else if (ticket.status === TicketStatus.WAITING_VENDOR) {
-                // Resume from Pause
+                ticket.waitingVendorAt = new Date();
+
+                // Send special notification and add system note
+                await this.handleWaitingVendorStatus(ticket, user);
+            } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
+                // Resume from WAITING_VENDOR
                 if (ticket.lastPausedAt) {
                     const now = new Date();
                     const diffMs = now.getTime() - new Date(ticket.lastPausedAt).getTime();
                     const diffMinutes = Math.floor(diffMs / 60000);
+
                     ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + diffMinutes;
+                    ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + diffMinutes;
 
                     // Adjust SLA Target
                     if (ticket.slaTarget) {
-                        const currentTarget = new Date(ticket.slaTarget);
-                        const newTarget = new Date(currentTarget.getTime() + diffMs);
-                        ticket.slaTarget = newTarget;
-                        changes.push(`SLA Target adjusted by ${diffMinutes} minutes (Paused Duration)`);
+                        ticket.slaTarget = new Date(ticket.slaTarget.getTime() + diffMs);
+                        changes.push(`SLA Target adjusted by ${diffMinutes} minutes (Waiting Vendor Duration)`);
+                    }
+
+                    // Adjust First Response Target if not responded yet
+                    if (ticket.firstResponseTarget && !ticket.firstResponseAt) {
+                        ticket.firstResponseTarget = new Date(ticket.firstResponseTarget.getTime() + diffMs);
                     }
 
                     ticket.lastPausedAt = null;
+                    ticket.waitingVendorAt = null;
                 }
+            }
+
+            // === RESOLVED Handling ===
+            if (updateData.status === TicketStatus.RESOLVED) {
+                ticket.resolvedAt = new Date();
             }
         }
 
         if (updateData.priority && updateData.priority !== ticket.priority) {
             changes.push(`Priority changed from ${ticket.priority} to ${updateData.priority}`);
 
-            // Recalculate SLA Target based on new priority
-            const newSlaConfig = await this.slaConfigRepo.findOne({ where: { priority: updateData.priority as string } });
-            if (newSlaConfig) {
-                const createdAt = new Date(ticket.createdAt);
-                const pausedMinutes = ticket.totalPausedMinutes || 0;
-                const newSlaTarget = new Date(createdAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
-                ticket.slaTarget = newSlaTarget;
-                changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${updateData.priority})`);
+            // Recalculate SLA Target based on new priority (only if SLA has started)
+            if (ticket.slaStartedAt) {
+                const newSlaConfig = await this.slaConfigRepo.findOne({ where: { priority: updateData.priority as string } });
+                if (newSlaConfig) {
+                    const slaStartedAt = new Date(ticket.slaStartedAt);
+                    const pausedMinutes = ticket.totalPausedMinutes || 0;
+                    const newSlaTarget = new Date(slaStartedAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
+                    ticket.slaTarget = newSlaTarget;
+                    changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${updateData.priority})`);
+                }
             }
         }
 
@@ -343,5 +382,94 @@ export class TicketUpdateService {
         }
 
         return { updated: updated.length, failed };
+    }
+
+    /**
+     * Handle WAITING_VENDOR status change
+     * - Send Telegram notification with vendor schedule info
+     * - Add system message to ticket notes/discussion
+     */
+    private async handleWaitingVendorStatus(ticket: Ticket, changedBy: User): Promise<void> {
+        const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
+
+        // Calculate next Thursday (vendor visit day)
+        const nextThursday = this.getNextThursday();
+        const formattedDate = nextThursday.toLocaleDateString('id-ID', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+
+        // === 1. Add System Message to Notes & Discussion ===
+        const systemNote = `⏳ Status Tiket Diubah ke Waiting Vendor
+
+📋 Tiket ini menunggu kunjungan vendor.
+📅 Jadwal vendor datang: Setiap hari Kamis
+📆 Perkiraan kunjungan terdekat: ${formattedDate}
+
+ℹ️ Estimasi waktu tunggu minimal: 1 minggu
+👤 Diubah oleh: ${changedBy.fullName}
+🕐 Waktu: ${new Date().toLocaleString('id-ID')}
+
+---
+SLA Timer di-pause selama menunggu vendor.`;
+
+        const systemMessage = this.messageRepo.create({
+            content: systemNote,
+            ticket,
+            senderId: changedBy.id,
+            isSystemMessage: true,
+        });
+        await this.messageRepo.save(systemMessage);
+
+        // === 2. Send Telegram Notification ===
+        if (this.telegramService && ticket.user) {
+            const telegramMessage =
+                `🟠 <b>Status Tiket Menunggu Vendor</b>\n\n` +
+                `📋 Tiket: <b>#${ticketNumber}</b>\n` +
+                `📌 ${ticket.title}\n\n` +
+                `📅 <b>Jadwal Kunjungan Vendor:</b>\n` +
+                `   • Vendor datang setiap hari <b>Kamis</b>\n` +
+                `   • Perkiraan kunjungan: <b>${formattedDate}</b>\n` +
+                `   • Estimasi waktu tunggu: minimal 1 minggu\n\n` +
+                `⏸️ <i>SLA Timer di-pause sampai vendor selesai.</i>`;
+
+            try {
+                // Try to get user's telegram chat ID
+                const userWithTelegram = await this.userRepo.findOne({
+                    where: { id: ticket.userId },
+                    select: ['id', 'telegramChatId'],
+                });
+
+                if (userWithTelegram?.telegramChatId) {
+                    await this.telegramService.sendNotification(
+                        userWithTelegram.telegramChatId,
+                        telegramMessage
+                    );
+                    this.logger.log(`Waiting vendor notification sent to user ${ticket.userId}`);
+                }
+            } catch (error) {
+                this.logger.error(`Failed to send waiting vendor notification: ${error.message}`);
+            }
+        }
+
+        // Emit WebSocket event for real-time update
+        this.eventsGateway.notifyNewMessage(ticket.id, systemMessage);
+    }
+
+    /**
+     * Get next Thursday date (vendor visit day)
+     */
+    private getNextThursday(): Date {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sunday, 4 = Thursday
+        const daysUntilThursday = (4 - dayOfWeek + 7) % 7 || 7; // If today is Thursday, get next week
+
+        const nextThursday = new Date(now);
+        nextThursday.setDate(now.getDate() + daysUntilThursday);
+        nextThursday.setHours(9, 0, 0, 0); // Set to 9 AM
+
+        return nextThursday;
     }
 }

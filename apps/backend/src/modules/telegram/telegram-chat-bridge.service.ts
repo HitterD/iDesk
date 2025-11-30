@@ -194,6 +194,36 @@ export class TelegramChatBridgeService {
         return { success: true };
     }
 
+    /**
+     * Forward photo from Telegram to ticket
+     */
+    async forwardPhotoToTicket(
+        telegramId: string,
+        chatId: string,
+        fileId: string,
+        caption: string,
+        messageId: number
+    ): Promise<{ success: boolean; message?: string }> {
+        // Forward as attachment with caption
+        return this.forwardToTicket(telegramId, chatId, caption || '📷 Foto', messageId, [`telegram:photo:${fileId}`]);
+    }
+
+    /**
+     * Forward document from Telegram to ticket
+     */
+    async forwardDocumentToTicket(
+        telegramId: string,
+        chatId: string,
+        fileId: string,
+        fileName: string,
+        caption: string,
+        messageId: number
+    ): Promise<{ success: boolean; message?: string }> {
+        // Forward as attachment with caption
+        const text = caption || `📎 Dokumen: ${fileName}`;
+        return this.forwardToTicket(telegramId, chatId, text, messageId, [`telegram:document:${fileId}:${fileName}`]);
+    }
+
     // =====================
     // Message Bridging: Ticket System → Telegram
     // =====================
@@ -502,5 +532,57 @@ export class TelegramChatBridgeService {
             [TicketStatus.CANCELLED]: 'Dibatalkan',
         };
         return textMap[status] || status;
+    }
+
+    /**
+     * Handle voice message in chat mode
+     */
+    async handleVoice(
+        telegramId: string,
+        chatId: string,
+        fileId: string,
+        duration: number,
+        messageId: number
+    ): Promise<{ success: boolean; message?: string }> {
+        const session = await this.sessionRepo.findOne({ where: { telegramId } });
+        
+        if (!session?.userId || !session.activeTicketId) {
+            return { success: false, message: 'Tidak ada chat aktif.' };
+        }
+
+        const ticket = await this.ticketRepo.findOne({
+            where: { id: session.activeTicketId },
+            relations: ['user', 'assignedTo'],
+        });
+
+        if (!ticket) {
+            return { success: false, message: 'Tiket tidak ditemukan.' };
+        }
+
+        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
+            return { success: false, message: 'Tiket sudah ditutup.' };
+        }
+
+        // Create message with voice note reference
+        const message = this.messageRepo.create({
+            ticketId: ticket.id,
+            senderId: session.userId,
+            content: `🎤 [Pesan Suara - ${duration}s]\n\nFile ID: ${fileId}`,
+            source: 'TELEGRAM',
+        });
+        await this.messageRepo.save(message);
+
+        // Update last activity
+        await this.sessionRepo.update(
+            { telegramId },
+            { 
+                lastActivityAt: new Date(),
+                messagesCount: () => 'messages_count + 1',
+            }
+        );
+
+        this.logger.log(`Voice message forwarded to ticket ${ticket.ticketNumber}`);
+        
+        return { success: true };
     }
 }

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Search, User } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { NotificationPopover } from '../notifications/NotificationPopover';
 import { useAuth } from '../../stores/useAuth';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 export const Topbar: React.FC = () => {
     const { user } = useAuth();
@@ -41,13 +42,7 @@ export const Topbar: React.FC = () => {
                         <p className="text-sm font-medium text-white">{user?.fullName || 'User'}</p>
                         <p className="text-xs text-slate-400">{user?.role || 'Agent'}</p>
                     </div>
-                    <div className="h-8 w-8 rounded-full bg-neon-blue/20 flex items-center justify-center border border-neon-blue/50 overflow-hidden">
-                        {user?.avatarUrl ? (
-                            <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
-                        ) : (
-                            <User className="h-4 w-4 text-neon-blue" />
-                        )}
-                    </div>
+                    <UserAvatar useCurrentUser size="sm" showFallbackIcon />
                 </div>
             </div>
         </header>

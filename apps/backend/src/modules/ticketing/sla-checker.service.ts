@@ -1,12 +1,13 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, Not, IsNull, In } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { MailerService } from '@nestjs-modules/mailer';
 
 import { CustomerSession } from '../users/entities/customer-session.entity';
 import { SlaConfigService } from './sla-config.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class SlaCheckerService {
@@ -18,84 +19,165 @@ export class SlaCheckerService {
         @InjectRepository(CustomerSession)
         private sessionRepo: Repository<CustomerSession>,
         private readonly mailerService: MailerService,
-
         private readonly slaConfigService: SlaConfigService,
+        @Optional() @Inject(forwardRef(() => TelegramService))
+        private readonly telegramService: TelegramService,
     ) { }
 
-    @Cron(CronExpression.EVERY_HOUR)
+    @Cron(CronExpression.EVERY_10_MINUTES)
     async checkSla() {
-        this.logger.log('Running SLA Checker...');
+        this.logger.log('Running SLA Checker (Resolution + First Response)...');
 
-        const configs = await this.slaConfigService.findAll();
-        const configMap = new Map(configs.map(c => [c.priority, c.resolutionTimeMinutes]));
+        // === Check Resolution Time SLA ===
+        await this.checkResolutionSla();
 
-        const tickets = await this.ticketRepo.find({
-            where: [
-                { status: TicketStatus.TODO },
-                { status: TicketStatus.IN_PROGRESS },
-                { status: TicketStatus.WAITING_VENDOR },
-            ],
-            relations: ['user'],
-        });
+        // === Check First Response SLA ===
+        await this.checkFirstResponseSla();
 
+        this.logger.log('SLA Checker completed.');
+    }
+
+    /**
+     * Check Resolution Time SLA
+     * Only checks tickets where SLA has started (slaStartedAt is set)
+     */
+    private async checkResolutionSla(): Promise<void> {
         const now = new Date();
 
+        // Get tickets that have SLA started and not yet marked as overdue
+        const tickets = await this.ticketRepo.find({
+            where: {
+                status: In([TicketStatus.IN_PROGRESS, TicketStatus.TODO]),
+                isOverdue: false,
+                slaTarget: Not(IsNull()),
+                slaStartedAt: Not(IsNull()),
+            },
+            relations: ['user', 'assignedTo'],
+        });
+
         for (const ticket of tickets) {
-            const createdAt = new Date(ticket.createdAt);
-            const diffMs = now.getTime() - createdAt.getTime();
-            const diffMinutes = diffMs / (1000 * 60);
+            // Skip if waiting vendor (SLA is paused)
+            if (ticket.status === TicketStatus.WAITING_VENDOR) continue;
 
-            const thresholdMinutes = configMap.get(ticket.priority) || 1440; // Default 24h if not found
+            // Skip if no SLA target
+            if (!ticket.slaTarget) continue;
 
-            if (diffMinutes > thresholdMinutes && !ticket.isOverdue) {
-                this.logger.warn(`Ticket #${ticket.id} is OVERDUE!`);
+            const targetTime = new Date(ticket.slaTarget);
 
-                // 1. Mark as Overdue
+            if (now > targetTime) {
+                this.logger.warn(`Ticket #${ticket.ticketNumber || ticket.id} is OVERDUE!`);
+
                 ticket.isOverdue = true;
                 await this.ticketRepo.save(ticket);
 
-                // 2. Send Notifications
-                await this.sendOverdueNotifications(ticket);
+                await this.sendOverdueNotifications(ticket, 'resolution');
             }
         }
     }
 
-    private async sendOverdueNotifications(ticket: Ticket) {
-        // 1. Email to Manager (Mocked as Admin for now, or hardcoded)
-        // In a real app, we'd fetch the manager of the department or a specific admin email
-        const adminEmail = 'admin@antigravity.com'; // Fallback
+    /**
+     * Check First Response Time SLA
+     * Checks tickets that haven't received first response yet
+     */
+    private async checkFirstResponseSla(): Promise<void> {
+        const now = new Date();
 
+        // Get tickets waiting for first response
+        const tickets = await this.ticketRepo.find({
+            where: {
+                firstResponseAt: IsNull(),
+                firstResponseTarget: Not(IsNull()),
+                isFirstResponseBreached: false,
+                status: Not(In([TicketStatus.RESOLVED, TicketStatus.CANCELLED])),
+            },
+            relations: ['user', 'assignedTo'],
+        });
+
+        for (const ticket of tickets) {
+            // Skip if waiting vendor (SLA is paused)
+            if (ticket.status === TicketStatus.WAITING_VENDOR) continue;
+
+            // Skip if no first response target
+            if (!ticket.firstResponseTarget) continue;
+
+            const targetTime = new Date(ticket.firstResponseTarget);
+
+            if (now > targetTime) {
+                this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber || ticket.id}`);
+
+                ticket.isFirstResponseBreached = true;
+                await this.ticketRepo.save(ticket);
+
+                await this.sendOverdueNotifications(ticket, 'first_response');
+            }
+        }
+    }
+
+    /**
+     * Send SLA breach notifications
+     */
+    private async sendOverdueNotifications(ticket: Ticket, type: 'resolution' | 'first_response'): Promise<void> {
+        const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
+        const subject = type === 'resolution'
+            ? `⚠️ SLA BREACH: Ticket #${ticketNumber} Overdue!`
+            : `⚠️ FIRST RESPONSE SLA BREACH: Ticket #${ticketNumber}`;
+
+        const message = type === 'resolution'
+            ? `Ticket #${ticketNumber} has exceeded its resolution time SLA.`
+            : `Ticket #${ticketNumber} has not received first response within SLA.`;
+
+        // 1. Email to Admin
+        const adminEmail = 'admin@antigravity.com';
         try {
             await this.mailerService.sendMail({
                 to: adminEmail,
-                subject: `⚠️ SLA BREACH: Ticket #${ticket.id.split('-')[0]}`,
+                subject,
                 html: `
-                    <h1>SLA Breach Alert</h1>
-                    <p>Ticket <strong>#${ticket.id}</strong> is overdue.</p>
+                    <h1>${type === 'resolution' ? 'SLA Breach Alert' : 'First Response SLA Alert'}</h1>
+                    <p>${message}</p>
                     <ul>
+                        <li><strong>Ticket:</strong> #${ticketNumber}</li>
                         <li><strong>Title:</strong> ${ticket.title}</li>
                         <li><strong>Priority:</strong> ${ticket.priority}</li>
                         <li><strong>Status:</strong> ${ticket.status}</li>
-                        <li><strong>Created At:</strong> ${ticket.createdAt}</li>
+                        <li><strong>Assigned To:</strong> ${ticket.assignedTo?.fullName || 'Unassigned'}</li>
+                        <li><strong>Created:</strong> ${ticket.createdAt}</li>
+                        ${ticket.slaStartedAt ? `<li><strong>SLA Started:</strong> ${ticket.slaStartedAt}</li>` : ''}
+                        ${ticket.slaTarget ? `<li><strong>SLA Target:</strong> ${ticket.slaTarget}</li>` : ''}
                     </ul>
-                    <p>Please take immediate action.</p>
+                    <p style="color: red; font-weight: bold;">Please take immediate action.</p>
                 `,
             });
+            this.logger.log(`SLA breach email sent to ${adminEmail}`);
         } catch (e) {
             this.logger.error(`Failed to send SLA email: ${e.message}`);
         }
 
-        // 2. Telegram Notification (if we have a group chat ID or just notify the user for now)
-        // Ideally, this goes to an IT Support Group. 
-        // For this demo, we'll try to notify the user themselves if they have a session, or just log it.
-        // OR, if we had a configured "Support Group ID", we'd use that.
-        // Let's try to find ANY session to send a debug alert, or skip if no generic channel.
+        // 2. Telegram notification to assigned agent
+        if (this.telegramService && ticket.assignedTo) {
+            try {
+                const session = await this.sessionRepo.findOne({
+                    where: { userId: ticket.assignedTo.id }
+                });
 
-        // NOTE: In a real scenario, we would store a specific Chat ID for alerts.
-        // For now, let's skip sending to a random user to avoid confusion, 
-        // unless we want to notify the ticket creator that their ticket is taking longer than expected?
-        // The requirement says: "Kirim Notifikasi Telegram ke Group IT Support".
-        // Since we don't have a hardcoded Group ID, I will log this limitation.
-        this.logger.log(`[TELEGRAM] ⚠️ ALERT: Tiket #${ticket.id.split('-')[0]} Overdue! (Configure Group ID to send real msg)`);
+                if (session?.telegramId) {
+                    const emoji = type === 'resolution' ? '🚨' : '⚠️';
+                    const telegramMsg =
+                        `${emoji} <b>${type === 'resolution' ? 'SLA OVERDUE' : 'First Response SLA Breach'}</b>\n\n` +
+                        `Tiket #${ticketNumber}\n` +
+                        `📌 ${ticket.title}\n` +
+                        `Priority: ${ticket.priority}\n\n` +
+                        `<b>Segera tindak lanjuti tiket ini!</b>`;
+
+                    await this.telegramService.sendNotification(session.telegramId, telegramMsg);
+                    this.logger.log(`SLA breach Telegram notification sent to agent ${ticket.assignedTo.fullName}`);
+                }
+            } catch (error) {
+                this.logger.error(`Failed to send Telegram notification: ${error.message}`);
+            }
+        }
+
+        // 3. Log for monitoring
+        this.logger.log(`[SLA BREACH] Type: ${type}, Ticket: #${ticketNumber}, Priority: ${ticket.priority}`);
     }
 }

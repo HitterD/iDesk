@@ -1,9 +1,10 @@
-import { Injectable, Inject, NotFoundException, forwardRef, Optional } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
+import { SlaConfig } from '../entities/sla-config.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
@@ -11,6 +12,8 @@ import { TicketRepliedEvent } from '../events/ticket-replied.event';
 
 @Injectable()
 export class TicketMessagingService {
+    private readonly logger = new Logger(TicketMessagingService.name);
+
     constructor(
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
@@ -18,6 +21,8 @@ export class TicketMessagingService {
         private readonly messageRepo: Repository<TicketMessage>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        @InjectRepository(SlaConfig)
+        private readonly slaConfigRepo: Repository<SlaConfig>,
         private readonly eventsGateway: EventsGateway,
         private readonly eventEmitter: EventEmitter2,
     ) { }
@@ -55,9 +60,44 @@ export class TicketMessagingService {
 
         const savedMessage = await this.messageRepo.save(message);
 
-        // Update Ticket Status if Agent replies
-        if (user.role === UserRole.AGENT && ticket.status === TicketStatus.TODO) {
+        // === Track First Response Time ===
+        const isAgentOrAdmin = user.role === UserRole.AGENT || user.role === UserRole.ADMIN;
+        const isFirstAgentReply = !ticket.firstResponseAt && isAgentOrAdmin;
+
+        if (isFirstAgentReply) {
+            ticket.firstResponseAt = new Date();
+
+            // Check if first response SLA was breached
+            if (ticket.firstResponseTarget && ticket.firstResponseAt > new Date(ticket.firstResponseTarget)) {
+                ticket.isFirstResponseBreached = true;
+                this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber}`);
+            } else {
+                this.logger.log(`First Response recorded for ticket #${ticket.ticketNumber} - within SLA`);
+            }
+        }
+
+        // Update Ticket Status if Agent/Admin replies and ticket is still TODO
+        if (isAgentOrAdmin && ticket.status === TicketStatus.TODO) {
             ticket.status = TicketStatus.IN_PROGRESS;
+
+            // Also start SLA timer if not started
+            if (!ticket.slaStartedAt) {
+                const now = new Date();
+                ticket.slaStartedAt = now;
+
+                const slaConfig = await this.slaConfigRepo.findOne({
+                    where: { priority: ticket.priority }
+                });
+
+                if (slaConfig) {
+                    ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+                    this.logger.log(`SLA Timer started for ticket #${ticket.ticketNumber}. Target: ${ticket.slaTarget}`);
+                }
+            }
+        }
+
+        // Save ticket changes if any
+        if (isFirstAgentReply || (isAgentOrAdmin && ticket.status === TicketStatus.IN_PROGRESS)) {
             await this.ticketRepo.save(ticket);
         }
 

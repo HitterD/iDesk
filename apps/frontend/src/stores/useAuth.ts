@@ -19,6 +19,7 @@ interface AuthState {
     user: User | null;
     login: (token: string, user: User) => void;
     logout: () => void;
+    updateUser: (user: Partial<User>) => void;
 }
 
 export const useAuth = create<AuthState>()(
@@ -28,10 +29,12 @@ export const useAuth = create<AuthState>()(
             user: null,
             login: (token, user) => set({ token, user }),
             logout: () => {
-                // Disconnect socket to prevent memory leaks
                 disconnectSocket();
                 set({ token: null, user: null });
             },
+            updateUser: (updates) => set((state) => ({
+                user: state.user ? { ...state.user, ...updates } : null,
+            })),
         }),
         {
             name: 'auth-storage',

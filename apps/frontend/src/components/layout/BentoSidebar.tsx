@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 export const BentoSidebar = () => {
     const { user, logout } = useAuth();
@@ -110,9 +111,7 @@ export const BentoSidebar = () => {
             {/* Footer / User Profile */}
             <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
                 <div className={cn("flex items-center gap-3 mb-2", isCollapsed ? "justify-center px-0" : "px-4 py-3")}>
-                    <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-yellow-700 font-bold shrink-0">
-                        {user?.fullName?.charAt(0) || 'U'}
-                    </div>
+                    <UserAvatar useCurrentUser size="md" />
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0 animate-in fade-in duration-300">
                             <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user?.fullName}</p>

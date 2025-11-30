@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Mail, Phone, Building, Lock, Save, Camera, MessageCircle, Palette, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { TelegramSettingsForm } from '../../settings/components/TelegramSettingsForm';
 import { useTheme } from '@/components/theme-provider';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface UserProfile {
     id: string;
@@ -18,10 +19,11 @@ interface UserProfile {
 }
 
 export const ClientProfilePage: React.FC = () => {
-    const { user, login } = useAuth();
+    const { user, updateUser } = useAuth();
     const queryClient = useQueryClient();
     const { theme, setTheme } = useTheme();
     const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'telegram' | 'appearance'>('profile');
+    const avatarInputRef = useRef<HTMLInputElement>(null);
     
     // Profile form
     const [profileForm, setProfileForm] = useState({
@@ -65,15 +67,41 @@ export const ClientProfilePage: React.FC = () => {
         onSuccess: (data) => {
             toast.success('Profile updated successfully');
             queryClient.invalidateQueries({ queryKey: ['my-profile'] });
-            // Update auth store
-            if (user) {
-                login(localStorage.getItem('token') || '', { ...user, fullName: data.fullName });
-            }
+            updateUser(data);
         },
         onError: () => {
             toast.error('Failed to update profile');
         },
     });
+
+    // Upload avatar mutation
+    const uploadAvatarMutation = useMutation({
+        mutationFn: async (file: File) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/users/avatar', formData);
+            return res.data;
+        },
+        onSuccess: (data) => {
+            toast.success('Avatar updated successfully');
+            queryClient.invalidateQueries({ queryKey: ['my-profile'] });
+            updateUser(data);
+        },
+        onError: () => {
+            toast.error('Failed to upload avatar');
+        },
+    });
+
+    const handleAvatarClick = () => {
+        avatarInputRef.current?.click();
+    };
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            uploadAvatarMutation.mutate(file);
+        }
+    };
 
     // Change password mutation
     const changePasswordMutation = useMutation({
@@ -122,13 +150,18 @@ export const ClientProfilePage: React.FC = () => {
             {/* Profile Card */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="relative">
-                        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary">
-                            {profile?.fullName?.charAt(0) || 'U'}
+                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+                        <UserAvatar useCurrentUser size="xl" showFallbackIcon />
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Camera className="w-6 h-6 text-white" />
                         </div>
-                        <button className="absolute bottom-0 right-0 w-8 h-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-                            <Camera className="w-4 h-4" />
-                        </button>
+                        <input
+                            type="file"
+                            ref={avatarInputRef}
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleAvatarChange}
+                        />
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-white">{profile?.fullName}</h2>
@@ -136,6 +169,13 @@ export const ClientProfilePage: React.FC = () => {
                         {profile?.department && (
                             <p className="text-sm text-slate-400">{profile.department.name}</p>
                         )}
+                        <button
+                            type="button"
+                            onClick={handleAvatarClick}
+                            className="text-xs text-primary hover:text-primary/80 font-medium mt-1"
+                        >
+                            Change Avatar
+                        </button>
                     </div>
                 </div>
 
