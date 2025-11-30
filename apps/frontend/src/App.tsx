@@ -5,7 +5,8 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { FeatureErrorBoundary } from './components/ui/FeatureErrorBoundary';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Toaster } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { LoadingScreen } from './components/ui/LoadingScreen';
+import { ScreenReaderProvider } from './components/ui/ScreenReaderAnnounce';
 
 // Eagerly loaded (critical auth path only)
 import { BentoLoginPage } from './features/auth/pages/BentoLoginPage';
@@ -44,9 +45,7 @@ const ClientNotificationCenter = lazy(() => import('./features/client/pages/Clie
 
 // Loading fallback component
 const PageLoader = () => (
-    <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-neon-green" />
-    </div>
+    <LoadingScreen message="Loading..." />
 );
 
 const queryClient = new QueryClient({
@@ -65,6 +64,7 @@ const queryClient = new QueryClient({
 function App() {
     return (
         <QueryClientProvider client={queryClient}>
+            <ScreenReaderProvider>
             <ErrorBoundary>
                 <Toaster />
                 <Router>
@@ -219,6 +219,7 @@ function App() {
                     </Routes>
                 </Router>
             </ErrorBoundary>
+            </ScreenReaderProvider>
         </QueryClientProvider>
     );
 }

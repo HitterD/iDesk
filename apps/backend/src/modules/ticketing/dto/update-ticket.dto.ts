@@ -1,6 +1,7 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 
 export class UpdateTicketDto {
     @ApiPropertyOptional({ enum: TicketStatus })
@@ -13,14 +14,18 @@ export class UpdateTicketDto {
     @IsEnum(TicketPriority)
     priority?: TicketPriority;
 
-    @ApiPropertyOptional()
+    @ApiPropertyOptional({ maxLength: 100 })
     @IsOptional()
     @IsString()
+    @MaxLength(100)
+    @Sanitize({ removeHtml: true })
     category?: string;
 
-    @ApiPropertyOptional()
+    @ApiPropertyOptional({ maxLength: 100 })
     @IsOptional()
     @IsString()
+    @MaxLength(100)
+    @Sanitize({ removeHtml: true })
     device?: string;
 
     @ApiPropertyOptional()
@@ -60,8 +65,10 @@ export class AssignTicketDto {
 }
 
 export class CancelTicketDto {
-    @ApiPropertyOptional()
+    @ApiPropertyOptional({ maxLength: 500 })
     @IsOptional()
     @IsString()
+    @MaxLength(500)
+    @Sanitize({ removeHtml: true })
     reason?: string;
 }

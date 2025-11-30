@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { cn } from '@/lib/utils';
+import { ActivityFeed } from '@/components/ui/ActivityFeed';
 
 interface DashboardStats {
     total: number;
@@ -678,7 +679,29 @@ export const BentoDashboardPage = () => {
                             )}
                         </div>
                     </div>
+
                 </div>
+            </div>
+
+            {/* Live Activity Feed - Full Width */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <ActivityFeed
+                    activities={liveStats.recentTickets.slice(0, 8).map((ticket: any) => ({
+                        id: ticket.id,
+                        type: ticket.status === 'RESOLVED' ? 'ticket_resolved' as const : 
+                              ticket.assignedTo ? 'ticket_assigned' as const : 'ticket_created' as const,
+                        timestamp: ticket.createdAt,
+                        user: ticket.user,
+                        ticket: {
+                            id: ticket.id,
+                            ticketNumber: ticket.ticketNumber || ticket.id.slice(0, 8),
+                            title: ticket.title,
+                        },
+                    }))}
+                    isLive={true}
+                    maxItems={8}
+                    onActivityClick={(activity) => navigate(`/tickets/${activity.ticket?.id}`)}
+                />
             </div>
         </div>
     );

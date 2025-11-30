@@ -6,6 +6,8 @@ import api from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useDebounce } from '@/hooks/useDebounce';
 import { cn } from '@/lib/utils';
+import { ArticleCard } from '@/components/ui/ArticleCard';
+import { ArticleSearchAutocomplete } from '@/components/ui/ArticleSearchAutocomplete';
 
 interface Article {
     id: string;
@@ -115,27 +117,14 @@ export const BentoKnowledgeBasePage: React.FC = () => {
                         Search our knowledge base for answers to common questions and issues.
                     </p>
 
-                    <form onSubmit={handleSearch} className="max-w-xl mx-auto relative">
-                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                            type="text"
-                            value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
+                    <div className="max-w-xl mx-auto">
+                        <ArticleSearchAutocomplete
                             placeholder="Search for articles (e.g. 'printer', 'vpn')..."
-                            className="w-full pl-14 pr-32 py-5 bg-white rounded-2xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-primary/30 shadow-lg transition-all"
+                            basePath="/kb/articles"
+                            categories={CATEGORIES.filter(c => c !== 'All')}
+                            className="w-full"
                         />
-                        {isLoading && debouncedSearch && (
-                            <div className="absolute right-24 top-1/2 -translate-y-1/2">
-                                <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
-                            </div>
-                        )}
-                        <button
-                            type="submit"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-slate-900 font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors"
-                        >
-                            Search
-                        </button>
-                    </form>
+                    </div>
                 </div>
             </div>
 
@@ -185,47 +174,12 @@ export const BentoKnowledgeBasePage: React.FC = () => {
                     </div>
                 ) : (
                     articles.map((article) => (
-                        <Link key={article.id} to={`/kb/articles/${article.id}`}>
-                            <div className="h-full bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 group cursor-pointer overflow-hidden">
-                                {/* Featured Image */}
-                                {article.featuredImage ? (
-                                    <div className="h-40 overflow-hidden">
-                                        <img
-                                            src={article.featuredImage}
-                                            alt={article.title}
-                                            loading="lazy"
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="h-40 bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
-                                        <ImageIcon className="w-12 h-12 text-slate-300 dark:text-slate-600" />
-                                    </div>
-                                )}
-                                <div className="p-6">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <span className="px-3 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-500 dark:text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                                            {article.category}
-                                        </span>
-                                        {article.viewCount > 0 && (
-                                            <span className="flex items-center text-xs text-slate-400 dark:text-slate-500">
-                                                <Eye className="w-3 h-3 mr-1" />
-                                                {article.viewCount}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                                        {article.title}
-                                    </h3>
-                                    <p className="text-slate-500 dark:text-slate-400 line-clamp-2 text-sm mb-4 leading-relaxed">
-                                        {article.content.replace(/<[^>]*>/g, '')}
-                                    </p>
-                                    <div className="flex items-center text-primary font-bold text-sm opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
-                                        Read Article <ChevronRight className="w-4 h-4 ml-1" />
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
+                        <ArticleCard
+                            key={article.id}
+                            article={article}
+                            to={`/kb/articles/${article.id}`}
+                            variant="default"
+                        />
                     ))
                 )}
             </div>

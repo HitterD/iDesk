@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Clock, Eye, BookOpen, Calendar, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { OptimizedImage } from './OptimizedImage';
 
 interface Article {
     id: string;
@@ -64,10 +65,11 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
                 {/* Thumbnail */}
                 {article.featuredImage && (
                     <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-700">
-                        <img
+                        <OptimizedImage
                             src={article.featuredImage}
                             alt={article.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            lazy={true}
                         />
                     </div>
                 )}
@@ -114,10 +116,11 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
                 {/* Background Image */}
                 {article.featuredImage ? (
                     <div className="absolute inset-0">
-                        <img
+                        <OptimizedImage
                             src={article.featuredImage}
                             alt={article.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            lazy={true}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
                     </div>
@@ -176,10 +179,11 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
             {/* Featured Image */}
             <div className="relative h-48 bg-gradient-to-br from-primary/10 to-blue-500/10 overflow-hidden">
                 {article.featuredImage ? (
-                    <img
+                    <OptimizedImage
                         src={article.featuredImage}
                         alt={article.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        lazy={true}
                     />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center">

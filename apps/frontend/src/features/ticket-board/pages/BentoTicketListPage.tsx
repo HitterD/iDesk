@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Columns3,
@@ -39,6 +39,9 @@ import {
 import { Agent } from '../components/ticket-detail/types';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { format } from 'date-fns';
+import { SavedFiltersDropdown } from '@/components/ui/SavedFiltersDropdown';
+import { useSavedFilters, SavedFilter } from '@/hooks/useSavedFilters';
+import { ExportMenu } from '@/components/ui/ExportMenu';
 
 interface Ticket {
     id: string;
@@ -240,6 +243,41 @@ export const BentoTicketListPage: React.FC = () => {
     const [priorityFilter, setPriorityFilter] = useState<string>('');
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
 
+    // Saved Filters
+    const { currentFilter, getFilterValues } = useSavedFilters();
+    
+    // Apply saved filter on load
+    useEffect(() => {
+        const filterValues = getFilterValues();
+        if (filterValues) {
+            if (filterValues.status?.length) setStatusFilter(filterValues.status[0]);
+            if (filterValues.priority?.length) setPriorityFilter(filterValues.priority[0]);
+            if (filterValues.search) setSearchQuery(filterValues.search);
+        }
+    }, [currentFilter]);
+
+    // Current filters object for SavedFiltersDropdown
+    const currentFilters = useMemo(() => ({
+        status: statusFilter ? [statusFilter] : undefined,
+        priority: priorityFilter ? [priorityFilter] : undefined,
+        search: searchQuery || undefined,
+    }), [statusFilter, priorityFilter, searchQuery]);
+
+    const handleApplySavedFilter = (filters: SavedFilter['filters'] | null) => {
+        if (!filters) {
+            setSearchQuery('');
+            setStatusFilter('');
+            setPriorityFilter('');
+            return;
+        }
+        if (filters.status?.length) setStatusFilter(filters.status[0]);
+        else setStatusFilter('');
+        if (filters.priority?.length) setPriorityFilter(filters.priority[0]);
+        else setPriorityFilter('');
+        if (filters.search) setSearchQuery(filters.search);
+        else setSearchQuery('');
+    };
+
     const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
         queryKey: ['tickets'],
         queryFn: async () => {
@@ -351,68 +389,66 @@ export const BentoTicketListPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Sticky Header */}
-            <div className="sticky top-0 z-40 -mx-6 px-6 py-4 bg-gradient-to-b from-slate-50 via-slate-50 to-slate-50/95 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/95 backdrop-blur-sm border-b border-slate-200/50 dark:border-slate-700/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-                            <Ticket className="w-6 h-6 text-slate-900" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">All Tickets</h1>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm">View and manage all support requests</p>
-                        </div>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                        <Ticket className="w-6 h-6 text-slate-900" />
                     </div>
-                    <div className="flex items-center gap-3">
-                        {/* New Ticket Button */}
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">All Tickets</h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">View and manage all support requests</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    {/* New Ticket Button */}
+                    <button
+                        onClick={() => navigate('/tickets/create')}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
+                    >
+                        <Plus className="w-4 h-4" />
+                        <span className="hidden sm:inline">New Ticket</span>
+                    </button>
+                    
+                    {/* My Tasks Filter */}
+                    {canEdit && (
                         <button
-                            onClick={() => navigate('/tickets/create')}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
+                            onClick={() => {
+                                if (showAssignedToMe) {
+                                    setSearchParams({});
+                                } else {
+                                    setSearchParams({ filter: 'assigned_to_me' });
+                                }
+                            }}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2.5 border rounded-xl transition-all font-medium",
+                                showAssignedToMe
+                                    ? 'bg-primary text-slate-900 border-primary shadow-lg shadow-primary/20'
+                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                            )}
                         >
-                            <Plus className="w-4 h-4" />
-                            <span className="hidden sm:inline">New Ticket</span>
+                            <UserCheck className="w-4 h-4" />
+                            <span className="hidden sm:inline">My Tasks</span>
                         </button>
-                        
-                        {/* My Tasks Filter */}
-                        {canEdit && (
-                            <button
-                                onClick={() => {
-                                    if (showAssignedToMe) {
-                                        setSearchParams({});
-                                    } else {
-                                        setSearchParams({ filter: 'assigned_to_me' });
-                                    }
-                                }}
-                                className={cn(
-                                    "flex items-center gap-2 px-4 py-2.5 border rounded-xl transition-all font-medium",
-                                    showAssignedToMe
-                                        ? 'bg-primary text-slate-900 border-primary shadow-lg shadow-primary/20'
-                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                )}
-                            >
-                                <UserCheck className="w-4 h-4" />
-                                <span className="hidden sm:inline">My Tasks</span>
-                            </button>
-                        )}
-                        
-                        {/* View Toggle */}
-                        <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <button
-                                onClick={() => navigate('/kanban')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
-                                title="Kanban Board"
-                            >
-                                <Columns3 className="w-4 h-4" />
-                                <span className="text-xs font-medium hidden md:inline">Kanban</span>
-                            </button>
-                            <button
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-medium"
-                                title="Table View"
-                            >
-                                <TableProperties className="w-4 h-4" />
-                                <span className="text-xs font-medium hidden md:inline">Table</span>
-                            </button>
-                        </div>
+                    )}
+                    
+                    {/* View Toggle */}
+                    <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <button
+                            onClick={() => navigate('/kanban')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
+                            title="Kanban Board"
+                        >
+                            <Columns3 className="w-4 h-4" />
+                            <span className="text-xs font-medium hidden md:inline">Kanban</span>
+                        </button>
+                        <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-medium"
+                            title="Table View"
+                        >
+                            <TableProperties className="w-4 h-4" />
+                            <span className="text-xs font-medium hidden md:inline">Table</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -478,6 +514,38 @@ export const BentoTicketListPage: React.FC = () => {
                             Clear
                         </button>
                     )}
+                    
+                    {/* Saved Filters Dropdown */}
+                    <SavedFiltersDropdown
+                        currentFilters={currentFilters}
+                        onApplyFilter={handleApplySavedFilter}
+                    />
+                    
+                    {/* Export Menu */}
+                    <ExportMenu
+                        data={filteredTickets.map(t => ({
+                            id: t.id,
+                            ticketNumber: t.ticketNumber || t.id.slice(0, 8),
+                            title: t.title,
+                            status: t.status,
+                            priority: t.priority,
+                            category: t.category || '',
+                            requester: t.user?.fullName || '',
+                            assignedTo: t.assignedTo?.fullName || 'Unassigned',
+                            createdAt: format(new Date(t.createdAt), 'yyyy-MM-dd HH:mm'),
+                        }))}
+                        filename={`tickets-${format(new Date(), 'yyyy-MM-dd')}`}
+                        columns={[
+                            { key: 'ticketNumber', label: 'Ticket #' },
+                            { key: 'title', label: 'Title' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'priority', label: 'Priority' },
+                            { key: 'category', label: 'Category' },
+                            { key: 'requester', label: 'Requester' },
+                            { key: 'assignedTo', label: 'Assigned To' },
+                            { key: 'createdAt', label: 'Created At' },
+                        ]}
+                    />
                 </div>
             </div>
 

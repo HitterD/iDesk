@@ -8,6 +8,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { TicketDetail, Agent } from './types';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -53,15 +54,12 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     return (
         <div className="space-y-4">
             {/* Assignee Card */}
-            <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 overflow-hidden shadow-lg shadow-slate-200/40 dark:shadow-slate-900/40">
-                <div className="px-4 py-3 bg-gradient-to-r from-slate-100/80 to-slate-50/80 dark:from-slate-900/60 dark:to-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/60">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-white flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                            <UserCheck className="w-3.5 h-3.5 text-primary" />
-                        </div>
-                        Assignment
-                    </h4>
-                </div>
+            <CollapsibleSection
+                id="ticket-assignment"
+                title="Assignment"
+                icon={UserCheck}
+                defaultOpen={true}
+            >
                 <div className="p-4">
                     <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Assigned To</label>
                     <Select value={assigneeId} onValueChange={setAssigneeId}>
@@ -75,18 +73,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         </SelectContent>
                     </Select>
                 </div>
-            </div>
+            </CollapsibleSection>
 
             {/* Ticket Properties Card */}
-            <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 overflow-hidden shadow-lg shadow-slate-200/40 dark:shadow-slate-900/40">
-                <div className="px-4 py-3 bg-gradient-to-r from-slate-100/80 to-slate-50/80 dark:from-slate-900/60 dark:to-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/60">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-white flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500/20 to-purple-500/10 flex items-center justify-center">
-                            <Tag className="w-3.5 h-3.5 text-purple-500" />
-                        </div>
-                        Properties
-                    </h4>
-                </div>
+            <CollapsibleSection
+                id="ticket-properties"
+                title="Properties"
+                icon={Tag}
+                defaultOpen={true}
+            >
                 <div className="p-4 space-y-4">
                     <div>
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Status</label>
@@ -173,18 +168,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         </Select>
                     </div>
                 </div>
-            </div>
+            </CollapsibleSection>
 
             {/* Requester Info Card */}
-            <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 overflow-hidden shadow-lg shadow-slate-200/40 dark:shadow-slate-900/40">
-                <div className="px-4 py-3 bg-gradient-to-r from-slate-100/80 to-slate-50/80 dark:from-slate-900/60 dark:to-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/60">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-white flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500/20 to-blue-500/10 flex items-center justify-center">
-                            <User className="w-3.5 h-3.5 text-blue-500" />
-                        </div>
-                        Requester
-                    </h4>
-                </div>
+            <CollapsibleSection
+                id="ticket-requester"
+                title="Requester"
+                icon={User}
+                defaultOpen={true}
+            >
                 <div className="p-4">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-sm font-bold text-slate-900 shadow-md">
@@ -200,7 +192,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         <span className="font-medium">{ticket.user.department?.name || 'No Department'}</span>
                     </div>
                 </div>
-            </div>
+            </CollapsibleSection>
 
             {/* Actions Card */}
             {!isClosed && (

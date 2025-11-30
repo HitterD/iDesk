@@ -81,36 +81,6 @@ export function ExportMenu<T extends ExportableData>({
     }
   };
 
-  const exportToExcel = async () => {
-    setIsExporting('excel');
-    try {
-      // Dynamic import xlsx
-      const XLSX = await import('xlsx');
-      
-      // Prepare data
-      const exportData = data.map(item => {
-        const row: Record<string, any> = {};
-        exportColumns.forEach(col => {
-          row[col.label] = item[col.key];
-        });
-        return row;
-      });
-      
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Data');
-      XLSX.writeFile(wb, `${filename}.xlsx`);
-      toast.success('Excel exported successfully');
-    } catch (error) {
-      // Fallback to CSV if xlsx not available
-      console.warn('XLSX not available, falling back to CSV');
-      await exportToCSV();
-    } finally {
-      setIsExporting(null);
-      setIsOpen(false);
-    }
-  };
-
   const exportToJSON = async () => {
     setIsExporting('json');
     try {
@@ -164,22 +134,6 @@ export function ExportMenu<T extends ExportableData>({
                 <div>
                   <p className="text-sm font-medium text-slate-800 dark:text-white">Export as CSV</p>
                   <p className="text-xs text-slate-500">Comma-separated values</p>
-                </div>
-              </button>
-
-              <button
-                onClick={exportToExcel}
-                disabled={isExporting !== null}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {isExporting === 'excel' ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                ) : (
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-white">Export as Excel</p>
-                  <p className="text-xs text-slate-500">XLSX spreadsheet</p>
                 </div>
               </button>
 

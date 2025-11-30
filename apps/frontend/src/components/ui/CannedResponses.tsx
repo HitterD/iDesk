@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Zap, Search, Plus, Edit2, Trash2, ChevronRight, Folder, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import api from '@/lib/api';
 import { toast } from 'sonner';
 
 interface CannedResponse {
@@ -27,19 +25,8 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const { data: responses = [] } = useQuery<CannedResponse[]>({
-    queryKey: ['canned-responses'],
-    queryFn: async () => {
-      try {
-        const res = await api.get('/canned-responses');
-        return res.data;
-      } catch {
-        // Return default responses if API not available
-        return defaultResponses;
-      }
-    },
-    staleTime: 60000,
-  });
+  // Use default responses directly (API endpoint not implemented yet)
+  const responses = defaultResponses;
 
   const filteredResponses = useMemo(() => {
     if (!search) return responses;
@@ -201,7 +188,6 @@ const defaultResponses: CannedResponse[] = [
 
 // Full canned responses manager (for settings page)
 export const CannedResponsesManager: React.FC = () => {
-  const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -211,50 +197,23 @@ export const CannedResponsesManager: React.FC = () => {
     shortcut: '',
   });
 
-  const { data: responses = [] } = useQuery<CannedResponse[]>({
-    queryKey: ['canned-responses'],
-    queryFn: async () => {
-      try {
-        const res = await api.get('/canned-responses');
-        return res.data;
-      } catch {
-        return defaultResponses;
-      }
-    },
-  });
+  // Use default responses directly (API endpoint not implemented yet)
+  const responses = defaultResponses;
 
-  const saveMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      if (editingId) {
-        const res = await api.patch(`/canned-responses/${editingId}`, data);
-        return res.data;
-      } else {
-        const res = await api.post('/canned-responses', data);
-        return res.data;
-      }
-    },
-    onSuccess: () => {
-      toast.success(editingId ? 'Template updated' : 'Template created');
-      queryClient.invalidateQueries({ queryKey: ['canned-responses'] });
+  const saveMutation = {
+    mutate: () => {
+      toast.info('Template management not available yet');
       resetForm();
     },
-    onError: () => {
-      toast.error('Failed to save template');
-    },
-  });
+    isPending: false,
+  };
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.delete(`/canned-responses/${id}`);
+  const deleteMutation = {
+    mutate: () => {
+      toast.info('Template management not available yet');
     },
-    onSuccess: () => {
-      toast.success('Template deleted');
-      queryClient.invalidateQueries({ queryKey: ['canned-responses'] });
-    },
-    onError: () => {
-      toast.error('Failed to delete template');
-    },
-  });
+    isPending: false,
+  };
 
   const resetForm = () => {
     setFormData({ title: '', content: '', category: '', shortcut: '' });

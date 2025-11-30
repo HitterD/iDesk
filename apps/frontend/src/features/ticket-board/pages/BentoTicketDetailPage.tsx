@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -14,6 +14,9 @@ import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
 import { logger } from '@/lib/logger';
+import { useTicketShortcuts, TICKET_SHORTCUTS } from '@/hooks/useTicketShortcuts';
+import { Keyboard, X } from 'lucide-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -26,6 +29,19 @@ export const BentoTicketDetailPage: React.FC = () => {
     const [device, setDevice] = useState<string>('');
     const [attributes, setAttributes] = useState<any>({ categories: [], priorities: [], devices: [], software: [] });
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [showStatusModal, setShowStatusModal] = useState(false);
+    const [showPriorityModal, setShowPriorityModal] = useState(false);
+    const chatInputRef = useRef<HTMLTextAreaElement>(null);
+    const shortcutsModalRef = useRef<HTMLDivElement>(null);
+
+    // Focus trap for shortcuts modal
+    useFocusTrap(shortcutsModalRef, {
+        enabled: showShortcutsModal,
+        escapeDeactivates: true,
+        onEscape: () => setShowShortcutsModal(false),
+    });
 
     // Get current user (mock for now, should come from auth context)
     // In a real app, useAuth() hook would provide this
@@ -79,6 +95,32 @@ export const BentoTicketDetailPage: React.FC = () => {
             return res.data;
         },
     });
+
+    // Keyboard shortcuts for ticket actions
+    const { showShortcutsHint, setShowShortcutsHint } = useTicketShortcuts({
+        onAssign: () => setShowAssignModal(true),
+        onStatus: () => setShowStatusModal(true),
+        onPriority: () => setShowPriorityModal(true),
+        onReply: () => chatInputRef.current?.focus(),
+        onResolve: () => {
+            if (ticket && ticket.status !== 'RESOLVED') {
+                setStatus('RESOLVED');
+                toast.info('Status set to Resolved. Click Save to apply.');
+            }
+        },
+        onEscape: () => {
+            setShowAssignModal(false);
+            setShowStatusModal(false);
+            setShowPriorityModal(false);
+            setShowShortcutsModal(false);
+        },
+        onCopyTicketNumber: () => toast.success('Ticket number copied!'),
+    }, { enabled: !!ticket, ticketNumber: ticket?.ticketNumber });
+
+    // Sync shortcuts hint modal with local state
+    useEffect(() => {
+        setShowShortcutsModal(showShortcutsHint);
+    }, [showShortcutsHint]);
 
     useEffect(() => {
         if (ticket) {
@@ -239,6 +281,59 @@ export const BentoTicketDetailPage: React.FC = () => {
                     src={lightboxImage}
                     onClose={() => setLightboxImage(null)}
                 />
+            )}
+
+            {/* Keyboard Shortcuts Button */}
+            <button
+                onClick={() => setShowShortcutsModal(true)}
+                className="fixed bottom-6 right-6 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all z-40 group"
+                title="Keyboard shortcuts (Shift+?)"
+            >
+                <Keyboard className="w-5 h-5 text-slate-500 group-hover:text-primary transition-colors" />
+            </button>
+
+            {/* Keyboard Shortcuts Modal */}
+            {showShortcutsModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowShortcutsModal(false)}>
+                    <div 
+                        ref={shortcutsModalRef}
+                        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <Keyboard className="w-5 h-5 text-primary" />
+                                Keyboard Shortcuts
+                            </h3>
+                            <button 
+                                onClick={() => setShowShortcutsModal(false)}
+                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+                            {TICKET_SHORTCUTS.map((shortcut, i) => (
+                                <div key={i} className="flex items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg">
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">{shortcut.description}</span>
+                                    <div className="flex items-center gap-1">
+                                        {shortcut.keys.map((key, j) => (
+                                            <kbd 
+                                                key={j} 
+                                                className="px-2 py-1 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-600"
+                                            >
+                                                {key}
+                                            </kbd>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 text-center">
+                            Press <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Esc</kbd> to close
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

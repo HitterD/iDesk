@@ -2346,10 +2346,14 @@ export const disconnectSocket = (): void => {
 ### 4.2 Backend Issues Found
 
 #### A. Missing Input Validation
-**Severity:** HIGH | **Status:** PENDING
-**Files:** Various controllers
+**Severity:** HIGH | **Status:** ✅ COMPLETED
+**Files:** Various DTOs
 
-Some endpoints don't validate input properly with class-validator decorators.
+Enhanced validation on DTOs:
+- `update-ticket.dto.ts` - Added MaxLength, Sanitize
+- `reply-message.dto.ts` - Added MinLength, MaxLength, Sanitize, array validation
+- `create-article.dto.ts` - Added IsNotEmpty, MinLength, MaxLength, ArrayMaxSize, Sanitize
+- `cancel-ticket.dto.ts` - Added MaxLength, Sanitize
 
 #### B. SQL Injection Risk in Search
 **Severity:** MEDIUM | **Status:** LOW RISK (using QueryBuilder)
@@ -2357,14 +2361,25 @@ Some endpoints don't validate input properly with class-validator decorators.
 Search queries use parameterized queries (good), but review needed for raw queries.
 
 #### C. File Upload Size Not Enforced Consistently
-**Severity:** MEDIUM | **Status:** PENDING
+**Severity:** MEDIUM | **Status:** ✅ COMPLETED
+**File:** `apps/backend/src/shared/core/config/upload.config.ts`
 
-File upload limits should be standardized across all upload endpoints.
+Standardized file upload configuration:
+- `FILE_SIZE_LIMITS`: IMAGE (5MB), DOCUMENT (10MB), AVATAR (2MB), ATTACHMENT (10MB), CSV (5MB), CONTRACT (20MB)
+- `ALLOWED_MIME_TYPES` and `ALLOWED_EXTENSIONS` for each type
+- Pre-configured `MULTER_OPTIONS` with storage, fileFilter, and limits
+- Factory functions `createStorage()` and `createFileFilter()`
 
 #### D. Missing Rate Limiting on Some Endpoints
-**Severity:** MEDIUM | **Status:** PENDING
+**Severity:** MEDIUM | **Status:** ✅ COMPLETED
+**Files:** `auth.controller.ts`, `uploads.controller.ts`, `users.controller.ts`, `renewal.controller.ts`
 
-Some sensitive endpoints (like password reset, file upload) need specific rate limits.
+Rate limiting applied:
+- Login: 5/minute
+- Register: 3/minute
+- Change Password: 3/minute
+- File Upload: 20/minute (attachment), 5/minute (avatar), 10/minute (contract)
+- Using `@Throttle()` decorator with `UPLOAD_RATE_LIMITS` config
 
 #### E. Error Exposure in Production
 **Severity:** HIGH | **Status:** ✅ COMPLETED
@@ -5271,10 +5286,19 @@ async logInteraction(ctx: Context, action: string, metadata?: any) {
 ## 18. SLA System Complete Overhaul (V8) - CRITICAL PRIORITY
 
 **Tanggal:** 30 November 2025  
-**Status:** PENDING IMPLEMENTATION  
+**Status:** ✅ COMPLETED (Already Implemented)  
 **Priority:** CRITICAL - Fixes core business logic
 
-### 18.1 Current Issues Analysis
+**Implementation Status:**
+All SLA enhancements have been implemented in the codebase:
+- ✅ Database Schema: `ticket.entity.ts` has all required fields (slaStartedAt, firstResponseAt, firstResponseTarget, isFirstResponseBreached, resolvedAt, waitingVendorAt, totalWaitingVendorMinutes)
+- ✅ Ticket Create: `ticket-create.service.ts` sets firstResponseTarget on creation, slaTarget/slaStartedAt are null
+- ✅ Ticket Update: `ticket-update.service.ts` starts SLA on IN_PROGRESS, handles WAITING_VENDOR with Telegram notification
+- ✅ First Response: `ticket-messaging.service.ts` tracks first agent response and breach detection
+- ✅ SLA Checker: `sla-checker.service.ts` runs every 10 minutes, checks both Resolution and First Response SLA
+- ✅ Frontend: `SlaStatusCard.tsx` displays Resolution SLA, First Response SLA, progress bar, and all status indicators
+
+### 18.1 Current Issues Analysis (RESOLVED)
 
 | Issue | Description | Impact |
 |-------|-------------|--------|

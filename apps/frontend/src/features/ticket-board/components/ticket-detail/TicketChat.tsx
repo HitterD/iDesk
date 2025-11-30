@@ -1,8 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { MessageSquare, Wifi, Send, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { MessageAttachments } from './MessageAttachments';
+import { CannedResponsePicker } from '@/components/ui/CannedResponses';
+import { MessageReactions } from '@/components/ui/ChatReactions';
 
 interface TicketChatProps {
     ticket: TicketDetail;
@@ -126,6 +128,13 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                         <span className="text-slate-300 dark:text-slate-600">•</span>
                                         <span className="text-slate-400 dark:text-slate-500">{formatDate(message.createdAt)}</span>
                                     </div>
+                                    {/* Message Reactions */}
+                                    <MessageReactions
+                                        reactions={[]}
+                                        onAddReaction={(emoji) => toast.info(`Reaction ${emoji} added`)}
+                                        onRemoveReaction={(emoji) => toast.info(`Reaction ${emoji} removed`)}
+                                        className={isRequester ? 'justify-end' : ''}
+                                    />
                                 </div>
                             </div>
                         );
@@ -177,7 +186,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         <Send className="w-5 h-5" />
                     </button>
                 </div>
-                <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-3 mt-2 relative">
                     <label htmlFor="note-attachment" className="cursor-pointer flex items-center gap-1.5 text-xs text-slate-500 hover:text-primary transition-colors">
                         <Paperclip className="w-3.5 h-3.5" />
                         Attach files
@@ -190,6 +199,15 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         onChange={(e) => {
                             const count = e.target.files?.length || 0;
                             if (count > 0) toast.info(`${count} file(s) selected`);
+                        }}
+                    />
+                    <CannedResponsePicker 
+                        onSelect={(content) => {
+                            const input = document.getElementById('note-input') as HTMLInputElement;
+                            if (input) {
+                                input.value = content;
+                                input.focus();
+                            }
                         }}
                     />
                 </div>
