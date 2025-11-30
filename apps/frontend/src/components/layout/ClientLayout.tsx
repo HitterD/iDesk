@@ -1,9 +1,33 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Home } from 'lucide-react';
+import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { Logo } from '../ui/Logo';
+import { UserAvatar } from '../ui/UserAvatar';
+
+// Page transition variants - optimized for performance (no blur)
+const pageVariants = {
+    initial: { 
+        opacity: 0,
+    },
+    animate: { 
+        opacity: 1,
+        transition: {
+            duration: 0.15,
+            ease: 'easeOut'
+        }
+    },
+    exit: { 
+        opacity: 0,
+        transition: {
+            duration: 0.1,
+            ease: 'easeIn'
+        }
+    }
+};
 
 export const ClientLayout: React.FC = () => {
     const location = useLocation();
@@ -34,12 +58,7 @@ export const ClientLayout: React.FC = () => {
                         {/* Logo */}
                         <div className="flex items-center">
                             <Link to="/client" className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                                    <Home className="w-5 h-5 text-slate-900" />
-                                </div>
-                                <span className="text-xl font-bold text-slate-900 dark:text-white">
-                                    Help<span className="text-primary">Desk</span>
-                                </span>
+                                <Logo size="sm" variant="full" />
                             </Link>
                         </div>
 
@@ -72,9 +91,11 @@ export const ClientLayout: React.FC = () => {
                             {/* User Menu */}
                             <div className="hidden md:flex items-center gap-3 ml-2">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                                        {user?.fullName?.charAt(0) || 'U'}
-                                    </div>
+                                    <UserAvatar 
+                                        src={user?.avatarUrl} 
+                                        name={user?.fullName || 'User'} 
+                                        size="sm" 
+                                    />
                                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                         {user?.fullName || 'User'}
                                     </span>
@@ -135,14 +156,24 @@ export const ClientLayout: React.FC = () => {
 
             {/* Main Content */}
             <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <Outlet />
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={location.pathname}
+                        variants={pageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                    >
+                        <Outlet />
+                    </motion.div>
+                </AnimatePresence>
             </main>
 
             {/* Footer */}
             <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-6 mt-auto">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                     <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                        © {new Date().getFullYear()} HelpDesk Portal. Need help? Contact IT Support.
+                        © {new Date().getFullYear()} iDesk Enterprise Platform. Need help? Contact IT Support.
                     </p>
                 </div>
             </footer>

@@ -7,8 +7,8 @@ import {
     AlertTriangle,
     Tag,
     UserCheck,
-    LayoutGrid,
-    List,
+    Columns3,
+    TableProperties,
     Inbox,
     CircleDot,
     Hourglass,
@@ -24,6 +24,8 @@ import {
     Paperclip,
     TrendingUp,
     Filter,
+    Plus,
+    Ticket,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -116,10 +118,14 @@ const EnhancedKanbanCard: React.FC<{
                     {...provided.dragHandleProps}
                     onMouseEnter={() => setShowActions(true)}
                     onMouseLeave={() => setShowActions(false)}
+                    style={{
+                        ...provided.draggableProps.style,
+                        // Remove any transforms that might cause offset issues
+                    }}
                     className={cn(
-                        "bg-white dark:bg-slate-800 rounded-xl border transition-all duration-200",
-                        "hover:shadow-lg cursor-pointer group",
-                        snapshot.isDragging && "shadow-2xl rotate-1 scale-105 z-50",
+                        "bg-white dark:bg-slate-800 rounded-xl border transition-shadow duration-200",
+                        "hover:shadow-lg cursor-grab group",
+                        snapshot.isDragging && "shadow-2xl ring-2 ring-primary/50 cursor-grabbing",
                         isOverdue && "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10",
                         isApproaching && !isOverdue && "border-orange-300 dark:border-orange-800",
                         !isOverdue && !isApproaching && "border-slate-200 dark:border-slate-700"
@@ -610,64 +616,90 @@ export const BentoTicketKanban = () => {
 
     return (
         <div className="h-full flex flex-col">
-            {/* Header */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Ticket Board</h1>
-                        <p className="text-sm text-slate-500">Drag and drop to update status</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {/* Quick Filters */}
-                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
-                            <button
-                                onClick={() => setFilter('all')}
-                                className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors", filter === 'all' ? "bg-white dark:bg-slate-700 shadow-sm font-medium" : "text-slate-500 hover:text-slate-800")}
-                            >
-                                All
-                            </button>
-                            <button
-                                onClick={() => setFilter('my')}
-                                className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors", filter === 'my' ? "bg-white dark:bg-slate-700 shadow-sm font-medium" : "text-slate-500 hover:text-slate-800")}
-                            >
-                                My Tasks
-                            </button>
-                            <button
-                                onClick={() => setFilter('overdue')}
-                                className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'overdue' ? "bg-red-100 text-red-600 font-medium" : "text-red-500 hover:bg-red-50")}
-                            >
-                                <AlertTriangle className="w-3 h-3" />
-                                Overdue
-                            </button>
-                            <button
-                                onClick={() => setFilter('critical')}
-                                className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'critical' ? "bg-red-100 text-red-600 font-medium" : "text-red-500 hover:bg-red-50")}
-                            >
-                                <Flame className="w-3 h-3" />
-                                Critical
-                            </button>
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-40 bg-gradient-to-b from-slate-50 via-slate-50 to-slate-50/95 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/95 backdrop-blur-sm border-b border-slate-200/50 dark:border-slate-700/50">
+                <div className="p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                                <Ticket className="w-6 h-6 text-slate-900" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Kanban Board</h1>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Drag and drop to update status</p>
+                            </div>
                         </div>
+                        <div className="flex items-center gap-3">
+                            {/* New Ticket Button */}
+                            <button
+                                onClick={() => navigate('/tickets/create')}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span className="hidden sm:inline">New Ticket</span>
+                            </button>
 
-                        {/* View Toggle */}
-                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
-                            <button className="p-2 bg-white dark:bg-slate-700 text-primary rounded-lg shadow-sm">
-                                <LayoutGrid className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => navigate('/tickets/list')} className="p-2 text-slate-400 hover:text-primary rounded-lg">
-                                <List className="w-4 h-4" />
-                            </button>
+                            {/* Quick Filters */}
+                            <div className="hidden md:flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <button
+                                    onClick={() => setFilter('all')}
+                                    className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors", filter === 'all' ? "bg-primary/10 text-primary font-medium" : "text-slate-500 hover:text-slate-800")}
+                                >
+                                    All
+                                </button>
+                                <button
+                                    onClick={() => setFilter('my')}
+                                    className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'my' ? "bg-primary/10 text-primary font-medium" : "text-slate-500 hover:text-slate-800")}
+                                >
+                                    <UserCheck className="w-3 h-3" />
+                                    My Tasks
+                                </button>
+                                <button
+                                    onClick={() => setFilter('overdue')}
+                                    className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'overdue' ? "bg-red-100 text-red-600 font-medium" : "text-red-500 hover:bg-red-50")}
+                                >
+                                    <AlertTriangle className="w-3 h-3" />
+                                    Overdue
+                                </button>
+                                <button
+                                    onClick={() => setFilter('critical')}
+                                    className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'critical' ? "bg-red-100 text-red-600 font-medium" : "text-red-500 hover:bg-red-50")}
+                                >
+                                    <Flame className="w-3 h-3" />
+                                    Critical
+                                </button>
+                            </div>
+
+                            {/* View Toggle */}
+                            <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <button 
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-medium"
+                                    title="Kanban Board"
+                                >
+                                    <Columns3 className="w-4 h-4" />
+                                    <span className="text-xs font-medium hidden md:inline">Kanban</span>
+                                </button>
+                                <button 
+                                    onClick={() => navigate('/tickets/list')} 
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
+                                    title="Table View"
+                                >
+                                    <TableProperties className="w-4 h-4" />
+                                    <span className="text-xs font-medium hidden md:inline">Table</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-6 gap-3">
-                    <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/30" />
-                    <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-slate-600" bgColor="bg-slate-100 dark:bg-slate-700" />
-                    <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/30" />
-                    <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-green-600" bgColor="bg-green-100 dark:bg-green-900/30" />
-                    <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/30" highlight onClick={() => setFilter('overdue')} active={filter === 'overdue'} />
-                    <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/30" highlight onClick={() => setFilter('critical')} active={filter === 'critical'} />
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-slate-600 dark:text-slate-300" bgColor="bg-slate-100 dark:bg-slate-700" />
+                        <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-blue-600 dark:text-blue-400" bgColor="bg-blue-100 dark:bg-blue-900/30" />
+                        <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-100 dark:bg-amber-900/30" />
+                        <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-green-600 dark:text-green-400" bgColor="bg-green-100 dark:bg-green-900/30" />
+                        <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-red-600 dark:text-red-400" bgColor="bg-red-100 dark:bg-red-900/30" highlight onClick={() => setFilter('overdue')} active={filter === 'overdue'} />
+                        <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-red-600 dark:text-red-400" bgColor="bg-red-100 dark:bg-red-900/30" highlight onClick={() => setFilter('critical')} active={filter === 'critical'} />
+                    </div>
                 </div>
             </div>
 

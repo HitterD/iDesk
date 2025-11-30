@@ -12,11 +12,16 @@ import {
     CalendarClock,
     ChevronLeft,
     ChevronRight,
-    Bell
+    Bell,
+    Search
 } from 'lucide-react';
 import { useAuth } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { Logo } from '@/components/ui/Logo';
+
+// Detect if user is on Mac
+const isMac = () => typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 export const BentoSidebar = () => {
     const { user, logout } = useAuth();
@@ -70,15 +75,26 @@ export const BentoSidebar = () => {
 
             {/* Logo */}
             <div className={cn("flex items-center gap-3 mb-10", isCollapsed ? "justify-center px-0" : "px-2")}>
-                <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
-                    <span className="text-white font-bold text-xl">iD</span>
-                </div>
-                {!isCollapsed && (
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight animate-in fade-in duration-300">
-                        iDesk
-                    </h1>
+                {isCollapsed ? (
+                    <Logo size="md" variant="icon" animated />
+                ) : (
+                    <Logo size="md" variant="full" animated className="animate-in fade-in duration-300" />
                 )}
             </div>
+            
+            {/* Command Palette Hint */}
+            {!isCollapsed && (
+                <div className="px-2 mb-4">
+                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                        <Search className="w-3 h-3" />
+                        <span>Press</span>
+                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-700 rounded text-[10px] font-mono shadow-sm">
+                            {isMac() ? '⌘' : 'Ctrl'}+K
+                        </kbd>
+                        <span>to search</span>
+                    </div>
+                </div>
+            )}
 
             {/* Navigation */}
             <nav aria-label="Main navigation" className="flex-1 space-y-2">

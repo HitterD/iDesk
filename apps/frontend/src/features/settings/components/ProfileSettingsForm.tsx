@@ -111,10 +111,10 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
             <div className="flex items-center gap-6">
                 <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                     <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 p-[2px]">
-                        <UserAvatar 
-                            useCurrentUser 
-                            size="xl" 
-                            showFallbackIcon 
+                        <UserAvatar
+                            useCurrentUser
+                            size="xl"
+                            showFallbackIcon
                             className="w-full h-full"
                         />
                     </div>

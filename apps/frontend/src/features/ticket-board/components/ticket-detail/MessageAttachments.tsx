@@ -11,10 +11,18 @@ interface MessageAttachmentsProps {
 export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({ attachments, onImageClick, isRequester }) => {
     if (!attachments || attachments.length === 0) return null;
 
+    // Filter out invalid telegram file ID formats
+    const validAttachments = attachments.filter(url => 
+        !url.startsWith('telegram:photo:') && !url.startsWith('telegram:document:')
+    );
+
+    if (validAttachments.length === 0) return null;
+
     return (
         <div className="mt-2 pt-2 border-t border-black/10 space-y-2">
-            {attachments.map((url, idx) => {
+            {validAttachments.map((url, idx) => {
                 const fullUrl = getAttachmentUrl(url);
+                if (!fullUrl) return null; // Skip empty URLs
 
                 if (isImageUrl(url)) {
                     return (

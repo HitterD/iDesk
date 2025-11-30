@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    LayoutGrid,
-    List,
+    Columns3,
+    TableProperties,
     UserCheck,
     Search,
     Clock,
@@ -15,7 +15,10 @@ import {
     Inbox,
     TrendingUp,
     Flame,
-    Calendar
+    Calendar,
+    RefreshCw,
+    Plus,
+    Ticket
 } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -56,9 +59,11 @@ interface Ticket {
     createdAt: string;
     updatedAt: string;
     user: {
+        id?: string;
         fullName: string;
         role: string;
         email?: string;
+        avatarUrl?: string;
         department?: {
             name: string;
         };
@@ -346,78 +351,99 @@ export const BentoTicketListPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">All Tickets</h1>
-                    <p className="text-slate-500 dark:text-slate-400">View and manage all support requests</p>
-                </div>
-                <div className="flex gap-3">
-                    {canEdit && (
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-40 -mx-6 px-6 py-4 bg-gradient-to-b from-slate-50 via-slate-50 to-slate-50/95 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/95 backdrop-blur-sm border-b border-slate-200/50 dark:border-slate-700/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                            <Ticket className="w-6 h-6 text-slate-900" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">All Tickets</h1>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm">View and manage all support requests</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {/* New Ticket Button */}
                         <button
-                            onClick={() => {
-                                if (showAssignedToMe) {
-                                    setSearchParams({});
-                                } else {
-                                    setSearchParams({ filter: 'assigned_to_me' });
-                                }
-                            }}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 border rounded-2xl transition-colors shadow-sm",
-                                showAssignedToMe
-                                    ? 'bg-primary text-slate-900 border-primary font-bold'
-                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                            )}
+                            onClick={() => navigate('/tickets/create')}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
                         >
-                            <UserCheck className="w-4 h-4" />
-                            My Tasks
+                            <Plus className="w-4 h-4" />
+                            <span className="hidden sm:inline">New Ticket</span>
                         </button>
-                    )}
-                    <div className="flex bg-white dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <button
-                            onClick={() => navigate('/kanban')}
-                            className="p-2 text-slate-400 hover:text-primary rounded-xl transition-colors"
-                            title="Kanban View"
-                        >
-                            <LayoutGrid className="w-5 h-5" />
-                        </button>
-                        <button
-                            className="p-2 bg-primary/10 text-primary rounded-xl"
-                            title="List View"
-                        >
-                            <List className="w-5 h-5" />
-                        </button>
+                        
+                        {/* My Tasks Filter */}
+                        {canEdit && (
+                            <button
+                                onClick={() => {
+                                    if (showAssignedToMe) {
+                                        setSearchParams({});
+                                    } else {
+                                        setSearchParams({ filter: 'assigned_to_me' });
+                                    }
+                                }}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2.5 border rounded-xl transition-all font-medium",
+                                    showAssignedToMe
+                                        ? 'bg-primary text-slate-900 border-primary shadow-lg shadow-primary/20'
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                )}
+                            >
+                                <UserCheck className="w-4 h-4" />
+                                <span className="hidden sm:inline">My Tasks</span>
+                            </button>
+                        )}
+                        
+                        {/* View Toggle */}
+                        <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <button
+                                onClick={() => navigate('/kanban')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
+                                title="Kanban Board"
+                            >
+                                <Columns3 className="w-4 h-4" />
+                                <span className="text-xs font-medium hidden md:inline">Kanban</span>
+                            </button>
+                            <button
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-medium"
+                                title="Table View"
+                            >
+                                <TableProperties className="w-4 h-4" />
+                                <span className="text-xs font-medium hidden md:inline">Table</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Stats Cards - Dashboard Style */}
+            {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/30" />
-                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-slate-600" bgColor="bg-slate-100 dark:bg-slate-700" />
-                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/30" />
-                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-green-600" bgColor="bg-green-100 dark:bg-green-900/30" />
-                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/30" highlight />
-                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/30" highlight />
+                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-slate-600 dark:text-slate-300" bgColor="bg-slate-100 dark:bg-slate-700" />
+                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-blue-600 dark:text-blue-400" bgColor="bg-blue-100 dark:bg-blue-900/30" />
+                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-100 dark:bg-amber-900/30" />
+                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-green-600 dark:text-green-400" bgColor="bg-green-100 dark:bg-green-900/30" />
+                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-red-600 dark:text-red-400" bgColor="bg-red-100 dark:bg-red-900/30" highlight />
+                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-red-600 dark:text-red-400" bgColor="bg-red-100 dark:bg-red-900/30" highlight />
             </div>
 
             {/* Search & Filters */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex-1 min-w-[250px] relative">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex-1 min-w-[200px] relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search tickets by title, ID, requester..."
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            placeholder="Search tickets..."
+                            className="w-full pl-12 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                         />
                     </div>
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                     >
                         <option value="">All Status</option>
                         <option value="TODO">Open</option>
@@ -428,7 +454,7 @@ export const BentoTicketListPage: React.FC = () => {
                     <select
                         value={priorityFilter}
                         onChange={(e) => setPriorityFilter(e.target.value)}
-                        className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                     >
                         <option value="">All Priority</option>
                         <option value="LOW">Low</option>
@@ -436,10 +462,17 @@ export const BentoTicketListPage: React.FC = () => {
                         <option value="HIGH">High</option>
                         <option value="CRITICAL">Critical</option>
                     </select>
+                    <button
+                        onClick={() => queryClient.invalidateQueries({ queryKey: ['tickets'] })}
+                        className="p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        title="Refresh"
+                    >
+                        <RefreshCw className="w-4 h-4 text-slate-500" />
+                    </button>
                     {hasActiveFilters && (
                         <button
                             onClick={clearFilters}
-                            className="flex items-center gap-2 px-4 py-3 text-slate-500 hover:text-red-500 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-2.5 text-slate-500 hover:text-red-500 transition-colors text-sm"
                         >
                             <X className="w-4 h-4" />
                             Clear
@@ -520,7 +553,7 @@ export const BentoTicketListPage: React.FC = () => {
                                         {/* Requester */}
                                         <div className="flex-[2] flex items-center gap-2 min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
                                             <UserAvatar 
-                                                user={{ fullName: ticket.user?.fullName }} 
+                                                user={ticket.user} 
                                                 size="sm" 
                                             />
                                             <div className="min-w-0 hidden md:block">

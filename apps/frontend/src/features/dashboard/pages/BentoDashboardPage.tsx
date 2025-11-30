@@ -17,13 +17,16 @@ import {
     Hourglass,
     CalendarDays,
     ArrowRight,
-    CircleDot
+    CircleDot,
+    Activity
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { Sparkline } from '@/components/ui/Sparkline';
+import { cn } from '@/lib/utils';
 
 interface DashboardStats {
     total: number;
@@ -147,7 +150,7 @@ const DonutChart: React.FC<{ data: { label: string; value: number; color: string
     );
 };
 
-// Stat Card Component
+// Stat Card Component with Sparkline
 const StatCard: React.FC<{
     title: string;
     value: number | string;
@@ -155,20 +158,44 @@ const StatCard: React.FC<{
     color: string;
     subtitle?: string;
     trend?: 'up' | 'down';
-}> = ({ title, value, icon: Icon, color, subtitle, trend }) => (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all group relative flex items-center gap-5">
-        <div className={`p-4 rounded-2xl ${color} text-white shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform shrink-0`}>
+    sparklineData?: number[];
+    sparklineColor?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+    highlight?: boolean;
+}> = ({ title, value, icon: Icon, color, subtitle, trend, sparklineData, sparklineColor = 'primary', highlight }) => (
+    <div className={cn(
+        "bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all group relative flex items-center gap-5 card-hover",
+        highlight && "ring-2 ring-red-500/20 border-red-200 dark:border-red-800"
+    )}>
+        <div className={cn(
+            "p-4 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform shrink-0 icon-scale-hover",
+            color
+        )}>
             <Icon className="w-8 h-8" />
         </div>
         <div className="flex-1 min-w-0">
-            <p className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">{value}</p>
+            <div className="flex items-center justify-between mb-1">
+                <p className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">{value}</p>
+                {sparklineData && sparklineData.length > 1 && (
+                    <Sparkline 
+                        data={sparklineData} 
+                        width={60} 
+                        height={24} 
+                        color={sparklineColor}
+                        showDot={false}
+                    />
+                )}
+            </div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">{title}</p>
             {subtitle && <p className="text-xs text-slate-400 mt-1 truncate">{subtitle}</p>}
         </div>
         {trend && (
             <div className="absolute top-4 right-4">
-                <span className={`flex items-center text-xs font-bold px-2.5 py-1 rounded-full ${trend === 'up' ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400' : 'text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400'
-                    }`}>
+                <span className={cn(
+                    "flex items-center text-xs font-bold px-2.5 py-1 rounded-full",
+                    trend === 'up' 
+                        ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400'
+                )}>
                     {trend === 'up' ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
                 </span>
             </div>
@@ -394,7 +421,7 @@ export const BentoDashboardPage = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Helpdesk performance overview</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">iDesk performance overview</p>
                 </div>
                 <div className="flex gap-3">
                     <button

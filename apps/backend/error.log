@@ -6349,3 +6349,284 @@ Stack: UnauthorizedException: Unauthorized
     at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
     at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
 
+2025-11-30T04:39:18.672Z - HTTP Error: 413 - {"statusCode":413,"timestamp":"2025-11-30T04:39:18.670Z","path":"/users/avatar","message":"File too large"}
+Stack: PayloadTooLargeException: File too large
+    at transformException (C:\iDesk\apps\backend\node_modules\@nestjs\platform-express\multer\multer\multer.utils.js:12:20)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\platform-express\multer\interceptors\file.interceptor.js:27:73
+    at done (C:\iDesk\apps\backend\node_modules\multer\lib\make-middleware.js:59:7)
+    at C:\iDesk\apps\backend\node_modules\multer\lib\make-middleware.js:79:11
+    at C:\iDesk\apps\backend\node_modules\multer\lib\remove-uploaded-files.js:20:9
+    at FSReqCallback.oncomplete (node:fs:187:23)
+
+2025-11-30T04:39:34.485Z - HTTP Error: 400 - {"statusCode":400,"timestamp":"2025-11-30T04:39:34.483Z","path":"/users/avatar","message":"Invalid file type. Allowed types: image/jpeg, image/png, image/webp"}
+Stack: BadRequestException: Invalid file type. Allowed types: image/jpeg, image/png, image/webp
+    at <anonymous> (C:\iDesk\apps\backend\src\shared\core\config\upload.config.ts:70:17)
+    at wrappedFileFilter (C:\iDesk\apps\backend\node_modules\multer\index.js:44:7)
+    at Multipart.<anonymous> (C:\iDesk\apps\backend\node_modules\multer\lib\make-middleware.js:132:7)
+    at Multipart.emit (node:events:519:28)
+    at HeaderParser.cb (C:\iDesk\apps\backend\node_modules\busboy\lib\types\multipart.js:358:14)
+    at HeaderParser.push (C:\iDesk\apps\backend\node_modules\busboy\lib\types\multipart.js:162:20)
+    at SBMH.ssCb [as _cb] (C:\iDesk\apps\backend\node_modules\busboy\lib\types\multipart.js:394:37)
+    at feed (C:\iDesk\apps\backend\node_modules\streamsearch\lib\sbmh.js:219:14)
+    at SBMH.push (C:\iDesk\apps\backend\node_modules\streamsearch\lib\sbmh.js:104:16)
+    at Multipart._write (C:\iDesk\apps\backend\node_modules\busboy\lib\types\multipart.js:567:19)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at IncomingMessage.ondata (node:internal/streams/readable:1009:22)
+    at IncomingMessage.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+
+2025-11-30T04:42:57.088Z - HTTP Error: 404 - {"statusCode":404,"timestamp":"2025-11-30T04:42:57.086Z","path":"/telegram:photo:AgACAgUAAxkBAAIB2mkry0zl7QABzFGrAesjt3NsM5Zq6AACiwtrG8iwYFV-tCMG3zP4CAEAAwIAA3kAAzYE","message":"Cannot GET /telegram:photo:AgACAgUAAxkBAAIB2mkry0zl7QABzFGrAesjt3NsM5Zq6AACiwtrG8iwYFV-tCMG3zP4CAEAAwIAA3kAAzYE"}
+Stack: NotFoundException: Cannot GET /telegram:photo:AgACAgUAAxkBAAIB2mkry0zl7QABzFGrAesjt3NsM5Zq6AACiwtrG8iwYFV-tCMG3zP4CAEAAwIAA3kAAzYE
+    at callback (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:280:10)
+    at urlencodedParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\urlencoded.js:94:7)
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:280:10)
+    at jsonParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\json.js:113:7)
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+
+2025-11-30T04:42:57.209Z - HTTP Error: 404 - {"statusCode":404,"timestamp":"2025-11-30T04:42:57.208Z","path":"/favicon.ico","message":"Cannot GET /favicon.ico"}
+Stack: NotFoundException: Cannot GET /favicon.ico
+    at callback (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:280:10)
+    at urlencodedParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\urlencoded.js:94:7)
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:280:10)
+    at jsonParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\json.js:113:7)
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+
+2025-11-30T04:44:26.968Z - HTTP Error: 404 - {"statusCode":404,"timestamp":"2025-11-30T04:44:26.967Z","path":"/telegram:photo:AgACAgUAAxkBAAIB2mkry0zl7QABzFGrAesjt3NsM5Zq6AACiwtrG8iwYFV-tCMG3zP4CAEAAwIAA3kAAzYE","message":"Cannot GET /telegram:photo:AgACAgUAAxkBAAIB2mkry0zl7QABzFGrAesjt3NsM5Zq6AACiwtrG8iwYFV-tCMG3zP4CAEAAwIAA3kAAzYE"}
+Stack: NotFoundException: Cannot GET /telegram:photo:AgACAgUAAxkBAAIB2mkry0zl7QABzFGrAesjt3NsM5Zq6AACiwtrG8iwYFV-tCMG3zP4CAEAAwIAA3kAAzYE
+    at callback (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:280:10)
+    at urlencodedParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\urlencoded.js:94:7)
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:280:10)
+    at jsonParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\json.js:113:7)
+    at Layer.handle [as handle_request] (C:\iDesk\apps\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\iDesk\apps\backend\node_modules\express\lib\router\index.js:328:13)
+
+2025-11-30T05:38:25.491Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T05:38:25.486Z","path":"/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T05:38:25.497Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T05:38:25.496Z","path":"/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T05:38:25.505Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T05:38:25.504Z","path":"/tickets","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T05:38:25.512Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T05:38:25.511Z","path":"/users/agents","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T05:40:39.402Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T05:40:39.402Z","path":"/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T05:40:39.407Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T05:40:39.406Z","path":"/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T09:16:20.628Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T09:16:20.627Z","path":"/users/agents","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T09:16:20.635Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T09:16:20.634Z","path":"/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T09:16:20.641Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T09:16:20.640Z","path":"/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T09:16:20.650Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T09:16:20.647Z","path":"/tickets","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:28:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (C:\iDesk\apps\backend\node_modules\jsonwebtoken\verify.js:101:10)
+    at module.exports [as JwtVerifier] (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\verify_jwt.js:4:16)
+    at C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:104:25
+    at JwtStrategy._secretOrKeyProvider (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:40:13)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:99:10)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+
+2025-11-30T09:17:45.361Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2025-11-30T09:17:45.360Z","path":"/auth/login","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at LocalStrategy.validate (C:\iDesk\apps\backend\src\modules\auth\infrastructure\strategies\local.strategy.ts:17:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async LocalStrategy.callback [as _verify] (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\passport\passport.strategy.js:11:44)
+

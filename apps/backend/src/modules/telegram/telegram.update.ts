@@ -1087,7 +1087,8 @@ export class TelegramUpdate {
         const fileId = photo[photo.length - 1].file_id;
         const messageId = (ctx.message as any).message_id;
 
-        const result = await this.chatBridge.forwardPhotoToTicket(
+        // Use handlePhoto which downloads the file from Telegram and stores locally
+        const result = await this.chatBridge.handlePhoto(
             String(from.id),
             String(ctx.chat?.id),
             fileId,
@@ -1115,11 +1116,12 @@ export class TelegramUpdate {
         const caption = (ctx.message as any).caption || '';
         const messageId = (ctx.message as any).message_id;
 
-        const result = await this.chatBridge.forwardDocumentToTicket(
+        // Use handleDocument which downloads the file from Telegram and stores locally
+        const result = await this.chatBridge.handleDocument(
             String(from.id),
             String(ctx.chat?.id),
             document.file_id,
-            document.file_name,
+            document.file_name || 'document',
             caption,
             messageId
         );

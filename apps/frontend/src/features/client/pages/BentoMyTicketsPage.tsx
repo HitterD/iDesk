@@ -144,8 +144,8 @@ export const BentoMyTicketsPage: React.FC = () => {
                             key={status}
                             onClick={() => setStatusFilter(status)}
                             className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${statusFilter === status
-                                    ? 'bg-primary text-slate-900'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                ? 'bg-primary text-slate-900'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                         >
                             {status === 'all' ? 'All' : STATUS_CONFIG[status]?.label || status}
@@ -185,12 +185,12 @@ export const BentoMyTicketsPage: React.FC = () => {
                             >
                                 <div className="flex items-start gap-4">
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'RESOLVED' ? 'bg-green-100 dark:bg-green-900/30' :
-                                            ticket.status === 'IN_PROGRESS' ? 'bg-blue-100 dark:bg-blue-900/30' :
-                                                'bg-slate-100 dark:bg-slate-700'
+                                        ticket.status === 'IN_PROGRESS' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                                            'bg-slate-100 dark:bg-slate-700'
                                         }`}>
                                         <StatusIcon className={`w-5 h-5 ${ticket.status === 'RESOLVED' ? 'text-green-600' :
-                                                ticket.status === 'IN_PROGRESS' ? 'text-blue-600' :
-                                                    'text-slate-500'
+                                            ticket.status === 'IN_PROGRESS' ? 'text-blue-600' :
+                                                'text-slate-500'
                                             }`} />
                                     </div>
                                     <div className="flex-1 min-w-0">

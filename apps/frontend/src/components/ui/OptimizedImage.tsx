@@ -1,35 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ImageIcon } from 'lucide-react';
 
 interface OptimizedImageProps {
     src: string;
     alt: string;
-    width?: number;
-    height?: number;
     className?: string;
-    fallback?: React.ReactNode;
+    containerClassName?: string;
+    fallbackIcon?: React.ReactNode;
+    blurDataURL?: string;
     lazy?: boolean;
     objectFit?: 'cover' | 'contain' | 'fill' | 'none';
     onLoad?: () => void;
     onError?: () => void;
 }
 
-/**
- * OptimizedImage component with:
- * - Lazy loading via Intersection Observer
- * - Loading skeleton state
- * - Error fallback
- * - Native lazy loading attribute
- * - Proper aspect ratio handling
- */
 export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     src,
     alt,
-    width,
-    height,
     className,
-    fallback,
+    containerClassName,
+    fallbackIcon,
+    blurDataURL,
     lazy = true,
     objectFit = 'cover',
     onLoad,
@@ -38,11 +30,11 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [isInView, setIsInView] = useState(!lazy);
-    const imgRef = useRef<HTMLImageElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // Intersection Observer for lazy loading
     useEffect(() => {
-        if (!lazy) return;
+        if (!lazy || isInView) return;
 
         const observer = new IntersectionObserver(
             ([entry]) => {
@@ -51,10 +43,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
                     observer.disconnect();
                 }
             },
-            {
-                rootMargin: '50px', // Start loading 50px before entering viewport
-                threshold: 0.01,
-            }
+            { rootMargin: '100px' }
         );
 
         if (containerRef.current) {
@@ -62,7 +51,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         }
 
         return () => observer.disconnect();
-    }, [lazy]);
+    }, [lazy, isInView]);
 
     const handleLoad = () => {
         setIsLoaded(true);
@@ -81,103 +70,109 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         none: 'object-none',
     }[objectFit];
 
-    // Default fallback component
-    const defaultFallback = (
-        <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-        </div>
-    );
-
     return (
         <div
             ref={containerRef}
-            className={cn('relative overflow-hidden', className)}
-            style={{ width, height }}
+            className={cn('relative overflow-hidden', containerClassName)}
         >
-            {/* Loading skeleton */}
+            {/* Blur placeholder or loading state */}
             {!isLoaded && !hasError && (
-                <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700">
+                    {blurDataURL ? (
+                        <img
+                            src={blurDataURL}
+                            alt=""
+                            className={cn('w-full h-full blur-lg scale-110', objectFitClass)}
+                            aria-hidden="true"
+                        />
+                    ) : (
+                        <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+                    </div>
+                </div>
             )}
 
-            {/* Error state */}
-            {hasError && (fallback || defaultFallback)}
-
-            {/* Actual image */}
+            {/* Main image */}
             {isInView && !hasError && (
                 <img
-                    ref={imgRef}
                     src={src}
                     alt={alt}
-                    width={width}
-                    height={height}
                     loading={lazy ? 'lazy' : 'eager'}
-                    decoding="async"
-                    onLoad={handleLoad}
-                    onError={handleError}
                     className={cn(
                         'w-full h-full transition-opacity duration-300',
                         objectFitClass,
-                        isLoaded ? 'opacity-100' : 'opacity-0'
+                        isLoaded ? 'opacity-100' : 'opacity-0',
+                        className
                     )}
+                    onLoad={handleLoad}
+                    onError={handleError}
                 />
+            )}
+
+            {/* Error state */}
+            {hasError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                    {fallbackIcon || (
+                        <div className="text-center">
+                            <ImageOff className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                            <span className="text-xs text-slate-400">Failed to load</span>
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );
 };
 
-/**
- * Avatar image component with circular crop and initials fallback
- */
-interface AvatarImageProps {
-    src?: string | null;
-    alt: string;
-    size?: number;
-    className?: string;
+// Avatar variant with circular shape
+interface OptimizedAvatarProps extends Omit<OptimizedImageProps, 'objectFit'> {
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     fallbackInitials?: string;
 }
 
-export const AvatarImage: React.FC<AvatarImageProps> = ({
+const sizeClasses = {
+    xs: 'w-6 h-6 text-[10px]',
+    sm: 'w-8 h-8 text-xs',
+    md: 'w-10 h-10 text-sm',
+    lg: 'w-12 h-12 text-base',
+    xl: 'w-16 h-16 text-lg',
+};
+
+export const OptimizedAvatar: React.FC<OptimizedAvatarProps> = ({
     src,
     alt,
-    size = 40,
-    className,
+    size = 'md',
     fallbackInitials,
+    className,
+    ...props
 }) => {
     const [hasError, setHasError] = useState(false);
 
-    // Get initials from alt text
-    const initials = fallbackInitials || alt
-        .split(' ')
-        .map(word => word[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
-
-    if (!src || hasError) {
+    if (hasError || !src) {
         return (
             <div
                 className={cn(
-                    'rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold',
+                    'rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-br from-primary to-primary/70',
+                    sizeClasses[size],
                     className
                 )}
-                style={{ width: size, height: size, fontSize: size * 0.4 }}
             >
-                {initials}
+                {fallbackInitials || alt?.charAt(0)?.toUpperCase() || '?'}
             </div>
         );
     }
 
     return (
-        <img
+        <OptimizedImage
             src={src}
             alt={alt}
-            width={size}
-            height={size}
-            loading="lazy"
-            decoding="async"
+            containerClassName={cn('rounded-full', sizeClasses[size])}
+            className={cn('rounded-full', className)}
+            objectFit="cover"
             onError={() => setHasError(true)}
-            className={cn('rounded-full object-cover', className)}
-            style={{ width: size, height: size }}
+            {...props}
         />
     );
 };
