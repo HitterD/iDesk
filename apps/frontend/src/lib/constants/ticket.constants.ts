@@ -1,4 +1,4 @@
-import { Inbox, CircleDot, Hourglass, CheckCircle2, AlertCircle, Ban, Flame, AlertTriangle } from 'lucide-react';
+import { Inbox, CircleDot, Hourglass, CheckCircle2, AlertCircle, Ban, Flame, AlertTriangle, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export const TICKET_STATUS = {
@@ -14,6 +14,7 @@ export const TICKET_PRIORITY = {
     MEDIUM: 'MEDIUM',
     HIGH: 'HIGH',
     CRITICAL: 'CRITICAL',
+    HARDWARE_INSTALLATION: 'HARDWARE_INSTALLATION',
 } as const;
 
 interface StatusConfig {
@@ -33,6 +34,7 @@ interface PriorityConfig {
     badgeColor: string;
     icon: LucideIcon | null;
     iconClass?: string;
+    isSystemLocked?: boolean;
 }
 
 export const STATUS_CONFIG: Record<string, StatusConfig> = {
@@ -112,6 +114,16 @@ export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
         badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
         icon: Flame,
         iconClass: 'text-red-500 animate-pulse',
+    },
+    HARDWARE_INSTALLATION: {
+        label: 'Hardware',
+        color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
+        dot: 'bg-amber-500',
+        barColor: 'bg-amber-500',
+        badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+        icon: Wrench,
+        iconClass: 'text-amber-500',
+        isSystemLocked: true,
     },
 } as const;
 

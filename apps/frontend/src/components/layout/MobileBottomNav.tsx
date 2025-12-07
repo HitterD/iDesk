@@ -32,10 +32,10 @@ export const MobileBottomNav: React.FC = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-2 py-2 lg:hidden z-50 safe-area-pb">
+    <nav className="fixed bottom-0 left-0 right-0 glass-card-elevated px-2 py-2 lg:hidden z-50 safe-area-pb">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path || 
+          const isActive = location.pathname === item.path ||
             (item.path !== '/' && location.pathname.startsWith(item.path));
 
           if (item.highlight) {

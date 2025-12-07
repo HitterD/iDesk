@@ -142,7 +142,7 @@ const DonutChart: React.FC<{ data: { label: string; value: number; color: string
         <div className="relative">
             <svg viewBox="0 0 100 100" className="w-32 h-32">
                 {segments}
-                <circle cx="50" cy="50" r="25" fill="white" className="dark:fill-slate-800" />
+                <circle cx="50" cy="50" r="25" className="fill-white/80 dark:fill-slate-800/50" />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-xl font-bold text-slate-700 dark:text-slate-200">{total}</span>
@@ -164,8 +164,8 @@ const StatCard: React.FC<{
     highlight?: boolean;
 }> = ({ title, value, icon: Icon, color, subtitle, trend, sparklineData, sparklineColor = 'primary', highlight }) => (
     <div className={cn(
-        "bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all group relative flex items-center gap-5 card-hover",
-        highlight && "ring-2 ring-red-500/20 border-red-200 dark:border-red-800"
+        "glass-card p-6 hover:glass-shadow-medium transition-all group relative flex items-center gap-5",
+        highlight && "ring-2 ring-red-500/20"
     )}>
         <div className={cn(
             "p-4 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform shrink-0 icon-scale-hover",
@@ -177,10 +177,10 @@ const StatCard: React.FC<{
             <div className="flex items-center justify-between mb-1">
                 <p className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">{value}</p>
                 {sparklineData && sparklineData.length > 1 && (
-                    <Sparkline 
-                        data={sparklineData} 
-                        width={60} 
-                        height={24} 
+                    <Sparkline
+                        data={sparklineData}
+                        width={60}
+                        height={24}
                         color={sparklineColor}
                         showDot={false}
                     />
@@ -193,8 +193,8 @@ const StatCard: React.FC<{
             <div className="absolute top-4 right-4">
                 <span className={cn(
                     "flex items-center text-xs font-bold px-2.5 py-1 rounded-full",
-                    trend === 'up' 
-                        ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400' 
+                    trend === 'up'
+                        ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400'
                         : 'text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400'
                 )}>
                     {trend === 'up' ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
@@ -308,12 +308,12 @@ export const BentoDashboardPage = () => {
             date.setDate(today.getDate() - i);
             const nextDate = new Date(date);
             nextDate.setDate(date.getDate() + 1);
-            
+
             const created = tickets.filter((t) => {
                 const d = new Date(t.createdAt);
                 return d >= date && d < nextDate;
             }).length;
-            
+
             const resolvedCount = tickets.filter((t) => {
                 if (t.status !== 'RESOLVED') return false;
                 const d = new Date(t.updatedAt);
@@ -457,7 +457,7 @@ export const BentoDashboardPage = () => {
                 {/* Left Column - Charts */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Weekly Activity Chart */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                    <div className="glass-card p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -513,7 +513,7 @@ export const BentoDashboardPage = () => {
                         </div>
 
                         {/* Activity Summary */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                        <div className="glass-card p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <CalendarDays className="w-5 h-5 text-primary" />
                                 Activity Summary
@@ -544,7 +544,7 @@ export const BentoDashboardPage = () => {
                     {/* Status & Priority Charts */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* By Status */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                        <div className="glass-card p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <PieChart className="w-5 h-5 text-primary" />
                                 By Status
@@ -566,7 +566,7 @@ export const BentoDashboardPage = () => {
                         </div>
 
                         {/* By Priority */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                        <div className="glass-card p-6">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                                 <AlertCircle className="w-5 h-5 text-primary" />
                                 By Priority
@@ -587,12 +587,33 @@ export const BentoDashboardPage = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Live Activity Feed */}
+                    <div className="glass-card overflow-hidden">
+                        <ActivityFeed
+                            activities={liveStats.recentTickets.slice(0, 8).map((ticket: any) => ({
+                                id: ticket.id,
+                                type: ticket.status === 'RESOLVED' ? 'ticket_resolved' as const :
+                                    ticket.assignedTo ? 'ticket_assigned' as const : 'ticket_created' as const,
+                                timestamp: ticket.createdAt,
+                                user: ticket.user,
+                                ticket: {
+                                    id: ticket.id,
+                                    ticketNumber: ticket.ticketNumber || ticket.id.slice(0, 8),
+                                    title: ticket.title,
+                                },
+                            }))}
+                            isLive={true}
+                            maxItems={8}
+                            onActivityClick={(activity) => navigate(`/tickets/${activity.ticket?.id}`)}
+                        />
+                    </div>
                 </div>
 
                 {/* Right Column - Stats & Info */}
                 <div className="space-y-6">
                     {/* Top Agents */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                    <div className="glass-card p-6">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                             <Users className="w-5 h-5 text-primary" />
                             Top Agents
@@ -617,7 +638,7 @@ export const BentoDashboardPage = () => {
                     </div>
 
                     {/* Categories */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+                    <div className="glass-card p-6">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4">By Category</h3>
                         <div className="space-y-4">
                             {Object.entries(liveStats.byCategory).map(([cat, count], index) => (
@@ -638,7 +659,7 @@ export const BentoDashboardPage = () => {
                     </div>
 
                     {/* Recent Tickets */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="glass-card overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <Ticket className="w-5 h-5 text-primary" />
@@ -683,26 +704,7 @@ export const BentoDashboardPage = () => {
                 </div>
             </div>
 
-            {/* Live Activity Feed - Full Width */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <ActivityFeed
-                    activities={liveStats.recentTickets.slice(0, 8).map((ticket: any) => ({
-                        id: ticket.id,
-                        type: ticket.status === 'RESOLVED' ? 'ticket_resolved' as const : 
-                              ticket.assignedTo ? 'ticket_assigned' as const : 'ticket_created' as const,
-                        timestamp: ticket.createdAt,
-                        user: ticket.user,
-                        ticket: {
-                            id: ticket.id,
-                            ticketNumber: ticket.ticketNumber || ticket.id.slice(0, 8),
-                            title: ticket.title,
-                        },
-                    }))}
-                    isLive={true}
-                    maxItems={8}
-                    onActivityClick={(activity) => navigate(`/tickets/${activity.ticket?.id}`)}
-                />
-            </div>
+
         </div>
     );
 };

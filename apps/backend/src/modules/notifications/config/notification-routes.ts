@@ -21,6 +21,11 @@ export const NOTIFICATION_ROUTES: Record<NotificationCategory, NotificationRoute
         baseUrl: '/renewal/detail',
         paramKey: 'referenceId',
     },
+    [NotificationCategory.CATEGORY_HARDWARE]: {
+        category: NotificationCategory.CATEGORY_HARDWARE,
+        baseUrl: '/ticket/view',
+        paramKey: 'ticketId',
+    },
 };
 
 /**
@@ -37,6 +42,10 @@ export function generateDeepLink(notification: Notification): string {
 
     if (notification.category === NotificationCategory.CATEGORY_RENEWAL && notification.referenceId) {
         return `${route.baseUrl}/${notification.referenceId}`;
+    }
+
+    if (notification.category === NotificationCategory.CATEGORY_HARDWARE && notification.ticketId) {
+        return `${route.baseUrl}/${notification.ticketId}`;
     }
 
     // Fallback to explicit link field or default

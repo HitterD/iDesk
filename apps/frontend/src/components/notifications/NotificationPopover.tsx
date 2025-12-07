@@ -41,12 +41,12 @@ const NOTIFICATION_ICONS: Record<string, any> = {
 // Get notification route based on type, data, and user role
 const getNotificationRoute = (notification: Notification, userRole: UserRole): string => {
     const { type, ticketId, link } = notification;
-    
+
     // Base paths based on user role
     const ticketBasePath = userRole === 'USER' ? '/client/tickets' : '/tickets';
     const ticketListPath = userRole === 'USER' ? '/client/my-tickets' : '/tickets/list';
     const dashboardPath = userRole === 'USER' ? '/client/my-tickets' : '/dashboard';
-    
+
     // If link is explicitly provided and starts with appropriate path, use it
     if (link) {
         // Adjust link based on role if it's a ticket link
@@ -56,7 +56,7 @@ const getNotificationRoute = (notification: Notification, userRole: UserRole): s
         }
         return link;
     }
-    
+
     // Route based on notification type
     switch (type) {
         case 'TICKET_CREATED':
@@ -70,13 +70,13 @@ const getNotificationRoute = (notification: Notification, userRole: UserRole): s
         case 'SLA_BREACHED':
         case 'SURVEY_RECEIVED':
             return ticketId ? `${ticketBasePath}/${ticketId}` : ticketListPath;
-            
+
         case 'CONTRACT_EXPIRING':
         case 'CONTRACT_RENEWED':
             // Only Admin can access renewal
             if (userRole !== 'ADMIN') return dashboardPath;
             return '/renewal';
-            
+
         case 'SYSTEM':
         default:
             return dashboardPath;
@@ -208,11 +208,11 @@ export const NotificationPopover: React.FC = () => {
             if (!notification.isRead) {
                 markAsReadMutation.mutate(notification.id);
             }
-            
+
             // Get the correct route based on notification type and user role
             const userRole = (user?.role || 'USER') as UserRole;
             const route = getNotificationRoute(notification, userRole);
-            
+
             // Navigate to the route
             navigate(route);
             setIsOpen(false);
@@ -285,7 +285,7 @@ export const NotificationPopover: React.FC = () => {
                     </div>
 
                     {/* Notification List */}
-                    <div className="max-h-[400px] overflow-y-auto">
+                    <div className="max-h-[400px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-primary transition-colors">
                         {notifications.length === 0 ? (
                             <div className="py-12 text-center">
                                 <Bell className="w-12 h-12 text-slate-200 dark:text-slate-600 mx-auto mb-3" />

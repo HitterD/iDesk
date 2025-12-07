@@ -42,6 +42,7 @@ const BentoFeedbackPage = lazy(() => import('./features/public/pages/BentoFeedba
 const RenewalDashboardPage = lazy(() => import('./features/renewal/pages/RenewalDashboardPage').then(m => ({ default: m.RenewalDashboardPage })));
 const NotificationCenterPage = lazy(() => import('./features/notifications/pages/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
 const ClientNotificationCenter = lazy(() => import('./features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
+const AutomationRulesPage = lazy(() => import('./features/automation/pages/AutomationRulesPage').then(m => ({ default: m.AutomationRulesPage })));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -65,160 +66,172 @@ function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <ScreenReaderProvider>
-            <ErrorBoundary>
-                <Toaster />
-                <Router>
-                    <Routes>
-                        {/* Public Routes */}
-                        <Route path="/login" element={<BentoLoginPage />} />
-                        <Route path="/unauthorized" element={<UnauthorizedPage />} />
-                        <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
+                <ErrorBoundary>
+                    <Toaster />
+                    <Router>
+                        <Routes>
+                            {/* Public Routes */}
+                            <Route path="/login" element={<BentoLoginPage />} />
+                            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                            <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
 
-                        {/* Admin/Agent Routes - Lazy loaded portal */}
-                        <Route
-                            path="/"
-                            element={
-                                <ProtectedRoute allowedRoles={['ADMIN', 'AGENT']}>
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoLayout />
-                                    </Suspense>
-                                </ProtectedRoute>
-                            }
-                        >
-                            <Route path="dashboard" element={
-                                <FeatureErrorBoundary featureName="Dashboard">
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoDashboardPage />
-                                    </Suspense>
-                                </FeatureErrorBoundary>
-                            } />
-                            <Route path="kanban" element={
-                                <FeatureErrorBoundary featureName="Kanban Board">
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoTicketKanban />
-                                    </Suspense>
-                                </FeatureErrorBoundary>
-                            } />
-                            <Route path="tickets/list" element={
-                                <FeatureErrorBoundary featureName="Ticket List">
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoTicketListPage />
-                                    </Suspense>
-                                </FeatureErrorBoundary>
-                            } />
-                            <Route path="tickets/:id" element={
-                                <FeatureErrorBoundary featureName="Ticket Detail">
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoTicketDetailPage />
-                                    </Suspense>
-                                </FeatureErrorBoundary>
-                            } />
-                            <Route path="tickets/create" element={
-                                <FeatureErrorBoundary featureName="Create Ticket">
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoCreateTicketPage />
-                                    </Suspense>
-                                </FeatureErrorBoundary>
-                            } />
-                            <Route path="settings" element={
-                                <FeatureErrorBoundary featureName="Settings">
-                                    <Suspense fallback={<PageLoader />}>
-                                        <BentoSettingsPage />
-                                    </Suspense>
-                                </FeatureErrorBoundary>
-                            } />
+                            {/* Admin/Agent Routes - Lazy loaded portal */}
                             <Route
-                                path="agents"
+                                path="/"
                                 element={
-                                    <ProtectedRoute allowedRoles={['ADMIN']}>
-                                        <FeatureErrorBoundary featureName="Agent Management">
-                                            <Suspense fallback={<PageLoader />}>
-                                                <BentoAdminAgentsPage />
-                                            </Suspense>
-                                        </FeatureErrorBoundary>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="reports"
-                                element={
-                                    <ProtectedRoute allowedRoles={['ADMIN']}>
-                                        <FeatureErrorBoundary featureName="Reports">
-                                            <Suspense fallback={<PageLoader />}>
-                                                <BentoReportsPage />
-                                            </Suspense>
-                                        </FeatureErrorBoundary>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="sla"
-                                element={
-                                    <ProtectedRoute allowedRoles={['ADMIN']}>
-                                        <FeatureErrorBoundary featureName="SLA Settings">
-                                            <Suspense fallback={<PageLoader />}>
-                                                <BentoSlaSettingsPage />
-                                            </Suspense>
-                                        </FeatureErrorBoundary>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="renewal"
-                                element={
-                                    <ProtectedRoute allowedRoles={['ADMIN']}>
-                                        <FeatureErrorBoundary featureName="Renewal Reminders">
-                                            <Suspense fallback={<PageLoader />}>
-                                                <RenewalDashboardPage />
-                                            </Suspense>
-                                        </FeatureErrorBoundary>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="notifications"
-                                element={
-                                    <FeatureErrorBoundary featureName="Notification Center">
+                                    <ProtectedRoute allowedRoles={['ADMIN', 'AGENT']}>
                                         <Suspense fallback={<PageLoader />}>
-                                            <NotificationCenterPage />
+                                            <BentoLayout />
+                                        </Suspense>
+                                    </ProtectedRoute>
+                                }
+                            >
+                                <Route path="dashboard" element={
+                                    <FeatureErrorBoundary featureName="Dashboard">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoDashboardPage />
                                         </Suspense>
                                     </FeatureErrorBoundary>
+                                } />
+                                <Route path="kanban" element={
+                                    <FeatureErrorBoundary featureName="Kanban Board">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoTicketKanban />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="tickets/list" element={
+                                    <FeatureErrorBoundary featureName="Ticket List">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoTicketListPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="tickets/:id" element={
+                                    <FeatureErrorBoundary featureName="Ticket Detail">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoTicketDetailPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="tickets/create" element={
+                                    <FeatureErrorBoundary featureName="Create Ticket">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoCreateTicketPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="settings" element={
+                                    <FeatureErrorBoundary featureName="Settings">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoSettingsPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route
+                                    path="agents"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="Agent Management">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <BentoAdminAgentsPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="reports"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="Reports">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <BentoReportsPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="sla"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="SLA Settings">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <BentoSlaSettingsPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="renewal"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="Renewal Reminders">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <RenewalDashboardPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="notifications"
+                                    element={
+                                        <FeatureErrorBoundary featureName="Notification Center">
+                                            <Suspense fallback={<PageLoader />}>
+                                                <NotificationCenterPage />
+                                            </Suspense>
+                                        </FeatureErrorBoundary>
+                                    }
+                                />
+                                <Route
+                                    path="automation"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="Automation Rules">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <AutomationRulesPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><BentoKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb/manage" element={<FeatureErrorBoundary featureName="Manage Articles"><Suspense fallback={<PageLoader />}><BentoManageArticlesPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb/create" element={<FeatureErrorBoundary featureName="Create Article"><Suspense fallback={<PageLoader />}><BentoCreateArticlePage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><BentoArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb/articles/:id/edit" element={<FeatureErrorBoundary featureName="Edit Article"><Suspense fallback={<PageLoader />}><BentoEditArticlePage /></Suspense></FeatureErrorBoundary>} />
+                                <Route index element={<Navigate to="/dashboard" replace />} />
+                            </Route>
+
+                            {/* Client Routes - Lazy loaded portal (separate bundle from Admin) */}
+                            <Route
+                                path="/client"
+                                element={
+                                    <ProtectedRoute allowedRoles={['USER']}>
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ClientLayout />
+                                        </Suspense>
+                                    </ProtectedRoute>
                                 }
-                            />
-                            <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><BentoKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="kb/manage" element={<FeatureErrorBoundary featureName="Manage Articles"><Suspense fallback={<PageLoader />}><BentoManageArticlesPage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="kb/create" element={<FeatureErrorBoundary featureName="Create Article"><Suspense fallback={<PageLoader />}><BentoCreateArticlePage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><BentoArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="kb/articles/:id/edit" element={<FeatureErrorBoundary featureName="Edit Article"><Suspense fallback={<PageLoader />}><BentoEditArticlePage /></Suspense></FeatureErrorBoundary>} />
-                            <Route index element={<Navigate to="/dashboard" replace />} />
-                        </Route>
+                            >
+                                <Route path="my-tickets" element={<FeatureErrorBoundary featureName="My Tickets"><Suspense fallback={<PageLoader />}><BentoMyTicketsPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="create" element={<FeatureErrorBoundary featureName="Create Ticket"><Suspense fallback={<PageLoader />}><BentoCreateTicketPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="tickets/:id" element={<FeatureErrorBoundary featureName="Ticket Detail"><Suspense fallback={<PageLoader />}><ClientTicketDetailPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="notifications" element={<FeatureErrorBoundary featureName="Notifications"><Suspense fallback={<PageLoader />}><ClientNotificationCenter /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><ClientKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><ClientArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="profile" element={<FeatureErrorBoundary featureName="Profile"><Suspense fallback={<PageLoader />}><ClientProfilePage /></Suspense></FeatureErrorBoundary>} />
+                                <Route index element={<Navigate to="/client/my-tickets" replace />} />
+                            </Route>
 
-                        {/* Client Routes - Lazy loaded portal (separate bundle from Admin) */}
-                        <Route
-                            path="/client"
-                            element={
-                                <ProtectedRoute allowedRoles={['USER']}>
-                                    <Suspense fallback={<PageLoader />}>
-                                        <ClientLayout />
-                                    </Suspense>
-                                </ProtectedRoute>
-                            }
-                        >
-                            <Route path="my-tickets" element={<FeatureErrorBoundary featureName="My Tickets"><Suspense fallback={<PageLoader />}><BentoMyTicketsPage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="create" element={<FeatureErrorBoundary featureName="Create Ticket"><Suspense fallback={<PageLoader />}><BentoCreateTicketPage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="tickets/:id" element={<FeatureErrorBoundary featureName="Ticket Detail"><Suspense fallback={<PageLoader />}><ClientTicketDetailPage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="notifications" element={<FeatureErrorBoundary featureName="Notifications"><Suspense fallback={<PageLoader />}><ClientNotificationCenter /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><ClientKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><ClientArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
-                            <Route path="profile" element={<FeatureErrorBoundary featureName="Profile"><Suspense fallback={<PageLoader />}><ClientProfilePage /></Suspense></FeatureErrorBoundary>} />
-                            <Route index element={<Navigate to="/client/my-tickets" replace />} />
-                        </Route>
-
-                        {/* Fallback */}
-                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                    </Routes>
-                </Router>
-            </ErrorBoundary>
+                            {/* Fallback */}
+                            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                        </Routes>
+                    </Router>
+                </ErrorBoundary>
             </ScreenReaderProvider>
         </QueryClientProvider>
     );

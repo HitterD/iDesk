@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Timer, CheckCircle2, AlertCircle, Pause, AlertTriangle, Clock, MessageSquare } from 'lucide-react';
+import { CheckCircle2, Pause, AlertTriangle, Clock, MessageSquare } from 'lucide-react';
 import { TicketDetail } from './types';
 
 interface SlaStatusCardProps {
@@ -180,43 +180,42 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
     const resolutionColors = getColorClasses(resolution.color);
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-            <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5" />
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+            <h3 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2 text-sm uppercase tracking-wider">
+                <Clock className="w-4 h-4" />
                 Status SLA
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
                 {/* Resolution Time SLA */}
-                <div className={`p-4 rounded-xl border ${resolutionColors.bg} ${resolutionColors.border}`}>
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                            Waktu Resolusi
+                <div className={`p-3 rounded-xl border ${resolutionColors.bg} ${resolutionColors.border}`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                            Resolution Time
                         </span>
                         {resolution.status === 'overdue' && (
-                            <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" />
+                            <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
                         )}
                         {resolution.status === 'paused' && (
-                            <Pause className="w-5 h-5 text-orange-500" />
+                            <Pause className="w-4 h-4 text-orange-500" />
                         )}
                         {resolution.status === 'resolved' && (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
                         )}
                     </div>
-                    <p className={`text-xl font-bold ${resolutionColors.text}`}>
+                    <p className={`text-lg font-bold ${resolutionColors.text}`}>
                         {resolution.text}
                     </p>
 
                     {/* Progress Bar - only show if SLA started and not resolved/paused */}
                     {!isResolved && !isPaused && !slaNotStarted && ticket.slaTarget && (
-                        <div className="mt-3">
-                            <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="mt-2.5">
+                            <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                 <div
-                                    className={`h-full transition-all duration-500 ${
-                                        resolution.color === 'red' ? 'bg-red-500' :
+                                    className={`h-full transition-all duration-500 ${resolution.color === 'red' ? 'bg-red-500' :
                                         resolution.color === 'yellow' ? 'bg-yellow-500' :
-                                        'bg-blue-500'
-                                    }`}
+                                            'bg-blue-500'
+                                        }`}
                                     style={{ width: `${percentRemaining}%` }}
                                 />
                             </div>
@@ -225,72 +224,72 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
 
                     {/* Show SLA started time */}
                     {ticket.slaStartedAt && !isResolved && (
-                        <p className="text-xs text-slate-500 mt-2">
-                            Dimulai: {formatDate(ticket.slaStartedAt)}
+                        <p className="text-[10px] text-slate-500 mt-1.5">
+                            Started: {formatDate(ticket.slaStartedAt)}
                         </p>
                     )}
 
                     {/* Show target time */}
                     {ticket.slaTarget && !isResolved && (
-                        <p className="text-xs text-slate-500">
+                        <p className="text-[10px] text-slate-500">
                             Target: {formatDate(ticket.slaTarget)}
                         </p>
                     )}
 
                     {/* Show resolved time */}
                     {isResolved && ticket.resolvedAt && (
-                        <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                        <p className="text-[10px] text-green-600 mt-1.5 flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
-                            Selesai: {formatDate(ticket.resolvedAt)}
+                            Finished: {formatDate(ticket.resolvedAt)}
                         </p>
                     )}
 
                     {/* Show paused info */}
                     {isPaused && (
-                        <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
+                        <p className="text-[10px] text-orange-600 mt-1.5 flex items-center gap-1">
                             <Pause className="w-3 h-3" />
-                            Timer di-pause selama menunggu vendor
+                            Paused (Vendor)
                         </p>
                     )}
 
                     {/* Show not started info */}
                     {slaNotStarted && !isResolved && (
-                        <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                        <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            SLA akan dimulai saat agent mengambil tiket
+                            Pending Start
                         </p>
                     )}
                 </div>
 
                 {/* First Response SLA */}
                 {firstResponse && (
-                    <div className={`p-4 rounded-xl border ${getColorClasses(firstResponse.color).bg} ${getColorClasses(firstResponse.color).border}`}>
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                                <MessageSquare className="w-4 h-4" />
-                                First Response
+                    <div className={`p-3 rounded-xl border ${getColorClasses(firstResponse.color).bg} ${getColorClasses(firstResponse.color).border}`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                1st Response
                             </span>
-                            {firstResponse.status === 'met' && (
-                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            {firstResponse?.status === 'met' && (
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
                             )}
-                            {firstResponse.status === 'breached' && (
-                                <AlertTriangle className="w-5 h-5 text-red-500" />
+                            {firstResponse?.status === 'breached' && (
+                                <AlertTriangle className="w-4 h-4 text-red-500" />
                             )}
                         </div>
-                        <p className={`text-lg font-bold ${getColorClasses(firstResponse.color).text}`}>
-                            {firstResponse.text}
+                        <p className={`text-base font-bold ${firstResponse ? getColorClasses(firstResponse.color).text : ''}`}>
+                            {firstResponse?.text}
                         </p>
 
                         {/* Show first response time if responded */}
                         {ticket.firstResponseAt && (
-                            <p className="text-xs text-slate-500 mt-2">
-                                Direspon pada: {formatDate(ticket.firstResponseAt)}
+                            <p className="text-[10px] text-slate-500 mt-1.5">
+                                Responded: {formatDate(ticket.firstResponseAt)}
                             </p>
                         )}
 
                         {/* Show target if not responded */}
                         {!ticket.firstResponseAt && ticket.firstResponseTarget && (
-                            <p className="text-xs text-slate-500 mt-2">
+                            <p className="text-[10px] text-slate-500 mt-1.5">
                                 Target: {formatDate(ticket.firstResponseTarget)}
                             </p>
                         )}

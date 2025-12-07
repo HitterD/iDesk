@@ -18,7 +18,7 @@ interface CollapsibleSectionProps {
 // Hook to persist collapse state in localStorage
 const useCollapsibleState = (id: string, defaultOpen: boolean): [boolean, (value: boolean) => void] => {
     const storageKey = `collapsible-${id}`;
-    
+
     const [isOpen, setIsOpen] = useState<boolean>(() => {
         if (typeof window === 'undefined') return defaultOpen;
         const stored = localStorage.getItem(storageKey);
@@ -47,7 +47,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 
     return (
         <div className={cn(
-            "border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-800",
+            "glass-card overflow-hidden",
             className
         )}>
             {/* Header */}
@@ -55,8 +55,8 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
                     "w-full flex items-center justify-between px-4 py-3",
-                    "bg-slate-50 dark:bg-slate-800/50",
-                    "hover:bg-slate-100 dark:hover:bg-slate-700/50",
+                    "bg-white/30 dark:bg-slate-800/30",
+                    "hover:bg-white/50 dark:hover:bg-slate-800/50",
                     "transition-colors duration-200",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
                     headerClassName
@@ -83,16 +83,16 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
                     <motion.div
                         id={`collapsible-content-${id}`}
                         initial={{ height: 0, opacity: 0 }}
-                        animate={{ 
-                            height: 'auto', 
+                        animate={{
+                            height: 'auto',
                             opacity: 1,
                             transition: {
                                 height: { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] },
                                 opacity: { duration: 0.2, delay: 0.05 }
                             }
                         }}
-                        exit={{ 
-                            height: 0, 
+                        exit={{
+                            height: 0,
                             opacity: 0,
                             transition: {
                                 height: { duration: 0.2, ease: [0.04, 0.62, 0.23, 0.98] },
@@ -147,16 +147,16 @@ export const CollapsibleSidebarSection: React.FC<CollapsibleSectionProps> = ({
                 {isOpen && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
-                        animate={{ 
-                            height: 'auto', 
+                        animate={{
+                            height: 'auto',
                             opacity: 1,
                             transition: {
                                 height: { duration: 0.2 },
                                 opacity: { duration: 0.15, delay: 0.05 }
                             }
                         }}
-                        exit={{ 
-                            height: 0, 
+                        exit={{
+                            height: 0,
                             opacity: 0,
                             transition: {
                                 height: { duration: 0.15 },

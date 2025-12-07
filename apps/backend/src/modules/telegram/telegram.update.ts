@@ -49,10 +49,10 @@ export class TelegramUpdate {
         if (session?.userId) {
             // User sudah terhubung - tampilkan menu lengkap
             const stats = await this.telegramService.getUserStats(session.userId);
-            
+
             // Gunakan nama dari akun iDesk yang terhubung, bukan nama Telegram
             const userName = session.user?.fullName || session.telegramFirstName || 'User';
-            
+
             await ctx.replyWithHTML(
                 t.welcome.linkedGreeting(
                     userName,
@@ -107,7 +107,7 @@ export class TelegramUpdate {
         const from = ctx.from;
         const session = from ? await this.telegramService.getSession(String(from.id)) : null;
         const t = getTemplates(session?.language || 'id');
-        
+
         await ctx.replyWithHTML(t.help, Markup.inlineKeyboard([
             [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
         ]));
@@ -344,7 +344,7 @@ export class TelegramUpdate {
             const statusEmoji = this.getStatusEmoji(ticket.status);
             message += `${i + 1}. ${statusEmoji} <b>#${ticket.ticketNumber}</b>\n`;
             message += `   ${ticket.title.substring(0, 40)}${ticket.title.length > 40 ? '...' : ''}\n\n`;
-            
+
             buttons.push([
                 Markup.button.callback(`${statusEmoji} #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
             ]);
@@ -406,6 +406,19 @@ export class TelegramUpdate {
         const ticket = await this.telegramService.getTicketById(ticketId);
         if (!ticket) {
             await ctx.reply('❌ Tiket tidak ditemukan.');
+            return;
+        }
+
+        // Block priority changes for hardware installation tickets
+        if (ticket.priority === 'HARDWARE_INSTALLATION') {
+            await ctx.replyWithHTML(
+                `🔧 <b>Prioritas Tidak Dapat Diubah</b>\n\n` +
+                `Tiket Hardware Installation memiliki prioritas yang ditetapkan sistem dan tidak dapat diubah secara manual.`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('📋 Lihat Tiket', `view_ticket:${ticketId}`)],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
             return;
         }
 
@@ -694,7 +707,7 @@ export class TelegramUpdate {
         if (!from) return;
 
         const query = ((ctx.message as any)?.text || '').replace(/^\/(cari|search)\s*/i, '').trim();
-        
+
         if (!query) {
             await ctx.replyWithHTML(
                 `🔍 <b>Cari Knowledge Base</b>\n\n` +
@@ -708,7 +721,7 @@ export class TelegramUpdate {
         }
 
         const results = await this.telegramService.searchKnowledgeBase(query);
-        
+
         if (results.length === 0) {
             await ctx.replyWithHTML(
                 `🔍 Tidak ditemukan hasil untuk "<b>${query}</b>"`,
@@ -779,7 +792,7 @@ export class TelegramUpdate {
             const priorityEmoji = this.getPriorityEmoji(ticket.priority);
             message += `${i + 1}. ${priorityEmoji} <b>#${ticket.ticketNumber}</b>\n`;
             message += `   ${ticket.title.substring(0, 40)}...\n\n`;
-            
+
             buttons.push([
                 Markup.button.callback(`✋ Ambil #${ticket.ticketNumber}`, `assign_ticket:${ticket.id}`)
             ]);
@@ -1186,7 +1199,7 @@ export class TelegramUpdate {
 
     private analyzeTicketText(text: string): { category: string; priority: string } {
         const lowerText = text.toLowerCase();
-        
+
         let category = 'GENERAL';
         if (/printer|laptop|komputer|mouse|keyboard|monitor|pc|hardware/i.test(lowerText)) {
             category = 'HARDWARE';
@@ -1229,6 +1242,7 @@ export class TelegramUpdate {
             'MEDIUM': '🟡',
             'HIGH': '🟠',
             'CRITICAL': '🔴',
+            'HARDWARE_INSTALLATION': '🔧',
         };
         return map[priority] || '⚪';
     }

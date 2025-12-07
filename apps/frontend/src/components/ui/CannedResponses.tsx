@@ -18,9 +18,9 @@ interface CannedResponsePickerProps {
 }
 
 // Quick picker popover for chat
-export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({ 
+export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
   onSelect,
-  className 
+  className
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -31,7 +31,7 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
   const filteredResponses = useMemo(() => {
     if (!search) return responses;
     const lowerSearch = search.toLowerCase();
-    return responses.filter(r => 
+    return responses.filter(r =>
       r.title.toLowerCase().includes(lowerSearch) ||
       r.content.toLowerCase().includes(lowerSearch) ||
       r.category.toLowerCase().includes(lowerSearch)
@@ -201,7 +201,7 @@ export const CannedResponsesManager: React.FC = () => {
   const responses = defaultResponses;
 
   const saveMutation = {
-    mutate: () => {
+    mutate: (_data: any) => {
       toast.info('Template management not available yet');
       resetForm();
     },
@@ -209,7 +209,7 @@ export const CannedResponsesManager: React.FC = () => {
   };
 
   const deleteMutation = {
-    mutate: () => {
+    mutate: (_id: any) => {
       toast.info('Template management not available yet');
     },
     isPending: false,

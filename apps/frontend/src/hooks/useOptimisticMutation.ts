@@ -55,12 +55,12 @@ export function useOptimisticMutation<TData, TError = Error, TVariables = void, 
         onError: (error, variables, context) => {
             // Rollback to previous value on error
             if (context && (context as { previousData?: TData }).previousData !== undefined) {
-                queryClient.setQueryData(queryKey, (context as { previousData: TData }).previousData);
+                queryClient.setQueryData(queryKey, ((context as unknown) as { previousData: TData }).previousData);
             }
 
             if (!silent) {
-                const message = typeof errorMessage === 'function' 
-                    ? errorMessage(error) 
+                const message = typeof errorMessage === 'function'
+                    ? errorMessage(error)
                     : errorMessage;
                 toast.error(message);
             }
@@ -69,8 +69,8 @@ export function useOptimisticMutation<TData, TError = Error, TVariables = void, 
         },
         onSuccess: (data, variables, context) => {
             if (!silent && successMessage) {
-                const message = typeof successMessage === 'function' 
-                    ? successMessage(data, variables) 
+                const message = typeof successMessage === 'function'
+                    ? successMessage(data, variables)
                     : successMessage;
                 toast.success(message);
             }
@@ -97,9 +97,9 @@ export function useOptimisticTicketStatus() {
         },
         onMutate: async ({ ticketId, status }) => {
             await queryClient.cancelQueries({ queryKey: ['tickets'] });
-            
+
             const previousTickets = queryClient.getQueryData(['tickets']);
-            
+
             // Update in list view
             queryClient.setQueryData(['tickets'], (old: any) => {
                 if (!old) return old;
@@ -111,7 +111,7 @@ export function useOptimisticTicketStatus() {
                 }
                 return old;
             });
-            
+
             return { previousTickets };
         },
         onError: (err, variables, context: any) => {
@@ -143,9 +143,9 @@ export function useOptimisticTicketPriority() {
         },
         onMutate: async ({ ticketId, priority }) => {
             await queryClient.cancelQueries({ queryKey: ['tickets'] });
-            
+
             const previousTickets = queryClient.getQueryData(['tickets']);
-            
+
             queryClient.setQueryData(['tickets'], (old: any) => {
                 if (!old) return old;
                 if (Array.isArray(old)) {
@@ -156,7 +156,7 @@ export function useOptimisticTicketPriority() {
                 }
                 return old;
             });
-            
+
             return { previousTickets };
         },
         onError: (err, variables, context: any) => {
@@ -187,9 +187,9 @@ export function useOptimisticTicketAssign() {
         },
         onMutate: async ({ ticketId, assigneeId }) => {
             await queryClient.cancelQueries({ queryKey: ['tickets'] });
-            
+
             const previousTickets = queryClient.getQueryData(['tickets']);
-            
+
             // Note: We don't have agent info here, so we just mark as assigned
             // The full data will come from server refresh
             queryClient.setQueryData(['tickets'], (old: any) => {
@@ -202,7 +202,7 @@ export function useOptimisticTicketAssign() {
                 }
                 return old;
             });
-            
+
             return { previousTickets };
         },
         onError: (err, variables, context: any) => {
@@ -233,9 +233,9 @@ export function useOptimisticMarkNotificationRead() {
         },
         onMutate: async (notificationId) => {
             await queryClient.cancelQueries({ queryKey: ['notifications'] });
-            
+
             const previousNotifications = queryClient.getQueryData(['notifications']);
-            
+
             queryClient.setQueryData(['notifications'], (old: any) => {
                 if (!old) return old;
                 if (Array.isArray(old)) {
@@ -243,12 +243,12 @@ export function useOptimisticMarkNotificationRead() {
                 }
                 return old;
             });
-            
+
             // Update unread count
             queryClient.setQueryData(['notifications-unread-count'], (old: number | undefined) => {
                 return old ? Math.max(0, old - 1) : 0;
             });
-            
+
             return { previousNotifications };
         },
         onError: (err, variables, context: any) => {

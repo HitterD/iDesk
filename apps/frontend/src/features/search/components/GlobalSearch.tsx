@@ -15,14 +15,14 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
     const [filters] = useState<SearchFilters>({});
     const [selectedScope, setSelectedScope] = useState<('tickets' | 'users' | 'articles')[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
-    
+
     const debouncedQuery = useDebounce(query, 300);
-    
+
     const { data: results, isLoading } = useSearch({
         q: debouncedQuery,
         filters: { ...filters, scope: selectedScope.length > 0 ? selectedScope : undefined },
     });
-    
+
     const { data: suggestions } = useSearchSuggestions(query);
     const { data: savedSearches } = useSavedSearches();
 
@@ -58,8 +58,8 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
     }, [navigate, onClose]);
 
     const toggleScope = (scope: 'tickets' | 'users' | 'articles') => {
-        setSelectedScope(prev => 
-            prev.includes(scope) 
+        setSelectedScope(prev =>
+            prev.includes(scope)
                 ? prev.filter(s => s !== scope)
                 : [...prev, scope]
         );
@@ -83,9 +83,11 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
     const getPriorityColor = (priority: string) => {
         switch (priority?.toUpperCase()) {
             case 'URGENT': return 'text-red-400';
+            case 'CRITICAL': return 'text-red-400';
             case 'HIGH': return 'text-orange-400';
             case 'MEDIUM': return 'text-yellow-400';
             case 'LOW': return 'text-green-400';
+            case 'HARDWARE_INSTALLATION': return 'text-amber-400';
             default: return 'text-slate-400';
         }
     };
@@ -100,7 +102,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
         }
     };
 
-    const containerClass = isModal 
+    const containerClass = isModal
         ? 'fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/50 backdrop-blur-sm'
         : 'w-full';
 
@@ -140,11 +142,10 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
                         <button
                             key={scope}
                             onClick={() => toggleScope(scope)}
-                            className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                                selectedScope.includes(scope) || selectedScope.length === 0
+                            className={`px-2 py-1 text-xs rounded-full transition-colors ${selectedScope.includes(scope) || selectedScope.length === 0
                                     ? 'bg-slate-700 text-white'
                                     : 'bg-slate-800 text-slate-500 hover:text-slate-300'
-                            }`}
+                                }`}
                         >
                             {scope.charAt(0).toUpperCase() + scope.slice(1)}
                         </button>

@@ -30,9 +30,6 @@ export const BentoTicketDetailPage: React.FC = () => {
     const [attributes, setAttributes] = useState<any>({ categories: [], priorities: [], devices: [], software: [] });
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [showShortcutsModal, setShowShortcutsModal] = useState(false);
-    const [showAssignModal, setShowAssignModal] = useState(false);
-    const [showStatusModal, setShowStatusModal] = useState(false);
-    const [showPriorityModal, setShowPriorityModal] = useState(false);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const shortcutsModalRef = useRef<HTMLDivElement>(null);
 
@@ -97,10 +94,10 @@ export const BentoTicketDetailPage: React.FC = () => {
     });
 
     // Keyboard shortcuts for ticket actions
-    const { showShortcutsHint, setShowShortcutsHint } = useTicketShortcuts({
-        onAssign: () => setShowAssignModal(true),
-        onStatus: () => setShowStatusModal(true),
-        onPriority: () => setShowPriorityModal(true),
+    const { showShortcutsHint } = useTicketShortcuts({
+        onAssign: () => toast.info('Assign shortcut pressed'),
+        onStatus: () => toast.info('Status shortcut pressed'),
+        onPriority: () => toast.info('Priority shortcut pressed'),
         onReply: () => chatInputRef.current?.focus(),
         onResolve: () => {
             if (ticket && ticket.status !== 'RESOLVED') {
@@ -109,9 +106,6 @@ export const BentoTicketDetailPage: React.FC = () => {
             }
         },
         onEscape: () => {
-            setShowAssignModal(false);
-            setShowStatusModal(false);
-            setShowPriorityModal(false);
             setShowShortcutsModal(false);
         },
         onCopyTicketNumber: () => toast.success('Ticket number copied!'),
@@ -190,11 +184,12 @@ export const BentoTicketDetailPage: React.FC = () => {
         }
     };
 
-    const handleSendMessage = async (content: string, files?: FileList | null) => {
+    const handleSendMessage = async (content: string, files?: FileList | null, isInternal: boolean = false) => {
         try {
             const formData = new FormData();
             formData.append('content', content);
             formData.append('mentionedUserIds', JSON.stringify([]));
+            formData.append('isInternal', String(isInternal));
             if (files) {
                 Array.from(files).forEach((file) => {
                     formData.append('files', file);
@@ -205,7 +200,9 @@ export const BentoTicketDetailPage: React.FC = () => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
 
-            toast.success('Message sent');
+            if (!isInternal) {
+                toast.success('Message sent');
+            }
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
         } catch (error) {
             toast.error('Failed to send message');
@@ -230,49 +227,55 @@ export const BentoTicketDetailPage: React.FC = () => {
                 isSaving={updateTicketMutation.isPending}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main Content */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Ticket Info Card */}
-                    <TicketInfoCard ticket={ticket} />
+            {/* 3-Column Command Center Layout */}
+            <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)] overflow-hidden">
 
-                    {/* SLA Card */}
+                {/* LEFT COLUMN: Context & Properties (Scrollable) */}
+                <div className="w-full lg:w-1/4 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar pb-20">
                     <SlaStatusCard ticket={ticket} />
-
-                    {/* Notes Section */}
-                    <TicketChat
+                    <TicketSidebar
                         ticket={ticket}
-                        isConnected={isConnected}
-                        onSendMessage={handleSendMessage}
-                        onImageClick={setLightboxImage}
-                        typingUsers={typingUsers}
-                        onTypingStart={() => sendTypingStart({ fullName: currentUser.fullName })}
-                        onTypingStop={sendTypingStop}
+                        agents={agents}
+                        slaConfigs={slaConfigs}
+                        attributes={attributes}
+                        assigneeId={assigneeId}
+                        setAssigneeId={setAssigneeId}
+                        status={status}
+                        setStatus={setStatus}
+                        priority={priority}
+                        setPriority={setPriority}
+                        category={category}
+                        setCategory={setCategory}
+                        device={device}
+                        setDevice={setDevice}
+                        onCancel={handleCancelTicket}
+                        isCancelling={cancelMutation.isPending}
                     />
-
-                    {/* History Section */}
-                    <TicketHistory ticket={ticket} />
                 </div>
 
-                {/* Sidebar */}
-                <TicketSidebar
-                    ticket={ticket}
-                    agents={agents}
-                    slaConfigs={slaConfigs}
-                    attributes={attributes}
-                    assigneeId={assigneeId}
-                    setAssigneeId={setAssigneeId}
-                    status={status}
-                    setStatus={setStatus}
-                    priority={priority}
-                    setPriority={setPriority}
-                    category={category}
-                    setCategory={setCategory}
-                    device={device}
-                    setDevice={setDevice}
-                    onCancel={handleCancelTicket}
-                    isCancelling={cancelMutation.isPending}
-                />
+                {/* MIDDLE COLUMN: Action Center (Flex Column) */}
+                <div className="flex-1 flex flex-col gap-4 overflow-hidden min-w-0 glass-card bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-white/20 dark:border-white/5 rounded-2xl relative shadow-xl">
+                    {/* Scrollable Content Area */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                        <div className="p-1">
+                            <TicketInfoCard ticket={ticket} />
+                        </div>
+                        <TicketChat
+                            ticket={ticket}
+                            isConnected={isConnected}
+                            onSendMessage={handleSendMessage}
+                            onImageClick={setLightboxImage}
+                            typingUsers={typingUsers}
+                            onTypingStart={() => sendTypingStart({ fullName: currentUser.fullName })}
+                            onTypingStop={sendTypingStop}
+                        />
+                    </div>
+                </div>
+
+                {/* RIGHT COLUMN: History & Audit (Scrollable) */}
+                <div className="w-full lg:w-1/4 flex flex-col gap-4 overflow-y-auto pl-2 custom-scrollbar pb-20 hidden xl:flex">
+                    <TicketHistory ticket={ticket} />
+                </div>
             </div>
 
             {/* Image Lightbox */}
@@ -286,7 +289,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             {/* Keyboard Shortcuts Button */}
             <button
                 onClick={() => setShowShortcutsModal(true)}
-                className="fixed bottom-6 right-6 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all z-40 group"
+                className="fixed bottom-6 right-6 p-3 glass-card-elevated hover:glass-shadow-medium hover:scale-105 transition-all z-40 group"
                 title="Keyboard shortcuts (Shift+?)"
             >
                 <Keyboard className="w-5 h-5 text-slate-500 group-hover:text-primary transition-colors" />
@@ -295,9 +298,9 @@ export const BentoTicketDetailPage: React.FC = () => {
             {/* Keyboard Shortcuts Modal */}
             {showShortcutsModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowShortcutsModal(false)}>
-                    <div 
+                    <div
                         ref={shortcutsModalRef}
-                        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                        className="glass-card-elevated max-w-md w-full overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
@@ -305,7 +308,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                                 <Keyboard className="w-5 h-5 text-primary" />
                                 Keyboard Shortcuts
                             </h3>
-                            <button 
+                            <button
                                 onClick={() => setShowShortcutsModal(false)}
                                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                             >
@@ -318,8 +321,8 @@ export const BentoTicketDetailPage: React.FC = () => {
                                     <span className="text-sm text-slate-600 dark:text-slate-400">{shortcut.description}</span>
                                     <div className="flex items-center gap-1">
                                         {shortcut.keys.map((key, j) => (
-                                            <kbd 
-                                                key={j} 
+                                            <kbd
+                                                key={j}
                                                 className="px-2 py-1 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-600"
                                             >
                                                 {key}

@@ -110,6 +110,7 @@ export const BentoTopbar = () => {
             case 'HIGH': return 'text-orange-500';
             case 'MEDIUM': return 'text-yellow-500';
             case 'LOW': return 'text-slate-400';
+            case 'HARDWARE_INSTALLATION': return 'text-amber-500';
             default: return 'text-slate-400';
         }
     };

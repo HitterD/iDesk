@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { BentoSidebar } from './BentoSidebar';
 import { BentoTopbar } from './BentoTopbar';
 import { MobileBottomNav } from './MobileBottomNav';
@@ -9,20 +9,21 @@ import { cn } from '@/lib/utils';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from '@/hooks/useKeyboardShortcuts';
 import { CommandPalette, useCommandPalette } from '@/components/ui/CommandPalette';
 import { Logo } from '@/components/ui/Logo';
+import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
 
 // Page transition variants - optimized for performance (no blur)
-const pageVariants = {
-    initial: { 
+const pageVariants: Variants = {
+    initial: {
         opacity: 0,
     },
-    animate: { 
+    animate: {
         opacity: 1,
         transition: {
             duration: 0.15,
             ease: 'easeOut'
         }
     },
-    exit: { 
+    exit: {
         opacity: 0,
         transition: {
             duration: 0.1,
@@ -45,14 +46,14 @@ export const BentoLayout = () => {
     return (
         <>
             {/* Skip Link for Accessibility */}
-            <a 
-                href="#main-content" 
+            <a
+                href="#main-content"
                 className="skip-link focus:top-4 focus:left-4 rounded-lg"
             >
                 Skip to main content
             </a>
 
-            <div className="flex h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300">
+            <div className="flex h-screen app-background-blobs bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300">
                 {/* Mobile Overlay */}
                 {isMobileMenuOpen && (
                     <div
@@ -96,8 +97,8 @@ export const BentoLayout = () => {
                     <div className="hidden lg:block">
                         <BentoTopbar />
                     </div>
-                    
-                    <main 
+
+                    <main
                         id="main-content"
                         className="flex-1 overflow-y-auto p-4 lg:p-8 pt-2 pb-20 lg:pb-8 scroll-smooth scrollbar-custom"
                     >
@@ -127,6 +128,9 @@ export const BentoLayout = () => {
                     isOpen={showShortcutsHelp}
                     onClose={() => setShowShortcutsHelp(false)}
                 />
+
+                {/* In-App Notification Toasts */}
+                <InAppNotificationToast />
             </div>
         </>
     );

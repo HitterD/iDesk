@@ -45,7 +45,7 @@ class UpdateTypePreferenceDto {
 @Controller('notifications/preferences')
 @UseGuards(JwtAuthGuard)
 export class NotificationPreferencesController {
-    constructor(private readonly notificationCenter: NotificationCenterService) {}
+    constructor(private readonly notificationCenter: NotificationCenterService) { }
 
     @Get()
     @ApiOperation({ summary: 'Get current user notification preferences' })
@@ -102,7 +102,7 @@ export class NotificationPreferencesController {
         @Body() dto: UpdateTypePreferenceDto
     ): Promise<NotificationPreference> {
         const channelSettings: Record<string, boolean> = {};
-        
+
         if (dto.channels.inApp !== undefined) channelSettings['in_app'] = dto.channels.inApp;
         if (dto.channels.email !== undefined) channelSettings['email'] = dto.channels.email;
         if (dto.channels.telegram !== undefined) channelSettings['telegram'] = dto.channels.telegram;
@@ -137,6 +137,8 @@ export class NotificationPreferencesController {
                 [NotificationType.RENEWAL_D7_WARNING]: 'Contract expiring in 7 days',
                 [NotificationType.RENEWAL_D1_WARNING]: 'Contract expiring tomorrow',
                 [NotificationType.RENEWAL_EXPIRED]: 'Contract has expired',
+                [NotificationType.HARDWARE_INSTALL_D1]: 'Hardware installation scheduled for tomorrow',
+                [NotificationType.HARDWARE_INSTALL_D0]: 'Hardware installation scheduled for today',
             },
         };
     }

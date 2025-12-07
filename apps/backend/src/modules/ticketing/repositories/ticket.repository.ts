@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { ITicketRepository } from './ticket.repository.interface';
 
 export interface PaginationOptions {
     page?: number;
@@ -30,13 +31,14 @@ export interface PaginatedResult<T> {
 /**
  * Ticket Repository - Handles all database operations for tickets
  * Follows Repository Pattern for clean separation of concerns
+ * Implements ITicketRepository interface for abstraction (4.1.3)
  */
 @Injectable()
-export class TicketRepository {
+export class TicketRepository implements ITicketRepository {
     constructor(
         @InjectRepository(Ticket)
         private readonly repo: Repository<Ticket>,
-    ) {}
+    ) { }
 
     /**
      * Find ticket with all relations loaded
@@ -161,6 +163,18 @@ export class TicketRepository {
     async findByStatus(status: TicketStatus): Promise<Ticket[]> {
         return this.repo.find({
             where: { status },
+            relations: ['user', 'assignedTo'],
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    /**
+     * Find overdue tickets (for SLA monitoring)
+     * Required by ITicketRepository interface
+     */
+    async findOverdue(): Promise<Ticket[]> {
+        return this.repo.find({
+            where: { isOverdue: true },
             relations: ['user', 'assignedTo'],
             order: { createdAt: 'DESC' },
         });

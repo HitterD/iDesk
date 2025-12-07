@@ -12,8 +12,10 @@ import {
     Loader2,
     ChevronDown,
     ChevronUp,
+    AlertCircle,
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { usePushNotifications } from '../../../hooks/usePushNotifications';
 
 interface NotificationPreference {
     id: string;
@@ -68,11 +70,11 @@ const getTypeSetting = (
     channel: string
 ): boolean => {
     const storageKey = CHANNEL_KEY_MAP[channel] || channel;
-    
+
     if (!typeSettings || !typeSettings[notificationType]) {
         return DEFAULT_TYPE_SETTINGS[channel] ?? true;
     }
-    
+
     const value = typeSettings[notificationType][storageKey];
     return value !== undefined ? value : (DEFAULT_TYPE_SETTINGS[channel] ?? true);
 };
@@ -80,6 +82,19 @@ const getTypeSetting = (
 export const NotificationSettings: React.FC = () => {
     const queryClient = useQueryClient();
     const [expandedSection, setExpandedSection] = useState<string | null>('channels');
+
+    // Push notification hook
+    const {
+        isSupported: isPushSupported,
+        isSubscribed: isPushSubscribed,
+        isLoading: isPushLoading,
+        isConfigured: isPushConfigured,
+        permission: pushPermission,
+        subscribe: subscribeToPush,
+        unsubscribe: unsubscribeFromPush,
+        subscriptionCount,
+        isPermissionDenied,
+    } = usePushNotifications();
 
     const { data: preferences, isLoading } = useQuery<NotificationPreference>({
         queryKey: ['notification-preferences'],
@@ -104,17 +119,17 @@ export const NotificationSettings: React.FC = () => {
         onMutate: async (newData) => {
             // Cancel any outgoing refetches
             await queryClient.cancelQueries({ queryKey: ['notification-preferences'] });
-            
+
             // Snapshot previous value
             const previousPrefs = queryClient.getQueryData<NotificationPreference>(['notification-preferences']);
-            
+
             // Convert camelCase to snake_case for storage
             const storageChannels: Record<string, boolean> = {};
             Object.entries(newData.channels).forEach(([key, value]) => {
                 const storageKey = CHANNEL_KEY_MAP[key] || key;
                 storageChannels[storageKey] = value;
             });
-            
+
             // Optimistically update
             if (previousPrefs) {
                 queryClient.setQueryData<NotificationPreference>(['notification-preferences'], {
@@ -128,7 +143,7 @@ export const NotificationSettings: React.FC = () => {
                     },
                 });
             }
-            
+
             return { previousPrefs };
         },
         onError: (_err, _newData, context) => {
@@ -145,6 +160,38 @@ export const NotificationSettings: React.FC = () => {
 
     const toggleChannel = (channel: string, enabled: boolean) => {
         updateMutation.mutate({ [`${channel}Enabled`]: enabled });
+    };
+
+    // Handle push notification toggle
+    const handlePushToggle = async (enabled: boolean) => {
+        if (enabled) {
+            const success = await subscribeToPush();
+            if (success) {
+                toggleChannel('push', true);
+                toast.success('Push notifications enabled');
+            } else {
+                if (isPermissionDenied) {
+                    toast.error('Push notifications blocked. Please enable in browser settings.');
+                } else {
+                    toast.error('Failed to enable push notifications');
+                }
+            }
+        } else {
+            const success = await unsubscribeFromPush();
+            if (success) {
+                toggleChannel('push', false);
+                toast.success('Push notifications disabled');
+            }
+        }
+    };
+
+    // Get push notification status description
+    const getPushDescription = (): string => {
+        if (!isPushSupported) return 'Not supported in this browser';
+        if (!isPushConfigured) return 'Not configured (missing VAPID keys)';
+        if (isPermissionDenied) return 'Blocked - enable in browser settings';
+        if (isPushSubscribed) return `Active on ${subscriptionCount} device(s)`;
+        return 'Receive notifications even when app is closed';
     };
 
     const updateDigest = (settings: Partial<NotificationPreference>) => {
@@ -227,11 +274,18 @@ export const NotificationSettings: React.FC = () => {
                         <ChannelToggle
                             icon={<Smartphone className="w-5 h-5" />}
                             label="Push Notifications"
-                            description="Coming soon"
-                            enabled={preferences.pushEnabled}
-                            onChange={(v) => toggleChannel('push', v)}
-                            disabled={true}
+                            description={getPushDescription()}
+                            enabled={isPushSubscribed && preferences.pushEnabled}
+                            onChange={handlePushToggle}
+                            disabled={!isPushSupported || !isPushConfigured || isPushLoading}
+                            loading={isPushLoading}
                         />
+                        {isPermissionDenied && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                <span>Push notifications are blocked. Enable them in your browser settings.</span>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -447,6 +501,7 @@ interface ChannelToggleProps {
     enabled: boolean;
     onChange: (enabled: boolean) => void;
     disabled?: boolean;
+    loading?: boolean;
 }
 
 const ChannelToggle: React.FC<ChannelToggleProps> = ({
@@ -456,8 +511,9 @@ const ChannelToggle: React.FC<ChannelToggleProps> = ({
     enabled,
     onChange,
     disabled = false,
+    loading = false,
 }) => (
-    <div className={`flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 ${disabled ? 'opacity-50' : ''}`}>
+    <div className={`flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 ${disabled || loading ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-3">
             <div className="text-slate-400">{icon}</div>
             <div>
@@ -466,19 +522,22 @@ const ChannelToggle: React.FC<ChannelToggleProps> = ({
             </div>
         </div>
         <button
-            onClick={() => !disabled && onChange(!enabled)}
-            disabled={disabled}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-                enabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'
-            } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+            onClick={() => !disabled && !loading && onChange(!enabled)}
+            disabled={disabled || loading}
+            className={`relative w-12 h-6 rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'
+                } ${disabled || loading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
         >
-            <span
-                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                    enabled ? 'left-7' : 'left-1'
-                }`}
-            />
+            {loading ? (
+                <Loader2 className="absolute top-1 left-4 w-4 h-4 animate-spin text-white" />
+            ) : (
+                <span
+                    className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? 'left-7' : 'left-1'
+                        }`}
+                />
+            )}
         </button>
     </div>
 );
 
 export default NotificationSettings;
+

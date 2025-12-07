@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2 } from 'lucide-react';
+import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive } from 'lucide-react';
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
@@ -10,6 +10,7 @@ import { useTheme } from '../../../components/theme-provider';
 
 // Lazy load SLA settings (admin only)
 const SlaSettingsTab = lazy(() => import('../../admin/pages/BentoSlaSettingsPage').then(m => ({ default: m.BentoSlaSettingsPage })));
+const StorageSettingsTab = lazy(() => import('../../admin/pages/StorageSettingsPage'));
 
 export const BentoSettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -31,7 +32,10 @@ export const BentoSettingsPage: React.FC = () => {
                         { value: 'notifications', icon: Bell, label: 'Notifications' },
                         { value: 'telegram', icon: MessageCircle, label: 'Telegram' },
                         { value: 'appearance', icon: Palette, label: 'Appearance' },
-                        ...(user?.role === 'ADMIN' ? [{ value: 'sla', icon: Clock, label: 'SLA Settings' }] : []),
+                        ...(user?.role === 'ADMIN' ? [
+                            { value: 'sla', icon: Clock, label: 'SLA Settings' },
+                            { value: 'storage', icon: HardDrive, label: 'Storage' }
+                        ] : []),
                     ].map((tab) => (
                         <Tabs.Trigger
                             key={tab.value}
@@ -120,6 +124,18 @@ export const BentoSettingsPage: React.FC = () => {
                                 </div>
                             }>
                                 <SlaSettingsTab />
+                            </Suspense>
+                        </Tabs.Content>
+                    )}
+
+                    {user?.role === 'ADMIN' && (
+                        <Tabs.Content value="storage" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <Suspense fallback={
+                                <div className="flex items-center justify-center h-64">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                </div>
+                            }>
+                                <StorageSettingsTab />
                             </Suspense>
                         </Tabs.Content>
                     )}

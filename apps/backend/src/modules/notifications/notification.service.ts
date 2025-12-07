@@ -11,7 +11,7 @@ export class NotificationService {
         @InjectRepository(Notification)
         private readonly notificationRepo: Repository<Notification>,
         private readonly eventsGateway: EventsGateway,
-    ) {}
+    ) { }
 
     async create(data: {
         userId: string;
@@ -93,6 +93,7 @@ export class NotificationService {
         const counts: Record<NotificationCategory, number> = {
             [NotificationCategory.CATEGORY_TICKET]: 0,
             [NotificationCategory.CATEGORY_RENEWAL]: 0,
+            [NotificationCategory.CATEGORY_HARDWARE]: 0,
         };
 
         for (const row of results) {
@@ -231,6 +232,7 @@ export class NotificationService {
 
     /**
      * Notify all admins and agents about a new ticket
+     * Optimized: Uses batch insert for efficiency
      */
     async notifyNewTicketToAdmins(
         ticketId: string,
@@ -241,18 +243,41 @@ export class NotificationService {
         requesterName: string,
         adminIds: string[],
     ) {
-        const notifications = [];
-        for (const adminId of adminIds) {
-            const notification = await this.create({
+        if (adminIds.length === 0) return [];
+
+        const category_ = getCategoryFromType(NotificationType.TICKET_CREATED);
+
+        // Create all notification entities in memory
+        const notificationEntities = adminIds.map(adminId =>
+            this.notificationRepo.create({
                 userId: adminId,
                 type: NotificationType.TICKET_CREATED,
+                category: category_,
                 title: '🎫 New Ticket',
                 message: `New ${priority} ticket from ${requesterName}: "${title}" [${category}]`,
                 ticketId,
                 link: `/admin/tickets/${ticketId}`,
+            })
+        );
+
+        // Batch insert - single database roundtrip
+        const savedNotifications = await this.notificationRepo.save(notificationEntities);
+
+        // Emit real-time notifications
+        for (const notification of savedNotifications) {
+            this.eventsGateway.server.emit(`notification:${notification.userId}`, {
+                id: notification.id,
+                type: notification.type,
+                category: notification.category,
+                title: notification.title,
+                message: notification.message,
+                ticketId: notification.ticketId,
+                link: notification.link,
+                isRead: notification.isRead,
+                createdAt: notification.createdAt,
             });
-            notifications.push(notification);
         }
-        return notifications;
+
+        return savedNotifications;
     }
 }

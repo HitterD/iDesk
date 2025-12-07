@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, CSSProperties } from 'react';
-import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
+// @ts-ignore
+import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { cn } from '@/lib/utils';
 
@@ -58,7 +59,7 @@ export function VirtualizedList<T>({
         );
     }
 
-    const Row = ({ index, style }: ListChildComponentProps) => {
+    const Row = ({ index, style }: any) => {
         const item = items[index];
         return <>{renderItem(item, index, style)}</>;
     };
@@ -102,7 +103,7 @@ export function VirtualizedTable<T>({
     containerHeight,
     className,
 }: VirtualizedTableProps<T>) {
-    const Row = ({ index, style }: ListChildComponentProps) => {
+    const Row = ({ index, style }: any) => {
         const item = items[index];
         return (
             <div style={style}>
@@ -138,7 +139,7 @@ export function useInfiniteScroll(
     const loadMoreRef = useCallback(
         (node: HTMLDivElement | null) => {
             if (!enabled) return;
-            
+
             if (observerRef.current) {
                 observerRef.current.disconnect();
             }

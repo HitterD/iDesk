@@ -1,0 +1,378 @@
+/* ========================================
+   GLASSMORPHISM DESIGN SYSTEM - V6 Complete
+   ======================================== */
+
+/* ========================================
+   LIGHT MODE TOKENS
+   ======================================== */
+:root {
+    /* Glass Background Colors - Light Mode */
+    --glass-bg: rgba(255, 255, 255, 0.65);
+    --glass-bg-elevated: rgba(255, 255, 255, 0.75);
+    --glass-bg-subtle: rgba(255, 255, 255, 0.35);
+
+    /* Backdrop Blur Specifications */
+    --glass-blur: blur(20px);
+    --glass-blur-elevated: blur(32px);
+    --glass-blur-subtle: blur(12px);
+
+    /* Glass Border Colors - Light Mode */
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --glass-border-subtle: rgba(255, 255, 255, 0.2);
+    --glass-border-highlight: rgba(255, 255, 255, 0.6);
+
+    /* Glass Shadows - Light Mode */
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+    --glass-shadow-subtle: 0 4px 12px rgba(0, 0, 0, 0.04);
+    --glass-shadow-light: 0 4px 6px rgba(0, 0, 0, 0.03), 0 12px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    --glass-shadow-medium: 0 8px 16px rgba(0, 0, 0, 0.06), 0 20px 40px rgba(0, 0, 0, 0.1), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+    --glass-shadow-heavy: 0 10px 20px rgba(0, 0, 0, 0.08), 0 30px 60px rgba(0, 0, 0, 0.15), inset 0 2px 0 rgba(255, 255, 255, 0.9);
+
+    /* Glass Accent Glow */
+    --glass-accent-glow: 0 0 20px rgba(92, 184, 138, 0.15);
+
+    /* App Background Gradients - Light Mode */
+    --app-bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --app-bg-blobs: radial-gradient(circle at 20% 80%, rgba(168, 230, 207, 0.5) 0%, transparent 30%),
+        radial-gradient(circle at 80% 20%, rgba(255, 200, 200, 0.4) 0%, transparent 30%),
+        radial-gradient(circle at 50% 50%, rgba(180, 200, 255, 0.3) 0%, transparent 40%);
+
+    /* Typography for Glass */
+    --glass-text-h1: rgba(30, 41, 59, 0.95);
+    --glass-text-h2: rgba(30, 41, 59, 0.90);
+    --glass-text-h3: rgba(30, 41, 59, 0.85);
+    --glass-text-body: rgba(30, 41, 59, 0.80);
+    --glass-text-caption: rgba(30, 41, 59, 0.60);
+    --glass-text-label: rgba(30, 41, 59, 0.70);
+}
+
+/* ========================================
+   DARK MODE TOKENS
+   ======================================== */
+.dark {
+    --glass-bg: rgba(30, 41, 59, 0.70);
+    --glass-bg-elevated: rgba(30, 41, 59, 0.80);
+    --glass-bg-subtle: rgba(30, 41, 59, 0.50);
+    --glass-blur: blur(24px);
+    --glass-blur-elevated: blur(36px);
+    --glass-blur-subtle: blur(16px);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-border-subtle: rgba(255, 255, 255, 0.05);
+    --glass-border-highlight: rgba(255, 255, 255, 0.15);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.08);
+    --glass-shadow-subtle: 0 4px 12px rgba(0, 0, 0, 0.25);
+    --glass-shadow-light: 0 4px 6px rgba(0, 0, 0, 0.2), 0 12px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --glass-shadow-medium: 0 8px 16px rgba(0, 0, 0, 0.3), 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.08);
+    --glass-shadow-heavy: 0 10px 20px rgba(0, 0, 0, 0.35), 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.1);
+    --glass-accent-glow: 0 0 30px rgba(92, 184, 138, 0.2);
+    --app-bg-gradient: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+    --app-bg-blobs: radial-gradient(circle at 20% 80%, rgba(92, 184, 138, 0.2) 0%, transparent 30%),
+        radial-gradient(circle at 80% 20%, rgba(147, 51, 234, 0.15) 0%, transparent 30%),
+        radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
+    --glass-text-h1: rgba(255, 255, 255, 0.95);
+    --glass-text-h2: rgba(255, 255, 255, 0.90);
+    --glass-text-h3: rgba(255, 255, 255, 0.85);
+    --glass-text-body: rgba(255, 255, 255, 0.80);
+    --glass-text-caption: rgba(255, 255, 255, 0.60);
+    --glass-text-label: rgba(255, 255, 255, 0.70);
+}
+
+/* ========================================
+   GLASS CARD UTILITY CLASSES
+   ======================================== */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: var(--glass-shadow);
+}
+
+.glass-card-elevated {
+    background: var(--glass-bg-elevated);
+    backdrop-filter: var(--glass-blur-elevated);
+    -webkit-backdrop-filter: var(--glass-blur-elevated);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: var(--glass-shadow-elevated);
+}
+
+.glass-card-subtle {
+    background: var(--glass-bg-subtle);
+    backdrop-filter: var(--glass-blur-subtle);
+    -webkit-backdrop-filter: var(--glass-blur-subtle);
+    border: 1px solid var(--glass-border-subtle);
+}
+
+/* ========================================
+   GLASS BORDER & SHADOW UTILITIES
+   ======================================== */
+.glass-border {
+    border: 1px solid var(--glass-border);
+    border-top-color: var(--glass-border-highlight);
+    border-left-color: var(--glass-border-highlight);
+}
+
+.glass-border-accent {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-border-accent:hover {
+    border-color: rgba(92, 184, 138, 0.4);
+    box-shadow: var(--glass-shadow), var(--glass-accent-glow);
+}
+
+.glass-shadow-light {
+    box-shadow: var(--glass-shadow-light);
+}
+
+.glass-shadow-medium {
+    box-shadow: var(--glass-shadow-medium);
+}
+
+.glass-shadow-heavy {
+    box-shadow: var(--glass-shadow-heavy);
+}
+
+/* ========================================
+   APP BACKGROUND CLASSES
+   ======================================== */
+.app-background {
+    background: var(--app-bg-gradient);
+    background-attachment: fixed;
+}
+
+.app-background-blobs {
+    background-color: #f3f4f6;
+    background-image: var(--app-bg-blobs);
+}
+
+.dark .app-background-blobs {
+    background-color: #0f172a;
+}
+
+/* ========================================
+   GLASS TYPOGRAPHY UTILITIES
+   ======================================== */
+.glass-text-h1 {
+    color: var(--glass-text-h1);
+}
+
+.glass-text-h2 {
+    color: var(--glass-text-h2);
+}
+
+.glass-text-h3 {
+    color: var(--glass-text-h3);
+}
+
+.glass-text-body {
+    color: var(--glass-text-body);
+}
+
+.glass-text-caption {
+    color: var(--glass-text-caption);
+}
+
+.glass-text-label {
+    color: var(--glass-text-label);
+}
+
+/* ========================================
+   PERFORMANCE FALLBACKS
+   ======================================== */
+@supports not (backdrop-filter: blur(20px)) {
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    .glass-card-elevated {
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    }
+
+    .glass-card-subtle {
+        background: rgba(255, 255, 255, 0.90);
+    }
+
+    .dark .glass-card {
+        background: rgba(30, 41, 59, 0.95);
+    }
+
+    .dark .glass-card-elevated {
+        background: rgba(30, 41, 59, 0.98);
+    }
+
+    .dark .glass-card-subtle {
+        background: rgba(30, 41, 59, 0.90);
+    }
+}
+
+/* ========================================
+   PHASE 6: POLISH & MICRO-INTERACTIONS
+   ======================================== */
+
+/* Smooth transitions for glass elements */
+.glass-card,
+.glass-card-elevated,
+.glass-card-subtle {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.3s ease;
+}
+
+/* Hover effects */
+.glass-hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--glass-shadow-elevated);
+}
+
+.glass-hover-scale:hover {
+    transform: scale(1.02);
+}
+
+/* Shimmer effect */
+.glass-shimmer {
+    position: relative;
+    overflow: hidden;
+}
+
+.glass-shimmer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.glass-shimmer:hover::before {
+    left: 100%;
+}
+
+/* Pulse glow animation */
+@keyframes glass-pulse {
+
+    0%,
+    100% {
+        box-shadow: var(--glass-shadow), 0 0 0 0 rgba(92, 184, 138, 0.4);
+    }
+
+    50% {
+        box-shadow: var(--glass-shadow), 0 0 20px 4px rgba(92, 184, 138, 0.2);
+    }
+}
+
+.glass-pulse {
+    animation: glass-pulse 2s ease-in-out infinite;
+}
+
+/* Float animation */
+@keyframes glass-float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.glass-float {
+    animation: glass-float 3s ease-in-out infinite;
+}
+
+/* Gradient shift animation */
+@keyframes gradient-shift {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.glass-gradient-animate {
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+}
+
+/* Focus ring for accessibility */
+.glass-focus:focus-visible {
+    outline: none;
+    box-shadow: var(--glass-shadow), 0 0 0 3px rgba(92, 184, 138, 0.5);
+}
+
+/* Active/pressed state */
+.glass-active:active {
+    transform: scale(0.98);
+    box-shadow: var(--glass-shadow-subtle);
+}
+
+/* Loading skeleton */
+@keyframes glass-skeleton {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.glass-skeleton {
+    background: linear-gradient(90deg, var(--glass-bg-subtle) 25%, var(--glass-bg) 50%, var(--glass-bg-subtle) 75%);
+    background-size: 200% 100%;
+    animation: glass-skeleton 1.5s ease infinite;
+}
+
+/* Blur-in animation */
+@keyframes blur-in {
+    from {
+        opacity: 0;
+        filter: blur(10px);
+    }
+
+    to {
+        opacity: 1;
+        filter: blur(0);
+    }
+}
+
+.glass-blur-in {
+    animation: blur-in 0.4s ease-out forwards;
+}
+
+/* Stagger delays */
+.glass-stagger-1 {
+    animation-delay: 0.05s;
+}
+
+.glass-stagger-2 {
+    animation-delay: 0.1s;
+}
+
+.glass-stagger-3 {
+    animation-delay: 0.15s;
+}
+
+.glass-stagger-4 {
+    animation-delay: 0.2s;
+}
+
+.glass-stagger-5 {
+    animation-delay: 0.25s;
+}

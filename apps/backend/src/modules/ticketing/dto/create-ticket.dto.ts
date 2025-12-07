@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString, IsOptional, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, IsOptional, MaxLength, MinLength, IsBoolean, IsDateString, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketPriority, TicketSource } from '../entities/ticket.entity';
@@ -15,10 +15,10 @@ export class CreateTicketDto {
     @NoSqlInjection()
     title: string;
 
-    @ApiProperty({ example: 'I am unable to login since this morning...', minLength: 10, maxLength: 5000 })
+    @ApiProperty({ example: 'I am unable to login since this morning...', minLength: 3, maxLength: 5000 })
     @IsString()
     @IsNotEmpty()
-    @MinLength(10, { message: 'Description must be at least 10 characters' })
+    @MinLength(3, { message: 'Description must be at least 3 characters' })
     @MaxLength(5000, { message: 'Description cannot exceed 5000 characters' })
     @Sanitize()
     description: string;
@@ -56,4 +56,39 @@ export class CreateTicketDto {
     @Sanitize({ removeHtml: true })
     @Transform(({ value }) => value || undefined)
     software?: string;
+
+    // === Hardware Installation Fields ===
+
+    @ApiPropertyOptional({ example: false, description: 'Is this a hardware installation request?' })
+    @IsBoolean()
+    @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true)
+    isHardwareInstallation?: boolean;
+
+    @ApiPropertyOptional({ example: '2025-01-15', description: 'Scheduled installation date (YYYY-MM-DD)' })
+    @IsDateString()
+    @IsOptional()
+    scheduledDate?: string;
+
+    @ApiPropertyOptional({ example: '09:00', description: 'Scheduled time slot (HH:mm)' })
+    @IsString()
+    @IsOptional()
+    @Matches(/^(0[89]|1[0-1]|1[4-5]):00$/, {
+        message: 'Time slot must be 08:00, 09:00, 10:00, 11:00, 14:00, or 15:00'
+    })
+    scheduledTime?: string;
+
+    @ApiPropertyOptional({ example: 'PC', description: 'Hardware type: PC, IP_PHONE, PRINTER, or custom' })
+    @IsString()
+    @IsOptional()
+    @MaxLength(50)
+    @Sanitize({ removeHtml: true })
+    hardwareType?: string;
+
+    @ApiPropertyOptional({ example: true, description: 'User acknowledges the 2-4 hour schedule block' })
+    @IsBoolean()
+    @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true)
+    userAcknowledged?: boolean;
 }
+

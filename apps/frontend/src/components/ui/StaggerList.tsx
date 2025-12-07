@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface StaggerListProps<T> {
@@ -14,7 +14,7 @@ interface StaggerListProps<T> {
 }
 
 // Stagger animation variants
-const containerVariants = {
+const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: (staggerDelay: number) => ({
         opacity: 1,
@@ -25,7 +25,7 @@ const containerVariants = {
     }),
 };
 
-const getItemVariants = (direction: string, duration: number) => {
+const getItemVariants = (direction: string, duration: number): Variants => {
     const offset = 20;
     const initialPosition = {
         up: { y: offset },
@@ -35,19 +35,19 @@ const getItemVariants = (direction: string, duration: number) => {
     }[direction] || { y: offset };
 
     return {
-        hidden: { 
-            opacity: 0, 
+        hidden: {
+            opacity: 0,
             ...initialPosition,
             filter: 'blur(4px)',
         },
-        visible: { 
-            opacity: 1, 
-            y: 0, 
+        visible: {
+            opacity: 1,
+            y: 0,
             x: 0,
             filter: 'blur(0px)',
             transition: {
                 duration,
-                ease: [0.25, 0.1, 0.25, 1],
+                ease: [0.25, 0.1, 0.25, 1] as const,
             },
         },
     };

@@ -14,6 +14,7 @@ import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
 import { TelegramService } from '../../telegram/telegram.service';
+import { BusinessHoursService } from '../../sla-config/business-hours.service';
 
 @Injectable()
 export class TicketUpdateService {
@@ -34,6 +35,8 @@ export class TicketUpdateService {
         private readonly eventEmitter: EventEmitter2,
         @Optional() @Inject(forwardRef(() => TelegramService))
         private readonly telegramService: TelegramService,
+        @Optional()
+        private readonly businessHoursService: BusinessHoursService,
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
@@ -64,9 +67,18 @@ export class TicketUpdateService {
                 });
 
                 if (slaConfig) {
-                    // Resolution Target
-                    ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
-                    changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
+                    // Use business hours for SLA calculation if available
+                    if (this.businessHoursService) {
+                        ticket.slaTarget = await this.businessHoursService.calculateSlaTarget(
+                            now,
+                            slaConfig.resolutionTimeMinutes
+                        );
+                        changes.push(`SLA Timer started (business hours). Target: ${ticket.slaTarget.toISOString()}`);
+                    } else {
+                        // Fallback: simple calendar time calculation
+                        ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+                        changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
+                    }
                 }
             }
 
@@ -110,6 +122,16 @@ export class TicketUpdateService {
         }
 
         if (updateData.priority && updateData.priority !== ticket.priority) {
+            // === HARDWARE_INSTALLATION Priority Protection ===
+            // Block manual changes TO HARDWARE_INSTALLATION
+            if (updateData.priority === 'HARDWARE_INSTALLATION') {
+                throw new BadRequestException('Cannot manually set priority to HARDWARE_INSTALLATION. This priority is system-assigned for hardware installation tickets.');
+            }
+            // Block manual changes FROM HARDWARE_INSTALLATION
+            if (ticket.priority === 'HARDWARE_INSTALLATION') {
+                throw new BadRequestException('Cannot change priority of hardware installation tickets. Priority HARDWARE_INSTALLATION is locked by the system.');
+            }
+
             changes.push(`Priority changed from ${ticket.priority} to ${updateData.priority}`);
 
             // Recalculate SLA Target based on new priority (only if SLA has started)

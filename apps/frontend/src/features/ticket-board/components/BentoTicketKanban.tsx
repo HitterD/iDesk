@@ -50,7 +50,7 @@ interface Ticket {
     description?: string;
     category?: string;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
-    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
     slaTarget?: string;
     assignedTo?: { id: string; fullName: string };
@@ -255,7 +255,7 @@ const EnhancedKanbanCard: React.FC<{
 };
 
 const KanbanColumn: React.FC<{
-    column: typeof KANBAN_COLUMNS[0];
+    column: typeof KANBAN_COLUMNS[number];
     tickets: Ticket[];
     isCollapsed: boolean;
     onToggleCollapse: () => void;
@@ -416,29 +416,40 @@ const TicketPreviewPanel: React.FC<{
                         </SelectContent>
                     </Select>
 
-                    <Select value={ticket.priority} onValueChange={onPriorityChange}>
-                        <SelectTrigger className={cn("h-8 w-[110px] border-0 text-xs", priorityConfig.badgeColor)}>
-                            <SelectValue>
-                                <span className="flex items-center gap-1.5">
-                                    {PriorityIcon && <PriorityIcon className="w-3 h-3" />}
-                                    {priorityConfig.label}
-                                </span>
-                            </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => {
-                                const PIcon = cfg.icon;
-                                return (
-                                    <SelectItem key={key} value={key}>
-                                        <span className="flex items-center gap-1.5">
-                                            {PIcon && <PIcon className="w-3 h-3" />}
-                                            {cfg.label}
-                                        </span>
-                                    </SelectItem>
-                                );
-                            })}
-                        </SelectContent>
-                    </Select>
+                    {/* Priority - show static badge if system-locked, otherwise dropdown */}
+                    {priorityConfig.isSystemLocked ? (
+                        <span className={cn("inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium", priorityConfig.badgeColor)}>
+                            {PriorityIcon && <PriorityIcon className="w-3 h-3" />}
+                            {priorityConfig.label}
+                        </span>
+                    ) : (
+                        <Select value={ticket.priority} onValueChange={onPriorityChange}>
+                            <SelectTrigger className={cn("h-8 w-[110px] border-0 text-xs", priorityConfig.badgeColor)}>
+                                <SelectValue>
+                                    <span className="flex items-center gap-1.5">
+                                        {PriorityIcon && <PriorityIcon className="w-3 h-3" />}
+                                        {priorityConfig.label}
+                                    </span>
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(PRIORITY_CONFIG)
+                                    .filter(([, cfg]) => !cfg.isSystemLocked)
+                                    .map(([key, cfg]) => {
+                                        const PIcon = cfg.icon;
+                                        return (
+                                            <SelectItem key={key} value={key}>
+                                                <span className="flex items-center gap-1.5">
+                                                    {PIcon && <PIcon className="w-3 h-3" />}
+                                                    {cfg.label}
+                                                </span>
+                                            </SelectItem>
+                                        );
+                                    })
+                                }
+                            </SelectContent>
+                        </Select>
+                    )}
                 </div>
 
                 {/* Assignee */}
@@ -673,15 +684,15 @@ export const BentoTicketKanban = () => {
 
                     {/* View Toggle */}
                     <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <button 
+                        <button
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-medium"
                             title="Kanban Board"
                         >
                             <Columns3 className="w-4 h-4" />
                             <span className="text-xs font-medium hidden md:inline">Kanban</span>
                         </button>
-                        <button 
-                            onClick={() => navigate('/tickets/list')} 
+                        <button
+                            onClick={() => navigate('/tickets/list')}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
                             title="Table View"
                         >

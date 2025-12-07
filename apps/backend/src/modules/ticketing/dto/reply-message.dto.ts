@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsUUID, MaxLength, MinLength, IsOptional, IsArray } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID, MaxLength, MinLength, IsOptional, IsArray, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 
@@ -26,4 +26,9 @@ export class ReplyMessageDto {
     @IsArray()
     @IsUUID('4', { each: true })
     mentionedUserIds?: string[];
+
+    @ApiPropertyOptional({ description: 'Mark as internal note (only visible to agents/admins)' })
+    @IsOptional()
+    @IsBoolean()
+    isInternal?: boolean;
 }

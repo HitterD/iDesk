@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany, Index } from 'typeorm';
 import { ArticleView } from './article-view.entity';
 
 export enum ArticleStatus {
@@ -14,6 +14,9 @@ export enum ArticleVisibility {
 }
 
 @Entity('articles')
+@Index(['status'])
+@Index(['status', 'visibility'])
+@Index(['category'])
 export class Article {
     @PrimaryGeneratedColumn('uuid')
     id: string;

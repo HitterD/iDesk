@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-    ArrowLeft, 
-    Clock, 
-    Send, 
-    Paperclip, 
-    CheckCircle, 
+import {
+    ArrowLeft,
+    Clock,
+    Send,
+    Paperclip,
+    CheckCircle,
     User,
     Calendar,
     Tag,
@@ -15,12 +15,18 @@ import {
     FileText,
     Wifi,
     XCircle,
-    Ban
+    Ban,
+    X,
+    Download,
+    Image,
+    Wrench,
+    HardDrive
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
 import { useTicketSocket } from '@/hooks/useTicketSocket';
+import { getAttachmentUrl, isImageUrl } from '@/features/ticket-board/components/ticket-detail/utils';
 
 interface Message {
     id: string;
@@ -44,6 +50,11 @@ interface Ticket {
     createdAt: string;
     updatedAt: string;
     slaTarget?: string;
+    // Hardware Installation fields
+    isHardwareInstallation?: boolean;
+    scheduledDate?: string;
+    scheduledTime?: string;
+    hardwareType?: string;
     user?: { fullName: string; email: string };
     assignedTo?: { fullName: string };
     messages?: Message[];
@@ -62,6 +73,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
     HIGH: { label: 'High', color: 'text-orange-600' },
     MEDIUM: { label: 'Medium', color: 'text-yellow-600' },
     LOW: { label: 'Low', color: 'text-slate-500' },
+    HARDWARE_INSTALLATION: { label: 'Hardware Installation', color: 'text-amber-600' },
 };
 
 const formatDate = (dateString: string) => {
@@ -96,6 +108,7 @@ export const ClientTicketDetailPage: React.FC = () => {
     const { user } = useAuth();
     const [newMessage, setNewMessage] = useState('');
     const [files, setFiles] = useState<File[]>([]);
+    const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -281,26 +294,67 @@ export const ClientTicketDetailPage: React.FC = () => {
                                                     {formatTimeAgo(message.createdAt)}
                                                 </span>
                                             </div>
-                                            <div className={`p-4 rounded-2xl ${
-                                                isOwn 
-                                                    ? 'bg-primary text-slate-900 rounded-br-md' 
-                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white rounded-bl-md'
-                                            }`}>
+                                            <div className={`p-4 rounded-2xl ${isOwn
+                                                ? 'bg-primary text-slate-900 rounded-br-md'
+                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white rounded-bl-md'
+                                                }`}>
                                                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                                                 {message.attachments && message.attachments.length > 0 && (
-                                                    <div className="mt-2 space-y-1">
-                                                        {message.attachments.map((file, i) => (
-                                                            <a 
-                                                                key={i} 
-                                                                href={file} 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer"
-                                                                className="flex items-center gap-1 text-xs underline"
-                                                            >
-                                                                <FileText className="w-3 h-3" />
-                                                                Attachment {i + 1}
-                                                            </a>
-                                                        ))}
+                                                    <div className="mt-2 pt-2 border-t border-black/10 space-y-2">
+                                                        {message.attachments
+                                                            .filter(url => !url.startsWith('telegram:photo:') && !url.startsWith('telegram:document:'))
+                                                            .map((file, i) => {
+                                                                const fullUrl = getAttachmentUrl(file);
+                                                                if (!fullUrl) return null;
+
+                                                                if (isImageUrl(file)) {
+                                                                    return (
+                                                                        <div
+                                                                            key={i}
+                                                                            className="cursor-pointer group relative inline-block"
+                                                                            onClick={() => setLightboxImage(fullUrl)}
+                                                                        >
+                                                                            <img
+                                                                                src={fullUrl}
+                                                                                alt={`Attachment ${i + 1}`}
+                                                                                className={`max-w-[180px] max-h-[120px] rounded-lg object-cover border-2 transition-colors ${isOwn
+                                                                                    ? 'border-slate-800/20 group-hover:border-slate-800/50'
+                                                                                    : 'border-white/20 group-hover:border-primary/50'
+                                                                                    }`}
+                                                                                onError={(e) => {
+                                                                                    const target = e.target as HTMLImageElement;
+                                                                                    target.style.display = 'none';
+                                                                                }}
+                                                                            />
+                                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 rounded-lg transition-colors flex items-center justify-center">
+                                                                                <span className={`opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded ${isOwn ? 'bg-slate-900/70 text-white' : 'bg-black/60 text-white'
+                                                                                    }`}>
+                                                                                    🔍 Perbesar
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                } else {
+                                                                    return (
+                                                                        <a
+                                                                            key={i}
+                                                                            href={fullUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${isOwn
+                                                                                ? 'bg-slate-900/10 hover:bg-slate-900/20'
+                                                                                : 'bg-white/10 hover:bg-white/20'
+                                                                                }`}
+                                                                        >
+                                                                            <FileText className="w-4 h-4" />
+                                                                            <span className="text-xs truncate max-w-[120px]">
+                                                                                {file.split('/').pop() || `File ${i + 1}`}
+                                                                            </span>
+                                                                            <Download className="w-3 h-3 opacity-50" />
+                                                                        </a>
+                                                                    );
+                                                                }
+                                                            })}
                                                     </div>
                                                 )}
                                             </div>
@@ -453,13 +507,51 @@ export const ClientTicketDetailPage: React.FC = () => {
                         </div>
                     )}
 
+                    {/* Hardware Installation Info */}
+                    {ticket.isHardwareInstallation && (
+                        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-800 p-6">
+                            <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-4 flex items-center gap-2">
+                                <HardDrive className="w-5 h-5" />
+                                Installation Schedule
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl">
+                                    <Wrench className="w-5 h-5 text-amber-600" />
+                                    <div>
+                                        <p className="text-xs text-amber-600 dark:text-amber-400">Hardware Type</p>
+                                        <p className="font-bold text-slate-800 dark:text-white">{ticket.hardwareType || 'Not specified'}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-xl text-center">
+                                        <p className="text-xs text-slate-500 mb-1">Date</p>
+                                        <p className="font-bold text-slate-800 dark:text-white text-sm">
+                                            {ticket.scheduledDate
+                                                ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                : '-'}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-xl text-center">
+                                        <p className="text-xs text-slate-500 mb-1">Time</p>
+                                        <p className="font-bold text-slate-800 dark:text-white text-sm">
+                                            {ticket.scheduledTime ? `${ticket.scheduledTime} WIB` : '-'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-amber-700 dark:text-amber-400">
+                                    ⚠️ Installation takes 2-4 hours. Please be available.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Help */}
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-6">
                         <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2">Need more help?</h3>
                         <p className="text-sm text-blue-700 dark:text-blue-400 mb-4">
                             Check our knowledge base for solutions to common problems.
                         </p>
-                        <Link 
+                        <Link
                             to="/client/kb"
                             className="text-sm text-primary font-medium hover:underline"
                         >
@@ -468,6 +560,37 @@ export const ClientTicketDetailPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Image Lightbox Modal */}
+            {lightboxImage && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in"
+                    onClick={() => setLightboxImage(null)}
+                >
+                    <button
+                        onClick={() => setLightboxImage(null)}
+                        className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
+                    <img
+                        src={lightboxImage}
+                        alt="Full size preview"
+                        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    <a
+                        href={lightboxImage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Download className="w-4 h-4" />
+                        Download
+                    </a>
+                </div>
+            )}
         </div>
     );
 };

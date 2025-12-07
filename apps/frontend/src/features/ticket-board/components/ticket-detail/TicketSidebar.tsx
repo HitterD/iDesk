@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserCheck, Tag, Inbox, CircleDot, Hourglass, CheckCircle2, User, Building, AlertCircle, XCircle, Ban } from 'lucide-react';
+import { UserCheck, Tag, Inbox, CircleDot, Hourglass, CheckCircle2, User, Building, AlertCircle, XCircle, Ban, Calendar, Wrench } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -63,7 +63,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 <div className="p-4">
                     <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Assigned To</label>
                     <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 shadow-sm text-slate-800 dark:text-white">
+                        <SelectTrigger className="w-full text-slate-800 dark:text-white">
                             <SelectValue placeholder="Select Agent" />
                         </SelectTrigger>
                         <SelectContent>
@@ -86,7 +86,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <div>
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Status</label>
                         <Select value={status} onValueChange={setStatus}>
-                            <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 shadow-sm text-slate-800 dark:text-white">
+                            <SelectTrigger className="w-full text-slate-800 dark:text-white">
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>
@@ -116,30 +116,37 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                     <div>
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Priority</label>
-                        <Select value={priority} onValueChange={setPriority}>
-                            <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 shadow-sm text-slate-800 dark:text-white">
-                                <SelectValue placeholder="Priority" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {slaConfigs.map((sla) => (
-                                    <SelectItem key={sla.id} value={sla.priority}>
-                                        <span className="flex items-center gap-2">
-                                            <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${sla.priority === 'CRITICAL' ? 'bg-red-500' :
+                        {ticket.priority === 'HARDWARE_INSTALLATION' ? (
+                            <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                <span className="font-medium text-amber-700 dark:text-amber-400">Hardware Installation</span>
+                            </div>
+                        ) : (
+                            <Select value={priority} onValueChange={setPriority}>
+                                <SelectTrigger className="w-full text-slate-800 dark:text-white">
+                                    <SelectValue placeholder="Priority" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {slaConfigs.map((sla) => (
+                                        <SelectItem key={sla.id} value={sla.priority}>
+                                            <span className="flex items-center gap-2">
+                                                <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${sla.priority === 'CRITICAL' ? 'bg-red-500' :
                                                     sla.priority === 'HIGH' ? 'bg-orange-500' :
                                                         sla.priority === 'MEDIUM' ? 'bg-yellow-500' : 'bg-slate-400'
-                                                }`}></span>
-                                            {sla.priority}
-                                        </span>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                                                    }`}></span>
+                                                {sla.priority}
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
 
                     <div>
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Category</label>
                         <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 shadow-sm text-slate-800 dark:text-white">
+                            <SelectTrigger className="w-full text-slate-800 dark:text-white">
                                 <SelectValue placeholder="Category" />
                             </SelectTrigger>
                             <SelectContent>
@@ -147,6 +154,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                 <SelectItem value="HARDWARE">Hardware</SelectItem>
                                 <SelectItem value="SOFTWARE">Software</SelectItem>
                                 <SelectItem value="NETWORK">Network</SelectItem>
+                                <SelectItem value="HARDWARE_INSTALLATION">Hardware Installation</SelectItem>
                                 {attributes.categories.map((attr: any) => (
                                     <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
                                 ))}
@@ -157,7 +165,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <div>
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Device</label>
                         <Select value={device} onValueChange={setDevice}>
-                            <SelectTrigger className="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 shadow-sm text-slate-800 dark:text-white">
+                            <SelectTrigger className="w-full text-slate-800 dark:text-white">
                                 <SelectValue placeholder="Select Device" />
                             </SelectTrigger>
                             <SelectContent>
@@ -169,6 +177,54 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     </div>
                 </div>
             </CollapsibleSection>
+
+            {/* Hardware Installation Info Card - Only shown for hardware installation tickets */}
+            {ticket.isHardwareInstallation && (
+                <CollapsibleSection
+                    id="ticket-hardware-info"
+                    title="Installation Schedule"
+                    icon={Calendar}
+                    defaultOpen={true}
+                >
+                    <div className="p-4 space-y-3">
+                        <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
+                            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-lg flex items-center justify-center">
+                                <Wrench className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Hardware Type</p>
+                                <p className="font-bold text-amber-800 dark:text-amber-300">{ticket.hardwareType || 'Not specified'}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Scheduled Date</p>
+                                <p className="font-bold text-slate-800 dark:text-white text-sm">
+                                    {ticket.scheduledDate
+                                        ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', {
+                                            weekday: 'short',
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric'
+                                        })
+                                        : '-'}
+                                </p>
+                            </div>
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Time Slot</p>
+                                <p className="font-bold text-slate-800 dark:text-white text-sm">
+                                    {ticket.scheduledTime ? `${ticket.scheduledTime} WIB` : '-'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <strong>Note:</strong> Installation takes 2-4 hours. Ticket will auto-resolve on H+1 if not manually resolved.
+                        </div>
+                    </div>
+                </CollapsibleSection>
+            )}
 
             {/* Requester Info Card */}
             <CollapsibleSection
@@ -196,8 +252,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
             {/* Actions Card */}
             {!isClosed && (
-                <div className="bg-gradient-to-br from-red-50 to-white dark:from-red-900/10 dark:to-slate-800 rounded-2xl border border-red-200/70 dark:border-red-900/50 overflow-hidden shadow-lg shadow-red-200/20 dark:shadow-red-900/20">
-                    <div className="px-4 py-3 bg-gradient-to-r from-red-100/80 to-red-50/80 dark:from-red-900/30 dark:to-red-900/20 border-b border-red-200/60 dark:border-red-900/40">
+                <div className="glass-card border-red-200/50 dark:border-red-900/50 overflow-hidden shadow-lg shadow-red-200/20 dark:shadow-red-900/20">
+                    <div className="px-4 py-3 bg-red-50/50 dark:bg-red-900/20 border-b border-red-200/60 dark:border-red-900/40 backdrop-blur-sm">
                         <h4 className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
                             <div className="w-6 h-6 rounded-md bg-gradient-to-br from-red-500/20 to-red-500/10 flex items-center justify-center">
                                 <AlertCircle className="w-3.5 h-3.5 text-red-500" />

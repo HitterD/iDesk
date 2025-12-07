@@ -8,6 +8,7 @@ import {
     OneToMany,
     JoinColumn,
     Index,
+    VersionColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from './ticket-message.entity';
@@ -25,6 +26,7 @@ export enum TicketPriority {
     MEDIUM = 'MEDIUM',
     HIGH = 'HIGH',
     CRITICAL = 'CRITICAL',
+    HARDWARE_INSTALLATION = 'HARDWARE_INSTALLATION',
 }
 
 export enum TicketSource {
@@ -138,4 +140,33 @@ export class Ticket {
 
     @Column({ type: 'int', default: 0 })
     totalWaitingVendorMinutes: number;
+
+    // === Hardware Installation Fields ===
+
+    @Column({ default: false })
+    isHardwareInstallation: boolean;
+
+    @Column({ nullable: true })
+    scheduledDate: Date;
+
+    @Column({ nullable: true })
+    scheduledTime: string;  // e.g., "08:00", "09:00", etc.
+
+    @Column({ nullable: true })
+    hardwareType: string;  // PC, IP_PHONE, PRINTER, or custom
+
+    @Column({ default: false })
+    reminderD1Sent: boolean;
+
+    @Column({ default: false })
+    reminderD0Sent: boolean;
+
+    @Column({ default: false })
+    userAcknowledged: boolean;
+
+    // === Optimistic Locking ===
+    // Note: Default 1 is required for existing data when column is first added
+    @VersionColumn({ default: 1 })
+    version: number;
 }
+

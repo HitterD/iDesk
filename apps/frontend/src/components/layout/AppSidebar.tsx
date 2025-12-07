@@ -14,7 +14,8 @@ import {
     BookOpen,
     Clock,
     Bell,
-    CalendarClock
+    CalendarClock,
+    HardDrive
 } from 'lucide-react';
 import { useAuth } from '../../stores/useAuth';
 import { CreateTicketDialog } from '../../features/ticket-board/components/CreateTicketDialog';
@@ -38,6 +39,7 @@ export const AppSidebar: React.FC = () => {
         { path: '/agents', icon: Users, label: 'Agents' },
         { path: '/reports', icon: FileSpreadsheet, label: 'Reports' },
         { path: '/sla', icon: Clock, label: 'SLA Settings' },
+        { path: '/storage', icon: HardDrive, label: 'Storage' },
         { path: '/kb', icon: BookOpen, label: 'Knowledge Base' },
         { path: '/settings', icon: Settings, label: 'Settings' },
     ];
@@ -52,7 +54,7 @@ export const AppSidebar: React.FC = () => {
 
     return (
         <>
-            <aside className="w-64 flex-shrink-0 border-r border-white/10 bg-navy-light hidden md:flex flex-col h-full">
+            <aside className="w-64 flex-shrink-0 border-r border-white/10 bg-navy-light/90 backdrop-blur-lg hidden md:flex flex-col h-full z-20 shadow-xl">
                 <div className="p-6">
                     {/* New Ticket Button for Agents/Admins */}
                     {user?.role !== 'USER' && (

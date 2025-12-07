@@ -8,12 +8,12 @@ import {
     BarChart3,
     BookOpen,
     LogOut,
-    Shield,
     CalendarClock,
     ChevronLeft,
     ChevronRight,
     Bell,
-    Search
+    Search,
+    Zap
 } from 'lucide-react';
 import { useAuth } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
@@ -48,18 +48,16 @@ export const BentoSidebar = () => {
                 { icon: Users, label: 'Agents', path: '/agents' },
                 { icon: BarChart3, label: 'Reports', path: '/reports' },
                 { icon: CalendarClock, label: 'Renewal', path: '/renewal' },
+                { icon: Zap, label: 'Automation', path: '/automation' },
                 { icon: Settings, label: 'Settings', path: '/settings' }
             );
         }
-        navItems.push(
-            { icon: Shield, label: 'SLA', path: '/sla' }
-        );
     }
 
     return (
         <aside
             className={cn(
-                "bg-white dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 h-screen flex flex-col shadow-sm transition-all duration-300 relative",
+                "glass-card-subtle h-screen flex flex-col transition-all duration-300 relative",
                 isCollapsed ? "w-20 p-4" : "w-64 p-6"
             )}
         >
@@ -68,7 +66,7 @@ export const BentoSidebar = () => {
                 onClick={() => setIsCollapsed(!isCollapsed)}
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 aria-expanded={!isCollapsed}
-                className="absolute -right-3 top-10 w-6 h-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-slate-500 hover:text-primary transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
+                className="absolute -right-3 top-10 w-6 h-6 glass-card border border-white/40 dark:border-white/10 rounded-full flex items-center justify-center text-slate-500 hover:text-primary transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
             >
                 {isCollapsed ? <ChevronRight className="w-4 h-4" aria-hidden="true" /> : <ChevronLeft className="w-4 h-4" aria-hidden="true" />}
             </button>
@@ -81,11 +79,11 @@ export const BentoSidebar = () => {
                     <Logo size="md" variant="full" animated className="animate-in fade-in duration-300" />
                 )}
             </div>
-            
+
             {/* Command Palette Hint */}
             {!isCollapsed && (
                 <div className="px-2 mb-4">
-                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 glass-card rounded-xl">
                         <Search className="w-3 h-3" />
                         <span>Press</span>
                         <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-700 rounded text-[10px] font-mono shadow-sm">
@@ -106,11 +104,11 @@ export const BentoSidebar = () => {
                         aria-label={item.label}
                         className={({ isActive }) =>
                             cn(
-                                "flex items-center gap-3 rounded-2xl transition-all duration-300 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                                "flex items-center gap-3 rounded-2xl transition-all duration-300 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 glass-hover-scale",
                                 isCollapsed ? "justify-center p-3" : "px-4 py-3",
                                 isActive
-                                    ? 'bg-muted text-blue-600 dark:text-blue-400 shadow-md shadow-blue-100 dark:shadow-none scale-105'
-                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white hover:scale-105'
+                                    ? 'bg-white/80 dark:bg-slate-800/80 text-primary shadow-sm backdrop-blur-sm border border-white/50 dark:border-slate-700/50'
+                                    : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-white'
                             )
                         }
                     >

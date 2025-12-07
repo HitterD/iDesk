@@ -3,6 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { HttpExceptionFilter } from './shared/core/filters/http-exception.filter';
+import { ValidationExceptionFilter } from './shared/core/filters/validation-exception.filter';
+import { DatabaseExceptionFilter } from './shared/core/filters/database-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
@@ -70,7 +72,12 @@ async function bootstrap() {
         transform: true,
     }));
 
-    app.useGlobalFilters(new HttpExceptionFilter());
+    // Register exception filters (order matters - more specific first)
+    app.useGlobalFilters(
+        new HttpExceptionFilter(),        // Catch-all for HTTP exceptions
+        new ValidationExceptionFilter(),  // Format validation errors
+        new DatabaseExceptionFilter(),    // Handle TypeORM errors
+    );
     app.useGlobalInterceptors(new LoggingInterceptor());
 
     // Security Headers - Enhanced Configuration (Section 5.5.B)

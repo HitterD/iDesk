@@ -39,7 +39,65 @@ export class TicketMessagingService {
         return this.findMessages(ticketId);
     }
 
-    async replyToTicket(ticketId: string, userId: string, content: string, files: string[] = [], mentionedUserIds: string[] = []) {
+    /**
+     * Get messages with pagination (4.2.2 Message Pagination)
+     * More efficient for tickets with many messages
+     * @param userRole - Used to filter internal messages for customers
+     */
+    async getMessagesPaginated(
+        ticketId: string,
+        page: number = 1,
+        limit: number = 20,
+        userRole?: UserRole,
+    ): Promise<{
+        data: TicketMessage[];
+        meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
+    }> {
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const qb = this.messageRepo
+            .createQueryBuilder('msg')
+            .leftJoinAndSelect('msg.sender', 'sender')
+            .where('msg.ticketId = :ticketId', { ticketId });
+
+        // Filter internal messages for customers
+        if (userRole === UserRole.USER) {
+            qb.andWhere('msg.isInternal = :isInternal', { isInternal: false });
+        }
+
+        const total = await qb.getCount();
+
+        const data = await qb
+            .orderBy('msg.createdAt', 'DESC')
+            .skip(skip)
+            .take(limit)
+            .getMany();
+
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            data: data.reverse(), // Reverse to show oldest first in the returned page
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            },
+        };
+    }
+
+
+    async replyToTicket(
+        ticketId: string,
+        userId: string,
+        content: string,
+        files: string[] = [],
+        mentionedUserIds: string[] = [],
+        isInternal: boolean = false,
+    ) {
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user', 'assignedTo'] });
         if (!ticket) {
             throw new NotFoundException('Ticket not found');
@@ -56,6 +114,7 @@ export class TicketMessagingService {
             senderId: userId,
             content,
             attachments: files,
+            isInternal,  // Mark as internal note if specified
         });
 
         const savedMessage = await this.messageRepo.save(message);

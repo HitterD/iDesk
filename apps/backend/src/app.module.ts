@@ -47,6 +47,12 @@ import { AppCacheModule } from './shared/core/cache';
 import { QueueModule } from './shared/queue';
 import { UploadModule } from './shared/upload';
 import { AuditModule } from './modules/audit';
+import { BusinessHours } from './modules/sla-config/entities/business-hours.entity';
+import { AutomationModule } from './modules/automation/automation.module';
+import { WorkflowRule } from './modules/automation/entities/workflow-rule.entity';
+import { WorkflowExecution } from './modules/automation/entities/workflow-execution.entity';
+import { SettingsModule } from './modules/settings/settings.module';
+import { SystemSettings } from './modules/settings/entities/system-settings.entity';
 
 @Module({
     imports: [
@@ -66,7 +72,7 @@ import { AuditModule } from './modules/audit';
             username: process.env.DB_USERNAME || 'postgres',
             password: process.env.DB_PASSWORD || 'postgres',
             database: process.env.DB_DATABASE || 'idesk_db',
-            entities: [User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig, SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article, ArticleView, Notification, NotificationPreference, NotificationLog, TelegramSession, SavedSearch, RenewalContract, AuditLog],
+            entities: [User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig, SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article, ArticleView, Notification, NotificationPreference, NotificationLog, TelegramSession, SavedSearch, RenewalContract, AuditLog, BusinessHours, WorkflowRule, WorkflowExecution, SystemSettings],
             // SECURITY: Use migrations in production, never auto-sync
             synchronize: process.env.NODE_ENV !== 'production',
             // Enable migrations for production
@@ -123,6 +129,8 @@ import { AuditModule } from './modules/audit';
         QueueModule.forRoot(),
         UploadModule,
         AuditModule,
+        AutomationModule,
+        SettingsModule,
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 100, // 100 requests per minute

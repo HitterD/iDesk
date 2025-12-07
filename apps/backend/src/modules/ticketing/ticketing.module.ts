@@ -19,6 +19,7 @@ import { SlaConfigController } from './presentation/sla-config.controller';
 import { AuthModule } from '../auth/auth.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { NotificationModule } from '../notifications/notification.module';
+import { SlaConfigModule } from '../sla-config/sla-config.module';
 
 import { SavedReply } from './entities/saved-reply.entity';
 import { SavedRepliesService } from './saved-replies.service';
@@ -37,6 +38,7 @@ import { TicketMessagingService } from './services/ticket-messaging.service';
 import { TicketQueryService } from './services/ticket-query.service';
 import { TicketTemplateService } from './services/ticket-template.service';
 import { TicketMergeService } from './services/ticket-merge.service';
+import { HardwareSchedulerService } from './services/hardware-scheduler.service';
 
 // Legacy/Partial refactored services (keeping for safety if used elsewhere)
 import { TicketRepository } from './repositories/ticket.repository';
@@ -51,7 +53,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         KnowledgeBaseModule,
         MailerModule,
         AuthModule,
-        forwardRef(() => TelegramModule),
+        SlaConfigModule,  // Provides BusinessHoursService for SLA calculation
         forwardRef(() => TelegramModule),
         forwardRef(() => NotificationModule),
         CacheModule.register(),
@@ -65,6 +67,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketQueryService,
         TicketTemplateService,
         TicketMergeService,
+        HardwareSchedulerService,
 
         SlaCheckerService,
         SlaConfigService,
@@ -85,6 +88,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketQueryService,
         TicketTemplateService,
         TicketMergeService,
+        HardwareSchedulerService,
         EventsGateway,
         TicketRepository,
         TicketNotificationService,
@@ -92,3 +96,4 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
     ],
 })
 export class TicketingModule { }
+

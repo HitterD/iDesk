@@ -8,6 +8,7 @@ import {
     OneToOne,
     ManyToOne,
     JoinColumn,
+    Index,
 } from 'typeorm';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
@@ -16,6 +17,8 @@ import { Department } from './department.entity';
 import { UserRole } from '../enums/user-role.enum';
 
 @Entity('users')
+@Index(['role'])
+@Index(['isActive'])
 export class User {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -60,6 +63,9 @@ export class User {
 
     @Column({ default: true })
     telegramNotifications: boolean;
+
+    @Column({ default: true })
+    isActive: boolean;
 
     @ManyToOne(() => Department)
     @JoinColumn({ name: 'departmentId' })

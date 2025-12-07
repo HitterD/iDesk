@@ -18,7 +18,11 @@ import {
     Calendar,
     RefreshCw,
     Plus,
-    Ticket
+    Ticket,
+    Filter,
+    ChevronDown,
+    Check,
+    Download
 } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -50,7 +54,7 @@ interface Ticket {
     description: string;
     category: string;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
-    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     source: 'WEB' | 'TELEGRAM' | 'EMAIL';
     isOverdue: boolean;
     slaTarget?: string;
@@ -83,9 +87,8 @@ const StatsCard: React.FC<{
     highlight?: boolean;
 }> = ({ icon: Icon, label, value, color, bgColor, highlight }) => (
     <div className={cn(
-        "bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700",
-        "hover:shadow-lg transition-all duration-300",
-        highlight && value > 0 && "ring-2 ring-red-500/50 border-red-300 dark:border-red-800"
+        "glass-card p-4 hover:glass-shadow-medium transition-all duration-300",
+        highlight && value > 0 && "ring-2 ring-red-500/50"
     )}>
         <div className="flex items-center gap-3">
             <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", bgColor)}>
@@ -99,6 +102,69 @@ const StatsCard: React.FC<{
     </div>
 );
 
+const CustomDropdown: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+    icon?: React.ElementType;
+    placeholder?: string;
+}> = ({ value, onChange, options, icon: Icon = Filter, placeholder = 'Filter' }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    // Use a unique ref for each dropdown instance
+    const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedLabel = options.find(opt => opt.value === value)?.label || placeholder;
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-2 px-3 py-2 bg-white/50 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700/50 hover:bg-white/80 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium rounded-lg transition-all min-w-[130px] justify-between text-sm"
+            >
+                <div className="flex items-center gap-2 truncate">
+                    <Icon className="w-3.5 h-3.5 opacity-70" />
+                    <span>{selectedLabel}</span>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-1">
+                        {options.map((option) => (
+                            <button
+                                key={option.value}
+                                onClick={() => {
+                                    onChange(option.value);
+                                    setIsOpen(false);
+                                }}
+                                className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors",
+                                    value === option.value
+                                        ? "bg-primary/10 text-primary font-medium dark:bg-primary/20"
+                                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                )}
+                            >
+                                <span>{option.label}</span>
+                                {value === option.value && <Check className="w-3.5 h-3.5" />}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const PriorityDropdown: React.FC<{
     value: string;
     onChange: (value: string) => void;
@@ -106,8 +172,10 @@ const PriorityDropdown: React.FC<{
 }> = ({ value, onChange, disabled }) => {
     const config = PRIORITY_CONFIG[value] || PRIORITY_CONFIG.MEDIUM;
     const Icon = config.icon;
+    const isSystemLocked = config.isSystemLocked === true;
 
-    if (disabled) {
+    // Show as static badge if disabled or system-locked (e.g., HARDWARE_INSTALLATION)
+    if (disabled || isSystemLocked) {
         return (
             <span className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap", config.badgeColor)}>
                 {Icon && <Icon className={cn("w-3 h-3", config.iconClass)} />}
@@ -129,18 +197,20 @@ const PriorityDropdown: React.FC<{
                 </SelectValue>
             </SelectTrigger>
             <SelectContent>
-                {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => {
-                    const PIcon = cfg.icon;
-                    return (
-                        <SelectItem key={key} value={key}>
-                            <span className="inline-flex items-center gap-1.5">
-                                {PIcon && <PIcon className={cn("w-3 h-3", cfg.iconClass)} />}
-                                <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
-                                {cfg.label}
-                            </span>
-                        </SelectItem>
-                    );
-                })}
+                {Object.entries(PRIORITY_CONFIG)
+                    .filter(([, cfg]) => !cfg.isSystemLocked) // Exclude system-locked priorities
+                    .map(([key, cfg]) => {
+                        const PIcon = cfg.icon;
+                        return (
+                            <SelectItem key={key} value={key}>
+                                <span className="inline-flex items-center gap-1.5">
+                                    {PIcon && <PIcon className={cn("w-3 h-3", cfg.iconClass)} />}
+                                    <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                                    {cfg.label}
+                                </span>
+                            </SelectItem>
+                        );
+                    })}
             </SelectContent>
         </Select>
     );
@@ -245,7 +315,7 @@ export const BentoTicketListPage: React.FC = () => {
 
     // Saved Filters
     const { currentFilter, getFilterValues } = useSavedFilters();
-    
+
     // Apply saved filter on load
     useEffect(() => {
         const filterValues = getFilterValues();
@@ -409,7 +479,7 @@ export const BentoTicketListPage: React.FC = () => {
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">New Ticket</span>
                     </button>
-                    
+
                     {/* My Tasks Filter */}
                     {canEdit && (
                         <button
@@ -424,16 +494,16 @@ export const BentoTicketListPage: React.FC = () => {
                                 "flex items-center gap-2 px-4 py-2.5 border rounded-xl transition-all font-medium",
                                 showAssignedToMe
                                     ? 'bg-primary text-slate-900 border-primary shadow-lg shadow-primary/20'
-                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    : 'glass-card hover:bg-white/50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-300'
                             )}
                         >
                             <UserCheck className="w-4 h-4" />
                             <span className="hidden sm:inline">My Tasks</span>
                         </button>
                     )}
-                    
+
                     {/* View Toggle */}
-                    <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="flex glass-card p-1 rounded-xl shadow-sm">
                         <button
                             onClick={() => navigate('/kanban')}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
@@ -464,93 +534,106 @@ export const BentoTicketListPage: React.FC = () => {
             </div>
 
             {/* Search & Filters */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex-1 min-w-[200px] relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search tickets..."
-                            className="w-full pl-12 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                        />
-                    </div>
-                    <select
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4 p-1 bg-slate-900/5 dark:bg-slate-900/50 rounded-2xl border border-slate-200/50 dark:border-slate-800 backdrop-blur-sm relative z-20">
+                <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search tickets..."
+                        className="w-full pl-11 pr-4 py-2 bg-transparent border-none outline-none text-slate-800 dark:text-white placeholder:text-slate-400 focus:ring-0 text-sm"
+                    />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 px-1 pb-1 lg:pb-0">
+                    <CustomDropdown
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                    >
-                        <option value="">All Status</option>
-                        <option value="TODO">Open</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="WAITING_VENDOR">Waiting Vendor</option>
-                        <option value="RESOLVED">Resolved</option>
-                    </select>
-                    <select
+                        onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
+                        placeholder="All Status"
+                        options={[
+                            { value: 'ALL', label: 'All Status' },
+                            { value: 'TODO', label: 'Open' },
+                            { value: 'IN_PROGRESS', label: 'In Progress' },
+                            { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
+                            { value: 'RESOLVED', label: 'Resolved' },
+                        ]}
+                    />
+
+                    <CustomDropdown
                         value={priorityFilter}
-                        onChange={(e) => setPriorityFilter(e.target.value)}
-                        className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                    >
-                        <option value="">All Priority</option>
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                        <option value="CRITICAL">Critical</option>
-                    </select>
+                        onChange={(val) => setPriorityFilter(val === "ALL" ? "" : val)}
+                        placeholder="All Priority"
+                        icon={AlertTriangle}
+                        options={[
+                            { value: 'ALL', label: 'All Priority' },
+                            { value: 'LOW', label: 'Low' },
+                            { value: 'MEDIUM', label: 'Medium' },
+                            { value: 'HIGH', label: 'High' },
+                            { value: 'CRITICAL', label: 'Critical' },
+                        ]}
+                    />
+
+                    <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
                     <button
                         onClick={() => queryClient.invalidateQueries({ queryKey: ['tickets'] })}
-                        className="p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="p-2 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors rounded-lg text-slate-500 dark:text-slate-400"
                         title="Refresh"
                     >
-                        <RefreshCw className="w-4 h-4 text-slate-500" />
+                        <RefreshCw className="w-4 h-4" />
                     </button>
+
+                    {/* Saved Filters Dropdown - styled similarly if possible, but kept as component for logic */}
+                    <div className="scale-95 origin-center">
+                        <SavedFiltersDropdown
+                            currentFilters={currentFilters}
+                            onApplyFilter={handleApplySavedFilter}
+                        />
+                    </div>
+
+                    {/* Export Menu */}
+                    <div className="scale-95 origin-center">
+                        <ExportMenu
+                            data={filteredTickets.map(t => ({
+                                id: t.id,
+                                ticketNumber: t.ticketNumber || t.id.slice(0, 8),
+                                title: t.title,
+                                status: t.status,
+                                priority: t.priority,
+                                category: t.category || '',
+                                requester: t.user?.fullName || '',
+                                assignedTo: t.assignedTo?.fullName || 'Unassigned',
+                                createdAt: format(new Date(t.createdAt), 'yyyy-MM-dd HH:mm'),
+                            }))}
+                            filename={`tickets-${format(new Date(), 'yyyy-MM-dd')}`}
+                            columns={[
+                                { key: 'ticketNumber', label: 'Ticket #' },
+                                { key: 'title', label: 'Title' },
+                                { key: 'status', label: 'Status' },
+                                { key: 'priority', label: 'Priority' },
+                                { key: 'category', label: 'Category' },
+                                { key: 'requester', label: 'Requester' },
+                                { key: 'assignedTo', label: 'Assigned To' },
+                                { key: 'createdAt', label: 'Created At' },
+                            ]}
+                        />
+                    </div>
+
                     {hasActiveFilters && (
                         <button
                             onClick={clearFilters}
-                            className="flex items-center gap-1.5 px-3 py-2.5 text-slate-500 hover:text-red-500 transition-colors text-sm"
+                            className="ml-auto lg:ml-0 p-2 text-slate-400 hover:text-red-500 transition-colors"
+                            title="Clear Filters"
                         >
                             <X className="w-4 h-4" />
-                            Clear
                         </button>
                     )}
-                    
-                    {/* Saved Filters Dropdown */}
-                    <SavedFiltersDropdown
-                        currentFilters={currentFilters}
-                        onApplyFilter={handleApplySavedFilter}
-                    />
-                    
-                    {/* Export Menu */}
-                    <ExportMenu
-                        data={filteredTickets.map(t => ({
-                            id: t.id,
-                            ticketNumber: t.ticketNumber || t.id.slice(0, 8),
-                            title: t.title,
-                            status: t.status,
-                            priority: t.priority,
-                            category: t.category || '',
-                            requester: t.user?.fullName || '',
-                            assignedTo: t.assignedTo?.fullName || 'Unassigned',
-                            createdAt: format(new Date(t.createdAt), 'yyyy-MM-dd HH:mm'),
-                        }))}
-                        filename={`tickets-${format(new Date(), 'yyyy-MM-dd')}`}
-                        columns={[
-                            { key: 'ticketNumber', label: 'Ticket #' },
-                            { key: 'title', label: 'Title' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'priority', label: 'Priority' },
-                            { key: 'category', label: 'Category' },
-                            { key: 'requester', label: 'Requester' },
-                            { key: 'assignedTo', label: 'Assigned To' },
-                            { key: 'createdAt', label: 'Created At' },
-                        ]}
-                    />
                 </div>
             </div>
 
             {/* Tickets List Table */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="glass-card overflow-hidden">
                 {filteredTickets.length === 0 ? (
                     <div className="p-12 text-center">
                         <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
@@ -570,14 +653,15 @@ export const BentoTicketListPage: React.FC = () => {
                         </div>
 
                         <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {filteredTickets.map((ticket) => {
+                            {filteredTickets.map((ticket, index) => {
                                 const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
                                 const PriorityIcon = priorityConfig.icon;
 
                                 return (
                                     <div
                                         key={ticket.id}
-                                        className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group"
+                                        className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 px-4 py-3 hover:bg-white/60 dark:hover:bg-white/5 transition-all cursor-pointer group animate-fade-in-up border-b border-white/20 dark:border-white/5 last:border-0 hover:backdrop-blur-md"
+                                        style={{ animationDelay: `${index * 0.05}s` }}
                                     >
                                         {/* Ticket Info */}
                                         <div className="flex-[3] flex items-center gap-3 min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
@@ -620,9 +704,9 @@ export const BentoTicketListPage: React.FC = () => {
 
                                         {/* Requester */}
                                         <div className="flex-[2] flex items-center gap-2 min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
-                                            <UserAvatar 
-                                                user={ticket.user} 
-                                                size="sm" 
+                                            <UserAvatar
+                                                user={ticket.user}
+                                                size="sm"
                                             />
                                             <div className="min-w-0 hidden md:block">
                                                 <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{ticket.user?.fullName || 'Unknown'}</p>
@@ -657,9 +741,9 @@ export const BentoTicketListPage: React.FC = () => {
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     {ticket.assignedTo ? (
                                                         <>
-                                                            <UserAvatar 
-                                                                user={ticket.assignedTo} 
-                                                                size="xs" 
+                                                            <UserAvatar
+                                                                user={ticket.assignedTo}
+                                                                size="xs"
                                                             />
                                                             <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
                                                                 {ticket.assignedTo.fullName}

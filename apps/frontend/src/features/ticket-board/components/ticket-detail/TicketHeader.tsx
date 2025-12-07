@@ -17,7 +17,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({ ticket, onSave, isSa
     const StatusIcon = statusConfig.icon;
 
     return (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-white via-slate-50 to-white dark:from-slate-800 dark:via-slate-800/80 dark:to-slate-800 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 backdrop-blur-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-card-elevated p-6 animate-fade-in-down">
             <div className="flex items-center gap-4">
                 <button
                     onClick={() => navigate('/tickets/list')}

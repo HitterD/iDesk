@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react';
-import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, Clock, CheckCircle, TrendingUp, BarChart3, Ticket, CircleDot, X, Eye } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, Clock, CheckCircle, TrendingUp, BarChart3, Ticket, CircleDot, X, Eye, Search, Download, Edit2, ToggleLeft, ToggleRight, CheckSquare, Square, ChevronDown, Filter, Check } from 'lucide-react';
 import { ImportUsersDialog } from '../components/ImportUsersDialog';
 import { AddUserDialog } from '../components/AddUserDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
+import { EditUserDialog } from '../components/EditUserDialog';
+import { AgentDetailModal } from '../components/AgentDetailModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -22,8 +25,12 @@ interface User {
     fullName: string;
     email: string;
     role: 'ADMIN' | 'AGENT' | 'USER';
-    department?: { name: string };
+    department?: { id: string; name: string };
     createdAt: string;
+    isActive?: boolean;
+    employeeId?: string;
+    jobTitle?: string;
+    phoneNumber?: string;
 }
 
 interface AgentStats {
@@ -52,6 +59,66 @@ const StatCard: React.FC<{ title: string; value: string | number; icon: any; col
         </div>
     </div>
 );
+
+const CustomDropdown: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+}> = ({ value, onChange, options }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedLabel = options.find(opt => opt.value === value)?.label || 'Filter';
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-700 text-slate-300 font-medium rounded-xl hover:bg-slate-800 transition-all min-w-[140px] justify-between"
+            >
+                <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    <span>{selectedLabel}</span>
+                </div>
+                <ChevronDown className="w-4 h-4 opacity-50" />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-1">
+                        {options.map((option) => (
+                            <button
+                                key={option.value}
+                                onClick={() => {
+                                    onChange(option.value);
+                                    setIsOpen(false);
+                                }}
+                                className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors",
+                                    value === option.value
+                                        ? "bg-primary/20 text-primary font-medium"
+                                        : "text-slate-300 hover:bg-slate-800"
+                                )}
+                            >
+                                <span>{option.label}</span>
+                                {value === option.value && <Check className="w-4 h-4" />}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const columnHelper = createColumnHelper<User>();
 
@@ -119,6 +186,16 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [groupByDivision, setGroupByDivision] = useState(false);
     const [sorting, setSorting] = useState<SortingState>([]);
 
+    // New state for enhanced features
+    const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [roleFilter, setRoleFilter] = useState<string>('ALL');
+    const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+    const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+
     const handleResetPassword = (user: User) => {
         setSelectedUser(user);
         setIsResetPasswordOpen(true);
@@ -155,10 +232,10 @@ export const BentoAdminAgentsPage: React.FC = () => {
             const agentTickets = tickets.filter((t: any) => t.assignedTo?.id === agent.id);
             const openTickets = agentTickets.filter((t: any) => t.status === 'TODO').length;
             const inProgressTickets = agentTickets.filter((t: any) => t.status === 'IN_PROGRESS').length;
-            const resolvedThisWeek = agentTickets.filter((t: any) => 
+            const resolvedThisWeek = agentTickets.filter((t: any) =>
                 t.status === 'RESOLVED' && new Date(t.updatedAt) >= weekAgo
             ).length;
-            const resolvedThisMonth = agentTickets.filter((t: any) => 
+            const resolvedThisMonth = agentTickets.filter((t: any) =>
                 t.status === 'RESOLVED' && new Date(t.updatedAt) >= monthAgo
             ).length;
             const overdueCount = agentTickets.filter((t: any) => t.isOverdue).length;
@@ -196,6 +273,17 @@ export const BentoAdminAgentsPage: React.FC = () => {
         };
     }, [users, agentStats, tickets]);
 
+    // Filtered users based on search and role filter
+    const filteredUsers = useMemo(() => {
+        return users.filter(user => {
+            const matchesSearch = searchQuery === '' ||
+                user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                user.email.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
+            return matchesSearch && matchesRole;
+        });
+    }, [users, searchQuery, roleFilter]);
+
     const deleteMutation = useMutation({
         mutationFn: async (userId: string) => {
             const res = await api.delete(`/users/${userId}`);
@@ -204,20 +292,77 @@ export const BentoAdminAgentsPage: React.FC = () => {
         onSuccess: (data) => {
             toast.success(data.message || 'User deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['users'] });
+            setIsConfirmDeleteOpen(false);
+            setUserToDelete(null);
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to delete user');
         },
     });
 
+    const bulkDeleteMutation = useMutation({
+        mutationFn: async (userIds: string[]) => {
+            const res = await api.post('/users/bulk-delete', { userIds });
+            return res.data;
+        },
+        onSuccess: (data) => {
+            toast.success(`${data.deleted} users deleted successfully`);
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            setSelectedUserIds(new Set());
+            setIsBulkDeleteOpen(false);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to delete users');
+        },
+    });
+
     const handleDeleteUser = (user: User) => {
-        if (window.confirm(`Are you sure you want to delete ${user.fullName}? This action cannot be undone.`)) {
-            deleteMutation.mutate(user.id);
+        setUserToDelete(user);
+        setIsConfirmDeleteOpen(true);
+    };
+
+    const handleEditUser = (user: User) => {
+        setEditingUser(user);
+        setIsEditUserOpen(true);
+    };
+
+    const handleExportUsers = async () => {
+        try {
+            const res = await api.get('/users/export');
+            const { data, filename } = res.data;
+            const blob = new Blob([data], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            toast.success('Users exported successfully');
+        } catch (error) {
+            toast.error('Failed to export users');
+        }
+    };
+
+    const toggleUserSelection = (userId: string) => {
+        const newSet = new Set(selectedUserIds);
+        if (newSet.has(userId)) {
+            newSet.delete(userId);
+        } else {
+            newSet.add(userId);
+        }
+        setSelectedUserIds(newSet);
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedUserIds.size === filteredUsers.length) {
+            setSelectedUserIds(new Set());
+        } else {
+            setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
         }
     };
 
     const table = useReactTable({
-        data: users,
+        data: filteredUsers,
         columns,
         state: {
             sorting,
@@ -250,6 +395,13 @@ export const BentoAdminAgentsPage: React.FC = () => {
                         {groupByDivision ? 'Ungroup' : 'Group by Division'}
                     </button>
                     <button
+                        onClick={handleExportUsers}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                    >
+                        <Download className="w-4 h-4" />
+                        Export
+                    </button>
+                    <button
                         onClick={() => setIsImportModalOpen(true)}
                         className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                     >
@@ -266,35 +418,79 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 </div>
             </div>
 
+            {/* Search & Filter Bar */}
+            <div className="flex items-center gap-4 p-1 bg-slate-900/5 dark:bg-slate-900/50 rounded-2xl border border-slate-200/50 dark:border-slate-800 backdrop-blur-sm">
+                <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="Search tickets, articles..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-11 pr-4 py-2.5 bg-transparent border-none outline-none text-slate-800 dark:text-white placeholder:text-slate-400 focus:ring-0"
+                    />
+                </div>
+
+                <div className="flex items-center gap-2 pr-1.5">
+                    {selectedUserIds.size > 0 && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-200 mr-2">
+                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400 hidden md:inline">
+                                {selectedUserIds.size} selected
+                            </span>
+                            <button
+                                onClick={() => setIsBulkDeleteOpen(true)}
+                                className="flex items-center gap-2 px-3 py-2 bg-red-500/10 text-red-600 dark:text-red-400 font-medium rounded-lg hover:bg-red-500/20 transition-all text-sm border border-red-500/20"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="w-[1px] h-8 bg-slate-200 dark:bg-slate-800 mx-2" />
+
+                    <CustomDropdown
+                        value={roleFilter}
+                        onChange={setRoleFilter}
+                        options={[
+                            { value: 'ALL', label: 'All Roles' },
+                            { value: 'ADMIN', label: 'Admin' },
+                            { value: 'AGENT', label: 'Agent' },
+                            { value: 'USER', label: 'User' },
+                        ]}
+                    />
+                </div>
+            </div>
+
             {/* Stats Dashboard */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard 
-                    title="Total Agents" 
-                    value={dashboardStats.totalAgents} 
-                    icon={Users} 
-                    color="text-blue-600" 
-                    bgColor="bg-blue-100 dark:bg-blue-900/30" 
+                <StatCard
+                    title="Total Agents"
+                    value={dashboardStats.totalAgents}
+                    icon={Users}
+                    color="text-blue-600"
+                    bgColor="bg-blue-100 dark:bg-blue-900/30"
                 />
-                <StatCard 
-                    title="Resolved (Month)" 
-                    value={dashboardStats.totalResolved} 
-                    icon={CheckCircle} 
-                    color="text-green-600" 
-                    bgColor="bg-green-100 dark:bg-green-900/30" 
+                <StatCard
+                    title="Resolved (Month)"
+                    value={dashboardStats.totalResolved}
+                    icon={CheckCircle}
+                    color="text-green-600"
+                    bgColor="bg-green-100 dark:bg-green-900/30"
                 />
-                <StatCard 
-                    title="Avg Tickets/Agent" 
-                    value={dashboardStats.avgTicketsPerAgent} 
-                    icon={Ticket} 
-                    color="text-purple-600" 
-                    bgColor="bg-purple-100 dark:bg-purple-900/30" 
+                <StatCard
+                    title="Avg Tickets/Agent"
+                    value={dashboardStats.avgTicketsPerAgent}
+                    icon={Ticket}
+                    color="text-purple-600"
+                    bgColor="bg-purple-100 dark:bg-purple-900/30"
                 />
-                <StatCard 
-                    title="Top Performer" 
-                    value={dashboardStats.topPerformer} 
-                    icon={Award} 
-                    color="text-amber-600" 
-                    bgColor="bg-amber-100 dark:bg-amber-900/30" 
+                <StatCard
+                    title="Top Performer"
+                    value={dashboardStats.topPerformer}
+                    icon={Award}
+                    color="text-amber-600"
+                    bgColor="bg-amber-100 dark:bg-amber-900/30"
                 />
             </div>
 
@@ -358,8 +554,8 @@ export const BentoAdminAgentsPage: React.FC = () => {
                                             <span className={cn(
                                                 "px-2 py-1 rounded-lg text-sm font-medium",
                                                 agent.slaCompliance >= 90 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                                                agent.slaCompliance >= 70 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
-                                                "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                    agent.slaCompliance >= 70 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                                                        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                                             )}>
                                                 {agent.slaCompliance}%
                                             </span>
@@ -485,6 +681,19 @@ export const BentoAdminAgentsPage: React.FC = () => {
                                         </th>
                                     ))}
                                     <th className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">Actions</th>
+                                    <th className="px-4 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">
+                                        <button
+                                            onClick={toggleSelectAll}
+                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                            title="Select All"
+                                        >
+                                            {selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
+                                                <CheckSquare className="w-5 h-5 text-primary" />
+                                            ) : (
+                                                <Square className="w-5 h-5 text-slate-400" />
+                                            )}
+                                        </button>
+                                    </th>
                                 </tr>
                             ))}
                         </thead>
@@ -498,6 +707,14 @@ export const BentoAdminAgentsPage: React.FC = () => {
                                     ))}
                                     <td className="px-8 py-5">
                                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => handleEditUser(row.original)}
+                                                className="flex items-center gap-1.5 px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl text-sm font-medium transition-colors"
+                                                title="Edit User"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                                Edit
+                                            </button>
                                             <button
                                                 onClick={() => handleResetPassword(row.original)}
                                                 className="flex items-center gap-1.5 px-3 py-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl text-sm font-medium transition-colors"
@@ -516,6 +733,18 @@ export const BentoAdminAgentsPage: React.FC = () => {
                                                 Delete
                                             </button>
                                         </div>
+                                    </td>
+                                    <td className="px-4 py-5">
+                                        <button
+                                            onClick={() => toggleUserSelection(row.original.id)}
+                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                        >
+                                            {selectedUserIds.has(row.original.id) ? (
+                                                <CheckSquare className="w-5 h-5 text-primary" />
+                                            ) : (
+                                                <Square className="w-5 h-5 text-slate-400" />
+                                            )}
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -541,6 +770,46 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 }}
                 user={selectedUser}
             />
+            <EditUserDialog
+                isOpen={isEditUserOpen}
+                onClose={() => {
+                    setIsEditUserOpen(false);
+                    setEditingUser(null);
+                }}
+                user={editingUser}
+            />
+            <AgentDetailModal
+                isOpen={!!selectedAgentDetail}
+                onClose={() => setSelectedAgentDetail(null)}
+                agent={selectedAgentDetail ? {
+                    ...selectedAgentDetail,
+                    ...agentStats.find(a => a.id === selectedAgentDetail.id)
+                } : null}
+            />
+            <ConfirmDialog
+                isOpen={isConfirmDeleteOpen}
+                onClose={() => {
+                    setIsConfirmDeleteOpen(false);
+                    setUserToDelete(null);
+                }}
+                onConfirm={() => userToDelete && deleteMutation.mutate(userToDelete.id)}
+                title="Delete User"
+                message={`Are you sure you want to delete ${userToDelete?.fullName}? This action cannot be undone.`}
+                confirmText="Delete"
+                variant="danger"
+                isLoading={deleteMutation.isPending}
+            />
+            <ConfirmDialog
+                isOpen={isBulkDeleteOpen}
+                onClose={() => setIsBulkDeleteOpen(false)}
+                onConfirm={() => bulkDeleteMutation.mutate(Array.from(selectedUserIds))}
+                title="Delete Multiple Users"
+                message={`Are you sure you want to delete ${selectedUserIds.size} users? This action cannot be undone.`}
+                confirmText="Delete All"
+                variant="danger"
+                isLoading={bulkDeleteMutation.isPending}
+            />
         </div >
     );
 };
+

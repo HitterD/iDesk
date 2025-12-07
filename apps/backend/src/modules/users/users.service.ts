@@ -373,4 +373,123 @@ export class UsersService {
             agents: agentStats,
         };
     }
+
+    /**
+     * Update user by admin - allows changing email, role, department, etc.
+     */
+    async updateUserByAdmin(userId: string, updateData: Partial<User>): Promise<User> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // If email is being changed, check for duplicates
+        if (updateData.email && updateData.email !== user.email) {
+            const existingUser = await this.userRepo.findOne({ where: { email: updateData.email } });
+            if (existingUser) {
+                throw new ConflictException('Email already exists');
+            }
+        }
+
+        await this.userRepo.update(userId, updateData);
+        return this.userRepo.findOne({ where: { id: userId }, relations: ['department'] });
+    }
+
+    /**
+     * Toggle user active/inactive status
+     */
+    async toggleUserStatus(userId: string, isActive: boolean): Promise<{ success: boolean; message: string; user: User }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        await this.userRepo.update(userId, { isActive });
+        const updatedUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['department'] });
+
+        return {
+            success: true,
+            message: `User ${user.fullName} is now ${isActive ? 'active' : 'inactive'}`,
+            user: updatedUser,
+        };
+    }
+
+    /**
+     * Export all users to CSV format
+     */
+    async exportUsers(): Promise<{ data: string; filename: string }> {
+        const users = await this.userRepo.find({
+            relations: ['department'],
+            order: { fullName: 'ASC' },
+        });
+
+        const headers = ['Email', 'Full Name', 'Role', 'Department', 'Employee ID', 'Job Title', 'Phone Number', 'Active', 'Created At'];
+        const rows = users.map(user => [
+            user.email,
+            user.fullName,
+            user.role,
+            user.department?.name || '',
+            user.employeeId || '',
+            user.jobTitle || '',
+            user.phoneNumber || '',
+            user.isActive ? 'Yes' : 'No',
+            user.createdAt.toISOString().split('T')[0],
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+        ].join('\n');
+
+        return {
+            data: csvContent,
+            filename: `users-export-${new Date().toISOString().split('T')[0]}.csv`,
+        };
+    }
+
+    /**
+     * Bulk delete multiple users
+     */
+    async bulkDeleteUsers(userIds: string[], adminId: string): Promise<{ success: boolean; deleted: number; errors: string[] }> {
+        const errors: string[] = [];
+        let deleted = 0;
+
+        // Filter out admin's own ID
+        const idsToDelete = userIds.filter(id => id !== adminId);
+        if (userIds.length !== idsToDelete.length) {
+            errors.push('Cannot delete your own account');
+        }
+
+        for (const userId of idsToDelete) {
+            try {
+                const user = await this.userRepo.findOne({ where: { id: userId } });
+                if (user) {
+                    await this.userRepo.delete(userId);
+                    deleted++;
+                } else {
+                    errors.push(`User ${userId} not found`);
+                }
+            } catch (error) {
+                errors.push(`Failed to delete user ${userId}: ${error.message}`);
+            }
+        }
+
+        return { success: deleted > 0, deleted, errors };
+    }
+
+    /**
+     * Bulk update status for multiple users
+     */
+    async bulkUpdateStatus(userIds: string[], isActive: boolean): Promise<{ success: boolean; updated: number }> {
+        const result = await this.userRepo.update(
+            { id: In(userIds) },
+            { isActive }
+        );
+
+        return {
+            success: true,
+            updated: result.affected || 0,
+        };
+    }
 }
+

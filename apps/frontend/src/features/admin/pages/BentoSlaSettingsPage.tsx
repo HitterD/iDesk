@@ -3,16 +3,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { 
-    Clock, 
-    Save, 
-    RefreshCw, 
-    Plus, 
-    Trash2, 
+import {
+    Clock,
+    Save,
+    RefreshCw,
+    Plus,
+    Trash2,
     AlertTriangle,
     CheckCircle2,
     Timer,
-    Calendar
+    Calendar,
+    Briefcase,
+    Sun,
+    Moon,
+    X
 } from 'lucide-react';
 
 interface SlaConfig {
@@ -27,6 +31,29 @@ interface TimeInput {
     hours: number;
     minutes: number;
 }
+
+interface BusinessHoursConfig {
+    id: string;
+    name: string;
+    isDefault: boolean;
+    workDays: number[];
+    startTime: number;
+    endTime: number;
+    timezone: string;
+    holidays: string[];
+    startFormatted: string;
+    endFormatted: string;
+}
+
+const DAYS_OF_WEEK = [
+    { value: 0, label: 'Sunday', short: 'Sun' },
+    { value: 1, label: 'Monday', short: 'Mon' },
+    { value: 2, label: 'Tuesday', short: 'Tue' },
+    { value: 3, label: 'Wednesday', short: 'Wed' },
+    { value: 4, label: 'Thursday', short: 'Thu' },
+    { value: 5, label: 'Friday', short: 'Fri' },
+    { value: 6, label: 'Saturday', short: 'Sat' },
+];
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
     CRITICAL: { bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-600', dot: 'bg-red-500' },
@@ -71,7 +98,7 @@ const SlaCard: React.FC<SlaCardProps> = ({ config, onUpdate, onDelete, isPending
         const newResolution = timeInputToMinutes(resolutionTime);
         const newResponse = timeInputToMinutes(responseTime);
         setHasChanges(
-            newResolution !== config.resolutionTimeMinutes || 
+            newResolution !== config.resolutionTimeMinutes ||
             newResponse !== config.responseTimeMinutes
         );
     }, [resolutionTime, responseTime, config]);
@@ -218,12 +245,67 @@ export const BentoSlaSettingsPage: React.FC = () => {
     const [newPriority, setNewPriority] = useState('');
     const [newResolutionDays, setNewResolutionDays] = useState(1);
     const [newResponseHours, setNewResponseHours] = useState(4);
+    const [newHoliday, setNewHoliday] = useState('');
+    const [isAddingHoliday, setIsAddingHoliday] = useState(false);
 
     const { data: configs = [], isLoading } = useQuery<SlaConfig[]>({
         queryKey: ['sla-configs'],
         queryFn: async () => {
             const res = await api.get('/sla-config');
             return res.data;
+        },
+    });
+
+    // Business Hours Query
+    const { data: businessHours, isLoading: loadingBusinessHours } = useQuery<BusinessHoursConfig>({
+        queryKey: ['business-hours'],
+        queryFn: async () => {
+            const res = await api.get('/business-hours');
+            return res.data;
+        },
+    });
+
+    // Update Business Hours Mutation
+    const updateBusinessHoursMutation = useMutation({
+        mutationFn: async (data: Partial<BusinessHoursConfig>) => {
+            await api.put('/business-hours', data);
+        },
+        onSuccess: () => {
+            toast.success('Business hours updated');
+            queryClient.invalidateQueries({ queryKey: ['business-hours'] });
+        },
+        onError: () => {
+            toast.error('Failed to update business hours');
+        },
+    });
+
+    // Add Holiday Mutation
+    const addHolidayMutation = useMutation({
+        mutationFn: async (date: string) => {
+            await api.post('/business-hours/holidays', { date });
+        },
+        onSuccess: () => {
+            toast.success('Holiday added');
+            queryClient.invalidateQueries({ queryKey: ['business-hours'] });
+            setNewHoliday('');
+            setIsAddingHoliday(false);
+        },
+        onError: () => {
+            toast.error('Failed to add holiday');
+        },
+    });
+
+    // Remove Holiday Mutation
+    const removeHolidayMutation = useMutation({
+        mutationFn: async (date: string) => {
+            await api.delete(`/business-hours/holidays/${date}`);
+        },
+        onSuccess: () => {
+            toast.success('Holiday removed');
+            queryClient.invalidateQueries({ queryKey: ['business-hours'] });
+        },
+        onError: () => {
+            toast.error('Failed to remove holiday');
         },
     });
 
@@ -288,8 +370,8 @@ export const BentoSlaSettingsPage: React.FC = () => {
             toast.error('Priority name is required');
             return;
         }
-        createSlaMutation.mutate({ 
-            priority: newPriority.toUpperCase(), 
+        createSlaMutation.mutate({
+            priority: newPriority.toUpperCase(),
             resolutionTimeMinutes: newResolutionDays * 1440,
             responseTimeMinutes: newResponseHours * 60,
         });
@@ -339,8 +421,8 @@ export const BentoSlaSettingsPage: React.FC = () => {
                         <RefreshCw className={`w-4 h-4 mr-2 ${resetSlaMutation.isPending ? 'animate-spin' : ''}`} />
                         Reset Defaults
                     </Button>
-                    <Button 
-                        onClick={() => setIsAdding(!isAdding)} 
+                    <Button
+                        onClick={() => setIsAdding(!isAdding)}
                         className="bg-primary text-slate-900 hover:bg-primary/90"
                     >
                         <Plus className="w-4 h-4 mr-2" />
@@ -355,10 +437,27 @@ export const BentoSlaSettingsPage: React.FC = () => {
                 <div>
                     <h4 className="font-bold text-blue-700 dark:text-blue-400 mb-1">How SLA Works</h4>
                     <p className="text-sm text-blue-600 dark:text-blue-300">
-                        <strong>Resolution Time:</strong> Maximum time to fully resolve the ticket. 
+                        <strong>Resolution Time:</strong> Maximum time to fully resolve the ticket.
                         <strong className="ml-2">Response Time:</strong> Maximum time to provide first response to the requester.
                         SLA timer pauses when ticket status is "Waiting Vendor".
                     </p>
+                </div>
+            </div>
+
+            {/* Hardware Installation SLA Info */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-start gap-3">
+                <Timer className="w-5 h-5 text-amber-500 mt-0.5" />
+                <div>
+                    <h4 className="font-bold text-amber-700 dark:text-amber-400 mb-1">Hardware Installation SLA</h4>
+                    <p className="text-sm text-amber-600 dark:text-amber-300">
+                        Hardware Installation tickets have special SLA rules that differ from priority-based configurations above.
+                    </p>
+                    <ul className="text-sm text-amber-600 dark:text-amber-300 mt-2 space-y-1 list-disc list-inside">
+                        <li><strong>Schedule-based Target:</strong> SLA target is set to scheduled date + 1 day (end of day)</li>
+                        <li><strong>Auto-Resolution:</strong> Tickets are automatically resolved if not completed by H+1</li>
+                        <li><strong>System Priority:</strong> Priority is automatically assigned and cannot be changed manually</li>
+                        <li><strong>No First Response SLA:</strong> First response time requirement is skipped</li>
+                    </ul>
                 </div>
             </div>
 
@@ -399,8 +498,8 @@ export const BentoSlaSettingsPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="mt-4 flex justify-end">
-                        <Button 
-                            onClick={handleAdd} 
+                        <Button
+                            onClick={handleAdd}
                             disabled={createSlaMutation.isPending}
                             className="bg-primary text-slate-900 font-bold hover:bg-primary/90"
                         >
@@ -410,6 +509,202 @@ export const BentoSlaSettingsPage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Business Hours Section */}
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl p-6 border border-emerald-200 dark:border-emerald-800">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center">
+                        <Briefcase className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-emerald-700 dark:text-emerald-400">Business Hours</h2>
+                        <p className="text-sm text-emerald-600 dark:text-emerald-300">Define work days and hours for SLA calculation</p>
+                    </div>
+                </div>
+
+                {loadingBusinessHours ? (
+                    <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin w-6 h-6 border-3 border-emerald-500 border-t-transparent rounded-full"></div>
+                    </div>
+                ) : businessHours ? (
+                    <div className="space-y-6">
+                        {/* Work Days */}
+                        <div>
+                            <label className="text-sm font-bold text-slate-600 dark:text-slate-300 mb-3 block">
+                                Work Days
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                                {DAYS_OF_WEEK.map((day) => {
+                                    const isSelected = businessHours.workDays?.includes(day.value);
+                                    return (
+                                        <button
+                                            key={day.value}
+                                            onClick={() => {
+                                                const newDays = isSelected
+                                                    ? businessHours.workDays.filter(d => d !== day.value)
+                                                    : [...businessHours.workDays, day.value].sort();
+                                                updateBusinessHoursMutation.mutate({ workDays: newDays });
+                                            }}
+                                            className={`px-4 py-2 rounded-xl font-medium transition-all ${isSelected
+                                                ? 'bg-emerald-500 text-white shadow-md'
+                                                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                                }`}
+                                        >
+                                            {day.short}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Work Hours */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
+                                    <Sun className="w-4 h-4 text-amber-500" />
+                                    Start Time
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="time"
+                                        value={businessHours.startFormatted || '08:00'}
+                                        onChange={(e) => {
+                                            const [hours, mins] = e.target.value.split(':').map(Number);
+                                            updateBusinessHoursMutation.mutate({ startTime: hours * 60 + mins });
+                                        }}
+                                        className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
+                                    <Moon className="w-4 h-4 text-indigo-500" />
+                                    End Time
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="time"
+                                        value={businessHours.endFormatted || '17:00'}
+                                        onChange={(e) => {
+                                            const [hours, mins] = e.target.value.split(':').map(Number);
+                                            updateBusinessHoursMutation.mutate({ endTime: hours * 60 + mins });
+                                        }}
+                                        className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Timezone */}
+                        <div>
+                            <label className="text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 block">
+                                Timezone
+                            </label>
+                            <div className="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                                {businessHours.timezone || 'Asia/Jakarta'}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
+            {/* Holidays Section */}
+            <div className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 rounded-2xl p-6 border border-rose-200 dark:border-rose-800">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-rose-500 flex items-center justify-center">
+                            <Calendar className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-rose-700 dark:text-rose-400">Holidays</h2>
+                            <p className="text-sm text-rose-600 dark:text-rose-300">
+                                Indonesia public holidays ({businessHours?.holidays?.length || 0} days)
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={() => setIsAddingHoliday(!isAddingHoliday)}
+                        variant="outline"
+                        className="border-rose-300 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Holiday
+                    </Button>
+                </div>
+
+                {/* Add Holiday Form */}
+                {isAddingHoliday && (
+                    <div className="mb-6 p-4 bg-white dark:bg-slate-800 rounded-xl border border-rose-200 dark:border-rose-700">
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="date"
+                                value={newHoliday}
+                                onChange={(e) => setNewHoliday(e.target.value)}
+                                className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                            />
+                            <Button
+                                onClick={() => newHoliday && addHolidayMutation.mutate(newHoliday)}
+                                disabled={!newHoliday || addHolidayMutation.isPending}
+                                className="bg-rose-500 text-white hover:bg-rose-600"
+                            >
+                                {addHolidayMutation.isPending ? 'Adding...' : 'Add'}
+                            </Button>
+                            <button
+                                onClick={() => { setIsAddingHoliday(false); setNewHoliday(''); }}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                            >
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Holidays List */}
+                {businessHours?.holidays && businessHours.holidays.length > 0 ? (
+                    <div className="max-h-80 overflow-y-auto scrollbar-custom space-y-2">
+                        {businessHours.holidays.sort().map((holiday) => {
+                            const date = new Date(holiday + 'T00:00:00');
+                            const formattedDate = date.toLocaleDateString('id-ID', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                            });
+                            const isPast = date < new Date();
+
+                            return (
+                                <div
+                                    key={holiday}
+                                    className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${isPast
+                                        ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 opacity-60'
+                                        : 'bg-white dark:bg-slate-800 border-rose-100 dark:border-rose-800 hover:border-rose-300'
+                                        }`}
+                                >
+                                    <div>
+                                        <p className="font-medium text-slate-800 dark:text-white">{formattedDate}</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">{holiday}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm(`Remove holiday ${holiday}?`)) {
+                                                removeHolidayMutation.mutate(holiday);
+                                            }
+                                        }}
+                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-8 text-rose-400">
+                        <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No holidays configured</p>
+                    </div>
+                )}
+            </div>
 
             {/* SLA Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

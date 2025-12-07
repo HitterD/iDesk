@@ -126,6 +126,20 @@ export class TicketsController {
         return this.ticketMessagingService.getMessages(id);
     }
 
+    @Get(':id/messages/paginated')
+    @ApiOperation({ summary: 'Get ticket messages with pagination (4.2.2)' })
+    @ApiResponse({ status: 200, description: 'Return paginated ticket messages.' })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20)' })
+    async getMessagesPaginated(
+        @Param('id') ticketId: string,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 20,
+        @Request() req,
+    ) {
+        return this.ticketMessagingService.getMessagesPaginated(ticketId, +page || 1, +limit || 20, req.user.role);
+    }
+
     @Post(':id/reply')
     @UseGuards(JwtAuthGuard)
     @UseInterceptors(FilesInterceptor('files', 5, {
@@ -142,6 +156,7 @@ export class TicketsController {
         @Req() req,
         @Body('content') content: string,
         @Body('mentionedUserIds') mentionedUserIds: string | string[],
+        @Body('isInternal') isInternal: string | boolean,
         @UploadedFiles() files: Express.Multer.File[],
     ) {
         if (files && files.length > 0) {
@@ -164,7 +179,17 @@ export class TicketsController {
             parsedMentionedUserIds = mentionedUserIds;
         }
 
-        return this.ticketMessagingService.replyToTicket(id, req.user.userId, content, filePaths, parsedMentionedUserIds);
+        // Parse isInternal (can come as string 'true'/'false' from FormData)
+        const isInternalNote = isInternal === true || isInternal === 'true';
+
+        return this.ticketMessagingService.replyToTicket(
+            id,
+            req.user.userId,
+            content,
+            filePaths,
+            parsedMentionedUserIds,
+            isInternalNote,
+        );
     }
 
     @Patch(':id/status')

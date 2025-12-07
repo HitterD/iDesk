@@ -5,11 +5,14 @@ import {
     CreateDateColumn,
     ManyToOne,
     JoinColumn,
+    Index,
 } from 'typeorm';
 import { Ticket } from './ticket.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('ticket_messages')
+@Index(['ticketId'])
+@Index(['ticketId', 'createdAt'])
 export class TicketMessage {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -25,6 +28,10 @@ export class TicketMessage {
 
     @Column({ default: false })
     isSystemMessage: boolean;
+
+    // Internal notes are only visible to agents/admins, not customers
+    @Column({ default: false })
+    isInternal: boolean;
 
     @Column({ default: 'WEB' })
     source: string; // 'WEB' | 'TELEGRAM' | 'EMAIL'

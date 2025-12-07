@@ -29,12 +29,12 @@ export class TelegramService {
         @InjectBot() private bot: Telegraf<Context>,
         // SECURITY: Use CacheService instead of in-memory Map (supports Redis)
         private cacheService: CacheService,
-    ) {}
+    ) { }
 
     // =====================
     // Session Management
     // =====================
-    
+
     async getOrCreateSession(telegramId: string, chatId: string, userData: any): Promise<TelegramSession> {
         let session = await this.sessionRepo.findOne({
             where: { telegramId },
@@ -136,8 +136,8 @@ export class TelegramService {
         // Update session
         await this.sessionRepo.update(
             { telegramId },
-            { 
-                userId: linkData.userId, 
+            {
+                userId: linkData.userId,
                 linkedAt: new Date(),
                 state: TelegramState.IDLE,
                 stateData: null,
@@ -151,9 +151,9 @@ export class TelegramService {
         const user = await this.userRepo.findOne({ where: { id: linkData.userId } });
 
         this.logger.log(`User ${linkData.userId} linked to Telegram ${telegramId}`);
-        return { 
-            success: true, 
-            message: `✅ Berhasil! Akun Telegram Anda sekarang terhubung dengan ${user?.fullName || 'akun iDesk'}.` 
+        return {
+            success: true,
+            message: `✅ Berhasil! Akun Telegram Anda sekarang terhubung dengan ${user?.fullName || 'akun iDesk'}.`
         };
     }
 
@@ -203,9 +203,9 @@ export class TelegramService {
     // =====================
 
     async createTicket(
-        session: TelegramSession, 
-        title: string, 
-        description: string, 
+        session: TelegramSession,
+        title: string,
+        description: string,
         category: string = 'GENERAL',
         priority: string = 'MEDIUM',
     ): Promise<Ticket> {
@@ -290,16 +290,16 @@ export class TelegramService {
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
         const year = date.getFullYear().toString().slice(-2);
         const dateStr = `${day}${month}${year}`;
-        
+
         // Get division from user's department or default
-        const division = user?.department?.name 
-            ? user.department.name.substring(0, 3).toUpperCase() 
+        const division = user?.department?.name
+            ? user.department.name.substring(0, 3).toUpperCase()
             : 'TLG'; // TLG = Telegram
-        
+
         // Count tickets from today
         const startOfDay = new Date(date);
         startOfDay.setHours(0, 0, 0, 0);
-        
+
         const count = await this.ticketRepo.count({
             where: {
                 createdAt: MoreThanOrEqual(startOfDay),
@@ -445,6 +445,7 @@ export class TelegramService {
             'MEDIUM': '🟨 Medium',
             'HIGH': '🟧 High',
             'CRITICAL': '🟥 Critical',
+            'HARDWARE_INSTALLATION': '🔧 Hardware',
         };
         return priorityMap[priority] || priority;
     }
@@ -465,6 +466,16 @@ export class TelegramService {
             const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
             if (!ticket) {
                 return { success: false, message: 'Tiket tidak ditemukan.' };
+            }
+
+            // Block priority changes for hardware installation tickets
+            if (ticket.priority === 'HARDWARE_INSTALLATION') {
+                return { success: false, message: 'Tiket Hardware Installation memiliki prioritas yang ditetapkan sistem.' };
+            }
+
+            // Prevent setting to HARDWARE_INSTALLATION priority
+            if (priority === 'HARDWARE_INSTALLATION') {
+                return { success: false, message: 'Prioritas HARDWARE_INSTALLATION hanya dapat ditetapkan oleh sistem.' };
             }
 
             await this.ticketRepo.update(ticketId, { priority: priority as any });
@@ -508,7 +519,7 @@ export class TelegramService {
                 .addSelect('MAX(message.created_at)', 'lastMessageAt')
                 .groupBy('ticket.id')
                 .getRawMany();
-            
+
             // For simplicity, estimate waiting reply as half of active tickets
             waitingReply = Math.floor(ticketsWithMessages.length / 2);
         } catch (e) {
@@ -545,11 +556,11 @@ export class TelegramService {
 
     async getUnassignedTickets(): Promise<Ticket[]> {
         return this.ticketRepo.find({
-            where: { 
+            where: {
                 assignedToId: null as any,
                 status: TicketStatus.TODO,
             },
-            order: { 
+            order: {
                 priority: 'DESC',
                 createdAt: 'ASC',
             },
@@ -558,7 +569,7 @@ export class TelegramService {
     }
 
     async assignTicketToAgent(ticketNumber: string, agentId: string): Promise<{ success: boolean; message?: string; ticketId?: string }> {
-        const ticket = await this.ticketRepo.findOne({ 
+        const ticket = await this.ticketRepo.findOne({
             where: { ticketNumber },
             relations: ['assignedTo'],
         });
@@ -580,7 +591,7 @@ export class TelegramService {
     }
 
     async assignTicketToAgentById(ticketId: string, agentId: string): Promise<{ success: boolean; message?: string; ticketNumber?: string }> {
-        const ticket = await this.ticketRepo.findOne({ 
+        const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['assignedTo'],
         });
@@ -602,7 +613,7 @@ export class TelegramService {
     }
 
     async resolveTicket(ticketNumber: string, agentId: string): Promise<{ success: boolean; message?: string; ticket?: Ticket }> {
-        const ticket = await this.ticketRepo.findOne({ 
+        const ticket = await this.ticketRepo.findOne({
             where: { ticketNumber },
             relations: ['user', 'assignedTo'],
         });
@@ -624,7 +635,7 @@ export class TelegramService {
         });
 
         // Get updated ticket
-        const updatedTicket = await this.ticketRepo.findOne({ 
+        const updatedTicket = await this.ticketRepo.findOne({
             where: { id: ticket.id },
             relations: ['user', 'assignedTo'],
         });
@@ -700,7 +711,7 @@ export class TelegramService {
         const agent = ticket.assignedTo;
         const agentName = agent?.fullName || 'Tim Support';
 
-        const message = 
+        const message =
             `✅ Tiket #${ticket.ticketNumber} Selesai!\n\n` +
             `"${ticket.title}"\n` +
             `Ditangani oleh: ${agentName}\n\n` +
@@ -825,7 +836,7 @@ export class TelegramService {
         const session = await this.getSessionByUserId(userId);
         if (!session) return;
 
-        const message = 
+        const message =
             `📬 <b>Update Tiket Anda</b>\n\n` +
             notifications.map(n => `• ${n.title}`).join('\n') +
             `\n\n<i>${notifications.length} notifikasi</i>`;

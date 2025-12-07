@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
 import { ThemeToggle } from '../ui/ThemeToggle';
@@ -9,18 +9,18 @@ import { Logo } from '../ui/Logo';
 import { UserAvatar } from '../ui/UserAvatar';
 
 // Page transition variants - optimized for performance (no blur)
-const pageVariants = {
-    initial: { 
+const pageVariants: Variants = {
+    initial: {
         opacity: 0,
     },
-    animate: { 
+    animate: {
         opacity: 1,
         transition: {
             duration: 0.15,
             ease: 'easeOut'
         }
     },
-    exit: { 
+    exit: {
         opacity: 0,
         transition: {
             duration: 0.1,
@@ -50,9 +50,9 @@ export const ClientLayout: React.FC = () => {
     const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+        <div className="min-h-screen app-background-blobs bg-slate-50 dark:bg-slate-900">
             {/* Navbar */}
-            <nav className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50">
+            <nav className="glass-card-elevated sticky top-0 z-50">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         {/* Logo */}
@@ -70,11 +70,10 @@ export const ClientLayout: React.FC = () => {
                                     <Link
                                         key={item.path}
                                         to={item.path}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                                            isActive(item.path)
-                                                ? 'bg-primary/10 text-primary'
-                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                        }`}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${isActive(item.path)
+                                            ? 'bg-primary/10 text-primary'
+                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
                                     >
                                         <Icon className="w-4 h-4" />
                                         {item.label}
@@ -87,20 +86,19 @@ export const ClientLayout: React.FC = () => {
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
                             <NotificationPopover />
-                            
+
                             {/* User Menu */}
                             <div className="hidden md:flex items-center gap-3 ml-2">
                                 <div className="flex items-center gap-2">
-                                    <UserAvatar 
-                                        src={user?.avatarUrl} 
-                                        name={user?.fullName || 'User'} 
-                                        size="sm" 
+                                    <UserAvatar
+                                        user={user}
+                                        size="sm"
                                     />
                                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                         {user?.fullName || 'User'}
                                     </span>
                                 </div>
-                                <button 
+                                <button
                                     onClick={handleLogout}
                                     className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                     title="Logout"
@@ -110,7 +108,7 @@ export const ClientLayout: React.FC = () => {
                             </div>
 
                             {/* Mobile Menu Button */}
-                            <button 
+                            <button
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                                 className="md:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
                             >
@@ -131,18 +129,17 @@ export const ClientLayout: React.FC = () => {
                                         key={item.path}
                                         to={item.path}
                                         onClick={() => setMobileMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                                            isActive(item.path)
-                                                ? 'bg-primary/10 text-primary'
-                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                        }`}
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(item.path)
+                                            ? 'bg-primary/10 text-primary'
+                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
                                     >
                                         <Icon className="w-5 h-5" />
                                         {item.label}
                                     </Link>
                                 );
                             })}
-                            <button 
+                            <button
                                 onClick={handleLogout}
                                 className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 w-full"
                             >

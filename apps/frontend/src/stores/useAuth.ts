@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { disconnectSocket } from '../lib/socket';
+import { createEncryptedStorage } from '../lib/crypto';
 
 interface User {
     id: string;
@@ -22,6 +23,7 @@ interface AuthState {
     updateUser: (user: Partial<User>) => void;
 }
 
+// 4.3.2 - Zustand Persist with Encrypted Storage
 export const useAuth = create<AuthState>()(
     persist(
         (set) => ({
@@ -38,6 +40,9 @@ export const useAuth = create<AuthState>()(
         }),
         {
             name: 'auth-storage',
+            // Use encrypted storage for sensitive auth data (4.3.2)
+            storage: createJSONStorage(() => createEncryptedStorage()),
         }
     )
 );
+

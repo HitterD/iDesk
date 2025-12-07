@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject, Optional, forwardRef } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In } from 'typeorm';
@@ -20,6 +21,7 @@ export class SlaCheckerService {
         private sessionRepo: Repository<CustomerSession>,
         private readonly mailerService: MailerService,
         private readonly slaConfigService: SlaConfigService,
+        private readonly configService: ConfigService,
         @Optional() @Inject(forwardRef(() => TelegramService))
         private readonly telegramService: TelegramService,
     ) { }
@@ -32,6 +34,7 @@ export class SlaCheckerService {
         await this.checkResolutionSla();
 
         // === Check First Response SLA ===
+
         await this.checkFirstResponseSla();
 
         this.logger.log('SLA Checker completed.');
@@ -126,8 +129,8 @@ export class SlaCheckerService {
             ? `Ticket #${ticketNumber} has exceeded its resolution time SLA.`
             : `Ticket #${ticketNumber} has not received first response within SLA.`;
 
-        // 1. Email to Admin
-        const adminEmail = 'admin@antigravity.com';
+        // 1. Email to Admin (externalized configuration)
+        const adminEmail = this.configService.get<string>('SLA_ADMIN_EMAIL', 'admin@idesk.com');
         try {
             await this.mailerService.sendMail({
                 to: adminEmail,

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { Ticket, TicketStatus, TicketSource } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketSource, TicketPriority } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
@@ -66,20 +66,43 @@ export class TicketCreateService {
 
             ticket.ticketNumber = `${dateStr}-${division}-${number}`;
 
-            // === SLA Enhancement: New Logic ===
-            // slaTarget and slaStartedAt will be NULL until status changes to IN_PROGRESS
-            // Only firstResponseTarget is set on creation
-            const priority = createTicketDto.priority || 'MEDIUM';
-            const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
-            if (slaConfig) {
-                const now = new Date();
-                // First Response Target - starts counting from ticket creation
-                ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
-            }
+            // === Hardware Installation: Special Handling ===
+            const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
+                createTicketDto.isHardwareInstallation === true;
 
-            // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
-            ticket.slaStartedAt = null;
-            ticket.slaTarget = null;
+            if (isHardwareInstallation) {
+                // Auto-set priority to HARDWARE_INSTALLATION
+                ticket.priority = TicketPriority.HARDWARE_INSTALLATION;
+                ticket.isHardwareInstallation = true;
+                ticket.scheduledDate = createTicketDto.scheduledDate ? new Date(createTicketDto.scheduledDate) : null;
+                ticket.scheduledTime = createTicketDto.scheduledTime || null;
+                ticket.hardwareType = createTicketDto.hardwareType || null;
+                ticket.userAcknowledged = createTicketDto.userAcknowledged || false;
+
+                // Hardware installation tickets: SLA is based on scheduled date, not creation time
+                // SLA Target = scheduled date + 1 day (auto-resolve H+1)
+                if (ticket.scheduledDate) {
+                    const slaTarget = new Date(ticket.scheduledDate);
+                    slaTarget.setDate(slaTarget.getDate() + 1);
+                    slaTarget.setHours(17, 0, 0, 0); // End of business day H+1
+                    ticket.slaTarget = slaTarget;
+                }
+                ticket.slaStartedAt = new Date();
+                ticket.firstResponseTarget = null; // No first response SLA for hardware installation
+            } else {
+                // === Standard SLA Logic ===
+                const priority = createTicketDto.priority || 'MEDIUM';
+                const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
+                if (slaConfig) {
+                    const now = new Date();
+                    // First Response Target - starts counting from ticket creation
+                    ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
+                }
+
+                // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
+                ticket.slaStartedAt = null;
+                ticket.slaTarget = null;
+            }
 
             await this.ticketRepo.save(ticket);
 

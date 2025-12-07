@@ -5,6 +5,13 @@ import { ChangePasswordDto } from '../presentation/dto/change-password.dto';
 import { UsersService } from '../../users/users.service';
 import * as bcrypt from 'bcrypt';
 
+// Login validation result types
+export interface LoginValidationResult {
+    success: boolean;
+    user?: any;
+    errorCode?: 'USER_NOT_FOUND' | 'WRONG_PASSWORD' | 'ACCOUNT_DISABLED';
+}
+
 @Injectable()
 export class AuthService {
     constructor(
@@ -27,6 +34,46 @@ export class AuthService {
         await this.usersService.updatePassword(userId, newPasswordHash);
 
         return { message: 'Password updated successfully' };
+    }
+
+    /**
+     * Validate user credentials with specific error codes
+     * Returns result object with error code instead of just null
+     */
+    async validateUserWithDetails(email: string, pass: string): Promise<LoginValidationResult> {
+        const user = await this.usersService.findByEmail(email);
+
+        // User not found
+        if (!user) {
+            return {
+                success: false,
+                errorCode: 'USER_NOT_FOUND',
+            };
+        }
+
+        // Check if user is active (if such field exists)
+        if ((user as any).isActive === false || (user as any).status === 'DISABLED') {
+            return {
+                success: false,
+                errorCode: 'ACCOUNT_DISABLED',
+            };
+        }
+
+        // Password check
+        const isPasswordValid = await bcrypt.compare(pass, user.password);
+        if (!isPasswordValid) {
+            return {
+                success: false,
+                errorCode: 'WRONG_PASSWORD',
+            };
+        }
+
+        // Success - return user without password
+        const { password, ...result } = user;
+        return {
+            success: true,
+            user: result,
+        };
     }
 
     async validateUser(email: string, pass: string): Promise<any> {
@@ -53,3 +100,4 @@ export class AuthService {
         } as any);
     }
 }
+

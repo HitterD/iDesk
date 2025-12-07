@@ -10,6 +10,12 @@ export interface TicketDetail {
     createdAt: string;
     updatedAt: string;
     slaTarget?: string;
+    // Hardware Installation fields
+    isHardwareInstallation?: boolean;
+    scheduledDate?: string;
+    scheduledTime?: string;
+    hardwareType?: string;
+    userAcknowledged?: boolean;
     user: {
         fullName: string;
         email: string;

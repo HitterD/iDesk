@@ -1,10 +1,11 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
-// Category for notification segregation (Tickets vs Renewals)
+// Category for notification segregation (Tickets vs Renewals vs Hardware)
 export enum NotificationCategory {
     CATEGORY_TICKET = 'CATEGORY_TICKET',
     CATEGORY_RENEWAL = 'CATEGORY_RENEWAL',
+    CATEGORY_HARDWARE = 'CATEGORY_HARDWARE',
 }
 
 export enum NotificationType {
@@ -26,9 +27,15 @@ export enum NotificationType {
     RENEWAL_D7_WARNING = 'RENEWAL_D7_WARNING',
     RENEWAL_D1_WARNING = 'RENEWAL_D1_WARNING',
     RENEWAL_EXPIRED = 'RENEWAL_EXPIRED',
+
+    // Hardware installation notifications
+    HARDWARE_INSTALL_D1 = 'HARDWARE_INSTALL_D1',  // 1 day before
+    HARDWARE_INSTALL_D0 = 'HARDWARE_INSTALL_D0',  // Day of installation
 }
 
 @Entity('notifications')
+@Index(['userId', 'isRead'])
+@Index(['userId', 'createdAt'])
 export class Notification {
     @PrimaryGeneratedColumn('uuid')
     id: string;

@@ -14,6 +14,7 @@ import {
 import { EmailChannelService } from './channels/email-channel.service';
 import { TelegramChannelService } from './channels/telegram-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
+import { PushChannelService } from './channels/push-channel.service';
 import { User } from '../users/entities/user.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
@@ -44,13 +45,15 @@ export class NotificationCenterService implements OnModuleInit {
         private readonly emailChannel: EmailChannelService,
         private readonly telegramChannel: TelegramChannelService,
         private readonly inAppChannel: InAppChannelService,
-    ) {}
+        private readonly pushChannel: PushChannelService,
+    ) { }
 
     onModuleInit() {
         // Register available channels
         this.channels.set(DeliveryChannel.EMAIL, this.emailChannel);
         this.channels.set(DeliveryChannel.TELEGRAM, this.telegramChannel);
         this.channels.set(DeliveryChannel.IN_APP, this.inAppChannel);
+        this.channels.set(DeliveryChannel.PUSH, this.pushChannel);
 
         this.logger.log('NotificationCenterService initialized with channels: ' +
             Array.from(this.channels.keys()).join(', '));
@@ -67,7 +70,7 @@ export class NotificationCenterService implements OnModuleInit {
     async send(payload: NotificationPayload): Promise<Notification> {
         // Get user preferences
         const preferences = await this.getOrCreatePreferences(payload.userId);
-        
+
         // Check quiet hours
         if (this.isInQuietHours(preferences)) {
             this.logger.debug(`User ${payload.userId} is in quiet hours, buffering notification`);
@@ -131,11 +134,11 @@ export class NotificationCenterService implements OnModuleInit {
 
     async getOrCreatePreferences(userId: string): Promise<NotificationPreference> {
         let prefs = await this.preferenceRepo.findOne({ where: { userId } });
-        
+
         if (!prefs) {
             // Get user to populate defaults
             const user = await this.userRepo.findOne({ where: { id: userId } });
-            
+
             prefs = this.preferenceRepo.create({
                 userId,
                 inAppEnabled: true,
@@ -149,7 +152,7 @@ export class NotificationCenterService implements OnModuleInit {
                 quietHoursEnabled: false,
                 timezone: 'Asia/Jakarta',
             });
-            
+
             await this.preferenceRepo.save(prefs);
         }
 
@@ -200,7 +203,7 @@ export class NotificationCenterService implements OnModuleInit {
         preferences: NotificationPreference
     ): Promise<DeliveryResult | null> {
         const channelService = this.channels.get(channel);
-        
+
         if (!channelService || !channelService.isAvailable()) {
             this.logger.warn(`Channel ${channel} is not available`);
             return null;
@@ -260,7 +263,7 @@ export class NotificationCenterService implements OnModuleInit {
             case DeliveryChannel.TELEGRAM:
                 return preferences.telegramChatId || null;
             case DeliveryChannel.PUSH:
-                return preferences.pushTokens?.[0] || null;
+                return userId; // Push uses userId, subscriptions are looked up by PushChannelService
             default:
                 return null;
         }
@@ -332,7 +335,7 @@ export class NotificationCenterService implements OnModuleInit {
 
         const now = new Date();
         const timezone = preferences.timezone || 'UTC';
-        
+
         try {
             const formatter = new Intl.DateTimeFormat('en-US', {
                 timeZone: timezone,
@@ -340,7 +343,7 @@ export class NotificationCenterService implements OnModuleInit {
                 minute: '2-digit',
                 hour12: false,
             });
-            
+
             const currentTime = formatter.format(now);
             const [currentHour, currentMinute] = currentTime.split(':').map(Number);
             const currentMinutes = currentHour * 60 + currentMinute;

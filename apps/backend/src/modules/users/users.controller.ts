@@ -143,6 +143,27 @@ export class UsersController {
         return this.usersService.importUsers(file);
     }
 
+    @Get('export')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Export users to CSV' })
+    @ApiResponse({ status: 200, description: 'Users exported as CSV.' })
+    async exportUsers(@Req() req, res) {
+        return this.usersService.exportUsers();
+    }
+
+    @Patch(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Update user details (Admin)' })
+    @ApiResponse({ status: 200, description: 'User updated successfully.' })
+    async updateUser(
+        @Param('id') userId: string,
+        @Body() updateUserDto: UpdateUserDto,
+    ) {
+        return this.usersService.updateUserByAdmin(userId, updateUserDto);
+    }
+
     @Patch(':id/role')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
@@ -153,6 +174,18 @@ export class UsersController {
         @Body('role') role: UserRole,
     ) {
         return this.usersService.updateRole(userId, role);
+    }
+
+    @Patch(':id/status')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Toggle user active status' })
+    @ApiResponse({ status: 200, description: 'User status updated.' })
+    async toggleUserStatus(
+        @Param('id') userId: string,
+        @Body('isActive') isActive: boolean,
+    ) {
+        return this.usersService.toggleUserStatus(userId, isActive);
     }
 
     @Post(':id/reset-password')
@@ -176,4 +209,26 @@ export class UsersController {
     async deleteUser(@Param('id') userId: string, @Req() req) {
         return this.usersService.deleteUser(userId, req.user.userId);
     }
+
+    @Post('bulk-delete')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Delete multiple users' })
+    @ApiResponse({ status: 200, description: 'Users deleted successfully.' })
+    async bulkDeleteUsers(@Body('userIds') userIds: string[], @Req() req) {
+        return this.usersService.bulkDeleteUsers(userIds, req.user.userId);
+    }
+
+    @Post('bulk-status')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Update status for multiple users' })
+    @ApiResponse({ status: 200, description: 'User statuses updated.' })
+    async bulkUpdateStatus(
+        @Body('userIds') userIds: string[],
+        @Body('isActive') isActive: boolean,
+    ) {
+        return this.usersService.bulkUpdateStatus(userIds, isActive);
+    }
 }
+
