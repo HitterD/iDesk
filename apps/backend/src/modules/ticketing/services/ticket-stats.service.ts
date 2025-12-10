@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Ticket } from '../entities/ticket.entity';
-import { CacheService, CacheKeys } from '../../../shared/core/cache';
+import { CacheService, CacheKeys, CacheInvalidationService } from '../../../shared/core/cache';
 import { UserRole } from '../../users/enums/user-role.enum';
 
 export interface DashboardStats {
@@ -37,7 +37,8 @@ export class TicketStatsService {
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
         private readonly cacheService: CacheService,
-    ) {}
+        private readonly cacheInvalidationService: CacheInvalidationService,
+    ) { }
 
     /**
      * Get dashboard statistics with caching
@@ -45,7 +46,7 @@ export class TicketStatsService {
      */
     async getDashboardStats(userId: string, _role: UserRole): Promise<DashboardStats> {
         const cacheKey = CacheKeys.dashboardStats(userId);
-        
+
         return this.cacheService.getOrSet(cacheKey, async () => {
             return this.computeDashboardStats();
         }, 120); // 2 minutes cache
@@ -237,8 +238,13 @@ export class TicketStatsService {
 
     /**
      * Invalidate dashboard cache
+     * Note: Prefer using CacheInvalidationService.onTicketChange() directly from calling services
      */
     async invalidateCache(): Promise<void> {
-        await this.cacheService.delByPattern('dashboard:stats:*');
+        await this.cacheInvalidationService.onTicketChange('manual', {
+            invalidateDashboard: true,
+            invalidateList: false,
+            invalidateDetail: false,
+        });
     }
 }

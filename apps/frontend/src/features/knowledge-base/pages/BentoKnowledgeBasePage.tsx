@@ -39,7 +39,7 @@ const CATEGORIES = ['All', 'Software', 'Hardware', 'Network', 'Security', 'Gener
 export const BentoKnowledgeBasePage: React.FC = () => {
     const [searchInput, setSearchInput] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
-    
+
     // Debounce search input to avoid excessive API calls
     const debouncedSearch = useDebounce(searchInput, 300);
 
@@ -54,7 +54,7 @@ export const BentoKnowledgeBasePage: React.FC = () => {
             const params: Record<string, string> = {};
             if (debouncedSearch) params.q = debouncedSearch;
             if (selectedCategory !== 'All') params.category = selectedCategory;
-            
+
             const response = await api.get('/kb/articles', { params });
             return response.data;
         },
@@ -82,7 +82,7 @@ export const BentoKnowledgeBasePage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in-up">
             {/* Hero Section */}
             <div className="relative overflow-hidden rounded-[3rem] bg-slate-900 p-12 text-center shadow-xl">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-3xl animate-pulse" />
@@ -106,7 +106,7 @@ export const BentoKnowledgeBasePage: React.FC = () => {
                     </Link>
                 </div>
 
-                <div className="relative z-10">
+                <div className="relative z-30">
                     <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/10">
                         <BookOpen className="w-8 h-8 text-primary" />
                     </div>
@@ -117,7 +117,7 @@ export const BentoKnowledgeBasePage: React.FC = () => {
                         Search our knowledge base for answers to common questions and issues.
                     </p>
 
-                    <div className="max-w-xl mx-auto">
+                    <div className="max-w-xl mx-auto relative z-50">
                         <ArticleSearchAutocomplete
                             placeholder="Search for articles (e.g. 'printer', 'vpn')..."
                             basePath="/kb/articles"
@@ -136,9 +136,9 @@ export const BentoKnowledgeBasePage: React.FC = () => {
                         key={category}
                         onClick={() => setSelectedCategory(category)}
                         className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                            "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all hover-lift",
                             selectedCategory === category
-                                ? "bg-primary text-slate-900"
+                                ? "bg-primary text-slate-900 shadow-lg shadow-primary/20"
                                 : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                         )}
                     >
@@ -151,7 +151,7 @@ export const BentoKnowledgeBasePage: React.FC = () => {
             </div>
 
             {/* Articles Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-1">
                 {isLoading ? (
                     // Show skeletons while loading
                     <>

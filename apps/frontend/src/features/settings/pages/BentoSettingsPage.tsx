@@ -17,7 +17,7 @@ export const BentoSettingsPage: React.FC = () => {
     const { theme, setTheme } = useTheme();
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in-up">
             {/* ... header ... */}
             <div>
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Settings</h1>
@@ -36,11 +36,12 @@ export const BentoSettingsPage: React.FC = () => {
                             { value: 'sla', icon: Clock, label: 'SLA Settings' },
                             { value: 'storage', icon: HardDrive, label: 'Storage' }
                         ] : []),
-                    ].map((tab) => (
+                    ].map((tab, index) => (
                         <Tabs.Trigger
                             key={tab.value}
                             value={tab.value}
-                            className="group flex items-center gap-3 px-6 py-4 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white hover:shadow-sm transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-md text-left outline-none"
+                            className="group flex items-center gap-3 px-6 py-4 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white hover:shadow-sm transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-md text-left outline-none hover-lift"
+                            style={{ animationDelay: `${index * 0.05}s` }}
                         >
                             <tab.icon className="w-5 h-5 group-data-[state=active]:text-primary transition-colors" />
                             {tab.label}
@@ -84,7 +85,7 @@ export const BentoSettingsPage: React.FC = () => {
                             <div className="grid grid-cols-2 gap-6">
                                 <button
                                     onClick={() => setTheme('dark')}
-                                    className={`p-6 rounded-[2rem] border-2 transition-all text-left space-y-4 group ${theme === 'dark'
+                                    className={`p-6 rounded-[2rem] border-2 transition-all text-left space-y-4 group hover-lift ${theme === 'dark'
                                         ? 'border-primary bg-primary/5'
                                         : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700'
                                         }`}
@@ -99,7 +100,7 @@ export const BentoSettingsPage: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={() => setTheme('light')}
-                                    className={`p-6 rounded-[2rem] border-2 transition-all text-left space-y-4 group ${theme === 'light'
+                                    className={`p-6 rounded-[2rem] border-2 transition-all text-left space-y-4 group hover-lift ${theme === 'light'
                                         ? 'border-primary bg-primary/5'
                                         : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700'
                                         }`}

@@ -22,6 +22,20 @@ interface Article {
     updatedAt: string;
 }
 
+/**
+ * Resolve image URL - handles both relative and absolute URLs
+ */
+const getImageUrl = (url: string): string => {
+    if (!url) return '';
+    // Already a full URL
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+        return url;
+    }
+    // Relative path - prepend API URL
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+    return `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 export const BentoArticleDetailPage = () => {
     const { id } = useParams<{ id: string }>();
     const [article, setArticle] = useState<Article | null>(null);
@@ -129,7 +143,7 @@ export const BentoArticleDetailPage = () => {
                 {article.featuredImage && (
                     <div className="mb-8">
                         <img
-                            src={article.featuredImage}
+                            src={getImageUrl(article.featuredImage)}
                             alt={article.title}
                             className="w-full h-64 md:h-80 object-cover rounded-2xl"
                         />
@@ -145,9 +159,14 @@ export const BentoArticleDetailPage = () => {
                                 return (
                                     <img
                                         key={index}
-                                        src={part}
+                                        src={getImageUrl(part)}
                                         alt={altText || 'Article image'}
                                         className="my-4 rounded-xl max-w-full"
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                            console.warn('Failed to load image:', part);
+                                        }}
                                     />
                                 );
                             }
@@ -187,11 +206,10 @@ export const BentoArticleDetailPage = () => {
                         <button
                             onClick={handleHelpful}
                             disabled={isHelpfulClicked}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
-                                isHelpfulClicked
-                                    ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-400 hover:text-primary'
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${isHelpfulClicked
+                                ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-400 hover:text-primary'
+                                }`}
                         >
                             <ThumbsUp className="w-5 h-5" />
                             {isHelpfulClicked ? 'Thanks!' : 'Helpful'}

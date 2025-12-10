@@ -65,7 +65,7 @@ export const ArticleSearchAutocomplete: React.FC<ArticleSearchAutocompleteProps>
 
     // Recent searches from localStorage
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
-    
+
     useEffect(() => {
         const stored = localStorage.getItem('kb-recent-searches');
         if (stored) {
@@ -87,7 +87,7 @@ export const ArticleSearchAutocomplete: React.FC<ArticleSearchAutocompleteProps>
         saveRecentSearch(article.title);
         setQuery('');
         setIsOpen(false);
-        
+
         if (onSelect) {
             onSelect(article);
         } else {
@@ -199,7 +199,7 @@ export const ArticleSearchAutocomplete: React.FC<ArticleSearchAutocompleteProps>
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -8 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50"
+                        className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-[100]"
                     >
                         <div className="max-h-96 overflow-y-auto">
                             {/* Search Results */}

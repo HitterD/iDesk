@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Send, Paperclip, AlertCircle, Clock, Tag, Monitor, Box, FileText, Save, Trash2, Calendar, Wrench, CheckCircle2, Ticket, HardDrive } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, AlertCircle, Clock, Tag, Monitor, Box, FileText, Save, Trash2, Calendar, CheckCircle2, Ticket, HardDrive } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '../../../stores/useAuth';
 import { logger } from '@/lib/logger';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format, parseISO } from 'date-fns';
 
 const DRAFT_KEY = 'ticket-draft';
 
@@ -439,13 +442,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <Calendar className="w-4 h-4 text-amber-600" />
                                     Installation Date *
                                 </label>
-                                <input
-                                    type="date"
-                                    required
-                                    min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
-                                    value={hardwareData.scheduledDate}
-                                    onChange={(e) => setHardwareData({ ...hardwareData, scheduledDate: e.target.value })}
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all outline-none text-slate-800 dark:text-white"
+                                <ModernDatePicker
+                                    value={hardwareData.scheduledDate ? parseISO(hardwareData.scheduledDate) : undefined}
+                                    onChange={(date) => setHardwareData({ ...hardwareData, scheduledDate: format(date, 'yyyy-MM-dd') })}
+                                    placeholder="Select installation date"
+                                    minDate={new Date(Date.now() + 86400000)}
+                                    triggerClassName="w-full py-3 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-600"
                                 />
                             </div>
 
@@ -455,17 +457,16 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <Clock className="w-4 h-4 text-amber-600" />
                                     Time Slot *
                                 </label>
-                                <select
-                                    required
-                                    value={hardwareData.scheduledTime}
-                                    onChange={(e) => setHardwareData({ ...hardwareData, scheduledTime: e.target.value })}
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-amber-500/50 transition-all outline-none text-slate-800 dark:text-white cursor-pointer"
-                                >
-                                    <option value="">Select Time Slot</option>
-                                    {TIME_SLOTS.map(slot => (
-                                        <option key={slot} value={slot}>{slot} WIB</option>
-                                    ))}
-                                </select>
+                                <Select value={hardwareData.scheduledTime} onValueChange={(value) => setHardwareData({ ...hardwareData, scheduledTime: value })}>
+                                    <SelectTrigger className="w-full px-4 py-3 h-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl">
+                                        <SelectValue placeholder="Select Time Slot" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {TIME_SLOTS.map(slot => (
+                                            <SelectItem key={slot} value={slot}>{slot} WIB</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <p className="text-xs text-slate-500 mt-1">Available: 08:00-11:00, 14:00-15:00 (excluding lunch)</p>
                             </div>
                         </div>
@@ -680,20 +681,20 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <button type="button" onClick={() => setShowAddModal({ type: 'CATEGORY', show: true })} className="text-xs text-primary hover:underline">+ Add</button>
                                 )}
                             </div>
-                            <select
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-primary/50 transition-all outline-none text-slate-800 dark:text-white cursor-pointer"
-                            >
-                                <option value="">Select Category</option>
-                                <option value="GENERAL">General</option>
-                                <option value="HARDWARE">Hardware</option>
-                                <option value="SOFTWARE">Software</option>
-                                <option value="NETWORK">Network</option>
-                                {attributes.categories?.map((attr: any) => (
-                                    <option key={attr.id} value={attr.value}>{attr.value}</option>
-                                ))}
-                            </select>
+                            <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
+                                <SelectTrigger className="w-full px-4 py-3 h-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl">
+                                    <SelectValue placeholder="Select Category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="GENERAL">General</SelectItem>
+                                    <SelectItem value="HARDWARE">Hardware</SelectItem>
+                                    <SelectItem value="SOFTWARE">Software</SelectItem>
+                                    <SelectItem value="NETWORK">Network</SelectItem>
+                                    {attributes.categories?.map((attr: any) => (
+                                        <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div>
                             <div className="flex justify-between items-center mb-2">
@@ -705,16 +706,16 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <button type="button" onClick={() => setShowAddModal({ type: 'DEVICE', show: true })} className="text-xs text-primary hover:underline">+ Add</button>
                                 )}
                             </div>
-                            <select
-                                value={formData.device}
-                                onChange={(e) => setFormData({ ...formData, device: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-primary/50 transition-all outline-none text-slate-800 dark:text-white cursor-pointer"
-                            >
-                                <option value="">Select Device (optional)</option>
-                                {attributes.devices?.map((attr: any) => (
-                                    <option key={attr.id} value={attr.value}>{attr.value}</option>
-                                ))}
-                            </select>
+                            <Select value={formData.device} onValueChange={(value) => setFormData({ ...formData, device: value })}>
+                                <SelectTrigger className="w-full px-4 py-3 h-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl">
+                                    <SelectValue placeholder="Select Device (optional)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {attributes.devices?.map((attr: any) => (
+                                        <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
@@ -729,16 +730,16 @@ export const BentoCreateTicketPage: React.FC = () => {
                                 <button type="button" onClick={() => setShowAddModal({ type: 'SOFTWARE', show: true })} className="text-xs text-primary hover:underline">+ Add</button>
                             )}
                         </div>
-                        <select
-                            value={formData.software}
-                            onChange={(e) => setFormData({ ...formData, software: e.target.value })}
-                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-primary/50 transition-all outline-none text-slate-800 dark:text-white cursor-pointer"
-                        >
-                            <option value="">Select Software</option>
-                            {attributes.software?.map((attr: any) => (
-                                <option key={attr.id} value={attr.value}>{attr.value}</option>
-                            ))}
-                        </select>
+                        <Select value={formData.software} onValueChange={(value) => setFormData({ ...formData, software: value })}>
+                            <SelectTrigger className="w-full px-4 py-3 h-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl">
+                                <SelectValue placeholder="Select Software" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {attributes.software?.map((attr: any) => (
+                                    <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Description */}

@@ -1,0 +1,1124 @@
+/* ========================================
+   ANIMATION SYSTEM
+   All keyframes and animation utility classes
+   ======================================== */
+
+@layer utilities {
+    /* ========================================
+     BASIC FADE & SLIDE ANIMATIONS
+     ======================================== */
+
+    /* Fade In Up - for cards, modals */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-in-up {
+        animation: fadeInUp 0.4s ease-out forwards;
+    }
+
+    /* Fade In Down */
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-in-down {
+        animation: fadeInDown 0.4s ease-out forwards;
+    }
+
+    /* Slide In Right - for sidebars, panels */
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .animate-slide-in-right {
+        animation: slideInRight 0.3s ease-out forwards;
+    }
+
+    /* Slide In Left */
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .animate-slide-in-left {
+        animation: slideInLeft 0.3s ease-out forwards;
+    }
+
+    /* ========================================
+     SCALE & POP ANIMATIONS
+     ======================================== */
+
+    /* Scale In - for buttons, badges */
+    @keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .animate-scale-in {
+        animation: scaleIn 0.2s ease-out forwards;
+    }
+
+    /* Pop In - for notifications, toasts */
+    @keyframes popIn {
+        0% {
+            opacity: 0;
+            transform: scale(0.8);
+        }
+
+        70% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .animate-pop-in {
+        animation: popIn 0.3s ease-out forwards;
+    }
+
+    /* ========================================
+     ATTENTION ANIMATIONS
+     ======================================== */
+
+    /* Bounce Subtle - for attention */
+    @keyframes bounceSubtle {
+
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-5px);
+        }
+    }
+
+    .animate-bounce-subtle {
+        animation: bounceSubtle 2s infinite ease-in-out;
+    }
+
+    /* Pulse Ring - for notification badges */
+    @keyframes pulseRing {
+        0% {
+            box-shadow: 0 0 0 0 rgba(168, 230, 207, 0.7);
+        }
+
+        100% {
+            box-shadow: 0 0 0 10px rgba(168, 230, 207, 0);
+        }
+    }
+
+    .animate-pulse-ring {
+        animation: pulseRing 1.5s infinite;
+    }
+
+    /* Shimmer - for skeleton loading */
+    @keyframes shimmer {
+        0% {
+            background-position: -200% 0;
+        }
+
+        100% {
+            background-position: 200% 0;
+        }
+    }
+
+    .animate-shimmer {
+        background: linear-gradient(90deg,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.4) 50%,
+                rgba(255, 255, 255, 0) 100%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    /* ========================================
+     SHAKE ANIMATIONS (ERROR STATES)
+     ======================================== */
+
+    /* Shake - for errors */
+    @keyframes shake {
+
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+
+        10%,
+        30%,
+        50%,
+        70%,
+        90% {
+            transform: translateX(-5px);
+        }
+
+        20%,
+        40%,
+        60%,
+        80% {
+            transform: translateX(5px);
+        }
+    }
+
+    .animate-shake {
+        animation: shake 0.5s ease-in-out;
+    }
+
+    /* Strong Shake - for critical alerts */
+    @keyframes shakeStrong {
+
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+
+        10%,
+        30%,
+        50%,
+        70%,
+        90% {
+            transform: translateX(-4px);
+        }
+
+        20%,
+        40%,
+        60%,
+        80% {
+            transform: translateX(4px);
+        }
+    }
+
+    .animate-shake-strong {
+        animation: shakeStrong 0.5s cubic-bezier(.36, .07, .19, .97) both;
+    }
+
+    /* ========================================
+     PRIORITY & STATUS PULSE ANIMATIONS
+     ======================================== */
+
+    /* Red Pulse - for critical/overdue backgrounds */
+    @keyframes pulseRed {
+
+        0%,
+        100% {
+            border-color: rgba(239, 68, 68, 0.2);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        }
+
+        50% {
+            border-color: rgba(239, 68, 68, 0.5);
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+        }
+    }
+
+    .animate-pulse-red {
+        animation: pulseRed 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Spin Slow - for loading indicators */
+    @keyframes spinSlow {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .animate-spin-slow {
+        animation: spinSlow 2s linear infinite;
+    }
+
+    /* ========================================
+     STAGGER DELAYS FOR LISTS
+     ======================================== */
+
+    .stagger-1 {
+        animation-delay: 0.05s;
+    }
+
+    .stagger-2 {
+        animation-delay: 0.1s;
+    }
+
+    .stagger-3 {
+        animation-delay: 0.15s;
+    }
+
+    .stagger-4 {
+        animation-delay: 0.2s;
+    }
+
+    .stagger-5 {
+        animation-delay: 0.25s;
+    }
+
+    .stagger-6 {
+        animation-delay: 0.3s;
+    }
+
+    .stagger-7 {
+        animation-delay: 0.35s;
+    }
+
+    .stagger-8 {
+        animation-delay: 0.4s;
+    }
+
+    .stagger-9 {
+        animation-delay: 0.45s;
+    }
+
+    .stagger-10 {
+        animation-delay: 0.5s;
+    }
+
+    .stagger-11 {
+        animation-delay: 0.55s;
+    }
+
+    .stagger-12 {
+        animation-delay: 0.6s;
+    }
+
+    /* ========================================
+     TRANSITION UTILITIES
+     ======================================== */
+
+    .transition-smooth {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .transition-fast {
+        transition: all 0.15s ease-out;
+    }
+
+    /* ========================================
+     HOVER EFFECTS
+     ======================================== */
+
+    /* Hover lift effect for cards */
+    .hover-lift {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .hover-lift:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Hover scale effect for buttons */
+    .hover-scale {
+        transition: transform 0.15s ease;
+    }
+
+    .hover-scale:hover {
+        transform: scale(1.02);
+    }
+
+    .hover-scale:active {
+        transform: scale(0.98);
+    }
+
+    /* Glass morphism effect - see glassmorphism.css for full implementation */
+    /* Classes: .glass-card, .glass-card-elevated, .glass-card-subtle */
+
+    /* ========================================
+     PAGE TRANSITION ANIMATIONS
+     ======================================== */
+
+    /* Page fade in */
+    @keyframes pageIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-page-in {
+        animation: pageIn 0.4s ease-out forwards;
+    }
+
+    /* Blur fade in */
+    @keyframes blurIn {
+        from {
+            opacity: 0;
+            filter: blur(10px);
+            transform: scale(0.98);
+        }
+
+        to {
+            opacity: 1;
+            filter: blur(0);
+            transform: scale(1);
+        }
+    }
+
+    .animate-blur-in {
+        animation: blurIn 0.5s ease-out forwards;
+    }
+
+    /* Slide up with bounce */
+    @keyframes slideUpBounce {
+        0% {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        60% {
+            transform: translateY(-5px);
+        }
+
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-slide-up-bounce {
+        animation: slideUpBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* Notification enter */
+    @keyframes notificationEnter {
+        0% {
+            opacity: 0;
+            transform: translateX(100%) scale(0.9);
+        }
+
+        100% {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+        }
+    }
+
+    .animate-notification-enter {
+        animation: notificationEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* Modal backdrop */
+    @keyframes backdropIn {
+        from {
+            opacity: 0;
+            backdrop-filter: blur(0);
+        }
+
+        to {
+            opacity: 1;
+            backdrop-filter: blur(8px);
+        }
+    }
+
+    .animate-backdrop-in {
+        animation: backdropIn 0.3s ease-out forwards;
+    }
+
+    /* Modal content */
+    @keyframes modalIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+
+    .animate-modal-in {
+        animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* Floating animation */
+    @keyframes floating {
+
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    .animate-floating {
+        animation: floating 3s ease-in-out infinite;
+    }
+
+    /* Pulse glow */
+    @keyframes pulseGlow {
+
+        0%,
+        100% {
+            box-shadow: 0 0 0 0 hsla(150, 50%, 50%, 0.4);
+        }
+
+        50% {
+            box-shadow: 0 0 20px 10px hsla(150, 50%, 50%, 0);
+        }
+    }
+
+    .animate-pulse-glow {
+        animation: pulseGlow 2s ease-in-out infinite;
+    }
+
+    /* ========================================
+     SKELETON ANIMATIONS
+     ======================================== */
+
+    @keyframes skeletonWave {
+        0% {
+            background-position: -200% 0;
+        }
+
+        100% {
+            background-position: 200% 0;
+        }
+    }
+
+    .skeleton-wave {
+        background: linear-gradient(90deg,
+                hsl(40 15% 92%) 0%,
+                hsl(40 15% 96%) 50%,
+                hsl(40 15% 92%) 100%);
+        background-size: 200% 100%;
+        animation: skeletonWave 1.5s ease-in-out infinite;
+    }
+
+    .dark .skeleton-wave {
+        background: linear-gradient(90deg,
+                hsl(217 33% 17%) 0%,
+                hsl(217 33% 22%) 50%,
+                hsl(217 33% 17%) 100%);
+        background-size: 200% 100%;
+    }
+}
+
+/* ========================================
+   BREATHNG & URGENCY ANIMATIONS
+   ======================================== */
+
+/* Red Breathing Border - for critical/overdue */
+@keyframes breathingRed {
+
+    0%,
+    100% {
+        border-color: rgba(239, 68, 68, 0.3);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+
+    50% {
+        border-color: rgba(239, 68, 68, 1);
+        box-shadow: 0 0 12px 0 rgba(239, 68, 68, 0.6);
+    }
+}
+
+.animate-breathing-red {
+    animation: breathingRed 2s ease-in-out infinite;
+}
+
+/* CRITICAL Priority - Maximum Urgency Pulse */
+@keyframes criticalPulse {
+
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 0 rgba(239, 68, 68, 0.7),
+            inset 0 0 0 1px rgba(239, 68, 68, 0.3);
+    }
+
+    50% {
+        box-shadow:
+            0 0 20px 4px rgba(239, 68, 68, 0.4),
+            inset 0 0 0 2px rgba(239, 68, 68, 0.5);
+    }
+}
+
+.animate-critical-pulse {
+    animation: criticalPulse 1.5s ease-in-out infinite;
+    border-left: 5px solid #ef4444 !important;
+    position: relative;
+}
+
+.dark .animate-critical-pulse {
+    animation: criticalPulse 1.5s ease-in-out infinite;
+    background-color: rgba(127, 29, 29, 0.3) !important;
+}
+
+/* HIGH Priority - Strong Attention Glow */
+@keyframes highPriorityGlow {
+
+    0%,
+    100% {
+        border-color: rgba(249, 115, 22, 0.4);
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.5);
+    }
+
+    50% {
+        border-color: rgba(249, 115, 22, 0.8);
+        box-shadow: 0 0 12px 2px rgba(249, 115, 22, 0.3);
+    }
+}
+
+.animate-high-priority {
+    animation: highPriorityGlow 2s ease-in-out infinite;
+    border-left: 4px solid #f97316 !important;
+    background: linear-gradient(90deg, rgba(255, 237, 213, 0.5) 0%, transparent 100%);
+}
+
+.dark .animate-high-priority {
+    background: linear-gradient(90deg, rgba(124, 45, 18, 0.3) 0%, transparent 100%);
+}
+
+/* OVERDUE Status - Shake Animation */
+@keyframes overdueShake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+        transform: translateX(-2px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+        transform: translateX(2px);
+    }
+}
+
+.animate-overdue {
+    animation:
+        criticalPulse 1.5s ease-in-out infinite,
+        overdueShake 0.5s ease-in-out;
+    border-left: 5px solid #dc2626 !important;
+}
+
+/* SLA Warning - Pre-breach Alert */
+@keyframes slaWarning {
+
+    0%,
+    100% {
+        background: rgba(251, 191, 36, 0.1);
+    }
+
+    50% {
+        background: rgba(251, 191, 36, 0.25);
+    }
+}
+
+.animate-sla-warning {
+    animation: slaWarning 2s ease-in-out infinite;
+    border-left: 4px solid #fbbf24 !important;
+}
+
+.animate-sla-warning .sla-countdown {
+    color: #d97706;
+    font-weight: 600;
+    animation: pulseOpacity 1s ease-in-out infinite;
+}
+
+@keyframes pulseOpacity {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* Urgent Notification Animation */
+@keyframes urgentNotification {
+
+    0%,
+    100% {
+        background: rgba(239, 68, 68, 0.05);
+        border-left-color: rgba(239, 68, 68, 0.5);
+    }
+
+    50% {
+        background: rgba(239, 68, 68, 0.15);
+        border-left-color: rgba(239, 68, 68, 1);
+    }
+}
+
+.animate-notification-urgent {
+    animation: urgentNotification 2s ease-in-out infinite;
+    border-left: 4px solid rgba(239, 68, 68, 0.5);
+    position: relative;
+}
+
+.animate-notification-urgent::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: 8px;
+    height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    animation: pulseRing 1.5s infinite;
+    transform: translateY(-50%);
+}
+
+/* Contract Expiring Warning (7 days) */
+@keyframes expiryWarning {
+
+    0%,
+    100% {
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+    }
+
+    50% {
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(245, 158, 11, 0.15) 100%);
+    }
+}
+
+.animate-contract-warning {
+    animation: expiryWarning 3s ease-in-out infinite;
+    border-left: 4px solid #f59e0b !important;
+}
+
+/* Contract Expiring Urgent (3 days) */
+@keyframes expiryUrgent {
+
+    0%,
+    100% {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+    }
+
+    50% {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.15) 100%);
+        box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.3);
+    }
+}
+
+.animate-contract-urgent {
+    animation: expiryUrgent 1.5s ease-in-out infinite;
+    border-left: 4px solid #ef4444 !important;
+}
+
+/* Contract Expired - Striped Background */
+.animate-contract-expired {
+    background: repeating-linear-gradient(45deg,
+            rgba(239, 68, 68, 0.05),
+            rgba(239, 68, 68, 0.05) 10px,
+            rgba(239, 68, 68, 0.1) 10px,
+            rgba(239, 68, 68, 0.1) 20px) !important;
+    border-left: 4px solid #dc2626 !important;
+}
+
+/* Icon Pulse for Urgent Items */
+@keyframes iconPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+    }
+}
+
+.animate-icon-pulse {
+    animation: iconPulse 1.5s ease-in-out infinite;
+}
+
+/* Attention Badge Animation */
+@keyframes attentionBadge {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+.animate-attention-badge {
+    animation: attentionBadge 1s ease-in-out infinite;
+}
+
+/* ========================================
+   SUCCESS ANIMATIONS
+   ======================================== */
+
+@keyframes successPop {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-success-pop {
+    animation: successPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Checkmark animation */
+@keyframes checkmarkDraw {
+    0% {
+        stroke-dashoffset: 24;
+    }
+
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+.checkmark-animated {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: checkmarkDraw 0.3s ease-out 0.2s forwards;
+}
+
+/* ========================================
+   CHART & DATA ANIMATIONS
+   ======================================== */
+
+/* Dashboard Hero Gradient Animation */
+@keyframes heroGradient {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+.hero-gradient {
+    background: linear-gradient(135deg,
+            hsl(150, 50%, 50%) 0%,
+            hsl(180, 60%, 45%) 25%,
+            hsl(200, 70%, 50%) 50%,
+            hsl(180, 60%, 45%) 75%,
+            hsl(150, 50%, 50%) 100%);
+    background-size: 400% 400%;
+    animation: heroGradient 15s ease infinite;
+}
+
+/* Number Counter Animation */
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.count-up {
+    animation: countUp 0.5s ease-out forwards;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Chart Entry Animation */
+@keyframes chartDraw {
+    from {
+        stroke-dashoffset: 1000;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.chart-line-animated {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: chartDraw 1.5s ease-out forwards;
+}
+
+@keyframes chartBarGrow {
+    0% {
+        transform: scaleY(0);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+.chart-bar-animated {
+    transform: scaleY(0);
+    transform-origin: bottom center;
+    animation: chartBarGrow 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* SLA Progress Ring Animation */
+@keyframes slaRingFill {
+    from {
+        stroke-dashoffset: 251;
+    }
+}
+
+.sla-ring-animated {
+    animation: slaRingFill 1s ease-out forwards;
+}
+
+/* Live Data Pulse Indicator */
+@keyframes liveDataPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 0.5;
+    }
+}
+
+.live-indicator {
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    animation: liveDataPulse 2s ease-in-out infinite;
+}
+
+/* ========================================
+   STAGGERED LIST ANIMATIONS
+   ======================================== */
+
+.stagger-list>* {
+    animation: staggerFadeIn 0.4s ease-out forwards;
+    opacity: 0;
+}
+
+.stagger-list>*:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.stagger-list>*:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.stagger-list>*:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.stagger-list>*:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.stagger-list>*:nth-child(5) {
+    animation-delay: 0.25s;
+}
+
+.stagger-list>*:nth-child(6) {
+    animation-delay: 0.3s;
+}
+
+.stagger-list>*:nth-child(7) {
+    animation-delay: 0.35s;
+}
+
+.stagger-list>*:nth-child(8) {
+    animation-delay: 0.4s;
+}
+
+.stagger-list>*:nth-child(9) {
+    animation-delay: 0.45s;
+}
+
+.stagger-list>*:nth-child(10) {
+    animation-delay: 0.5s;
+}
+
+@keyframes staggerFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Page transition wrapper */
+.page-transition {
+    animation: pageTransitionIn 0.4s ease-out;
+}
+
+@keyframes pageTransitionIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Leaderboard Animation */
+.leaderboard-item {
+    transition: all 0.5s ease-out;
+}
+
+.leaderboard-item.moving-up {
+    animation: leaderboardMoveUp 0.5s ease-out;
+}
+
+.leaderboard-item.moving-down {
+    animation: leaderboardMoveDown 0.5s ease-out;
+}
+
+@keyframes leaderboardMoveUp {
+    0% {
+        transform: translateY(50px);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes leaderboardMoveDown {
+    0% {
+        transform: translateY(-50px);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Breadcrumb Animation */
+.breadcrumb-animated {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.breadcrumb-animated .breadcrumb-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: breadcrumbFadeIn 0.3s ease-out forwards;
+    opacity: 0;
+}
+
+.breadcrumb-animated .breadcrumb-item:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.breadcrumb-animated .breadcrumb-item:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.breadcrumb-animated .breadcrumb-item:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.breadcrumb-animated .breadcrumb-item:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.breadcrumb-animated .breadcrumb-item:nth-child(5) {
+    animation-delay: 0.25s;
+}
+
+@keyframes breadcrumbFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

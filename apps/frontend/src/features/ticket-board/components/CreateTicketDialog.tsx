@@ -150,7 +150,7 @@ ${data.description}
                                 </label>
                                 <select
                                     {...register('priority')}
-                                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-neon-green"
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
                                 >
                                     <option value="LOW">Low</option>
                                     <option value="MEDIUM">Medium</option>
@@ -164,7 +164,7 @@ ${data.description}
                                 </label>
                                 <select
                                     {...register('category')}
-                                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-neon-green"
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
                                 >
                                     <option value="SOFTWARE">Software</option>
                                     <option value="HARDWARE">Hardware</option>

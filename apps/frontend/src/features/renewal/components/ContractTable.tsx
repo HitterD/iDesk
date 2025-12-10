@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, Trash2, Edit2, ExternalLink, Calendar, Building2 } from 'lucide-react';
 import { RenewalContract, ContractStatus } from '../types/renewal.types';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface ContractTableProps {
     contracts: RenewalContract[];
@@ -81,7 +82,11 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                         {contracts.map((contract) => {
                             const status = statusConfig[contract.status];
                             return (
-                                <tr key={contract.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                                <tr key={contract.id} className={cn(
+                                    "hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors",
+                                    contract.status === ContractStatus.EXPIRING_SOON && "animate-contract-warning",
+                                    contract.status === ContractStatus.EXPIRED && "animate-contract-expired"
+                                )}>
                                     <td className="px-6 py-4">
                                         <div className="flex items-start gap-3">
                                             <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center flex-shrink-0">

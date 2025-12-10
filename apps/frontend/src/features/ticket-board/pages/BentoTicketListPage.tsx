@@ -12,6 +12,9 @@ import {
     MessageSquare,
     X,
     ChevronRight,
+    ChevronLeft,
+    ChevronsLeft,
+    ChevronsRight,
     Inbox,
     TrendingUp,
     Flame,
@@ -58,6 +61,8 @@ interface Ticket {
     source: 'WEB' | 'TELEGRAM' | 'EMAIL';
     isOverdue: boolean;
     slaTarget?: string;
+    scheduledDate?: string;
+    isHardwareInstallation?: boolean;
     assignedTo?: {
         id: string;
         fullName: string;
@@ -88,7 +93,7 @@ const StatsCard: React.FC<{
 }> = ({ icon: Icon, label, value, color, bgColor, highlight }) => (
     <div className={cn(
         "glass-card p-4 hover:glass-shadow-medium transition-all duration-300",
-        highlight && value > 0 && "ring-2 ring-red-500/50"
+        highlight && value > 0 && "ring-2 ring-red-500/50 animate-pulse-red"
     )}>
         <div className="flex items-center gap-3">
             <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", bgColor)}>
@@ -260,12 +265,30 @@ const StatusDropdown: React.FC<{
     );
 };
 
-const TargetDateCell: React.FC<{ slaTarget?: string; status: string }> = ({ slaTarget, status }) => {
-    if (!slaTarget || status === 'RESOLVED' || status === 'CANCELLED') {
+const TargetDateCell: React.FC<{
+    slaTarget?: string;
+    scheduledDate?: string;
+    isHardwareInstallation?: boolean;
+    status: string
+}> = ({ slaTarget, scheduledDate, isHardwareInstallation, status }) => {
+    // For hardware installation, show scheduledDate (user's chosen date)
+    // For regular tickets, show slaTarget
+    const targetDate = isHardwareInstallation ? scheduledDate : slaTarget;
+
+    if (status === 'RESOLVED') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                DONE
+            </span>
+        );
+    }
+
+    if (!targetDate || status === 'CANCELLED') {
         return <span className="text-xs text-slate-400">-</span>;
     }
 
-    const target = new Date(slaTarget);
+    const target = new Date(targetDate);
     const now = new Date();
     const diffHours = (target.getTime() - now.getTime()) / (1000 * 60 * 60);
 
@@ -311,6 +334,8 @@ export const BentoTicketListPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [priorityFilter, setPriorityFilter] = useState<string>('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
 
     // Saved Filters
@@ -434,6 +459,37 @@ export const BentoTicketListPage: React.FC = () => {
         return result;
     }, [tickets, showAssignedToMe, user, searchQuery, statusFilter, priorityFilter]);
 
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, statusFilter, priorityFilter, showAssignedToMe]);
+
+    // Pagination calculations
+    const paginationInfo = useMemo(() => {
+        const totalItems = filteredTickets.length;
+        const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
+        const showPagination = totalItems > ITEMS_PER_PAGE;
+
+        return {
+            totalItems,
+            totalPages,
+            startIndex,
+            endIndex,
+            showPagination,
+            currentPage,
+            hasNextPage: currentPage < totalPages,
+            hasPrevPage: currentPage > 1,
+        };
+    }, [filteredTickets.length, currentPage, ITEMS_PER_PAGE]);
+
+    // Paginated tickets
+    const paginatedTickets = useMemo(() => {
+        const { startIndex, endIndex } = paginationInfo;
+        return filteredTickets.slice(startIndex, endIndex);
+    }, [filteredTickets, paginationInfo]);
+
     const stats = useMemo(() => ({
         total: tickets.length,
         open: tickets.filter((t) => t.status === 'TODO').length,
@@ -448,7 +504,52 @@ export const BentoTicketListPage: React.FC = () => {
         setStatusFilter('');
         setPriorityFilter('');
         setSearchParams({});
+        setCurrentPage(1);
     };
+
+    // Pagination handlers
+    const goToPage = useCallback((page: number) => {
+        const targetPage = Math.max(1, Math.min(page, paginationInfo.totalPages));
+        setCurrentPage(targetPage);
+        // Scroll to top of list
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [paginationInfo.totalPages]);
+
+    const getPageNumbers = useCallback(() => {
+        const { totalPages, currentPage } = paginationInfo;
+        const pages: (number | string)[] = [];
+
+        if (totalPages <= 7) {
+            // Show all pages if 7 or fewer
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+        } else {
+            // Always show first page
+            pages.push(1);
+
+            if (currentPage > 3) {
+                pages.push('...');
+            }
+
+            // Show pages around current page
+            const start = Math.max(2, currentPage - 1);
+            const end = Math.min(totalPages - 1, currentPage + 1);
+
+            for (let i = start; i <= end; i++) {
+                pages.push(i);
+            }
+
+            if (currentPage < totalPages - 2) {
+                pages.push('...');
+            }
+
+            // Always show last page
+            pages.push(totalPages);
+        }
+
+        return pages;
+    }, [paginationInfo]);
 
     const hasActiveFilters = searchQuery || statusFilter || priorityFilter || showAssignedToMe;
     const canEdit = user?.role === 'ADMIN' || user?.role === 'AGENT';
@@ -653,14 +754,19 @@ export const BentoTicketListPage: React.FC = () => {
                         </div>
 
                         <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {filteredTickets.map((ticket, index) => {
+                            {paginatedTickets.map((ticket, index) => {
                                 const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
                                 const PriorityIcon = priorityConfig.icon;
 
                                 return (
                                     <div
                                         key={ticket.id}
-                                        className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 px-4 py-3 hover:bg-white/60 dark:hover:bg-white/5 transition-all cursor-pointer group animate-fade-in-up border-b border-white/20 dark:border-white/5 last:border-0 hover:backdrop-blur-md"
+                                        className={cn(
+                                            "flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 px-4 py-3 hover:bg-white/60 dark:hover:bg-white/5 transition-all cursor-pointer group animate-fade-in-up border-b border-white/20 dark:border-white/5 last:border-0 hover:backdrop-blur-md",
+                                            ticket.isOverdue && "animate-overdue",
+                                            ticket.priority === 'CRITICAL' && !ticket.isOverdue && "animate-critical-pulse",
+                                            ticket.priority === 'HIGH' && !ticket.isOverdue && "animate-high-priority"
+                                        )}
                                         style={{ animationDelay: `${index * 0.05}s` }}
                                     >
                                         {/* Ticket Info */}
@@ -672,10 +778,10 @@ export const BentoTicketListPage: React.FC = () => {
                                                         #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                                     </span>
                                                     {ticket.isOverdue && (
-                                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse-red" />
                                                     )}
                                                     {ticket.priority === 'CRITICAL' && (
-                                                        <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                                        <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse-red" />
                                                     )}
                                                 </div>
                                                 <h3 className="font-semibold text-sm text-slate-800 dark:text-white group-hover:text-primary transition-colors truncate">
@@ -758,7 +864,12 @@ export const BentoTicketListPage: React.FC = () => {
 
                                         {/* Target Date */}
                                         <div className="flex-[2] min-w-0" onClick={() => navigate(`/tickets/${ticket.id}`)}>
-                                            <TargetDateCell slaTarget={ticket.slaTarget} status={ticket.status} />
+                                            <TargetDateCell
+                                                slaTarget={ticket.slaTarget}
+                                                scheduledDate={ticket.scheduledDate}
+                                                isHardwareInstallation={ticket.isHardwareInstallation}
+                                                status={ticket.status}
+                                            />
                                         </div>
 
                                         {/* Created Date & Actions */}
@@ -782,8 +893,85 @@ export const BentoTicketListPage: React.FC = () => {
                 )}
             </div>
 
-            {/* Results Count */}
-            {filteredTickets.length > 0 && (
+            {/* Pagination Controls */}
+            {paginationInfo.showPagination && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    {/* Results Info */}
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                        Showing <span className="font-medium text-slate-700 dark:text-slate-300">{paginationInfo.startIndex + 1}</span> to{' '}
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{paginationInfo.endIndex}</span> of{' '}
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{paginationInfo.totalItems}</span> tickets
+                    </div>
+
+                    {/* Pagination Buttons */}
+                    <div className="flex items-center gap-1">
+                        {/* First Page */}
+                        <button
+                            onClick={() => goToPage(1)}
+                            disabled={!paginationInfo.hasPrevPage}
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            title="First page"
+                        >
+                            <ChevronsLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        </button>
+
+                        {/* Previous Page */}
+                        <button
+                            onClick={() => goToPage(currentPage - 1)}
+                            disabled={!paginationInfo.hasPrevPage}
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            title="Previous page"
+                        >
+                            <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        </button>
+
+                        {/* Page Numbers */}
+                        <div className="flex items-center gap-1 mx-2">
+                            {getPageNumbers().map((page, idx) => (
+                                typeof page === 'number' ? (
+                                    <button
+                                        key={idx}
+                                        onClick={() => goToPage(page)}
+                                        className={cn(
+                                            "min-w-[36px] h-9 px-3 rounded-lg font-medium text-sm transition-all",
+                                            page === currentPage
+                                                ? "bg-primary text-slate-900 shadow-md"
+                                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        )}
+                                    >
+                                        {page}
+                                    </button>
+                                ) : (
+                                    <span key={idx} className="px-2 text-slate-400 select-none">...</span>
+                                )
+                            ))}
+                        </div>
+
+                        {/* Next Page */}
+                        <button
+                            onClick={() => goToPage(currentPage + 1)}
+                            disabled={!paginationInfo.hasNextPage}
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            title="Next page"
+                        >
+                            <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        </button>
+
+                        {/* Last Page */}
+                        <button
+                            onClick={() => goToPage(paginationInfo.totalPages)}
+                            disabled={!paginationInfo.hasNextPage}
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            title="Last page"
+                        >
+                            <ChevronsRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Results Count (when no pagination needed) */}
+            {!paginationInfo.showPagination && filteredTickets.length > 0 && (
                 <div className="text-center text-sm text-slate-400">
                     Showing {filteredTickets.length} of {tickets.length} tickets
                 </div>

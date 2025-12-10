@@ -35,11 +35,24 @@ export class KnowledgeBaseService {
     async findAll(filters?: ArticleFilters): Promise<Article[]> {
         const queryBuilder = this.articleRepo.createQueryBuilder('article');
 
+        // OPTIMIZED: Use PostgreSQL Full-Text Search for longer queries
+        // Falls back to ILIKE for short queries (≤3 chars) for better UX
         if (filters?.query) {
-            queryBuilder.andWhere(
-                '(article.title ILIKE :q OR article.content ILIKE :q OR article.category ILIKE :q)',
-                { q: `%${filters.query}%` }
-            );
+            const searchTerm = filters.query.trim();
+
+            if (searchTerm.length <= 3) {
+                // Short query - use ILIKE for flexibility
+                queryBuilder.andWhere(
+                    '(article.title ILIKE :q OR article.content ILIKE :q OR article.category ILIKE :q)',
+                    { q: `%${searchTerm}%` }
+                );
+            } else {
+                // Longer query - use Full-Text Search for performance
+                queryBuilder.andWhere(
+                    `(to_tsvector('indonesian', COALESCE(article.title, '') || ' ' || COALESCE(article.content, '')) @@ plainto_tsquery('indonesian', :q) OR article.category ILIKE :catQ)`,
+                    { q: searchTerm, catQ: `%${searchTerm}%` }
+                );
+            }
         }
 
         if (filters?.status) {
@@ -154,28 +167,31 @@ export class KnowledgeBaseService {
         return result.map(r => r.category);
     }
 
+    /**
+     * Get KB statistics
+     * OPTIMIZED: Uses single GROUP BY query instead of 4 separate COUNT queries
+     */
     async getStats(): Promise<{ totalArticles: number; totalViews: number; totalHelpful: number; byStatus: Record<string, number> }> {
-        const totalArticles = await this.articleRepo.count();
-        const viewsResult = await this.articleRepo
+        // Single query for all stats using SQL aggregations
+        const statsResult = await this.articleRepo
             .createQueryBuilder('article')
-            .select('SUM(article.viewCount)', 'total')
+            .select('COUNT(*)', 'totalArticles')
+            .addSelect('COALESCE(SUM(article."viewCount"), 0)', 'totalViews')
+            .addSelect('COALESCE(SUM(article."helpfulCount"), 0)', 'totalHelpful')
+            .addSelect(`COUNT(*) FILTER (WHERE article.status = '${ArticleStatus.DRAFT}')`, 'draftCount')
+            .addSelect(`COUNT(*) FILTER (WHERE article.status = '${ArticleStatus.PUBLISHED}')`, 'publishedCount')
+            .addSelect(`COUNT(*) FILTER (WHERE article.status = '${ArticleStatus.ARCHIVED}')`, 'archivedCount')
             .getRawOne();
-        const helpfulResult = await this.articleRepo
-            .createQueryBuilder('article')
-            .select('SUM(article.helpfulCount)', 'total')
-            .getRawOne();
-
-        const byStatus = {
-            draft: await this.articleRepo.count({ where: { status: ArticleStatus.DRAFT } }),
-            published: await this.articleRepo.count({ where: { status: ArticleStatus.PUBLISHED } }),
-            archived: await this.articleRepo.count({ where: { status: ArticleStatus.ARCHIVED } }),
-        };
 
         return {
-            totalArticles,
-            totalViews: parseInt(viewsResult?.total || '0'),
-            totalHelpful: parseInt(helpfulResult?.total || '0'),
-            byStatus,
+            totalArticles: parseInt(statsResult?.totalArticles || '0'),
+            totalViews: parseInt(statsResult?.totalViews || '0'),
+            totalHelpful: parseInt(statsResult?.totalHelpful || '0'),
+            byStatus: {
+                draft: parseInt(statsResult?.draftCount || '0'),
+                published: parseInt(statsResult?.publishedCount || '0'),
+                archived: parseInt(statsResult?.archivedCount || '0'),
+            },
         };
     }
 

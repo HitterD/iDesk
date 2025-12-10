@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-    Bell, 
-    Ticket, 
-    CalendarClock, 
-    Check, 
+import {
+    Bell,
+    Ticket,
+    CalendarClock,
+    Check,
     Trash2,
     UserPlus,
     MessageSquare,
@@ -14,7 +14,8 @@ import {
     Calendar,
     CheckCheck,
     Inbox,
-    Filter
+    Filter,
+    Wrench
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
@@ -22,7 +23,7 @@ import { useAuth } from '@/stores/useAuth';
 import { NotificationCategory, NotificationType, Notification, NotificationCountByCategory } from './types/notification.types';
 import { getNotificationRedirectPath, UserRole } from './utils/notificationRouter';
 
-type TabValue = 'all' | 'tickets' | 'renewals';
+type TabValue = 'all' | 'tickets' | 'renewals' | 'hardware';
 type FilterValue = 'all' | 'unread' | 'read';
 
 // Icon mapping for notification types
@@ -42,6 +43,8 @@ const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
     [NotificationType.RENEWAL_D7_WARNING]: CalendarClock,
     [NotificationType.RENEWAL_D1_WARNING]: AlertTriangle,
     [NotificationType.RENEWAL_EXPIRED]: AlertTriangle,
+    [NotificationType.HARDWARE_INSTALL_D1]: Wrench,
+    [NotificationType.HARDWARE_INSTALL_D0]: Wrench,
 };
 
 const getNotificationColor = (type: NotificationType): string => {
@@ -100,13 +103,13 @@ const getDateGroup = (dateString: string): string => {
 
 const groupNotificationsByDate = (notifications: Notification[]): Map<string, Notification[]> => {
     const groups = new Map<string, Notification[]>();
-    
+
     notifications.forEach(notification => {
         const group = getDateGroup(notification.createdAt);
         const existing = groups.get(group) || [];
         groups.set(group, [...existing, notification]);
     });
-    
+
     return groups;
 };
 
@@ -124,6 +127,8 @@ export const NotificationCenter: React.FC = () => {
                 return NotificationCategory.CATEGORY_TICKET;
             case 'renewals':
                 return NotificationCategory.CATEGORY_RENEWAL;
+            case 'hardware':
+                return NotificationCategory.CATEGORY_HARDWARE;
             default:
                 return undefined;
         }
@@ -138,7 +143,7 @@ export const NotificationCenter: React.FC = () => {
             if (readFilter === 'unread') params.set('isRead', 'false');
             if (readFilter === 'read') params.set('isRead', 'true');
             params.set('limit', '100');
-            
+
             const res = await api.get(`/notifications?${params}`);
             return res.data;
         },
@@ -191,20 +196,21 @@ export const NotificationCenter: React.FC = () => {
 
     const ticketCount = categoryCounts?.[NotificationCategory.CATEGORY_TICKET] || 0;
     const renewalCount = categoryCounts?.[NotificationCategory.CATEGORY_RENEWAL] || 0;
-    const totalUnread = ticketCount + renewalCount;
+    const hardwareCount = categoryCounts?.[NotificationCategory.CATEGORY_HARDWARE] || 0;
+    const totalUnread = ticketCount + renewalCount + hardwareCount;
 
-    const StatCard = ({ 
-        title, 
-        count, 
-        icon: Icon, 
-        color, 
+    const StatCard = ({
+        title,
+        count,
+        icon: Icon,
+        color,
         bgColor,
         onClick,
-        isActive 
-    }: { 
-        title: string; 
-        count: number; 
-        icon: React.ElementType; 
+        isActive
+    }: {
+        title: string;
+        count: number;
+        icon: React.ElementType;
         color: string;
         bgColor: string;
         onClick: () => void;
@@ -212,11 +218,10 @@ export const NotificationCenter: React.FC = () => {
     }) => (
         <button
             onClick={onClick}
-            className={`flex-1 p-4 rounded-2xl border-2 transition-all hover:scale-[1.02] ${
-                isActive 
-                    ? `${bgColor} border-current ${color}` 
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-            }`}
+            className={`flex-1 p-4 rounded-2xl border-2 transition-all hover:scale-[1.02] ${isActive
+                ? `${bgColor} border-current ${color}`
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
         >
             <div className="flex items-center gap-3">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isActive ? 'bg-white/20' : bgColor}`}>
@@ -260,7 +265,7 @@ export const NotificationCenter: React.FC = () => {
 
         // Group notifications by date
         const groupedNotifications = groupNotificationsByDate(notifications);
-        
+
         return (
             <div>
                 {Array.from(groupedNotifications.entries()).map(([dateGroup, groupNotifications]) => (
@@ -271,42 +276,43 @@ export const NotificationCenter: React.FC = () => {
                                 {dateGroup}
                             </span>
                         </div>
-                        
+
                         {/* Notifications in this group */}
                         <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
                             {groupNotifications.map((notification) => {
                                 const Icon = NOTIFICATION_ICONS[notification.type] || Bell;
                                 const iconColor = getNotificationColor(notification.type);
-                                
+
                                 return (
                                     <div
                                         key={notification.id}
                                         onClick={() => handleNotificationClick(notification)}
-                                        className={`p-4 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-700/30 group ${
-                                            !notification.isRead ? 'bg-primary/5 dark:bg-primary/5' : ''
+                                        className={`p-4 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-700/30 group animate-pop-in ${!notification.isRead ? 'bg-primary/5 dark:bg-primary/5' : ''} ${
+                                            (notification.type === NotificationType.SLA_BREACHED || 
+                                             notification.type === NotificationType.RENEWAL_D1_WARNING ||
+                                             notification.type === NotificationType.RENEWAL_EXPIRED) 
+                                            ? 'animate-notification-urgent' : ''
                                         }`}
                                     >
                                         <div className="flex gap-4">
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                                                !notification.isRead 
-                                                    ? 'bg-primary/10' 
-                                                    : 'bg-slate-100 dark:bg-slate-700'
-                                            }`}>
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${!notification.isRead
+                                                ? 'bg-primary/10'
+                                                : 'bg-slate-100 dark:bg-slate-700'
+                                                }`}>
                                                 <Icon className={`w-6 h-6 ${iconColor}`} />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2">
-                                                            <p className={`font-semibold ${
-                                                                notification.isRead 
-                                                                    ? 'text-slate-600 dark:text-slate-300' 
-                                                                    : 'text-slate-800 dark:text-white'
-                                                            }`}>
+                                                            <p className={`font-semibold ${notification.isRead
+                                                                ? 'text-slate-600 dark:text-slate-300'
+                                                                : 'text-slate-800 dark:text-white'
+                                                                }`}>
                                                                 {notification.title}
                                                             </p>
                                                             {!notification.isRead && (
-                                                                <span className="w-2 h-2 bg-primary rounded-full shrink-0" />
+                                                                <span className="w-2 h-2 bg-primary rounded-full shrink-0 animate-pulse-ring" />
                                                             )}
                                                         </div>
                                                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
@@ -327,12 +333,17 @@ export const NotificationCenter: React.FC = () => {
                                                     <span className="text-xs text-slate-400 font-medium">
                                                         {formatTimeAgo(notification.createdAt)}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${
-                                                        notification.category === NotificationCategory.CATEGORY_RENEWAL
-                                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+                                                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${notification.category === NotificationCategory.CATEGORY_RENEWAL
+                                                        ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+                                                        : notification.category === NotificationCategory.CATEGORY_HARDWARE
+                                                            ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                                                             : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                                                    }`}>
-                                                        {notification.category === NotificationCategory.CATEGORY_RENEWAL ? 'Renewal' : 'Ticket'}
+                                                        }`}>
+                                                        {notification.category === NotificationCategory.CATEGORY_RENEWAL
+                                                            ? 'Renewal'
+                                                            : notification.category === NotificationCategory.CATEGORY_HARDWARE
+                                                                ? 'Hardware'
+                                                                : 'Ticket'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -375,7 +386,7 @@ export const NotificationCenter: React.FC = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                     title="Total Unread"
                     count={totalUnread}
@@ -393,6 +404,15 @@ export const NotificationCenter: React.FC = () => {
                     bgColor="bg-blue-100 dark:bg-blue-900/30"
                     onClick={() => setActiveTab('tickets')}
                     isActive={activeTab === 'tickets'}
+                />
+                <StatCard
+                    title="Hardware Installation"
+                    count={hardwareCount}
+                    icon={Wrench}
+                    color="text-emerald-600"
+                    bgColor="bg-emerald-100 dark:bg-emerald-900/30"
+                    onClick={() => setActiveTab('hardware')}
+                    isActive={activeTab === 'hardware'}
                 />
                 <StatCard
                     title="Renewal Alerts"
@@ -413,33 +433,40 @@ export const NotificationCenter: React.FC = () => {
                     <div className="flex items-center gap-1 p-1 bg-slate-200/50 dark:bg-slate-700/50 rounded-xl">
                         <button
                             onClick={() => setActiveTab('all')}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                                activeTab === 'all'
-                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'all'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
                         >
                             <Bell className="h-4 w-4" />
                             All
                         </button>
                         <button
                             onClick={() => setActiveTab('tickets')}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                                activeTab === 'tickets'
-                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'tickets'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
                         >
                             <Ticket className="h-4 w-4" />
                             Tickets
                         </button>
                         <button
+                            onClick={() => setActiveTab('hardware')}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'hardware'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
+                        >
+                            <Wrench className="h-4 w-4" />
+                            Hardware
+                        </button>
+                        <button
                             onClick={() => setActiveTab('renewals')}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                                activeTab === 'renewals'
-                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'renewals'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
                         >
                             <CalendarClock className="h-4 w-4" />
                             Renewals

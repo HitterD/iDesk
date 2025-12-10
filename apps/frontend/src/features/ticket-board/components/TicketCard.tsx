@@ -51,7 +51,9 @@ const TicketCardComponent: React.FC<TicketCardProps> = ({ ticket, onClick }) => 
             {...attributes}
             onClick={onClick}
             className={`p-4 rounded-lg mb-3 cursor-grab active:cursor-grabbing transition-all shadow-lg group relative overflow-hidden
-                ${isOverdue ? 'bg-red-900/20 border-2 border-red-500 animate-pulse' : 'bg-navy-main border border-white/10 hover:border-neon-green/50'}
+                ${isOverdue ? 'bg-red-900/20 border-2 border-red-500 animate-pulse' :
+                    ticket.priority === 'CRITICAL' ? 'bg-navy-main border border-white/10 animate-critical-pulse' :
+                        'bg-navy-main border border-white/10 hover:border-neon-green/50'}
             `}
         >
             {/* Neon Glow Effect on Hover */}

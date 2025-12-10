@@ -16,6 +16,18 @@ interface Article {
     author?: { fullName: string };
 }
 
+/**
+ * Resolve image URL - handles both relative and absolute URLs
+ */
+const getImageUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+        return url;
+    }
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+    return `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 export const ClientArticleDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -32,7 +44,7 @@ export const ClientArticleDetailPage: React.FC = () => {
     // Track view
     useEffect(() => {
         if (id) {
-            api.post(`/kb/articles/${id}/view`).catch(() => {});
+            api.post(`/kb/articles/${id}/view`).catch(() => { });
         }
     }, [id]);
 
@@ -106,9 +118,13 @@ export const ClientArticleDetailPage: React.FC = () => {
                                 return (
                                     <img
                                         key={index}
-                                        src={part}
+                                        src={getImageUrl(part)}
                                         alt={altText || 'Article image'}
                                         className="my-4 rounded-xl max-w-full"
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                        }}
                                     />
                                 );
                             }
@@ -125,7 +141,7 @@ export const ClientArticleDetailPage: React.FC = () => {
                     <div className="mt-12 pt-8 border-t border-slate-100 dark:border-slate-700">
                         <div className="flex flex-wrap gap-2">
                             {article.tags.map((tag, i) => (
-                                <span 
+                                <span
                                     key={i}
                                     className="flex items-center px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-sm font-medium border border-slate-100 dark:border-slate-700"
                                 >

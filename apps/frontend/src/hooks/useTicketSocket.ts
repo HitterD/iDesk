@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
+import type { Ticket, TicketMessage } from '@/lib/api/types';
 
-interface Message {
-    id: string;
-    content: string;
-    senderId: string;
-    sender?: { fullName: string; role: string };
-    createdAt: string;
-    isSystemMessage?: boolean;
-    attachments?: string[];
-}
+// Use TicketMessage from types instead of local interface
+type Message = TicketMessage;
+
+// Ticket data type for socket events
+type TicketSocketData = Partial<Ticket> & { id: string };
 
 interface UseTicketSocketOptions {
     ticketId: string | undefined;
@@ -34,7 +31,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         const handleNewMessage = (data: { ticketId: string; message: Message }) => {
             if (data.ticketId === ticketId) {
                 // Optimistically update the cache
-                queryClient.setQueryData(['ticket', ticketId], (oldData: any) => {
+                queryClient.setQueryData(['ticket', ticketId], (oldData: Ticket | undefined) => {
                     if (!oldData) return oldData;
                     // Check if message already exists to prevent duplicates
                     if (oldData.messages?.some((m: Message) => m.id === data.message.id)) {
@@ -57,7 +54,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         const handleStatusChange = (data: { ticketId: string; status: string }) => {
             if (data.ticketId === ticketId) {
                 // Optimistically update status
-                queryClient.setQueryData(['ticket', ticketId], (oldData: any) => {
+                queryClient.setQueryData(['ticket', ticketId], (oldData: Ticket | undefined) => {
                     if (!oldData) return oldData;
                     return {
                         ...oldData,
@@ -129,7 +126,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
 };
 
 // Hook for ticket list real-time updates
-export const useTicketListSocket = (options?: { onNewTicket?: (ticket: any) => void }) => {
+export const useTicketListSocket = (options?: { onNewTicket?: (ticket: Ticket) => void }) => {
     const { socket, isConnected } = useSocket();
     const queryClient = useQueryClient();
 
@@ -146,7 +143,7 @@ export const useTicketListSocket = (options?: { onNewTicket?: (ticket: any) => v
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         };
 
-        const handleNewTicket = (ticket: any) => {
+        const handleNewTicket = (ticket: Ticket) => {
             // Refresh ticket list immediately
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Calendar, Filter, X } from 'lucide-react';
 import { SearchFilters } from '../hooks/useSearch';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { format, parseISO } from 'date-fns';
 
 interface SearchFilterPanelProps {
     filters: SearchFilters;
@@ -123,19 +125,21 @@ export const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
                     <Calendar className="w-3 h-3 inline mr-1" />
                     Date Range
                 </label>
-                <div className="flex gap-2">
-                    <input
-                        type="date"
-                        value={filters.dateRange?.start || ''}
-                        onChange={(e) => setDateRange(e.target.value, filters.dateRange?.end || '')}
-                        className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                <div className="flex gap-2 items-center">
+                    <ModernDatePicker
+                        value={filters.dateRange?.start ? parseISO(filters.dateRange.start) : undefined}
+                        onChange={(date) => setDateRange(format(date, 'yyyy-MM-dd'), filters.dateRange?.end || '')}
+                        placeholder="Start"
+                        maxDate={filters.dateRange?.end ? parseISO(filters.dateRange.end) : undefined}
+                        triggerClassName="flex-1 text-xs py-1"
                     />
-                    <span className="text-slate-500 self-center">to</span>
-                    <input
-                        type="date"
-                        value={filters.dateRange?.end || ''}
-                        onChange={(e) => setDateRange(filters.dateRange?.start || '', e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                    <span className="text-slate-500">to</span>
+                    <ModernDatePicker
+                        value={filters.dateRange?.end ? parseISO(filters.dateRange.end) : undefined}
+                        onChange={(date) => setDateRange(filters.dateRange?.start || '', format(date, 'yyyy-MM-dd'))}
+                        placeholder="End"
+                        minDate={filters.dateRange?.start ? parseISO(filters.dateRange.start) : undefined}
+                        triggerClassName="flex-1 text-xs py-1"
                     />
                 </div>
             </div>

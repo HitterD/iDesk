@@ -179,7 +179,7 @@ export const AutomationRulesPage = () => {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6 animate-fade-in-up">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -246,7 +246,7 @@ export const AutomationRulesPage = () => {
                             <div
                                 key={rule.id}
                                 className={cn(
-                                    "glass-card p-4 transition-all hover:shadow-lg cursor-pointer",
+                                    "glass-card p-4 transition-all hover:shadow-lg cursor-pointer hover-lift",
                                     !rule.isActive && "opacity-60"
                                 )}
                                 onClick={() => handleEditRule(rule)}

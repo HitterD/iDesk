@@ -176,6 +176,7 @@ echo       [OK] Containers stopped
 
 echo.
 echo [3/4] Starting containers with existing data...
+call :FixPostgresDirs
 docker-compose -f docker-compose.db.yml up -d
 if %errorlevel% neq 0 (
     echo       [ERROR] Failed to start containers!
@@ -357,6 +358,7 @@ if not "%REDIS_BACKUP%"=="skip" (
 
 echo.
 echo [4/4] Starting containers with restored data...
+call :FixPostgresDirs
 docker-compose -f docker-compose.db.yml up -d
 if %errorlevel% neq 0 (
     echo       [ERROR] Failed to start containers!
@@ -462,6 +464,25 @@ if %errorlevel% equ 0 (
 )
 
 :BackupFiles
+exit /b 0
+
+:: ========================================================
+:: FIX POSTGRES DIRECTORIES
+:: ========================================================
+:FixPostgresDirs
+echo       Checking for missing PostgreSQL directories...
+if not exist "%POSTGRES_DATA%\pg_notify" mkdir "%POSTGRES_DATA%\pg_notify"
+if not exist "%POSTGRES_DATA%\pg_logical\snapshots" mkdir "%POSTGRES_DATA%\pg_logical\snapshots"
+if not exist "%POSTGRES_DATA%\pg_logical\mappings" mkdir "%POSTGRES_DATA%\pg_logical\mappings"
+if not exist "%POSTGRES_DATA%\pg_commit_ts" mkdir "%POSTGRES_DATA%\pg_commit_ts"
+if not exist "%POSTGRES_DATA%\pg_dynshmem" mkdir "%POSTGRES_DATA%\pg_dynshmem"
+if not exist "%POSTGRES_DATA%\pg_replslot" mkdir "%POSTGRES_DATA%\pg_replslot"
+if not exist "%POSTGRES_DATA%\pg_serial" mkdir "%POSTGRES_DATA%\pg_serial"
+if not exist "%POSTGRES_DATA%\pg_snapshots" mkdir "%POSTGRES_DATA%\pg_snapshots"
+if not exist "%POSTGRES_DATA%\pg_stat" mkdir "%POSTGRES_DATA%\pg_stat"
+if not exist "%POSTGRES_DATA%\pg_stat_tmp" mkdir "%POSTGRES_DATA%\pg_stat_tmp"
+if not exist "%POSTGRES_DATA%\pg_tblspc" mkdir "%POSTGRES_DATA%\pg_tblspc"
+if not exist "%POSTGRES_DATA%\pg_twophase" mkdir "%POSTGRES_DATA%\pg_twophase"
 exit /b 0
 
 :: ========================================================

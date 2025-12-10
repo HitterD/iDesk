@@ -8,7 +8,7 @@ import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
-import { CacheService } from '../../../shared/core/cache';
+import { CacheService, CacheInvalidationService } from '../../../shared/core/cache';
 import { TicketCreatedEvent } from '../events/ticket-created.event';
 
 @Injectable()
@@ -24,6 +24,7 @@ export class TicketCreateService {
         private readonly slaConfigRepo: Repository<SlaConfig>,
         private readonly eventsGateway: EventsGateway,
         private readonly cacheService: CacheService,
+        private readonly cacheInvalidationService: CacheInvalidationService,
         private readonly eventEmitter: EventEmitter2,
     ) { }
 
@@ -106,8 +107,8 @@ export class TicketCreateService {
 
             await this.ticketRepo.save(ticket);
 
-            // Invalidate dashboard cache (await to ensure completion before emitting events)
-            await this.cacheService.delByPattern('dashboard:stats:*');
+            // Invalidate caches using centralized service
+            await this.cacheInvalidationService.onTicketChange(ticket.id);
             this.eventsGateway.notifyDashboardStatsUpdate();
 
             // Save initial message with attachments

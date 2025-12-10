@@ -57,6 +57,8 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
     return (
       <button
         onClick={() => setIsOpen(true)}
+        aria-label="Open quick reply templates"
+        aria-haspopup="dialog"
         className={cn(
           "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400",
           "hover:text-primary hover:bg-primary/5 rounded-lg transition-colors",
@@ -64,7 +66,7 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
         )}
         title="Quick replies"
       >
-        <Zap className="w-3.5 h-3.5" />
+        <Zap className="w-3.5 h-3.5" aria-hidden="true" />
         Quick Reply
       </button>
     );
@@ -74,20 +76,22 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
     <div className="absolute bottom-full left-0 mb-2 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in z-50">
       {/* Header */}
       <div className="flex items-center gap-2 p-3 border-b border-slate-200 dark:border-slate-700">
-        <Search className="w-4 h-4 text-slate-400" />
+        <Search className="w-4 h-4 text-slate-400" aria-hidden="true" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates..."
+          aria-label="Search quick reply templates"
           className="flex-1 bg-transparent text-sm outline-none text-slate-800 dark:text-white placeholder:text-slate-400"
           autoFocus
         />
         <button
           onClick={() => { setIsOpen(false); setSearch(''); }}
+          aria-label="Close quick replies"
           className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
         >
-          <X className="w-4 h-4 text-slate-400" />
+          <X className="w-4 h-4 text-slate-400" aria-hidden="true" />
         </button>
       </div>
 
@@ -348,15 +352,17 @@ export const CannedResponsesManager: React.FC = () => {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleEdit(response)}
+                  aria-label={`Edit ${response.title} template`}
                   className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                 >
-                  <Edit2 className="w-4 h-4" />
+                  <Edit2 className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate(response.id)}
+                  aria-label={`Delete ${response.title} template`}
                   className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             </div>

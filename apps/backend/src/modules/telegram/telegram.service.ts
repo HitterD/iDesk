@@ -254,12 +254,129 @@ export class TelegramService {
         return savedTicket;
     }
 
+    async createHardwareInstallationTicket(
+        session: TelegramSession,
+        title: string,
+        description: string,
+        scheduledDate: Date,
+        scheduledTime: string,
+    ): Promise<Ticket> {
+        if (!session.userId) {
+            throw new Error('Akun tidak terhubung');
+        }
+
+        // Get user with department
+        const user = await this.userRepo.findOne({
+            where: { id: session.userId },
+            relations: ['department'],
+        });
+
+        const ticketNumber = await this.generateTicketNumber(user || undefined);
+
+        // Calculate SLA target = scheduled date + 1 day (H+1 auto-resolve)
+        const slaTarget = new Date(scheduledDate);
+        slaTarget.setDate(slaTarget.getDate() + 1);
+        slaTarget.setHours(17, 0, 0, 0); // End of business day H+1
+
+        const ticket = this.ticketRepo.create({
+            ticketNumber,
+            title,
+            description,
+            category: 'HARDWARE_INSTALLATION',
+            priority: TicketPriority.HARDWARE_INSTALLATION,
+            status: TicketStatus.TODO,
+            source: TicketSource.TELEGRAM,
+            userId: session.userId,
+            isHardwareInstallation: true,
+            scheduledDate,
+            scheduledTime,
+            slaTarget,
+            slaStartedAt: new Date(),
+        });
+
+        // Save ticket
+        const savedTicket = await this.ticketRepo.save(ticket);
+
+        // Create initial message
+        const message = this.messageRepo.create({
+            ticketId: savedTicket.id,
+            senderId: session.userId,
+            content: description,
+        });
+        await this.messageRepo.save(message);
+
+        return savedTicket;
+    }
+
     async getMyTickets(userId: string): Promise<Ticket[]> {
         return this.ticketRepo.find({
             where: { userId },
             order: { createdAt: 'DESC' },
             take: 10,
         });
+    }
+
+    async getActiveTickets(userId: string): Promise<Ticket[]> {
+        return this.ticketRepo.find({
+            where: [
+                { userId, status: TicketStatus.TODO },
+                { userId, status: TicketStatus.IN_PROGRESS },
+                { userId, status: TicketStatus.WAITING_VENDOR },
+            ],
+            order: { createdAt: 'DESC' },
+            take: 10,
+        });
+    }
+
+    async getResolvedTickets(userId: string): Promise<Ticket[]> {
+        return this.ticketRepo.find({
+            where: [
+                { userId, status: TicketStatus.RESOLVED },
+                { userId, status: TicketStatus.CANCELLED },
+            ],
+            order: { updatedAt: 'DESC' },
+            take: 10,
+        });
+    }
+
+    async getUserRole(userId: string): Promise<'USER' | 'AGENT' | 'ADMIN'> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) return 'USER';
+        if (user.role === 'ADMIN') return 'ADMIN';
+        if (user.role === 'AGENT') return 'AGENT';
+        return 'USER';
+    }
+
+    async getAgentDashboardStats(agentId: string): Promise<{
+        assignedToMe: number;
+        inProgress: number;
+        queueCount: number;
+        resolvedToday: number;
+    }> {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const assignedToMe = await this.ticketRepo.count({
+            where: { assignedToId: agentId, status: TicketStatus.TODO },
+        });
+
+        const inProgress = await this.ticketRepo.count({
+            where: { assignedToId: agentId, status: TicketStatus.IN_PROGRESS },
+        });
+
+        const queueCount = await this.ticketRepo.count({
+            where: { assignedToId: null as any, status: TicketStatus.TODO },
+        });
+
+        const resolvedToday = await this.ticketRepo.count({
+            where: {
+                assignedToId: agentId,
+                status: TicketStatus.RESOLVED,
+                updatedAt: MoreThanOrEqual(today),
+            },
+        });
+
+        return { assignedToMe, inProgress, queueCount, resolvedToday };
     }
 
     async getTicketById(ticketId: string): Promise<Ticket | null> {
@@ -565,6 +682,18 @@ export class TelegramService {
                 createdAt: 'ASC',
             },
             take: 20,
+        });
+    }
+
+    async getAgentAssignedTickets(agentId: string): Promise<Ticket[]> {
+        return this.ticketRepo.find({
+            where: [
+                { assignedToId: agentId, status: TicketStatus.TODO },
+                { assignedToId: agentId, status: TicketStatus.IN_PROGRESS },
+                { assignedToId: agentId, status: TicketStatus.WAITING_VENDOR },
+            ],
+            order: { updatedAt: 'DESC' },
+            take: 10,
         });
     }
 

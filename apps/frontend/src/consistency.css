@@ -1,0 +1,264 @@
+/* ========================================
+   CONSISTENCY UTILITIES
+   Standardized icon sizes and form spacing
+   ======================================== */
+
+/* ========================================
+   ICON SIZE SYSTEM
+   ======================================== */
+
+/* Icon size tokens */
+:root {
+    --icon-xs: 12px;
+    --icon-sm: 16px;
+    --icon-md: 20px;
+    --icon-lg: 24px;
+    --icon-xl: 32px;
+    --icon-2xl: 40px;
+}
+
+/* Icon size classes */
+.icon-xs {
+    width: 12px;
+    height: 12px;
+}
+
+.icon-sm {
+    width: 16px;
+    height: 16px;
+}
+
+.icon-md {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-lg {
+    width: 24px;
+    height: 24px;
+}
+
+.icon-xl {
+    width: 32px;
+    height: 32px;
+}
+
+.icon-2xl {
+    width: 40px;
+    height: 40px;
+}
+
+/* Tailwind-compatible icon utilities */
+.icon-3 {
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
+/* 12px */
+.icon-4 {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* 16px */
+.icon-5 {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+/* 20px */
+.icon-6 {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+/* 24px */
+.icon-8 {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* 32px */
+
+/* Icon in button defaults */
+.btn-icon-left {
+    margin-right: 0.5rem;
+}
+
+.btn-icon-right {
+    margin-left: 0.5rem;
+}
+
+/* ========================================
+   FORM SPACING SYSTEM
+   ======================================== */
+
+/* Form tokens */
+:root {
+    --form-gap-label: 0.5rem;
+    /* 8px - between label and input */
+    --form-gap-field: 1rem;
+    /* 16px - between form fields */
+    --form-gap-section: 1.5rem;
+    /* 24px - between form sections */
+    --form-gap-group: 2rem;
+    /* 32px - between form groups */
+}
+
+/* Form layout utilities */
+.form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap-field, 1rem);
+}
+
+.form-stack-tight {
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap-label, 0.5rem);
+}
+
+.form-stack-loose {
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap-section, 1.5rem);
+}
+
+/* Form field with label */
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap-label, 0.5rem);
+}
+
+/* Form row (horizontal layout) */
+.form-row {
+    display: flex;
+    gap: var(--form-gap-field, 1rem);
+    align-items: flex-start;
+}
+
+.form-row>* {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Form section with title */
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap-field, 1rem);
+    padding-bottom: var(--form-gap-section, 1.5rem);
+    border-bottom: 1px solid var(--color-border-subtle, hsl(40, 10%, 90%));
+}
+
+.form-section:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+/* Form actions (buttons) */
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: var(--form-gap-section, 1.5rem);
+    padding-top: var(--form-gap-section, 1.5rem);
+    border-top: 1px solid var(--color-border-subtle, hsl(40, 10%, 90%));
+}
+
+.form-actions-left {
+    justify-content: flex-start;
+}
+
+.form-actions-center {
+    justify-content: center;
+}
+
+.form-actions-between {
+    justify-content: space-between;
+}
+
+/* ========================================
+   CARD SPACING CONSISTENCY
+   ======================================== */
+
+/* Card padding tokens */
+:root {
+    --card-padding-sm: 1rem;
+    --card-padding-md: 1.5rem;
+    --card-padding-lg: 2rem;
+}
+
+/* Card utilities */
+.card-sm {
+    padding: var(--card-padding-sm);
+}
+
+.card-md {
+    padding: var(--card-padding-md);
+}
+
+.card-lg {
+    padding: var(--card-padding-lg);
+}
+
+/* Card header/body/footer pattern */
+.card-header {
+    padding: var(--card-padding-md);
+    border-bottom: 1px solid var(--color-border-subtle, hsl(40, 10%, 90%));
+}
+
+.card-body {
+    padding: var(--card-padding-md);
+}
+
+.card-footer {
+    padding: var(--card-padding-md);
+    border-top: 1px solid var(--color-border-subtle, hsl(40, 10%, 90%));
+}
+
+/* ========================================
+   TEXT CONSISTENCY
+   ======================================== */
+
+/* Text balance for headings */
+.text-balance {
+    text-wrap: balance;
+}
+
+/* Text truncation utilities (extend Tailwind) */
+.truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ========================================
+   DARK MODE SUPPORT
+   ======================================== */
+
+.dark .form-section {
+    border-bottom-color: hsl(217.2, 32.6%, 20%);
+}
+
+.dark .form-section:last-child {
+    border-bottom: none;
+}
+
+.dark .form-actions {
+    border-top-color: hsl(217.2, 32.6%, 20%);
+}
+
+.dark .card-header,
+.dark .card-footer {
+    border-color: hsl(217.2, 32.6%, 20%);
+}

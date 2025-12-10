@@ -87,7 +87,7 @@
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
-    border-radius: 24px;
+    border-radius: var(--radius-2xl, 24px);
     box-shadow: var(--glass-shadow);
 }
 
@@ -96,7 +96,7 @@
     backdrop-filter: var(--glass-blur-elevated);
     -webkit-backdrop-filter: var(--glass-blur-elevated);
     border: 1px solid var(--glass-border);
-    border-radius: 24px;
+    border-radius: var(--radius-2xl, 24px);
     box-shadow: var(--glass-shadow-elevated);
 }
 
@@ -105,6 +105,7 @@
     backdrop-filter: var(--glass-blur-subtle);
     -webkit-backdrop-filter: var(--glass-blur-subtle);
     border: 1px solid var(--glass-border-subtle);
+    border-radius: var(--radius-xl, 20px);
 }
 
 /* ========================================

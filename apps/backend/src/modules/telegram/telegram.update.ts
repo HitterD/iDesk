@@ -47,35 +47,21 @@ export class TelegramUpdate {
         const t = getTemplates(session?.language || 'id');
 
         if (session?.userId) {
-            // User sudah terhubung - tampilkan menu lengkap
-            const stats = await this.telegramService.getUserStats(session.userId);
-
-            // Gunakan nama dari akun iDesk yang terhubung, bukan nama Telegram
+            const role = await this.telegramService.getUserRole(session.userId);
             const userName = session.user?.fullName || session.telegramFirstName || 'User';
 
-            await ctx.replyWithHTML(
-                t.welcome.linkedGreeting(
-                    userName,
-                    stats.activeTickets,
-                    stats.waitingReply
-                ),
-                Markup.inlineKeyboard([
-                    [
-                        Markup.button.callback('🎫 Buat Tiket', 'new_ticket'),
-                        Markup.button.callback('📋 Tiket Saya', 'my_tickets'),
-                    ],
-                    [
-                        Markup.button.callback('💬 Chat Support', 'start_chat'),
-                        Markup.button.callback('🔍 Cari KB', 'search_kb'),
-                    ],
-                    [
-                        Markup.button.callback('⚙️ Pengaturan', 'settings'),
-                        Markup.button.callback('❓ Bantuan', 'help'),
-                    ],
-                ])
-            );
+            switch (role) {
+                case 'ADMIN':
+                    await this.showAdminMenu(ctx, userName);
+                    break;
+                case 'AGENT':
+                    await this.showAgentMenu(ctx, userName, session.userId);
+                    break;
+                default:
+                    await this.showUserMenu(ctx, userName, session.userId);
+            }
         } else {
-            // User belum terhubung - minta link akun
+            // User belum terhubung
             await ctx.replyWithHTML(
                 t.welcome.unlinkedGreeting,
                 Markup.inlineKeyboard([
@@ -84,6 +70,89 @@ export class TelegramUpdate {
                 ])
             );
         }
+    }
+
+    private async showUserMenu(ctx: Context, userName: string, userId: string) {
+        const stats = await this.telegramService.getUserStats(userId);
+
+        await ctx.replyWithHTML(
+            `👋 <b>Halo, ${userName}!</b>\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📊 <b>Status Tiket Anda</b>\n` +
+            `• Aktif: <b>${stats.activeTickets}</b> tiket\n` +
+            `• Menunggu balasan: <b>${stats.waitingReply}</b>\n` +
+            `━━━━━━━━━━━━━━━━━━\n\n` +
+            `Pilih menu di bawah:`,
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('🎫 Buat Tiket', 'new_ticket'),
+                    Markup.button.callback('📋 Tiket Aktif', 'my_tickets'),
+                ],
+                [
+                    Markup.button.callback('💬 Chat Support', 'start_chat'),
+                    Markup.button.callback('🔍 Cari KB', 'search_kb'),
+                ],
+                [
+                    Markup.button.callback('⚙️ Pengaturan', 'settings'),
+                    Markup.button.callback('❓ Bantuan', 'help'),
+                ],
+            ])
+        );
+    }
+
+    private async showAgentMenu(ctx: Context, userName: string, userId: string) {
+        const stats = await this.telegramService.getAgentDashboardStats(userId);
+
+        await ctx.replyWithHTML(
+            `👋 <b>Halo, ${userName}!</b> <i>(Agent)</i>\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📊 <b>Dashboard Hari Ini</b>\n` +
+            `• Antrian: <b>${stats.queueCount}</b> tiket\n` +
+            `• Assigned ke saya: <b>${stats.assignedToMe}</b>\n` +
+            `• In Progress: <b>${stats.inProgress}</b>\n` +
+            `• Selesai hari ini: <b>${stats.resolvedToday}</b>\n` +
+            `━━━━━━━━━━━━━━━━━━`,
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('📥 Antrian', 'queue'),
+                    Markup.button.callback('📋 Tiket Saya', 'agent_my_tickets'),
+                ],
+                [
+                    Markup.button.callback('✅ Resolve', 'agent_resolve_menu'),
+                    Markup.button.callback('📊 Stats', 'agent_stats'),
+                ],
+                [
+                    Markup.button.callback('💬 Quick Reply', 'agent_quick_replies'),
+                ],
+                [
+                    Markup.button.callback('⚙️ Pengaturan', 'settings'),
+                    Markup.button.callback('❓ Bantuan', 'help'),
+                ],
+            ])
+        );
+    }
+
+    private async showAdminMenu(ctx: Context, userName: string) {
+        await ctx.replyWithHTML(
+            `👋 <b>Halo, ${userName}!</b> <i>(Admin)</i>\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🛡️ <b>Admin Dashboard</b>\n` +
+            `━━━━━━━━━━━━━━━━━━`,
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('📥 Semua Antrian', 'queue'),
+                    Markup.button.callback('📋 All Tickets', 'admin_all_tickets'),
+                ],
+                [
+                    Markup.button.callback('👥 Agents', 'admin_agents'),
+                    Markup.button.callback('📊 Reports', 'admin_reports'),
+                ],
+                [
+                    Markup.button.callback('⚙️ Pengaturan', 'settings'),
+                    Markup.button.callback('❓ Bantuan', 'help'),
+                ],
+            ])
+        );
     }
 
     @Action('main_menu')
@@ -260,10 +329,11 @@ export class TelegramUpdate {
         }
 
         await ctx.replyWithHTML(
-            `📝 <b>Buat Tiket Baru</b>\n\nPilih cara membuat tiket:`,
+            `📝 <b>Buat Tiket Baru</b>\n\nPilih jenis tiket:`,
             Markup.inlineKeyboard([
                 [Markup.button.callback('⚡ Quick (1 pesan)', 'ticket_quick_guide')],
                 [Markup.button.callback('📝 Step-by-step', 'ticket_wizard')],
+                [Markup.button.callback('🔧 Hardware Installation', 'hw_install_direct')],
                 [Markup.button.callback('❌ Batal', 'main_menu')],
             ])
         );
@@ -327,23 +397,31 @@ export class TelegramUpdate {
             return;
         }
 
-        const tickets = await this.telegramService.getMyTickets(session.userId);
+        // Only get active tickets (not resolved/cancelled)
+        const tickets = await this.telegramService.getActiveTickets(session.userId);
 
         if (tickets.length === 0) {
-            await ctx.replyWithHTML(t.ticket.listEmpty, Markup.inlineKeyboard([
-                [Markup.button.callback('🎫 Buat Tiket', 'new_ticket')],
-                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
-            ]));
+            await ctx.replyWithHTML(
+                `📋 <b>Tiket Aktif</b>\n\n` +
+                `<i>Tidak ada tiket aktif saat ini.</i>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('🎫 Buat Tiket', 'new_ticket')],
+                    [Markup.button.callback('📦 Lihat Riwayat', 'history_tickets')],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
             return;
         }
 
-        let message = `📋 <b>Tiket Saya</b> (${tickets.length})\n\n`;
+        let message = `📋 <b>Tiket Aktif</b> (${tickets.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
         const buttons: any[][] = [];
 
-        tickets.slice(0, 10).forEach((ticket, i) => {
+        tickets.slice(0, 8).forEach((ticket, i) => {
             const statusEmoji = this.getStatusEmoji(ticket.status);
-            message += `${i + 1}. ${statusEmoji} <b>#${ticket.ticketNumber}</b>\n`;
-            message += `   ${ticket.title.substring(0, 40)}${ticket.title.length > 40 ? '...' : ''}\n\n`;
+            const isHardware = ticket.isHardwareInstallation ? '🔧' : '';
+            message += `${statusEmoji} <b>#${ticket.ticketNumber}</b> ${isHardware}\n`;
+            message += `└ ${ticket.title.substring(0, 35)}${ticket.title.length > 35 ? '...' : ''}\n\n`;
 
             buttons.push([
                 Markup.button.callback(`${statusEmoji} #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
@@ -351,13 +429,97 @@ export class TelegramUpdate {
         });
 
         buttons.push([
-            Markup.button.callback('🎫 Buat Tiket Baru', 'new_ticket'),
+            Markup.button.callback('📦 Riwayat', 'history_tickets'),
+            Markup.button.callback('🎫 Buat Baru', 'new_ticket'),
         ]);
         buttons.push([
             Markup.button.callback('🏠 Menu Utama', 'main_menu'),
         ]);
 
         await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
+    }
+
+    @Action('history_tickets')
+    async onHistoryTickets(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) {
+            await ctx.reply('❌ Akun tidak terhubung.');
+            return;
+        }
+
+        const tickets = await this.telegramService.getResolvedTickets(session.userId);
+
+        if (tickets.length === 0) {
+            await ctx.replyWithHTML(
+                `📦 <b>Riwayat Tiket</b>\n\n<i>Belum ada tiket yang diselesaikan.</i>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('📋 Tiket Aktif', 'my_tickets')],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        let message = `📦 <b>Riwayat Tiket</b> (${tickets.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+        const buttons: any[][] = [];
+
+        tickets.slice(0, 8).forEach((ticket) => {
+            const statusEmoji = this.getStatusEmoji(ticket.status);
+            message += `${statusEmoji} <b>#${ticket.ticketNumber}</b>\n`;
+            message += `└ ${ticket.title.substring(0, 35)}${ticket.title.length > 35 ? '...' : ''}\n\n`;
+
+            buttons.push([
+                Markup.button.callback(`${statusEmoji} #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
+            ]);
+        });
+
+        buttons.push([
+            Markup.button.callback('📋 Tiket Aktif', 'my_tickets'),
+        ]);
+        buttons.push([
+            Markup.button.callback('🏠 Menu Utama', 'main_menu'),
+        ]);
+
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
+    }
+
+    @Action('hw_install_direct')
+    async onHardwareInstallDirect(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+
+        if (!session?.userId) {
+            await ctx.replyWithHTML(t.errors.notLinked, Markup.inlineKeyboard([
+                [Markup.button.callback('🔗 Hubungkan Akun', 'enter_code')],
+            ]));
+            return;
+        }
+
+        // Langsung ke input tanggal, skip title/description
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_HARDWARE_DATE, {
+            title: 'Hardware Installation Request',
+            description: 'Permintaan instalasi hardware dari Telegram',
+            category: 'HARDWARE_INSTALLATION'
+        });
+
+        await ctx.replyWithHTML(
+            `🔧 <b>Hardware Installation</b>\n\n` +
+            `📅 Masukkan tanggal instalasi yang diinginkan:\n\n` +
+            `Format: <code>DD/MM/YYYY</code>\n` +
+            `Contoh: <code>15/12/2024</code>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('❌ Batal', 'main_menu')],
+            ])
+        );
     }
 
     @Action(/view_ticket:(.+)/)
@@ -802,6 +964,108 @@ export class TelegramUpdate {
         await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
     }
 
+    @Action('queue')
+    async onQueueNavigate(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.onQueue(ctx);
+    }
+
+    @Action('agent_my_tickets')
+    async onAgentMyTickets(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) return;
+
+        const tickets = await this.telegramService.getAgentAssignedTickets(session.userId);
+
+        if (tickets.length === 0) {
+            await ctx.replyWithHTML(
+                `📋 <b>Tiket Yang Ditangani</b>\n\n<i>Belum ada tiket yang Anda tangani.</i>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('📥 Lihat Antrian', 'queue')],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        let message = `📋 <b>Tiket Yang Ditangani</b> (${tickets.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+        const buttons: any[][] = [];
+
+        tickets.slice(0, 8).forEach((ticket) => {
+            const statusEmoji = this.getStatusEmoji(ticket.status);
+            const isHardware = ticket.isHardwareInstallation ? '🔧' : '';
+            message += `${statusEmoji} <b>#${ticket.ticketNumber}</b> ${isHardware}\n`;
+            message += `└ ${ticket.title.substring(0, 35)}${ticket.title.length > 35 ? '...' : ''}\n\n`;
+
+            buttons.push([
+                Markup.button.callback(`${statusEmoji} #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
+            ]);
+        });
+
+        buttons.push([Markup.button.callback('🏠 Menu Utama', 'main_menu')]);
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
+    }
+
+    @Action('agent_resolve_menu')
+    async onAgentResolveMenu(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+            `✅ <b>Resolve Tiket</b>\n\n` +
+            `Ketik: <code>/resolve [nomor tiket]</code>\n\n` +
+            `Contoh: /resolve 081224-TLG-0001`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('agent_stats')
+    async onAgentStatsAction(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.onStats(ctx);
+    }
+
+    @Action('admin_all_tickets')
+    async onAdminAllTickets(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+            `📋 <b>All Tickets</b>\n\n` +
+            `<i>Untuk melihat semua tiket, silakan akses dashboard web iDesk.</i>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('admin_agents')
+    async onAdminAgents(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+            `👥 <b>Agent Management</b>\n\n` +
+            `<i>Untuk mengelola agents, silakan akses dashboard web iDesk.</i>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('admin_reports')
+    async onAdminReports(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+            `📊 <b>Reports</b>\n\n` +
+            `<i>Untuk melihat laporan, silakan akses dashboard web iDesk.</i>`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
     @Action(/assign_ticket:(.+)/)
     async onAssignTicketAction(@Ctx() ctx: Context) {
         await ctx.answerCbQuery();
@@ -861,11 +1125,7 @@ export class TelegramUpdate {
         );
     }
 
-    @Action('queue_action')
-    async onQueueAction(@Ctx() ctx: Context) {
-        await ctx.answerCbQuery();
-        await this.onQueue(ctx);
-    }
+
 
     // ========================================
     // SECTION 10: TEXT & MEDIA HANDLERS
@@ -898,6 +1158,10 @@ export class TelegramUpdate {
 
             case TelegramState.CHAT_MODE:
                 await this.handleChatMessage(ctx, text);
+                break;
+
+            case TelegramState.CREATING_HARDWARE_DATE:
+                await this.handleHardwareDate(ctx, text);
                 break;
 
             default:
@@ -986,6 +1250,9 @@ export class TelegramUpdate {
                     Markup.button.callback('👤 Account', 'select_category:ACCOUNT'),
                     Markup.button.callback('🔧 Lainnya', 'select_category:GENERAL'),
                 ],
+                [
+                    Markup.button.callback('🔧 Hardware Installation', 'select_category:HARDWARE_INSTALLATION'),
+                ],
                 [Markup.button.callback('❌ Batal', 'main_menu')],
             ])
         );
@@ -1000,6 +1267,25 @@ export class TelegramUpdate {
         const category = (ctx as any).match[1];
         const session = await this.telegramService.getSession(String(from.id));
         const stateData = session?.stateData || {};
+
+        // Special handling for Hardware Installation
+        if (category === 'HARDWARE_INSTALLATION') {
+            await this.telegramService.setState(String(from.id), TelegramState.CREATING_HARDWARE_DATE, {
+                ...stateData,
+                category
+            });
+
+            await ctx.replyWithHTML(
+                `🔧 <b>Hardware Installation</b>\n\n` +
+                `📅 Masukkan tanggal instalasi:\n\n` +
+                `Format: <code>DD/MM/YYYY</code>\n` +
+                `Contoh: <code>15/12/2024</code>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Batal', 'main_menu')],
+                ])
+            );
+            return;
+        }
 
         await this.telegramService.setState(String(from.id), TelegramState.CREATING_TICKET_PRIORITY, {
             ...stateData,
@@ -1020,6 +1306,201 @@ export class TelegramUpdate {
                 [Markup.button.callback('❌ Batal', 'main_menu')],
             ])
         );
+    }
+
+    private async handleHardwareDate(ctx: Context, input: string) {
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        const stateData = session?.stateData || {};
+
+        // Parse DD/MM/YYYY format
+        const dateMatch = input.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (!dateMatch) {
+            await ctx.replyWithHTML(
+                `❌ Format tanggal tidak valid.\n\n` +
+                `Gunakan format: <code>DD/MM/YYYY</code>\n` +
+                `Contoh: <code>15/12/2024</code>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Batal', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        const day = parseInt(dateMatch[1], 10);
+        const month = parseInt(dateMatch[2], 10) - 1; // JS months are 0-indexed
+        const year = parseInt(dateMatch[3], 10);
+
+        const date = new Date(year, month, day);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Validate date is in the future
+        if (date <= today) {
+            await ctx.replyWithHTML(
+                `❌ Tanggal harus lebih dari hari ini.\n\n` +
+                `Silakan masukkan tanggal yang valid:`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Batal', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        // Validate date is valid (not Feb 30, etc)
+        if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) {
+            await ctx.replyWithHTML(
+                `❌ Tanggal tidak valid.\n\n` +
+                `Silakan masukkan tanggal yang benar:`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Batal', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        const isoDate = date.toISOString().split('T')[0];
+
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_HARDWARE_TIME, {
+            ...stateData,
+            scheduledDate: isoDate
+        });
+
+        const formattedDate = date.toLocaleDateString('id-ID', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        await ctx.replyWithHTML(
+            `📅 Tanggal: <b>${formattedDate}</b>\n\n` +
+            `🕐 Pilih jam instalasi:`,
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('09:00', 'select_hw_time:09:00'),
+                    Markup.button.callback('10:00', 'select_hw_time:10:00'),
+                    Markup.button.callback('11:00', 'select_hw_time:11:00'),
+                ],
+                [
+                    Markup.button.callback('13:00', 'select_hw_time:13:00'),
+                    Markup.button.callback('14:00', 'select_hw_time:14:00'),
+                    Markup.button.callback('15:00', 'select_hw_time:15:00'),
+                ],
+                [
+                    Markup.button.callback('16:00', 'select_hw_time:16:00'),
+                    Markup.button.callback('17:00', 'select_hw_time:17:00'),
+                ],
+                [Markup.button.callback('❌ Batal', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action(/select_hw_date:(.+)/)
+    async onSelectHardwareDate(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const dateStr = (ctx as any).match[1]; // YYYY-MM-DD
+        const session = await this.telegramService.getSession(String(from.id));
+        const stateData = session?.stateData || {};
+
+        await this.telegramService.setState(String(from.id), TelegramState.CREATING_HARDWARE_TIME, {
+            ...stateData,
+            scheduledDate: dateStr
+        });
+
+        const date = new Date(dateStr);
+        const formattedDate = date.toLocaleDateString('id-ID', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        await ctx.replyWithHTML(
+            `📅 Tanggal: <b>${formattedDate}</b>\n\n` +
+            `🕐 Pilih jam instalasi:`,
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('09:00', 'select_hw_time:09:00'),
+                    Markup.button.callback('10:00', 'select_hw_time:10:00'),
+                    Markup.button.callback('11:00', 'select_hw_time:11:00'),
+                ],
+                [
+                    Markup.button.callback('13:00', 'select_hw_time:13:00'),
+                    Markup.button.callback('14:00', 'select_hw_time:14:00'),
+                    Markup.button.callback('15:00', 'select_hw_time:15:00'),
+                ],
+                [
+                    Markup.button.callback('16:00', 'select_hw_time:16:00'),
+                    Markup.button.callback('17:00', 'select_hw_time:17:00'),
+                ],
+                [Markup.button.callback('❌ Batal', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action(/select_hw_time:(.+)/)
+    async onSelectHardwareTime(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const time = (ctx as any).match[1]; // HH:MM
+        const session = await this.telegramService.getSession(String(from.id));
+        const t = getTemplates(session?.language || 'id');
+        const stateData = session?.stateData || {};
+
+        if (!session?.userId) {
+            await ctx.reply(t.errors.notLinked);
+            return;
+        }
+
+        try {
+            const scheduledDate = new Date(stateData.scheduledDate);
+
+            const ticket = await this.telegramService.createHardwareInstallationTicket(
+                session,
+                stateData.title || 'Hardware Installation',
+                stateData.description || stateData.title || 'Hardware Installation Request',
+                scheduledDate,
+                time
+            );
+
+            await this.telegramService.clearState(String(from.id));
+
+            const formattedDate = scheduledDate.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
+            await ctx.replyWithHTML(
+                `✅ <b>Tiket Hardware Installation Dibuat!</b>\n\n` +
+                `🎫 <b>#${ticket.ticketNumber}</b>\n` +
+                `📌 ${ticket.title}\n\n` +
+                `📅 Jadwal: <b>${formattedDate}</b>\n` +
+                `🕐 Jam: <b>${time}</b>\n\n` +
+                `<i>Tim akan menghubungi Anda sebelum jadwal instalasi.</i>`,
+                Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback('💬 Chat', `enter_chat:${ticket.id}`),
+                        Markup.button.callback('📋 Detail', `view_ticket:${ticket.id}`),
+                    ],
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+
+            await this.telegramService.notifyNewTicketToAgents(ticket);
+        } catch (error) {
+            this.logger.error('Hardware installation ticket creation error:', error);
+            await ctx.reply(t.errors.serverError);
+        }
     }
 
     @Action(/select_priority:(.+)/)

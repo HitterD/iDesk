@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { Clock, Calendar, Trash2, Plus, Save, Globe } from 'lucide-react';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { format, parseISO } from 'date-fns';
 
 interface BusinessHoursConfig {
     id: string;
@@ -222,11 +224,12 @@ export const BusinessHoursSettings = () => {
 
                 {/* Add Holiday */}
                 <div className="flex gap-2">
-                    <input
-                        type="date"
-                        value={newHoliday}
-                        onChange={(e) => setNewHoliday(e.target.value)}
-                        className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:ring-2 focus:ring-primary/50 outline-none"
+                    <ModernDatePicker
+                        value={newHoliday ? parseISO(newHoliday) : undefined}
+                        onChange={(date) => setNewHoliday(format(date, 'yyyy-MM-dd'))}
+                        placeholder="Select holiday date"
+                        minDate={new Date()}
+                        triggerClassName="flex-1"
                     />
                     <button
                         onClick={() => newHoliday && addHolidayMutation.mutate(newHoliday)}

@@ -9,7 +9,7 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { SurveysService } from '../surveys.service';
-import { CacheService } from '../../../shared/core/cache';
+import { CacheService, CacheInvalidationService } from '../../../shared/core/cache';
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
@@ -32,6 +32,7 @@ export class TicketUpdateService {
         private readonly eventsGateway: EventsGateway,
         private readonly surveysService: SurveysService,
         private readonly cacheService: CacheService,
+        private readonly cacheInvalidationService: CacheInvalidationService,
         private readonly eventEmitter: EventEmitter2,
         @Optional() @Inject(forwardRef(() => TelegramService))
         private readonly telegramService: TelegramService,
@@ -151,8 +152,8 @@ export class TicketUpdateService {
         Object.assign(ticket, updateData);
         const savedTicket = await this.ticketRepo.save(ticket);
 
-        // Invalidate dashboard cache (await to ensure completion before emitting events)
-        await this.cacheService.delByPattern('dashboard:stats:*');
+        // Invalidate caches using centralized service
+        await this.cacheInvalidationService.onTicketChange(savedTicket.id);
         this.eventsGateway.notifyDashboardStatsUpdate();
         this.eventsGateway.notifyTicketListUpdate();
 
@@ -398,7 +399,7 @@ export class TicketUpdateService {
         }
 
         if (updated.length > 0) {
-            await this.cacheService.delByPattern('dashboard:stats:*');
+            await this.cacheInvalidationService.onTicketChange('bulk');
             this.eventsGateway.notifyDashboardStatsUpdate();
             this.eventsGateway.notifyTicketListUpdate();
         }

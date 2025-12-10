@@ -9,7 +9,7 @@ interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
 const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
   ({ className, value = 0, max = 100, ...props }, ref) => {
     const percentage = Math.min(Math.max((value / max) * 100, 0), 100)
-    
+
     return (
       <div
         ref={ref}
@@ -18,7 +18,7 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         aria-valuemax={max}
         aria-valuenow={value}
         className={cn(
-          "relative h-4 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700",
+          "relative h-4 w-full overflow-hidden rounded-full bg-muted",
           className
         )}
         {...props}

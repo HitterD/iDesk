@@ -43,76 +43,100 @@ export class SlaCheckerService {
     /**
      * Check Resolution Time SLA
      * Only checks tickets where SLA has started (slaStartedAt is set)
+     * 
+     * OPTIMIZED: Uses batch UPDATE instead of individual saves
+     * Before: N queries for N overdue tickets
+     * After: 2 queries (1 batch UPDATE + 1 SELECT for notifications)
      */
     private async checkResolutionSla(): Promise<void> {
         const now = new Date();
 
-        // Get tickets that have SLA started and not yet marked as overdue
-        const tickets = await this.ticketRepo.find({
-            where: {
-                status: In([TicketStatus.IN_PROGRESS, TicketStatus.TODO]),
-                isOverdue: false,
-                slaTarget: Not(IsNull()),
-                slaStartedAt: Not(IsNull()),
-            },
-            relations: ['user', 'assignedTo'],
-        });
+        // Step 1: Find tickets that are now overdue (in DB, not in app)
+        const overdueTickets = await this.ticketRepo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .where('ticket.status IN (:...statuses)', {
+                statuses: [TicketStatus.IN_PROGRESS, TicketStatus.TODO]
+            })
+            .andWhere('ticket."isOverdue" = false')
+            .andWhere('ticket."slaTarget" IS NOT NULL')
+            .andWhere('ticket."slaStartedAt" IS NOT NULL')
+            .andWhere('ticket."slaTarget" < :now', { now })
+            .andWhere('ticket.status != :waitingVendor', { waitingVendor: TicketStatus.WAITING_VENDOR })
+            .getMany();
 
-        for (const ticket of tickets) {
-            // Skip if waiting vendor (SLA is paused)
-            if (ticket.status === TicketStatus.WAITING_VENDOR) continue;
+        if (overdueTickets.length === 0) {
+            return;
+        }
 
-            // Skip if no SLA target
-            if (!ticket.slaTarget) continue;
+        // Step 2: Batch UPDATE all overdue tickets in a single query
+        const overdueIds = overdueTickets.map(t => t.id);
+        await this.ticketRepo
+            .createQueryBuilder()
+            .update(Ticket)
+            .set({ isOverdue: true })
+            .where('id IN (:...ids)', { ids: overdueIds })
+            .execute();
 
-            const targetTime = new Date(ticket.slaTarget);
+        this.logger.warn(`Marked ${overdueTickets.length} tickets as OVERDUE (batch update)`);
 
-            if (now > targetTime) {
-                this.logger.warn(`Ticket #${ticket.ticketNumber || ticket.id} is OVERDUE!`);
-
-                ticket.isOverdue = true;
-                await this.ticketRepo.save(ticket);
-
-                await this.sendOverdueNotifications(ticket, 'resolution');
-            }
+        // Step 3: Send notifications (async, non-blocking)
+        for (const ticket of overdueTickets) {
+            this.logger.warn(`Ticket #${ticket.ticketNumber || ticket.id} is OVERDUE!`);
+            // Send notification without awaiting to avoid blocking
+            this.sendOverdueNotifications(ticket, 'resolution').catch(err => {
+                this.logger.error(`Failed to send overdue notification for ticket ${ticket.id}: ${err.message}`);
+            });
         }
     }
 
     /**
      * Check First Response Time SLA
      * Checks tickets that haven't received first response yet
+     * 
+     * OPTIMIZED: Uses batch UPDATE instead of individual saves
+     * Before: N queries for N breached tickets
+     * After: 2 queries (1 batch UPDATE + 1 SELECT for notifications)
      */
     private async checkFirstResponseSla(): Promise<void> {
         const now = new Date();
 
-        // Get tickets waiting for first response
-        const tickets = await this.ticketRepo.find({
-            where: {
-                firstResponseAt: IsNull(),
-                firstResponseTarget: Not(IsNull()),
-                isFirstResponseBreached: false,
-                status: Not(In([TicketStatus.RESOLVED, TicketStatus.CANCELLED])),
-            },
-            relations: ['user', 'assignedTo'],
-        });
+        // Step 1: Find tickets with breached first response SLA (in DB, not in app)
+        const breachedTickets = await this.ticketRepo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .where('ticket."firstResponseAt" IS NULL')
+            .andWhere('ticket."firstResponseTarget" IS NOT NULL')
+            .andWhere('ticket."isFirstResponseBreached" = false')
+            .andWhere('ticket.status NOT IN (:...excludedStatuses)', {
+                excludedStatuses: [TicketStatus.RESOLVED, TicketStatus.CANCELLED, TicketStatus.WAITING_VENDOR]
+            })
+            .andWhere('ticket."firstResponseTarget" < :now', { now })
+            .getMany();
 
-        for (const ticket of tickets) {
-            // Skip if waiting vendor (SLA is paused)
-            if (ticket.status === TicketStatus.WAITING_VENDOR) continue;
+        if (breachedTickets.length === 0) {
+            return;
+        }
 
-            // Skip if no first response target
-            if (!ticket.firstResponseTarget) continue;
+        // Step 2: Batch UPDATE all breached tickets in a single query
+        const breachedIds = breachedTickets.map(t => t.id);
+        await this.ticketRepo
+            .createQueryBuilder()
+            .update(Ticket)
+            .set({ isFirstResponseBreached: true })
+            .where('id IN (:...ids)', { ids: breachedIds })
+            .execute();
 
-            const targetTime = new Date(ticket.firstResponseTarget);
+        this.logger.warn(`Marked ${breachedTickets.length} tickets as First Response SLA Breached (batch update)`);
 
-            if (now > targetTime) {
-                this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber || ticket.id}`);
-
-                ticket.isFirstResponseBreached = true;
-                await this.ticketRepo.save(ticket);
-
-                await this.sendOverdueNotifications(ticket, 'first_response');
-            }
+        // Step 3: Send notifications (async, non-blocking)
+        for (const ticket of breachedTickets) {
+            this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber || ticket.id}`);
+            this.sendOverdueNotifications(ticket, 'first_response').catch(err => {
+                this.logger.error(`Failed to send first response breach notification for ticket ${ticket.id}: ${err.message}`);
+            });
         }
     }
 

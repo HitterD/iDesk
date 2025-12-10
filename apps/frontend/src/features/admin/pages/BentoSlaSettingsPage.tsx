@@ -18,6 +18,8 @@ import {
     Moon,
     X
 } from 'lucide-react';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { format, parseISO } from 'date-fns';
 
 interface SlaConfig {
     id: string;
@@ -636,11 +638,12 @@ export const BentoSlaSettingsPage: React.FC = () => {
                 {isAddingHoliday && (
                     <div className="mb-6 p-4 bg-white dark:bg-slate-800 rounded-xl border border-rose-200 dark:border-rose-700">
                         <div className="flex items-center gap-3">
-                            <input
-                                type="date"
-                                value={newHoliday}
-                                onChange={(e) => setNewHoliday(e.target.value)}
-                                className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                            <ModernDatePicker
+                                value={newHoliday ? parseISO(newHoliday) : undefined}
+                                onChange={(date) => setNewHoliday(format(date, 'yyyy-MM-dd'))}
+                                placeholder="Select holiday date"
+                                minDate={new Date()}
+                                triggerClassName="flex-1"
                             />
                             <Button
                                 onClick={() => newHoliday && addHolidayMutation.mutate(newHoliday)}

@@ -391,7 +391,7 @@ export const BentoLoginPage = () => {
                 </form>
 
                 <div className="mt-8 text-center">
-                    <p className="text-slate-400 text-sm">
+                    <p className="text-slate-600 text-sm">
                         Don't have an account? <span className="text-primary font-bold cursor-pointer hover:underline">Contact Admin</span>
                     </p>
                 </div>

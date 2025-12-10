@@ -28,6 +28,7 @@ import { DashboardSkeleton } from '../components/DashboardSkeleton';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { cn } from '@/lib/utils';
 import { ActivityFeed } from '@/components/ui/ActivityFeed';
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 
 interface DashboardStats {
     total: number;
@@ -60,13 +61,21 @@ const MiniBarChart: React.FC<{ data: { date: string; created: number; resolved: 
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <div className="w-full flex gap-0.5 items-end h-24">
                         <div
-                            className="flex-1 bg-blue-400 rounded-t transition-all hover:bg-blue-500"
-                            style={{ height: `${(day.created / maxValue) * 100}%`, minHeight: day.created > 0 ? '4px' : '0' }}
+                            className="flex-1 bg-blue-400 rounded-t transition-all hover:bg-blue-500 chart-bar-animated"
+                            style={{ 
+                                height: `${(day.created / maxValue) * 100}%`, 
+                                minHeight: day.created > 0 ? '4px' : '0',
+                                animationDelay: `${i * 0.1}s`
+                            }}
                             title={`Created: ${day.created}`}
                         />
                         <div
-                            className="flex-1 bg-green-400 rounded-t transition-all hover:bg-green-500"
-                            style={{ height: `${(day.resolved / maxValue) * 100}%`, minHeight: day.resolved > 0 ? '4px' : '0' }}
+                            className="flex-1 bg-green-400 rounded-t transition-all hover:bg-green-500 chart-bar-animated"
+                            style={{ 
+                                height: `${(day.resolved / maxValue) * 100}%`, 
+                                minHeight: day.resolved > 0 ? '4px' : '0',
+                                animationDelay: `${i * 0.1 + 0.05}s`
+                            }}
                             title={`Resolved: ${day.resolved}`}
                         />
                     </div>
@@ -164,18 +173,24 @@ const StatCard: React.FC<{
     highlight?: boolean;
 }> = ({ title, value, icon: Icon, color, subtitle, trend, sparklineData, sparklineColor = 'primary', highlight }) => (
     <div className={cn(
-        "glass-card p-6 hover:glass-shadow-medium transition-all group relative flex items-center gap-5",
+        "glass-card p-6 hover-lift transition-all group relative flex items-center gap-5 animate-fade-in-up stat-card-enhanced",
         highlight && "ring-2 ring-red-500/20"
     )}>
         <div className={cn(
-            "p-4 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform shrink-0 icon-scale-hover",
+            "p-4 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform shrink-0 icon-scale-hover stat-icon",
             color
         )}>
             <Icon className="w-8 h-8" />
         </div>
         <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-                <p className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">{value}</p>
+                <p className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">
+                    {typeof value === 'number' ? (
+                        <AnimatedNumber value={value} duration={800} />
+                    ) : (
+                        value
+                    )}
+                </p>
                 {sparklineData && sparklineData.length > 1 && (
                     <Sparkline
                         data={sparklineData}
@@ -417,7 +432,7 @@ export const BentoDashboardPage = () => {
     ];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in-up">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -443,7 +458,7 @@ export const BentoDashboardPage = () => {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 stagger-1">
                 <StatCard title="Total Tickets" value={liveStats.total} icon={Ticket} color="bg-blue-500" />
                 <StatCard title="Open" value={liveStats.open} icon={CircleDot} color="bg-slate-500" />
                 <StatCard title="In Progress" value={liveStats.inProgress} icon={Hourglass} color="bg-blue-400" />
@@ -453,7 +468,7 @@ export const BentoDashboardPage = () => {
             </div>
 
             {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-2">
                 {/* Left Column - Charts */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Weekly Activity Chart */}
@@ -463,6 +478,7 @@ export const BentoDashboardPage = () => {
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                     <BarChart3 className="w-5 h-5 text-primary" />
                                     Weekly Activity
+                                    <span className="live-indicator ml-2" title="Live data" />
                                 </h3>
                                 <p className="text-sm text-slate-500">Tickets created vs resolved (last 7 days)</p>
                             </div>
@@ -493,20 +509,26 @@ export const BentoDashboardPage = () => {
                                         <circle
                                             cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="none"
                                             strokeDasharray={`${liveStats.slaCompliance * 2.51} 251`}
-                                            className="text-primary"
+                                            className="text-primary sla-ring-animated"
                                             strokeLinecap="round"
                                         />
                                     </svg>
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-2xl font-bold text-slate-800 dark:text-white">{liveStats.slaCompliance}%</span>
+                                        <span className="text-2xl font-bold text-slate-800 dark:text-white">
+                                            <AnimatedNumber value={liveStats.slaCompliance} duration={1000} suffix="%" />
+                                        </span>
                                     </div>
                                 </div>
                                 <div>
                                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                                        <span className="font-bold text-green-600">{liveStats.total - liveStats.overdue}</span> on time
+                                        <span className="font-bold text-green-600">
+                                            <AnimatedNumber value={liveStats.total - liveStats.overdue} duration={800} />
+                                        </span> on time
                                     </p>
                                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                                        <span className="font-bold text-red-600">{liveStats.overdue}</span> overdue
+                                        <span className="font-bold text-red-600">
+                                            <AnimatedNumber value={liveStats.overdue} duration={800} />
+                                        </span> overdue
                                     </p>
                                 </div>
                             </div>
@@ -522,20 +544,20 @@ export const BentoDashboardPage = () => {
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">Today</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm"><span className="font-bold text-blue-600">{liveStats.todayTickets}</span> new</span>
-                                        <span className="text-sm"><span className="font-bold text-green-600">{liveStats.resolvedToday}</span> resolved</span>
+                                        <span className="text-sm"><span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.todayTickets} duration={600} /></span> new</span>
+                                        <span className="text-sm"><span className="font-bold text-green-600"><AnimatedNumber value={liveStats.resolvedToday} duration={600} /></span> resolved</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">This Week</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm"><span className="font-bold text-blue-600">{liveStats.thisWeekTickets}</span> new</span>
-                                        <span className="text-sm"><span className="font-bold text-green-600">{liveStats.resolvedThisWeek}</span> resolved</span>
+                                        <span className="text-sm"><span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.thisWeekTickets} duration={700} /></span> new</span>
+                                        <span className="text-sm"><span className="font-bold text-green-600"><AnimatedNumber value={liveStats.resolvedThisWeek} duration={700} /></span> resolved</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">This Month</span>
-                                    <span className="text-sm"><span className="font-bold text-blue-600">{liveStats.thisMonthTickets}</span> tickets</span>
+                                    <span className="text-sm"><span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.thisMonthTickets} duration={800} /></span> tickets</span>
                                 </div>
                             </div>
                         </div>
@@ -620,16 +642,24 @@ export const BentoDashboardPage = () => {
                         </h3>
                         <div className="space-y-3">
                             {liveStats.topAgents.length > 0 ? liveStats.topAgents.map((agent, i) => (
-                                <div key={i} className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                                        {agent.name.charAt(0)}
+                                <div key={i} className="flex items-center gap-3 leaderboard-item" style={{ animationDelay: `${i * 0.1}s` }}>
+                                    <div className={cn(
+                                        "avatar-status-ring",
+                                        agent.inProgress > 0 ? "online" : "offline"
+                                    )}>
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                                            {agent.name.charAt(0)}
+                                        </div>
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-medium text-slate-800 dark:text-white text-sm">{agent.name}</p>
                                         <p className="text-xs text-slate-500">
-                                            {agent.resolved} resolved • {agent.inProgress} in progress
+                                            <span className="text-green-600 font-medium">{agent.resolved}</span> resolved • <span className="text-blue-600 font-medium">{agent.inProgress}</span> in progress
                                         </p>
                                     </div>
+                                    {i === 0 && <span className="text-lg">🏆</span>}
+                                    {i === 1 && <span className="text-lg">🥈</span>}
+                                    {i === 2 && <span className="text-lg">🥉</span>}
                                 </div>
                             )) : (
                                 <p className="text-sm text-slate-400 text-center py-4">No agent data</p>

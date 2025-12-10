@@ -3,6 +3,8 @@ import { X, Loader2, Save, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCreateManualContract } from '../hooks/useRenewalApi';
 import { toast } from 'sonner';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { format, parseISO } from 'date-fns';
 
 interface ManualContractModalProps {
     isOpen: boolean;
@@ -112,22 +114,24 @@ export const ManualContractModal: React.FC<ManualContractModalProps> = ({ isOpen
                             <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2">
                                 Start Date
                             </label>
-                            <input
-                                type="date"
-                                value={formData.startDate}
-                                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            <ModernDatePicker
+                                value={formData.startDate ? parseISO(formData.startDate) : undefined}
+                                onChange={(date) => setFormData({ ...formData, startDate: format(date, 'yyyy-MM-dd') })}
+                                placeholder="Select start date"
+                                maxDate={formData.endDate ? parseISO(formData.endDate) : undefined}
+                                triggerClassName="w-full py-3 bg-slate-50 dark:bg-slate-800"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2">
                                 End Date <span className="text-red-500">*</span>
                             </label>
-                            <input
-                                type="date"
-                                value={formData.endDate}
-                                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            <ModernDatePicker
+                                value={formData.endDate ? parseISO(formData.endDate) : undefined}
+                                onChange={(date) => setFormData({ ...formData, endDate: format(date, 'yyyy-MM-dd') })}
+                                placeholder="Select end date"
+                                minDate={formData.startDate ? parseISO(formData.startDate) : undefined}
+                                triggerClassName="w-full py-3 bg-slate-50 dark:bg-slate-800"
                             />
                             {!formData.endDate && (
                                 <p className="text-xs text-orange-500 mt-1">

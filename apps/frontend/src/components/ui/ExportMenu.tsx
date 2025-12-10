@@ -42,20 +42,20 @@ const formatCsvValue = (value: any): string => {
   return str;
 };
 
-export function ExportMenu<T extends ExportableData>({ 
-  data, 
+export function ExportMenu<T extends ExportableData>({
+  data,
   filename = 'export',
   columns,
-  className 
+  className
 }: ExportMenuProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState<string | null>(null);
 
   // Default columns from first data item
-  const exportColumns = columns || (data.length > 0 
+  const exportColumns = columns || (data.length > 0
     ? Object.keys(data[0])
-        .filter(key => key !== 'id' && typeof data[0][key] !== 'object')
-        .map(key => ({ key: key as keyof T, label: key }))
+      .filter(key => key !== 'id' && typeof data[0][key] !== 'object')
+      .map(key => ({ key: key as keyof T, label: key }))
     : []
   );
 
@@ -64,12 +64,12 @@ export function ExportMenu<T extends ExportableData>({
     try {
       // Headers
       const headers = exportColumns.map(col => formatCsvValue(col.label)).join(',');
-      
+
       // Rows
-      const rows = data.map(item => 
+      const rows = data.map(item =>
         exportColumns.map(col => formatCsvValue(item[col.key])).join(',')
       );
-      
+
       const csv = [headers, ...rows].join('\n');
       downloadFile(csv, `${filename}.csv`, 'text/csv;charset=utf-8');
       toast.success('CSV exported successfully');
@@ -103,27 +103,35 @@ export function ExportMenu<T extends ExportableData>({
     <div className={cn("relative", className)}>
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-label="Export data"
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
         className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
       >
-        <Download className="w-4 h-4" />
+        <Download className="w-4 h-4" aria-hidden="true" />
         Export
-        <ChevronDown className={cn("w-4 h-4 transition-transform", isOpen && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 transition-transform", isOpen && "rotate-180")} aria-hidden="true" />
       </button>
 
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
+          <div
+            className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          
+
           {/* Dropdown */}
-          <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-scale-in">
+          <div
+            role="menu"
+            aria-label="Export options"
+            className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-scale-in"
+          >
             <div className="p-1">
               <button
                 onClick={exportToCSV}
                 disabled={isExporting !== null}
+                role="menuitem"
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
               >
                 {isExporting === 'csv' ? (
@@ -140,6 +148,7 @@ export function ExportMenu<T extends ExportableData>({
               <button
                 onClick={exportToJSON}
                 disabled={isExporting !== null}
+                role="menuitem"
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
               >
                 {isExporting === 'json' ? (
@@ -193,7 +202,7 @@ export function QuickExportButton<T extends ExportableData>({
       if (format === 'csv') {
         const keys = Object.keys(data[0]).filter(k => k !== 'id');
         const headers = keys.join(',');
-        const rows = data.map(item => 
+        const rows = data.map(item =>
           keys.map(key => formatCsvValue(item[key])).join(',')
         );
         const csv = [headers, ...rows].join('\n');

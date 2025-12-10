@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
 import { decrypt } from './crypto';
+import { getErrorMessage } from './errorMessages';
 
 // Generate unique request ID for error correlation
 const generateRequestId = (): string => {
@@ -89,19 +90,19 @@ api.interceptors.response.use(
             if (response.status === 401) {
                 localStorage.removeItem('auth-storage');
                 window.location.href = '/login';
-                toast.error('Session expired. Please login again.');
+                toast.error(getErrorMessage('SESSION_EXPIRED'));
                 return Promise.reject(error);
             }
 
-            // Handle other errors
-            const message = response.data?.message || 'An unexpected error occurred';
-            // If message is array (class-validator), join them
-            const displayMessage = Array.isArray(message) ? message.join(', ') : message;
+            // Use centralized error messages
+            const errorCode = response.data?.errorCode || response.data?.code;
+            const serverMessage = response.data?.message;
+            const displayMessage = getErrorMessage(errorCode, serverMessage);
 
             toast.error(displayMessage);
         } else {
             // Network error or no response
-            toast.error('Network error. Please check your connection.');
+            toast.error(getErrorMessage('NETWORK_ERROR'));
         }
 
         return Promise.reject(error);

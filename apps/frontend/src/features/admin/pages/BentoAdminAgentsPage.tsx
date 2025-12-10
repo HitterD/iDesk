@@ -47,7 +47,7 @@ interface AgentStats {
 const StatCard: React.FC<{ title: string; value: string | number; icon: any; color: string; bgColor: string }> = ({
     title, value, icon: Icon, color, bgColor
 }) => (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all hover-lift">
         <div className="flex items-center justify-between">
             <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{title}</p>
@@ -374,7 +374,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     });
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in-up">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

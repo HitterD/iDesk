@@ -28,6 +28,15 @@ export const NOTIFICATION_ROUTES: Record<NotificationCategory, NotificationRoute
             return '/renewal';
         },
     },
+    [NotificationCategory.CATEGORY_HARDWARE]: {
+        category: NotificationCategory.CATEGORY_HARDWARE,
+        getPath: (ticketId, role) => {
+            // Hardware installation notifications link to the ticket
+            const basePath = role === 'USER' ? '/client/tickets' : '/tickets';
+            const fallback = role === 'USER' ? '/client/my-tickets' : '/tickets/list';
+            return ticketId ? `${basePath}/${ticketId}` : fallback;
+        },
+    },
 };
 
 /**
@@ -54,6 +63,13 @@ export function getNotificationRedirectPath(
             if (userRole === 'USER') return '/client/my-tickets';
             if (userRole === 'AGENT') return '/dashboard';
             return '/renewal';
+        }
+
+        case NotificationCategory.CATEGORY_HARDWARE: {
+            // Hardware installation notifications link to the ticket
+            const basePath = userRole === 'USER' ? '/client/tickets' : '/tickets';
+            const fallback = userRole === 'USER' ? '/client/my-tickets' : '/tickets/list';
+            return ticketId ? `${basePath}/${ticketId}` : fallback;
         }
 
         default:
@@ -85,10 +101,18 @@ export function canAccessNotification(category: NotificationCategory, role: User
         case NotificationCategory.CATEGORY_RENEWAL:
             return role === 'ADMIN';
         case NotificationCategory.CATEGORY_TICKET:
-            return true; // All roles can access ticket notifications
+        case NotificationCategory.CATEGORY_HARDWARE:
+            return true; // All roles can access ticket and hardware notifications
         default:
             return true;
     }
+}
+
+/**
+ * Check if notification is hardware-related
+ */
+export function isHardwareNotification(notification: Notification): boolean {
+    return notification.category === NotificationCategory.CATEGORY_HARDWARE;
 }
 
 /**

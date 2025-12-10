@@ -42,8 +42,18 @@ export default defineConfig({
                     'vendor-query': ['@tanstack/react-query', '@tanstack/react-table'],
                     'vendor-charts': ['recharts'],
                     'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge'],
+                    'vendor-animation': ['framer-motion'],
+                    'vendor-editor': ['@tiptap/react', '@tiptap/starter-kit'],
                 },
             },
         },
+        // Enable CSS code splitting
+        cssCodeSplit: true,
+        // Minification options
+        minify: 'esbuild',
+        // Target modern browsers for smaller bundles
+        target: 'es2020',
+        // Chunk size warning limit (in kB)
+        chunkSizeWarningLimit: 500,
     },
 })

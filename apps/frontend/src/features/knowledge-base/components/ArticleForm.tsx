@@ -35,6 +35,18 @@ const CATEGORIES = [
     'Other',
 ];
 
+/**
+ * Resolve image URL - handles both relative and absolute URLs
+ */
+const getImageUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+        return url;
+    }
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+    return `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 export const ArticleForm = ({
     initialData,
     onSubmit,
@@ -183,7 +195,7 @@ export const ArticleForm = ({
                     {formData.featuredImage && (
                         <div className="mb-6">
                             <img
-                                src={formData.featuredImage}
+                                src={getImageUrl(formData.featuredImage)}
                                 alt="Featured"
                                 className="w-full h-48 object-cover rounded-xl"
                             />
@@ -196,7 +208,7 @@ export const ArticleForm = ({
                                 return (
                                     <img
                                         key={index}
-                                        src={part}
+                                        src={getImageUrl(part)}
                                         alt={altText || 'Image'}
                                         className="my-4 rounded-xl max-w-full"
                                     />

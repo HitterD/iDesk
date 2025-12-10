@@ -291,6 +291,10 @@ export class UsersService {
     /**
      * Get agent performance statistics computed on the server side
      * Returns ticket counts for each agent
+     * 
+     * OPTIMIZED: Uses 2 GROUP BY queries instead of N+1 queries
+     * Before: 20+ queries for 10 agents
+     * After: 3 queries total (agents + stats + sla)
      */
     async getAgentStats(): Promise<any> {
         const agents = await this.userRepo.find({
@@ -299,6 +303,19 @@ export class UsersService {
             relations: ['department'],
         });
 
+        if (agents.length === 0) {
+            return {
+                summary: {
+                    totalAgents: 0,
+                    onlineAgents: 0,
+                    totalResolvedThisMonth: 0,
+                    avgTicketsPerAgent: 0,
+                    topPerformer: null,
+                },
+                agents: [],
+            };
+        }
+
         const now = new Date();
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
@@ -306,61 +323,76 @@ export class UsersService {
 
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const agentStats = await Promise.all(
-            agents.map(async (agent) => {
-                // Get ticket counts using SQL aggregation for better performance
-                const stats = await this.ticketRepo
-                    .createQueryBuilder('ticket')
-                    .select([
-                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.TODO}') as "openTickets"`,
-                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.IN_PROGRESS}') as "inProgressTickets"`,
-                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}') as "resolvedTotal"`,
-                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfWeek) as "resolvedThisWeek"`,
-                        `COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfMonth) as "resolvedThisMonth"`,
-                    ])
-                    .where('ticket."assignedToId" = :agentId', { agentId: agent.id })
-                    .setParameter('startOfWeek', startOfWeek)
-                    .setParameter('startOfMonth', startOfMonth)
-                    .getRawOne();
+        const agentIds = agents.map(a => a.id);
 
-                // Calculate SLA compliance
-                const slaStats = await this.ticketRepo
-                    .createQueryBuilder('ticket')
-                    .select([
-                        'COUNT(*) as "totalWithSla"',
-                        `COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status = '${TicketStatus.RESOLVED}') as "withinSla"`,
-                    ])
-                    .where('ticket."assignedToId" = :agentId', { agentId: agent.id })
-                    .andWhere('ticket."slaTarget" IS NOT NULL')
-                    .getRawOne();
+        // OPTIMIZED: Single query for all ticket stats grouped by agent
+        const ticketStatsRaw = await this.ticketRepo
+            .createQueryBuilder('ticket')
+            .select('ticket."assignedToId"', 'agentId')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.TODO}')`, 'openTickets')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.IN_PROGRESS}')`, 'inProgressTickets')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}')`, 'resolvedTotal')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfWeek)`, 'resolvedThisWeek')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfMonth)`, 'resolvedThisMonth')
+            .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
+            .setParameter('startOfWeek', startOfWeek)
+            .setParameter('startOfMonth', startOfMonth)
+            .groupBy('ticket."assignedToId"')
+            .getRawMany();
 
-                const totalWithSla = parseInt(slaStats?.totalWithSla || '0');
-                const withinSla = parseInt(slaStats?.withinSla || '0');
-                const slaCompliance = totalWithSla > 0 ? Math.round((withinSla / totalWithSla) * 100) : 100;
+        // OPTIMIZED: Single query for all SLA stats grouped by agent
+        const slaStatsRaw = await this.ticketRepo
+            .createQueryBuilder('ticket')
+            .select('ticket."assignedToId"', 'agentId')
+            .addSelect('COUNT(*)', 'totalWithSla')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status = '${TicketStatus.RESOLVED}')`, 'withinSla')
+            .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
+            .andWhere('ticket."slaTarget" IS NOT NULL')
+            .groupBy('ticket."assignedToId"')
+            .getRawMany();
 
-                return {
-                    id: agent.id,
-                    fullName: agent.fullName,
-                    email: agent.email,
-                    role: agent.role,
-                    avatarUrl: agent.avatarUrl,
-                    department: agent.department?.name || null,
-                    openTickets: parseInt(stats?.openTickets || '0'),
-                    inProgressTickets: parseInt(stats?.inProgressTickets || '0'),
-                    resolvedTotal: parseInt(stats?.resolvedTotal || '0'),
-                    resolvedThisWeek: parseInt(stats?.resolvedThisWeek || '0'),
-                    resolvedThisMonth: parseInt(stats?.resolvedThisMonth || '0'),
-                    slaCompliance,
-                };
-            })
-        );
+        // Create lookup maps for O(1) access
+        const ticketStatsMap = new Map<string, any>();
+        for (const stat of ticketStatsRaw) {
+            ticketStatsMap.set(stat.agentId, stat);
+        }
+
+        const slaStatsMap = new Map<string, any>();
+        for (const stat of slaStatsRaw) {
+            slaStatsMap.set(stat.agentId, stat);
+        }
+
+        // Merge agent data with stats (in memory - O(n))
+        const agentStats = agents.map(agent => {
+            const stats = ticketStatsMap.get(agent.id) || {};
+            const slaStats = slaStatsMap.get(agent.id) || {};
+
+            const totalWithSla = parseInt(slaStats.totalWithSla || '0');
+            const withinSla = parseInt(slaStats.withinSla || '0');
+            const slaCompliance = totalWithSla > 0 ? Math.round((withinSla / totalWithSla) * 100) : 100;
+
+            return {
+                id: agent.id,
+                fullName: agent.fullName,
+                email: agent.email,
+                role: agent.role,
+                avatarUrl: agent.avatarUrl,
+                department: agent.department?.name || null,
+                openTickets: parseInt(stats.openTickets || '0'),
+                inProgressTickets: parseInt(stats.inProgressTickets || '0'),
+                resolvedTotal: parseInt(stats.resolvedTotal || '0'),
+                resolvedThisWeek: parseInt(stats.resolvedThisWeek || '0'),
+                resolvedThisMonth: parseInt(stats.resolvedThisMonth || '0'),
+                slaCompliance,
+            };
+        });
 
         // Calculate summary stats
         const totalAgents = agentStats.length;
         const onlineAgents = agentStats.length; // Placeholder - would need presence tracking
         const totalResolved = agentStats.reduce((sum, a) => sum + a.resolvedThisMonth, 0);
         const avgTicketsPerAgent = totalAgents > 0 ? Math.round(totalResolved / totalAgents) : 0;
-        const topPerformer = agentStats.sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
+        const topPerformer = [...agentStats].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
 
         return {
             summary: {

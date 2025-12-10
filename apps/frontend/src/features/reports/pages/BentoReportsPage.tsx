@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { DATE_PRESETS, getDefaultDateRange } from '@/lib/constants/date-presets';
 import { cn } from '@/lib/utils';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { format, parseISO } from 'date-fns';
 
 // Types
 interface MonthlyStats {
@@ -57,15 +59,20 @@ const ReportCard: React.FC<{
     icon: React.ElementType;
     color: string;
     subtext?: string;
-}> = ({ title, value, icon: Icon, color, subtext }) => (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 hover:shadow-md transition-all duration-300 group">
+    trend?: 'positive' | 'negative' | 'neutral';
+}> = ({ title, value, icon: Icon, color, subtext, trend }) => (
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 hover:shadow-md transition-all duration-300 group hover-lift stat-card-enhanced">
         <div className="flex justify-between items-start mb-4">
-            <div className={cn("p-3 rounded-2xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg", color)}>
+            <div className={cn("p-3 rounded-2xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg stat-icon", color)}>
                 <Icon className="w-6 h-6" />
             </div>
         </div>
         <h3 className="text-slate-500 dark:text-slate-400 font-medium text-sm mb-1 ml-1">{title}</h3>
-        <p className="text-3xl font-bold text-slate-800 dark:text-white ml-1">{value}</p>
+        <p className={cn(
+            "text-3xl font-bold text-slate-800 dark:text-white ml-1 count-up",
+            trend === 'positive' && "report-metric positive",
+            trend === 'negative' && "report-metric negative"
+        )}>{value}</p>
         {subtext && <p className="text-xs text-slate-400 mt-2 ml-1 font-medium">{subtext}</p>}
     </div>
 );
@@ -83,7 +90,7 @@ const ReportSkeleton: React.FC = () => (
     </div>
 );
 
-// Date Range Picker with Presets
+// Date Range Picker with Modern Calendar
 const DateRangePicker: React.FC<{
     startDate: string;
     endDate: string;
@@ -99,12 +106,15 @@ const DateRangePicker: React.FC<{
         setShowPresets(false);
     };
 
+    const startDateValue = startDate ? parseISO(startDate) : undefined;
+    const endDateValue = endDate ? parseISO(endDate) : undefined;
+
     return (
         <div className="flex flex-wrap gap-4 items-center">
             <div className="relative">
                 <button
                     onClick={() => setShowPresets(!showPresets)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                 >
                     Quick Select
                     <ChevronDown className="w-4 h-4" />
@@ -115,7 +125,7 @@ const DateRangePicker: React.FC<{
                             <button
                                 key={preset.label}
                                 onClick={() => handlePresetSelect(preset)}
-                                className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             >
                                 {preset.label}
                             </button>
@@ -125,20 +135,22 @@ const DateRangePicker: React.FC<{
             </div>
             <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-500 dark:text-slate-400">From:</span>
-                <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => onStartDateChange(e.target.value)}
-                    className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
+                <ModernDatePicker
+                    value={startDateValue}
+                    onChange={(date) => onStartDateChange(format(date, 'yyyy-MM-dd'))}
+                    placeholder="Start date"
+                    maxDate={endDateValue}
+                    triggerClassName="w-[150px]"
                 />
             </div>
             <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-500 dark:text-slate-400">To:</span>
-                <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => onEndDateChange(e.target.value)}
-                    className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200"
+                <ModernDatePicker
+                    value={endDateValue}
+                    onChange={(date) => onEndDateChange(format(date, 'yyyy-MM-dd'))}
+                    placeholder="End date"
+                    minDate={startDateValue}
+                    triggerClassName="w-[150px]"
                 />
             </div>
         </div>
@@ -149,7 +161,7 @@ export const BentoReportsPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ReportTab>('monthly');
     const [month, setMonth] = useState<string>((new Date().getMonth() + 1).toString());
     const [year, setYear] = useState<string>(new Date().getFullYear().toString());
-    
+
     const defaultDateRange = useMemo(() => getDefaultDateRange(), []);
     const [startDate, setStartDate] = useState<string>(defaultDateRange.startDate);
     const [endDate, setEndDate] = useState<string>(defaultDateRange.endDate);
@@ -264,7 +276,7 @@ export const BentoReportsPage: React.FC = () => {
     const loading = activeTab === 'monthly' ? monthlyLoading : activeTab === 'agent' ? agentLoading : volumeLoading;
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in-up">
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -419,8 +431,8 @@ export const BentoReportsPage: React.FC = () => {
                                                 <span className={cn(
                                                     "px-2 py-1 rounded-full text-xs font-medium",
                                                     agent.resolutionRate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                    agent.resolutionRate >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                        agent.resolutionRate >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                 )}>
                                                     {agent.resolutionRate.toFixed(1)}%
                                                 </span>
@@ -430,8 +442,8 @@ export const BentoReportsPage: React.FC = () => {
                                                 <span className={cn(
                                                     "px-2 py-1 rounded-full text-xs font-medium",
                                                     agent.slaComplianceRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                    agent.slaComplianceRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                        agent.slaComplianceRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                 )}>
                                                     {agent.slaComplianceRate.toFixed(1)}%
                                                 </span>
@@ -503,9 +515,9 @@ export const BentoReportsPage: React.FC = () => {
                                                 <span className={cn(
                                                     "px-3 py-1 rounded-full text-xs font-medium",
                                                     priority === 'CRITICAL' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                                    priority === 'HIGH' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                                    priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                        priority === 'HIGH' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                                                            priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                                'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                                 )}>
                                                     {priority}
                                                 </span>
@@ -523,9 +535,9 @@ export const BentoReportsPage: React.FC = () => {
                                                 <span className={cn(
                                                     "px-3 py-1 rounded-full text-xs font-medium",
                                                     status === 'RESOLVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                    status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                    status === 'TODO' ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' :
-                                                    'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                                        status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                            status === 'TODO' ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' :
+                                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                                                 )}>
                                                     {status.replace('_', ' ')}
                                                 </span>

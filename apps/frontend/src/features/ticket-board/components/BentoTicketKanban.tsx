@@ -127,9 +127,11 @@ const EnhancedKanbanCard: React.FC<{
                         "bg-white dark:bg-slate-800 rounded-xl border transition-shadow duration-200",
                         "hover:shadow-lg cursor-grab group",
                         snapshot.isDragging && "shadow-2xl ring-2 ring-primary/50 cursor-grabbing",
-                        isOverdue && "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10",
-                        isApproaching && !isOverdue && "border-orange-300 dark:border-orange-800",
-                        !isOverdue && !isApproaching && "border-slate-200 dark:border-slate-700"
+                        isOverdue && "border-red-300 dark:border-red-800 animate-overdue",
+                        isApproaching && !isOverdue && "border-orange-300 dark:border-orange-800 animate-sla-warning",
+                        !isOverdue && !isApproaching && "border-slate-200 dark:border-slate-700",
+                        ticket.priority === 'CRITICAL' && !isOverdue && "animate-critical-pulse ring-2 ring-red-500/20",
+                        ticket.priority === 'HIGH' && !isOverdue && !isApproaching && "animate-high-priority"
                     )}
                 >
                     {/* Priority Bar */}
@@ -143,7 +145,7 @@ const EnhancedKanbanCard: React.FC<{
                                     #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                 </span>
                                 {ticket.priority === 'CRITICAL' && (
-                                    <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                    <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse-red" />
                                 )}
                             </div>
 
@@ -204,7 +206,7 @@ const EnhancedKanbanCard: React.FC<{
                                 !isOverdue && !isApproaching && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
                             )}>
                                 {isOverdue ? (
-                                    <AlertTriangle className="w-3 h-3 animate-pulse" />
+                                    <AlertTriangle className="w-3 h-3 animate-pulse-red" />
                                 ) : (
                                     <Clock className="w-3 h-3" />
                                 )}

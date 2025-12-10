@@ -1,6 +1,7 @@
 export enum NotificationCategory {
     CATEGORY_TICKET = 'CATEGORY_TICKET',
     CATEGORY_RENEWAL = 'CATEGORY_RENEWAL',
+    CATEGORY_HARDWARE = 'CATEGORY_HARDWARE',
 }
 
 export enum NotificationType {
@@ -22,6 +23,10 @@ export enum NotificationType {
     RENEWAL_D7_WARNING = 'RENEWAL_D7_WARNING',
     RENEWAL_D1_WARNING = 'RENEWAL_D1_WARNING',
     RENEWAL_EXPIRED = 'RENEWAL_EXPIRED',
+
+    // Hardware Installation-related
+    HARDWARE_INSTALL_D1 = 'HARDWARE_INSTALL_D1',
+    HARDWARE_INSTALL_D0 = 'HARDWARE_INSTALL_D0',
 }
 
 export interface Notification {
@@ -40,4 +45,5 @@ export interface Notification {
 export interface NotificationCountByCategory {
     [NotificationCategory.CATEGORY_TICKET]: number;
     [NotificationCategory.CATEGORY_RENEWAL]: number;
+    [NotificationCategory.CATEGORY_HARDWARE]: number;
 }

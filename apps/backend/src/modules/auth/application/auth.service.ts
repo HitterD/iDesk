@@ -85,11 +85,30 @@ export class AuthService {
         return null;
     }
 
+    /**
+     * Get JWT expiration time based on user role
+     * Admin/Agent: 3 hours for extended work sessions
+     * User: 1 hour for security purposes
+     */
+    private getExpirationByRole(role: string): string {
+        switch (role) {
+            case 'ADMIN':
+            case 'AGENT':
+                return '3h'; // 3 hours for staff
+            case 'USER':
+            default:
+                return '1h'; // 1 hour for regular users
+        }
+    }
+
     async login(user: any) {
         const payload = { username: user.email, sub: user.id, role: user.role };
+        const expiresIn = this.getExpirationByRole(user.role);
+
         return {
-            access_token: this.jwtService.sign(payload),
+            access_token: this.jwtService.sign(payload, { expiresIn }),
             user: user,
+            expiresIn, // Return expiration info to frontend
         };
     }
 

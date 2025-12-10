@@ -53,15 +53,32 @@ DropdownMenuSubContent.displayName =
 
 const DropdownMenuContent = React.forwardRef<
     React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-    React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
+    React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+        variant?: 'default' | 'compact' | 'wide'
+    }
+>(({ className, sideOffset = 8, variant = 'default', ...props }, ref) => (
     <DropdownMenuPrimitive.Portal>
         <DropdownMenuPrimitive.Content
             ref={ref}
             sideOffset={sideOffset}
             className={cn(
-                "z-50 min-w-[8rem] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 text-slate-900 dark:text-slate-100 shadow-lg",
-                "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+                // Base styles
+                "z-50 overflow-hidden rounded-xl border bg-white dark:bg-slate-900 p-1.5 text-slate-900 dark:text-slate-100",
+                // Enhanced shadow and border
+                "border-slate-200/80 dark:border-slate-700/80 shadow-xl shadow-slate-900/10 dark:shadow-black/30",
+                // Backdrop blur for modern glass effect
+                "backdrop-blur-sm",
+                // Size variants
+                variant === 'default' && "min-w-[200px] max-w-[320px]",
+                variant === 'compact' && "min-w-[160px] max-w-[240px]",
+                variant === 'wide' && "min-w-[280px] max-w-[400px]",
+                // Enhanced animations
+                "data-[state=open]:animate-in data-[state=closed]:animate-out",
+                "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+                "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+                "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
+                "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+                "duration-200 ease-out",
                 className
             )}
             {...props}
@@ -74,12 +91,32 @@ const DropdownMenuItem = React.forwardRef<
     React.ElementRef<typeof DropdownMenuPrimitive.Item>,
     React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
         inset?: boolean
+        variant?: 'default' | 'destructive'
     }
->(({ className, inset, ...props }, ref) => (
+>(({ className, inset, variant = 'default', ...props }, ref) => (
     <DropdownMenuPrimitive.Item
         ref={ref}
         className={cn(
-            "relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-2 py-2 text-sm outline-none transition-colors focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+            // Base styles
+            "relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-all duration-150",
+            // Icon styles
+            "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-slate-500 dark:[&_svg]:text-slate-400",
+            // Default variant
+            variant === 'default' && [
+                "text-slate-700 dark:text-slate-200",
+                "hover:bg-slate-100 dark:hover:bg-slate-800",
+                "focus:bg-slate-100 dark:focus:bg-slate-800",
+                "hover:[&_svg]:text-primary dark:hover:[&_svg]:text-primary",
+            ],
+            // Destructive variant
+            variant === 'destructive' && [
+                "text-red-600 dark:text-red-400",
+                "hover:bg-red-50 dark:hover:bg-red-900/20",
+                "focus:bg-red-50 dark:focus:bg-red-900/20",
+                "[&_svg]:text-red-500 dark:[&_svg]:text-red-400",
+            ],
+            // Disabled state
+            "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
             inset && "pl-8",
             className
         )}

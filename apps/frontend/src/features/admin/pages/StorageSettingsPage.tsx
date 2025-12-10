@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -19,6 +19,8 @@ import {
     CheckCircle2,
     FileText
 } from 'lucide-react';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { format, parseISO } from 'date-fns';
 
 interface RetentionSettings {
     enabled: boolean;
@@ -135,10 +137,14 @@ export default function StorageSettingsPage() {
             const res = await api.get('/settings/storage');
             return res.data as { settings: StorageSettings; stats: StorageStats };
         },
-        onSuccess: (data) => {
-            if (!settings) setSettings(data.settings);
-        }
     });
+
+    // Initialize settings when data is fetched
+    useEffect(() => {
+        if (data && !settings) {
+            setSettings(data.settings);
+        }
+    }, [data, settings]);
 
     // Update settings mutation
     const updateMutation = useMutation({
@@ -257,7 +263,7 @@ export default function StorageSettingsPage() {
                         <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatBytes(stats.total.sizeBytes)}</p>
                         <p className="text-xs text-slate-400">{stats.total.count} files</p>
                     </div>
-                    {Object.entries(stats.byFolder).map(([folder, folderStats]) => (
+                    {Object.entries(stats.byFolder).map(([folder, folderStats]: [string, { count: number; sizeBytes: number }]) => (
                         <div key={folder} className="p-4 rounded-xl bg-white/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 backdrop-blur-sm">
                             <div className="flex items-center gap-2 text-slate-500 mb-1">
                                 <FileText className="w-4 h-4" />
@@ -338,18 +344,22 @@ export default function StorageSettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                         <div>
                             <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">From Date</label>
-                            <Input
-                                type="date"
-                                value={cleanupFromDate}
-                                onChange={(e) => setCleanupFromDate(e.target.value)}
+                            <ModernDatePicker
+                                value={cleanupFromDate ? parseISO(cleanupFromDate) : undefined}
+                                onChange={(date) => setCleanupFromDate(format(date, 'yyyy-MM-dd'))}
+                                placeholder="Select from date"
+                                maxDate={cleanupToDate ? parseISO(cleanupToDate) : undefined}
+                                triggerClassName="w-full"
                             />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">To Date</label>
-                            <Input
-                                type="date"
-                                value={cleanupToDate}
-                                onChange={(e) => setCleanupToDate(e.target.value)}
+                            <ModernDatePicker
+                                value={cleanupToDate ? parseISO(cleanupToDate) : undefined}
+                                onChange={(date) => setCleanupToDate(format(date, 'yyyy-MM-dd'))}
+                                placeholder="Select to date"
+                                minDate={cleanupFromDate ? parseISO(cleanupFromDate) : undefined}
+                                triggerClassName="w-full"
                             />
                         </div>
                     </div>
