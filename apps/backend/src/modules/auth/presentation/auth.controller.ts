@@ -17,7 +17,7 @@ export class AuthController {
     @Throttle({ default: { limit: 5, ttl: 60000 } })
     @ApiOperation({ summary: 'User login' })
     async login(@Request() req) {
-        return this.authService.login(req.user);
+        return this.authService.login(req.user, req);
     }
 
     @Post('register')
@@ -36,6 +36,6 @@ export class AuthController {
     @ApiResponse({ status: 200, description: 'Password changed successfully' })
     @ApiResponse({ status: 400, description: 'Invalid current password' })
     async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
-        return this.authService.changePassword(req.user.userId, changePasswordDto);
+        return this.authService.changePassword(req.user.userId, changePasswordDto, req);
     }
 }

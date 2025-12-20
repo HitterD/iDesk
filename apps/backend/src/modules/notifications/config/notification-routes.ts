@@ -26,6 +26,11 @@ export const NOTIFICATION_ROUTES: Record<NotificationCategory, NotificationRoute
         baseUrl: '/ticket/view',
         paramKey: 'ticketId',
     },
+    [NotificationCategory.CATEGORY_ZOOM]: {
+        category: NotificationCategory.CATEGORY_ZOOM,
+        baseUrl: '/zoom-calendar',
+        paramKey: 'referenceId',
+    },
 };
 
 /**

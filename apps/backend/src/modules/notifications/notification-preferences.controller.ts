@@ -139,6 +139,9 @@ export class NotificationPreferencesController {
                 [NotificationType.RENEWAL_EXPIRED]: 'Contract has expired',
                 [NotificationType.HARDWARE_INSTALL_D1]: 'Hardware installation scheduled for tomorrow',
                 [NotificationType.HARDWARE_INSTALL_D0]: 'Hardware installation scheduled for today',
+                [NotificationType.ZOOM_BOOKING_CONFIRMED]: 'Zoom booking confirmed',
+                [NotificationType.ZOOM_BOOKING_CANCELLED]: 'Zoom booking cancelled',
+                [NotificationType.ZOOM_BOOKING_REMINDER]: 'Zoom meeting reminder',
             },
         };
     }

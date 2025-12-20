@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Plus,
@@ -14,10 +14,13 @@ import {
     Filter,
     BarChart3,
     ImageIcon,
+    Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ConfirmDialog } from '@/features/admin/components/ConfirmDialog';
 
 interface Article {
     id: string;
@@ -53,70 +56,103 @@ const STATUS_STYLES = {
 };
 
 export const BentoManageArticlesPage = () => {
-    const [articles, setArticles] = useState<Article[]>([]);
-    const [stats, setStats] = useState<Stats | null>(null);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchTerm, setSearchTerm] = useState(''); // Debounced search
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [categoryFilter, setCategoryFilter] = useState<string>('');
-    const [categories, setCategories] = useState<string[]>([]);
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [articleToDelete, setArticleToDelete] = useState<string | null>(null);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
+    // Fetch articles with TanStack Query
+    const { data: articles = [], isLoading: articlesLoading } = useQuery<Article[]>({
+        queryKey: ['kb-articles', searchTerm, statusFilter, categoryFilter],
+        queryFn: async () => {
             const params: Record<string, string> = { all: 'true' };
-            if (searchQuery) params.q = searchQuery;
+            if (searchTerm) params.q = searchTerm;
             if (statusFilter) params.status = statusFilter;
             if (categoryFilter) params.category = categoryFilter;
+            const res = await api.get('/kb/articles', { params });
+            return res.data;
+        },
+        staleTime: 30000, // Cache for 30 seconds
+    });
 
-            const [articlesRes, statsRes, categoriesRes] = await Promise.all([
-                api.get('/kb/articles', { params }),
-                api.get('/kb/stats'),
-                api.get('/kb/categories'),
-            ]);
+    // Fetch stats with TanStack Query
+    const { data: stats } = useQuery<Stats>({
+        queryKey: ['kb-stats'],
+        queryFn: async () => {
+            const res = await api.get('/kb/stats');
+            return res.data;
+        },
+        staleTime: 60000, // Cache for 1 minute
+    });
 
-            setArticles(articlesRes.data);
-            setStats(statsRes.data);
-            setCategories(categoriesRes.data);
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
-            toast.error('Failed to load articles');
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Fetch categories with TanStack Query
+    const { data: categories = [] } = useQuery<string[]>({
+        queryKey: ['kb-categories'],
+        queryFn: async () => {
+            const res = await api.get('/kb/categories');
+            return res.data;
+        },
+        staleTime: 300000, // Cache for 5 minutes
+    });
 
-    useEffect(() => {
-        fetchData();
-    }, [statusFilter, categoryFilter]);
+    // Update status mutation
+    const updateStatusMutation = useMutation({
+        mutationFn: async ({ id, status }: { id: string; status: string }) => {
+            await api.patch(`/kb/articles/${id}/status`, { status });
+            return status;
+        },
+        onSuccess: (status) => {
+            toast.success(`Article ${status === 'published' ? 'published' : status === 'archived' ? 'archived' : 'saved as draft'}`);
+            queryClient.invalidateQueries({ queryKey: ['kb-articles'] });
+            queryClient.invalidateQueries({ queryKey: ['kb-stats'] });
+            setOpenDropdown(null);
+        },
+        onError: () => {
+            toast.error('Failed to update status');
+        },
+    });
+
+    // Delete mutation
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await api.delete(`/kb/articles/${id}`);
+        },
+        onSuccess: () => {
+            toast.success('Article deleted');
+            queryClient.invalidateQueries({ queryKey: ['kb-articles'] });
+            queryClient.invalidateQueries({ queryKey: ['kb-stats'] });
+            setDeleteConfirmOpen(false);
+            setArticleToDelete(null);
+            setOpenDropdown(null);
+        },
+        onError: () => {
+            toast.error('Failed to delete article');
+        },
+    });
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchData();
+        setSearchTerm(searchQuery); // Trigger query refetch
     };
 
-    const handleUpdateStatus = async (id: string, status: string) => {
-        try {
-            await api.patch(`/kb/articles/${id}/status`, { status });
-            toast.success(`Article ${status === 'published' ? 'published' : status === 'archived' ? 'archived' : 'saved as draft'}`);
-            fetchData();
-        } catch (error) {
-            toast.error('Failed to update status');
-        }
+    const handleUpdateStatus = (id: string, status: string) => {
+        updateStatusMutation.mutate({ id, status });
+    };
+
+    const handleDeleteClick = (id: string) => {
+        setArticleToDelete(id);
+        setDeleteConfirmOpen(true);
         setOpenDropdown(null);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this article?')) return;
-        try {
-            await api.delete(`/kb/articles/${id}`);
-            toast.success('Article deleted');
-            fetchData();
-        } catch (error) {
-            toast.error('Failed to delete article');
+    const handleDeleteConfirm = () => {
+        if (articleToDelete) {
+            deleteMutation.mutate(articleToDelete);
         }
-        setOpenDropdown(null);
     };
 
     return (
@@ -244,8 +280,9 @@ export const BentoManageArticlesPage = () => {
 
             {/* Articles Table */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
-                {loading ? (
-                    <div className="p-12 text-center text-slate-400 dark:text-slate-500">
+                {articlesLoading ? (
+                    <div className="p-12 text-center text-slate-400 dark:text-slate-500 flex items-center justify-center gap-3">
+                        <Loader2 className="w-6 h-6 animate-spin" />
                         Loading articles...
                     </div>
                 ) : articles.length === 0 ? (
@@ -420,7 +457,7 @@ export const BentoManageArticlesPage = () => {
                                 )}
                                 <div className="border-t border-slate-200 dark:border-slate-700 my-2" />
                                 <button
-                                    onClick={() => handleDelete(article.id)}
+                                    onClick={() => handleDeleteClick(article.id)}
                                     className="flex items-center gap-3 w-full px-4 py-2.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                 >
                                     <Trash2 className="w-4 h-4" />
@@ -429,8 +466,22 @@ export const BentoManageArticlesPage = () => {
                             </div>
                         );
                     })()}
-                </>
-            )}
+                </>)}
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setArticleToDelete(null);
+                }}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Article"
+                message="Are you sure you want to delete this article? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+                isLoading={deleteMutation.isPending}
+            />
         </div>
     );
 };

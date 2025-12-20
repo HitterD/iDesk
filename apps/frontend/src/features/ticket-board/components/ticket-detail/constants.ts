@@ -14,3 +14,10 @@ export const PRIORITY_CONFIG: Record<string, { label: string; color: string; dot
     HIGH: { label: 'High', color: 'text-orange-600', dot: 'bg-orange-500' },
     CRITICAL: { label: 'Critical', color: 'text-red-600', dot: 'bg-red-500 animate-pulse' },
 };
+
+export const STATUS_OPTIONS = [
+    { value: 'TODO', label: 'Open' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
+    { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
+    { value: 'RESOLVED', label: 'Resolved' },
+];

@@ -5,11 +5,21 @@ export enum ContractStatus {
     EXPIRED = 'EXPIRED',
 }
 
+export enum ContractCategory {
+    SOFTWARE = 'SOFTWARE',
+    HARDWARE = 'HARDWARE',
+    SERVICE = 'SERVICE',
+    SUBSCRIPTION = 'SUBSCRIPTION',
+    MAINTENANCE = 'MAINTENANCE',
+    OTHER = 'OTHER',
+}
+
 export interface RenewalContract {
     id: string;
     poNumber: string | null;
     vendorName: string | null;
     description: string | null;
+    category: ContractCategory | null;
     contractValue: number | null;
     startDate: string | null;
     endDate: string | null;
@@ -19,13 +29,13 @@ export interface RenewalContract {
     status: ContractStatus;
     extractionStrategy: string | null;
     extractionConfidence: number | null;
-    
+
     // Reminder tracking
     reminderD60Sent: boolean;
     reminderD30Sent: boolean;
     reminderD7Sent: boolean;
     reminderD1Sent: boolean;
-    
+
     // Acknowledge feature
     isAcknowledged: boolean;
     acknowledgedAt: string | null;
@@ -34,7 +44,7 @@ export interface RenewalContract {
         id: string;
         fullName: string;
     } | null;
-    
+
     uploadedBy: {
         id: string;
         fullName: string;
@@ -92,7 +102,14 @@ export interface UpdateContractDto {
     poNumber?: string;
     vendorName?: string;
     description?: string;
+    category?: ContractCategory;
     contractValue?: number;
     startDate?: string;
     endDate?: string;
+}
+
+// Duplicate check response
+export interface DuplicateCheckResult {
+    isDuplicate: boolean;
+    existingContract?: RenewalContract;
 }

@@ -24,11 +24,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
+const SITES = [
+    { id: 'SPJ', code: 'SPJ', name: 'Sepanjang' },
+    { id: 'SMG', code: 'SMG', name: 'Semarang' },
+    { id: 'KRW', code: 'KRW', name: 'Karawang' },
+    { id: 'JTB', code: 'JTB', name: 'Jatibaru' },
+];
+
 const createUserSchema = z.object({
     fullName: z.string().min(1, 'Full name is required'),
     email: z.string().email('Invalid email address'),
     role: z.enum(['ADMIN', 'AGENT', 'USER']),
     departmentId: z.string().optional(),
+    siteId: z.string().optional(),
     autoGeneratePassword: z.boolean(),
     password: z.string().optional(),
 }).refine((data) => {
@@ -217,6 +225,21 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                                 </Select>
                             )}
                         </div>
+                    </div>
+
+                    {/* Site Selector */}
+                    <div className="space-y-2">
+                        <Label>Site</Label>
+                        <Select onValueChange={(val) => setValue('siteId', val)}>
+                            <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                                <SelectValue placeholder="Select site" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-navy-main border-white/10 text-white">
+                                {SITES.map((site) => (
+                                    <SelectItem key={site.id} value={site.id}>{site.code} - {site.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="space-y-4 border-t border-white/10 pt-4">

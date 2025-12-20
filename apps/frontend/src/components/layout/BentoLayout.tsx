@@ -10,6 +10,7 @@ import { useKeyboardShortcuts, KeyboardShortcutsHelp } from '@/hooks/useKeyboard
 import { CommandPalette, useCommandPalette } from '@/components/ui/CommandPalette';
 import { Logo } from '@/components/ui/Logo';
 import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
+import { CriticalNotificationModal } from '@/components/notifications/CriticalNotificationModal';
 
 // Page transition variants - optimized for performance (no blur)
 const pageVariants: Variants = {
@@ -131,6 +132,9 @@ export const BentoLayout = () => {
 
                 {/* In-App Notification Toasts */}
                 <InAppNotificationToast />
+
+                {/* Critical Notification Modal - Fullscreen blocking for renewals */}
+                <CriticalNotificationModal />
             </div>
         </>
     );

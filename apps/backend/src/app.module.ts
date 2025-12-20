@@ -54,11 +54,60 @@ import { WorkflowExecution } from './modules/automation/entities/workflow-execut
 import { SettingsModule } from './modules/settings/settings.module';
 import { SystemSettings } from './modules/settings/entities/system-settings.entity';
 
+// New entities for Phase 0
+import { Site } from './modules/sites/entities/site.entity';
+import { IctBudgetRequest } from './modules/ict-budget/entities/ict-budget-request.entity';
+import { LostItemReport } from './modules/lost-item/entities/lost-item-report.entity';
+import { AccessType } from './modules/access-request/entities/access-type.entity';
+import { AccessRequest } from './modules/access-request/entities/access-request.entity';
+import { PriorityWeight } from './modules/workload/entities/priority-weight.entity';
+import { AgentDailyWorkload } from './modules/workload/entities/agent-daily-workload.entity';
+import { NotificationSound } from './modules/sound/entities/notification-sound.entity';
+import { BackupConfiguration } from './modules/synology/entities/backup-configuration.entity';
+import { BackupHistory } from './modules/synology/entities/backup-history.entity';
+import { IpWhitelist } from './modules/ip-whitelist/entities/ip-whitelist.entity';
+
+// New modules for Phase 1
+import { SitesModule } from './modules/sites/sites.module';
+
+// New modules for Phase 2
+import { IctBudgetModule } from './modules/ict-budget/ict-budget.module';
+import { LostItemModule } from './modules/lost-item/lost-item.module';
+import { AccessRequestModule } from './modules/access-request/access-request.module';
+
+// New modules for Phase 3
+import { WorkloadModule } from './modules/workload/workload.module';
+
+// New modules for Phase 4
+import { SoundModule } from './modules/sound/sound.module';
+import { SynologyModule } from './modules/synology/synology.module';
+
+// New modules for Phase 6
+import { ManagerModule } from './modules/manager/manager.module';
+
+// New modules for Phase 7: IP Whitelist
+import { IpWhitelistModule } from './modules/ip-whitelist/ip-whitelist.module';
+
+// New modules for Phase 8: Zoom Booking Calendar
+import { ZoomBookingModule } from './modules/zoom-booking/zoom-booking.module';
+import { ZoomAccount } from './modules/zoom-booking/entities/zoom-account.entity';
+import { ZoomBooking } from './modules/zoom-booking/entities/zoom-booking.entity';
+import { ZoomMeeting } from './modules/zoom-booking/entities/zoom-meeting.entity';
+import { ZoomParticipant } from './modules/zoom-booking/entities/zoom-participant.entity';
+import { ZoomSettings } from './modules/zoom-booking/entities/zoom-settings.entity';
+import { ZoomAuditLog } from './modules/zoom-booking/entities/zoom-audit-log.entity';
+
+// New modules for Phase 9: Permissions System
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { FeatureDefinition } from './modules/permissions/entities/feature-definition.entity';
+import { UserFeaturePermission } from './modules/permissions/entities/user-feature-permission.entity';
+import { PermissionPreset } from './modules/permissions/entities/permission-preset.entity';
+
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
-            envFilePath: '.env',
+            envFilePath: ['.env', '../../.env'], // Check apps/backend/.env first, then root/.env
         }),
         EventEmitterModule.forRoot(),
         ReportsModule,
@@ -72,7 +121,24 @@ import { SystemSettings } from './modules/settings/entities/system-settings.enti
             username: process.env.DB_USERNAME || 'postgres',
             password: process.env.DB_PASSWORD || 'postgres',
             database: process.env.DB_DATABASE || 'idesk_db',
-            entities: [User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig, SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article, ArticleView, Notification, NotificationPreference, NotificationLog, TelegramSession, SavedSearch, RenewalContract, AuditLog, BusinessHours, WorkflowRule, WorkflowExecution, SystemSettings],
+            entities: [
+                // Existing entities
+                User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig,
+                SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article,
+                ArticleView, Notification, NotificationPreference, NotificationLog,
+                TelegramSession, SavedSearch, RenewalContract, AuditLog, BusinessHours,
+                WorkflowRule, WorkflowExecution, SystemSettings,
+                // New entities (Phase 0)
+                Site, IctBudgetRequest, LostItemReport, AccessType, AccessRequest,
+                PriorityWeight, AgentDailyWorkload, NotificationSound,
+                BackupConfiguration, BackupHistory,
+                // New entities (Phase 7)
+                IpWhitelist,
+                // New entities (Phase 8: Zoom Booking)
+                ZoomAccount, ZoomBooking, ZoomMeeting, ZoomParticipant, ZoomSettings, ZoomAuditLog,
+                // New entities (Phase 9: Permissions)
+                FeatureDefinition, UserFeaturePermission, PermissionPreset,
+            ],
             // SECURITY: Use migrations in production, never auto-sync
             synchronize: process.env.NODE_ENV !== 'production',
             // Enable migrations for production
@@ -131,6 +197,17 @@ import { SystemSettings } from './modules/settings/entities/system-settings.enti
         AuditModule,
         AutomationModule,
         SettingsModule,
+        SitesModule, // Phase 1: Multi-Site System
+        IctBudgetModule, // Phase 2: Ticket Types
+        LostItemModule, // Phase 2: Ticket Types
+        AccessRequestModule, // Phase 2: Ticket Types
+        WorkloadModule, // Phase 3: Auto-Assignment
+        SoundModule, // Phase 4: Sound Notifications
+        SynologyModule, // Phase 4: Synology Backup
+        ManagerModule, // Phase 6: Manager Dashboard
+        IpWhitelistModule, // Phase 7: IP Whitelist Management
+        ZoomBookingModule, // Phase 8: Zoom Booking Calendar
+        PermissionsModule, // Phase 9: Feature Access Control
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 100, // 100 requests per minute

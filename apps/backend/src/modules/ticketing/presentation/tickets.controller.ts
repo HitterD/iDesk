@@ -99,8 +99,12 @@ export class TicketsController {
     @ApiQuery({ name: 'priority', required: false, type: String })
     @ApiQuery({ name: 'category', required: false, type: String })
     @ApiQuery({ name: 'search', required: false, type: String })
+    @ApiQuery({ name: 'siteId', required: false, type: String, description: 'Filter by site ID' })
+    @ApiQuery({ name: 'siteIds', required: false, type: [String], description: 'Filter by multiple site IDs (ADMIN/MANAGER only)' })
     async findAllPaginated(@Request() req, @Query() pagination: PaginationDto) {
-        return this.ticketQueryService.findAllPaginated(req.user.userId, req.user.role, pagination);
+        // Pass user's siteId for site isolation (USER/AGENT)
+        const userSiteId = req.user.siteId || null;
+        return this.ticketQueryService.findAllPaginated(req.user.userId, req.user.role, userSiteId, pagination);
     }
 
     @Get('dashboard/stats')

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, UseGuards, Req, Body, Patch, Res, HttpCode } from '@nestjs/common';
+import { Controller, Post, Get, Delete, UseGuards, Req, Body, Patch, Res, HttpCode, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { TelegramService } from './telegram.service';
@@ -9,10 +9,12 @@ import { Response } from 'express';
 @ApiTags('Telegram')
 @Controller('telegram')
 export class TelegramController {
+    private readonly logger = new Logger(TelegramController.name);
+
     constructor(
         private readonly telegramService: TelegramService,
         @InjectBot() private readonly bot: Telegraf<Context>,
-    ) {}
+    ) { }
 
     @Post('generate-link-code')
     @UseGuards(JwtAuthGuard)
@@ -58,7 +60,7 @@ export class TelegramController {
     async toggleNotifications(@Req() req, @Body('enabled') enabled: boolean) {
         // This would update the user's telegramNotifications setting
         // For now, return the current status
-        return { 
+        return {
             enabled,
             message: enabled ? 'Notifikasi Telegram diaktifkan' : 'Notifikasi Telegram dinonaktifkan'
         };
@@ -81,7 +83,7 @@ export class TelegramController {
             await this.bot.handleUpdate(update);
             res.status(200).send('OK');
         } catch (error) {
-            console.error('Webhook error:', error);
+            this.logger.error(`Webhook error: ${error.message}`, error.stack);
             res.status(200).send('OK'); // Always return 200 to prevent Telegram retries
         }
     }

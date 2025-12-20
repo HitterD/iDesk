@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketSurvey } from './entities/ticket-survey.entity';
@@ -8,6 +8,8 @@ import { Ticket } from './entities/ticket.entity';
 
 @Injectable()
 export class SurveysService {
+    private readonly logger = new Logger(SurveysService.name);
+
     constructor(
         @InjectRepository(TicketSurvey)
         private readonly surveyRepo: Repository<TicketSurvey>,
@@ -18,7 +20,7 @@ export class SurveysService {
         // Check if survey already exists for this ticket
         const existingSurvey = await this.surveyRepo.findOne({ where: { ticketId: ticket.id } });
         if (existingSurvey) {
-            console.log(`[Survey] Survey already exists for ticket ${ticket.id}, skipping creation`);
+            this.logger.log(`Survey already exists for ticket ${ticket.id}, skipping creation`);
             return existingSurvey;
         }
 
@@ -31,9 +33,9 @@ export class SurveysService {
 
         // Send Email
         try {
-            console.log(`[Survey] Generated token ${token} for ticket ${ticket.id}`);
+            this.logger.log(`Generated survey token for ticket ${ticket.id}`);
         } catch (error) {
-            console.error('Failed to send survey email:', error);
+            this.logger.warn(`Failed to send survey email: ${error.message}`);
         }
 
         return survey;

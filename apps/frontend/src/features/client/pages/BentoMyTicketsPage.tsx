@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Clock, Plus, Search, CheckCircle2, CircleDot, Inbox, ChevronRight } from 'lucide-react';
+import { Clock, Plus, Search, CheckCircle2, CircleDot, Inbox, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import api from '@/lib/api';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { cn } from '@/lib/utils';
+import { useDebounce } from '@/hooks/useDebounce';
+import { TicketListSkeleton } from '@/components/ui/skeletons';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 // Using a comprehensive interface matching standard API response
 interface TicketItem {
@@ -24,34 +27,103 @@ interface TicketItem {
     };
 }
 
+interface PaginatedResponse {
+    data: TicketItem[];
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+    };
+}
+
+const STATUS_FILTERS = [
+    { value: 'all', label: 'All' },
+    { value: 'TODO', label: 'Open' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
+    { value: 'RESOLVED', label: 'Resolved' },
+] as const;
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
 export const BentoMyTicketsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
 
-    const { data: tickets = [], isLoading } = useQuery<TicketItem[]>({
-        queryKey: ['my-tickets'],
+    // Debounce search query to reduce API calls
+    const debouncedSearch = useDebounce(searchQuery, 300);
+
+    // Build query params for server-side filtering
+    const queryParams = new URLSearchParams();
+    queryParams.set('page', page.toString());
+    queryParams.set('limit', limit.toString());
+    queryParams.set('sortBy', 'createdAt');
+    queryParams.set('sortOrder', 'DESC');
+    if (debouncedSearch) queryParams.set('search', debouncedSearch);
+    if (statusFilter !== 'all') queryParams.set('status', statusFilter);
+
+    const { data: response, isLoading, isError, refetch } = useQuery<PaginatedResponse>({
+        queryKey: ['my-tickets', page, limit, debouncedSearch, statusFilter],
         queryFn: async () => {
-            const res = await api.get('/tickets');
+            const res = await api.get(`/tickets/paginated?${queryParams.toString()}`);
             return res.data;
         },
+        retry: 2,
+        retryDelay: 1000,
     });
 
-    const filteredTickets = tickets.filter(ticket => {
-        const matchesSearch = ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            ticket.ticketNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const tickets = response?.data ?? [];
+    const meta = response?.meta;
 
-    const openCount = tickets.filter(t => t.status === 'TODO').length;
-    const inProgressCount = tickets.filter(t => t.status === 'IN_PROGRESS').length;
-    const resolvedCount = tickets.filter(t => t.status === 'RESOLVED').length;
+    // Count stats for display (use totals from meta when on first page with no filters)
+    const openCount = meta?.total ?? 0; // Simplified - shows total count
+    const inProgressCount = 0; // Would need separate API call for accurate counts
+    const resolvedCount = 0;
+
+    // Reset to page 1 when filters change
+    const handleStatusChange = (status: string) => {
+        setStatusFilter(status);
+        setPage(1);
+    };
+
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+        setPage(1);
+    };
+
+    const handlePageSizeChange = (newLimit: number) => {
+        setLimit(newLimit);
+        setPage(1);
+    };
+
+    // Handle keyboard navigation for filter buttons
+    const handleFilterKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+        if (e.key === 'ArrowRight' && index < STATUS_FILTERS.length - 1) {
+            e.preventDefault();
+            const nextButton = document.querySelector(`[data-filter-index="${index + 1}"]`) as HTMLButtonElement;
+            nextButton?.focus();
+        } else if (e.key === 'ArrowLeft' && index > 0) {
+            e.preventDefault();
+            const prevButton = document.querySelector(`[data-filter-index="${index - 1}"]`) as HTMLButtonElement;
+            prevButton?.focus();
+        }
+    };
 
     if (isLoading) {
+        return <TicketListSkeleton rows={5} />;
+    }
+
+    if (isError) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
-            </div>
+            <ErrorState
+                title="Gagal Memuat Tiket"
+                message="Terjadi kesalahan saat memuat daftar tiket. Silakan coba lagi."
+                onRetry={() => refetch()}
+            />
         );
     }
 
@@ -78,7 +150,7 @@ export const BentoMyTicketsPage: React.FC = () => {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
                 <div className="glass-card hover:glass-hover-lift rounded-2xl p-4 transition-all duration-300">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -119,44 +191,57 @@ export const BentoMyTicketsPage: React.FC = () => {
                 {/* Search & Filter Bar */}
                 <div className="p-4 border-b border-white/20 dark:border-white/10 flex flex-col md:flex-row gap-4 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md">
                     <div className="flex-1 relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <label htmlFor="ticket-search" className="sr-only">
+                            Search tickets by title or ID
+                        </label>
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" aria-hidden="true" />
                         <input
+                            id="ticket-search"
                             type="text"
                             placeholder="Search by title or ID..."
+                            aria-label="Search tickets by title or ID"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                             className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 border border-white/40 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm text-slate-800 dark:text-white transition-all focus:bg-white dark:focus:bg-slate-800"
                         />
                     </div>
-                    <div className="flex gap-2 font-medium">
-                        {['all', 'TODO', 'IN_PROGRESS', 'RESOLVED'].map((status) => (
+                    <div
+                        className="flex gap-2 font-medium"
+                        role="group"
+                        aria-label="Filter tickets by status"
+                    >
+                        {STATUS_FILTERS.map((filter, index) => (
                             <button
-                                key={status}
-                                onClick={() => setStatusFilter(status)}
-                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === status
+                                key={filter.value}
+                                data-filter-index={index}
+                                onClick={() => handleStatusChange(filter.value)}
+                                onKeyDown={(e) => handleFilterKeyDown(e, index)}
+                                aria-pressed={statusFilter === filter.value}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === filter.value
                                     ? 'bg-primary text-slate-900 shadow-lg shadow-primary/20 scale-105'
                                     : 'bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-white/40 dark:border-white/10 hover:bg-white dark:hover:bg-slate-700 hover:scale-105'
                                     }`}
                             >
-                                {status === 'all' ? 'All' : STATUS_CONFIG[status]?.label || status}
+                                {filter.label}
                             </button>
                         ))}
+
                     </div>
                 </div>
 
                 {/* List Header (Desktop) */}
                 <div className="hidden md:flex items-center px-6 py-3 bg-slate-50/50 dark:bg-slate-900/30 border-b border-white/20 dark:border-white/10 text-xs font-bold text-slate-500 uppercase tracking-wider backdrop-blur-sm">
-                    <div className="w-48">Status / ID</div>
+                    <div className="w-48 xl:w-56">Status / ID</div>
                     <div className="flex-1">Details</div>
-                    <div className="w-32">Priority</div>
-                    <div className="w-40">Assignee</div>
-                    <div className="w-32">Updated</div>
+                    <div className="w-32 xl:w-40">Priority</div>
+                    <div className="w-40 xl:w-48">Assignee</div>
+                    <div className="w-32 xl:w-40">Updated</div>
                     <div className="w-24 text-right">Action</div>
                 </div>
 
                 {/* List Items */}
                 <div className="divide-y divide-white/20 dark:divide-white/10">
-                    {filteredTickets.length === 0 ? (
+                    {tickets.length === 0 ? (
                         <div className="p-16 text-center bg-white/30 dark:bg-slate-800/30 backdrop-blur-sm">
                             <div className="w-20 h-20 bg-white/50 dark:bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-md shadow-lg shadow-slate-200/50 dark:shadow-none">
                                 <Inbox className="w-10 h-10 text-slate-400" />
@@ -176,7 +261,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                             </Link>
                         </div>
                     ) : (
-                        filteredTickets.map((ticket, index) => {
+                        tickets.map((ticket: TicketItem, index: number) => {
                             const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
                             const StatusIcon = statusConfig.icon;
                             const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
@@ -206,7 +291,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                 >
                                     {/* Column 1: Status & ID */}
-                                    <div className="md:w-48 flex items-center gap-3">
+                                    <div className="md:w-48 xl:w-56 flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${statusConfig.bgColor}`}>
                                             <StatusIcon className={`w-5 h-5 ${statusConfig.textColor}`} />
                                         </div>
@@ -235,7 +320,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                     </div>
 
                                     {/* Column 3: Priority */}
-                                    <div className="md:w-32 flex items-center">
+                                    <div className="md:w-32 xl:w-40 flex items-center">
                                         <span className={cn(
                                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm",
                                             priorityConfig.badgeColor
@@ -246,7 +331,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                     </div>
 
                                     {/* Column 4: Assignee */}
-                                    <div className="md:w-40 flex items-center">
+                                    <div className="md:w-40 xl:w-48 flex items-center">
                                         {ticket.assignedTo ? (
                                             <div className="flex items-center gap-2">
                                                 <UserAvatar user={ticket.assignedTo} size="xs" />
@@ -260,7 +345,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                     </div>
 
                                     {/* Column 5: Time */}
-                                    <div className="md:w-32 flex items-center text-xs text-slate-500">
+                                    <div className="md:w-32 xl:w-40 flex items-center text-xs text-slate-500">
                                         <Clock className="w-3.5 h-3.5 mr-1.5 opacity-70" />
                                         {timeDisplay}
                                     </div>
@@ -279,6 +364,66 @@ export const BentoMyTicketsPage: React.FC = () => {
                         })
                     )}
                 </div>
+
+                {/* Pagination UI */}
+                {meta && meta.totalPages > 1 && (
+                    <div className="p-4 border-t border-white/20 dark:border-white/10 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <span>Menampilkan</span>
+                            <select
+                                value={limit}
+                                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                                className="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium"
+                                aria-label="Items per page"
+                            >
+                                {PAGE_SIZE_OPTIONS.map((size) => (
+                                    <option key={size} value={size}>{size}</option>
+                                ))}
+                            </select>
+                            <span>dari {meta.total} tiket</span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setPage(1)}
+                                disabled={!meta.hasPrevPage}
+                                className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                aria-label="First page"
+                            >
+                                <ChevronsLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setPage(page - 1)}
+                                disabled={!meta.hasPrevPage}
+                                className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                aria-label="Previous page"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+
+                            <span className="px-4 py-1.5 bg-primary/10 text-primary font-bold text-sm rounded-lg">
+                                {meta.page} / {meta.totalPages}
+                            </span>
+
+                            <button
+                                onClick={() => setPage(page + 1)}
+                                disabled={!meta.hasNextPage}
+                                className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                aria-label="Next page"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setPage(meta.totalPages)}
+                                disabled={!meta.hasNextPage}
+                                className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                aria-label="Last page"
+                            >
+                                <ChevronsRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

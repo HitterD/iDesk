@@ -1,0 +1,40 @@
+import { DataSource } from 'typeorm';
+import { config } from 'dotenv';
+import { join } from 'path';
+import { runSeed } from './initial-seed';
+
+// Load environment variables
+config({ path: join(__dirname, '..', '..', '.env') });
+
+// Create a DataSource for seeding
+const AppDataSource = new DataSource({
+    type: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    username: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_DATABASE || 'idesk_db',
+    entities: [join(__dirname, '..', 'modules', '**', 'entities', '*.entity.{ts,js}')],
+    synchronize: true, // Only for development seeding
+    logging: true,
+});
+
+async function main() {
+    console.log('🔌 Connecting to database...');
+
+    try {
+        await AppDataSource.initialize();
+        console.log('✅ Database connected!');
+
+        await runSeed(AppDataSource);
+
+        await AppDataSource.destroy();
+        console.log('🔌 Database connection closed.');
+
+    } catch (error) {
+        console.error('❌ Seed failed:', error);
+        process.exit(1);
+    }
+}
+
+main();

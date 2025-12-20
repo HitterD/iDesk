@@ -15,6 +15,8 @@ import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
 import { TelegramService } from '../../telegram/telegram.service';
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { AuditService } from '../../audit/audit.service';
+import { AuditAction } from '../../audit/entities/audit-log.entity';
 
 @Injectable()
 export class TicketUpdateService {
@@ -38,6 +40,7 @@ export class TicketUpdateService {
         private readonly telegramService: TelegramService,
         @Optional()
         private readonly businessHoursService: BusinessHoursService,
+        private readonly auditService: AuditService,
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
@@ -182,6 +185,17 @@ export class TicketUpdateService {
                 ),
             );
 
+            // Audit log for ticket update
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.UPDATE_TICKET,
+                entityType: 'ticket',
+                entityId: ticketId,
+                oldValue: { status: oldStatus },
+                newValue: { status: savedTicket.status, priority: savedTicket.priority },
+                description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} updated: ${changes.join(', ')}`,
+            });
+
             // Trigger Survey if Resolved
             if (ticket.status === TicketStatus.RESOLVED) {
                 const survey = await this.surveysService.createSurvey(ticket);
@@ -256,6 +270,17 @@ export class TicketUpdateService {
             ),
         );
 
+        // Audit log for ticket assignment
+        this.auditService.logAsync({
+            userId,
+            action: AuditAction.ASSIGN_TICKET,
+            entityType: 'ticket',
+            entityId: ticketId,
+            oldValue: { assignee: oldAssigneeName },
+            newValue: { assignee: assignee.fullName },
+            description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} assigned to ${assignee.fullName} by ${assigner.fullName}`,
+        });
+
         return savedTicket;
     }
 
@@ -315,6 +340,17 @@ export class TicketUpdateService {
                 ticket.assignedTo?.id,
             ),
         );
+
+        // Audit log for ticket cancellation
+        this.auditService.logAsync({
+            userId,
+            action: AuditAction.TICKET_CANCEL,
+            entityType: 'ticket',
+            entityId: ticketId,
+            oldValue: { status: oldStatus },
+            newValue: { status: TicketStatus.CANCELLED, reason },
+            description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} cancelled by ${user.fullName}${reason ? ': ' + reason : ''}`,
+        });
 
         return savedTicket;
     }

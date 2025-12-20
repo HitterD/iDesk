@@ -1,16 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import { ExtractionResult, IExtractionStrategy } from '../interfaces/extraction-strategy.interface';
+import { PdfOcrService } from './pdf-ocr.service';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse');
+
+// Minimum character count to consider extraction successful (not scanned)
+const MIN_TEXT_THRESHOLD = 100;
 
 @Injectable()
 export class PdfExtractionService {
     private readonly logger = new Logger(PdfExtractionService.name);
     private strategies: IExtractionStrategy[] = [];
 
-    constructor() {
+    constructor(private readonly ocrService: PdfOcrService) {
         this.strategies = [
             new AdobePatternStrategy(),
             new AlliedPatternStrategy(),
@@ -23,9 +27,24 @@ export class PdfExtractionService {
         try {
             const dataBuffer = fs.readFileSync(filePath);
             const pdfData = await pdfParse(dataBuffer);
-            const text = pdfData.text;
+            let text = pdfData.text;
 
             this.logger.debug(`Extracted ${text.length} characters from PDF`);
+
+            // If text extraction is too short, try OCR
+            if (text.length < MIN_TEXT_THRESHOLD) {
+                this.logger.log('Low text content detected, attempting OCR...');
+
+                if (this.ocrService.isAvailable()) {
+                    const ocrResult = await this.ocrService.extractWithOcr(filePath);
+                    if (ocrResult.success && ocrResult.text.length > text.length) {
+                        this.logger.log(`OCR extracted ${ocrResult.text.length} characters (confidence: ${Math.round(ocrResult.confidence * 100)}%)`);
+                        text = ocrResult.text;
+                    }
+                } else {
+                    this.logger.warn('OCR not available - scanned documents require manual entry');
+                }
+            }
 
             for (const strategy of this.strategies) {
                 if (strategy.canHandle(text)) {
@@ -51,6 +70,13 @@ export class PdfExtractionService {
             this.logger.error(`PDF extraction failed: ${error.message}`);
             throw error;
         }
+    }
+
+    /**
+     * Check if OCR is available for scanned documents
+     */
+    getOcrStatus(): { available: boolean; message: string } {
+        return this.ocrService.getStatus();
     }
 }
 

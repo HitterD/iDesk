@@ -9,6 +9,16 @@ import { AgentPerformanceReport, DateRange } from './generators/agent-performanc
 import { TicketVolumeReport } from './generators/ticket-volume.report';
 import { PDFGeneratorService } from './generators/pdf-generator.service';
 import { CacheService } from '../../shared/core/cache';
+import {
+    EXCEL_STYLES,
+    EXCEL_COLORS,
+    MONTH_NAMES,
+    createStyledWorkbook,
+    applyHeaderStyle,
+    applyRowStyle,
+    getStatusColor,
+    getPriorityColor,
+} from './utils/excel-styles.util';
 
 @Injectable()
 export class ReportsService {
@@ -410,6 +420,26 @@ export class ReportsService {
         performanceReport.data.forEach((agent, idx) => {
             const row = agentSheet.addRow(agent);
             applyRowStyle(row, idx);
+
+            // Resolution Rate conditional formatting (column D)
+            const rateCell = row.getCell(4);
+            if (agent.resolutionRate >= 80) {
+                rateCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF10B981' } };
+            } else if (agent.resolutionRate >= 50) {
+                rateCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFF59E0B' } };
+            } else {
+                rateCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFEF4444' } };
+            }
+
+            // SLA Compliance conditional formatting (column G)
+            const slaCell = row.getCell(7);
+            if (agent.slaComplianceRate >= 90) {
+                slaCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF10B981' } };
+            } else if (agent.slaComplianceRate >= 70) {
+                slaCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFF59E0B' } };
+            } else {
+                slaCell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFEF4444' } };
+            }
         });
 
         // ========== Daily Volume Sheet ==========
@@ -425,6 +455,13 @@ export class ReportsService {
         volumeReport.data.daily.forEach((day, idx) => {
             const row = dailySheet.addRow(day);
             applyRowStyle(row, idx);
+
+            // Created column (blue)
+            row.getCell(2).font = { name: 'Calibri', size: 12, color: { argb: 'FF3B82F6' } };
+            // Resolved column (green)
+            row.getCell(3).font = { name: 'Calibri', size: 12, color: { argb: 'FF10B981' } };
+            // Pending column (orange)
+            row.getCell(4).font = { name: 'Calibri', size: 12, color: { argb: 'FFF59E0B' } };
         });
 
         // ========== By Priority Sheet ==========
@@ -435,10 +472,22 @@ export class ReportsService {
         ];
         applyHeaderStyle(prioritySheet);
 
+        const priorityColors: Record<string, string> = {
+            'CRITICAL': 'FFEF4444',
+            'URGENT': 'FFEF4444',
+            'HIGH': 'FFF59E0B',
+            'MEDIUM': 'FF3B82F6',
+            'LOW': 'FF10B981',
+        };
+
         let pIdx = 0;
         for (const [priority, count] of Object.entries(volumeReport.data.byPriority)) {
             const row = prioritySheet.addRow({ priority, count });
             applyRowStyle(row, pIdx++);
+
+            // Color priority name
+            const colorCode = priorityColors[priority.toUpperCase()] || 'FF6B7280';
+            row.getCell(1).font = { name: 'Calibri', size: 12, bold: true, color: { argb: colorCode } };
         }
 
         // ========== By Category Sheet ==========
@@ -446,12 +495,15 @@ export class ReportsService {
         categorySheet.columns = [
             { header: 'Category', key: 'category', width: 25 },
             { header: 'Ticket Count', key: 'count', width: 15 },
+            { header: 'Percentage', key: 'percentage', width: 12 },
         ];
         applyHeaderStyle(categorySheet);
 
+        const totalCategoryTickets = Object.values(volumeReport.data.byCategory).reduce((a, b) => a + b, 0);
         let cIdx = 0;
         for (const [category, count] of Object.entries(volumeReport.data.byCategory)) {
-            const row = categorySheet.addRow({ category, count });
+            const percentage = totalCategoryTickets > 0 ? ((count / totalCategoryTickets) * 100).toFixed(1) : '0';
+            const row = categorySheet.addRow({ category, count, percentage: `${percentage}%` });
             applyRowStyle(row, cIdx++);
         }
 

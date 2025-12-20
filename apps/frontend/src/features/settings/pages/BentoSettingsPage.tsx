@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive } from 'lucide-react';
+import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive, FileText, Shield, Video } from 'lucide-react';
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
@@ -10,7 +10,10 @@ import { useTheme } from '../../../components/theme-provider';
 
 // Lazy load SLA settings (admin only)
 const SlaSettingsTab = lazy(() => import('../../admin/pages/BentoSlaSettingsPage').then(m => ({ default: m.BentoSlaSettingsPage })));
-const StorageSettingsTab = lazy(() => import('../../admin/pages/StorageSettingsPage'));
+const StorageSettingsTab = lazy(() => import('./StorageSettingsPage').then(m => ({ default: m.StorageSettingsPage })));
+const AccessTypeSettingsTab = lazy(() => import('./AccessTypeSettings').then(m => ({ default: m.AccessTypeSettings })));
+const IpWhitelistSettingsTab = lazy(() => import('./IpWhitelistSettings').then(m => ({ default: m.IpWhitelistSettings })));
+const ZoomSettingsTab = lazy(() => import('../../zoom-booking/pages/ZoomSettingsPage').then(m => ({ default: m.ZoomSettingsPage })));
 
 export const BentoSettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -34,7 +37,10 @@ export const BentoSettingsPage: React.FC = () => {
                         { value: 'appearance', icon: Palette, label: 'Appearance' },
                         ...(user?.role === 'ADMIN' ? [
                             { value: 'sla', icon: Clock, label: 'SLA Settings' },
-                            { value: 'storage', icon: HardDrive, label: 'Storage' }
+                            { value: 'storage', icon: HardDrive, label: 'Storage' },
+                            { value: 'access-forms', icon: FileText, label: 'Access Forms' },
+                            { value: 'ip-whitelist', icon: Shield, label: 'IP Whitelist' },
+                            { value: 'zoom', icon: Video, label: 'Zoom Settings' },
                         ] : []),
                     ].map((tab, index) => (
                         <Tabs.Trigger
@@ -137,6 +143,44 @@ export const BentoSettingsPage: React.FC = () => {
                                 </div>
                             }>
                                 <StorageSettingsTab />
+                            </Suspense>
+                        </Tabs.Content>
+                    )}
+
+                    {user?.role === 'ADMIN' && (
+                        <Tabs.Content value="access-forms" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <Suspense fallback={
+                                <div className="flex items-center justify-center h-64">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                </div>
+                            }>
+                                <AccessTypeSettingsTab />
+                            </Suspense>
+                        </Tabs.Content>
+                    )}
+
+                    {user?.role === 'ADMIN' && (
+                        <Tabs.Content value="ip-whitelist" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-700">
+                                <Suspense fallback={
+                                    <div className="flex items-center justify-center h-64">
+                                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                    </div>
+                                }>
+                                    <IpWhitelistSettingsTab />
+                                </Suspense>
+                            </div>
+                        </Tabs.Content>
+                    )}
+
+                    {user?.role === 'ADMIN' && (
+                        <Tabs.Content value="zoom" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <Suspense fallback={
+                                <div className="flex items-center justify-center h-64">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                </div>
+                            }>
+                                <ZoomSettingsTab />
                             </Suspense>
                         </Tabs.Content>
                     )}

@@ -2,74 +2,67 @@ import React from 'react';
 import { Paperclip, Calendar, Clock } from 'lucide-react';
 import { TicketDetail } from './types';
 import api from '@/lib/api';
+import { formatRelativeTime } from '@/lib/utils/dateFormat';
 
 interface TicketInfoCardProps {
     ticket: TicketDetail;
 }
 
 export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket }) => {
-    const formatDate = (dateString: string) => {
-        if (!dateString) return 'N/A';
-        return new Intl.DateTimeFormat('en-US', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: 'Asia/Jakarta'
-        }).format(new Date(dateString));
-    };
+    // Truncate description if too long
+    const maxLength = 200;
+    const description = ticket.description || '';
+    const truncatedDesc = description.length > maxLength
+        ? description.substring(0, maxLength) + '...'
+        : description;
 
     return (
-        <div className="glass-card overflow-hidden animate-fade-in-up">
-            {/* Description */}
-            <div className="p-6">
-                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <div className="w-1 h-4 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
-                    Description
-                </h3>
-                <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
+        <div className="p-3 bg-slate-900/30">
+            {/* Description - Compact */}
+            <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                    <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">
+                        {truncatedDesc}
+                    </p>
+                </div>
+
+                {/* Timestamps - Compact Pills */}
+                <div className="flex items-center gap-2 shrink-0 text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded">
+                        <Calendar className="w-3 h-3" />
+                        {formatRelativeTime(ticket.createdAt)}
+                    </span>
+                    <span className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded">
+                        <Clock className="w-3 h-3" />
+                        {formatRelativeTime(ticket.updatedAt)}
+                    </span>
+                </div>
             </div>
 
-            {/* Attachments */}
+            {/* Attachments - Inline if any */}
             {ticket.messages && ticket.messages[0]?.attachments?.length > 0 && (
-                <div className="px-6 pb-6">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <Paperclip className="w-4 h-4" />
-                        Attachments ({ticket.messages[0].attachments.length})
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {ticket.messages[0].attachments.map((url, index) => (
+                <div className="flex items-center gap-2 mt-2">
+                    <Paperclip className="w-3 h-3 text-slate-500" />
+                    <div className="flex gap-1.5 overflow-x-auto">
+                        {ticket.messages[0].attachments.slice(0, 3).map((url, index) => (
                             <a
                                 key={index}
                                 href={`${api.defaults.baseURL}${url}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group"
+                                className="text-[10px] text-primary hover:underline bg-slate-800/50 px-2 py-1 rounded truncate max-w-[100px]"
                             >
-                                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                    <Paperclip className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate group-hover:text-primary transition-colors">
-                                        {url.split('/').pop()}
-                                    </p>
-                                    <p className="text-xs text-slate-400">Click to download</p>
-                                </div>
+                                {url.split('/').pop()}
                             </a>
                         ))}
+                        {ticket.messages[0].attachments.length > 3 && (
+                            <span className="text-[10px] text-slate-500 px-2 py-1">
+                                +{ticket.messages[0].attachments.length - 3} more
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
-
-            {/* Timestamps */}
-            <div className="flex items-center gap-6 px-6 py-4 bg-gradient-to-r from-slate-100/60 to-slate-50/60 dark:from-slate-900/50 dark:to-slate-800/50 border-t border-slate-200/50 dark:border-slate-700/50 text-xs">
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                    Created: <span className="font-mono text-slate-600 dark:text-slate-300">{formatDate(ticket.createdAt)}</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                    <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                    Updated: <span className="font-mono text-slate-600 dark:text-slate-300">{formatDate(ticket.updatedAt)}</span>
-                </div>
-            </div>
         </div>
     );
 };

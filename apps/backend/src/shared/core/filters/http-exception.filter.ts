@@ -14,15 +14,16 @@ const logBuffer: string[] = [];
 let flushTimer: NodeJS.Timeout | null = null;
 const FLUSH_INTERVAL = 5000; // 5 seconds
 const MAX_BUFFER_SIZE = 100;
+const moduleLogger = new Logger('HttpExceptionFilter.flushLogBuffer');
 
 async function flushLogBuffer() {
     if (logBuffer.length === 0) return;
-    
+
     const logs = logBuffer.splice(0, logBuffer.length).join('');
     try {
         await appendFile('error.log', logs);
     } catch (err) {
-        console.error('Failed to write to error.log:', err);
+        moduleLogger.error(`Failed to write to error.log: ${(err as Error).message}`);
     }
 }
 
@@ -72,12 +73,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
                 : (exception as any).message || 'Internal server error';
 
         const isProduction = process.env.NODE_ENV === 'production';
-        
+
         // Extract the actual message
-        const actualMessage = typeof message === 'object' && 'message' in message 
-            ? (message as any).message 
+        const actualMessage = typeof message === 'object' && 'message' in message
+            ? (message as any).message
             : message;
-        
+
         // In production, hide internal error details for 500 errors
         const safeMessage = isProduction && status === HttpStatus.INTERNAL_SERVER_ERROR
             ? 'Internal server error'
@@ -102,7 +103,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         // Async buffered logging - non-blocking
         const logMessage = `${new Date().toISOString()} - HTTP Error: ${status} - ${JSON.stringify(errorResponse)}\nStack: ${(exception as any).stack}\n\n`;
         logBuffer.push(logMessage);
-        
+
         // Flush immediately if buffer is full, otherwise schedule flush
         if (logBuffer.length >= MAX_BUFFER_SIZE) {
             flushLogBuffer();

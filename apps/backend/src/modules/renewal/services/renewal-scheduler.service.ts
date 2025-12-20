@@ -104,7 +104,10 @@ export class RenewalSchedulerService {
 
         // === IN-APP NOTIFICATION ===
         const notificationType = this.getNotificationTypeForDays(daysUntilExpiry);
-        
+
+        // CRITICAL: Renewal notifications require acknowledgment via fullscreen modal
+        const requiresAcknowledge = true;
+
         for (const admin of admins) {
             try {
                 await this.notificationService.create({
@@ -114,7 +117,8 @@ export class RenewalSchedulerService {
                     title,
                     message,
                     referenceId: contract.id,
-                    link: `/renewal/detail/${contract.id}`,
+                    link: `/renewal`,
+                    requiresAcknowledge, // Forces fullscreen blocking modal
                 });
             } catch (error) {
                 this.logger.error(`Failed to send in-app notification to ${admin.email}:`, error);

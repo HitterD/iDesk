@@ -339,10 +339,11 @@ export class TelegramService {
         });
     }
 
-    async getUserRole(userId: string): Promise<'USER' | 'AGENT' | 'ADMIN'> {
+    async getUserRole(userId: string): Promise<'USER' | 'AGENT' | 'ADMIN' | 'MANAGER'> {
         const user = await this.userRepo.findOne({ where: { id: userId } });
         if (!user) return 'USER';
         if (user.role === 'ADMIN') return 'ADMIN';
+        if (user.role === 'MANAGER') return 'MANAGER';
         if (user.role === 'AGENT') return 'AGENT';
         return 'USER';
     }
@@ -663,6 +664,57 @@ export class TelegramService {
     }
 
     // =====================
+    // Manager Dashboard Stats (Phase 7)
+    // =====================
+
+    async getManagerDashboardStats(managerId: string): Promise<{
+        totalOpen: number;
+        critical: number;
+        slaBreach: number;
+        bySite: { code: string; open: number }[];
+    }> {
+        // Count total open tickets
+        const totalOpen = await this.ticketRepo.count({
+            where: [
+                { status: TicketStatus.TODO },
+                { status: TicketStatus.IN_PROGRESS },
+            ],
+        });
+
+        // Count critical tickets
+        const critical = await this.ticketRepo.count({
+            where: [
+                { status: TicketStatus.TODO, priority: TicketPriority.CRITICAL },
+                { status: TicketStatus.IN_PROGRESS, priority: TicketPriority.CRITICAL },
+            ],
+        });
+
+        // Count SLA breach (tickets past their SLA target)
+        const now = new Date();
+        const slaBreach = await this.ticketRepo.createQueryBuilder('ticket')
+            .where('ticket.status IN (:...statuses)', { statuses: ['TODO', 'IN_PROGRESS'] })
+            .andWhere('ticket.slaTarget IS NOT NULL')
+            .andWhere('ticket.slaTarget < :now', { now })
+            .getCount();
+
+        // Get tickets grouped by site
+        const bySiteRaw = await this.ticketRepo.createQueryBuilder('ticket')
+            .leftJoin('ticket.site', 'site')
+            .where('ticket.status IN (:...statuses)', { statuses: ['TODO', 'IN_PROGRESS'] })
+            .select('site.code', 'code')
+            .addSelect('COUNT(*)', 'open')
+            .groupBy('site.code')
+            .getRawMany();
+
+        const bySite = bySiteRaw.map((row: any) => ({
+            code: row.code || 'N/A',
+            open: parseInt(row.open) || 0,
+        }));
+
+        return { totalOpen, critical, slaBreach, bySite };
+    }
+
+    // =====================
     // Agent Operations
     // =====================
 
@@ -978,4 +1030,141 @@ export class TelegramService {
             }
         });
     }
+
+    // =====================
+    // Manager Helper Methods (Phase 7)
+    // =====================
+
+    async getCriticalTickets(): Promise<Ticket[]> {
+        return this.ticketRepo.find({
+            where: [
+                { status: TicketStatus.TODO, priority: TicketPriority.CRITICAL },
+                { status: TicketStatus.IN_PROGRESS, priority: TicketPriority.CRITICAL },
+            ],
+            relations: ['site', 'user', 'assignedTo'],
+            order: { createdAt: 'ASC' },
+            take: 20,
+        });
+    }
+
+    async getSlaBreachTickets(): Promise<Ticket[]> {
+        const now = new Date();
+        return this.ticketRepo.createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.site', 'site')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .where('ticket.status IN (:...statuses)', { statuses: ['TODO', 'IN_PROGRESS'] })
+            .andWhere('ticket.slaTarget IS NOT NULL')
+            .andWhere('ticket.slaTarget < :now', { now })
+            .orderBy('ticket.slaTarget', 'ASC')
+            .take(20)
+            .getMany();
+    }
+
+    async getTopAgents(): Promise<{ id: string; name: string; siteCode: string; resolvedToday: number; openTickets: number }[]> {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const agents = await this.userRepo.find({
+            where: [
+                { role: 'AGENT' as any, isActive: true },
+            ],
+            relations: ['site'],
+        });
+
+        const results: { id: string; name: string; siteCode: string; resolvedToday: number; openTickets: number }[] = [];
+
+        for (const agent of agents) {
+            const resolvedToday = await this.ticketRepo.count({
+                where: {
+                    assignedToId: agent.id,
+                    status: TicketStatus.RESOLVED,
+                    updatedAt: MoreThanOrEqual(today),
+                },
+            });
+
+            const openTickets = await this.ticketRepo.count({
+                where: [
+                    { assignedToId: agent.id, status: TicketStatus.TODO },
+                    { assignedToId: agent.id, status: TicketStatus.IN_PROGRESS },
+                ],
+            });
+
+            results.push({
+                id: agent.id,
+                name: agent.fullName,
+                siteCode: agent.site?.code || 'N/A',
+                resolvedToday,
+                openTickets,
+            });
+        }
+
+        // Sort by resolvedToday descending
+        return results.sort((a, b) => b.resolvedToday - a.resolvedToday);
+    }
+
+    async getAllSites(): Promise<{ id: string; code: string; name: string }[]> {
+        const { Site } = await import('../sites/entities/site.entity');
+        const siteRepo = this.ticketRepo.manager.getRepository(Site);
+
+        const sites = await siteRepo.find({
+            where: { isActive: true },
+            order: { code: 'ASC' },
+        });
+
+        return sites.map(s => ({ id: s.id, code: s.code, name: s.name }));
+    }
+
+    async getSiteStats(siteId: string): Promise<{
+        siteCode: string;
+        siteName: string;
+        openTickets: number;
+        critical: number;
+        slaBreach: number;
+        agentCount: number;
+    }> {
+        const { Site } = await import('../sites/entities/site.entity');
+        const siteRepo = this.ticketRepo.manager.getRepository(Site);
+
+        const site = await siteRepo.findOne({ where: { id: siteId } });
+        if (!site) {
+            return { siteCode: 'N/A', siteName: 'Unknown', openTickets: 0, critical: 0, slaBreach: 0, agentCount: 0 };
+        }
+
+        const openTickets = await this.ticketRepo.count({
+            where: [
+                { siteId, status: TicketStatus.TODO },
+                { siteId, status: TicketStatus.IN_PROGRESS },
+            ],
+        });
+
+        const critical = await this.ticketRepo.count({
+            where: [
+                { siteId, status: TicketStatus.TODO, priority: TicketPriority.CRITICAL },
+                { siteId, status: TicketStatus.IN_PROGRESS, priority: TicketPriority.CRITICAL },
+            ],
+        });
+
+        const now = new Date();
+        const slaBreach = await this.ticketRepo.createQueryBuilder('ticket')
+            .where('ticket.siteId = :siteId', { siteId })
+            .andWhere('ticket.status IN (:...statuses)', { statuses: ['TODO', 'IN_PROGRESS'] })
+            .andWhere('ticket.slaTarget IS NOT NULL')
+            .andWhere('ticket.slaTarget < :now', { now })
+            .getCount();
+
+        const agentCount = await this.userRepo.count({
+            where: { siteId, role: 'AGENT' as any, isActive: true },
+        });
+
+        return {
+            siteCode: site.code,
+            siteName: site.name,
+            openTickets,
+            critical,
+            slaBreach,
+            agentCount,
+        };
+    }
 }
+

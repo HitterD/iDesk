@@ -11,6 +11,7 @@ import { Command, CommandInput, CommandList, CommandItem, CommandEmpty, CommandG
 import { RichTextEditor } from '../../../components/ui/RichTextEditor';
 import api from '../../../lib/api';
 import { formatDate } from '../../../lib/utils';
+import { logger } from '@/lib/logger';
 
 interface Message {
     id: string;
@@ -70,10 +71,10 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
         socketRef.current = io('http://localhost:5050'); // Updated port
 
         socketRef.current.on('connect', () => {
-            console.log('Connected to socket server');
+            logger.debug('Connected to socket server');
         });
 
-        socketRef.current.on('ticket:updated', (data: any) => {
+        socketRef.current.on('ticket:updated', (data: { ticketId: string }) => {
             if (data.ticketId === ticketId) {
                 queryClient.invalidateQueries({ queryKey: ['messages', ticketId] });
             }
@@ -115,7 +116,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                 const data = await response.json();
                 attachmentUrls = data.urls;
             } catch (error) {
-                console.error('Upload failed:', error);
+                logger.error('Upload failed:', error);
                 setIsSending(false);
                 return; // Stop if upload fails
             }
@@ -131,7 +132,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
             setMentionedUserIds([]);
             setFiles([]);
         } catch (e) {
-            console.error('Failed to send message', e);
+            logger.error('Failed to send message', e);
         } finally {
             setIsSending(false);
         }

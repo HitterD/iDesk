@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import api from '../../../lib/api';
 import { useAuth } from '../../../stores/useAuth';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { validateImageFile, FILE_SIZE_LIMITS } from '@/lib/file-validation';
 
 interface Department {
     id: string;
@@ -102,6 +103,13 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Validate file before upload
+            const validation = validateImageFile(file, FILE_SIZE_LIMITS.AVATAR);
+            if (!validation.valid) {
+                toast.error(validation.error);
+                e.target.value = ''; // Reset input
+                return;
+            }
             uploadAvatarMutation.mutate(file);
         }
     };

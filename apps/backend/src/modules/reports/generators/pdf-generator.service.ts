@@ -147,7 +147,7 @@ export class PDFGeneratorService {
     }
 
     /**
-     * Generate Monthly Summary PDF Report - REDESIGNED
+     * Generate Monthly Summary PDF Report - ENHANCED with Charts
      */
     async generateMonthlySummaryPDF(
         res: Response,
@@ -181,22 +181,26 @@ export class PDFGeneratorService {
             subtitle: `${monthNames[stats.month - 1]} ${stats.year}`,
         });
 
+        // Ensure all values are numbers with defaults
+        const totalTickets = Number(stats.totalTickets) || 0;
+        const resolvedTickets = Number(stats.resolvedTickets) || 0;
+        const openTickets = Number(stats.openTickets) || 0;
+        const avgHours = parseFloat(String(stats.avgResolutionTimeHours)) || 0;
+
         // Key Metrics Cards
         const cardY = doc.y + 15;
-        this.drawColoredCard(doc, 40, cardY, 125, 75, 'Total Tickets', String(stats.totalTickets), COLORS.primary, COLORS.primaryLight);
-        this.drawColoredCard(doc, 175, cardY, 125, 75, 'Resolved', String(stats.resolvedTickets), COLORS.success, COLORS.successLight);
-        this.drawColoredCard(doc, 310, cardY, 125, 75, 'Open', String(stats.openTickets), COLORS.warning, COLORS.warningLight);
-
-        const avgHours = parseFloat(String(stats.avgResolutionTimeHours)) || 0;
+        this.drawColoredCard(doc, 40, cardY, 125, 75, 'Total Tickets', String(totalTickets), COLORS.primary, COLORS.primaryLight);
+        this.drawColoredCard(doc, 175, cardY, 125, 75, 'Resolved', String(resolvedTickets), COLORS.success, COLORS.successLight);
+        this.drawColoredCard(doc, 310, cardY, 125, 75, 'Open', String(openTickets), COLORS.warning, COLORS.warningLight);
         this.drawColoredCard(doc, 445, cardY, 110, 75, 'Avg Resolution', `${avgHours.toFixed(1)}h`, COLORS.info, COLORS.infoLight);
 
         doc.y = cardY + 95;
 
-        // Performance Metrics Section
+        // Performance Overview Section
         this.drawSectionTitle(doc, 'Performance Overview');
 
-        const resolutionRate = stats.totalTickets > 0
-            ? ((stats.resolvedTickets / stats.totalTickets) * 100)
+        const resolutionRate = totalTickets > 0
+            ? ((resolvedTickets / totalTickets) * 100)
             : 0;
 
         // Resolution Rate Progress Bar
@@ -206,8 +210,8 @@ export class PDFGeneratorService {
         // Ticket Distribution (simple visual)
         this.drawSectionTitle(doc, 'Ticket Distribution');
         this.drawPieChartLegend(doc, {
-            'Resolved': { value: stats.resolvedTickets, color: COLORS.success },
-            'Open': { value: stats.openTickets, color: COLORS.warning },
+            'Resolved': { value: resolvedTickets, color: COLORS.success },
+            'Open': { value: openTickets, color: COLORS.warning },
         });
 
         // Summary Table
@@ -215,9 +219,9 @@ export class PDFGeneratorService {
         this.drawSectionTitle(doc, 'Summary Statistics');
         this.drawSummaryTable(doc, [
             { metric: 'Report Period', value: `${monthNames[stats.month - 1]} ${stats.year}` },
-            { metric: 'Total Tickets Created', value: String(stats.totalTickets) },
-            { metric: 'Tickets Resolved', value: String(stats.resolvedTickets) },
-            { metric: 'Tickets Still Open', value: String(stats.openTickets) },
+            { metric: 'Total Tickets Created', value: String(totalTickets) },
+            { metric: 'Tickets Resolved', value: String(resolvedTickets) },
+            { metric: 'Tickets Still Open', value: String(openTickets) },
             { metric: 'Resolution Rate', value: `${resolutionRate.toFixed(1)}%` },
             { metric: 'Average Resolution Time', value: `${avgHours.toFixed(2)} hours` },
         ]);
@@ -464,6 +468,124 @@ export class PDFGeneratorService {
         doc.fillColor(COLORS.text);
     }
 
+    /**
+     * Draw a donut chart for distribution visualization
+     */
+    private drawDonutChart(
+        doc: any,
+        centerX: number,
+        centerY: number,
+        outerRadius: number,
+        innerRadius: number,
+        data: { label: string; value: number; color: string }[]
+    ): void {
+        const total = data.reduce((sum, d) => sum + d.value, 0);
+        if (total === 0) return;
+
+        let startAngle = -Math.PI / 2; // Start from top
+
+        // Draw segments
+        data.forEach(segment => {
+            const sweepAngle = (segment.value / total) * Math.PI * 2;
+            const endAngle = startAngle + sweepAngle;
+
+            // Draw arc segment using path
+            doc.save();
+            doc.path(this.createArcPath(centerX, centerY, outerRadius, innerRadius, startAngle, endAngle))
+                .fill(segment.color);
+            doc.restore();
+
+            startAngle = endAngle;
+        });
+
+        // Center text (total)
+        doc.fontSize(18).font('Helvetica-Bold').fillColor(COLORS.text)
+            .text(String(total), centerX - 25, centerY - 12, { width: 50, align: 'center' });
+        doc.fontSize(7).font('Helvetica').fillColor(COLORS.textLight)
+            .text('Total', centerX - 25, centerY + 8, { width: 50, align: 'center' });
+
+        // Legend below chart
+        let legendY = centerY + outerRadius + 15;
+        let legendX = centerX - (data.length * 50);
+        data.forEach((segment, i) => {
+            const x = legendX + (i * 100);
+            doc.rect(x, legendY, 10, 10).fill(segment.color);
+            const pct = total > 0 ? ((segment.value / total) * 100).toFixed(0) : '0';
+            doc.fontSize(8).fillColor(COLORS.text)
+                .text(`${segment.label} (${pct}%)`, x + 14, legendY + 1);
+        });
+
+        doc.fillColor(COLORS.text);
+    }
+
+    /**
+     * Create SVG-like arc path for donut segments
+     */
+    private createArcPath(
+        cx: number, cy: number,
+        outerR: number, innerR: number,
+        startAngle: number, endAngle: number
+    ): string {
+        // Outer arc
+        const outerStartX = cx + outerR * Math.cos(startAngle);
+        const outerStartY = cy + outerR * Math.sin(startAngle);
+        const outerEndX = cx + outerR * Math.cos(endAngle);
+        const outerEndY = cy + outerR * Math.sin(endAngle);
+
+        // Inner arc
+        const innerStartX = cx + innerR * Math.cos(endAngle);
+        const innerStartY = cy + innerR * Math.sin(endAngle);
+        const innerEndX = cx + innerR * Math.cos(startAngle);
+        const innerEndY = cy + innerR * Math.sin(startAngle);
+
+        const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
+
+        // SVG arc command: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+        return `
+            M ${outerStartX} ${outerStartY}
+            A ${outerR} ${outerR} 0 ${largeArcFlag} 1 ${outerEndX} ${outerEndY}
+            L ${innerStartX} ${innerStartY}
+            A ${innerR} ${innerR} 0 ${largeArcFlag} 0 ${innerEndX} ${innerEndY}
+            Z
+        `;
+    }
+
+    /**
+     * Draw enhanced metrics comparison grid
+     */
+    private drawMetricsGrid(doc: any, metrics: { label: string; value: string; change?: number }[], x: number, y: number): void {
+        const cardWidth = 120;
+        const cardHeight = 55;
+        const gap = 10;
+
+        metrics.forEach((metric, i) => {
+            const cardX = x + (i % 4) * (cardWidth + gap);
+            const cardY = y + Math.floor(i / 4) * (cardHeight + gap);
+
+            // Card background
+            doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 6).fill(COLORS.grayLight);
+
+            // Label
+            doc.fontSize(8).font('Helvetica').fillColor(COLORS.textLight)
+                .text(metric.label, cardX + 8, cardY + 8, { width: cardWidth - 16 });
+
+            // Value
+            doc.fontSize(16).font('Helvetica-Bold').fillColor(COLORS.text)
+                .text(metric.value, cardX + 8, cardY + 22, { width: cardWidth - 16 });
+
+            // Change indicator
+            if (metric.change !== undefined) {
+                const isPositive = metric.change >= 0;
+                const arrow = isPositive ? '↑' : '↓';
+                const changeColor = isPositive ? COLORS.success : COLORS.danger;
+                doc.fontSize(9).fillColor(changeColor)
+                    .text(`${arrow} ${Math.abs(metric.change).toFixed(1)}%`, cardX + 8, cardY + 40);
+            }
+        });
+
+        doc.fillColor(COLORS.text);
+    }
+
     private addModernFooter(doc: any): void {
         const pages = doc.bufferedPageRange();
         for (let i = 0; i < pages.count; i++) {
@@ -474,13 +596,13 @@ export class PDFGeneratorService {
 
             // Left: Company
             doc.fontSize(8).fillColor(COLORS.textLight).font('Helvetica')
-                .text('iDesk Enterprise Helpdesk', 40, 788);
+                .text('iDesk Enterprise Helpdesk • Confidential', 40, 788);
 
             // Center: Page number
             doc.text(`Page ${i + 1} of ${pages.count}`, 250, 788, { align: 'center', width: 100 });
 
             // Right: Generated date
-            doc.text(`Generated: ${new Date().toLocaleDateString('id-ID')}`, 400, 788, { align: 'right', width: 155 });
+            doc.text(`Generated: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`, 400, 788, { align: 'right', width: 155 });
         }
     }
 }

@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, formatDistanceToNow } from 'date-fns';
-import { 
-    Ticket, 
-    MessageSquare, 
-    UserPlus, 
-    CheckCircle2, 
+import {
+    Ticket,
+    MessageSquare,
+    UserPlus,
+    CheckCircle2,
     AlertTriangle,
     Clock,
     ArrowRight,
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from './UserAvatar';
 
 // Activity types
-type ActivityType = 
+type ActivityType =
     | 'ticket_created'
     | 'ticket_assigned'
     | 'ticket_resolved'
@@ -52,9 +52,9 @@ interface ActivityFeedProps {
     onRefresh?: () => void;
 }
 
-const ACTIVITY_CONFIG: Record<ActivityType, { 
-    icon: React.ElementType; 
-    color: string; 
+const ACTIVITY_CONFIG: Record<ActivityType, {
+    icon: React.ElementType;
+    color: string;
     bgColor: string;
     label: string;
 }> = {
@@ -138,7 +138,7 @@ const ActivityItem: React.FC<{
                     )}
                     <span className="text-sm text-slate-500">{config.label}</span>
                 </div>
-                
+
                 {activity.ticket && (
                     <div className="flex items-center gap-1 mt-1">
                         <span className="font-mono text-xs text-slate-400">
@@ -186,7 +186,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                         {isLive ? 'Live Activity' : 'Recent Activity'}
                     </h3>
                 </div>
-                
+
                 {onRefresh && (
                     <button
                         onClick={onRefresh}
@@ -235,7 +235,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
     );
 };
 
-// Hook for real-time activities (placeholder - would connect to WebSocket)
+// Hook for real-time activities - connects to actual WebSocket
 export function useRealtimeActivities(enabled: boolean = true) {
     const [activities, setActivities] = useState<Activity[]>([]);
     const [isConnected, setIsConnected] = useState(false);
@@ -246,14 +246,95 @@ export function useRealtimeActivities(enabled: boolean = true) {
 
     useEffect(() => {
         if (!enabled) return;
-        
-        // Placeholder for WebSocket connection
-        setIsConnected(true);
-        
-        return () => {
-            setIsConnected(false);
-        };
-    }, [enabled]);
+
+        // Dynamic import to avoid circular dependencies
+        import('@/lib/socket').then(({ socket }) => {
+
+            const handleConnect = () => setIsConnected(true);
+            const handleDisconnect = () => setIsConnected(false);
+
+            // Transform socket events to Activity format
+            const handleTicketCreated = (data: any) => {
+                const activity: Activity = {
+                    id: `activity-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    type: 'ticket_created',
+                    timestamp: new Date().toISOString(),
+                    user: data.user || data.createdBy || { id: 'unknown', fullName: 'System' },
+                    ticket: {
+                        id: data.id,
+                        ticketNumber: data.ticketNumber || data.id?.slice(0, 8),
+                        title: data.title || 'New ticket',
+                    },
+                };
+                addActivity(activity);
+            };
+
+            const handleTicketUpdated = (data: any) => {
+                const activity: Activity = {
+                    id: `activity-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    type: 'ticket_updated',
+                    timestamp: new Date().toISOString(),
+                    user: data.updatedBy || { id: 'unknown', fullName: 'System' },
+                    ticket: {
+                        id: data.id || data.ticketId,
+                        ticketNumber: data.ticketNumber || data.id?.slice(0, 8),
+                        title: data.title || 'Ticket updated',
+                    },
+                };
+                addActivity(activity);
+            };
+
+            const handleTicketResolved = (data: any) => {
+                const activity: Activity = {
+                    id: `activity-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    type: 'ticket_resolved',
+                    timestamp: new Date().toISOString(),
+                    user: data.resolvedBy || data.assignedTo || { id: 'unknown', fullName: 'System' },
+                    ticket: {
+                        id: data.id || data.ticketId,
+                        ticketNumber: data.ticketNumber || data.id?.slice(0, 8),
+                        title: data.title || 'Ticket resolved',
+                    },
+                };
+                addActivity(activity);
+            };
+
+            const handleTicketAssigned = (data: any) => {
+                const activity: Activity = {
+                    id: `activity-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    type: 'ticket_assigned',
+                    timestamp: new Date().toISOString(),
+                    user: data.assignedTo || { id: 'unknown', fullName: 'Agent' },
+                    ticket: {
+                        id: data.id || data.ticketId,
+                        ticketNumber: data.ticketNumber || data.id?.slice(0, 8),
+                        title: data.title || 'Ticket assigned',
+                    },
+                };
+                addActivity(activity);
+            };
+
+            // Set initial connection state
+            setIsConnected(socket.connected);
+
+            // Subscribe to events
+            socket.on('connect', handleConnect);
+            socket.on('disconnect', handleDisconnect);
+            socket.on('ticket:created', handleTicketCreated);
+            socket.on('ticket:updated', handleTicketUpdated);
+            socket.on('ticket:resolved', handleTicketResolved);
+            socket.on('ticket:assigned', handleTicketAssigned);
+
+            return () => {
+                socket.off('connect', handleConnect);
+                socket.off('disconnect', handleDisconnect);
+                socket.off('ticket:created', handleTicketCreated);
+                socket.off('ticket:updated', handleTicketUpdated);
+                socket.off('ticket:resolved', handleTicketResolved);
+                socket.off('ticket:assigned', handleTicketAssigned);
+            };
+        });
+    }, [enabled, addActivity]);
 
     return {
         activities,

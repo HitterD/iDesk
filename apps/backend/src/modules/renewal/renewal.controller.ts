@@ -24,19 +24,21 @@ import { RenewalService } from './renewal.service';
 import { PdfValidationService } from './services/pdf-validation.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
-import { ContractStatus } from './entities/renewal-contract.entity';
+import { ContractStatus, ContractCategory } from './entities/renewal-contract.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
+import { ContractAuditService } from './services/contract-audit.service';
 
 @ApiTags('Renewal Contracts')
 @ApiBearerAuth()
 @Controller('renewal')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.MANAGER)
 export class RenewalController {
     constructor(
         private readonly renewalService: RenewalService,
         private readonly pdfValidationService: PdfValidationService,
+        private readonly auditService: ContractAuditService,
     ) { }
 
     // === DASHBOARD STATS ===
@@ -45,13 +47,49 @@ export class RenewalController {
         return this.renewalService.getDashboardStats();
     }
 
-    // === LIST ALL ===
+    // === CONTRACT HISTORY ===
+    @Get(':id/history')
+    @ApiOperation({ summary: 'Get contract change history' })
+    async getContractHistory(@Param('id', ParseUUIDPipe) id: string) {
+        return this.auditService.getContractHistory(id);
+    }
+
+    // === RECENT ACTIVITY ===
+    @Get('activity/recent')
+    @ApiOperation({ summary: 'Get recent contract activity' })
+    async getRecentActivity() {
+        return this.auditService.getRecentActivity();
+    }
+
+    // === DUPLICATE CHECK ===
+    @Get('check-duplicate')
+    @ApiOperation({ summary: 'Check if a PO number already exists' })
+    @ApiQuery({ name: 'poNumber', required: true, type: String })
+    async checkDuplicate(@Query('poNumber') poNumber: string) {
+        return this.renewalService.checkDuplicate(poNumber);
+    }
+
+    // === LIST ALL (Paginated) ===
     @Get()
+    @ApiQuery({ name: 'status', required: false, enum: ContractStatus })
+    @ApiQuery({ name: 'category', required: false, enum: ContractCategory })
+    @ApiQuery({ name: 'search', required: false, type: String })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
     async findAll(
         @Query('status') status?: ContractStatus,
+        @Query('category') category?: ContractCategory,
         @Query('search') search?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
     ) {
-        return this.renewalService.findAll({ status, search });
+        return this.renewalService.findAll({
+            status,
+            category,
+            search,
+            page: page ? parseInt(page, 10) : undefined,
+            limit: limit ? parseInt(limit, 10) : undefined,
+        });
     }
 
     // === GET ONE ===
@@ -153,6 +191,24 @@ export class RenewalController {
     @Post(':id/unacknowledge')
     async unacknowledge(@Param('id', ParseUUIDPipe) id: string) {
         return this.renewalService.unacknowledgeContract(id);
+    }
+
+    // === BULK OPERATIONS ===
+    @Post('bulk/acknowledge')
+    @ApiOperation({ summary: 'Bulk acknowledge multiple contracts' })
+    @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
+    async bulkAcknowledge(
+        @Body() body: { ids: string[] },
+        @Req() req: any,
+    ) {
+        return this.renewalService.bulkAcknowledge(body.ids, req.user.userId);
+    }
+
+    @Post('bulk/delete')
+    @ApiOperation({ summary: 'Bulk delete multiple contracts with file cleanup' })
+    @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
+    async bulkDelete(@Body() body: { ids: string[] }) {
+        return this.renewalService.bulkDelete(body.ids);
     }
 
     // === DELETE ===

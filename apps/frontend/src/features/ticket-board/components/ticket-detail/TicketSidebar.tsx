@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserCheck, Tag, Inbox, CircleDot, Hourglass, CheckCircle2, User, Building, AlertCircle, XCircle, Ban, Calendar, Wrench } from 'lucide-react';
+import { UserCheck, Tag, User, Building, Calendar, Wrench } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -8,7 +8,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { TicketDetail, Agent } from './types';
-import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
+import { STATUS_OPTIONS } from './constants';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -25,8 +25,6 @@ interface TicketSidebarProps {
     setCategory: (category: string) => void;
     device: string;
     setDevice: (device: string) => void;
-    onCancel: () => void;
-    isCancelling: boolean;
 }
 
 export const TicketSidebar: React.FC<TicketSidebarProps> = ({
@@ -44,98 +42,86 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     setCategory,
     device,
     setDevice,
-    onCancel,
-    isCancelling,
 }) => {
-    const isCancelled = ticket.status === 'CANCELLED';
-    const isResolved = ticket.status === 'RESOLVED';
-    const isClosed = isCancelled || isResolved;
+    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
 
     return (
-        <div className="space-y-4">
-            {/* Assignee Card */}
-            <CollapsibleSection
-                id="ticket-assignment"
-                title="Assignment"
-                icon={UserCheck}
-                defaultOpen={true}
-            >
-                <div className="p-4">
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Assigned To</label>
-                    <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger className="w-full text-slate-800 dark:text-white">
-                            <SelectValue placeholder="Select Agent" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>{agent.fullName}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+        <div className="p-3 space-y-3">
+            {/* Requester - Compact Single Row */}
+            <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-slate-900 shrink-0">
+                        {ticket.user.fullName.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-white truncate">{ticket.user.fullName}</p>
+                        <p className="text-[10px] text-slate-400 truncate">{ticket.user.email}</p>
+                    </div>
                 </div>
-            </CollapsibleSection>
+                <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-400 bg-slate-900/50 rounded px-2 py-1">
+                    <Building className="w-3 h-3 text-blue-400" />
+                    <span className="truncate">{ticket.user.department?.name || 'No Department'}</span>
+                </div>
+            </div>
 
-            {/* Ticket Properties Card */}
-            <CollapsibleSection
-                id="ticket-properties"
-                title="Properties"
-                icon={Tag}
-                defaultOpen={true}
-            >
-                <div className="p-4 space-y-4">
+            {/* Assignment */}
+            <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <div className="flex items-center gap-1.5 mb-2">
+                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Assigned To</span>
+                </div>
+                <Select value={assigneeId} onValueChange={setAssigneeId} disabled={isClosed}>
+                    <SelectTrigger className="w-full h-8 text-xs bg-slate-900/50 border-slate-700">
+                        <SelectValue placeholder="Select Agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {agents.map((agent) => (
+                            <SelectItem key={agent.id} value={agent.id} className="text-xs">{agent.fullName}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Properties - 2x2 Grid */}
+            <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <div className="flex items-center gap-1.5 mb-2">
+                    <Tag className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Properties</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    {/* Status */}
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Status</label>
-                        <Select value={status} onValueChange={setStatus}>
-                            <SelectTrigger className="w-full text-slate-800 dark:text-white">
-                                <SelectValue placeholder="Status" />
+                        <label className="text-[10px] text-slate-500 mb-1 block">Status</label>
+                        <Select value={status} onValueChange={setStatus} disabled={isClosed}>
+                            <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                                <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="TODO">
-                                    <span className="flex items-center gap-2">
-                                        <Inbox className="w-3.5 h-3.5 text-slate-500" /> Open
-                                    </span>
-                                </SelectItem>
-                                <SelectItem value="IN_PROGRESS">
-                                    <span className="flex items-center gap-2">
-                                        <CircleDot className="w-3.5 h-3.5 text-blue-500" /> In Progress
-                                    </span>
-                                </SelectItem>
-                                <SelectItem value="WAITING_VENDOR">
-                                    <span className="flex items-center gap-2">
-                                        <Hourglass className="w-3.5 h-3.5 text-orange-500" /> Waiting Vendor
-                                    </span>
-                                </SelectItem>
-                                <SelectItem value="RESOLVED">
-                                    <span className="flex items-center gap-2">
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Resolved
-                                    </span>
-                                </SelectItem>
+                                {STATUS_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                        {opt.label}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
 
+                    {/* Priority */}
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Priority</label>
+                        <label className="text-[10px] text-slate-500 mb-1 block">Priority</label>
                         {ticket.priority === 'HARDWARE_INSTALLATION' ? (
-                            <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                                <span className="font-medium text-amber-700 dark:text-amber-400">Hardware Installation</span>
+                            <div className="h-7 flex items-center px-2 bg-amber-900/30 border border-amber-800/50 rounded text-[10px] text-amber-400">
+                                HW Install
                             </div>
                         ) : (
-                            <Select value={priority} onValueChange={setPriority}>
-                                <SelectTrigger className="w-full text-slate-800 dark:text-white">
-                                    <SelectValue placeholder="Priority" />
+                            <Select value={priority} onValueChange={setPriority} disabled={isClosed}>
+                                <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                                    <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {slaConfigs.map((sla) => (
-                                        <SelectItem key={sla.id} value={sla.priority}>
-                                            <span className="flex items-center gap-2">
-                                                <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${sla.priority === 'CRITICAL' ? 'bg-red-500' :
-                                                    sla.priority === 'HIGH' ? 'bg-orange-500' :
-                                                        sla.priority === 'MEDIUM' ? 'bg-yellow-500' : 'bg-slate-400'
-                                                    }`}></span>
-                                                {sla.priority}
-                                            </span>
+                                        <SelectItem key={sla.id} value={sla.priority} className="text-xs">
+                                            {sla.priority}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -143,146 +129,63 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         )}
                     </div>
 
+                    {/* Category */}
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Category</label>
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="w-full text-slate-800 dark:text-white">
-                                <SelectValue placeholder="Category" />
+                        <label className="text-[10px] text-slate-500 mb-1 block">Category</label>
+                        <Select value={category} onValueChange={setCategory} disabled={isClosed}>
+                            <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                                <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="GENERAL">General</SelectItem>
-                                <SelectItem value="HARDWARE">Hardware</SelectItem>
-                                <SelectItem value="SOFTWARE">Software</SelectItem>
-                                <SelectItem value="NETWORK">Network</SelectItem>
-                                <SelectItem value="HARDWARE_INSTALLATION">Hardware Installation</SelectItem>
+                                <SelectItem value="GENERAL" className="text-xs">General</SelectItem>
+                                <SelectItem value="HARDWARE" className="text-xs">Hardware</SelectItem>
+                                <SelectItem value="SOFTWARE" className="text-xs">Software</SelectItem>
+                                <SelectItem value="NETWORK" className="text-xs">Network</SelectItem>
                                 {attributes.categories.map((attr: any) => (
-                                    <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
+                                    <SelectItem key={attr.id} value={attr.value} className="text-xs">{attr.value}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
 
+                    {/* Device */}
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Device</label>
-                        <Select value={device} onValueChange={setDevice}>
-                            <SelectTrigger className="w-full text-slate-800 dark:text-white">
-                                <SelectValue placeholder="Select Device" />
+                        <label className="text-[10px] text-slate-500 mb-1 block">Device</label>
+                        <Select value={device} onValueChange={setDevice} disabled={isClosed}>
+                            <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                                <SelectValue placeholder="-" />
                             </SelectTrigger>
                             <SelectContent>
                                 {attributes.devices.map((dev: any) => (
-                                    <SelectItem key={dev.id} value={dev.value}>{dev.value}</SelectItem>
+                                    <SelectItem key={dev.id} value={dev.value} className="text-xs">{dev.value}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
                 </div>
-            </CollapsibleSection>
+            </div>
 
-            {/* Hardware Installation Info Card - Only shown for hardware installation tickets */}
+            {/* Hardware Installation Info - Only for hardware tickets */}
             {ticket.isHardwareInstallation && (
-                <CollapsibleSection
-                    id="ticket-hardware-info"
-                    title="Installation Schedule"
-                    icon={Calendar}
-                    defaultOpen={true}
-                >
-                    <div className="p-4 space-y-3">
-                        <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-lg flex items-center justify-center">
-                                <Wrench className="w-5 h-5 text-amber-600" />
-                            </div>
-                            <div>
-                                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Hardware Type</p>
-                                <p className="font-bold text-amber-800 dark:text-amber-300">{ticket.hardwareType || 'Not specified'}</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Scheduled Date</p>
-                                <p className="font-bold text-slate-800 dark:text-white text-sm">
-                                    {ticket.scheduledDate
-                                        ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', {
-                                            weekday: 'short',
-                                            day: 'numeric',
-                                            month: 'short',
-                                            year: 'numeric'
-                                        })
-                                        : '-'}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Time Slot</p>
-                                <p className="font-bold text-slate-800 dark:text-white text-sm">
-                                    {ticket.scheduledTime ? `${ticket.scheduledTime} WIB` : '-'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-200 dark:border-blue-800">
-                            <strong>Note:</strong> Installation takes 2-4 hours. Ticket will auto-resolve on H+1 if not manually resolved.
-                        </div>
+                <div className="p-2.5 bg-amber-900/20 rounded-lg border border-amber-800/50">
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">Installation</span>
                     </div>
-                </CollapsibleSection>
-            )}
-
-            {/* Requester Info Card */}
-            <CollapsibleSection
-                id="ticket-requester"
-                title="Requester"
-                icon={User}
-                defaultOpen={true}
-            >
-                <div className="p-4">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-sm font-bold text-slate-900 shadow-md">
-                            {ticket.user.fullName.charAt(0)}
+                    <div className="flex items-center gap-2 text-xs">
+                        <Wrench className="w-3 h-3 text-amber-500" />
+                        <span className="text-amber-300">{ticket.hardwareType || 'N/A'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-[10px]">
+                        <div className="bg-slate-900/50 rounded px-2 py-1">
+                            <span className="text-slate-500">Date: </span>
+                            <span className="text-white">
+                                {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
+                            </span>
                         </div>
-                        <div>
-                            <p className="font-bold text-slate-800 dark:text-white">{ticket.user.fullName}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{ticket.user.email}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-2.5 border border-slate-200/50 dark:border-slate-700/50">
-                        <Building className="w-4 h-4 text-blue-500" />
-                        <span className="font-medium">{ticket.user.department?.name || 'No Department'}</span>
-                    </div>
-                </div>
-            </CollapsibleSection>
-
-            {/* Actions Card */}
-            {!isClosed && (
-                <div className="glass-card border-red-200/50 dark:border-red-900/50 overflow-hidden shadow-lg shadow-red-200/20 dark:shadow-red-900/20">
-                    <div className="px-4 py-3 bg-red-50/50 dark:bg-red-900/20 border-b border-red-200/60 dark:border-red-900/40 backdrop-blur-sm">
-                        <h4 className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-red-500/20 to-red-500/10 flex items-center justify-center">
-                                <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                            </div>
-                            Danger Zone
-                        </h4>
-                    </div>
-                    <div className="p-4">
-                        <button
-                            onClick={onCancel}
-                            disabled={isCancelling}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold rounded-xl hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                            <XCircle className="w-5 h-5" />
-                            {isCancelling ? 'Cancelling...' : 'Cancel Ticket'}
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {isCancelled && (
-                <div className="bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/30 dark:to-red-900/20 rounded-2xl border border-red-300 dark:border-red-800 p-5 shadow-lg shadow-red-200/30 dark:shadow-red-900/20">
-                    <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
-                        <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                            <Ban className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <span className="font-bold text-lg">Ticket Cancelled</span>
-                            <p className="text-sm text-red-600/70 dark:text-red-400/70">This ticket has been cancelled</p>
+                        <div className="bg-slate-900/50 rounded px-2 py-1">
+                            <span className="text-slate-500">Time: </span>
+                            <span className="text-white">{ticket.scheduledTime || '-'}</span>
                         </div>
                     </div>
                 </div>

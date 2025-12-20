@@ -1,14 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { RenewalContract, DashboardStats, UploadResult, ContractStatus, UpdateContractDto } from '../types/renewal.types';
+import { RenewalContract, DashboardStats, UploadResult, ContractStatus, ContractCategory, UpdateContractDto } from '../types/renewal.types';
+
+// Paginated Response Type
+export interface PaginatedContracts {
+    items: RenewalContract[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+}
 
 // Query Keys
 export const renewalKeys = {
     all: ['renewal'] as const,
-    list: (filters?: { status?: ContractStatus; search?: string }) =>
+    list: (filters?: { status?: ContractStatus; category?: ContractCategory; search?: string; page?: number; limit?: number }) =>
         [...renewalKeys.all, 'list', filters] as const,
     stats: () => [...renewalKeys.all, 'stats'] as const,
     detail: (id: string) => [...renewalKeys.all, 'detail', id] as const,
+    history: (id: string) => [...renewalKeys.all, 'history', id] as const,
 };
 
 // === FETCH HOOKS ===
@@ -22,17 +32,32 @@ export function useRenewalStats() {
     });
 }
 
-export function useRenewalContracts(filters?: { status?: ContractStatus; search?: string }) {
+export function useRenewalContracts(filters?: { status?: ContractStatus; category?: ContractCategory; search?: string; page?: number; limit?: number }) {
     return useQuery({
         queryKey: renewalKeys.list(filters),
         queryFn: async () => {
             const params = new URLSearchParams();
             if (filters?.status) params.set('status', filters.status);
+            if (filters?.category) params.set('category', filters.category);
             if (filters?.search) params.set('search', filters.search);
+            if (filters?.page) params.set('page', filters.page.toString());
+            if (filters?.limit) params.set('limit', filters.limit.toString());
 
-            const res = await api.get<RenewalContract[]>(`/renewal?${params}`);
+            const res = await api.get<PaginatedContracts>(`/renewal?${params}`);
             return res.data;
         },
+        placeholderData: (previousData) => previousData, // Keep previous data while loading
+    });
+}
+
+export function useContractHistory(contractId: string) {
+    return useQuery({
+        queryKey: renewalKeys.history(contractId),
+        queryFn: async () => {
+            const res = await api.get<any[]>(`/renewal/${contractId}/history`);
+            return res.data;
+        },
+        enabled: !!contractId,
     });
 }
 
@@ -140,6 +165,45 @@ export function useUnacknowledgeContract() {
         onSuccess: (_, id) => {
             queryClient.invalidateQueries({ queryKey: renewalKeys.all });
             queryClient.invalidateQueries({ queryKey: renewalKeys.detail(id) });
+        },
+    });
+}
+
+// === BULK OPERATIONS ===
+export function useBulkAcknowledge() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (ids: string[]) => {
+            const res = await api.post<{ affected: number }>('/renewal/bulk/acknowledge', { ids });
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: renewalKeys.all });
+        },
+    });
+}
+
+export function useBulkDelete() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (ids: string[]) => {
+            const res = await api.post<{ affected: number }>('/renewal/bulk/delete', { ids });
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: renewalKeys.all });
+        },
+    });
+}
+
+// === DUPLICATE CHECK ===
+export function useCheckDuplicate() {
+    return useMutation({
+        mutationFn: async (poNumber: string) => {
+            const res = await api.get<{ isDuplicate: boolean; existingContract?: RenewalContract }>(`/renewal/check-duplicate?poNumber=${encodeURIComponent(poNumber)}`);
+            return res.data;
         },
     });
 }

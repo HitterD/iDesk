@@ -16,6 +16,7 @@ export const ManualContractModal: React.FC<ManualContractModalProps> = ({ isOpen
         poNumber: '',
         vendorName: '',
         description: '',
+        contractValue: '',
         startDate: '',
         endDate: '',
     });
@@ -28,6 +29,7 @@ export const ManualContractModal: React.FC<ManualContractModalProps> = ({ isOpen
                 poNumber: formData.poNumber || undefined,
                 vendorName: formData.vendorName || undefined,
                 description: formData.description || undefined,
+                contractValue: formData.contractValue ? parseFloat(formData.contractValue.replace(/[^0-9.]/g, '')) : undefined,
                 startDate: formData.startDate || undefined,
                 endDate: formData.endDate || undefined,
             });
@@ -43,6 +45,7 @@ export const ManualContractModal: React.FC<ManualContractModalProps> = ({ isOpen
             poNumber: '',
             vendorName: '',
             description: '',
+            contractValue: '',
             startDate: '',
             endDate: '',
         });
@@ -108,6 +111,22 @@ export const ManualContractModal: React.FC<ManualContractModalProps> = ({ isOpen
                                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 placeholder="e.g. Annual Software License"
+                            />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2">
+                                Contract Value (IDR)
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.contractValue}
+                                onChange={(e) => {
+                                    const value = e.target.value.replace(/[^0-9]/g, '');
+                                    const formatted = value ? new Intl.NumberFormat('id-ID').format(parseInt(value)) : '';
+                                    setFormData({ ...formData, contractValue: formatted });
+                                }}
+                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                placeholder="e.g. 150,000,000"
                             />
                         </div>
                         <div>

@@ -129,6 +129,7 @@ export const BentoLoginPage = () => {
     const [capsLockOn, setCapsLockOn] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [failedAttempts, setFailedAttempts] = useState(0);
+    const [rememberMe, setRememberMe] = useState(false);
     const login = useAuth((state) => state.login);
     const navigate = useNavigate();
 
@@ -198,12 +199,21 @@ export const BentoLoginPage = () => {
             const res = await api.post('/auth/login', { email, password });
             const { access_token, user } = res.data;
 
+            // Store token based on Remember Me preference
+            if (rememberMe) {
+                localStorage.setItem('auth-storage', JSON.stringify({ state: { token: access_token, user }, version: 0 }));
+            } else {
+                sessionStorage.setItem('auth-storage', JSON.stringify({ state: { token: access_token, user }, version: 0 }));
+            }
+
             // Reset failed attempts on success
             setFailedAttempts(0);
             login(access_token, user);
 
             if (user.role === 'ADMIN' || user.role === 'AGENT') {
                 navigate('/dashboard');
+            } else if (user.role === 'MANAGER') {
+                navigate('/manager/dashboard');
             } else {
                 navigate('/client/my-tickets');
             }
@@ -369,6 +379,21 @@ export const BentoLoginPage = () => {
                         )}
                     </div>
 
+                    {/* Remember Me Checkbox */}
+                    <div className="flex items-center gap-3 px-2">
+                        <input
+                            type="checkbox"
+                            id="rememberMe"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/50 cursor-pointer"
+                            disabled={isLoading}
+                        />
+                        <label htmlFor="rememberMe" className="text-sm text-slate-600 cursor-pointer select-none">
+                            Remember me
+                        </label>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={isLoading || !isOnline}
@@ -390,10 +415,25 @@ export const BentoLoginPage = () => {
                     </button>
                 </form>
 
-                <div className="mt-8 text-center">
-                    <p className="text-slate-600 text-sm">
-                        Don't have an account? <span className="text-primary font-bold cursor-pointer hover:underline">Contact Admin</span>
-                    </p>
+                {/* Contact Admin Card */}
+                <div className="mt-8 p-4 bg-slate-50/80 backdrop-blur-sm rounded-2xl border-2 border-slate-200/80">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-slate-600 text-xs font-medium">Butuh bantuan atau akun baru?</p>
+                            <p className="text-slate-800 font-bold">Hubungi Admin</p>
+                        </div>
+                        <a
+                            href="tel:1604"
+                            className="px-4 py-2 bg-primary text-white font-bold text-sm rounded-xl hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm"
+                        >
+                            Ext. 1604
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

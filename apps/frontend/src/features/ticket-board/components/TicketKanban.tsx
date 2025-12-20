@@ -1,11 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, ReactNode } from 'react';
 import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TicketCard } from './TicketCard';
-import { TicketChatRoom } from './TicketChatRoom'; // Will be created next
+import { TicketChatRoom } from './TicketChatRoom';
+import { logger } from '@/lib/logger';
+
+// Minimal ticket type for the mock Kanban - must match TicketCard's expected type
+interface KanbanTicket {
+    id: string;
+    title: string;
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    status: string;
+    isOverdue?: boolean;
+    user: { fullName: string };
+}
 
 // Mock API calls (Replace with real Axios calls later)
-const fetchTickets = async () => {
+const fetchTickets = async (): Promise<KanbanTicket[]> => {
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 500));
     return [
@@ -40,7 +51,14 @@ const COLUMNS = [
     { id: 'RESOLVED', title: 'Resolved', color: 'border-neon-green' },
 ];
 
-const KanbanColumn = ({ id, title, color, children }: any) => {
+interface KanbanColumnProps {
+    id: string;
+    title: string;
+    color: string;
+    children: ReactNode;
+}
+
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, color, children }) => {
     const { setNodeRef } = useDroppable({ id });
     return (
         <div ref={setNodeRef} className="flex-1 min-w-[280px] bg-navy-main/50 rounded-xl p-4 border border-white/5">
@@ -66,8 +84,8 @@ export const TicketKanban: React.FC = () => {
 
     const updateStatusMutation = useMutation({
         mutationFn: async ({ id, status }: { id: string; status: string }) => {
-            // Mock API call
-            console.log(`Updating ticket ${id} to ${status}`);
+            // Mock API call - using logger instead of console.log
+            logger.debug(`Updating ticket ${id} to ${status}`);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -92,8 +110,8 @@ export const TicketKanban: React.FC = () => {
                     {COLUMNS.map((col) => (
                         <KanbanColumn key={col.id} id={col.id} title={col.title} color={col.color}>
                             {tickets
-                                .filter((t: any) => t.status === col.id)
-                                .map((ticket: any) => (
+                                .filter((t: KanbanTicket) => t.status === col.id)
+                                .map((ticket: KanbanTicket) => (
                                     <TicketCard
                                         key={ticket.id}
                                         ticket={ticket}

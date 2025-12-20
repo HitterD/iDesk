@@ -18,6 +18,10 @@ import {
     ManualCleanupDto,
     CleanupPreviewDto,
 } from './dto/storage-settings.dto';
+import {
+    UpdateTimeSlotsDto,
+    UpdateHardwareTypesDto,
+} from './dto/scheduling-config.dto';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -84,5 +88,63 @@ export class SettingsController {
     @Roles(UserRole.ADMIN)
     async getStorageStats() {
         return this.storageCleanupService.getStorageStats();
+    }
+
+    // =====================
+    // Scheduling Settings
+    // =====================
+
+    /**
+     * Get scheduling configuration (time slots and hardware types)
+     * Available to all authenticated users so they can populate forms
+     */
+    @Get('scheduling')
+    async getSchedulingConfig() {
+        const config = await this.settingsService.getSchedulingConfig();
+        return config;
+    }
+
+    /**
+     * Get only time slots
+     */
+    @Get('scheduling/time-slots')
+    async getTimeSlots() {
+        const timeSlots = await this.settingsService.getTimeSlots();
+        return { timeSlots };
+    }
+
+    /**
+     * Update time slots (Admin only)
+     */
+    @Patch('scheduling/time-slots')
+    @Roles(UserRole.ADMIN)
+    async updateTimeSlots(
+        @Body() dto: UpdateTimeSlotsDto,
+        @Request() req,
+    ) {
+        const config = await this.settingsService.updateTimeSlots(dto.timeSlots, req.user.userId);
+        return { success: true, config };
+    }
+
+    /**
+     * Get only hardware types
+     */
+    @Get('scheduling/hardware-types')
+    async getHardwareTypes() {
+        const hardwareTypes = await this.settingsService.getHardwareTypes();
+        return { hardwareTypes };
+    }
+
+    /**
+     * Update hardware types (Admin only)
+     */
+    @Patch('scheduling/hardware-types')
+    @Roles(UserRole.ADMIN)
+    async updateHardwareTypes(
+        @Body() dto: UpdateHardwareTypesDto,
+        @Request() req,
+    ) {
+        const config = await this.settingsService.updateHardwareTypes(dto.hardwareTypes, req.user.userId);
+        return { success: true, config };
     }
 }

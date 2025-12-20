@@ -146,7 +146,30 @@ export const BentoArticleDetailPage = () => {
                             src={getImageUrl(article.featuredImage)}
                             alt={article.title}
                             className="w-full h-64 md:h-80 object-cover rounded-2xl"
+                            onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                            }}
                         />
+                    </div>
+                )}
+
+                {/* Images Gallery */}
+                {article.images && article.images.length > 0 && (
+                    <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {article.images.map((imageUrl, index) => (
+                            <img
+                                key={index}
+                                src={getImageUrl(imageUrl)}
+                                alt={`Article image ${index + 1}`}
+                                className="w-full h-48 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity border border-slate-100 dark:border-slate-700"
+                                onClick={() => window.open(getImageUrl(imageUrl), '_blank')}
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                }}
+                            />
+                        ))}
                     </div>
                 )}
 

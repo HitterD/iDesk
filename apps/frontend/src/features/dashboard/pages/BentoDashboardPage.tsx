@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -18,7 +18,9 @@ import {
     CalendarDays,
     ArrowRight,
     CircleDot,
-    Activity
+    Activity,
+    RefreshCw,
+    ServerCrash
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
@@ -29,6 +31,7 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { cn } from '@/lib/utils';
 import { ActivityFeed } from '@/components/ui/ActivityFeed';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
+import type { Ticket as TicketType } from '@/types/ticket.types';
 
 interface DashboardStats {
     total: number;
@@ -51,37 +54,48 @@ interface DashboardStats {
     avgResolutionTime: string;
 }
 
-// Simple Bar Chart Component
+// Simple Bar Chart Component with embedded legend
 const MiniBarChart: React.FC<{ data: { date: string; created: number; resolved: number }[] }> = ({ data }) => {
     const maxValue = Math.max(...data.flatMap(d => [d.created, d.resolved]), 1);
 
     return (
-        <div className="flex items-end gap-2 h-32">
-            {data.map((day, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full flex gap-0.5 items-end h-24">
-                        <div
-                            className="flex-1 bg-blue-400 rounded-t transition-all hover:bg-blue-500 chart-bar-animated"
-                            style={{ 
-                                height: `${(day.created / maxValue) * 100}%`, 
-                                minHeight: day.created > 0 ? '4px' : '0',
-                                animationDelay: `${i * 0.1}s`
-                            }}
-                            title={`Created: ${day.created}`}
-                        />
-                        <div
-                            className="flex-1 bg-green-400 rounded-t transition-all hover:bg-green-500 chart-bar-animated"
-                            style={{ 
-                                height: `${(day.resolved / maxValue) * 100}%`, 
-                                minHeight: day.resolved > 0 ? '4px' : '0',
-                                animationDelay: `${i * 0.1 + 0.05}s`
-                            }}
-                            title={`Resolved: ${day.resolved}`}
-                        />
+        <div className="relative">
+            {/* Embedded Legend - overlaid in top right corner */}
+            <div className="absolute top-0 right-0 flex items-center gap-3 text-xs bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm px-2 py-1 rounded-lg z-10">
+                <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded bg-blue-400"></span> Created
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded bg-emerald-400"></span> Resolved
+                </span>
+            </div>
+            <div className="flex items-end gap-2 h-32 pt-6">
+                {data.map((day, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                        <div className="w-full flex gap-0.5 items-end h-24">
+                            <div
+                                className="flex-1 bg-blue-400 rounded-t transition-all hover:bg-blue-500 chart-bar-animated"
+                                style={{
+                                    height: `${(day.created / maxValue) * 100}%`,
+                                    minHeight: day.created > 0 ? '4px' : '0',
+                                    animationDelay: `${i * 0.1}s`
+                                }}
+                                title={`Created: ${day.created}`}
+                            />
+                            <div
+                                className="flex-1 bg-emerald-400 rounded-t transition-all hover:bg-emerald-500 chart-bar-animated"
+                                style={{
+                                    height: `${(day.resolved / maxValue) * 100}%`,
+                                    minHeight: day.resolved > 0 ? '4px' : '0',
+                                    animationDelay: `${i * 0.1 + 0.05}s`
+                                }}
+                                title={`Resolved: ${day.resolved}`}
+                            />
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">{day.date}</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-medium">{day.date}</span>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     );
 };
@@ -171,11 +185,19 @@ const StatCard: React.FC<{
     sparklineData?: number[];
     sparklineColor?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
     highlight?: boolean;
-}> = ({ title, value, icon: Icon, color, subtitle, trend, sparklineData, sparklineColor = 'primary', highlight }) => (
-    <div className={cn(
-        "glass-card p-6 hover-lift transition-all group relative flex items-center gap-5 animate-fade-in-up stat-card-enhanced",
-        highlight && "ring-2 ring-red-500/20"
-    )}>
+    onClick?: () => void;
+}> = ({ title, value, icon: Icon, color, subtitle, trend, sparklineData, sparklineColor = 'primary', highlight, onClick }) => (
+    <div
+        onClick={onClick}
+        className={cn(
+            "glass-card p-6 hover-lift transition-all group relative flex items-center gap-5 animate-fade-in-up stat-card-enhanced",
+            highlight && "ring-2 ring-red-500/20",
+            onClick && "cursor-pointer hover:ring-2 hover:ring-primary/30 active:scale-[0.98]"
+        )}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+    >
         <div className={cn(
             "p-4 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform shrink-0 icon-scale-hover stat-icon",
             color
@@ -250,6 +272,9 @@ export const BentoDashboardPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
+    // Date range state for chart filtering
+    const [chartDateRange, setChartDateRange] = useState<7 | 14 | 30>(7);
+
     // Handle new ticket notification for admins/agents
     const handleNewTicket = useCallback((ticket: any) => {
         if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
@@ -268,7 +293,7 @@ export const BentoDashboardPage = () => {
     useTicketListSocket({ onNewTicket: handleNewTicket });
 
     // Fetch actual tickets (same as tickets page) for accurate stats
-    const { data: tickets = [] } = useQuery<any[]>({
+    const { data: tickets = [], isError: ticketsError, error: ticketsErrorData, refetch: refetchTickets, dataUpdatedAt } = useQuery<TicketType[]>({
         queryKey: ['tickets'],
         queryFn: async () => {
             const res = await api.get('/tickets');
@@ -277,6 +302,20 @@ export const BentoDashboardPage = () => {
         staleTime: 0,
         refetchOnWindowFocus: true,
     });
+
+    // Format last updated time
+    const lastUpdated = useMemo(() => {
+        if (!dataUpdatedAt) return null;
+        const now = Date.now();
+        const diff = now - dataUpdatedAt;
+        const minutes = Math.floor(diff / 60000);
+        if (minutes < 1) return 'Just now';
+        if (minutes === 1) return '1 minute ago';
+        if (minutes < 60) return `${minutes} minutes ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours === 1) return '1 hour ago';
+        return `${hours} hours ago`;
+    }, [dataUpdatedAt]);
 
     // Compute all stats from actual tickets
     const liveStats = useMemo(() => {
@@ -316,9 +355,9 @@ export const BentoDashboardPage = () => {
         const resolvedToday = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= today).length;
         const resolvedThisWeek = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= thisWeekStart).length;
 
-        // Last 7 days
-        const last7Days: { date: string; created: number; resolved: number }[] = [];
-        for (let i = 6; i >= 0; i--) {
+        // Last N days based on chartDateRange
+        const lastNDays: { date: string; created: number; resolved: number }[] = [];
+        for (let i = chartDateRange - 1; i >= 0; i--) {
             const date = new Date(today);
             date.setDate(today.getDate() - i);
             const nextDate = new Date(date);
@@ -335,7 +374,7 @@ export const BentoDashboardPage = () => {
                 return d >= date && d < nextDate;
             }).length;
 
-            last7Days.push({
+            lastNDays.push({
                 date: date.toLocaleDateString('en-US', { weekday: 'short' }),
                 created,
                 resolved: resolvedCount,
@@ -369,6 +408,31 @@ export const BentoDashboardPage = () => {
         // SLA compliance
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
+        // Previous week stats for comparison (week before thisWeekStart)
+        const lastWeekStart = new Date(thisWeekStart);
+        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+        const lastWeekEnd = thisWeekStart;
+
+        const lastWeekTickets = tickets.filter((t) => {
+            const d = new Date(t.createdAt);
+            return d >= lastWeekStart && d < lastWeekEnd;
+        }).length;
+
+        const lastWeekResolved = tickets.filter((t) => {
+            if (t.status !== 'RESOLVED') return false;
+            const d = new Date(t.updatedAt);
+            return d >= lastWeekStart && d < lastWeekEnd;
+        }).length;
+
+        // Calculate trends (percentage change)
+        const calcTrend = (current: number, previous: number): 'up' | 'down' | null => {
+            if (previous === 0) return current > 0 ? 'up' : null;
+            const change = ((current - previous) / previous) * 100;
+            if (change > 5) return 'up';
+            if (change < -5) return 'down';
+            return null;
+        };
+
         return {
             total,
             open,
@@ -383,14 +447,19 @@ export const BentoDashboardPage = () => {
             thisMonthTickets,
             resolvedToday,
             resolvedThisWeek,
-            last7Days,
+            last7Days: lastNDays,
             topAgents,
             recentTickets,
             slaCompliance,
+            // Trend comparisons
+            trends: {
+                thisWeek: calcTrend(thisWeekTickets, lastWeekTickets),
+                resolved: calcTrend(resolvedThisWeek, lastWeekResolved),
+            }
         };
-    }, [tickets]);
+    }, [tickets, chartDateRange]);
 
-    const { data: stats, isLoading } = useQuery<DashboardStats>({
+    const { data: stats, isLoading, isError: statsError, error: statsErrorData, refetch: refetchStats } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats'],
         queryFn: async () => {
             const res = await api.get('/tickets/dashboard/stats');
@@ -401,6 +470,38 @@ export const BentoDashboardPage = () => {
         refetchOnWindowFocus: true,
         refetchOnMount: 'always',
     });
+
+    // Combined refetch function
+    const handleRefresh = () => {
+        refetchTickets();
+        refetchStats();
+        toast.success('Dashboard refreshed');
+    };
+
+    // Error state
+    if (ticketsError || statsError) {
+        const errorMessage = (ticketsErrorData as Error)?.message || (statsErrorData as Error)?.message || 'Failed to load dashboard data';
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+                <div className="p-6 rounded-full bg-red-100 dark:bg-red-900/20">
+                    <ServerCrash className="w-16 h-16 text-red-500" />
+                </div>
+                <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Unable to Load Dashboard</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md">
+                        {errorMessage}
+                    </p>
+                </div>
+                <button
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 px-6 py-3 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-all"
+                >
+                    <RefreshCw className="w-5 h-5" />
+                    Try Again
+                </button>
+            </div>
+        );
+    }
 
     if (isLoading && tickets.length === 0) {
         return <DashboardSkeleton />;
@@ -436,10 +537,25 @@ export const BentoDashboardPage = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">iDesk performance overview</p>
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">Dashboard</h1>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-slate-400 dark:text-slate-500 text-sm font-normal">iDesk performance overview</p>
+                        {lastUpdated && (
+                            <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                Updated {lastUpdated}
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={handleRefresh}
+                        className="flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                        title="Refresh dashboard"
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                    </button>
                     <button
                         onClick={() => navigate('/tickets/create')}
                         className="flex items-center gap-2 px-5 py-2.5 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
@@ -459,11 +575,42 @@ export const BentoDashboardPage = () => {
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 stagger-1">
-                <StatCard title="Total Tickets" value={liveStats.total} icon={Ticket} color="bg-blue-500" />
-                <StatCard title="Open" value={liveStats.open} icon={CircleDot} color="bg-slate-500" />
-                <StatCard title="In Progress" value={liveStats.inProgress} icon={Hourglass} color="bg-blue-400" />
-                <StatCard title="Resolved" value={liveStats.resolved} icon={CheckCircle} color="bg-green-500" />
-                <StatCard title="Overdue" value={liveStats.overdue} icon={AlertTriangle} color="bg-red-500" />
+                <StatCard
+                    title="Total Tickets"
+                    value={liveStats.total}
+                    icon={Ticket}
+                    color="bg-blue-500"
+                    onClick={() => navigate('/tickets/list')}
+                />
+                <StatCard
+                    title="Open"
+                    value={liveStats.open}
+                    icon={CircleDot}
+                    color="bg-slate-500"
+                    onClick={() => navigate('/tickets/list?status=TODO')}
+                />
+                <StatCard
+                    title="In Progress"
+                    value={liveStats.inProgress}
+                    icon={Hourglass}
+                    color="bg-blue-400"
+                    onClick={() => navigate('/tickets/list?status=IN_PROGRESS')}
+                />
+                <StatCard
+                    title="Resolved"
+                    value={liveStats.resolved}
+                    icon={CheckCircle}
+                    color="bg-green-500"
+                    onClick={() => navigate('/tickets/list?status=RESOLVED')}
+                />
+                <StatCard
+                    title="Overdue"
+                    value={liveStats.overdue}
+                    icon={AlertTriangle}
+                    color="bg-red-500"
+                    highlight={liveStats.overdue > 0}
+                    onClick={() => navigate('/tickets/list?overdue=true')}
+                />
                 <StatCard title="Avg Resolution" value={stats?.avgResolutionTime || '-'} icon={Clock} color="bg-purple-500" />
             </div>
 
@@ -477,18 +624,22 @@ export const BentoDashboardPage = () => {
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                     <BarChart3 className="w-5 h-5 text-primary" />
-                                    Weekly Activity
+                                    Activity
                                     <span className="live-indicator ml-2" title="Live data" />
                                 </h3>
-                                <p className="text-sm text-slate-500">Tickets created vs resolved (last 7 days)</p>
+                                <p className="text-sm text-slate-500">Tickets created vs resolved (last {chartDateRange} days)</p>
                             </div>
-                            <div className="flex items-center gap-4 text-xs">
-                                <span className="flex items-center gap-1.5">
-                                    <span className="w-3 h-3 rounded bg-blue-400"></span> Created
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <span className="w-3 h-3 rounded bg-green-400"></span> Resolved
-                                </span>
+                            <div className="flex items-center">
+                                {/* Date Range Picker */}
+                                <select
+                                    value={chartDateRange}
+                                    onChange={(e) => setChartDateRange(Number(e.target.value) as 7 | 14 | 30)}
+                                    className="px-3 py-1.5 text-sm bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
+                                >
+                                    <option value={7}>7 days</option>
+                                    <option value={14}>14 days</option>
+                                    <option value={30}>30 days</option>
+                                </select>
                             </div>
                         </div>
                         <MiniBarChart data={liveStats.last7Days} />
@@ -544,20 +695,45 @@ export const BentoDashboardPage = () => {
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">Today</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm"><span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.todayTickets} duration={600} /></span> new</span>
-                                        <span className="text-sm"><span className="font-bold text-green-600"><AnimatedNumber value={liveStats.resolvedToday} duration={600} /></span> resolved</span>
+                                        <button
+                                            onClick={() => navigate('/tickets/list?created=today')}
+                                            className="text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors"
+                                        >
+                                            <span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.todayTickets} duration={600} /></span> new
+                                        </button>
+                                        <button
+                                            onClick={() => navigate('/tickets/list?status=RESOLVED&resolved=today')}
+                                            className="text-sm hover:bg-green-50 dark:hover:bg-green-900/20 px-2 py-1 rounded transition-colors"
+                                        >
+                                            <span className="font-bold text-green-600"><AnimatedNumber value={liveStats.resolvedToday} duration={600} /></span> resolved
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">This Week</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm"><span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.thisWeekTickets} duration={700} /></span> new</span>
-                                        <span className="text-sm"><span className="font-bold text-green-600"><AnimatedNumber value={liveStats.resolvedThisWeek} duration={700} /></span> resolved</span>
+                                        <button
+                                            onClick={() => navigate('/tickets/list?created=week')}
+                                            className="text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors"
+                                        >
+                                            <span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.thisWeekTickets} duration={700} /></span> new
+                                        </button>
+                                        <button
+                                            onClick={() => navigate('/tickets/list?status=RESOLVED&resolved=week')}
+                                            className="text-sm hover:bg-green-50 dark:hover:bg-green-900/20 px-2 py-1 rounded transition-colors"
+                                        >
+                                            <span className="font-bold text-green-600"><AnimatedNumber value={liveStats.resolvedThisWeek} duration={700} /></span> resolved
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-slate-600 dark:text-slate-300">This Month</span>
-                                    <span className="text-sm"><span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.thisMonthTickets} duration={800} /></span> tickets</span>
+                                    <button
+                                        onClick={() => navigate('/tickets/list?created=month')}
+                                        className="text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors"
+                                    >
+                                        <span className="font-bold text-blue-600"><AnimatedNumber value={liveStats.thisMonthTickets} duration={800} /></span> tickets
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -636,10 +812,18 @@ export const BentoDashboardPage = () => {
                 <div className="space-y-6">
                     {/* Top Agents */}
                     <div className="glass-card p-6">
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                            <Users className="w-5 h-5 text-primary" />
-                            Top Agents
-                        </h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <Users className="w-5 h-5 text-primary" />
+                                Top Agents
+                            </h3>
+                            <button
+                                onClick={() => navigate('/agents')}
+                                className="text-sm text-primary font-medium flex items-center gap-1 hover:underline"
+                            >
+                                View All <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
                         <div className="space-y-3">
                             {liveStats.topAgents.length > 0 ? liveStats.topAgents.map((agent, i) => (
                                 <div key={i} className="flex items-center gap-3 leaderboard-item" style={{ animationDelay: `${i * 0.1}s` }}>
@@ -670,21 +854,38 @@ export const BentoDashboardPage = () => {
                     {/* Categories */}
                     <div className="glass-card p-6">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4">By Category</h3>
-                        <div className="space-y-4">
-                            {Object.entries(liveStats.byCategory).map(([cat, count], index) => (
-                                <div key={cat} className="space-y-1">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-slate-600 dark:text-slate-300">{cat}</span>
-                                        <span className="font-bold text-slate-800 dark:text-white">{count}</span>
-                                    </div>
-                                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="space-y-3">
+                            {Object.entries(liveStats.byCategory)
+                                .sort(([, a], [, b]) => b - a) // Sort by count descending
+                                .map(([cat, count], index) => {
+                                    const maxCount = Math.max(...Object.values(liveStats.byCategory), 1);
+                                    const percentage = (count / maxCount) * 100;
+                                    return (
                                         <div
-                                            className={`h-full rounded-full ${categoryColors[index % categoryColors.length]}`}
-                                            style={{ width: `${(count / Math.max(...Object.values(liveStats.byCategory), 1)) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
+                                            key={cat}
+                                            className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
+                                            onClick={() => navigate(`/tickets/list?category=${cat}`)}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => e.key === 'Enter' && navigate(`/tickets/list?category=${cat}`)}
+                                        >
+                                            <div className="flex items-center justify-between text-sm mb-1">
+                                                <span className="text-slate-600 dark:text-slate-300 group-hover:text-slate-800 dark:group-hover:text-white transition-colors">
+                                                    {cat.replace(/_/g, ' ')}
+                                                </span>
+                                            </div>
+                                            <div className="relative h-6 w-full bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-lg ${categoryColors[index % categoryColors.length]} transition-all group-hover:brightness-110`}
+                                                    style={{ width: `${Math.max(percentage, 8)}%` }}
+                                                />
+                                                <span className="absolute inset-y-0 right-2 flex items-center text-xs font-bold text-slate-700 dark:text-white">
+                                                    {count}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                         </div>
                     </div>
 

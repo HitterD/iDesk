@@ -29,7 +29,7 @@ export class QueueModule {
         if (!redisEnabled) {
             this.logger.warn('Redis is disabled. Bull queues will not be available.');
             this.logger.warn('Set REDIS_ENABLED=true in .env to enable queue features.');
-            
+
             // Return empty module when Redis is disabled
             return {
                 module: QueueModule,
@@ -78,6 +78,7 @@ export class QueueModule {
                 BullModule.registerQueue({ name: 'emails' }),
                 BullModule.registerQueue({ name: 'file-processing' }),
                 BullModule.registerQueue({ name: 'reports' }),
+                BullModule.registerQueue({ name: 'zoom-meetings' }),
             ],
             exports: [BullModule],
         };

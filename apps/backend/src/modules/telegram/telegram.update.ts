@@ -54,6 +54,9 @@ export class TelegramUpdate {
                 case 'ADMIN':
                     await this.showAdminMenu(ctx, userName);
                     break;
+                case 'MANAGER':
+                    await this.showManagerMenu(ctx, userName, session.userId);
+                    break;
                 case 'AGENT':
                     await this.showAgentMenu(ctx, userName, session.userId);
                     break;
@@ -146,6 +149,41 @@ export class TelegramUpdate {
                 [
                     Markup.button.callback('👥 Agents', 'admin_agents'),
                     Markup.button.callback('📊 Reports', 'admin_reports'),
+                ],
+                [
+                    Markup.button.callback('⚙️ Pengaturan', 'settings'),
+                    Markup.button.callback('❓ Bantuan', 'help'),
+                ],
+            ])
+        );
+    }
+
+    private async showManagerMenu(ctx: Context, userName: string, userId: string) {
+        // Fetch multi-site stats for manager
+        const stats = await this.telegramService.getManagerDashboardStats(userId);
+
+        await ctx.replyWithHTML(
+            `👋 <b>Halo, ${userName}!</b> <i>(Manager)</i>\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📊 <b>Dashboard Multi-Site</b>\n` +
+            `• Total Open: <b>${stats.totalOpen}</b> tiket\n` +
+            `• Critical: <b>${stats.critical}</b>\n` +
+            `• SLA Breach: <b>${stats.slaBreach}</b>\n` +
+            `━━━━━━━━━━━━━━━━━━\n\n` +
+            `📍 <b>Per Site:</b>\n` +
+            stats.bySite.map((s: any) => `  ${s.code}: ${s.open} open`).join('\n'),
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('📊 Dashboard', 'mgr_dashboard'),
+                    Markup.button.callback('📈 Reports', 'mgr_reports'),
+                ],
+                [
+                    Markup.button.callback('🏢 Pilih Site', 'mgr_select_site'),
+                    Markup.button.callback('👥 Top Agents', 'mgr_top_agents'),
+                ],
+                [
+                    Markup.button.callback('🔴 Critical', 'mgr_critical'),
+                    Markup.button.callback('⚠️ SLA Breach', 'mgr_sla_breach'),
                 ],
                 [
                     Markup.button.callback('⚙️ Pengaturan', 'settings'),
@@ -1675,6 +1713,176 @@ export class TelegramUpdate {
     }
 
     // ========================================
+    // SECTION 14: MANAGER ACTIONS (Phase 7)
+    // ========================================
+
+    @Action('mgr_dashboard')
+    async onManagerDashboard(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        await this.showMainMenu(ctx); // Re-show manager menu with fresh stats
+    }
+
+    @Action('mgr_critical')
+    async onManagerCritical(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) return;
+
+        const criticalTickets = await this.telegramService.getCriticalTickets();
+
+        if (criticalTickets.length === 0) {
+            await ctx.replyWithHTML(
+                `🔴 <b>Tiket Critical</b>\n\n<i>Tidak ada tiket critical saat ini.</i>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        let message = `🔴 <b>Tiket Critical</b> (${criticalTickets.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+        const buttons: any[][] = [];
+        criticalTickets.slice(0, 8).forEach((ticket) => {
+            const site = ticket.site?.code || 'N/A';
+            message += `🔴 <b>#${ticket.ticketNumber}</b> [${site}]\n`;
+            message += `└ ${ticket.title.substring(0, 30)}${ticket.title.length > 30 ? '...' : ''}\n\n`;
+
+            buttons.push([
+                Markup.button.callback(`🔴 #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
+            ]);
+        });
+
+        buttons.push([Markup.button.callback('🏠 Menu Utama', 'main_menu')]);
+
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
+    }
+
+    @Action('mgr_sla_breach')
+    async onManagerSlaBreach(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) return;
+
+        const slaBreachTickets = await this.telegramService.getSlaBreachTickets();
+
+        if (slaBreachTickets.length === 0) {
+            await ctx.replyWithHTML(
+                `⚠️ <b>SLA Breach</b>\n\n<i>Tidak ada tiket dengan SLA breach saat ini.</i>`,
+                Markup.inlineKeyboard([
+                    [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+                ])
+            );
+            return;
+        }
+
+        let message = `⚠️ <b>SLA Breach</b> (${slaBreachTickets.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+        const buttons: any[][] = [];
+        slaBreachTickets.slice(0, 8).forEach((ticket) => {
+            const site = ticket.site?.code || 'N/A';
+            message += `⚠️ <b>#${ticket.ticketNumber}</b> [${site}]\n`;
+            message += `└ ${ticket.title.substring(0, 30)}${ticket.title.length > 30 ? '...' : ''}\n\n`;
+
+            buttons.push([
+                Markup.button.callback(`⚠️ #${ticket.ticketNumber}`, `view_ticket:${ticket.id}`)
+            ]);
+        });
+
+        buttons.push([Markup.button.callback('🏠 Menu Utama', 'main_menu')]);
+
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard(buttons));
+    }
+
+    @Action('mgr_top_agents')
+    async onManagerTopAgents(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const session = await this.telegramService.getSession(String(from.id));
+        if (!session?.userId) return;
+
+        const topAgents = await this.telegramService.getTopAgents();
+
+        let message = `👥 <b>Top Agents Hari Ini</b>\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+        topAgents.slice(0, 10).forEach((agent, idx) => {
+            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+            message += `${medal} <b>${agent.name}</b> [${agent.siteCode}]\n`;
+            message += `   └ Resolved: ${agent.resolvedToday} | Open: ${agent.openTickets}\n`;
+        });
+
+        await ctx.replyWithHTML(message, Markup.inlineKeyboard([
+            [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+        ]));
+    }
+
+    @Action('mgr_select_site')
+    async onManagerSelectSite(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const from = ctx.from;
+        if (!from) return;
+
+        const sites = await this.telegramService.getAllSites();
+
+        const buttons: any[][] = sites.map(site => [
+            Markup.button.callback(`🏢 ${site.code} - ${site.name}`, `mgr_site:${site.id}`)
+        ]);
+        buttons.push([Markup.button.callback('🏠 Menu Utama', 'main_menu')]);
+
+        await ctx.replyWithHTML(
+            `🏢 <b>Pilih Site</b>\n\nPilih site untuk melihat detail:`,
+            Markup.inlineKeyboard(buttons)
+        );
+    }
+
+    @Action(/mgr_site:(.+)/)
+    async onManagerViewSite(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+        const siteId = (ctx as any).match[1];
+
+        const stats = await this.telegramService.getSiteStats(siteId);
+
+        await ctx.replyWithHTML(
+            `🏢 <b>${stats.siteName} (${stats.siteCode})</b>\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📋 Total Open: <b>${stats.openTickets}</b>\n` +
+            `🔴 Critical: <b>${stats.critical}</b>\n` +
+            `⚠️ SLA Breach: <b>${stats.slaBreach}</b>\n` +
+            `👥 Agents: <b>${stats.agentCount}</b>\n` +
+            `━━━━━━━━━━━━━━━━━━`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🏢 Pilih Site Lain', 'mgr_select_site')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    @Action('mgr_reports')
+    async onManagerReports(@Ctx() ctx: Context) {
+        await ctx.answerCbQuery();
+
+        await ctx.replyWithHTML(
+            `📈 <b>Reports</b>\n\n` +
+            `Untuk melihat laporan lengkap, silakan akses:`,
+            Markup.inlineKeyboard([
+                [Markup.button.url('📊 Buka Dashboard', process.env.FRONTEND_URL || 'https://idesk.local/manager')],
+                [Markup.button.callback('🏠 Menu Utama', 'main_menu')],
+            ])
+        );
+    }
+
+    // ========================================
     // HELPER METHODS
     // ========================================
 
@@ -1728,3 +1936,4 @@ export class TelegramUpdate {
         return map[priority] || '⚪';
     }
 }
+

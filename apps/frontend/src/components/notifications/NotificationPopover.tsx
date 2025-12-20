@@ -180,15 +180,8 @@ export const NotificationPopover: React.FC = () => {
             if (data.userId === user.id || data.notification?.userId === user.id) {
                 refetch();
                 queryClient.invalidateQueries({ queryKey: ['notifications-count'] });
-
-                const notification = data.notification || data;
-                toast.info(notification.title || 'New Notification', {
-                    description: notification.message,
-                    action: notification.link ? {
-                        label: 'View',
-                        onClick: () => navigate(notification.link),
-                    } : undefined,
-                });
+                // Note: Toast notification is handled by InAppNotificationToast component
+                // to avoid duplicate notifications
             }
         };
 
@@ -200,7 +193,7 @@ export const NotificationPopover: React.FC = () => {
             socket.off(`notification:${user.id}`, handleNewNotification);
             socket.off('notification:new', handleNewNotification);
         };
-    }, [socket, user, refetch, queryClient, navigate]);
+    }, [socket, user, refetch, queryClient]);
 
     const handleNotificationClick = useCallback(async (notification: Notification) => {
         try {

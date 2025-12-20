@@ -1,31 +1,44 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, Clock, CheckCircle, TrendingUp, BarChart3, Ticket, CircleDot, X, Eye, Search, Download, Edit2, ToggleLeft, ToggleRight, CheckSquare, Square, ChevronDown, Filter, Check } from 'lucide-react';
+import React, { useState, useMemo, useDeferredValue, useEffect } from 'react';
+import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, CheckCircle, BarChart3, Ticket as TicketIcon, Eye, Search, Download, Edit2, CheckSquare, Square, ChevronDown, ChevronRight, ChevronLeft, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, LayoutGrid, List, Settings, Keyboard, FileText, HelpCircle } from 'lucide-react';
 import { ImportUsersDialog } from '../components/ImportUsersDialog';
 import { AddUserDialog } from '../components/AddUserDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
 import { EditUserDialog } from '../components/EditUserDialog';
 import { AgentDetailModal } from '../components/AgentDetailModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { BulkRoleChangeDialog } from '../components/BulkRoleChangeDialog';
+import { BulkPermissionDialog } from '../components/BulkPermissionDialog';
+import { PresetEditorDialog } from '../components/PresetEditorDialog';
+import { PresetManagementDialog } from '../components/PresetManagementDialog';
+import { ExportPreviewDialog } from '../components/ExportPreviewDialog';
+import { AgentComparisonDialog } from '../components/AgentComparisonDialog';
+import { BulkSiteChangeDialog } from '../components/BulkSiteChangeDialog';
+import { OnboardingTutorial, shouldShowOnboarding } from '../components/OnboardingTutorial';
+import { ExportPdfDialog } from '../components/ExportPdfDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import {
-    useReactTable,
-    getCoreRowModel,
-    getSortedRowModel,
-    getFilteredRowModel,
-    flexRender,
-    createColumnHelper,
-    SortingState,
-} from '@tanstack/react-table';
+import * as Tabs from '@radix-ui/react-tabs';
+import * as Collapsible from '@radix-ui/react-collapsible';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Ticket } from '@/types/ticket.types';
+import * as Tooltip from '@radix-ui/react-tooltip';
+
+interface Site {
+    id: string;
+    code: string;
+    name: string;
+}
 
 interface User {
     id: string;
     fullName: string;
     email: string;
-    role: 'ADMIN' | 'AGENT' | 'USER';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
     department?: { id: string; name: string };
+    site?: Site;
+    siteId?: string;
     createdAt: string;
     isActive?: boolean;
     employeeId?: string;
@@ -36,145 +49,517 @@ interface User {
 interface AgentStats {
     id: string;
     fullName: string;
+    email: string;
+    role: string;
+    avatarUrl?: string;
+    department?: string;
+    site?: Site;
     openTickets: number;
     inProgressTickets: number;
     resolvedThisWeek: number;
     resolvedThisMonth: number;
-    avgResponseTime: string;
+    resolvedTotal: number;
     slaCompliance: number;
 }
 
-const StatCard: React.FC<{ title: string; value: string | number; icon: any; color: string; bgColor: string }> = ({
-    title, value, icon: Icon, color, bgColor
-}) => (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all hover-lift">
+// Extended Ticket interface with site field (backend returns this)
+interface TicketWithSite extends Ticket {
+    site?: Site;
+}
+
+// Site colors for badges - fallback if site code not found
+const SITE_COLORS: Record<string, string> = {
+    SPJ: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    JTB: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
+const ROLE_CONFIG = {
+    ADMIN: {
+        icon: Shield,
+        label: 'Administrators',
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+        badgeColor: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+    },
+    MANAGER: {
+        icon: Crown,
+        label: 'Managers',
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+        badgeColor: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+    },
+    AGENT: {
+        icon: Users,
+        label: 'Agents',
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+        badgeColor: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+    },
+    USER: {
+        icon: Users,
+        label: 'Users',
+        color: 'text-slate-600',
+        bgColor: 'bg-slate-100 dark:bg-slate-800',
+        badgeColor: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+    },
+};
+
+// Generate consistent color based on name
+const getAvatarColor = (name: string): string => {
+    const colors = [
+        'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-amber-500',
+        'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-teal-500'
+    ];
+    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
+};
+
+// M3: Helper function to highlight search matches
+const highlightText = (text: string, query: string): React.ReactNode => {
+    if (!query || !text) return text;
+    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+    return parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-yellow-200 dark:bg-yellow-600/40 rounded px-0.5">{part}</mark>
+        ) : part
+    );
+};
+
+// P2-3: Enhanced StatCard with gradient support AND click-to-filter
+const StatCard: React.FC<{
+    title: string;
+    value: string | number;
+    subtitle?: string;
+    icon: React.ElementType;
+    variant?: 'default' | 'blue' | 'green' | 'purple' | 'amber';
+    onClick?: () => void;
+    isActive?: boolean;
+}> = ({ title, value, subtitle, icon: Icon, variant = 'default', onClick, isActive }) => {
+    const variantStyles = {
+        default: 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
+        blue: 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30 text-white',
+        green: 'bg-gradient-to-br from-green-500 to-green-600 border-green-400/30 text-white',
+        purple: 'bg-gradient-to-br from-purple-500 to-purple-600 border-purple-400/30 text-white',
+        amber: 'bg-gradient-to-br from-amber-500 to-amber-600 border-amber-400/30 text-white',
+    };
+
+    const isColored = variant !== 'default';
+    const Component = onClick ? 'button' : 'div';
+
+    return (
+        <Component
+            onClick={onClick}
+            className={cn(
+                "rounded-2xl p-5 border hover:shadow-lg transition-all hover:-translate-y-0.5 text-left w-full",
+                variantStyles[variant],
+                onClick && "cursor-pointer",
+                isActive && "ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900"
+            )}
+        >
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className={cn("text-sm mb-1", isColored ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>{title}</p>
+                    <p className={cn("text-2xl font-bold", isColored ? "text-white" : "text-slate-800 dark:text-white")}>{value}</p>
+                    {subtitle && <p className={cn("text-xs mt-1", isColored ? "text-white/70" : "text-slate-400")}>{subtitle}</p>}
+                </div>
+                <div className={cn("p-3 rounded-xl", isColored ? "bg-white/20" : "bg-slate-100 dark:bg-slate-700")}>
+                    <Icon className={cn("w-5 h-5", isColored ? "text-white" : "text-slate-600 dark:text-slate-300")} />
+                </div>
+            </div>
+        </Component>
+    );
+};
+
+// Top Performer Hero Card with gold gradient
+const TopPerformerCard: React.FC<{ name: string; tickets: number }> = ({ name, tickets }) => (
+    <div className="rounded-2xl p-5 border border-amber-400/30 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 hover:shadow-lg hover:shadow-amber-500/20 transition-all hover:-translate-y-0.5 animate-golden-pulse">
         <div className="flex items-center justify-between">
             <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{title}</p>
-                <p className={cn("text-2xl font-bold", color)}>{value}</p>
+                <p className="text-sm text-amber-100/90 mb-1 flex items-center gap-1">
+                    <Crown className="w-3.5 h-3.5" />
+                    Top Performer
+                </p>
+                <p className="text-xl font-bold text-white truncate max-w-[140px]">{name}</p>
+                <p className="text-xs text-amber-100/80 mt-1">{tickets} tickets this month</p>
             </div>
-            <div className={cn("p-3 rounded-xl", bgColor)}>
-                <Icon className={cn("w-5 h-5", color)} />
+            <div className="p-3 rounded-xl bg-white/20">
+                <Award className="w-5 h-5 text-white" />
             </div>
         </div>
     </div>
 );
 
-const CustomDropdown: React.FC<{
-    value: string;
-    onChange: (value: string) => void;
-    options: { value: string; label: string }[];
-}> = ({ value, onChange, options }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const selectedLabel = options.find(opt => opt.value === value)?.label || 'Filter';
+// P1-1: Agent Card Component for Grid View
+const AgentCard: React.FC<{
+    agent: AgentStats;
+    onView: () => void;
+    onSelect: () => void;
+    isSelected: boolean;
+}> = ({ agent, onView, onSelect, isSelected }) => {
+    const roleConfig = ROLE_CONFIG[agent.role as keyof typeof ROLE_CONFIG] || ROLE_CONFIG.USER;
 
     return (
-        <div className="relative" ref={dropdownRef}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-700 text-slate-300 font-medium rounded-xl hover:bg-slate-800 transition-all min-w-[140px] justify-between"
-            >
-                <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    <span>{selectedLabel}</span>
-                </div>
-                <ChevronDown className="w-4 h-4 opacity-50" />
-            </button>
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="p-1">
-                        {options.map((option) => (
-                            <button
-                                key={option.value}
-                                onClick={() => {
-                                    onChange(option.value);
-                                    setIsOpen(false);
-                                }}
-                                className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors",
-                                    value === option.value
-                                        ? "bg-primary/20 text-primary font-medium"
-                                        : "text-slate-300 hover:bg-slate-800"
-                                )}
-                            >
-                                <span>{option.label}</span>
-                                {value === option.value && <Check className="w-4 h-4" />}
-                            </button>
-                        ))}
+        <div className={cn(
+            "glass-card p-4 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group",
+            isSelected && "ring-2 ring-primary"
+        )}>
+            <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg text-white", getAvatarColor(agent.fullName))}>
+                        {agent.fullName.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="font-bold text-slate-800 dark:text-white truncate">{agent.fullName}</p>
+                        <p className="text-xs text-slate-500 truncate">{agent.email}</p>
                     </div>
                 </div>
-            )}
+                <button onClick={(e) => { e.stopPropagation(); onSelect(); }} className="p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-slate-400" />}
+                </button>
+            </div>
+
+            <div className="flex items-center gap-2 mb-3">
+                {agent.site && (
+                    <span className={cn("px-2 py-0.5 rounded-lg text-xs font-bold", SITE_COLORS[agent.site.code] || 'bg-slate-100 text-slate-600')}>
+                        {agent.site.code}
+                    </span>
+                )}
+                <span className={cn("px-2 py-0.5 rounded-lg text-xs font-bold", roleConfig.badgeColor)}>
+                    {agent.role}
+                </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-100 dark:bg-slate-700/50 rounded-lg p-2">
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{agent.inProgressTickets}</p>
+                    <p className="text-xs text-slate-500">Active</p>
+                </div>
+                <div className="bg-slate-100 dark:bg-slate-700/50 rounded-lg p-2">
+                    <p className="text-lg font-bold text-green-600 dark:text-green-400">{agent.resolvedThisMonth}</p>
+                    <p className="text-xs text-slate-500">Month</p>
+                </div>
+                <div className={cn(
+                    "rounded-lg p-2",
+                    agent.slaCompliance >= 90 ? "bg-green-100 dark:bg-green-900/30" :
+                        agent.slaCompliance >= 70 ? "bg-yellow-100 dark:bg-yellow-900/30" :
+                            "bg-red-100 dark:bg-red-900/30"
+                )}>
+                    <p className={cn(
+                        "text-lg font-bold",
+                        agent.slaCompliance >= 90 ? "text-green-600 dark:text-green-400" :
+                            agent.slaCompliance >= 70 ? "text-yellow-600 dark:text-yellow-400" :
+                                "text-red-600 dark:text-red-400"
+                    )}>{agent.slaCompliance}%</p>
+                    <p className="text-xs text-slate-500">SLA</p>
+                </div>
+            </div>
+
+            <button
+                onClick={onView}
+                className="w-full mt-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-xl transition-colors"
+            >
+                View Details
+            </button>
         </div>
     );
 };
 
-const columnHelper = createColumnHelper<User>();
+// Loading Skeleton for Agent Table
+const AgentTableSkeleton: React.FC = () => (
+    <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+                <div key={i} className="rounded-2xl p-5 bg-slate-200 dark:bg-slate-700 animate-pulse h-24" />
+            ))}
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <div className="h-5 w-40 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            </div>
+            <div className="p-4 space-y-3">
+                {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                        <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        <div className="flex-1 space-y-2">
+                            <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                            <div className="h-3 w-48 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                        </div>
+                        <div className="flex gap-2">
+                            {[...Array(5)].map((_, j) => (
+                                <div key={j} className="h-6 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
 
-const columns = [
-    columnHelper.accessor('fullName', {
-        header: 'Name',
-        cell: (info) => (
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
-                    {info.getValue().charAt(0).toUpperCase()}
+// Error State Component
+const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-8 text-center">
+        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+        </div>
+        <h3 className="text-lg font-bold text-red-800 dark:text-red-300 mb-2">Failed to Load Data</h3>
+        <p className="text-red-600 dark:text-red-400 mb-4 max-w-md mx-auto">{message}</p>
+        <button
+            onClick={onRetry}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors mx-auto"
+        >
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+        </button>
+    </div>
+);
+
+// Collapsible Role Section Component
+const RoleSection: React.FC<{
+    role: 'ADMIN' | 'AGENT' | 'USER';
+    users: User[];
+    onEdit: (user: User) => void;
+    onDelete: (user: User) => void;
+    onResetPassword: (user: User) => void;
+    selectedIds: Set<string>;
+    onToggleSelection: (id: string) => void;
+}> = ({ role, users, onEdit, onDelete, onResetPassword, selectedIds, onToggleSelection }) => {
+    const [isOpen, setIsOpen] = useState(true);
+    const config = ROLE_CONFIG[role];
+    const Icon = config.icon;
+
+    if (users.length === 0) return null;
+
+    return (
+        <Collapsible.Root open={isOpen} onOpenChange={setIsOpen} className="mb-4">
+            <Collapsible.Trigger className="w-full">
+                <div className={cn(
+                    "flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all",
+                    config.bgColor, "hover:opacity-90"
+                )}>
+                    <div className="flex items-center gap-3">
+                        {isOpen ? <ChevronDown className={cn("w-5 h-5", config.color)} /> : <ChevronRight className={cn("w-5 h-5", config.color)} />}
+                        <Icon className={cn("w-5 h-5", config.color)} />
+                        <span className={cn("font-bold", config.color)}>{config.label}</span>
+                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-bold", config.badgeColor)}>
+                            {users.length}
+                        </span>
+                    </div>
                 </div>
-                <div>
-                    <p className="font-bold text-slate-800 dark:text-white">{info.getValue()}</p>
+            </Collapsible.Trigger>
+
+            <Collapsible.Content className="mt-2 animate-in slide-in-from-top-2 duration-200">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                                <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Name</th>
+                                <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Email</th>
+                                <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Site</th>
+                                <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Department</th>
+                                <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Actions</th>
+                                <th className="px-2 py-3 w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {users.map((user) => (
+                                <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn("w-9 h-9 rounded-full flex items-center justify-center font-bold", config.bgColor, config.color)}>
+                                                {user.fullName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <span className="font-medium text-slate-800 dark:text-white">{user.fullName}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                                            <Mail className="w-3.5 h-3.5" />
+                                            {user.email}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {user.site ? (
+                                            <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", SITE_COLORS[user.site.code] || 'bg-slate-100 text-slate-600')}>
+                                                {user.site.code}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 text-sm italic">-</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {user.department ? (
+                                            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-sm">
+                                                <Building className="w-3.5 h-3.5" />
+                                                {user.department.name}
+                                            </div>
+                                        ) : (
+                                            <span className="text-slate-400 text-sm italic">-</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => onEdit(user)}
+                                                className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                                title="Edit"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => onResetPassword(user)}
+                                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                title="Reset Password"
+                                            >
+                                                <Key className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => onDelete(user)}
+                                                className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td className="px-2 py-3">
+                                        <button
+                                            onClick={() => onToggleSelection(user.id)}
+                                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                        >
+                                            {selectedIds.has(user.id) ? (
+                                                <CheckSquare className="w-4 h-4 text-primary" />
+                                            ) : (
+                                                <Square className="w-4 h-4 text-slate-400" />
+                                            )}
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-        ),
-    }),
-    columnHelper.accessor('email', {
-        header: 'Email',
-        cell: (info) => (
-            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <Mail className="w-4 h-4" />
-                {info.getValue()}
-            </div>
-        ),
-    }),
-    columnHelper.accessor('role', {
-        header: 'Role',
-        cell: (info) => {
-            const role = info.getValue();
-            const colors = {
-                ADMIN: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-                AGENT: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-                USER: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-            };
-            return (
-                <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${colors[role]}`}>
-                    <Shield className="w-3 h-3" />
-                    {role}
-                </span>
-            );
-        },
-    }),
-    columnHelper.accessor('department', {
-        header: 'Department',
-        cell: (info) => {
-            const dept = info.getValue();
-            return dept ? (
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                    <Building className="w-4 h-4" />
-                    {dept.name}
-                </div>
-            ) : <span className="text-slate-400 italic">None</span>;
-        },
-    }),
-];
+            </Collapsible.Content>
+        </Collapsible.Root>
+    );
+};
+
+// M1: Unified User Table - shows all users in single table with role column
+const UnifiedUserTable: React.FC<{
+    users: User[];
+    searchQuery: string;
+    onEdit: (user: User) => void;
+    onDelete: (user: User) => void;
+    onResetPassword: (user: User) => void;
+    selectedIds: Set<string>;
+    onToggleSelection: (id: string) => void;
+    onSelectAll: () => void;
+}> = ({ users, searchQuery, onEdit, onDelete, onResetPassword, selectedIds, onToggleSelection, onSelectAll }) => {
+    const allSelected = users.length > 0 && users.every(u => selectedIds.has(u.id));
+
+    // Format relative time for lastActiveAt
+    const formatLastActive = (date: string | undefined) => {
+        if (!date) return <span className="text-slate-400">Never</span>;
+        const d = new Date(date);
+        const now = new Date();
+        const diffMs = now.getTime() - d.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 5) return <span className="text-green-600 font-medium">Online</span>;
+        if (diffMins < 60) return <span className="text-green-500">{diffMins}m ago</span>;
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return <span className="text-amber-500">{diffHours}h ago</span>;
+        const diffDays = Math.floor(diffHours / 24);
+        return <span className="text-slate-500">{diffDays}d ago</span>;
+    };
+
+    return (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <table className="w-full text-left">
+                <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">User</th>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Role</th>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Site</th>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Last Active</th>
+                        <th className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Actions</th>
+                        <th className="px-2 py-3 w-10">
+                            <button onClick={onSelectAll} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                {allSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-slate-400" />}
+                            </button>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {users.map((user) => (
+                        <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm", getAvatarColor(user.fullName))}>
+                                        {user.fullName.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-slate-800 dark:text-white">
+                                            {highlightText(user.fullName, searchQuery)}
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {highlightText(user.email, searchQuery)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="px-4 py-3">
+                                <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", ROLE_CONFIG[user.role]?.badgeColor || 'bg-slate-100 text-slate-600')}>
+                                    {user.role}
+                                </span>
+                            </td>
+                            <td className="px-4 py-3">
+                                {user.site ? (
+                                    <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", SITE_COLORS[user.site.code] || 'bg-slate-100 text-slate-600')}>
+                                        {user.site.code}
+                                    </span>
+                                ) : <span className="text-slate-400 text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                                <span className={cn(
+                                    "px-2 py-1 rounded-lg text-xs font-bold",
+                                    user.isActive !== false
+                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                )}>
+                                    {user.isActive !== false ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs">
+                                {formatLastActive((user as any).lastActiveAt)}
+                            </td>
+                            <td className="px-4 py-3">
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => onEdit(user)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
+                                        <Edit2 className="w-4 h-4 text-slate-500" />
+                                    </button>
+                                    <button onClick={() => onResetPassword(user)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Reset Password">
+                                        <Key className="w-4 h-4 text-slate-500" />
+                                    </button>
+                                    <button onClick={() => onDelete(user)} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </td>
+                            <td className="px-2 py-3">
+                                <button onClick={() => onToggleSelection(user.id)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                    {selectedIds.has(user.id) ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-slate-400" />}
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
 
 export const BentoAdminAgentsPage: React.FC = () => {
     const queryClient = useQueryClient();
@@ -183,111 +568,239 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [selectedAgentDetail, setSelectedAgentDetail] = useState<User | null>(null);
-    const [groupByDivision, setGroupByDivision] = useState(false);
-    const [sorting, setSorting] = useState<SortingState>([]);
 
     // New state for enhanced features
     const [isEditUserOpen, setIsEditUserOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [roleFilter, setRoleFilter] = useState<string>('ALL');
+    const [selectedSite, setSelectedSite] = useState('ALL');
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+    const [isBulkRoleChangeOpen, setIsBulkRoleChangeOpen] = useState(false);
+    const [isPresetEditorOpen, setIsPresetEditorOpen] = useState(false);
+    const [isPresetManageOpen, setIsPresetManageOpen] = useState(false);
+    const [editingPreset, setEditingPreset] = useState<any>(null);
+    const [isExportPreviewOpen, setIsExportPreviewOpen] = useState(false);
+    const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+    const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+    const [isBulkSiteChangeOpen, setIsBulkSiteChangeOpen] = useState(false);
+    const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50); // P1-2: Configurable page size
+    const PAGE_SIZE_OPTIONS = [20, 50, 100]; // P1-2: Page size options
+
+    // P1-4: View mode toggle (grid vs table)
+    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+    // P2-2: Role filter
+    const [selectedRole, setSelectedRole] = useState<'ALL' | 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER'>('ALL');
+
+    // P2-3: Stats card filter (click to filter by status)
+    const [statsFilter, setStatsFilter] = useState<'all' | 'active' | 'resolved' | 'top'>('all');
+
+    // M1: Unified view toggle - 'unified' shows all users in single table, 'collapsed' shows by role
+    const [displayMode, setDisplayMode] = useState<'unified' | 'collapsed'>('unified');
 
     const handleResetPassword = (user: User) => {
         setSelectedUser(user);
         setIsResetPasswordOpen(true);
     };
 
-    const { data: users = [], isLoading } = useQuery<User[]>({
-        queryKey: ['users'],
+    // Debounced search using useDeferredValue (must be defined before query that uses it)
+    const deferredSearchQuery = useDeferredValue(searchQuery);
+
+    // Paginated users query with server-side filtering
+    interface PaginatedResponse {
+        data: User[];
+        meta: {
+            total: number;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNextPage: boolean;
+            hasPrevPage: boolean;
+        };
+    }
+
+    const { data: usersResponse, isLoading, isError, error, refetch } = useQuery<PaginatedResponse>({
+        queryKey: ['users', currentPage, pageSize, selectedSite, deferredSearchQuery],
         queryFn: async () => {
-            const res = await api.get('/users');
+            const params = new URLSearchParams();
+            params.set('page', currentPage.toString());
+            params.set('limit', pageSize.toString());
+            if (selectedSite !== 'ALL') params.set('siteCode', selectedSite);
+            if (deferredSearchQuery) params.set('search', deferredSearchQuery);
+            const res = await api.get(`/users?${params.toString()}`);
             return res.data;
         },
         staleTime: 0,
         refetchOnMount: 'always',
     });
 
-    // Fetch tickets for agent statistics
-    const { data: tickets = [] } = useQuery<any[]>({
-        queryKey: ['tickets-for-stats'],
+    const users = usersResponse?.data || [];
+    const paginationMeta = usersResponse?.meta;
+
+    // Fetch sites from backend API
+    const { data: sitesData = [] } = useQuery<Site[]>({
+        queryKey: ['sites-active'],
         queryFn: async () => {
-            const res = await api.get('/tickets');
+            const res = await api.get('/sites/active');
             return res.data;
         },
-        staleTime: 30000,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     });
 
-    // Compute agent statistics from tickets
-    const agentStats = useMemo(() => {
-        const agents = users.filter(u => u.role === 'ADMIN' || u.role === 'AGENT');
-        const now = new Date();
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    // Build sites array with "All Sites" prepended
+    const SITES = useMemo(() => [
+        { code: 'ALL', name: 'All Sites', id: '' },
+        ...sitesData.map(s => ({ ...s, code: s.code, name: s.name, id: s.id }))
+    ], [sitesData]);
 
-        return agents.map(agent => {
-            const agentTickets = tickets.filter((t: any) => t.assignedTo?.id === agent.id);
-            const openTickets = agentTickets.filter((t: any) => t.status === 'TODO').length;
-            const inProgressTickets = agentTickets.filter((t: any) => t.status === 'IN_PROGRESS').length;
-            const resolvedThisWeek = agentTickets.filter((t: any) =>
-                t.status === 'RESOLVED' && new Date(t.updatedAt) >= weekAgo
-            ).length;
-            const resolvedThisMonth = agentTickets.filter((t: any) =>
-                t.status === 'RESOLVED' && new Date(t.updatedAt) >= monthAgo
-            ).length;
-            const overdueCount = agentTickets.filter((t: any) => t.isOverdue).length;
-            const totalAssigned = agentTickets.length;
-            const slaCompliance = totalAssigned > 0 ? Math.round(((totalAssigned - overdueCount) / totalAssigned) * 100) : 100;
+    // Fetch agent stats from backend API (pre-computed on server)
+    // Backend returns { summary, agents } - we extract the agents array
+    const { data: agentStats = [] } = useQuery<AgentStats[]>({
+        queryKey: ['agent-stats'],
+        queryFn: async () => {
+            const res = await api.get('/users/agents/stats');
+            // Backend returns { summary: {...}, agents: [...] }
+            return res.data.agents || [];
+        },
+        staleTime: 30000, // Cache for 30 seconds
+    });
 
-            return {
-                id: agent.id,
-                fullName: agent.fullName,
-                email: agent.email,
-                role: agent.role,
-                department: agent.department,
-                openTickets,
-                inProgressTickets,
-                resolvedThisWeek,
-                resolvedThisMonth,
-                totalAssigned,
-                slaCompliance,
-            };
-        });
-    }, [users, tickets]);
+    // Users are already filtered by server, just use them directly
+    const filteredUsers = users;
 
-    // Dashboard stats
+    // HIGH: Keyboard shortcuts (must be after filteredUsers is defined)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't trigger if user is typing in an input
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
+            // ? - Show keyboard help
+            if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                setShowKeyboardHelp(true);
+            }
+
+            // Ctrl+A - Select all users
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                e.preventDefault();
+                const allIds = filteredUsers.map(u => u.id);
+                setSelectedUserIds(new Set(allIds));
+            }
+
+            // Delete - Delete selected users
+            if (e.key === 'Delete' && selectedUserIds.size > 0) {
+                e.preventDefault();
+                setIsBulkDeleteOpen(true);
+            }
+
+            // Escape - Close any open dialogs
+            if (e.key === 'Escape') {
+                setShowKeyboardHelp(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [filteredUsers, selectedUserIds]);
+
+    // Reset to page 1 when filters change
+    const handleSiteChange = (newSite: string) => {
+        setSelectedSite(newSite);
+        setCurrentPage(1);
+    };
+
+    // Group users by role
+    const usersByRole = useMemo(() => ({
+        ADMIN: filteredUsers.filter(u => u.role === 'ADMIN'),
+        AGENT: filteredUsers.filter(u => u.role === 'AGENT'),
+        USER: filteredUsers.filter(u => u.role === 'USER'),
+    }), [filteredUsers]);
+
+    // Filtered agent stats for performance table (P2-2: includes role filter)
+    const filteredAgentStats = useMemo(() => {
+        let result = agentStats;
+        if (selectedSite !== 'ALL') {
+            result = result.filter(a => a.site?.code === selectedSite);
+        }
+        if (selectedRole !== 'ALL') {
+            result = result.filter(a => a.role === selectedRole);
+        }
+        return result;
+    }, [agentStats, selectedSite, selectedRole]);
+
+    // Dashboard stats - use filteredAgentStats for consistency (H2 fix)
     const dashboardStats = useMemo(() => {
-        const agents = users.filter(u => u.role === 'ADMIN' || u.role === 'AGENT');
-        const totalResolved = agentStats.reduce((sum, a) => sum + a.resolvedThisMonth, 0);
-        const avgTicketsPerAgent = agents.length > 0 ? Math.round(tickets.length / agents.length) : 0;
-        const topPerformer = agentStats.sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
+        const totalResolved = filteredAgentStats.reduce((sum, a) => sum + a.resolvedThisMonth, 0);
+        const totalActive = filteredAgentStats.filter(a => a.inProgressTickets > 0).length;
+        const topPerformer = [...filteredAgentStats].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
 
         return {
-            totalAgents: agents.length,
+            totalAgents: filteredAgentStats.length,
             totalResolved,
-            avgTicketsPerAgent,
+            totalActive,
             topPerformer: topPerformer?.fullName || '-',
+            topPerformerTickets: topPerformer?.resolvedThisMonth || 0,
         };
-    }, [users, agentStats, tickets]);
+    }, [filteredAgentStats]);
 
-    // Filtered users based on search and role filter
-    const filteredUsers = useMemo(() => {
-        return users.filter(user => {
-            const matchesSearch = searchQuery === '' ||
-                user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                user.email.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
-            return matchesSearch && matchesRole;
+    // P2-3: Displayed agent stats with stats card filter
+    const displayedAgentStats = useMemo(() => {
+        if (statsFilter === 'all') return filteredAgentStats;
+        if (statsFilter === 'active') return filteredAgentStats.filter(a => a.inProgressTickets > 0);
+        if (statsFilter === 'resolved') return filteredAgentStats.filter(a => a.resolvedThisMonth > 0);
+        if (statsFilter === 'top') {
+            // Show only the top performer
+            const sorted = [...filteredAgentStats].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth);
+            return sorted.slice(0, 1);
+        }
+        return filteredAgentStats;
+    }, [filteredAgentStats, statsFilter]);
+
+    // Site counts for tabs - use agentStats for accurate total (C2 fix)
+    // Note: Using agentStats instead of paginated users for correct total counts
+    const siteCounts = useMemo(() => {
+        const counts: Record<string, number> = { ALL: agentStats.length };
+        sitesData.forEach(site => {
+            counts[site.code] = agentStats.filter(a => a.site?.code === site.code).length;
         });
-    }, [users, searchQuery, roleFilter]);
+        return counts;
+    }, [agentStats, sitesData]);
 
     const deleteMutation = useMutation({
         mutationFn: async (userId: string) => {
             const res = await api.delete(`/users/${userId}`);
             return res.data;
+        },
+        onMutate: async (userId: string) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['users'] });
+
+            // Snapshot previous data
+            const previousData = queryClient.getQueryData(['users', currentPage, pageSize, selectedSite, deferredSearchQuery]);
+
+            // Optimistically update the cache
+            queryClient.setQueryData(
+                ['users', currentPage, pageSize, selectedSite, deferredSearchQuery],
+                (old: any) => {
+                    if (!old) return old;
+                    return {
+                        ...old,
+                        data: old.data.filter((u: User) => u.id !== userId),
+                        meta: { ...old.meta, total: old.meta.total - 1 },
+                    };
+                }
+            );
+
+            return { previousData };
         },
         onSuccess: (data) => {
             toast.success(data.message || 'User deleted successfully');
@@ -295,7 +808,14 @@ export const BentoAdminAgentsPage: React.FC = () => {
             setIsConfirmDeleteOpen(false);
             setUserToDelete(null);
         },
-        onError: (error: any) => {
+        onError: (error: any, _userId, context) => {
+            // Rollback on error
+            if (context?.previousData) {
+                queryClient.setQueryData(
+                    ['users', currentPage, pageSize, selectedSite, deferredSearchQuery],
+                    context.previousData
+                );
+            }
             toast.error(error.response?.data?.message || 'Failed to delete user');
         },
     });
@@ -305,13 +825,43 @@ export const BentoAdminAgentsPage: React.FC = () => {
             const res = await api.post('/users/bulk-delete', { userIds });
             return res.data;
         },
+        onMutate: async (userIds: string[]) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['users'] });
+
+            // Snapshot previous data
+            const previousData = queryClient.getQueryData(['users', currentPage, pageSize, selectedSite, deferredSearchQuery]);
+
+            // Optimistically update the cache
+            queryClient.setQueryData(
+                ['users', currentPage, pageSize, selectedSite, deferredSearchQuery],
+                (old: any) => {
+                    if (!old) return old;
+                    const idSet = new Set(userIds);
+                    return {
+                        ...old,
+                        data: old.data.filter((u: User) => !idSet.has(u.id)),
+                        meta: { ...old.meta, total: old.meta.total - userIds.length },
+                    };
+                }
+            );
+
+            return { previousData };
+        },
         onSuccess: (data) => {
             toast.success(`${data.deleted} users deleted successfully`);
             queryClient.invalidateQueries({ queryKey: ['users'] });
             setSelectedUserIds(new Set());
             setIsBulkDeleteOpen(false);
         },
-        onError: (error: any) => {
+        onError: (error: any, _userIds, context) => {
+            // Rollback on error
+            if (context?.previousData) {
+                queryClient.setQueryData(
+                    ['users', currentPage, pageSize, selectedSite, deferredSearchQuery],
+                    context.previousData
+                );
+            }
             toast.error(error.response?.data?.message || 'Failed to delete users');
         },
     });
@@ -326,17 +876,30 @@ export const BentoAdminAgentsPage: React.FC = () => {
         setIsEditUserOpen(true);
     };
 
-    const handleExportUsers = async () => {
+    const handleExportUsers = async (format: 'csv' | 'xlsx' = 'xlsx') => {
         try {
-            const res = await api.get('/users/export');
-            const { data, filename } = res.data;
-            const blob = new Blob([data], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            window.URL.revokeObjectURL(url);
+            const res = await api.get(`/users/export?format=${format}&site=${selectedSite}`, {
+                responseType: format === 'xlsx' ? 'blob' : 'json'
+            });
+
+            if (format === 'xlsx') {
+                const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `users_${selectedSite}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } else {
+                const { data, filename } = res.data;
+                const blob = new Blob([data], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
             toast.success('Users exported successfully');
         } catch (error) {
             toast.error('Failed to export users');
@@ -353,24 +916,23 @@ export const BentoAdminAgentsPage: React.FC = () => {
         setSelectedUserIds(newSet);
     };
 
-    const toggleSelectAll = () => {
-        if (selectedUserIds.size === filteredUsers.length) {
-            setSelectedUserIds(new Set());
-        } else {
-            setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
-        }
-    };
-
-    const table = useReactTable({
-        data: filteredUsers,
-        columns,
-        state: {
-            sorting,
+    // Bulk role change mutation
+    const bulkRoleChangeMutation = useMutation({
+        mutationFn: async ({ userIds, role }: { userIds: string[]; role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' }) => {
+            // Update each user's role individually
+            const promises = userIds.map(id => api.patch(`/users/${id}/role`, { role }));
+            await Promise.all(promises);
+            return { count: userIds.length, role };
         },
-        onSortingChange: setSorting,
-        getCoreRowModel: getCoreRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
+        onSuccess: (data) => {
+            toast.success(`${data.count} user(s) updated to ${data.role}`);
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            setSelectedUserIds(new Set());
+            setIsBulkRoleChangeOpen(false);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to update roles');
+        },
     });
 
     return (
@@ -379,38 +941,107 @@ export const BentoAdminAgentsPage: React.FC = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Agent Management</h1>
-                    <p className="text-slate-500 dark:text-slate-400">Manage your support team and track performance</p>
+                    <p className="text-slate-500 dark:text-slate-400">Manage your support team by site and role</p>
                 </div>
                 <div className="flex gap-3">
+                    {/* Bulk Actions - show when users selected */}
+                    {selectedUserIds.size > 0 && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-all"
+                                >
+                                    <CheckSquare className="w-4 h-4" />
+                                    {selectedUserIds.size} Selected
+                                    <ChevronDown className="w-4 h-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setIsBulkRoleChangeOpen(true)}>
+                                    <Shield className="w-4 h-4" />
+                                    Change Role
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setIsBulkSiteChangeOpen(true)}>
+                                    <MapPin className="w-4 h-4" />
+                                    Change Site
+                                </DropdownMenuItem>
+                                {selectedUserIds.size === 2 && (
+                                    <DropdownMenuItem onClick={() => setIsComparisonOpen(true)}>
+                                        <BarChart3 className="w-4 h-4" />
+                                        Compare Agents
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                    onClick={() => setIsBulkDeleteOpen(true)}
+                                    className="text-red-600 focus:text-red-600"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete Selected
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+
+                    {/* P1-4: View Mode Toggle */}
+                    <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "p-2 rounded-lg transition-all",
+                                viewMode === 'grid'
+                                    ? "bg-white dark:bg-slate-700 shadow-sm text-primary"
+                                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                            )}
+                            title="Grid View"
+                        >
+                            <LayoutGrid className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('table')}
+                            className={cn(
+                                "p-2 rounded-lg transition-all",
+                                viewMode === 'table'
+                                    ? "bg-white dark:bg-slate-700 shadow-sm text-primary"
+                                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                            )}
+                            title="Table View"
+                        >
+                            <List className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* P3-3: Secondary Actions Group */}
+                    <div className="flex items-center gap-2 pr-3 border-r border-slate-200 dark:border-slate-700">
+                        <button
+                            onClick={() => setIsExportPreviewOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-sm"
+                        >
+                            <Download className="w-4 h-4" />
+                            <span className="hidden sm:inline">Export</span>
+                        </button>
+                        <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-sm"
+                        >
+                            <Upload className="w-4 h-4" />
+                            <span className="hidden sm:inline">Import</span>
+                        </button>
+                    </div>
+
+                    {/* Manage Presets Button */}
                     <button
-                        onClick={() => setGroupByDivision(!groupByDivision)}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-2.5 border font-medium rounded-xl transition-all",
-                            groupByDivision
-                                ? 'bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400'
-                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                        )}
+                        onClick={() => setIsPresetManageOpen(true)}
+                        className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-medium rounded-xl hover:from-violet-600 hover:to-purple-700 transition-all text-sm shadow-lg shadow-violet-500/25"
+                        title="Manage Permission Presets"
                     >
-                        <Building className="w-4 h-4" />
-                        {groupByDivision ? 'Ungroup' : 'Group by Division'}
+                        <Settings className="w-4 h-4" />
+                        <span className="hidden sm:inline">Manage Presets</span>
                     </button>
-                    <button
-                        onClick={handleExportUsers}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                    >
-                        <Download className="w-4 h-4" />
-                        Export
-                    </button>
-                    <button
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                    >
-                        <Upload className="w-4 h-4" />
-                        Import
-                    </button>
+
+                    {/* P3-3: Primary Action */}
                     <button
                         onClick={() => setIsAddUserModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-all"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-all shadow-sm"
                     >
                         <Plus className="w-4 h-4" />
                         Add User
@@ -418,341 +1049,432 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Search & Filter Bar */}
+            {/* Site Tabs */}
+            <Tabs.Root value={selectedSite} onValueChange={handleSiteChange}>
+                <Tabs.List className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+                    {SITES.map((site) => (
+                        <Tabs.Trigger
+                            key={site.code}
+                            value={site.code}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                "data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700",
+                                "data-[state=active]:text-primary data-[state=active]:shadow-sm",
+                                "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                            )}
+                        >
+                            <MapPin className="w-4 h-4" />
+                            {site.code}
+                            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">
+                                {siteCounts[site.code] || 0}
+                            </span>
+                        </Tabs.Trigger>
+                    ))}
+                </Tabs.List>
+            </Tabs.Root>
+
+            {/* P2-2: Role Filter Pills - Redesigned for clarity */}
+            <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Shield className="w-4 h-4" />
+                    Role:
+                </span>
+                <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                    {(['ALL', 'ADMIN', 'MANAGER', 'AGENT', 'USER'] as const).map(role => {
+                        // Fix: Use 'users' array which includes all roles, not just agentStats (ADMIN+AGENT)
+                        const count = role === 'ALL'
+                            ? users.length
+                            : users.filter(u => u.role === role).length;
+
+                        // Don't hide roles with 0 count - show them greyed out
+                        const roleConfig = ROLE_CONFIG[role as keyof typeof ROLE_CONFIG];
+                        const RoleIcon = roleConfig?.icon || Users;
+
+                        return (
+                            <button
+                                key={role}
+                                onClick={() => { setSelectedRole(role); setCurrentPage(1); }}
+                                disabled={count === 0 && role !== 'ALL'}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                                    selectedRole === role
+                                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                                        : count === 0 && role !== 'ALL'
+                                            ? "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                                )}
+                            >
+                                {role !== 'ALL' && <RoleIcon className="w-3.5 h-3.5" />}
+                                {role === 'ALL' ? 'All' : role.charAt(0) + role.slice(1).toLowerCase()}
+                                <span className={cn(
+                                    "px-1.5 py-0.5 text-xs rounded-full",
+                                    selectedRole === role
+                                        ? "bg-primary/20 text-primary"
+                                        : "bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400"
+                                )}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Search Bar */}
             <div className="flex items-center gap-4 p-1 bg-slate-900/5 dark:bg-slate-900/50 rounded-2xl border border-slate-200/50 dark:border-slate-800 backdrop-blur-sm">
                 <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search tickets, articles..."
+                        placeholder="Search users by name or email..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-11 pr-4 py-2.5 bg-transparent border-none outline-none text-slate-800 dark:text-white placeholder:text-slate-400 focus:ring-0"
                     />
                 </div>
 
-                <div className="flex items-center gap-2 pr-1.5">
-                    {selectedUserIds.size > 0 && (
-                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-200 mr-2">
-                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400 hidden md:inline">
-                                {selectedUserIds.size} selected
-                            </span>
-                            <button
-                                onClick={() => setIsBulkDeleteOpen(true)}
-                                className="flex items-center gap-2 px-3 py-2 bg-red-500/10 text-red-600 dark:text-red-400 font-medium rounded-lg hover:bg-red-500/20 transition-all text-sm border border-red-500/20"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                                Delete
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="w-[1px] h-8 bg-slate-200 dark:bg-slate-800 mx-2" />
-
-                    <CustomDropdown
-                        value={roleFilter}
-                        onChange={setRoleFilter}
-                        options={[
-                            { value: 'ALL', label: 'All Roles' },
-                            { value: 'ADMIN', label: 'Admin' },
-                            { value: 'AGENT', label: 'Agent' },
-                            { value: 'USER', label: 'User' },
-                        ]}
-                    />
-                </div>
+                {selectedUserIds.size > 0 && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-200 pr-2">
+                        <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                            {selectedUserIds.size} selected
+                        </span>
+                        <button
+                            onClick={() => setIsBulkDeleteOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-red-500/10 text-red-600 dark:text-red-400 font-medium rounded-lg hover:bg-red-500/20 transition-all text-sm border border-red-500/20"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Stats Dashboard */}
+            {/* P2-3: Clickable Stats Dashboard */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
                     title="Total Agents"
                     value={dashboardStats.totalAgents}
                     icon={Users}
-                    color="text-blue-600"
-                    bgColor="bg-blue-100 dark:bg-blue-900/30"
+                    variant="blue"
+                    onClick={() => setStatsFilter('all')}
+                    isActive={statsFilter === 'all'}
+                />
+                <StatCard
+                    title="Active (In Progress)"
+                    value={dashboardStats.totalActive}
+                    subtitle="Click to filter"
+                    icon={BarChart3}
+                    variant="purple"
+                    onClick={() => setStatsFilter(statsFilter === 'active' ? 'all' : 'active')}
+                    isActive={statsFilter === 'active'}
                 />
                 <StatCard
                     title="Resolved (Month)"
                     value={dashboardStats.totalResolved}
+                    subtitle="Click to filter"
                     icon={CheckCircle}
-                    color="text-green-600"
-                    bgColor="bg-green-100 dark:bg-green-900/30"
+                    variant="green"
+                    onClick={() => setStatsFilter(statsFilter === 'resolved' ? 'all' : 'resolved')}
+                    isActive={statsFilter === 'resolved'}
                 />
-                <StatCard
-                    title="Avg Tickets/Agent"
-                    value={dashboardStats.avgTicketsPerAgent}
-                    icon={Ticket}
-                    color="text-purple-600"
-                    bgColor="bg-purple-100 dark:bg-purple-900/30"
-                />
-                <StatCard
-                    title="Top Performer"
-                    value={dashboardStats.topPerformer}
-                    icon={Award}
-                    color="text-amber-600"
-                    bgColor="bg-amber-100 dark:bg-amber-900/30"
-                />
+                <div
+                    onClick={() => setStatsFilter(statsFilter === 'top' ? 'all' : 'top')}
+                    className={cn("cursor-pointer transition-all", statsFilter === 'top' && "ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900 rounded-2xl")}
+                >
+                    <TopPerformerCard
+                        name={dashboardStats.topPerformer}
+                        tickets={dashboardStats.topPerformerTickets}
+                    />
+                </div>
             </div>
 
-            {/* Agent Performance Table */}
-            {agentStats.length > 0 && (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                            <BarChart3 className="w-5 h-5 text-primary" />
-                            Agent Performance
-                        </h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Agent</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Open</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">In Progress</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Resolved (Week)</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Resolved (Month)</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">SLA %</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                {agentStats.map((agent) => (
-                                    <tr key={agent.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                                                    {agent.fullName.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-slate-800 dark:text-white">{agent.fullName}</p>
-                                                    <p className="text-xs text-slate-500">{agent.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300">
-                                                {agent.openTickets}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400">
-                                                {agent.inProgressTickets}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400">
-                                                {agent.resolvedThisWeek}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400">
-                                                {agent.resolvedThisMonth}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className={cn(
-                                                "px-2 py-1 rounded-lg text-sm font-medium",
-                                                agent.slaCompliance >= 90 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                                                    agent.slaCompliance >= 70 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
-                                                        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                            )}>
-                                                {agent.slaCompliance}%
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <button
-                                                onClick={() => setSelectedAgentDetail(users.find(u => u.id === agent.id) || null)}
-                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                                                title="View Details"
-                                            >
-                                                <Eye className="w-4 h-4 text-slate-500" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+            {/* P2-3: Active filter indicator */}
+            {statsFilter !== 'all' && (
+                <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Filtering by:</span>
+                    <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium capitalize">
+                        {statsFilter === 'top' ? 'Top Performer' : statsFilter}
+                    </span>
+                    <button
+                        onClick={() => setStatsFilter('all')}
+                        className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline"
+                    >
+                        Clear filter
+                    </button>
                 </div>
             )}
 
+            {/* P1-1 + P3-1: Agent Performance - Conditional Grid/Table View */}
+            {displayedAgentStats.length > 0 && (
+                <div className="glass-card rounded-2xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/20 dark:border-white/10 flex items-center justify-between">
+                        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <BarChart3 className="w-5 h-5 text-primary" />
+                            {viewMode === 'grid' ? 'Agent Cards' : 'Agent Performance'}
+                            <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
+                                ({displayedAgentStats.length}{statsFilter !== 'all' ? ` of ${filteredAgentStats.length}` : ''} agents)
+                            </span>
+                            {selectedSite !== 'ALL' && (
+                                <span className={cn("text-sm px-2 py-0.5 rounded-lg font-normal", SITE_COLORS[selectedSite])}>
+                                    {selectedSite}
+                                </span>
+                            )}
+                            {selectedRole !== 'ALL' && ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG] && (
+                                <span className={cn("text-sm px-2 py-0.5 rounded-lg font-normal", ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG]?.badgeColor || 'bg-slate-100 text-slate-600')}>
+                                    {selectedRole}
+                                </span>
+                            )}
+                        </h3>
+                    </div>
+
+                    {/* P1-1: Grid View */}
+                    {viewMode === 'grid' ? (
+                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                            {displayedAgentStats.map((agent, index) => (
+                                <div key={agent.id} className="animate-fade-in-up" style={{ animationDelay: `${index * 30}ms` }}>
+                                    <AgentCard
+                                        agent={agent}
+                                        onView={() => setSelectedAgentDetail({
+                                            id: agent.id,
+                                            fullName: agent.fullName,
+                                            email: agent.email,
+                                            role: agent.role as 'ADMIN' | 'AGENT' | 'USER',
+                                            site: agent.site,
+                                            createdAt: '',
+                                        })}
+                                        onSelect={() => toggleUserSelection(agent.id)}
+                                        isSelected={selectedUserIds.has(agent.id)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Agent</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Site</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Open</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">In Progress</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Resolved (Week)</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Resolved (Month)</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">SLA %</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                    {displayedAgentStats.map((agent) => (
+                                        <tr key={agent.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                                        {agent.fullName.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-slate-800 dark:text-white">{agent.fullName}</p>
+                                                        <p className="text-xs text-slate-500">{agent.email}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                {agent.site ? (
+                                                    <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", SITE_COLORS[agent.site.code])}>
+                                                        {agent.site.code}
+                                                    </span>
+                                                ) : '-'}
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300">
+                                                    {agent.openTickets}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400">
+                                                    {agent.inProgressTickets}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400">
+                                                    {agent.resolvedThisWeek}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400">
+                                                    {agent.resolvedThisMonth}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <Tooltip.Provider>
+                                                    <Tooltip.Root delayDuration={200}>
+                                                        <Tooltip.Trigger asChild>
+                                                            <span className={cn(
+                                                                "px-2 py-1 rounded-lg text-sm font-medium cursor-help inline-flex items-center gap-1",
+                                                                agent.slaCompliance >= 90 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                                                                    agent.slaCompliance >= 70 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                                                                        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                            )}>
+                                                                {agent.slaCompliance}%
+                                                                <Info className="w-3 h-3 opacity-60" />
+                                                            </span>
+                                                        </Tooltip.Trigger>
+                                                        <Tooltip.Portal>
+                                                            <Tooltip.Content
+                                                                side="top"
+                                                                className="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg shadow-lg max-w-[200px] z-50"
+                                                                sideOffset={5}
+                                                            >
+                                                                <p className="font-semibold mb-1">SLA Compliance</p>
+                                                                <p className="text-slate-300">
+                                                                    = (Total - Overdue) / Total × 100
+                                                                </p>
+                                                                <Tooltip.Arrow className="fill-slate-900" />
+                                                            </Tooltip.Content>
+                                                        </Tooltip.Portal>
+                                                    </Tooltip.Root>
+                                                </Tooltip.Provider>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <button
+                                                    onClick={() => setSelectedAgentDetail(users.find(u => u.id === agent.id) || null)}
+                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                                                    title="View Details"
+                                                >
+                                                    <Eye className="w-4 h-4 text-slate-500" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Users by Role - Collapsible Sections (shows all users from paginated API) */}
             {isLoading ? (
-                <div className="text-center py-12 text-slate-500 dark:text-slate-400">Loading users...</div>
-            ) : users.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-12 text-center shadow-sm">
+                <AgentTableSkeleton />
+            ) : isError ? (
+                <ErrorState
+                    message={(error as Error)?.message || 'Failed to load users. Please try again.'}
+                    onRetry={() => refetch()}
+                />
+            ) : filteredUsers.length === 0 ? (
+                <div className="glass-card rounded-2xl p-12 text-center">
                     <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                         <Users className="w-10 h-10 text-slate-400" />
                     </div>
                     <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">No Users Found</h3>
                     <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                        {selectedSite !== 'ALL' ? `No users assigned to ${selectedSite}. ` : ''}
                         Get started by adding a new user or importing from a CSV file.
                     </p>
                 </div>
-            ) : groupByDivision ? (
-                <div className="space-y-8">
-                    {Object.entries(users.reduce((acc, user) => {
-                        const deptName = user.department?.name || 'No Department';
-                        if (!acc[deptName]) acc[deptName] = [];
-                        acc[deptName].push(user);
-                        return acc;
-                    }, {} as Record<string, User[]>)).map(([deptName, deptUsers]) => (
-                        <div key={deptName} className="space-y-4">
-                            <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                <Building className="w-5 h-5" />
-                                {deptName}
-                                <span className="text-sm font-normal text-slate-500 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
-                                    {deptUsers.length}
-                                </span>
-                            </h3>
-                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <tr>
-                                            <th className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">Name</th>
-                                            <th className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">Email</th>
-                                            <th className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">Role</th>
-                                            <th className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                        {deptUsers.map((user) => (
-                                            <tr key={user.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors group">
-                                                <td className="px-8 py-5">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
-                                                            {user.fullName.charAt(0).toUpperCase()}
-                                                        </div>
-                                                        <p className="font-bold text-slate-800 dark:text-white">{user.fullName}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-5">
-                                                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                                        <Mail className="w-4 h-4" />
-                                                        {user.email}
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-5">
-                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' : user.role === 'AGENT' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                                                        <Shield className="w-3 h-3" />
-                                                        {user.role}
-                                                    </span>
-                                                </td>
-                                                <td className="px-8 py-5">
-                                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => handleResetPassword(user)}
-                                                            className="flex items-center gap-1.5 px-3 py-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl text-sm font-medium transition-colors"
-                                                            title="Reset Password"
-                                                        >
-                                                            <Key className="w-4 h-4" />
-                                                            Reset
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteUser(user)}
-                                                            disabled={deleteMutation.isPending}
-                                                            className="flex items-center gap-1.5 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl text-sm font-medium transition-colors"
-                                                            title="Delete User"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    ))}
-                </div>
             ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                            {table.getHeaderGroups().map((headerGroup) => (
-                                <tr key={headerGroup.id}>
-                                    {headerGroup.headers.map((header) => (
-                                        <th key={header.id} className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(header.column.columnDef.header, header.getContext())}
-                                        </th>
-                                    ))}
-                                    <th className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">Actions</th>
-                                    <th className="px-4 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">
-                                        <button
-                                            onClick={toggleSelectAll}
-                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                                            title="Select All"
-                                        >
-                                            {selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
-                                                <CheckSquare className="w-5 h-5 text-primary" />
-                                            ) : (
-                                                <Square className="w-5 h-5 text-slate-400" />
-                                            )}
-                                        </button>
-                                    </th>
-                                </tr>
-                            ))}
-                        </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                            {table.getRowModel().rows.map((row) => (
-                                <tr key={row.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors group">
-                                    {row.getVisibleCells().map((cell) => (
-                                        <td key={cell.id} className="px-8 py-5">
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </td>
-                                    ))}
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={() => handleEditUser(row.original)}
-                                                className="flex items-center gap-1.5 px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl text-sm font-medium transition-colors"
-                                                title="Edit User"
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleResetPassword(row.original)}
-                                                className="flex items-center gap-1.5 px-3 py-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl text-sm font-medium transition-colors"
-                                                title="Reset Password"
-                                            >
-                                                <Key className="w-4 h-4" />
-                                                Reset
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteUser(row.original)}
-                                                disabled={deleteMutation.isPending}
-                                                className="flex items-center gap-1.5 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl text-sm font-medium transition-colors"
-                                                title="Delete User"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-5">
-                                        <button
-                                            onClick={() => toggleUserSelection(row.original.id)}
-                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                                        >
-                                            {selectedUserIds.has(row.original.id) ? (
-                                                <CheckSquare className="w-5 h-5 text-primary" />
-                                            ) : (
-                                                <Square className="w-5 h-5 text-slate-400" />
-                                            )}
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <>
+                    {displayMode === 'unified' ? (
+                        <UnifiedUserTable
+                            users={filteredUsers}
+                            searchQuery={deferredSearchQuery}
+                            onEdit={handleEditUser}
+                            onDelete={handleDeleteUser}
+                            onResetPassword={handleResetPassword}
+                            selectedIds={selectedUserIds}
+                            onToggleSelection={toggleUserSelection}
+                            onSelectAll={() => {
+                                const allIds = filteredUsers.map(u => u.id);
+                                const allSelected = filteredUsers.every(u => selectedUserIds.has(u.id));
+                                if (allSelected) {
+                                    setSelectedUserIds(new Set());
+                                } else {
+                                    setSelectedUserIds(new Set(allIds));
+                                }
+                            }}
+                        />
+                    ) : (
+                        <div className="space-y-2">
+                            <RoleSection
+                                role="ADMIN"
+                                users={usersByRole.ADMIN}
+                                onEdit={handleEditUser}
+                                onDelete={handleDeleteUser}
+                                onResetPassword={handleResetPassword}
+                                selectedIds={selectedUserIds}
+                                onToggleSelection={toggleUserSelection}
+                            />
+                            <RoleSection
+                                role="AGENT"
+                                users={usersByRole.AGENT}
+                                onEdit={handleEditUser}
+                                onDelete={handleDeleteUser}
+                                onResetPassword={handleResetPassword}
+                                selectedIds={selectedUserIds}
+                                onToggleSelection={toggleUserSelection}
+                            />
+                            <RoleSection
+                                role="USER"
+                                users={usersByRole.USER}
+                                onEdit={handleEditUser}
+                                onDelete={handleDeleteUser}
+                                onResetPassword={handleResetPassword}
+                                selectedIds={selectedUserIds}
+                                onToggleSelection={toggleUserSelection}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* P1-2 + P1-3: Sticky Pagination with Page Size Selector */}
+            {paginationMeta && paginationMeta.totalPages > 1 && (
+                <div className="sticky bottom-4 z-10 flex items-center justify-between glass-card rounded-xl px-4 py-3 shadow-lg">
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                        Showing {((paginationMeta.page - 1) * paginationMeta.limit) + 1} - {Math.min(paginationMeta.page * paginationMeta.limit, paginationMeta.total)} of {paginationMeta.total}
+                    </div>
+                    <div className="flex items-center gap-4">
+                        {/* P1-2: Page Size Selector */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-slate-500 dark:text-slate-400">Show:</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                                className="px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                            >
+                                {PAGE_SIZE_OPTIONS.map(size => (
+                                    <option key={size} value={size}>{size}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
+                        {/* Page Navigation */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={!paginationMeta.hasPrevPage}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                                Previous
+                            </button>
+                            <span className="px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg">
+                                Page {paginationMeta.page} of {paginationMeta.totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                disabled={!paginationMeta.hasNextPage}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Next
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            )
-            }
+            )}
 
             <ImportUsersDialog
                 isOpen={isImportModalOpen}
@@ -782,8 +1504,17 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 isOpen={!!selectedAgentDetail}
                 onClose={() => setSelectedAgentDetail(null)}
                 agent={selectedAgentDetail ? {
-                    ...selectedAgentDetail,
-                    ...agentStats.find(a => a.id === selectedAgentDetail.id)
+                    id: selectedAgentDetail.id,
+                    fullName: selectedAgentDetail.fullName,
+                    email: selectedAgentDetail.email,
+                    role: selectedAgentDetail.role,
+                    department: selectedAgentDetail.department,
+                    isActive: selectedAgentDetail.isActive,
+                    openTickets: agentStats.find(a => a.id === selectedAgentDetail.id)?.openTickets,
+                    inProgressTickets: agentStats.find(a => a.id === selectedAgentDetail.id)?.inProgressTickets,
+                    resolvedThisWeek: agentStats.find(a => a.id === selectedAgentDetail.id)?.resolvedThisWeek,
+                    resolvedThisMonth: agentStats.find(a => a.id === selectedAgentDetail.id)?.resolvedThisMonth,
+                    slaCompliance: agentStats.find(a => a.id === selectedAgentDetail.id)?.slaCompliance,
                 } : null}
             />
             <ConfirmDialog
@@ -803,13 +1534,126 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 isOpen={isBulkDeleteOpen}
                 onClose={() => setIsBulkDeleteOpen(false)}
                 onConfirm={() => bulkDeleteMutation.mutate(Array.from(selectedUserIds))}
-                title="Delete Multiple Users"
+                title="Delete Selected Users"
                 message={`Are you sure you want to delete ${selectedUserIds.size} users? This action cannot be undone.`}
                 confirmText="Delete All"
                 variant="danger"
                 isLoading={bulkDeleteMutation.isPending}
             />
-        </div >
+            <BulkRoleChangeDialog
+                isOpen={isBulkRoleChangeOpen}
+                onClose={() => setIsBulkRoleChangeOpen(false)}
+                onConfirm={(role) => bulkRoleChangeMutation.mutate({
+                    userIds: Array.from(selectedUserIds),
+                    role
+                })}
+                selectedCount={selectedUserIds.size}
+                isLoading={bulkRoleChangeMutation.isPending}
+            />
+
+            {/* Preset Editor Dialog */}
+            <PresetEditorDialog
+                isOpen={isPresetEditorOpen}
+                onClose={() => setIsPresetEditorOpen(false)}
+                preset={editingPreset}
+            />
+
+            {/* Preset Management Dialog */}
+            <PresetManagementDialog
+                isOpen={isPresetManageOpen}
+                onClose={() => setIsPresetManageOpen(false)}
+            />
+
+            {/* Export Preview Dialog */}
+            <ExportPreviewDialog
+                isOpen={isExportPreviewOpen}
+                onClose={() => setIsExportPreviewOpen(false)}
+                siteFilter={selectedSite}
+                roleFilter={selectedRole}
+            />
+
+            {/* Agent Comparison Dialog */}
+            <AgentComparisonDialog
+                isOpen={isComparisonOpen}
+                onClose={() => setIsComparisonOpen(false)}
+                agents={Array.from(selectedUserIds).slice(0, 2).map(id => {
+                    const user = users.find(u => u.id === id);
+                    const stats = agentStats?.find((s: any) => s.id === id);
+                    return {
+                        id: id,
+                        fullName: user?.fullName || '',
+                        email: user?.email || '',
+                        role: user?.role || 'USER',
+                        site: user?.site,
+                        openTickets: stats?.openTickets || 0,
+                        inProgressTickets: stats?.inProgressTickets || 0,
+                        resolvedThisWeek: stats?.resolvedThisWeek || 0,
+                        resolvedThisMonth: stats?.resolvedThisMonth || 0,
+                        resolvedTotal: stats?.resolvedTotal || 0,
+                        slaCompliance: stats?.slaCompliance || 100
+                    };
+                })}
+            />
+
+            {/* Bulk Site Change Dialog */}
+            <BulkSiteChangeDialog
+                isOpen={isBulkSiteChangeOpen}
+                onClose={() => setIsBulkSiteChangeOpen(false)}
+                selectedCount={selectedUserIds.size}
+                selectedUserIds={Array.from(selectedUserIds)}
+            />
+
+            {/* Keyboard Shortcuts Help */}
+            {showKeyboardHelp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowKeyboardHelp(false)} />
+                    <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 animate-in zoom-in-95">
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                            <Keyboard className="w-5 h-5 text-primary" />
+                            Keyboard Shortcuts
+                        </h3>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-600 dark:text-slate-400">Select all users</span>
+                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-sm font-mono">Ctrl + A</kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-600 dark:text-slate-400">Delete selected</span>
+                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-sm font-mono">Delete</kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-600 dark:text-slate-400">Show this help</span>
+                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-sm font-mono">?</kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-600 dark:text-slate-400">Close dialogs</span>
+                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-sm font-mono">Escape</kbd>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowKeyboardHelp(false)}
+                            className="mt-4 w-full py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* PDF Export Dialog */}
+            <ExportPdfDialog
+                isOpen={isPdfExportOpen}
+                onClose={() => setIsPdfExportOpen(false)}
+                siteFilter={selectedSite}
+                totalUsers={users.length}
+            />
+
+            {/* Onboarding Tutorial */}
+            {showOnboarding && (
+                <OnboardingTutorial onComplete={() => setShowOnboarding(false)} />
+            )}
+        </div>
     );
 };
 
+export default BentoAdminAgentsPage;

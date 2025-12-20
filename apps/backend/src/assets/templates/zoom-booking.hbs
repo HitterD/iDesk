@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoom Meeting Notification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #2D8CFF 0%, #0B5CFF 100%);
+            color: white;
+            padding: 24px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .content {
+            padding: 32px 24px;
+        }
+        .meeting-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 16px 0;
+            border-left: 4px solid #2D8CFF;
+        }
+        .meeting-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 16px;
+        }
+        .meeting-details {
+            font-size: 14px;
+            color: #64748b;
+        }
+        .meeting-details p {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .meeting-details strong {
+            color: #334155;
+            min-width: 100px;
+        }
+        .join-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #2D8CFF 0%, #0B5CFF 100%);
+            color: white !important;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 24px 0;
+            text-align: center;
+        }
+        .join-button:hover {
+            opacity: 0.9;
+        }
+        .meeting-id-box {
+            background: #e2e8f0;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 12px 0;
+        }
+        .meeting-id-box span {
+            color: #334155;
+        }
+        .action-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .action-created {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .action-rescheduled {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .action-cancelled {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .footer {
+            background: #f8fafc;
+            padding: 20px 24px;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+        }
+        .note {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #92400e;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">📹</div>
+            <h1>{{headerTitle}}</h1>
+        </div>
+        
+        <div class="content">
+            {{#if actionBadge}}
+            <span class="action-badge {{actionClass}}">{{actionBadge}}</span>
+            {{/if}}
+            
+            <p style="color: #475569; margin-bottom: 24px;">
+                {{greeting}}
+            </p>
+            
+            <div class="meeting-card">
+                <div class="meeting-title">{{meetingTitle}}</div>
+                <div class="meeting-details">
+                    <p><strong>📅 Tanggal:</strong> {{meetingDate}}</p>
+                    <p><strong>🕐 Waktu:</strong> {{meetingTime}}</p>
+                    <p><strong>⏱️ Durasi:</strong> {{duration}} menit</p>
+                    <p><strong>📍 Host:</strong> {{hostName}}</p>
+                    
+                    {{#if oldDate}}
+                    <p style="text-decoration: line-through; color: #94a3b8;">
+                        <strong>Jadwal Lama:</strong> {{oldDate}} - {{oldTime}}
+                    </p>
+                    {{/if}}
+                </div>
+            </div>
+            
+            {{#if joinUrl}}
+            <div style="text-align: center;">
+                <a href="{{joinUrl}}" class="join-button">
+                    🎥 Join Meeting
+                </a>
+            </div>
+            
+            <div class="meeting-id-box">
+                <p style="margin: 0 0 8px 0;"><strong>Meeting ID:</strong> <span>{{meetingId}}</span></p>
+                {{#if passcode}}
+                <p style="margin: 0;"><strong>Passcode:</strong> <span>{{passcode}}</span></p>
+                {{/if}}
+            </div>
+            {{/if}}
+            
+            {{#if cancellationReason}}
+            <div class="note" style="background: #fee2e2; border-color: #fca5a5;">
+                <strong>Alasan Pembatalan:</strong><br>
+                {{cancellationReason}}
+            </div>
+            {{/if}}
+            
+            {{#if note}}
+            <div class="note">
+                {{note}}
+            </div>
+            {{/if}}
+        </div>
+        
+        <div class="footer">
+            <p>Email ini dikirim otomatis dari iDesk Helpdesk System</p>
+            <p>© {{year}} iDesk - Zoom Booking Calendar</p>
+        </div>
+    </div>
+</body>
+</html>

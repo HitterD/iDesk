@@ -7,10 +7,13 @@ import {
     UseInterceptors,
     UploadedFile,
     Req,
+    Res,
     Patch,
     Param,
     Delete,
+    Query,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
@@ -21,7 +24,8 @@ import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { UserPaginationDto } from './dto/user-pagination.dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
 
 @ApiTags('Users')
@@ -113,10 +117,17 @@ export class UsersController {
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    @ApiOperation({ summary: 'Get all users' })
-    @ApiResponse({ status: 200, description: 'Return all users.' })
-    async findAll() {
-        return this.usersService.getAllUsers();
+    @ApiOperation({ summary: 'Get all users with pagination' })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 100)' })
+    @ApiQuery({ name: 'search', required: false, description: 'Search by name or email' })
+    @ApiQuery({ name: 'siteCode', required: false, description: 'Filter by site code (SPJ, SMG, KRW, JTB)' })
+    @ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'AGENT', 'USER'], description: 'Filter by role' })
+    @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field (fullName, email, createdAt, role)' })
+    @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'], description: 'Sort order' })
+    @ApiResponse({ status: 200, description: 'Return paginated users.' })
+    async findAll(@Query() query: UserPaginationDto) {
+        return this.usersService.findAll(query);
     }
 
     @Post('import')
@@ -143,12 +154,34 @@ export class UsersController {
         return this.usersService.importUsers(file);
     }
 
+    @Get('import-template')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Download import template CSV' })
+    @ApiResponse({ status: 200, description: 'Template CSV file.' })
+    getImportTemplate(@Res() res: Response) {
+        const template = this.usersService.generateImportTemplate();
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=${template.filename}`);
+        return res.send(template.data);
+    }
+
     @Get('export')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    @ApiOperation({ summary: 'Export users to CSV' })
-    @ApiResponse({ status: 200, description: 'Users exported as CSV.' })
-    async exportUsers(@Req() req, res) {
+    @ApiOperation({ summary: 'Export users to CSV or XLSX' })
+    @ApiResponse({ status: 200, description: 'Users exported.' })
+    async exportUsers(
+        @Query('format') format: 'csv' | 'xlsx' = 'csv',
+        @Query('site') site: string = 'ALL',
+        @Res() res: Response,
+    ) {
+        if (format === 'xlsx') {
+            const buffer = await this.usersService.exportUsersXlsx(site);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=users_${site}_${new Date().toISOString().split('T')[0]}.xlsx`);
+            return res.send(buffer);
+        }
         return this.usersService.exportUsers();
     }
 

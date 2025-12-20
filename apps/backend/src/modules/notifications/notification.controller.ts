@@ -18,7 +18,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationController {
-    constructor(private readonly notificationService: NotificationService) {}
+    constructor(private readonly notificationService: NotificationService) { }
 
     @Get()
     @ApiOperation({ summary: 'Get all notifications for current user' })
@@ -44,6 +44,33 @@ export class NotificationController {
     @ApiResponse({ status: 200, description: 'Return unread notifications.' })
     async findUnread(@Request() req) {
         return this.notificationService.findUnreadForUser(req.user.userId);
+    }
+
+    // === CRITICAL NOTIFICATION ENDPOINTS ===
+
+    @Get('critical/unacknowledged')
+    @ApiOperation({ summary: 'Get unacknowledged critical notifications' })
+    @ApiResponse({ status: 200, description: 'Return unacknowledged critical notifications.' })
+    async findUnacknowledgedCritical(@Request() req) {
+        return this.notificationService.findUnacknowledgedCritical(req.user.userId);
+    }
+
+    @Post(':id/acknowledge')
+    @ApiOperation({ summary: 'Acknowledge a critical notification' })
+    @ApiResponse({ status: 200, description: 'Notification acknowledged.' })
+    async acknowledgeNotification(@Param('id') id: string, @Request() req) {
+        const result = await this.notificationService.acknowledgeNotification(id, req.user.userId);
+        if (!result) {
+            return { success: false, message: 'Notification not found' };
+        }
+        return { success: true, notification: result };
+    }
+
+    @Get('critical/count')
+    @ApiOperation({ summary: 'Get count of unacknowledged critical notifications' })
+    async countUnacknowledgedCritical(@Request() req) {
+        const count = await this.notificationService.countUnacknowledgedCritical(req.user.userId);
+        return { count };
     }
 
     @Get('count')

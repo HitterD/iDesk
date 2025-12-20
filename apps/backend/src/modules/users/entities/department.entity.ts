@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { Site } from '../../sites/entities/site.entity';
 // import { User } from './user.entity';
 
 @Entity('departments')
@@ -11,6 +12,13 @@ export class Department {
 
     @Column({ unique: true })
     code: string;
+
+    @Column({ nullable: true })
+    siteId: string;
+
+    @ManyToOne(() => Site, { nullable: true })
+    @JoinColumn({ name: 'siteId' })
+    site: Site;
 
     // @OneToMany(() => User, (user) => user.department)
     // users: User[];

@@ -5,25 +5,20 @@ import {
     MessageSquare,
     Clock,
     AlertTriangle,
-    Tag,
     UserCheck,
     Columns3,
     TableProperties,
     Inbox,
     CircleDot,
-    Hourglass,
     CheckCircle2,
     Flame,
     ChevronLeft,
-    ChevronRight,
     Eye,
     UserPlus,
     X,
     Maximize2,
     ArrowRight,
-    Paperclip,
     TrendingUp,
-    Filter,
     Plus,
     Ticket,
 } from 'lucide-react';
@@ -42,6 +37,43 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
+import { KanbanBoardSkeleton } from './KanbanSkeleton';
+
+// Helper function to generate consistent color from name hash
+const getAvatarGradient = (name: string): string => {
+    if (!name) return 'from-slate-400 to-slate-500';
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const gradients = [
+        'from-blue-400 to-blue-600',
+        'from-purple-400 to-purple-600',
+        'from-emerald-400 to-emerald-600',
+        'from-rose-400 to-rose-600',
+        'from-amber-400 to-amber-600',
+        'from-cyan-400 to-cyan-600',
+        'from-indigo-400 to-indigo-600',
+        'from-pink-400 to-pink-600',
+    ];
+    return gradients[Math.abs(hash) % gradients.length];
+};
+
+// Proper types for messages and attachments
+interface Message {
+    id: string;
+    content: string;
+    createdAt: string;
+    sender?: { id: string; fullName: string };
+}
+
+interface Attachment {
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    fileType: string;
+    fileSize: number;
+}
 
 interface Ticket {
     id: string;
@@ -55,8 +87,8 @@ interface Ticket {
     slaTarget?: string;
     assignedTo?: { id: string; fullName: string };
     user?: { fullName: string; department?: { name: string } };
-    messages?: any[];
-    attachments?: any[];
+    messages?: Message[];
+    attachments?: Attachment[];
     createdAt: string;
 }
 
@@ -64,6 +96,21 @@ interface Agent {
     id: string;
     fullName: string;
 }
+
+// SLA warning threshold: 4 hours in milliseconds
+const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
+
+// Helper function to get column accent color
+const getColumnAccentColor = (columnId: string): string => {
+    const colors: Record<string, string> = {
+        'TODO': '#64748b',        // slate-500
+        'IN_PROGRESS': '#3b82f6', // blue-500
+        'WAITING_VENDOR': '#f97316', // orange-500
+        'RESOLVED': '#22c55e',    // green-500
+        'CANCELLED': '#ef4444',   // red-500
+    };
+    return colors[columnId] || '#64748b';
+};
 
 const StatsCard: React.FC<{
     icon: React.ElementType;
@@ -78,19 +125,19 @@ const StatsCard: React.FC<{
     <button
         onClick={onClick}
         className={cn(
-            "bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border transition-all duration-200",
-            "hover:shadow-md",
-            active ? "border-primary ring-2 ring-primary/30" : "border-slate-200 dark:border-slate-700",
-            highlight && value > 0 && "border-red-300 dark:border-red-800"
+            "bg-white dark:bg-slate-800 rounded-xl px-5 py-4 border transition-all duration-300",
+            "hover:shadow-lg hover:-translate-y-0.5",
+            active ? "border-primary ring-2 ring-primary/30 shadow-primary/10 shadow-lg" : "border-slate-200 dark:border-slate-700",
+            highlight && value > 0 && "border-red-300 dark:border-red-800 animate-pulse"
         )}
     >
         <div className="flex items-center gap-3">
-            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", bgColor)}>
+            <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shadow-sm", bgColor)}>
                 <Icon className={cn("w-5 h-5", color)} />
             </div>
             <div className="text-left">
-                <p className={cn("text-xl font-bold", color)}>{value}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">{label}</p>
+                <p className={cn("text-2xl font-bold", color)}>{value}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{label}</p>
             </div>
         </div>
     </button>
@@ -106,9 +153,16 @@ const EnhancedKanbanCard: React.FC<{
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const PriorityIcon = priorityConfig.icon;
 
-    const isOverdue = ticket.slaTarget && new Date(ticket.slaTarget) < new Date();
-    const isApproaching = ticket.slaTarget && !isOverdue &&
-        (new Date(ticket.slaTarget).getTime() - Date.now()) < 4 * 60 * 60 * 1000;
+    // Memoize date calculations to avoid creating new Date objects on every render
+    const { isOverdue, isApproaching } = useMemo(() => {
+        if (!ticket.slaTarget) return { isOverdue: false, isApproaching: false };
+        const slaTime = new Date(ticket.slaTarget).getTime();
+        const now = Date.now();
+        return {
+            isOverdue: slaTime < now,
+            isApproaching: slaTime >= now && (slaTime - now) < SLA_WARNING_THRESHOLD_MS
+        };
+    }, [ticket.slaTarget]);
 
     return (
         <Draggable draggableId={ticket.id} index={index}>
@@ -124,18 +178,29 @@ const EnhancedKanbanCard: React.FC<{
                         // Remove any transforms that might cause offset issues
                     }}
                     className={cn(
-                        "bg-white dark:bg-slate-800 rounded-xl border transition-shadow duration-200",
-                        "hover:shadow-lg cursor-grab group",
-                        snapshot.isDragging && "shadow-2xl ring-2 ring-primary/50 cursor-grabbing",
-                        isOverdue && "border-red-300 dark:border-red-800 animate-overdue",
-                        isApproaching && !isOverdue && "border-orange-300 dark:border-orange-800 animate-sla-warning",
-                        !isOverdue && !isApproaching && "border-slate-200 dark:border-slate-700",
-                        ticket.priority === 'CRITICAL' && !isOverdue && "animate-critical-pulse ring-2 ring-red-500/20",
-                        ticket.priority === 'HIGH' && !isOverdue && !isApproaching && "animate-high-priority"
+                        "bg-white dark:bg-slate-800 rounded-xl border transition-all duration-200",
+                        "hover:shadow-lg hover:shadow-black/5 cursor-grab group",
+                        snapshot.isDragging && "shadow-2xl ring-2 ring-primary/50 cursor-grabbing scale-[1.02]",
+                        // Resolved tickets get success border, NOT urgency styling
+                        ticket.status === 'RESOLVED' && "border-green-300 dark:border-green-700",
+                        // Only show urgency for non-resolved tickets
+                        ticket.status !== 'RESOLVED' && isOverdue && "border-red-300 dark:border-red-800 animate-overdue",
+                        ticket.status !== 'RESOLVED' && isApproaching && !isOverdue && "border-orange-300 dark:border-orange-800 animate-sla-warning",
+                        ticket.status !== 'RESOLVED' && !isOverdue && !isApproaching && "border-slate-200 dark:border-slate-700",
+                        ticket.status !== 'RESOLVED' && ticket.priority === 'CRITICAL' && !isOverdue && "animate-critical-pulse ring-2 ring-red-500/20",
+                        ticket.status !== 'RESOLVED' && ticket.priority === 'HIGH' && !isOverdue && !isApproaching && "animate-high-priority"
                     )}
                 >
-                    {/* Priority Bar */}
-                    <div className={cn("h-1 rounded-t-xl", priorityConfig.barColor)} />
+                    {/* Priority Bar - Enhanced with gradient */}
+                    <div className={cn(
+                        "h-2.5 rounded-t-xl bg-gradient-to-r",
+                        priorityConfig.barColor,
+                        ticket.priority === 'CRITICAL' && "from-red-500 to-red-600 shadow-[0_2px_8px_rgba(239,68,68,0.4)]",
+                        ticket.priority === 'HIGH' && "from-orange-400 to-orange-500 shadow-[0_2px_6px_rgba(251,146,60,0.3)]",
+                        ticket.priority === 'MEDIUM' && "from-yellow-400 to-yellow-500",
+                        ticket.priority === 'LOW' && "from-slate-300 to-slate-400",
+                        ticket.status === 'RESOLVED' && "from-green-400 to-green-500"
+                    )} />
 
                     <div className="p-3">
                         {/* Header */}
@@ -219,8 +284,12 @@ const EnhancedKanbanCard: React.FC<{
                         {/* Footer */}
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
                             <div className="flex items-center gap-1.5">
+                                {/* Requester Avatar with dynamic gradient */}
                                 <div
-                                    className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[9px] font-bold text-primary"
+                                    className={cn(
+                                        "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-800 shadow-sm",
+                                        getAvatarGradient(ticket.user?.fullName || '')
+                                    )}
                                     title={ticket.user?.fullName}
                                 >
                                     {ticket.user?.fullName?.charAt(0) || '?'}
@@ -228,15 +297,19 @@ const EnhancedKanbanCard: React.FC<{
                                 {ticket.assignedTo ? (
                                     <>
                                         <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
+                                        {/* Assignee Avatar with dynamic gradient */}
                                         <div
-                                            className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-[9px] font-bold text-green-600"
+                                            className={cn(
+                                                "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-800 shadow-sm",
+                                                getAvatarGradient(ticket.assignedTo.fullName)
+                                            )}
                                             title={ticket.assignedTo.fullName}
                                         >
                                             {ticket.assignedTo.fullName.charAt(0)}
                                         </div>
                                     </>
                                 ) : (
-                                    <span className="text-[10px] text-slate-400 italic">Unassigned</span>
+                                    <span className="text-[10px] text-orange-500 dark:text-orange-400 font-medium bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded">Unassigned</span>
                                 )}
                             </div>
 
@@ -286,23 +359,26 @@ const KanbanColumn: React.FC<{
     }
 
     return (
-        <div className="flex-1 min-w-[280px] flex flex-col bg-slate-50 dark:bg-slate-900/50 rounded-2xl overflow-hidden">
-            {/* Column Header */}
-            <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="flex-1 min-w-[300px] flex flex-col bg-slate-50 dark:bg-slate-900/50 rounded-2xl overflow-hidden shadow-sm">
+            {/* Column Header - Enhanced with accent border using actual color */}
+            <div
+                className="p-4 bg-white dark:bg-slate-800"
+                style={{ borderBottom: `3px solid ${getColumnAccentColor(column.id)}` }}
+            >
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", column.columnColor)}>
-                            <Icon className="w-4 h-4 text-white" />
+                    <div className="flex items-center gap-3">
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-md", column.columnColor)}>
+                            <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-sm text-slate-800 dark:text-white">{column.title}</h3>
-                            <p className="text-[10px] text-slate-500">{tickets.length} tickets</p>
+                            <h3 className="font-bold text-base text-slate-800 dark:text-white">{column.title}</h3>
+                            <p className="text-xs text-slate-500 font-medium">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
                         </div>
                     </div>
                     <button
                         onClick={onToggleCollapse}
-                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                        title="Collapse"
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all hover:scale-105"
+                        title="Collapse column"
                     >
                         <ChevronLeft className="w-4 h-4 text-slate-400" />
                     </button>
@@ -332,10 +408,12 @@ const KanbanColumn: React.FC<{
                         {provided.placeholder}
 
                         {tickets.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                                <Inbox className="w-10 h-10 mb-2 opacity-50" />
-                                <span className="text-xs">No tickets</span>
-                                <span className="text-[10px]">Drag here</span>
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                                <div className="w-16 h-16 mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center shadow-inner">
+                                    <Inbox className="w-8 h-8 opacity-40" />
+                                </div>
+                                <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">No tickets here</span>
+                                <span className="text-xs opacity-70">Drag cards here to update status</span>
                             </div>
                         )}
                     </div>
@@ -555,36 +633,100 @@ export const BentoTicketKanban = () => {
         mutationFn: async ({ id, status }: { id: string; status: string }) => {
             await api.patch(`/tickets/${id}/status`, { status });
         },
-        onSuccess: () => {
+        onMutate: async ({ id, status }) => {
+            // Cancel any outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['tickets'] });
+
+            // Snapshot the previous value
+            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
+
+            // Optimistically update to the new value
+            queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
+                old?.map(t => t.id === id ? { ...t, status: status as Ticket['status'] } : t) ?? []
+            );
+
+            // Update selected ticket if it's the one being moved
+            if (selectedTicket?.id === id) {
+                setSelectedTicket(prev => prev ? { ...prev, status: status as Ticket['status'] } : null);
+            }
+
+            // Return context with the snapshotted value
+            return { previousTickets };
+        },
+        onError: (_, __, context) => {
+            // Rollback on error
+            queryClient.setQueryData(['tickets'], context?.previousTickets);
+            toast.error('Failed to update status');
+        },
+        onSettled: () => {
+            // Always refetch after error or success to ensure consistency
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-            toast.success('Status updated');
         },
-        onError: () => toast.error('Failed to update status'),
+        onSuccess: () => toast.success('Status updated'),
     });
 
     const updatePriorityMutation = useMutation({
         mutationFn: async ({ id, priority }: { id: string; priority: string }) => {
             await api.patch(`/tickets/${id}/priority`, { priority });
         },
-        onSuccess: () => {
+        onMutate: async ({ id, priority }) => {
+            // Optimistic update
+            await queryClient.cancelQueries({ queryKey: ['tickets'] });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
+
+            queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
+                old?.map(t => t.id === id ? { ...t, priority: priority as Ticket['priority'] } : t) ?? []
+            );
+
+            // Update selected ticket if it's the one being modified
+            if (selectedTicket?.id === id) {
+                setSelectedTicket(prev => prev ? { ...prev, priority: priority as Ticket['priority'] } : null);
+            }
+
+            return { previousTickets };
+        },
+        onError: (_, __, context) => {
+            queryClient.setQueryData(['tickets'], context?.previousTickets);
+            toast.error('Failed to update priority');
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-            toast.success('Priority updated');
         },
-        onError: () => toast.error('Failed to update priority'),
+        onSuccess: () => toast.success('Priority updated'),
     });
 
     const assignMutation = useMutation({
         mutationFn: async ({ id, assigneeId }: { id: string; assigneeId: string }) => {
             await api.patch(`/tickets/${id}/assign`, { assigneeId });
         },
-        onSuccess: () => {
+        onMutate: async ({ id, assigneeId }) => {
+            // Optimistic update
+            await queryClient.cancelQueries({ queryKey: ['tickets'] });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
+            const assignee = agents.find(a => a.id === assigneeId);
+
+            queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
+                old?.map(t => t.id === id ? { ...t, assignedTo: assignee } : t) ?? []
+            );
+
+            // Update selected ticket if it's the one being assigned
+            if (selectedTicket?.id === id && assignee) {
+                setSelectedTicket(prev => prev ? { ...prev, assignedTo: assignee } : null);
+            }
+
+            return { previousTickets };
+        },
+        onError: (_, __, context) => {
+            queryClient.setQueryData(['tickets'], context?.previousTickets);
+            toast.error('Failed to assign');
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-            toast.success('Ticket assigned');
         },
-        onError: () => toast.error('Failed to assign'),
+        onSuccess: () => toast.success('Ticket assigned'),
     });
 
     const filteredTickets = useMemo(() => {
@@ -595,14 +737,21 @@ export const BentoTicketKanban = () => {
         return result;
     }, [tickets, filter, user]);
 
-    const stats = useMemo(() => ({
-        total: tickets.length,
-        open: tickets.filter(t => t.status === 'TODO').length,
-        inProgress: tickets.filter(t => t.status === 'IN_PROGRESS').length,
-        resolved: tickets.filter(t => t.status === 'RESOLVED').length,
-        overdue: tickets.filter(t => t.isOverdue).length,
-        critical: tickets.filter(t => t.priority === 'CRITICAL').length,
-    }), [tickets]);
+    // Single-pass stats computation - O(n) instead of O(6n)
+    const stats = useMemo(() => {
+        return tickets.reduce(
+            (acc, t) => {
+                acc.total++;
+                if (t.status === 'TODO') acc.open++;
+                if (t.status === 'IN_PROGRESS') acc.inProgress++;
+                if (t.status === 'RESOLVED') acc.resolved++;
+                if (t.isOverdue) acc.overdue++;
+                if (t.priority === 'CRITICAL') acc.critical++;
+                return acc;
+            },
+            { total: 0, open: 0, inProgress: 0, resolved: 0, overdue: 0, critical: 0 }
+        );
+    }, [tickets]);
 
     const toggleColumn = (columnId: string) => {
         setCollapsedColumns(prev =>
@@ -622,12 +771,9 @@ export const BentoTicketKanban = () => {
         if (ticket) setSelectedTicket(ticket);
     }, [tickets]);
 
+    // Use imported skeleton component instead of defining inline
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-            </div>
-        );
+        return <KanbanBoardSkeleton />;
     }
 
     return (
@@ -644,43 +790,73 @@ export const BentoTicketKanban = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    {/* New Ticket Button */}
+                    {/* New Ticket Button - Enhanced with gradient */}
                     <button
                         onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary via-primary to-primary/90 text-slate-900 rounded-xl font-semibold hover:from-primary/90 hover:to-primary transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/35 hover:-translate-y-0.5 active:scale-95"
                     >
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">New Ticket</span>
                     </button>
 
-                    {/* Quick Filters */}
-                    <div className="hidden md:flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                    {/* Quick Filters - Enhanced with active ring and better transitions */}
+                    <div className="hidden md:flex items-center gap-1 bg-white dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                         <button
                             onClick={() => setFilter('all')}
-                            className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors", filter === 'all' ? "bg-primary/10 text-primary font-medium" : "text-slate-500 hover:text-slate-800")}
+                            className={cn(
+                                "px-3 py-1.5 text-xs rounded-lg transition-all duration-200",
+                                filter === 'all'
+                                    ? "bg-primary/10 text-primary font-semibold ring-2 ring-primary/20 shadow-sm"
+                                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            )}
                         >
                             All
                         </button>
                         <button
                             onClick={() => setFilter('my')}
-                            className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'my' ? "bg-primary/10 text-primary font-medium" : "text-slate-500 hover:text-slate-800")}
+                            className={cn(
+                                "px-3 py-1.5 text-xs rounded-lg transition-all duration-200 flex items-center gap-1",
+                                filter === 'my'
+                                    ? "bg-primary/10 text-primary font-semibold ring-2 ring-primary/20 shadow-sm"
+                                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            )}
                         >
                             <UserCheck className="w-3 h-3" />
                             My Tasks
                         </button>
                         <button
                             onClick={() => setFilter('overdue')}
-                            className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'overdue' ? "bg-red-100 text-red-600 font-medium" : "text-red-500 hover:bg-red-50")}
+                            className={cn(
+                                "px-3 py-1.5 text-xs rounded-lg transition-all duration-200 flex items-center gap-1",
+                                filter === 'overdue'
+                                    ? "bg-red-100 text-red-600 font-semibold ring-2 ring-red-200 shadow-sm dark:bg-red-900/30 dark:ring-red-800"
+                                    : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            )}
                         >
                             <AlertTriangle className="w-3 h-3" />
                             Overdue
+                            {stats.overdue > 0 && (
+                                <span className="ml-0.5 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                    {stats.overdue}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => setFilter('critical')}
-                            className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1", filter === 'critical' ? "bg-red-100 text-red-600 font-medium" : "text-red-500 hover:bg-red-50")}
+                            className={cn(
+                                "px-3 py-1.5 text-xs rounded-lg transition-all duration-200 flex items-center gap-1",
+                                filter === 'critical'
+                                    ? "bg-red-100 text-red-600 font-semibold ring-2 ring-red-200 shadow-sm dark:bg-red-900/30 dark:ring-red-800"
+                                    : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            )}
                         >
                             <Flame className="w-3 h-3" />
                             Critical
+                            {stats.critical > 0 && (
+                                <span className="ml-0.5 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                    {stats.critical}
+                                </span>
+                            )}
                         </button>
                     </div>
 

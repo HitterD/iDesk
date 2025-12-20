@@ -30,6 +30,7 @@ export class TicketQueryService {
     async findAllPaginated(
         userId: string,
         role: UserRole,
+        userSiteId: string | null, // User's assigned site (null for cross-site roles)
         options: {
             page?: number;
             limit?: number;
@@ -39,6 +40,8 @@ export class TicketQueryService {
             priority?: string;
             category?: string;
             search?: string;
+            siteId?: string;      // Single site filter
+            siteIds?: string[];   // Multiple site filter (ADMIN/MANAGER only)
         } = {}
     ) {
         const {
@@ -50,17 +53,37 @@ export class TicketQueryService {
             priority,
             category,
             search,
+            siteId,
+            siteIds,
         } = options;
 
         const qb = this.ticketRepo
             .createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
-            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo');
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('ticket.site', 'site');
 
         // Role-based filtering
         if (role === UserRole.USER) {
             qb.where('ticket.userId = :userId', { userId });
+        }
+
+        // Site isolation filtering
+        // ADMIN & MANAGER can view cross-site, USER & AGENT are restricted
+        if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
+            // Cross-site roles: apply optional site filters
+            if (siteIds && siteIds.length > 0) {
+                qb.andWhere('ticket.siteId IN (:...siteIds)', { siteIds });
+            } else if (siteId) {
+                qb.andWhere('ticket.siteId = :siteId', { siteId });
+            }
+            // If no filter, show all sites
+        } else {
+            // USER & AGENT: strictly filter by their site
+            if (userSiteId) {
+                qb.andWhere('ticket.siteId = :userSiteId', { userSiteId });
+            }
         }
 
         // Status filter
@@ -333,6 +356,7 @@ export class TicketQueryService {
             waitingVendor,
             resolved,
             overdue,
+            critical: byPriority.CRITICAL,
             slaCompliance,
             byPriority,
             byCategory,

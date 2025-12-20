@@ -1,12 +1,15 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { MessageSquare, Wifi, Send, Paperclip, Lock, Globe, X, Image, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import TextareaAutosize from 'react-textarea-autosize';
 import { TicketDetail } from './types';
 import { MessageAttachments } from './MessageAttachments';
+import { MessageActionMenu } from './MessageActionMenu';
 import { CannedResponsePicker } from '@/components/ui/CannedResponses';
 import { MessageReactions } from '@/components/ui/ChatReactions';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils/dateFormat';
 
 interface TicketChatProps {
     ticket: TicketDetail;
@@ -35,10 +38,28 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
+    const messageInputRef = useRef<HTMLTextAreaElement>(null);
     const [isInternal, setIsInternal] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [filePreviews, setFilePreviews] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const [messageLength, setMessageLength] = useState(0);
     const { user } = useAuth();
+
+    // Character limit constant
+    const MAX_MESSAGE_LENGTH = 5000;
+
+    // Create and cleanup ObjectURLs for file previews
+    useEffect(() => {
+        // Create new preview URLs
+        const urls = selectedFiles.map(file => URL.createObjectURL(file));
+        setFilePreviews(urls);
+
+        // Cleanup function to revoke URLs when files change or component unmounts
+        return () => {
+            urls.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, [selectedFiles]);
 
     // Only show internal note toggle for agents/admins
     const canAddInternalNote = user?.role === 'ADMIN' || user?.role === 'AGENT';
@@ -58,13 +79,12 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     };
 
     const handleSendMessage = async () => {
-        const input = document.getElementById('note-input') as HTMLInputElement;
-        const content = input?.value.trim();
+        const content = messageInputRef.current?.value.trim();
 
         if (content || selectedFiles.length > 0) {
             const fileList = selectedFiles.length > 0 ? createFileList(selectedFiles) : null;
             await onSendMessage(content || '', fileList, isInternal);
-            if (input) input.value = '';
+            if (messageInputRef.current) messageInputRef.current.value = '';
             setSelectedFiles([]);
 
             // Stop typing immediately after sending
@@ -80,6 +100,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
     const handleInputChange = () => {
         if (onTypingStart) onTypingStart();
+
+        // Track message length for character counter
+        setMessageLength(messageInputRef.current?.value.length || 0);
 
         // Debounce stop typing
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -145,47 +168,43 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         handleFileSelect(e.dataTransfer.files);
     }, []);
 
-    const formatDate = (dateString: string) => {
-        if (!dateString) return 'N/A';
-        return new Intl.DateTimeFormat('en-US', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: 'Asia/Jakarta'
-        }).format(new Date(dateString));
-    };
-
     const typingUserNames = Object.values(typingUsers);
 
     return (
-        <div className="flex flex-col h-full animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-            <div className="px-6 py-4 border-b border-white/20 dark:border-white/10 flex items-center justify-between sticky top-0 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md z-10">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/20 flex items-center justify-center">
-                        <MessageSquare className="w-4 h-4 text-primary" />
+        <div className="flex flex-col h-full">
+            {/* Compact header - icon only with status pills */}
+            <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-900/50">
+                <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-medium text-slate-400">Chat</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${isConnected ? 'text-green-400 bg-green-900/30' : 'text-slate-500 bg-slate-800'}`}>
+                        <Wifi className={`w-3 h-3 ${isConnected ? 'animate-pulse' : ''}`} />
+                        {isConnected ? 'Live' : '...'}
                     </div>
-                    Notes & Discussion
-                </h3>
-                <div className="flex items-center gap-4">
-                    <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${isConnected ? 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30' : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700'}`}>
-                        <Wifi className={`w-3.5 h-3.5 ${isConnected ? 'animate-pulse' : ''}`} />
-                        {isConnected ? 'Live' : 'Connecting...'}
-                    </div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-full">
-                        {ticket.messages?.filter(m => !m.isSystemMessage).length || 0} messages
+                    <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
+                        {ticket.messages?.filter(m => !m.isSystemMessage).length || 0}
                     </span>
                 </div>
             </div>
 
-            <div className="p-4 space-y-4 flex-1">
+            <div className="p-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
                 {ticket.messages
                     ?.filter(m => !m.isSystemMessage)
                     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                     .map((message) => {
                         const isRequester = message.sender?.fullName === ticket.user.fullName;
-                        const messageIsInternal = (message as any).isInternal;
+                        const messageIsInternal = message.isInternal;
+                        const isOwnMessage = message.sender?.id === user?.id;
+
+                        // Don't show internal notes to regular users
+                        if (messageIsInternal && !canAddInternalNote) {
+                            return null;
+                        }
 
                         return (
-                            <div key={message.id} className={`flex gap-3 ${isRequester ? 'flex-row-reverse' : ''}`}>
+                            <div key={message.id} className={`flex gap-3 group ${isRequester ? 'flex-row-reverse' : ''}`}>
                                 <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-md ${isRequester
                                     ? 'bg-gradient-to-br from-primary to-primary/80 text-slate-900'
                                     : 'bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white'
@@ -193,37 +212,53 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     {message.sender?.fullName?.charAt(0) || '?'}
                                 </div>
                                 <div className={`max-w-[75%] ${isRequester ? 'text-right' : ''}`}>
-                                    <div className={cn(
-                                        "rounded-2xl p-4 shadow-md",
-                                        isRequester
-                                            ? 'bg-gradient-to-br from-primary to-primary/90 text-slate-900 rounded-tr-sm'
-                                            : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-tl-sm border border-slate-200 dark:border-slate-600',
-                                        // Internal note styling
-                                        messageIsInternal && !isRequester && 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
-                                        messageIsInternal && isRequester && 'from-amber-400 to-amber-500'
-                                    )}>
-                                        {/* Internal Note Badge */}
-                                        {messageIsInternal && (
-                                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mb-2 font-medium">
-                                                <Lock className="w-3 h-3" />
-                                                Internal Note
-                                            </div>
-                                        )}
-                                        {/* Hide [Photo] placeholder if attachments exist */}
-                                        {message.content && !message.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (
-                                            <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                                        )}
-                                        {/* Attachment Preview */}
-                                        <MessageAttachments
-                                            attachments={message.attachments}
-                                            onImageClick={onImageClick}
-                                            isRequester={isRequester}
+                                    <div className="relative">
+                                        <div className={cn(
+                                            "rounded-2xl p-4 shadow-md",
+                                            isRequester
+                                                ? 'bg-gradient-to-br from-primary to-primary/90 text-slate-900 rounded-tr-sm'
+                                                : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-tl-sm border border-slate-200 dark:border-slate-600',
+                                            // Internal note styling
+                                            messageIsInternal && !isRequester && 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+                                            messageIsInternal && isRequester && 'from-amber-400 to-amber-500'
+                                        )}>
+                                            {/* Internal Note Badge */}
+                                            {messageIsInternal && (
+                                                <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mb-2 font-medium">
+                                                    <Lock className="w-3 h-3" />
+                                                    Internal Note
+                                                </div>
+                                            )}
+                                            {/* Hide [Photo] placeholder if attachments exist */}
+                                            {message.content && !message.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (
+                                                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                                            )}
+                                            {/* Attachment Preview */}
+                                            <MessageAttachments
+                                                attachments={message.attachments}
+                                                onImageClick={onImageClick}
+                                                isRequester={isRequester}
+                                            />
+                                        </div>
+                                        {/* Message Action Menu */}
+                                        <MessageActionMenu
+                                            messageId={message.id}
+                                            messageContent={message.content || ''}
+                                            isOwn={isOwnMessage}
+                                            isInternal={messageIsInternal || false}
+                                            onReply={(content) => {
+                                                if (messageInputRef.current) {
+                                                    messageInputRef.current.value = `> ${content}\n\n`;
+                                                    messageInputRef.current.focus();
+                                                }
+                                            }}
+                                            className={cn("absolute top-2", isRequester ? 'left-2' : 'right-2')}
                                         />
                                     </div>
                                     <div className={`flex items-center gap-2 mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 ${isRequester ? 'justify-end' : ''}`}>
                                         <span className="font-semibold">{message.sender?.fullName}</span>
                                         <span className="text-slate-300 dark:text-slate-600">•</span>
-                                        <span className="text-slate-400 dark:text-slate-500">{formatDate(message.createdAt)}</span>
+                                        <span className="text-slate-400 dark:text-slate-500">{formatDateTime(message.createdAt)}</span>
                                     </div>
                                     {/* Message Reactions */}
                                     <MessageReactions
@@ -330,7 +365,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                             {selectedFiles.map((file, index) => (
                                 <div key={index} className="relative group">
                                     <img
-                                        src={URL.createObjectURL(file)}
+                                        src={filePreviews[index] || ''}
                                         alt={file.name}
                                         className="w-16 h-16 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
                                     />
@@ -350,19 +385,21 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 )}
 
                 <div className="flex gap-3">
-                    <input
-                        type="text"
-                        id="note-input"
+                    <TextareaAutosize
+                        ref={messageInputRef}
+                        minRows={1}
+                        maxRows={6}
                         placeholder={isInternal ? "Add internal note..." : "Type a message..."}
                         className={cn(
-                            "flex-1 px-4 py-3 bg-white/80 dark:bg-slate-800/80 border rounded-xl focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-slate-800 dark:text-white text-sm shadow-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-sm",
+                            "flex-1 px-4 py-3 bg-white/80 dark:bg-slate-800/80 border rounded-xl focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-slate-800 dark:text-white text-sm shadow-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-sm resize-none",
                             isInternal
                                 ? "border-amber-200 dark:border-amber-800/50"
                                 : "border-white/20 dark:border-white/10"
                         )}
                         onChange={handleInputChange}
                         onKeyDown={async (e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
                                 await handleSendMessage();
                             }
                         }}
@@ -370,7 +407,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     <button
                         onClick={handleSendMessage}
                         className={cn(
-                            "px-4 py-3 rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95",
+                            "px-4 py-3 rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95 self-end",
                             isInternal
                                 ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 hover:from-amber-500 hover:to-amber-600"
                                 : "bg-gradient-to-r from-primary to-primary/90 text-slate-900 hover:from-primary/90 hover:to-primary/80"
@@ -398,13 +435,23 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     <span className="text-xs text-slate-400 dark:text-slate-500">
                         or drag & drop
                     </span>
+                    {/* P4 LOW: Character limit indicator */}
+                    <span className={cn(
+                        "text-xs tabular-nums transition-colors",
+                        messageLength > MAX_MESSAGE_LENGTH * 0.9
+                            ? "text-red-500 dark:text-red-400 font-medium"
+                            : messageLength > MAX_MESSAGE_LENGTH * 0.7
+                                ? "text-amber-500 dark:text-amber-400"
+                                : "text-slate-400 dark:text-slate-500"
+                    )}>
+                        {messageLength > 0 && `${messageLength.toLocaleString()}/${MAX_MESSAGE_LENGTH.toLocaleString()}`}
+                    </span>
                     <div className="flex-1" />
                     <CannedResponsePicker
                         onSelect={(content) => {
-                            const input = document.getElementById('note-input') as HTMLInputElement;
-                            if (input) {
-                                input.value = content;
-                                input.focus();
+                            if (messageInputRef.current) {
+                                messageInputRef.current.value = content;
+                                messageInputRef.current.focus();
                             }
                         }}
                     />

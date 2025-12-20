@@ -43,6 +43,18 @@ const RenewalDashboardPage = lazy(() => import('./features/renewal/pages/Renewal
 const NotificationCenterPage = lazy(() => import('./features/notifications/pages/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
 const ClientNotificationCenter = lazy(() => import('./features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
 const AutomationRulesPage = lazy(() => import('./features/automation/pages/AutomationRulesPage').then(m => ({ default: m.AutomationRulesPage })));
+const ManagerDashboard = lazy(() => import('./features/manager/pages/ManagerDashboard').then(m => ({ default: m.ManagerDashboard })));
+const ManagerReportsPage = lazy(() => import('./features/manager/pages/ManagerReportsPage').then(m => ({ default: m.ManagerReportsPage })));
+const ManagerTicketsPage = lazy(() => import('./features/manager/pages/ManagerTicketsPage').then(m => ({ default: m.ManagerTicketsPage })));
+const ManagerLayout = lazy(() => import('./components/layout/ManagerLayout').then(m => ({ default: m.ManagerLayout })));
+
+// Admin Feature Pages
+const AuditLogPage = lazy(() => import('./features/admin/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
+const SystemHealthPage = lazy(() => import('./features/admin/pages/SystemHealthPage').then(m => ({ default: m.SystemHealthPage })));
+
+// Zoom Booking Calendar
+const ZoomCalendarPage = lazy(() => import('./features/zoom-booking/pages/ZoomCalendarPage').then(m => ({ default: m.ZoomCalendarPage })));
+const ZoomSettingsPage = lazy(() => import('./features/zoom-booking/pages/ZoomSettingsPage').then(m => ({ default: m.ZoomSettingsPage })));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -143,7 +155,7 @@ function App() {
                                 <Route
                                     path="reports"
                                     element={
-                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                        <ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
                                             <FeatureErrorBoundary featureName="Reports">
                                                 <Suspense fallback={<PageLoader />}>
                                                     <BentoReportsPage />
@@ -167,7 +179,7 @@ function App() {
                                 <Route
                                     path="renewal"
                                     element={
-                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                        <ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
                                             <FeatureErrorBoundary featureName="Renewal Reminders">
                                                 <Suspense fallback={<PageLoader />}>
                                                     <RenewalDashboardPage />
@@ -203,7 +215,117 @@ function App() {
                                 <Route path="kb/create" element={<FeatureErrorBoundary featureName="Create Article"><Suspense fallback={<PageLoader />}><BentoCreateArticlePage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><BentoArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="kb/articles/:id/edit" element={<FeatureErrorBoundary featureName="Edit Article"><Suspense fallback={<PageLoader />}><BentoEditArticlePage /></Suspense></FeatureErrorBoundary>} />
+
+                                {/* Admin-only Feature Pages */}
+                                <Route
+                                    path="audit-logs"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="Audit Logs">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <AuditLogPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="system-health"
+                                    element={
+                                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                                            <FeatureErrorBoundary featureName="System Health">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <SystemHealthPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+
+                                {/* Zoom Booking Calendar */}
+                                <Route path="zoom-calendar" element={
+                                    <FeatureErrorBoundary featureName="Zoom Calendar">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ZoomCalendarPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+
+                                {/* Zoom Settings (Admin Only) */}
+                                <Route path="zoom-settings" element={
+                                    <ProtectedRoute allowedRoles={['ADMIN']}>
+                                        <FeatureErrorBoundary featureName="Zoom Settings">
+                                            <Suspense fallback={<PageLoader />}>
+                                                <ZoomSettingsPage />
+                                            </Suspense>
+                                        </FeatureErrorBoundary>
+                                    </ProtectedRoute>
+                                } />
+
                                 <Route index element={<Navigate to="/dashboard" replace />} />
+                            </Route>
+
+                            {/* Manager Routes - Separate portal with own layout */}
+                            <Route
+                                path="/manager"
+                                element={
+                                    <ProtectedRoute allowedRoles={['MANAGER']}>
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ManagerLayout />
+                                        </Suspense>
+                                    </ProtectedRoute>
+                                }
+                            >
+                                <Route index element={<Navigate to="/manager/dashboard" replace />} />
+                                <Route path="dashboard" element={
+                                    <FeatureErrorBoundary featureName="Manager Dashboard">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ManagerDashboard />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="tickets" element={
+                                    <FeatureErrorBoundary featureName="Manager Tickets">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ManagerTicketsPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="reports" element={
+                                    <FeatureErrorBoundary featureName="Manager Reports">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ManagerReportsPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="kb" element={
+                                    <FeatureErrorBoundary featureName="Knowledge Base">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoKnowledgeBasePage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="kb/articles/:id" element={
+                                    <FeatureErrorBoundary featureName="Article Detail">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <BentoArticleDetailPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="zoom-calendar" element={
+                                    <FeatureErrorBoundary featureName="Zoom Calendar">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <ZoomCalendarPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
+                                <Route path="renewal" element={
+                                    <FeatureErrorBoundary featureName="Renewal Reminders">
+                                        <Suspense fallback={<PageLoader />}>
+                                            <RenewalDashboardPage />
+                                        </Suspense>
+                                    </FeatureErrorBoundary>
+                                } />
                             </Route>
 
                             {/* Client Routes - Lazy loaded portal (separate bundle from Admin) */}
@@ -221,6 +343,7 @@ function App() {
                                 <Route path="create" element={<FeatureErrorBoundary featureName="Create Ticket"><Suspense fallback={<PageLoader />}><BentoCreateTicketPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="tickets/:id" element={<FeatureErrorBoundary featureName="Ticket Detail"><Suspense fallback={<PageLoader />}><ClientTicketDetailPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="notifications" element={<FeatureErrorBoundary featureName="Notifications"><Suspense fallback={<PageLoader />}><ClientNotificationCenter /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="zoom-calendar" element={<FeatureErrorBoundary featureName="Zoom Calendar"><Suspense fallback={<PageLoader />}><ZoomCalendarPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><ClientKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><ClientArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="profile" element={<FeatureErrorBoundary featureName="Profile"><Suspense fallback={<PageLoader />}><ClientProfilePage /></Suspense></FeatureErrorBoundary>} />

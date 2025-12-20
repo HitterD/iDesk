@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from './ticket-message.entity';
+import { Site } from '../../sites/entities/site.entity';
 
 export enum TicketStatus {
     TODO = 'TODO',
@@ -33,6 +34,14 @@ export enum TicketSource {
     TELEGRAM = 'TELEGRAM',
     WEB = 'WEB',
     EMAIL = 'EMAIL',
+}
+
+export enum TicketType {
+    SERVICE = 'SERVICE',
+    ICT_BUDGET = 'ICT_BUDGET',
+    LOST_ITEM = 'LOST_ITEM',
+    ACCESS_REQUEST = 'ACCESS_REQUEST',
+    HARDWARE_INSTALLATION = 'HARDWARE_INSTALLATION',
 }
 
 @Entity('tickets')
@@ -92,6 +101,26 @@ export class Ticket {
     @ManyToOne(() => User)
     @JoinColumn({ name: 'userId' })
     user: User;
+
+    // Multi-site support
+    @Column({ nullable: true })
+    siteId: string;
+
+    @ManyToOne(() => Site, { nullable: true })
+    @JoinColumn({ name: 'siteId' })
+    site: Site;
+
+    // Ticket type for different ticket categories
+    @Column({
+        type: 'enum',
+        enum: TicketType,
+        default: TicketType.SERVICE,
+    })
+    ticketType: TicketType;
+
+    // Required reason for CRITICAL priority
+    @Column({ nullable: true, type: 'text' })
+    criticalReason: string;
 
     @Column({ nullable: true })
     userId: string;

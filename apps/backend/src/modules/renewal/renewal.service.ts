@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
-import { RenewalContract, ContractStatus } from './entities/renewal-contract.entity';
+import { Repository, IsNull, Not, In } from 'typeorm';
+import { RenewalContract, ContractStatus, ContractCategory } from './entities/renewal-contract.entity';
 import { PdfExtractionService } from './services/pdf-extraction.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class RenewalService {
@@ -15,6 +17,23 @@ export class RenewalService {
         private readonly contractRepo: Repository<RenewalContract>,
         private readonly pdfExtractionService: PdfExtractionService,
     ) { }
+
+    // === DUPLICATE CHECK ===
+    async checkDuplicate(poNumber: string): Promise<{ isDuplicate: boolean; existingContract?: RenewalContract }> {
+        if (!poNumber) return { isDuplicate: false };
+
+        const existing = await this.contractRepo.findOne({
+            where: { poNumber },
+            relations: ['uploadedBy'],
+        });
+
+        if (existing) {
+            this.logger.warn(`Duplicate PO number detected: ${poNumber}`);
+            return { isDuplicate: true, existingContract: existing };
+        }
+
+        return { isDuplicate: false };
+    }
 
     // === UPLOAD & EXTRACT ===
     async uploadAndExtract(
@@ -59,6 +78,18 @@ export class RenewalService {
         dto: CreateContractDto,
         uploadedById: string,
     ): Promise<RenewalContract> {
+        // ENFORCE DUPLICATE CHECK
+        if (dto.poNumber) {
+            const { isDuplicate, existingContract } = await this.checkDuplicate(dto.poNumber);
+            if (isDuplicate) {
+                throw new ConflictException({
+                    message: `Contract with PO number "${dto.poNumber}" already exists`,
+                    existingId: existingContract?.id,
+                    existingVendor: existingContract?.vendorName,
+                });
+            }
+        }
+
         const contract = this.contractRepo.create({
             originalFileName: 'Manual Entry',
             filePath: '',
@@ -86,18 +117,80 @@ export class RenewalService {
         return saved;
     }
 
+    // === BULK OPERATIONS ===
+    async bulkAcknowledge(ids: string[], userId: string): Promise<{ affected: number }> {
+        if (!ids || ids.length === 0) {
+            throw new BadRequestException('No contract IDs provided');
+        }
+
+        const result = await this.contractRepo.update(
+            { id: In(ids) },
+            {
+                isAcknowledged: true,
+                acknowledgedById: userId,
+                acknowledgedAt: new Date(),
+            },
+        );
+
+        this.logger.log(`Bulk acknowledged ${result.affected} contracts by user ${userId}`);
+        return { affected: result.affected || 0 };
+    }
+
+    async bulkDelete(ids: string[]): Promise<{ affected: number; filesDeleted: number }> {
+        if (!ids || ids.length === 0) {
+            throw new BadRequestException('No contract IDs provided');
+        }
+
+        // Get contracts to find file paths for cleanup
+        const contracts = await this.contractRepo.find({ where: { id: In(ids) } });
+
+        // Delete from database
+        const result = await this.contractRepo.delete({ id: In(ids) });
+
+        // Clean up files
+        let filesDeleted = 0;
+        for (const contract of contracts) {
+            if (contract.filePath && contract.filePath !== '') {
+                try {
+                    const fullPath = path.join(process.cwd(), contract.filePath);
+                    if (fs.existsSync(fullPath)) {
+                        fs.unlinkSync(fullPath);
+                        filesDeleted++;
+                    }
+                } catch (err) {
+                    this.logger.warn(`Failed to delete file for contract ${contract.id}: ${err.message}`);
+                }
+            }
+        }
+
+        this.logger.log(`Bulk deleted ${result.affected} contracts, removed ${filesDeleted} files`);
+        return { affected: result.affected || 0, filesDeleted };
+    }
+
     // === CRUD OPERATIONS ===
     async findAll(filters?: {
         status?: ContractStatus;
+        category?: ContractCategory;
         search?: string;
-    }): Promise<RenewalContract[]> {
+        page?: number;
+        limit?: number;
+    }): Promise<{ items: RenewalContract[]; total: number; page: number; limit: number; totalPages: number }> {
+        const page = Math.max(1, filters?.page || 1);
+        const limit = Math.min(100, Math.max(1, filters?.limit || 25));
+        const skip = (page - 1) * limit;
+
         const query = this.contractRepo
             .createQueryBuilder('c')
             .leftJoinAndSelect('c.uploadedBy', 'uploader')
+            .leftJoinAndSelect('c.acknowledgedBy', 'acknowledger')
             .orderBy('c.endDate', 'ASC', 'NULLS LAST');
 
         if (filters?.status) {
             query.andWhere('c.status = :status', { status: filters.status });
+        }
+
+        if (filters?.category) {
+            query.andWhere('c.category = :category', { category: filters.category });
         }
 
         if (filters?.search) {
@@ -107,7 +200,18 @@ export class RenewalService {
             );
         }
 
-        return query.getMany();
+        const [items, total] = await query
+            .skip(skip)
+            .take(limit)
+            .getManyAndCount();
+
+        return {
+            items,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
     }
 
     async findOne(id: string): Promise<RenewalContract> {

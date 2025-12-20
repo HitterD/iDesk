@@ -13,6 +13,7 @@ export interface DashboardStats {
     waitingVendor: number;
     resolved: number;
     overdue: number;
+    critical: number;
     slaCompliance: number;
     byPriority: { CRITICAL: number; HIGH: number; MEDIUM: number; LOW: number };
     byCategory: Record<string, number>;
@@ -221,6 +222,7 @@ export class TicketStatsService {
             waitingVendor,
             resolved,
             overdue,
+            critical: byPriority.CRITICAL,
             slaCompliance,
             byPriority,
             byCategory,

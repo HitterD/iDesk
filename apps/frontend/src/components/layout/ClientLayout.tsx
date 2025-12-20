@@ -1,12 +1,14 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X } from 'lucide-react';
+import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Logo } from '../ui/Logo';
 import { UserAvatar } from '../ui/UserAvatar';
+import { FeatureErrorBoundary } from '../ui/FeatureErrorBoundary';
+
 
 // Page transition variants - optimized for performance (no blur)
 const pageVariants: Variants = {
@@ -43,6 +45,7 @@ export const ClientLayout: React.FC = () => {
     const navItems = [
         { path: '/client/my-tickets', label: 'My Tickets', icon: Ticket },
         { path: '/client/create', label: 'New Ticket', icon: PlusCircle },
+        { path: '/client/zoom-calendar', label: 'Zoom Calendar', icon: Video },
         { path: '/client/kb', label: 'Help Center', icon: BookOpen },
         { path: '/client/profile', label: 'Profile', icon: Settings },
     ];
@@ -53,7 +56,7 @@ export const ClientLayout: React.FC = () => {
         <div className="min-h-screen app-background-blobs bg-slate-50 dark:bg-slate-900">
             {/* Navbar */}
             <nav className="glass-card-elevated sticky top-0 z-50">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
                     <div className="flex justify-between h-16">
                         {/* Logo */}
                         <div className="flex items-center">
@@ -152,23 +155,26 @@ export const ClientLayout: React.FC = () => {
             </nav>
 
             {/* Main Content */}
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={location.pathname}
-                        variants={pageVariants}
-                        initial="initial"
-                        animate="animate"
-                        exit="exit"
-                    >
-                        <Outlet />
-                    </motion.div>
-                </AnimatePresence>
+            <main className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8">
+                <FeatureErrorBoundary featureName="Client Portal">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={location.pathname}
+                            variants={pageVariants}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                        >
+                            <Outlet />
+                        </motion.div>
+                    </AnimatePresence>
+                </FeatureErrorBoundary>
             </main>
+
 
             {/* Footer */}
             <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-6 mt-auto">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
                     <p className="text-center text-sm text-slate-500 dark:text-slate-400">
                         © {new Date().getFullYear()} iDesk Enterprise Platform. Need help? Contact IT Support.
                     </p>

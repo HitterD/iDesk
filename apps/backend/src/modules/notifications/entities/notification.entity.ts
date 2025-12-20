@@ -1,11 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
-// Category for notification segregation (Tickets vs Renewals vs Hardware)
+// Category for notification segregation (Tickets vs Renewals vs Hardware vs Zoom)
 export enum NotificationCategory {
     CATEGORY_TICKET = 'CATEGORY_TICKET',
     CATEGORY_RENEWAL = 'CATEGORY_RENEWAL',
     CATEGORY_HARDWARE = 'CATEGORY_HARDWARE',
+    CATEGORY_ZOOM = 'CATEGORY_ZOOM',
 }
 
 export enum NotificationType {
@@ -31,11 +32,17 @@ export enum NotificationType {
     // Hardware installation notifications
     HARDWARE_INSTALL_D1 = 'HARDWARE_INSTALL_D1',  // 1 day before
     HARDWARE_INSTALL_D0 = 'HARDWARE_INSTALL_D0',  // Day of installation
+
+    // Zoom booking notifications
+    ZOOM_BOOKING_CONFIRMED = 'ZOOM_BOOKING_CONFIRMED',
+    ZOOM_BOOKING_CANCELLED = 'ZOOM_BOOKING_CANCELLED',
+    ZOOM_BOOKING_REMINDER = 'ZOOM_BOOKING_REMINDER',
 }
 
 @Entity('notifications')
 @Index(['userId', 'isRead'])
 @Index(['userId', 'createdAt'])
+@Index(['userId', 'requiresAcknowledge', 'acknowledgedAt'])
 export class Notification {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -82,6 +89,21 @@ export class Notification {
 
     @Column({ default: false })
     isRead: boolean;
+
+    // === CRITICAL NOTIFICATION ACKNOWLEDGMENT ===
+    // If true, must be acknowledged via fullscreen modal
+    @Column({ default: false })
+    requiresAcknowledge: boolean;
+
+    @Column({ type: 'timestamp', nullable: true })
+    acknowledgedAt?: Date;
+
+    @Column({ nullable: true })
+    acknowledgedById?: string;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'acknowledgedById' })
+    acknowledgedBy?: User;
 
     @CreateDateColumn()
     createdAt: Date;

@@ -90,5 +90,14 @@ export class CreateTicketDto {
     @IsOptional()
     @Transform(({ value }) => value === 'true' || value === true)
     userAcknowledged?: boolean;
+
+    // === Critical Priority Fields ===
+
+    @ApiPropertyOptional({ example: 'Server produksi down, menghambat seluruh operasional', description: 'Required when priority is CRITICAL' })
+    @IsString()
+    @IsOptional()
+    @MaxLength(500)
+    @Sanitize()
+    criticalReason?: string;
 }
 

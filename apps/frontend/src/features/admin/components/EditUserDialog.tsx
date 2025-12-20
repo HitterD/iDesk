@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Mail, Building, Shield, Phone, Briefcase, Save, ToggleLeft, ToggleRight } from 'lucide-react';
+import { X, User, Mail, Building, Shield, Phone, Briefcase, Save, ToggleLeft, ToggleRight, MapPin, Key, Sparkles } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { usePermissionPresets } from '@/hooks/usePermissions';
+
+const SITES = [
+    { id: 'SPJ', code: 'SPJ', name: 'Sepanjang' },
+    { id: 'SMG', code: 'SMG', name: 'Semarang' },
+    { id: 'KRW', code: 'KRW', name: 'Karawang' },
+    { id: 'JTB', code: 'JTB', name: 'Jatibaru' },
+];
 
 interface EditUserDialogProps {
     isOpen: boolean;
@@ -12,8 +20,10 @@ interface EditUserDialogProps {
         id: string;
         fullName: string;
         email: string;
-        role: 'ADMIN' | 'AGENT' | 'USER';
+        role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
         department?: { id: string; name: string };
+        site?: { id: string; code: string; name: string };
+        siteId?: string;
         employeeId?: string;
         jobTitle?: string;
         phoneNumber?: string;
@@ -31,13 +41,15 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
-        role: 'AGENT' as 'ADMIN' | 'AGENT' | 'USER',
+        role: 'AGENT' as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER',
         departmentId: '',
+        siteId: '',
         employeeId: '',
         jobTitle: '',
         phoneNumber: '',
         isActive: true,
     });
+    const [selectedPresetId, setSelectedPresetId] = useState<string>('');
 
     // Fetch departments
     const { data: departments = [] } = useQuery<Department[]>({
@@ -48,6 +60,9 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
         },
     });
 
+    // H4: Fetch permission presets
+    const { data: presets = [] } = usePermissionPresets();
+
     useEffect(() => {
         if (user) {
             setFormData({
@@ -55,6 +70,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                 email: user.email || '',
                 role: user.role || 'AGENT',
                 departmentId: user.department?.id || '',
+                siteId: user.site?.id || user.siteId || '',
                 employeeId: user.employeeId || '',
                 jobTitle: user.jobTitle || '',
                 phoneNumber: user.phoneNumber || '',
@@ -75,6 +91,22 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to update user');
+        },
+    });
+
+    // H4: Apply permission preset mutation
+    const applyPresetMutation = useMutation({
+        mutationFn: async (presetId: string) => {
+            const res = await api.post(`/permissions/users/${user?.id}/preset/${presetId}`);
+            return res.data;
+        },
+        onSuccess: () => {
+            toast.success('Permission preset applied successfully');
+            queryClient.invalidateQueries({ queryKey: ['user-permissions', user?.id] });
+            setSelectedPresetId('');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to apply preset');
         },
     });
 
@@ -170,6 +202,24 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                         </div>
                     </div>
 
+                    {/* Site */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Site</label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <select
+                                value={formData.siteId}
+                                onChange={(e) => setFormData({ ...formData, siteId: e.target.value })}
+                                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
+                            >
+                                <option value="">No Site Assigned</option>
+                                {SITES.map((site) => (
+                                    <option key={site.id} value={site.id}>{site.code} - {site.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     {/* Job Title & Employee ID */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -226,7 +276,45 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                         </button>
                     </div>
 
-                    {/* Actions */}
+                    {/* H4: Permission Preset Selector */}
+                    {formData.role !== 'ADMIN' && (
+                        <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-xl border border-violet-200 dark:border-violet-800">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Key className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                                <p className="font-medium text-slate-800 dark:text-white">Permission Preset</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <select
+                                    value={selectedPresetId}
+                                    onChange={(e) => setSelectedPresetId(e.target.value)}
+                                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-violet-200 dark:border-violet-700 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+                                >
+                                    <option value="">Select a preset...</option>
+                                    {presets.map((preset) => (
+                                        <option key={preset.id} value={preset.id}>
+                                            {preset.name} {preset.isDefault && '(Default)'}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={() => selectedPresetId && applyPresetMutation.mutate(selectedPresetId)}
+                                    disabled={!selectedPresetId || applyPresetMutation.isPending}
+                                    className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {applyPresetMutation.isPending ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <Sparkles className="w-4 h-4" />
+                                    )}
+                                    Apply
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                Presets define what features this user can access
+                            </p>
+                        </div>
+                    )}
                     <div className="flex gap-3 pt-4">
                         <button
                             type="button"

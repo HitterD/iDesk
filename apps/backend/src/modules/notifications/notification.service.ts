@@ -22,17 +22,24 @@ export class NotificationService {
         referenceId?: string;
         link?: string;
         category?: NotificationCategory;
+        requiresAcknowledge?: boolean;
     }): Promise<Notification> {
         // Auto-determine category from type if not provided
         const category = data.category || getCategoryFromType(data.type);
         const notification = this.notificationRepo.create({
             ...data,
             category,
+            requiresAcknowledge: data.requiresAcknowledge || false,
         });
         const saved = await this.notificationRepo.save(notification);
 
+        // Determine event channel based on criticality
+        const eventType = data.requiresAcknowledge
+            ? 'critical_notification'
+            : `notification:${data.userId}`;
+
         // Emit real-time notification via WebSocket
-        this.eventsGateway.server.emit(`notification:${data.userId}`, {
+        this.eventsGateway.server.emit(eventType, {
             id: saved.id,
             type: saved.type,
             category: saved.category,
@@ -42,7 +49,9 @@ export class NotificationService {
             referenceId: saved.referenceId,
             link: saved.link,
             isRead: saved.isRead,
+            requiresAcknowledge: saved.requiresAcknowledge,
             createdAt: saved.createdAt,
+            userId: data.userId,
         });
 
         // Also emit to general notification channel
@@ -94,6 +103,7 @@ export class NotificationService {
             [NotificationCategory.CATEGORY_TICKET]: 0,
             [NotificationCategory.CATEGORY_RENEWAL]: 0,
             [NotificationCategory.CATEGORY_HARDWARE]: 0,
+            [NotificationCategory.CATEGORY_ZOOM]: 0,
         };
 
         for (const row of results) {
@@ -139,6 +149,62 @@ export class NotificationService {
 
     async deleteAllForUser(userId: string): Promise<void> {
         await this.notificationRepo.delete({ userId });
+    }
+
+    // === CRITICAL NOTIFICATION METHODS ===
+
+    /**
+     * Find all unacknowledged critical notifications for a user
+     */
+    async findUnacknowledgedCritical(userId: string): Promise<Notification[]> {
+        return this.notificationRepo.find({
+            where: {
+                userId,
+                requiresAcknowledge: true,
+                acknowledgedAt: undefined,
+            },
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    /**
+     * Acknowledge a critical notification
+     */
+    async acknowledgeNotification(notificationId: string, userId: string): Promise<Notification | null> {
+        const notification = await this.notificationRepo.findOne({
+            where: { id: notificationId, userId },
+        });
+
+        if (!notification) return null;
+        if (!notification.requiresAcknowledge) return notification;
+        if (notification.acknowledgedAt) return notification; // Already acknowledged
+
+        notification.acknowledgedAt = new Date();
+        notification.acknowledgedById = userId;
+        notification.isRead = true;
+
+        const saved = await this.notificationRepo.save(notification);
+
+        // Emit acknowledgment event
+        this.eventsGateway.server.emit(`notification:acknowledged:${userId}`, {
+            notificationId: saved.id,
+            acknowledgedAt: saved.acknowledgedAt,
+        });
+
+        return saved;
+    }
+
+    /**
+     * Count unacknowledged critical notifications
+     */
+    async countUnacknowledgedCritical(userId: string): Promise<number> {
+        return this.notificationRepo.count({
+            where: {
+                userId,
+                requiresAcknowledge: true,
+                acknowledgedAt: undefined,
+            },
+        });
     }
 
     // Helper methods for common notification types

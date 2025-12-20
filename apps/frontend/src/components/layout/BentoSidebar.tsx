@@ -13,7 +13,10 @@ import {
     ChevronRight,
     Bell,
     Search,
-    Zap
+    Zap,
+    Shield,
+    Activity,
+    Video
 } from 'lucide-react';
 import { useAuth } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
@@ -36,6 +39,7 @@ export const BentoSidebar = () => {
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
         { icon: Ticket, label: 'Tickets', path: '/tickets/list' },
+        { icon: Video, label: 'Zoom Calendar', path: '/zoom-calendar' },
         { icon: BookOpen, label: 'Knowledge Base', path: '/kb' },
     ];
 
@@ -49,6 +53,8 @@ export const BentoSidebar = () => {
                 { icon: BarChart3, label: 'Reports', path: '/reports' },
                 { icon: CalendarClock, label: 'Renewal', path: '/renewal' },
                 { icon: Zap, label: 'Automation', path: '/automation' },
+                { icon: Shield, label: 'Audit Logs', path: '/audit-logs' },
+                { icon: Activity, label: 'System Health', path: '/system-health' },
                 { icon: Settings, label: 'Settings', path: '/settings' }
             );
         }

@@ -26,6 +26,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
         poNumber: '',
         vendorName: '',
         description: '',
+        contractValue: '',
         startDate: '',
         endDate: '',
     });
@@ -66,7 +67,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
 
         setUploadError(null);
         setUploadProgress(0);
-        
+
         // Simulate progress for better UX
         const progressInterval = setInterval(() => {
             setUploadProgress(prev => {
@@ -77,10 +78,10 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
 
         try {
             const result = await uploadMutation.mutateAsync({ file, forceUpload });
-            
+
             clearInterval(progressInterval);
             setUploadProgress(100);
-            
+
             // Check if this is a validation warning
             if (isUploadWarning(result)) {
                 setValidationInfo(result.validation);
@@ -96,6 +97,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                 poNumber: result.extraction.poNumber || '',
                 vendorName: result.extraction.vendorName || '',
                 description: result.extraction.description || '',
+                contractValue: result.extraction.contractValue ? result.extraction.contractValue.toString() : '',
                 startDate: result.extraction.startDate ? new Date(result.extraction.startDate).toISOString().split('T')[0] : '',
                 endDate: result.extraction.endDate ? new Date(result.extraction.endDate).toISOString().split('T')[0] : '',
             });
@@ -136,6 +138,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                     poNumber: formData.poNumber || undefined,
                     vendorName: formData.vendorName || undefined,
                     description: formData.description || undefined,
+                    contractValue: formData.contractValue ? parseFloat(formData.contractValue.replace(/[^0-9.]/g, '')) : undefined,
                     startDate: formData.startDate || undefined,
                     endDate: formData.endDate || undefined,
                 },
@@ -158,6 +161,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
             poNumber: '',
             vendorName: '',
             description: '',
+            contractValue: '',
             startDate: '',
             endDate: '',
         });
@@ -394,6 +398,22 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         placeholder="Enter description"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2">
+                                        Contract Value (IDR)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.contractValue}
+                                        onChange={(e) => {
+                                            const value = e.target.value.replace(/[^0-9]/g, '');
+                                            const formatted = value ? new Intl.NumberFormat('id-ID').format(parseInt(value)) : '';
+                                            setFormData({ ...formData, contractValue: formatted });
+                                        }}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        placeholder="e.g. 150,000,000"
                                     />
                                 </div>
                                 <div>

@@ -1,5 +1,5 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsIn } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaginationDto {
@@ -47,6 +47,22 @@ export class PaginationDto {
     @IsOptional()
     @IsString()
     search?: string;
+
+    @ApiPropertyOptional({ description: 'Filter by site ID' })
+    @IsOptional()
+    @IsString()
+    siteId?: string;
+
+    @ApiPropertyOptional({ description: 'Filter by multiple site IDs (ADMIN/MANAGER only)', type: [String] })
+    @IsOptional()
+    @Transform(({ value }) => {
+        // Query params can come as string (single) or array (multiple)
+        if (!value) return undefined;
+        if (Array.isArray(value)) return value;
+        return [value]; // Convert single string to array
+    })
+    @IsString({ each: true })
+    siteIds?: string[];
 }
 
 export interface PaginatedResult<T> {

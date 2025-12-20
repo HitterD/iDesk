@@ -85,23 +85,28 @@ api.interceptors.response.use(
             console.error(`❌ ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${response?.status || 'Network Error'}`);
         }
 
+        // Check if this is a login request - let login page handle its own errors
+        const isLoginRequest = error.config?.url?.includes('/auth/login');
+
         if (response) {
-            // Handle 401 Unauthorized
-            if (response.status === 401) {
+            // Handle 401 Unauthorized - but NOT for login attempts
+            if (response.status === 401 && !isLoginRequest) {
                 localStorage.removeItem('auth-storage');
                 window.location.href = '/login';
                 toast.error(getErrorMessage('SESSION_EXPIRED'));
                 return Promise.reject(error);
             }
 
-            // Use centralized error messages
-            const errorCode = response.data?.errorCode || response.data?.code;
-            const serverMessage = response.data?.message;
-            const displayMessage = getErrorMessage(errorCode, serverMessage);
-
-            toast.error(displayMessage);
-        } else {
-            // Network error or no response
+            // Don't show toast for login errors (let login page handle it with detailed messages)
+            if (!isLoginRequest) {
+                // Use centralized error messages
+                const errorCode = response.data?.errorCode || response.data?.code;
+                const serverMessage = response.data?.message;
+                const displayMessage = getErrorMessage(errorCode, serverMessage);
+                toast.error(displayMessage);
+            }
+        } else if (!isLoginRequest) {
+            // Network error or no response - but not for login (login page shows its own network error)
             toast.error(getErrorMessage('NETWORK_ERROR'));
         }
 

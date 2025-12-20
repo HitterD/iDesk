@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemSettings } from './entities/system-settings.entity';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
+import { SchedulingConfig } from './dto/scheduling-config.dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
 
 export interface StorageSettings {
     autoCleanupEnabled: boolean;
@@ -42,6 +45,11 @@ const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
     },
 };
 
+const DEFAULT_SCHEDULING_CONFIG: SchedulingConfig = {
+    timeSlots: ['08:00', '09:00', '10:00', '11:00', '14:00', '15:00'],
+    hardwareTypes: ['PC', 'IP-Phone', 'Printer'],
+};
+
 @Injectable()
 export class SettingsService {
     private readonly logger = new Logger(SettingsService.name);
@@ -49,6 +57,7 @@ export class SettingsService {
     constructor(
         @InjectRepository(SystemSettings)
         private readonly settingsRepo: Repository<SystemSettings>,
+        private readonly auditService: AuditService,
     ) { }
 
     async getSetting<T>(key: string, defaultValue?: T): Promise<T | null> {
@@ -110,6 +119,83 @@ export class SettingsService {
         };
 
         await this.setSetting('storage.retention', merged, userId, 'Storage retention settings');
+
+        // Audit log for storage settings change
+        this.auditService.logAsync({
+            userId: userId || 'system',
+            action: AuditAction.SETTINGS_CHANGE,
+            entityType: 'settings',
+            entityId: 'storage.retention',
+            oldValue: current,
+            newValue: merged,
+            description: 'Storage retention settings updated',
+        });
+
         return merged;
+    }
+
+    // =====================
+    // Scheduling Settings
+    // =====================
+
+    async getSchedulingConfig(): Promise<SchedulingConfig> {
+        const config = await this.getSetting<SchedulingConfig>('scheduling.config');
+        return config || DEFAULT_SCHEDULING_CONFIG;
+    }
+
+    async getTimeSlots(): Promise<string[]> {
+        const config = await this.getSchedulingConfig();
+        return config.timeSlots;
+    }
+
+    async updateTimeSlots(timeSlots: string[], userId?: string): Promise<SchedulingConfig> {
+        const current = await this.getSchedulingConfig();
+        const updated: SchedulingConfig = {
+            ...current,
+            timeSlots,
+        };
+        await this.setSetting('scheduling.config', updated, userId, 'Scheduling configuration');
+        this.logger.log(`Time slots updated by user ${userId}: ${timeSlots.join(', ')}`);
+
+        // Audit log for time slots change
+        this.auditService.logAsync({
+            userId: userId || 'system',
+            action: AuditAction.SETTINGS_CHANGE,
+            entityType: 'settings',
+            entityId: 'scheduling.timeSlots',
+            oldValue: { timeSlots: current.timeSlots },
+            newValue: { timeSlots },
+            description: `Scheduling time slots updated`,
+        });
+
+        return updated;
+    }
+
+    async getHardwareTypes(): Promise<string[]> {
+        const config = await this.getSchedulingConfig();
+        return config.hardwareTypes;
+    }
+
+    async updateHardwareTypes(hardwareTypes: string[], userId?: string): Promise<SchedulingConfig> {
+        const current = await this.getSchedulingConfig();
+        const updated: SchedulingConfig = {
+            ...current,
+            hardwareTypes,
+        };
+        await this.setSetting('scheduling.config', updated, userId, 'Scheduling configuration');
+        this.logger.log(`Hardware types updated by user ${userId}: ${hardwareTypes.join(', ')}`);
+
+        // Audit log for hardware types change
+        this.auditService.logAsync({
+            userId: userId || 'system',
+            action: AuditAction.SETTINGS_CHANGE,
+            entityType: 'settings',
+            entityId: 'scheduling.hardwareTypes',
+            oldValue: { hardwareTypes: current.hardwareTypes },
+            newValue: { hardwareTypes },
+            description: `Scheduling hardware types updated`,
+        });
+
+        return updated;
     }
 }

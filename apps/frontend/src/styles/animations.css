@@ -1122,3 +1122,23 @@
         transform: translateX(0);
     }
 }
+
+/* ========================================
+   TOP PERFORMER GOLDEN PULSE
+   ======================================== */
+
+@keyframes goldenPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 15px -3px rgba(245, 158, 11, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 4px 25px -3px rgba(245, 158, 11, 0.5);
+    }
+}
+
+.animate-golden-pulse {
+    animation: goldenPulse 2s ease-in-out infinite;
+}

@@ -17,7 +17,17 @@ export enum ContractStatus {
     EXPIRED = 'EXPIRED',
 }
 
+export enum ContractCategory {
+    SOFTWARE = 'SOFTWARE',
+    HARDWARE = 'HARDWARE',
+    SERVICE = 'SERVICE',
+    SUBSCRIPTION = 'SUBSCRIPTION',
+    MAINTENANCE = 'MAINTENANCE',
+    OTHER = 'OTHER',
+}
+
 @Entity('renewal_contracts')
+@Index('idx_renewal_status_enddate', ['status', 'endDate'])
 export class RenewalContract {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -31,6 +41,13 @@ export class RenewalContract {
 
     @Column({ type: 'text', nullable: true })
     description: string;
+
+    @Column({
+        type: 'enum',
+        enum: ContractCategory,
+        nullable: true,
+    })
+    category: ContractCategory;
 
     @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
     contractValue: number;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Pause, AlertTriangle, Clock, MessageSquare } from 'lucide-react';
 import { TicketDetail } from './types';
+import { formatDateTimeID } from '@/lib/utils/dateFormat';
 
 interface SlaStatusCardProps {
     ticket: TicketDetail & {
@@ -82,15 +83,6 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
 
         return () => clearInterval(interval);
     }, [ticket, isResolved]);
-
-    const formatDate = (dateString: string) => {
-        if (!dateString) return 'N/A';
-        return new Intl.DateTimeFormat('id-ID', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: 'Asia/Jakarta'
-        }).format(new Date(dateString));
-    };
 
     // Get Resolution Status
     const getResolutionStatus = () => {
@@ -224,29 +216,29 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
 
                     {/* Show SLA started time */}
                     {ticket.slaStartedAt && !isResolved && (
-                        <p className="text-[10px] text-slate-500 mt-1.5">
-                            Started: {formatDate(ticket.slaStartedAt)}
+                        <p className="text-xs text-slate-500 mt-1.5">
+                            Started: {formatDateTimeID(ticket.slaStartedAt)}
                         </p>
                     )}
 
                     {/* Show target time */}
                     {ticket.slaTarget && !isResolved && (
-                        <p className="text-[10px] text-slate-500">
-                            Target: {formatDate(ticket.slaTarget)}
+                        <p className="text-xs text-slate-500">
+                            Target: {formatDateTimeID(ticket.slaTarget)}
                         </p>
                     )}
 
                     {/* Show resolved time */}
                     {isResolved && ticket.resolvedAt && (
-                        <p className="text-[10px] text-green-600 mt-1.5 flex items-center gap-1">
+                        <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
-                            Finished: {formatDate(ticket.resolvedAt)}
+                            Finished: {formatDateTimeID(ticket.resolvedAt)}
                         </p>
                     )}
 
                     {/* Show paused info */}
                     {isPaused && (
-                        <p className="text-[10px] text-orange-600 mt-1.5 flex items-center gap-1">
+                        <p className="text-xs text-orange-600 mt-1.5 flex items-center gap-1">
                             <Pause className="w-3 h-3" />
                             Paused (Vendor)
                         </p>
@@ -254,7 +246,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
 
                     {/* Show not started info */}
                     {slaNotStarted && !isResolved && (
-                        <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+                        <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             Pending Start
                         </p>
@@ -282,15 +274,15 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
 
                         {/* Show first response time if responded */}
                         {ticket.firstResponseAt && (
-                            <p className="text-[10px] text-slate-500 mt-1.5">
-                                Responded: {formatDate(ticket.firstResponseAt)}
+                            <p className="text-xs text-slate-500 mt-1.5">
+                                Responded: {formatDateTimeID(ticket.firstResponseAt)}
                             </p>
                         )}
 
                         {/* Show target if not responded */}
                         {!ticket.firstResponseAt && ticket.firstResponseTarget && (
-                            <p className="text-[10px] text-slate-500 mt-1.5">
-                                Target: {formatDate(ticket.firstResponseTarget)}
+                            <p className="text-xs text-slate-500 mt-1.5">
+                                Target: {formatDateTimeID(ticket.firstResponseTarget)}
                             </p>
                         )}
                     </div>

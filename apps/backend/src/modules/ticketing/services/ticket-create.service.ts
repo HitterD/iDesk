@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -10,9 +10,14 @@ import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { CacheService, CacheInvalidationService } from '../../../shared/core/cache';
 import { TicketCreatedEvent } from '../events/ticket-created.event';
+import { WorkloadService } from '../../workload/workload.service';
+import { AuditService } from '../../audit/audit.service';
+import { AuditAction } from '../../audit/entities/audit-log.entity';
 
 @Injectable()
 export class TicketCreateService {
+    private readonly logger = new Logger(TicketCreateService.name);
+
     constructor(
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
@@ -26,6 +31,8 @@ export class TicketCreateService {
         private readonly cacheService: CacheService,
         private readonly cacheInvalidationService: CacheInvalidationService,
         private readonly eventEmitter: EventEmitter2,
+        private readonly workloadService: WorkloadService,
+        private readonly auditService: AuditService,
     ) { }
 
     async createTicket(userId: string, createTicketDto: any, files: string[] = []): Promise<Ticket> {
@@ -46,6 +53,8 @@ export class TicketCreateService {
                 category: createTicketDto.category || 'GENERAL',
                 device: createTicketDto.device,
                 software: createTicketDto.software,
+                siteId: user.siteId, // Auto-assign user's site
+                criticalReason: createTicketDto.criticalReason || null,
             } as DeepPartial<Ticket>);
 
             // Generate Custom Ticket Number
@@ -107,6 +116,30 @@ export class TicketCreateService {
 
             await this.ticketRepo.save(ticket);
 
+            // === Auto-Assignment: Assign to agent with lowest workload ===
+            // Only auto-assign if:
+            // 1. No manual assignee specified
+            // 2. Ticket has a site assigned
+            // 3. User creating ticket is not an AGENT (agents pick their own tickets)
+            if (!createTicketDto.assignedToId && ticket.siteId && user.role !== 'AGENT') {
+                try {
+                    const assignedTicket = await this.workloadService.autoAssignTicket(ticket.id);
+                    if (assignedTicket.assignedTo) {
+                        this.logger.log(
+                            `✅ Ticket ${ticket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
+                        );
+                        // Update local ticket reference with assignment
+                        ticket.assignedToId = assignedTicket.assignedToId;
+                        ticket.assignedTo = assignedTicket.assignedTo;
+                    }
+                } catch (autoAssignError) {
+                    // Don't fail ticket creation if auto-assign fails
+                    this.logger.warn(
+                        `⚠️ Auto-assign failed for ticket ${ticket.ticketNumber}: ${autoAssignError.message}`
+                    );
+                }
+            }
+
             // Invalidate caches using centralized service
             await this.cacheInvalidationService.onTicketChange(ticket.id);
             this.eventsGateway.notifyDashboardStatsUpdate();
@@ -153,9 +186,19 @@ export class TicketCreateService {
                 ),
             );
 
+            // Audit log for ticket creation
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.CREATE_TICKET,
+                entityType: 'ticket',
+                entityId: ticket.id,
+                newValue: { ticketNumber: ticket.ticketNumber, title: ticket.title, priority: ticket.priority, category: ticket.category },
+                description: `Ticket #${ticket.ticketNumber} created: ${ticket.title}`,
+            });
+
             return ticket;
         } catch (error) {
-            console.error('Error creating ticket:', error);
+            this.logger.error(`Error creating ticket: ${error.message}`, error.stack);
             throw error;
         }
     }

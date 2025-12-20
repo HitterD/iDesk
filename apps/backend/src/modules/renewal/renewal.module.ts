@@ -6,15 +6,18 @@ import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 
-// Entity
+// Entities
 import { RenewalContract } from './entities/renewal-contract.entity';
+import { ContractAuditLog } from './entities/contract-audit-log.entity';
 import { User } from '../users/entities/user.entity';
 
 // Services
 import { RenewalService } from './renewal.service';
 import { PdfExtractionService } from './services/pdf-extraction.service';
 import { PdfValidationService } from './services/pdf-validation.service';
+import { PdfOcrService } from './services/pdf-ocr.service';
 import { RenewalSchedulerService } from './services/renewal-scheduler.service';
+import { ContractAuditService } from './services/contract-audit.service';
 
 // Controller
 import { RenewalController } from './renewal.controller';
@@ -30,7 +33,7 @@ if (!existsSync(contractsUploadPath)) {
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([RenewalContract, User]),
+        TypeOrmModule.forFeature([RenewalContract, ContractAuditLog, User]),
         MulterModule.register({
             storage: diskStorage({
                 destination: contractsUploadPath,
@@ -58,8 +61,10 @@ if (!existsSync(contractsUploadPath)) {
         RenewalService,
         PdfExtractionService,
         PdfValidationService,
+        PdfOcrService,
         RenewalSchedulerService,
+        ContractAuditService,
     ],
-    exports: [RenewalService],
+    exports: [RenewalService, ContractAuditService],
 })
 export class RenewalModule { }

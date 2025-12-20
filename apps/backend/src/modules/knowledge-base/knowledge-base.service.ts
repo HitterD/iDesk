@@ -5,6 +5,8 @@ import { Article, ArticleStatus, ArticleVisibility } from './entities/article.en
 import { ArticleView } from './entities/article-view.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
 
 export interface ArticleFilters {
     query?: string;
@@ -21,6 +23,7 @@ export class KnowledgeBaseService {
         private articleRepo: Repository<Article>,
         @InjectRepository(ArticleView)
         private viewRepo: Repository<ArticleView>,
+        private readonly auditService: AuditService,
     ) { }
 
     async create(createArticleDto: CreateArticleDto, authorId?: string, authorName?: string): Promise<Article> {
@@ -29,7 +32,19 @@ export class KnowledgeBaseService {
             authorId,
             authorName,
         });
-        return this.articleRepo.save(article);
+        const saved = await this.articleRepo.save(article);
+
+        // Audit log for article creation
+        this.auditService.logAsync({
+            userId: authorId || 'system',
+            action: AuditAction.ARTICLE_CREATE,
+            entityType: 'article',
+            entityId: saved.id,
+            newValue: { title: saved.title, category: saved.category, status: saved.status },
+            description: `Article "${saved.title}" created`,
+        });
+
+        return saved;
     }
 
     async findAll(filters?: ArticleFilters): Promise<Article[]> {
@@ -100,24 +115,73 @@ export class KnowledgeBaseService {
         return article;
     }
 
-    async update(id: string, updateArticleDto: UpdateArticleDto): Promise<Article> {
+    async update(id: string, updateArticleDto: UpdateArticleDto, updatedByUserId?: string): Promise<Article> {
         const article = await this.findOne(id, false);
+        const oldValue = { title: article.title, category: article.category, status: article.status };
         Object.assign(article, updateArticleDto);
-        return this.articleRepo.save(article);
+        const saved = await this.articleRepo.save(article);
+
+        // Audit log for article update
+        this.auditService.logAsync({
+            userId: updatedByUserId || 'system',
+            action: AuditAction.ARTICLE_UPDATE,
+            entityType: 'article',
+            entityId: id,
+            oldValue,
+            newValue: { title: saved.title, category: saved.category, status: saved.status },
+            description: `Article "${saved.title}" updated`,
+        });
+
+        return saved;
     }
 
-    async updateStatus(id: string, status: ArticleStatus): Promise<Article> {
+    async updateStatus(id: string, status: ArticleStatus, updatedByUserId?: string): Promise<Article> {
         const article = await this.findOne(id, false);
+        const oldStatus = article.status;
         article.status = status;
-        return this.articleRepo.save(article);
+        const saved = await this.articleRepo.save(article);
+
+        // Audit log for status change / publish
+        const isPublish = status === ArticleStatus.PUBLISHED && oldStatus !== ArticleStatus.PUBLISHED;
+        this.auditService.logAsync({
+            userId: updatedByUserId || 'system',
+            action: isPublish ? AuditAction.ARTICLE_PUBLISH : AuditAction.ARTICLE_UPDATE,
+            entityType: 'article',
+            entityId: id,
+            oldValue: { status: oldStatus },
+            newValue: { status },
+            description: isPublish ? `Article "${article.title}" published` : `Article "${article.title}" status changed to ${status}`,
+        });
+
+        return saved;
     }
 
-    async remove(id: string): Promise<void> {
+    async remove(id: string, deletedByUserId?: string): Promise<void> {
         const article = await this.findOne(id, false);
+
+        // Audit log for article soft delete
+        this.auditService.logAsync({
+            userId: deletedByUserId || 'system',
+            action: AuditAction.ARTICLE_DELETE,
+            entityType: 'article',
+            entityId: id,
+            oldValue: { title: article.title, category: article.category },
+            description: `Article "${article.title}" deleted (soft)`,
+        });
+
         await this.articleRepo.softRemove(article);
     }
 
-    async hardRemove(id: string): Promise<void> {
+    async hardRemove(id: string, deletedByUserId?: string): Promise<void> {
+        // Audit log for article hard delete
+        this.auditService.logAsync({
+            userId: deletedByUserId || 'system',
+            action: AuditAction.ARTICLE_DELETE,
+            entityType: 'article',
+            entityId: id,
+            description: `Article ${id} permanently deleted`,
+        });
+
         await this.articleRepo.delete(id);
     }
 

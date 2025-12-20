@@ -7,9 +7,10 @@ import { CustomerSession } from './entities/customer-session.entity';
 import { Department } from './entities/department.entity';
 import { DepartmentsController } from './departments.controller';
 import { Ticket } from '../ticketing/entities/ticket.entity';
+import { Site } from '../sites/entities/site.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([User, CustomerSession, Department, Ticket])],
+    imports: [TypeOrmModule.forFeature([User, CustomerSession, Department, Ticket, Site])],
     controllers: [UsersController, DepartmentsController],
     providers: [UsersService],
     exports: [UsersService],

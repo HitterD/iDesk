@@ -33,8 +33,10 @@ export interface TicketDetail {
         content: string;
         createdAt: string;
         isSystemMessage: boolean;
+        isInternal?: boolean;
         attachments: string[];
         sender?: {
+            id?: string;
             fullName: string;
         };
     }[];

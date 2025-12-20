@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Search, BookOpen, ChevronRight, Eye, ImageIcon, Ticket } from 'lucide-react';
 import api from '@/lib/api';
+import { logger } from '@/lib/logger';
+import { useDebounce } from '@/hooks/useDebounce';
+import { ArticleGridSkeleton } from '@/components/ui/skeletons';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface Article {
     id: string;
@@ -17,47 +22,50 @@ interface Article {
 
 export const ClientKnowledgeBasePage: React.FC = () => {
     const [query, setQuery] = useState('');
-    const [articles, setArticles] = useState<Article[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-    const fetchArticles = async (searchQuery?: string) => {
-        setLoading(true);
-        try {
-            const params = searchQuery ? { q: searchQuery } : {};
-            const response = await api.get('/kb/articles', { params });
-            setArticles(response.data);
-        } catch (error) {
-            console.error('Failed to fetch articles:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchArticles();
-    }, []);
+    // Use React Query instead of useState+useEffect
+    const { data: articles = [], isLoading, isError, refetch } = useQuery<Article[]>({
+        queryKey: ['kb-articles', debouncedSearchTerm],
+        queryFn: async () => {
+            try {
+                const params = debouncedSearchTerm ? { q: debouncedSearchTerm } : {};
+                const response = await api.get('/kb/articles', { params });
+                return response.data;
+            } catch (error) {
+                logger.error('Failed to fetch articles:', error);
+                throw error;
+            }
+        },
+        retry: 2,
+        retryDelay: 1000,
+    });
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchArticles(query);
+        setSearchTerm(query);
     };
 
-    // Get unique categories
-    const categories = [...new Set(articles.map(a => a.category))];
+    // Get unique categories - memoized
+    const categories = useMemo(() => [...new Set(articles.map(a => a.category))], [articles]);
 
-    // Popular articles
-    const popularArticles = [...articles].sort((a, b) => b.viewCount - a.viewCount).slice(0, 5);
+    // Popular articles - memoized
+    const popularArticles = useMemo(() =>
+        [...articles].sort((a, b) => b.viewCount - a.viewCount).slice(0, 5),
+        [articles]
+    );
 
     return (
         <div className="space-y-8">
             {/* Hero Section */}
             <div className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 md:p-12 text-center shadow-xl">
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-3xl animate-pulse" aria-hidden="true"></div>
+                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000" aria-hidden="true"></div>
 
                 <div className="relative z-10">
                     <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/10">
-                        <BookOpen className="w-8 h-8 text-primary" />
+                        <BookOpen className="w-8 h-8 text-primary" aria-hidden="true" />
                     </div>
                     <h1 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
                         How can we help you?
@@ -66,13 +74,16 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                         Search our knowledge base for answers to common questions and issues.
                     </p>
 
-                    <form onSubmit={handleSearch} className="max-w-xl mx-auto relative">
-                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <form onSubmit={handleSearch} className="max-w-xl mx-auto relative" role="search">
+                        <label htmlFor="kb-search" className="sr-only">Search knowledge base articles</label>
+                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" aria-hidden="true" />
                         <input
+                            id="kb-search"
                             type="text"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Search for articles..."
+                            aria-label="Search for articles"
                             className="w-full pl-14 pr-32 py-5 bg-white rounded-2xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-primary/30 shadow-lg transition-all"
                         />
                         <button
@@ -87,18 +98,29 @@ export const ClientKnowledgeBasePage: React.FC = () => {
 
             {/* Category Pills */}
             {categories.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Filter by category">
                     <button
-                        onClick={() => fetchArticles()}
-                        className="px-4 py-2 bg-primary text-slate-900 rounded-xl text-sm font-bold"
+                        onClick={() => setSearchTerm('')}
+                        aria-pressed={searchTerm === ''}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${searchTerm === ''
+                            ? 'bg-primary text-slate-900'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                            }`}
                     >
                         All Articles
                     </button>
                     {categories.map((category) => (
                         <button
                             key={category}
-                            onClick={() => fetchArticles(category)}
-                            className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                            onClick={() => {
+                                setQuery(category);
+                                setSearchTerm(category);
+                            }}
+                            aria-pressed={searchTerm === category}
+                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${searchTerm === category
+                                ? 'bg-primary text-slate-900'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                }`}
                         >
                             {category}
                         </button>
@@ -106,23 +128,32 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                 </div>
             )}
 
+            {/* Error State */}
+            {isError && (
+                <ErrorState
+                    title="Gagal Memuat Artikel"
+                    message="Terjadi kesalahan saat memuat artikel. Silakan coba lagi."
+                    onRetry={() => refetch()}
+                    compact
+                />
+            )}
+
             {/* Articles Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {loading ? (
-                    <div className="col-span-full flex items-center justify-center py-12">
-                        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
-                    </div>
-                ) : articles.length === 0 ? (
-                    <div className="col-span-full text-center py-12">
-                        <BookOpen className="w-16 h-16 text-slate-200 dark:text-slate-600 mx-auto mb-4" />
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">No articles found</h3>
-                        <p className="text-slate-500 dark:text-slate-400 mb-6">
-                            Try adjusting your search or browse all categories
-                        </p>
-                    </div>
-                ) : (
-                    articles.map((article) => (
+            {isLoading ? (
+                <ArticleGridSkeleton items={6} />
+            ) : articles.length === 0 && !isError ? (
+                <div className="text-center py-12">
+                    <BookOpen className="w-16 h-16 text-slate-200 dark:text-slate-600 mx-auto mb-4" aria-hidden="true" />
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">No articles found</h3>
+                    <p className="text-slate-500 dark:text-slate-400 mb-6">
+                        Try adjusting your search or browse all categories
+                    </p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {articles.map((article) => (
                         <Link key={article.id} to={`/client/kb/articles/${article.id}`}>
+
                             <div className="h-full bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 hover:shadow-lg hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 group cursor-pointer overflow-hidden">
                                 {/* Featured Image */}
                                 {article.featuredImage ? (
@@ -162,11 +193,12 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                                 </div>
                             </div>
                         </Link>
-                    ))
-                )}
-            </div>
+                    ))}
+                </div>
+            )}
 
             {/* Bottom Section */}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Popular Articles */}
                 {popularArticles.length > 0 && (
