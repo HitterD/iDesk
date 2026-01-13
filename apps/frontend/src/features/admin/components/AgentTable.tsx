@@ -22,7 +22,7 @@ const columns = [
         header: 'Name',
         cell: (info) => (
             <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center mr-3 font-bold">
+                <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center mr-3 font-bold">
                     {info.getValue().charAt(0)}
                 </div>
                 <span className="text-white font-medium">{info.getValue()}</span>
@@ -46,8 +46,8 @@ const columns = [
         cell: (info) => (
             <span
                 className={`px-2 py-1 rounded text-xs font-bold border ${info.getValue() === 'ACTIVE'
-                        ? 'bg-neon-green/20 text-neon-green border-neon-green/30'
-                        : 'bg-red-500/20 text-red-400 border-red-500/30'
+                    ? 'bg-primary/20 text-primary border-primary/30'
+                    : 'bg-red-500/20 text-red-400 border-red-500/30'
                     }`}
             >
                 {info.getValue()}
@@ -59,7 +59,7 @@ const columns = [
         header: 'Actions',
         cell: () => (
             <div className="flex space-x-2">
-                <button className="p-1 hover:text-neon-green transition-colors">
+                <button className="p-1 hover:text-primary transition-colors">
                     <Edit className="w-4 h-4" />
                 </button>
                 <button className="p-1 hover:text-red-500 transition-colors">

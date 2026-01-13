@@ -106,7 +106,7 @@ ${data.description}
                                 </label>
                                 <input
                                     {...register('requesterName')}
-                                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-neon-green"
+                                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary"
                                     placeholder="John Doe"
                                 />
                                 {errors.requesterName && (
@@ -121,7 +121,7 @@ ${data.description}
                                 </label>
                                 <input
                                     {...register('requesterPhone')}
-                                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-neon-green"
+                                    className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary"
                                     placeholder="+1 234..."
                                 />
                             </div>
@@ -134,7 +134,7 @@ ${data.description}
                             </label>
                             <input
                                 {...register('title')}
-                                className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-neon-green"
+                                className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary"
                                 placeholder="Brief summary of the issue"
                             />
                             {errors.title && (
@@ -181,7 +181,7 @@ ${data.description}
                             <textarea
                                 {...register('description')}
                                 rows={4}
-                                className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-neon-green resize-none"
+                                className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary resize-none"
                                 placeholder="Detailed description of the problem..."
                             />
                             {errors.description && (
@@ -203,7 +203,7 @@ ${data.description}
                             <button
                                 type="submit"
                                 disabled={mutation.isPending}
-                                className="px-4 py-2 bg-neon-green text-navy-main font-bold rounded-lg hover:bg-neon-green/90 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                                 Create Ticket

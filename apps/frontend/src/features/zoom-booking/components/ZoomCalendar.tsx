@@ -293,7 +293,7 @@ export function ZoomCalendar() {
         <div className="flex gap-6 h-[calc(100vh-120px)]">
             {/* Left Sidebar - Account Selector (280px) */}
             <aside className="w-72 shrink-0 hidden lg:block">
-                <div className="bg-card rounded-xl border h-full overflow-hidden">
+                <div className="bg-card/80 backdrop-blur-sm rounded-2xl border border-white/10 shadow-xl h-full overflow-hidden">
                     <AccountSidebar
                         accounts={accounts || []}
                         selectedAccountId={selectedAccountId}
@@ -328,7 +328,7 @@ export function ZoomCalendar() {
                 </div>
 
                 {/* P2: Icon-based legend with better spacing and contrast */}
-                <div className="flex flex-wrap items-center gap-3 text-xs bg-gradient-to-r from-muted/60 to-muted/40 rounded-xl px-4 py-2.5 backdrop-blur-sm border border-border/50">
+                <div className="flex flex-wrap items-center gap-3 text-xs bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-pink-500/10 rounded-2xl px-4 py-3 backdrop-blur-sm border border-white/10 shadow-md">
                     <span className="text-muted-foreground font-semibold uppercase tracking-wide text-[10px]">Status:</span>
                     <div className="flex items-center gap-5">
                         <div className="flex items-center gap-1.5 group">
@@ -351,7 +351,7 @@ export function ZoomCalendar() {
                 </div>
 
                 {/* P2: Pill-style week navigation */}
-                <div className="flex items-center justify-between bg-card rounded-xl p-2 border shadow-sm">
+                <div className="flex items-center justify-between bg-card/80 backdrop-blur-sm rounded-2xl p-3 border border-white/10 shadow-lg">
                     <Button
                         variant="ghost"
                         size="sm"
@@ -392,9 +392,9 @@ export function ZoomCalendar() {
                 </div>
 
                 {/* Calendar Grid with scroll - flex-1 to fill remaining space */}
-                <div className="bg-card rounded-xl border overflow-hidden relative flex-1 min-h-0">
+                <div className="bg-card/90 backdrop-blur-sm rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative flex-1 min-h-0">
                     {/* Right fade gradient for scroll hint */}
-                    <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-card to-transparent z-10 pointer-events-none md:hidden" />
+                    <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card via-card/80 to-transparent z-10 pointer-events-none md:hidden" />
                     <div className="overflow-auto h-full">
                         {calendarLoading ? (
                             <ZoomCalendarSkeleton />
@@ -421,7 +421,7 @@ export function ZoomCalendar() {
                                     }}
                                 >
                                     {/* Header Row - Time column */}
-                                    <div className="bg-muted/50 p-2 border-b border-r text-center text-sm font-medium sticky left-0 z-10">
+                                    <div className="bg-muted/50 p-2 grid-separator-h grid-separator-v text-center text-sm font-medium sticky left-0 z-10">
                                         Time
                                     </div>
 
@@ -432,9 +432,9 @@ export function ZoomCalendar() {
                                             <div
                                                 key={day.date}
                                                 className={cn(
-                                                    'p-3 border-b text-center transition-colors',
+                                                    'p-3 grid-separator-h text-center transition-colors',
                                                     dayIsToday
-                                                        ? 'bg-blue-500/10 border-b-2 border-b-blue-500'
+                                                        ? 'bg-primary/10 border-b-2 border-b-primary'
                                                         : 'bg-muted/50',
                                                     !day.isWorkingDay && 'bg-muted/80 opacity-60'
                                                 )}
@@ -480,10 +480,10 @@ export function ZoomCalendar() {
                                                 <div
                                                     key={`time-${time}`}
                                                     className={cn(
-                                                        'p-1.5 border-r text-center flex items-center justify-center sticky left-0 z-10 transition-colors',
+                                                        'p-1.5 grid-separator-v text-center flex items-center justify-center sticky left-0 z-10 transition-colors',
                                                         hourStart
-                                                            ? 'bg-muted/40 border-b-2 border-b-muted-foreground/20 text-xs font-semibold text-foreground'
-                                                            : 'bg-muted/20 border-b text-[11px] text-muted-foreground'
+                                                            ? 'bg-muted/40 grid-separator-h-strong text-xs font-semibold text-foreground'
+                                                            : 'bg-muted/20 grid-separator-h text-[11px] text-muted-foreground'
                                                     )}
                                                 >
                                                     {isHour ? displayTime : <span className="opacity-60">{displayTime}</span>}
@@ -501,11 +501,11 @@ export function ZoomCalendar() {
                                                             key={`${day.date}-${time}`}
                                                             className={cn(
                                                                 'relative group',
-                                                                // P3: Hour separator border
-                                                                hourStart ? 'border-b-2 border-b-muted/60' : 'border-b',
-                                                                'border-r',
+                                                                // P3: Hour separator border (using unified system)
+                                                                hourStart ? 'grid-separator-h-strong' : 'grid-separator-h',
+                                                                'grid-separator-v',
                                                                 // P1: Today column subtle highlight
-                                                                dayIsToday && 'bg-blue-500/5',
+                                                                dayIsToday && 'bg-primary/5',
                                                                 // Status-based styling
                                                                 slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : 'bg-gray-500/5',
                                                                 // P4: Keyboard focus styling

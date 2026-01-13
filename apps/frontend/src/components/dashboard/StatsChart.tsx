@@ -21,8 +21,8 @@ const data = [
 
 export const StatsChart: React.FC = () => {
     return (
-        <div className="w-full h-[300px] bg-navy-main/50 border border-neon-green/20 rounded-lg p-4">
-            <h3 className="text-neon-green font-mono mb-4">INCOMING TRAFFIC (24H)</h3>
+        <div className="w-full h-[300px] bg-navy-main/50 border border-primary/20 rounded-lg p-4">
+            <h3 className="text-primary font-mono mb-4">INCOMING TRAFFIC (24H)</h3>
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
@@ -31,16 +31,16 @@ export const StatsChart: React.FC = () => {
                     <Tooltip
                         contentStyle={{
                             backgroundColor: '#0f172a',
-                            borderColor: '#39ff14',
-                            color: '#39ff14',
+                            borderColor: '#2196F3',
+                            color: '#2196F3',
                         }}
                     />
                     <Line
                         type="monotone"
                         dataKey="tickets"
-                        stroke="#39ff14"
+                        stroke="#2196F3"
                         strokeWidth={2}
-                        dot={{ fill: '#39ff14', r: 4 }}
+                        dot={{ fill: '#2196F3', r: 4 }}
                         activeDot={{ r: 6, fill: '#fff' }}
                     />
                 </LineChart>

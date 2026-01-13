@@ -3,9 +3,81 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { FeatureDefinition } from './entities/feature-definition.entity';
 import { UserFeaturePermission } from './entities/user-feature-permission.entity';
-import { PermissionPreset, PermissionSet } from './entities/permission-preset.entity';
+import { PermissionPreset, PermissionSet, PageAccess, PresetTargetRole } from './entities/permission-preset.entity';
 import { User } from '../users/entities/user.entity';
 import { FeaturePermissionDto } from './dto/update-permissions.dto';
+
+// ============================================
+// NEW: SIMPLIFIED PAGE-BASED ACCESS SYSTEM
+// ============================================
+
+// Page definition for UI display
+interface PageDefinition {
+    key: string;
+    name: string;
+    icon: string;
+    route: string;
+    roles: PresetTargetRole[]; // Which roles can access this page
+}
+
+// Pages available for USER role (5 pages)
+const USER_PAGES: PageDefinition[] = [
+    { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['USER'] },
+    { key: 'tickets', name: 'My Tickets', icon: 'Ticket', route: '/tickets', roles: ['USER'] },
+    { key: 'zoom_calendar', name: 'Zoom Booking', icon: 'Video', route: '/zoom-calendar', roles: ['USER'] },
+    { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb', roles: ['USER'] },
+    { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['USER'] },
+];
+
+// Pages available for AGENT role (12 pages - includes admin-only pages for ADMIN)
+const AGENT_PAGES: PageDefinition[] = [
+    { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['AGENT', 'ADMIN'] },
+    { key: 'tickets', name: 'All Tickets', icon: 'Ticket', route: '/tickets', roles: ['AGENT', 'ADMIN'] },
+    { key: 'zoom_calendar', name: 'Zoom Management', icon: 'Video', route: '/zoom-calendar', roles: ['AGENT', 'ADMIN'] },
+    { key: 'knowledge_base', name: 'KB Management', icon: 'BookOpen', route: '/kb', roles: ['AGENT', 'ADMIN'] },
+    { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT', 'ADMIN'] },
+    { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports', roles: ['AGENT', 'ADMIN'] },
+    { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal', roles: ['AGENT', 'ADMIN'] },
+    // Admin-only pages
+    { key: 'agents', name: 'Agents', icon: 'Users', route: '/agents', roles: ['ADMIN'] },
+    { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', roles: ['ADMIN'] },
+    { key: 'audit_logs', name: 'Audit Logs', icon: 'Shield', route: '/audit-logs', roles: ['ADMIN'] },
+    { key: 'system_health', name: 'System Health', icon: 'Activity', route: '/system-health', roles: ['ADMIN'] },
+    { key: 'settings', name: 'Settings', icon: 'Settings', route: '/settings', roles: ['ADMIN'] },
+];
+
+// Pages available for MANAGER role (5 pages)
+const MANAGER_PAGES: PageDefinition[] = [
+    { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['MANAGER'] },
+    { key: 'tickets', name: 'Team Tickets', icon: 'Ticket', route: '/tickets', roles: ['MANAGER'] },
+    { key: 'zoom_calendar', name: 'Zoom Calendar', icon: 'Video', route: '/zoom-calendar', roles: ['MANAGER'] },
+    { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports', roles: ['MANAGER'] },
+    { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb', roles: ['MANAGER'] },
+];
+
+// Get default page access for each role
+function getDefaultPageAccess(role: PresetTargetRole): PageAccess {
+    const pages = role === 'USER' ? USER_PAGES :
+        role === 'MANAGER' ? MANAGER_PAGES :
+            AGENT_PAGES;
+
+    const access: PageAccess = {};
+    for (const page of pages) {
+        access[page.key] = true;
+    }
+    return access;
+}
+
+// Get page definitions for a role
+function getPagesForRole(role: PresetTargetRole): PageDefinition[] {
+    return role === 'USER' ? USER_PAGES :
+        role === 'MANAGER' ? MANAGER_PAGES :
+            AGENT_PAGES;
+}
+
+// ============================================
+// OLD: COMPLEX GRANULAR PERMISSIONS (DEPRECATED)
+// ============================================
 
 // Default feature definitions - 25 granular features
 const DEFAULT_FEATURES: Partial<FeatureDefinition>[] = [
@@ -64,6 +136,14 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         sortOrder: 1,
         isDefault: true,
         isSystem: true,
+        targetRole: 'USER',
+        pageAccess: {
+            dashboard: true,
+            tickets: true,
+            zoom_calendar: true,
+            knowledge_base: true,
+            notifications: true,
+        },
         permissions: {
             // Ticketing - create and edit own only
             'ticketing.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
@@ -91,6 +171,16 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         description: 'Helpdesk agent. Manage tickets, assign, view reports. Full ticketing access.',
         sortOrder: 2,
         isSystem: true,
+        targetRole: 'AGENT',
+        pageAccess: {
+            dashboard: true,
+            tickets: true,
+            zoom_calendar: true,
+            knowledge_base: true,
+            notifications: true,
+            reports: true,
+            renewal: true,
+        },
         permissions: {
             // Ticketing - full management
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -129,6 +219,14 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         description: 'Team manager. Delete tickets, approve requests, full reports, manage renewals.',
         sortOrder: 3,
         isSystem: true,
+        targetRole: 'MANAGER',
+        pageAccess: {
+            dashboard: true,
+            tickets: true,
+            zoom_calendar: true,
+            reports: true,
+            knowledge_base: true,
+        },
         permissions: {
             // Ticketing - full including delete
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
@@ -174,6 +272,21 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         description: 'System administrator. Full access to all features including budget and system settings.',
         sortOrder: 4,
         isSystem: true,
+        targetRole: 'ADMIN',
+        pageAccess: {
+            dashboard: true,
+            tickets: true,
+            zoom_calendar: true,
+            knowledge_base: true,
+            notifications: true,
+            reports: true,
+            renewal: true,
+            agents: true,
+            automation: true,
+            audit_logs: true,
+            system_health: true,
+            settings: true,
+        },
         permissions: {
             // Ticketing - full
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
@@ -264,12 +377,34 @@ export class PermissionsService implements OnModuleInit {
         });
     }
 
-    // Get all permission presets
-    async getPresets(): Promise<PermissionPreset[]> {
-        return this.presetRepo.find({
+    // Get all permission presets with usage count
+    async getPresets(): Promise<(PermissionPreset & { usageCount: number })[]> {
+        const presets = await this.presetRepo.find({
             where: { isActive: true },
             order: { sortOrder: 'ASC' },
         });
+
+        // Get usage count for each preset
+        const presetIds = presets.map(p => p.id);
+        const usageCounts = await this.userRepo
+            .createQueryBuilder('user')
+            .select('user.appliedPresetId', 'presetId')
+            .addSelect('COUNT(*)', 'count')
+            .where('user.appliedPresetId IN (:...presetIds)', { presetIds: presetIds.length > 0 ? presetIds : [''] })
+            .groupBy('user.appliedPresetId')
+            .getRawMany<{ presetId: string; count: string }>();
+
+        // Create map of presetId -> count
+        const countMap = new Map<string, number>();
+        for (const row of usageCounts) {
+            countMap.set(row.presetId, parseInt(row.count, 10));
+        }
+
+        // Add usage count to each preset
+        return presets.map(preset => ({
+            ...preset,
+            usageCount: countMap.get(preset.id) || 0,
+        }));
     }
 
     // Get user's current permissions
@@ -284,6 +419,21 @@ export class PermissionsService implements OnModuleInit {
             permissionMap[p.featureKey] = p;
         }
         return permissionMap;
+    }
+
+    // Get user's applied preset info
+    async getUserAppliedPreset(userId: string): Promise<{ presetId: string | null; presetName: string | null }> {
+        const user = await this.userRepo.findOne({
+            where: { id: userId },
+            select: ['id', 'appliedPresetId', 'appliedPresetName'],
+        });
+        if (!user) {
+            throw new NotFoundException(`User ${userId} not found`);
+        }
+        return {
+            presetId: user.appliedPresetId || null,
+            presetName: user.appliedPresetName || null,
+        };
     }
 
     // Get user's permissions in a format suitable for JWT/frontend
@@ -302,6 +452,49 @@ export class PermissionsService implements OnModuleInit {
             };
         }
         return result;
+    }
+
+    // ============================================
+    // NEW: SIMPLIFIED PAGE-BASED ACCESS METHODS
+    // ============================================
+
+    // Get page access for a user based on their role and applied preset
+    async getUserPageAccess(userId: string): Promise<PageAccess> {
+        const user = await this.userRepo.findOne({
+            where: { id: userId },
+            select: ['id', 'role', 'appliedPresetId'],
+        });
+        if (!user) {
+            throw new NotFoundException(`User ${userId} not found`);
+        }
+
+        // If user has a preset with pageAccess, use that
+        if (user.appliedPresetId) {
+            const preset = await this.presetRepo.findOne({
+                where: { id: user.appliedPresetId },
+            });
+            if (preset?.pageAccess) {
+                return preset.pageAccess;
+            }
+        }
+
+        // Otherwise return default page access for their role
+        const role = (user.role || 'USER') as PresetTargetRole;
+        return getDefaultPageAccess(role);
+    }
+
+    // Get available pages for a role (for preset editor UI)
+    getAvailablePagesForRole(role: PresetTargetRole) {
+        return getPagesForRole(role);
+    }
+
+    // Get all page definitions grouped by role
+    getAllPageDefinitions() {
+        return {
+            USER: USER_PAGES,
+            AGENT: AGENT_PAGES,
+            MANAGER: MANAGER_PAGES,
+        };
     }
 
     // Update user permissions
@@ -343,7 +536,7 @@ export class PermissionsService implements OnModuleInit {
     }
 
     // Apply preset to user
-    async applyPresetToUser(userId: string, presetId: string): Promise<{ applied: boolean }> {
+    async applyPresetToUser(userId: string, presetId: string): Promise<{ applied: boolean; presetName: string }> {
         const user = await this.userRepo.findOne({ where: { id: userId } });
         if (!user) {
             throw new NotFoundException(`User ${userId} not found`);
@@ -352,6 +545,17 @@ export class PermissionsService implements OnModuleInit {
         const preset = await this.presetRepo.findOne({ where: { id: presetId } });
         if (!preset) {
             throw new NotFoundException(`Preset ${presetId} not found`);
+        }
+
+        // Validate targetRole match (warning only, not blocking)
+        if (preset.targetRole && user.role !== preset.targetRole) {
+            // ADMIN can apply any preset, but log for other roles
+            if (user.role !== 'ADMIN') {
+                this.logger.warn(
+                    `Preset "${preset.name}" (targetRole: ${preset.targetRole}) applied to user with role ${user.role}. ` +
+                    `This may result in unexpected permissions.`
+                );
+            }
         }
 
         // Delete existing permissions for this user
@@ -372,7 +576,13 @@ export class PermissionsService implements OnModuleInit {
 
         await this.permissionRepo.save(newPermissions.map(p => this.permissionRepo.create(p)));
 
-        return { applied: true };
+        // Track which preset was applied to this user
+        user.appliedPresetId = preset.id;
+        user.appliedPresetName = preset.name;
+        await this.userRepo.save(user);
+
+        this.logger.log(`Applied preset "${preset.name}" to user ${userId}`);
+        return { applied: true, presetName: preset.name };
     }
 
     // Bulk apply preset to multiple users
@@ -440,7 +650,9 @@ export class PermissionsService implements OnModuleInit {
         description?: string;
         sortOrder?: number;
         isDefault?: boolean;
-        permissions: Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>;
+        targetRole?: PresetTargetRole;
+        pageAccess?: PageAccess;
+        permissions?: Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>;
     }): Promise<PermissionPreset> {
         // If setting as default, unset other defaults
         if (data.isDefault) {
@@ -449,11 +661,13 @@ export class PermissionsService implements OnModuleInit {
 
         const preset = this.presetRepo.create({
             name: data.name,
-            description: data.description,
+            description: data.description || '',
             sortOrder: data.sortOrder || 99,
             isDefault: data.isDefault || false,
             isSystem: false, // Custom presets are not system presets
-            permissions: data.permissions,
+            targetRole: data.targetRole || 'USER',
+            pageAccess: data.pageAccess || {},
+            permissions: data.permissions || {},
         });
 
         return this.presetRepo.save(preset);
@@ -465,6 +679,8 @@ export class PermissionsService implements OnModuleInit {
         description?: string;
         sortOrder?: number;
         isDefault?: boolean;
+        targetRole?: PresetTargetRole;
+        pageAccess?: PageAccess;
         permissions?: Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>;
     }): Promise<PermissionPreset> {
         const preset = await this.presetRepo.findOne({ where: { id: presetId } });
@@ -482,6 +698,8 @@ export class PermissionsService implements OnModuleInit {
         if (data.description !== undefined) preset.description = data.description;
         if (data.sortOrder !== undefined) preset.sortOrder = data.sortOrder;
         if (data.isDefault !== undefined) preset.isDefault = data.isDefault;
+        if (data.targetRole !== undefined) preset.targetRole = data.targetRole;
+        if (data.pageAccess !== undefined) preset.pageAccess = data.pageAccess;
         if (data.permissions !== undefined) preset.permissions = data.permissions;
 
         return this.presetRepo.save(preset);
@@ -515,7 +733,9 @@ export class PermissionsService implements OnModuleInit {
             sortOrder: source.sortOrder + 1,
             isDefault: false,
             isSystem: false,
-            permissions: { ...source.permissions },
+            targetRole: source.targetRole,
+            pageAccess: source.pageAccess ? { ...source.pageAccess } : {},
+            permissions: source.permissions ? { ...source.permissions } : {},
         });
 
         return this.presetRepo.save(clone);

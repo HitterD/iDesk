@@ -59,7 +59,7 @@ export const AssigneeSelect = ({ value, onChange, disabled }: AssigneeSelectProp
                 >
                     {value ? (
                         <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full bg-neon-green/20 flex items-center justify-center text-neon-green text-xs font-bold">
+                            <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
                                 {selectedAgent?.fullName.charAt(0)}
                             </div>
                             {selectedAgent?.fullName}

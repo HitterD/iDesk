@@ -123,6 +123,38 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
         staleTime: 30000
     });
 
+    // Fetch real activity from audit logs API
+    const { data: activityData = [] } = useQuery<ActivityItem[]>({
+        queryKey: ['agent-activity', agent?.id],
+        queryFn: async () => {
+            if (!agent?.id) return [];
+            try {
+                const res = await api.get(`/audit-logs?userId=${agent.id}&limit=10`);
+                const logs = res.data.data || res.data || [];
+                return logs.slice(0, 5).map((log: any) => {
+                    // Map audit log action to activity type
+                    let type: ActivityItem['type'] = 'status_changed';
+                    const action = (log.action || '').toLowerCase();
+                    if (action.includes('resolv')) type = 'ticket_resolved';
+                    else if (action.includes('assign')) type = 'ticket_assigned';
+                    else if (action.includes('comment')) type = 'comment_added';
+
+                    return {
+                        id: log.id,
+                        type,
+                        description: log.description || `${log.action} on ${log.entityType || 'item'}`,
+                        timestamp: log.createdAt || log.timestamp
+                    };
+                });
+            } catch {
+                return [];
+            }
+        },
+        enabled: isOpen && !!agent?.id && activeTab === 'activity',
+        staleTime: 30000
+    });
+
+    // Early return AFTER all hooks (React requires consistent hook order)
     if (!isOpen || !agent) return null;
 
     const roleConfig = ROLE_CONFIG[agent.role] || ROLE_CONFIG.USER;
@@ -138,14 +170,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     const sla = agent.slaCompliance || 100;
     const slaColor = sla >= 90 ? 'text-green-600' : sla >= 70 ? 'text-yellow-600' : 'text-red-600';
     const slaBg = sla >= 90 ? 'bg-green-100 dark:bg-green-900/30' : sla >= 70 ? 'bg-yellow-100 dark:bg-yellow-900/30' : 'bg-red-100 dark:bg-red-900/30';
-
-    // Mock activity for demo (in production, this would come from API)
-    const mockActivity: ActivityItem[] = [
-        { id: '1', type: 'ticket_resolved', description: 'Resolved ticket #TK-001234', timestamp: new Date(Date.now() - 3600000).toISOString() },
-        { id: '2', type: 'comment_added', description: 'Added comment to #TK-001233', timestamp: new Date(Date.now() - 7200000).toISOString() },
-        { id: '3', type: 'ticket_assigned', description: 'Was assigned ticket #TK-001235', timestamp: new Date(Date.now() - 10800000).toISOString() },
-        { id: '4', type: 'status_changed', description: 'Changed status on #TK-001230', timestamp: new Date(Date.now() - 86400000).toISOString() },
-    ];
 
     const getActivityIcon = (type: ActivityItem['type']) => {
         switch (type) {
@@ -325,17 +349,24 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             {/* Activity Tab */}
                             {activeTab === 'activity' && (
                                 <div className="space-y-3 animate-in fade-in duration-200">
-                                    {mockActivity.map((item) => (
-                                        <div key={item.id} className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-left">
-                                            <div className="p-1.5 bg-white dark:bg-slate-700 rounded-lg">
-                                                {getActivityIcon(item.type)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm text-slate-700 dark:text-slate-300">{item.description}</p>
-                                                <p className="text-xs text-slate-400 mt-0.5">{formatRelativeTime(item.timestamp)}</p>
-                                            </div>
+                                    {activityData.length === 0 ? (
+                                        <div className="py-8 text-center text-slate-400">
+                                            <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                            <p>No recent activity</p>
                                         </div>
-                                    ))}
+                                    ) : (
+                                        activityData.map((item) => (
+                                            <div key={item.id} className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-left">
+                                                <div className="p-1.5 bg-white dark:bg-slate-700 rounded-lg">
+                                                    {getActivityIcon(item.type)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-slate-700 dark:text-slate-300">{item.description}</p>
+                                                    <p className="text-xs text-slate-400 mt-0.5">{formatRelativeTime(item.timestamp)}</p>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             )}
 

@@ -93,7 +93,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     return (
         <div
             className={cn(
-                "glass-card-elevated p-4 transition-all duration-300",
+                "glass-card-elevated stats-card-glow p-4 transition-all duration-300",
                 // Interactive styles
                 onClick && "cursor-pointer hover:scale-[1.02] hover:glass-shadow-heavy active:scale-[0.98]",
                 // Active filter state

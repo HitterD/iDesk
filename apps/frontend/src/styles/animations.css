@@ -4,11 +4,6 @@
    ======================================== */
 
 @layer utilities {
-    /* ========================================
-     BASIC FADE & SLIDE ANIMATIONS
-     ======================================== */
-
-    /* Fade In Up - for cards, modals */
     @keyframes fadeInUp {
         from {
             opacity: 0;
@@ -21,11 +16,6 @@
         }
     }
 
-    .animate-fade-in-up {
-        animation: fadeInUp 0.4s ease-out forwards;
-    }
-
-    /* Fade In Down */
     @keyframes fadeInDown {
         from {
             opacity: 0;
@@ -38,11 +28,6 @@
         }
     }
 
-    .animate-fade-in-down {
-        animation: fadeInDown 0.4s ease-out forwards;
-    }
-
-    /* Slide In Right - for sidebars, panels */
     @keyframes slideInRight {
         from {
             opacity: 0;
@@ -55,11 +40,6 @@
         }
     }
 
-    .animate-slide-in-right {
-        animation: slideInRight 0.3s ease-out forwards;
-    }
-
-    /* Slide In Left */
     @keyframes slideInLeft {
         from {
             opacity: 0;
@@ -72,15 +52,6 @@
         }
     }
 
-    .animate-slide-in-left {
-        animation: slideInLeft 0.3s ease-out forwards;
-    }
-
-    /* ========================================
-     SCALE & POP ANIMATIONS
-     ======================================== */
-
-    /* Scale In - for buttons, badges */
     @keyframes scaleIn {
         from {
             opacity: 0;
@@ -93,11 +64,6 @@
         }
     }
 
-    .animate-scale-in {
-        animation: scaleIn 0.2s ease-out forwards;
-    }
-
-    /* Pop In - for notifications, toasts */
     @keyframes popIn {
         0% {
             opacity: 0;
@@ -114,15 +80,6 @@
         }
     }
 
-    .animate-pop-in {
-        animation: popIn 0.3s ease-out forwards;
-    }
-
-    /* ========================================
-     ATTENTION ANIMATIONS
-     ======================================== */
-
-    /* Bounce Subtle - for attention */
     @keyframes bounceSubtle {
 
         0%,
@@ -135,26 +92,16 @@
         }
     }
 
-    .animate-bounce-subtle {
-        animation: bounceSubtle 2s infinite ease-in-out;
-    }
-
-    /* Pulse Ring - for notification badges */
     @keyframes pulseRing {
         0% {
-            box-shadow: 0 0 0 0 rgba(168, 230, 207, 0.7);
+            box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.7);
         }
 
         100% {
-            box-shadow: 0 0 0 10px rgba(168, 230, 207, 0);
+            box-shadow: 0 0 0 10px rgba(33, 150, 243, 0);
         }
     }
 
-    .animate-pulse-ring {
-        animation: pulseRing 1.5s infinite;
-    }
-
-    /* Shimmer - for skeleton loading */
     @keyframes shimmer {
         0% {
             background-position: -200% 0;
@@ -165,20 +112,6 @@
         }
     }
 
-    .animate-shimmer {
-        background: linear-gradient(90deg,
-                rgba(255, 255, 255, 0) 0%,
-                rgba(255, 255, 255, 0.4) 50%,
-                rgba(255, 255, 255, 0) 100%);
-        background-size: 200% 100%;
-        animation: shimmer 1.5s infinite;
-    }
-
-    /* ========================================
-     SHAKE ANIMATIONS (ERROR STATES)
-     ======================================== */
-
-    /* Shake - for errors */
     @keyframes shake {
 
         0%,
@@ -202,11 +135,6 @@
         }
     }
 
-    .animate-shake {
-        animation: shake 0.5s ease-in-out;
-    }
-
-    /* Strong Shake - for critical alerts */
     @keyframes shakeStrong {
 
         0%,
@@ -230,15 +158,6 @@
         }
     }
 
-    .animate-shake-strong {
-        animation: shakeStrong 0.5s cubic-bezier(.36, .07, .19, .97) both;
-    }
-
-    /* ========================================
-     PRIORITY & STATUS PULSE ANIMATIONS
-     ======================================== */
-
-    /* Red Pulse - for critical/overdue backgrounds */
     @keyframes pulseRed {
 
         0%,
@@ -253,11 +172,6 @@
         }
     }
 
-    .animate-pulse-red {
-        animation: pulseRed 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-
-    /* Spin Slow - for loading indicators */
     @keyframes spinSlow {
         from {
             transform: rotate(0deg);
@@ -268,109 +182,6 @@
         }
     }
 
-    .animate-spin-slow {
-        animation: spinSlow 2s linear infinite;
-    }
-
-    /* ========================================
-     STAGGER DELAYS FOR LISTS
-     ======================================== */
-
-    .stagger-1 {
-        animation-delay: 0.05s;
-    }
-
-    .stagger-2 {
-        animation-delay: 0.1s;
-    }
-
-    .stagger-3 {
-        animation-delay: 0.15s;
-    }
-
-    .stagger-4 {
-        animation-delay: 0.2s;
-    }
-
-    .stagger-5 {
-        animation-delay: 0.25s;
-    }
-
-    .stagger-6 {
-        animation-delay: 0.3s;
-    }
-
-    .stagger-7 {
-        animation-delay: 0.35s;
-    }
-
-    .stagger-8 {
-        animation-delay: 0.4s;
-    }
-
-    .stagger-9 {
-        animation-delay: 0.45s;
-    }
-
-    .stagger-10 {
-        animation-delay: 0.5s;
-    }
-
-    .stagger-11 {
-        animation-delay: 0.55s;
-    }
-
-    .stagger-12 {
-        animation-delay: 0.6s;
-    }
-
-    /* ========================================
-     TRANSITION UTILITIES
-     ======================================== */
-
-    .transition-smooth {
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .transition-fast {
-        transition: all 0.15s ease-out;
-    }
-
-    /* ========================================
-     HOVER EFFECTS
-     ======================================== */
-
-    /* Hover lift effect for cards */
-    .hover-lift {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .hover-lift:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Hover scale effect for buttons */
-    .hover-scale {
-        transition: transform 0.15s ease;
-    }
-
-    .hover-scale:hover {
-        transform: scale(1.02);
-    }
-
-    .hover-scale:active {
-        transform: scale(0.98);
-    }
-
-    /* Glass morphism effect - see glassmorphism.css for full implementation */
-    /* Classes: .glass-card, .glass-card-elevated, .glass-card-subtle */
-
-    /* ========================================
-     PAGE TRANSITION ANIMATIONS
-     ======================================== */
-
-    /* Page fade in */
     @keyframes pageIn {
         from {
             opacity: 0;
@@ -383,11 +194,6 @@
         }
     }
 
-    .animate-page-in {
-        animation: pageIn 0.4s ease-out forwards;
-    }
-
-    /* Blur fade in */
     @keyframes blurIn {
         from {
             opacity: 0;
@@ -402,11 +208,6 @@
         }
     }
 
-    .animate-blur-in {
-        animation: blurIn 0.5s ease-out forwards;
-    }
-
-    /* Slide up with bounce */
     @keyframes slideUpBounce {
         0% {
             opacity: 0;
@@ -423,11 +224,6 @@
         }
     }
 
-    .animate-slide-up-bounce {
-        animation: slideUpBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
-
-    /* Notification enter */
     @keyframes notificationEnter {
         0% {
             opacity: 0;
@@ -440,11 +236,6 @@
         }
     }
 
-    .animate-notification-enter {
-        animation: notificationEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
-
-    /* Modal backdrop */
     @keyframes backdropIn {
         from {
             opacity: 0;
@@ -457,11 +248,6 @@
         }
     }
 
-    .animate-backdrop-in {
-        animation: backdropIn 0.3s ease-out forwards;
-    }
-
-    /* Modal content */
     @keyframes modalIn {
         from {
             opacity: 0;
@@ -474,11 +260,6 @@
         }
     }
 
-    .animate-modal-in {
-        animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
-
-    /* Floating animation */
     @keyframes floating {
 
         0%,
@@ -491,30 +272,17 @@
         }
     }
 
-    .animate-floating {
-        animation: floating 3s ease-in-out infinite;
-    }
-
-    /* Pulse glow */
     @keyframes pulseGlow {
 
         0%,
         100% {
-            box-shadow: 0 0 0 0 hsla(150, 50%, 50%, 0.4);
+            box-shadow: 0 0 0 0 hsla(210, 100%, 55%, 0.4);
         }
 
         50% {
-            box-shadow: 0 0 20px 10px hsla(150, 50%, 50%, 0);
+            box-shadow: 0 0 20px 10px hsla(210, 100%, 55%, 0);
         }
     }
-
-    .animate-pulse-glow {
-        animation: pulseGlow 2s ease-in-out infinite;
-    }
-
-    /* ========================================
-     SKELETON ANIMATIONS
-     ======================================== */
 
     @keyframes skeletonWave {
         0% {
@@ -524,23 +292,6 @@
         100% {
             background-position: 200% 0;
         }
-    }
-
-    .skeleton-wave {
-        background: linear-gradient(90deg,
-                hsl(40 15% 92%) 0%,
-                hsl(40 15% 96%) 50%,
-                hsl(40 15% 92%) 100%);
-        background-size: 200% 100%;
-        animation: skeletonWave 1.5s ease-in-out infinite;
-    }
-
-    .dark .skeleton-wave {
-        background: linear-gradient(90deg,
-                hsl(217 33% 17%) 0%,
-                hsl(217 33% 22%) 50%,
-                hsl(217 33% 17%) 100%);
-        background-size: 200% 100%;
     }
 }
 
@@ -865,11 +616,11 @@
 
 .hero-gradient {
     background: linear-gradient(135deg,
-            hsl(150, 50%, 50%) 0%,
-            hsl(180, 60%, 45%) 25%,
-            hsl(200, 70%, 50%) 50%,
-            hsl(180, 60%, 45%) 75%,
-            hsl(150, 50%, 50%) 100%);
+            hsl(210, 100%, 55%) 0%,
+            hsl(200, 90%, 50%) 25%,
+            hsl(190, 80%, 50%) 50%,
+            hsl(200, 90%, 50%) 75%,
+            hsl(210, 100%, 55%) 100%);
     background-size: 400% 400%;
     animation: heroGradient 15s ease infinite;
 }
@@ -1141,4 +892,189 @@
 
 .animate-golden-pulse {
     animation: goldenPulse 2s ease-in-out infinite;
+}
+
+/* ========================================
+   CONSOLIDATED ANIMATIONS
+   These keyframes consolidate duplicates from:
+   - micro-animations.css
+   - glassmorphism.css
+   For consistency, use these canonical versions.
+   ======================================== */
+
+/* Float animation (canonical) - replaces duplicates in micro-animations.css */
+@keyframes floatGentle {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+.animate-float-gentle {
+    animation: floatGentle 3s ease-in-out infinite;
+}
+
+/* Bounce In animation (canonical) - from micro-animations.css */
+@keyframes bounceInScale {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    70% {
+        transform: scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-bounce-in-scale {
+    animation: bounceInScale 0.5s ease-out;
+}
+
+/* Slide Fade In (canonical) - from micro-animations.css */
+@keyframes slideFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-fade-in-up {
+    animation: slideFadeInUp 0.4s ease-out forwards;
+}
+
+/* Glass effects (consolidated from glassmorphism.css) */
+@keyframes glassPulse {
+
+    0%,
+    100% {
+        box-shadow: var(--glass-shadow), 0 0 0 0 rgba(33, 150, 243, 0.4);
+    }
+
+    50% {
+        box-shadow: var(--glass-shadow), 0 0 20px 4px rgba(33, 150, 243, 0.2);
+    }
+}
+
+@keyframes glassBlurIn {
+    from {
+        opacity: 0;
+        filter: blur(10px);
+    }
+
+    to {
+        opacity: 1;
+        filter: blur(0);
+    }
+}
+
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.animate-glass-pulse {
+    animation: glassPulse 2s ease-in-out infinite;
+}
+
+.animate-glass-blur-in {
+    animation: glassBlurIn 0.4s ease-out forwards;
+}
+
+.animate-gradient-shift {
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+}
+
+/* Premium orb animations (from glassmorphism.css) */
+@keyframes orbFloat {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.6;
+    }
+
+    25% {
+        transform: translate(30px, -40px) scale(1.1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: translate(-20px, 20px) scale(0.95);
+        opacity: 0.5;
+    }
+
+    75% {
+        transform: translate(40px, 30px) scale(1.05);
+        opacity: 0.7;
+    }
+}
+
+@keyframes orbFloatReverse {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.5;
+    }
+
+    25% {
+        transform: translate(-40px, 30px) scale(0.9);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: translate(30px, -20px) scale(1.1);
+        opacity: 0.6;
+    }
+
+    75% {
+        transform: translate(-30px, -40px) scale(1);
+        opacity: 0.8;
+    }
+}
+
+/* Skeleton loading (canonical) */
+@keyframes glassSkeleton {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.animate-glass-skeleton {
+    background: linear-gradient(90deg, var(--glass-bg-subtle, rgba(248, 250, 252, 0.9)) 25%, var(--glass-bg, rgba(255, 255, 255, 0.85)) 50%, var(--glass-bg-subtle, rgba(248, 250, 252, 0.9)) 75%);
+    background-size: 200% 100%;
+    animation: glassSkeleton 1.5s ease infinite;
 }

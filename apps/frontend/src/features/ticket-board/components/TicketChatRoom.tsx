@@ -174,7 +174,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                         >
                             <div
                                 className={`max-w-[80%] rounded-lg p-3 text-sm ${isAgent
-                                    ? 'bg-neon-green/20 text-neon-green border border-neon-green/30 rounded-br-none'
+                                    ? 'bg-primary/20 text-primary border border-primary/30 rounded-br-none'
                                     : 'bg-slate-800 text-slate-200 border border-white/5 rounded-bl-none'
                                     }`}
                             >
@@ -219,7 +219,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                             <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                                 <PopoverTrigger asChild>
                                     <button
-                                        className="p-2 text-slate-400 hover:text-neon-green transition-colors"
+                                        className="p-2 text-slate-400 hover:text-primary transition-colors"
                                         title="Saved Replies"
                                     >
                                         <Zap className="w-5 h-5" />
@@ -252,7 +252,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                         <button
                             onClick={handleSend}
                             disabled={isSending}
-                            className="bg-neon-green text-navy-main px-4 py-2 rounded-lg hover:bg-neon-green/90 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+                            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
                         >
                             <Send className="w-4 h-4" /> Send
                         </button>

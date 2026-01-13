@@ -100,7 +100,7 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5 }: UpcomingMeeti
 
     if (isLoading) {
         return (
-            <div className={cn("bg-card rounded-xl border p-4", className)}>
+            <div className={cn("bg-card rounded-xl card-bordered p-4", className)}>
                 <div className="flex items-center gap-2 mb-4">
                     <Video className="h-5 w-5 text-blue-500" />
                     <h3 className="font-bold">Upcoming Meetings</h3>
@@ -119,7 +119,7 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5 }: UpcomingMeeti
 
     if (upcomingBookings.length === 0) {
         return (
-            <div className={cn("bg-card rounded-xl border p-4", className)}>
+            <div className={cn("bg-card rounded-xl card-bordered p-4", className)}>
                 <div className="flex items-center gap-2 mb-4">
                     <Video className="h-5 w-5 text-blue-500" />
                     <h3 className="font-bold">Upcoming Meetings</h3>
@@ -134,18 +134,20 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5 }: UpcomingMeeti
     }
 
     return (
-        <div className={cn("bg-card rounded-xl border", className)}>
-            <div className="flex items-center justify-between p-4 border-b">
+        <div className={cn("bg-card/80 backdrop-blur-sm rounded-2xl border border-white/10 shadow-xl", className)}>
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
                 <div className="flex items-center gap-2">
-                    <Video className="h-5 w-5 text-blue-500" />
-                    <h3 className="font-bold">Upcoming Meetings</h3>
+                    <div className="p-1.5 rounded-lg bg-blue-500/20">
+                        <Video className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <h3 className="font-bold text-sm">Upcoming Meetings</h3>
                 </div>
-                <Badge variant="secondary" className="font-mono">
+                <Badge variant="secondary" className="font-mono bg-blue-500/20 text-blue-400 border-blue-500/30">
                     {upcomingBookings.length}
                 </Badge>
             </div>
 
-            <div className="divide-y">
+            <div className="divide-y divide-white/5">
                 {upcomingBookings.map((booking) => (
                     <UpcomingMeetingItem
                         key={booking.id}
@@ -312,7 +314,7 @@ function UpcomingMeetingItem({
             )}
 
             {/* Action Buttons - Reschedule & Cancel */}
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-muted/30">
+            <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: 'var(--border-width-default) solid var(--separator-color)' }}>
                 <Button
                     size="sm"
                     variant="outline"

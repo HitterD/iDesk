@@ -23,9 +23,27 @@ export interface PermissionPreset {
     id: string;
     name: string;
     description?: string;
+    targetRole?: 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';
+    pageAccess?: PageAccess;
     permissions: Record<string, FeaturePermission>;
     isDefault: boolean;
     sortOrder: number;
+}
+
+// NEW: Simple page access map
+export interface PageAccess {
+    [pageKey: string]: boolean;
+}
+
+// Response from GET /permissions/me
+export interface MyPermissionsResponse {
+    userId: string;
+    permissions: Record<string, any>;
+    pageAccess: PageAccess;
+    appliedPreset: {
+        presetId: string | null;
+        presetName: string | null;
+    };
 }
 
 /** Hook to fetch all feature definitions */
@@ -73,19 +91,20 @@ export function useHasPermission(
     const authData = localStorage.getItem('auth');
     const user = authData ? JSON.parse(authData) : null;
 
-    // ADMIN and MANAGER bypass permission checks
-    if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+    // ADMIN bypasses permission checks
+    if (user?.role === 'ADMIN') {
         return { hasPermission: true, isLoading: false };
     }
 
     const { data: permissions, isLoading } = useQuery({
-        queryKey: ['my-permissions', user?.userId],
+        queryKey: ['my-permissions'],
         queryFn: async () => {
-            const res = await api.get(`/permissions/users/${user?.userId}`);
+            // Use /permissions/me endpoint - works for ALL roles
+            const res = await api.get('/permissions/me');
             return res.data;
         },
-        enabled: !!user?.userId && user?.role !== 'ADMIN' && user?.role !== 'MANAGER',
-        staleTime: 5 * 60 * 1000,
+        enabled: !!user?.userId,
+        staleTime: 30 * 1000,
     });
 
     if (isLoading) return { hasPermission: false, isLoading: true };
@@ -108,12 +127,45 @@ export function useMyPermissions() {
     const user = authData ? JSON.parse(authData) : null;
 
     return useQuery({
-        queryKey: ['my-permissions', user?.userId],
+        queryKey: ['my-permissions'],
         queryFn: async () => {
-            const res = await api.get(`/permissions/users/${user?.userId}`);
+            // Use /permissions/me endpoint - works for ALL roles
+            const res = await api.get('/permissions/me');
             return res.data;
         },
-        enabled: !!user?.userId && user?.role !== 'ADMIN' && user?.role !== 'MANAGER',
-        staleTime: 5 * 60 * 1000,
+        enabled: !!user?.userId,
+        staleTime: 30 * 1000, // 30 seconds - faster refresh after preset changes
     });
 }
+
+/**
+ * V9: Hook to check if current user has access to a specific page
+ * Uses preset pageAccess for authorization
+ */
+export function useHasPageAccess(pageKey: string) {
+    const authData = localStorage.getItem('auth');
+    const user = authData ? JSON.parse(authData) : null;
+
+    // ADMIN bypasses page access checks
+    if (user?.role === 'ADMIN') {
+        return { hasAccess: true, isLoading: false };
+    }
+
+    const { data: permissions, isLoading } = useQuery<MyPermissionsResponse>({
+        queryKey: ['my-permissions'],
+        queryFn: async () => {
+            const res = await api.get('/permissions/me');
+            return res.data;
+        },
+        enabled: !!user?.id, // V10 FIX: was userId, should be id
+        staleTime: 30 * 1000,
+    });
+
+    if (isLoading) return { hasAccess: false, isLoading: true };
+
+    // Check pageAccess from preset
+    const hasAccess = permissions?.pageAccess?.[pageKey] === true;
+
+    return { hasAccess, isLoading };
+}
+

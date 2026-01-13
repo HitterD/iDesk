@@ -74,7 +74,7 @@ export const FeedbackPage: React.FC = () => {
                 <div className="text-center mb-8">
                     <div className="flex justify-center mb-4">
                         <div className="w-12 h-12 bg-navy-main rounded-lg flex items-center justify-center">
-                            <MessageSquare className="w-6 h-6 text-neon-green" />
+                            <MessageSquare className="w-6 h-6 text-primary" />
                         </div>
                     </div>
                     <h1 className="text-2xl font-bold text-slate-800">How did we do?</h1>

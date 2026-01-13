@@ -60,7 +60,7 @@ export const AppSidebar: React.FC = () => {
                     {user?.role !== 'USER' && (
                         <button
                             onClick={() => setIsCreateTicketOpen(true)}
-                            className="w-full mb-6 bg-gradient-to-r from-neon-green to-emerald-500 text-navy-main font-bold py-3 px-4 rounded-xl shadow-lg shadow-neon-green/20 hover:shadow-neon-green/30 hover:scale-[1.02] transition-all duration-200 flex items-center justify-center gap-2"
+                            className="w-full mb-6 bg-gradient-to-r from-primary to-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all duration-200 flex items-center justify-center gap-2"
                         >
                             <Plus className="w-5 h-5" />
                             <span>New Ticket</span>
@@ -77,7 +77,7 @@ export const AppSidebar: React.FC = () => {
                                 to={link.path}
                                 className={({ isActive }) =>
                                     `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
-                                        ? 'bg-neon-green/10 text-neon-green border border-neon-green/20 shadow-[0_0_15px_rgba(0,255,157,0.1)]'
+                                        ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_15px_rgba(33,150,243,0.1)]'
                                         : 'text-slate-400 hover:text-white hover:bg-white/5'
                                     }`
                                 }

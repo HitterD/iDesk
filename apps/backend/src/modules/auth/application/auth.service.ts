@@ -166,7 +166,7 @@ export class AuthService {
         });
 
         return {
-            access_token: this.jwtService.sign(payload, { expiresIn }),
+            access_token: this.jwtService.sign(payload, { expiresIn: expiresIn as `${number}${'s' | 'm' | 'h' | 'd'}` }),
             user: user,
             expiresIn, // Return expiration info to frontend
         };

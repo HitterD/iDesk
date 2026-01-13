@@ -18,7 +18,7 @@ const ImageLightbox: React.FC<{
     onClose: () => void;
 }> = ({ src, alt, onClose }) => {
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
             onClick={onClose}
         >
@@ -79,10 +79,10 @@ const AttachmentPreview: React.FC<{
         <div className="mt-2 space-y-2">
             {attachments.map((url, index) => {
                 const fullUrl = getFullUrl(url);
-                
+
                 if (isImage(url)) {
                     return (
-                        <div 
+                        <div
                             key={index}
                             className="cursor-pointer group relative inline-block"
                             onClick={() => onImageClick(fullUrl)}
@@ -90,7 +90,7 @@ const AttachmentPreview: React.FC<{
                             <img
                                 src={fullUrl}
                                 alt={`Attachment ${index + 1}`}
-                                className="max-w-[200px] max-h-[150px] rounded-lg object-cover border border-white/10 group-hover:border-neon-green/50 transition-colors"
+                                className="max-w-[200px] max-h-[150px] rounded-lg object-cover border border-white/10 group-hover:border-primary/50 transition-colors"
                                 onError={(e) => {
                                     // Show placeholder for broken images
                                     const target = e.target as HTMLImageElement;
@@ -263,22 +263,22 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                                     ? 'bg-transparent text-slate-500 text-xs w-full text-center italic border-none'
                                     : msg.senderId === ticket.userId
                                         ? 'bg-white/10 text-slate-200 rounded-bl-none'
-                                        : 'bg-neon-green/10 text-neon-green border border-neon-green/20 rounded-br-none'
+                                        : 'bg-primary/10 text-primary border border-primary/20 rounded-br-none'
                                     }`}
                             >
                                 {/* Message Content - hide if only [Photo] placeholder */}
                                 {msg.content && !msg.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (
                                     <p>{msg.content}</p>
                                 )}
-                                
+
                                 {/* Attachment Preview */}
                                 {msg.attachments && msg.attachments.length > 0 && (
-                                    <AttachmentPreview 
-                                        attachments={msg.attachments} 
+                                    <AttachmentPreview
+                                        attachments={msg.attachments}
                                         onImageClick={(url) => setLightboxImage(url)}
                                     />
                                 )}
-                                
+
                                 {!msg.isSystemMessage && (
                                     <div className="flex items-center justify-between mt-2 gap-2">
                                         <MessageSourceBadge source={msg.source} />
@@ -292,7 +292,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                     ))}
                     <div ref={messagesEndRef} />
                 </div>
-                
+
                 {/* Image Lightbox */}
                 {lightboxImage && (
                     <ImageLightbox
@@ -311,11 +311,11 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                             onChange={(e) => setNewMessage(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                             placeholder="Type a reply..."
-                            className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-neon-green/50 placeholder:text-slate-600"
+                            className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-slate-600"
                         />
                         <button
                             onClick={handleSend}
-                            className="bg-neon-green text-navy-dark px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-neon-green/90 transition-colors"
+                            className="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors"
                         >
                             Send
                         </button>

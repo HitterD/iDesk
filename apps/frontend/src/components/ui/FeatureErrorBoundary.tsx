@@ -61,7 +61,7 @@ export class FeatureErrorBoundary extends Component<Props, State> {
                     </p>
                     <button
                         onClick={this.handleRetry}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-neon-green/20 text-neon-green font-medium rounded-lg hover:bg-neon-green/30 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 text-primary font-medium rounded-lg hover:bg-primary/30 transition-colors"
                     >
                         <RefreshCw className="w-4 h-4" />
                         Try Again

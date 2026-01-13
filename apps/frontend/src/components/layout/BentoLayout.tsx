@@ -54,7 +54,14 @@ export const BentoLayout = () => {
                 Skip to main content
             </a>
 
-            <div className="flex h-screen app-background-blobs bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300">
+            <div className="flex h-screen premium-bg-container text-slate-800 dark:text-slate-100 font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300">
+                {/* Premium Animated Background Orbs - Fixed position so they don't affect flex */}
+                <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+                    <div className="premium-orb-blue -top-40 -left-40" />
+                    <div className="premium-orb-purple -bottom-40 -right-40" />
+                    <div className="premium-orb-cyan top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
+
                 {/* Mobile Overlay */}
                 {isMobileMenuOpen && (
                     <div
@@ -99,23 +106,53 @@ export const BentoLayout = () => {
                         <BentoTopbar />
                     </div>
 
-                    <main
-                        id="main-content"
-                        className="flex-1 overflow-y-auto p-4 lg:p-8 pt-2 pb-20 lg:pb-8 scroll-smooth scrollbar-custom"
-                    >
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={location.pathname}
-                                variants={pageVariants}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                className="w-full"
+                    {/* Main content area - conditionally remove padding and scroll for full-screen pages */}
+                    {(() => {
+                        // Pages that need full control of their own layout (no padding, no outer scroll)
+                        // Match only ticket detail pages with UUID: /tickets/{uuid}
+                        const isFullScreenPage = location.pathname.match(/^\/tickets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) !== null;
+
+                        if (isFullScreenPage) {
+                            // Full-screen mode: child controls its own height and scrolling
+                            return (
+                                <main id="main-content" className="flex-1 overflow-hidden">
+                                    <AnimatePresence mode="wait">
+                                        <motion.div
+                                            key={location.pathname}
+                                            variants={pageVariants}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            className="w-full h-full"
+                                        >
+                                            <Outlet />
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </main>
+                            );
+                        }
+
+                        // Normal mode: padded, scrollable main area
+                        return (
+                            <main
+                                id="main-content"
+                                className="flex-1 overflow-y-auto p-4 lg:p-8 pt-2 pb-20 lg:pb-8 scroll-smooth scrollbar-custom"
                             >
-                                <Outlet />
-                            </motion.div>
-                        </AnimatePresence>
-                    </main>
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={location.pathname}
+                                        variants={pageVariants}
+                                        initial="initial"
+                                        animate="animate"
+                                        exit="exit"
+                                        className="w-full"
+                                    >
+                                        <Outlet />
+                                    </motion.div>
+                                </AnimatePresence>
+                            </main>
+                        );
+                    })()}
                 </div>
 
                 {/* Mobile Bottom Navigation */}

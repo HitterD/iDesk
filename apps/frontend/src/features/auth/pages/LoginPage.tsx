@@ -54,7 +54,7 @@ export const LoginPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-navy-main flex items-center justify-center relative overflow-hidden">
             {/* Animated Background Elements */}
-            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-neon-green/20 rounded-full blur-[100px] animate-pulse" />
+            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] animate-pulse" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-neon-orange/20 rounded-full blur-[100px] animate-pulse delay-1000" />
 
             {/* Glassmorphism Card */}
@@ -84,7 +84,7 @@ export const LoginPage: React.FC = () => {
                             <input
                                 {...register('email')}
                                 type="email"
-                                className="block w-full pl-10 pr-3 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-colors"
+                                className="block w-full pl-10 pr-3 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                                 placeholder="you@example.com"
                             />
                         </div>
@@ -104,7 +104,7 @@ export const LoginPage: React.FC = () => {
                             <input
                                 {...register('password')}
                                 type="password"
-                                className="block w-full pl-10 pr-3 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-colors"
+                                className="block w-full pl-10 pr-3 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                                 placeholder="••••••••"
                             />
                         </div>
@@ -116,7 +116,7 @@ export const LoginPage: React.FC = () => {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-navy-main bg-neon-green hover:bg-neon-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neon-green disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
+                        className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
                     >
                         {isLoading ? (
                             <Loader2 className="w-5 h-5 animate-spin" />

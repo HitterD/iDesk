@@ -29,7 +29,7 @@ if (!process.env.JWT_SECRET) {
             useFactory: (configService: ConfigService) => ({
                 secret: configService.get<string>('JWT_SECRET') || 'dev-only-secret-change-me',
                 signOptions: {
-                    expiresIn: configService.get<string>('JWT_EXPIRES_IN', '60m'),
+                    expiresIn: configService.get<string>('JWT_EXPIRES_IN', '60m') as `${number}${'s' | 'm' | 'h' | 'd'}`,
                 },
             }),
             inject: [ConfigService],

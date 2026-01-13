@@ -1,6 +1,13 @@
 /* ========================================
    MICRO-ANIMATION UTILITIES
    Additional animation utilities for enhanced UI interactions
+   
+   NOTE: Keyframes (bounceIn, slideFadeIn, float) have been 
+   consolidated to styles/animations.css as canonical versions:
+   - animations.css: bounceInScale, slideFadeInUp, floatGentle
+   
+   This file remains for utility classes that use those keyframes.
+   Future work should use the consolidated keyframe names.
    ======================================== */
 
 /* Button press feedback - haptic-like effect */

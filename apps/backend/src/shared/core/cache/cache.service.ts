@@ -26,7 +26,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     private cleanupInterval: NodeJS.Timeout | null = null;
     private redisClient: any = null;
     private useRedis: boolean = false;
-    
+
     // Default TTL: 5 minutes
     private readonly defaultTtl: number;
 
@@ -42,15 +42,48 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
                 const host = this.configService.get<string>('REDIS_HOST', 'localhost');
                 const port = this.configService.get<number>('REDIS_PORT', 6379);
                 const password = this.configService.get<string>('REDIS_PASSWORD');
-                
+
                 this.redisClient = new Redis({
                     host,
                     port,
                     password: password || undefined,
-                    retryDelayOnFailover: 100,
+                    // Retry strategy with exponential backoff
+                    retryStrategy: (times: number) => {
+                        if (times > 10) {
+                            this.logger.error('Redis max retry attempts (10) reached, falling back to in-memory cache');
+                            this.useRedis = false;
+                            return null; // Stop retrying
+                        }
+                        const delay = Math.min(times * 100, 3000); // Exponential backoff, max 3s
+                        this.logger.warn(`Redis retry attempt ${times}, next retry in ${delay}ms`);
+                        return delay;
+                    },
                     maxRetriesPerRequest: 3,
+                    enableReadyCheck: true,
+                    reconnectOnError: (err: Error) => {
+                        const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT'];
+                        return targetErrors.some(e => err.message.includes(e));
+                    },
+                    lazyConnect: false,
                 });
-                
+
+                // Redis event listeners for monitoring
+                this.redisClient.on('error', (err: Error) => {
+                    this.logger.error(`Redis error: ${err.message}`);
+                });
+
+                this.redisClient.on('reconnecting', () => {
+                    this.logger.log('Redis reconnecting...');
+                });
+
+                this.redisClient.on('ready', () => {
+                    this.logger.log(`✅ Redis ready at ${host}:${port}`);
+                });
+
+                this.redisClient.on('close', () => {
+                    this.logger.warn('Redis connection closed');
+                });
+
                 // Test connection
                 await this.redisClient.ping();
                 this.logger.log(`✅ CacheService connected to Redis at ${host}:${port}`);
@@ -60,7 +93,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
                 this.redisClient = null;
             }
         }
-        
+
         if (!this.useRedis) {
             // Cleanup expired entries every minute for in-memory cache
             this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
@@ -88,7 +121,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
             // Return null here, use getAsync for Redis
             return null;
         }
-        
+
         const entry = this.cache.get(key);
         if (!entry) return null;
 
@@ -122,7 +155,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
      */
     set<T>(key: string, value: T, ttlSeconds?: number): void {
         const ttl = ttlSeconds || Math.floor(this.defaultTtl / 1000);
-        
+
         if (this.useRedis && this.redisClient) {
             // Fire and forget for sync interface
             this.redisClient.setex(key, ttl, JSON.stringify(value)).catch((err: any) => {
@@ -130,7 +163,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
             });
             return;
         }
-        
+
         this.cache.set(key, {
             value,
             expiresAt: Date.now() + (ttl * 1000),
@@ -142,7 +175,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
      */
     async setAsync<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
         const ttl = ttlSeconds || Math.floor(this.defaultTtl / 1000);
-        
+
         if (this.useRedis && this.redisClient) {
             try {
                 await this.redisClient.setex(key, ttl, JSON.stringify(value));
@@ -151,7 +184,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
             }
             return;
         }
-        
+
         this.set(key, value, ttlSeconds);
     }
 
@@ -200,17 +233,17 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
                 return 0;
             }
         }
-        
+
         const regex = new RegExp(pattern.replace('*', '.*'));
         let deleted = 0;
-        
+
         for (const key of this.cache.keys()) {
             if (regex.test(key)) {
                 this.cache.delete(key);
                 deleted++;
             }
         }
-        
+
         return deleted;
     }
 
@@ -275,7 +308,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
      */
     private cleanup(): void {
         if (this.useRedis) return; // Redis handles TTL automatically
-        
+
         const now = Date.now();
         let cleaned = 0;
 

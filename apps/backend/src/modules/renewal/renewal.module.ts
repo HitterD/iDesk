@@ -10,6 +10,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { RenewalContract } from './entities/renewal-contract.entity';
 import { ContractAuditLog } from './entities/contract-audit-log.entity';
 import { User } from '../users/entities/user.entity';
+import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
 
 // Services
 import { RenewalService } from './renewal.service';
@@ -22,6 +23,9 @@ import { ContractAuditService } from './services/contract-audit.service';
 // Controller
 import { RenewalController } from './renewal.controller';
 
+// Guards
+import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
+
 // External Dependencies (READ-ONLY)
 import { NotificationModule } from '../notifications/notification.module';
 
@@ -33,7 +37,7 @@ if (!existsSync(contractsUploadPath)) {
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([RenewalContract, ContractAuditLog, User]),
+        TypeOrmModule.forFeature([RenewalContract, ContractAuditLog, User, PermissionPreset]),
         MulterModule.register({
             storage: diskStorage({
                 destination: contractsUploadPath,
@@ -64,6 +68,7 @@ if (!existsSync(contractsUploadPath)) {
         PdfOcrService,
         RenewalSchedulerService,
         ContractAuditService,
+        PageAccessGuard, // V9: Preset-based page access guard
     ],
     exports: [RenewalService, ContractAuditService],
 })

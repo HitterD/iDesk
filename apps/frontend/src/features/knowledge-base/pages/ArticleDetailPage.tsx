@@ -55,7 +55,7 @@ export const ArticleDetailPage = () => {
 
             <article className="bg-navy-light border border-white/10 rounded-2xl p-8 md:p-12">
                 <div className="flex items-center gap-3 mb-6">
-                    <span className="px-3 py-1 rounded-full bg-neon-green/10 text-neon-green text-sm font-medium border border-neon-green/20">
+                    <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium border border-primary/20">
                         {article.category}
                     </span>
                     <span className="flex items-center text-slate-500 text-sm">
@@ -68,7 +68,7 @@ export const ArticleDetailPage = () => {
                     {article.title}
                 </h1>
 
-                <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-slate-300 prose-a:text-neon-green">
+                <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-slate-300 prose-a:text-primary">
                     {/* Simple text rendering for now, could be Markdown or HTML later */}
                     <div className="whitespace-pre-wrap">{article.content}</div>
                 </div>

@@ -48,30 +48,30 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     return (
         <div className="p-3 space-y-3">
             {/* Requester - Compact Single Row */}
-            <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div className="p-2.5 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-700/50">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-slate-900 shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-white shrink-0">
                         {ticket.user.fullName.charAt(0)}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-white truncate">{ticket.user.fullName}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{ticket.user.email}</p>
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{ticket.user.fullName}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{ticket.user.email}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-400 bg-slate-900/50 rounded px-2 py-1">
-                    <Building className="w-3 h-3 text-blue-400" />
+                <div className="flex items-center gap-1.5 mt-2 text-[10px] text-gray-600 dark:text-slate-400 bg-gray-100 dark:bg-slate-900/50 rounded px-2 py-1">
+                    <Building className="w-3 h-3 text-primary" />
                     <span className="truncate">{ticket.user.department?.name || 'No Department'}</span>
                 </div>
             </div>
 
             {/* Assignment */}
-            <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div className="p-2.5 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-700/50">
                 <div className="flex items-center gap-1.5 mb-2">
-                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Assigned To</span>
+                    <UserCheck className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                    <span className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Assigned To</span>
                 </div>
                 <Select value={assigneeId} onValueChange={setAssigneeId} disabled={isClosed}>
-                    <SelectTrigger className="w-full h-8 text-xs bg-slate-900/50 border-slate-700">
+                    <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                         <SelectValue placeholder="Select Agent" />
                     </SelectTrigger>
                     <SelectContent>
@@ -83,17 +83,17 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             </div>
 
             {/* Properties - 2x2 Grid */}
-            <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div className="p-2.5 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-700/50">
                 <div className="flex items-center gap-1.5 mb-2">
-                    <Tag className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Properties</span>
+                    <Tag className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                    <span className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Properties</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     {/* Status */}
                     <div>
                         <label className="text-[10px] text-slate-500 mb-1 block">Status</label>
                         <Select value={status} onValueChange={setStatus} disabled={isClosed}>
-                            <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                            <SelectTrigger className="w-full h-7 text-[11px] bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -115,7 +115,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             </div>
                         ) : (
                             <Select value={priority} onValueChange={setPriority} disabled={isClosed}>
-                                <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                                <SelectTrigger className="w-full h-7 text-[11px] bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -133,7 +133,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <div>
                         <label className="text-[10px] text-slate-500 mb-1 block">Category</label>
                         <Select value={category} onValueChange={setCategory} disabled={isClosed}>
-                            <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                            <SelectTrigger className="w-full h-7 text-[11px] bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -152,7 +152,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <div>
                         <label className="text-[10px] text-slate-500 mb-1 block">Device</label>
                         <Select value={device} onValueChange={setDevice} disabled={isClosed}>
-                            <SelectTrigger className="w-full h-7 text-[11px] bg-slate-900/50 border-slate-700">
+                            <SelectTrigger className="w-full h-7 text-[11px] bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                                 <SelectValue placeholder="-" />
                             </SelectTrigger>
                             <SelectContent>
@@ -174,18 +174,18 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                         <Wrench className="w-3 h-3 text-amber-500" />
-                        <span className="text-amber-300">{ticket.hardwareType || 'N/A'}</span>
+                        <span className="text-amber-600 dark:text-amber-300">{ticket.hardwareType || 'N/A'}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 mt-2 text-[10px]">
-                        <div className="bg-slate-900/50 rounded px-2 py-1">
-                            <span className="text-slate-500">Date: </span>
-                            <span className="text-white">
+                        <div className="bg-gray-100 dark:bg-slate-900/50 rounded px-2 py-1">
+                            <span className="text-gray-500 dark:text-slate-500">Date: </span>
+                            <span className="text-gray-800 dark:text-white">
                                 {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
                             </span>
                         </div>
-                        <div className="bg-slate-900/50 rounded px-2 py-1">
-                            <span className="text-slate-500">Time: </span>
-                            <span className="text-white">{ticket.scheduledTime || '-'}</span>
+                        <div className="bg-gray-100 dark:bg-slate-900/50 rounded px-2 py-1">
+                            <span className="text-gray-500 dark:text-slate-500">Time: </span>
+                            <span className="text-gray-800 dark:text-white">{ticket.scheduledTime || '-'}</span>
                         </div>
                     </div>
                 </div>

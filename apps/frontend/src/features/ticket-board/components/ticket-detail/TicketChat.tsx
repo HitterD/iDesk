@@ -173,17 +173,17 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     return (
         <div className="flex flex-col h-full">
             {/* Compact header - icon only with status pills */}
-            <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-900/50">
+            <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between shrink-0 bg-gray-50 dark:bg-slate-900/50">
                 <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-medium text-slate-400">Chat</span>
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-400">Chat</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${isConnected ? 'text-green-400 bg-green-900/30' : 'text-slate-500 bg-slate-800'}`}>
+                    <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${isConnected ? 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30' : 'text-slate-500 bg-slate-200 dark:bg-slate-800'}`}>
                         <Wifi className={`w-3 h-3 ${isConnected ? 'animate-pulse' : ''}`} />
                         {isConnected ? 'Live' : '...'}
                     </div>
-                    <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] text-gray-600 dark:text-slate-500 bg-gray-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                         {ticket.messages?.filter(m => !m.isSystemMessage).length || 0}
                     </span>
                 </div>
@@ -300,7 +300,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             <div
                 ref={dropZoneRef}
                 className={cn(
-                    "sticky bottom-0 p-4 border-t border-white/20 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md z-20 transition-all",
+                    "sticky bottom-0 p-4 border-t border-gray-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md z-20 transition-all",
                     isDragging && "ring-2 ring-primary ring-inset bg-primary/10"
                 )}
                 onDragEnter={handleDragEnter}

@@ -39,15 +39,22 @@ export class AddTelegramSessionV7Fields1732924800000 implements MigrationInterfa
             ADD COLUMN IF NOT EXISTS messages_count INTEGER DEFAULT 0
         `);
 
-        // Add indexes for faster queries (17.9)
+        // Add indexes for faster queries (17.9) - only if columns exist
+        // Note: TypeORM uses camelCase (userId, activeTicketId), not snake_case
         await queryRunner.query(`
-            CREATE INDEX IF NOT EXISTS idx_telegram_sessions_user_id 
-            ON telegram_sessions(user_id)
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'telegram_sessions' AND column_name = 'userId') THEN
+                    CREATE INDEX IF NOT EXISTS idx_telegram_sessions_user_id ON telegram_sessions("userId");
+                END IF;
+            END $$;
         `);
 
         await queryRunner.query(`
-            CREATE INDEX IF NOT EXISTS idx_telegram_sessions_active_ticket 
-            ON telegram_sessions(active_ticket_id)
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'telegram_sessions' AND column_name = 'activeTicketId') THEN
+                    CREATE INDEX IF NOT EXISTS idx_telegram_sessions_active_ticket ON telegram_sessions("activeTicketId");
+                END IF;
+            END $$;
         `);
 
         await queryRunner.query(`

@@ -63,8 +63,10 @@ export class HealthService implements OnModuleInit {
 
     async onModuleInit() {
         this.logger.log('HealthService initialized - starting health monitoring');
-        // Initial health check
-        await this.performHealthCheck();
+        // Delay first health check to avoid blocking startup
+        setTimeout(() => {
+            this.performHealthCheck();
+        }, 10000); // 10 second delay
     }
 
     /**
@@ -237,9 +239,9 @@ export class HealthService implements OnModuleInit {
      * Check Redis health
      */
     private async checkRedisHealth(): Promise<{ status: 'connected' | 'disabled' | 'error'; latency?: number }> {
-        const redisEnabled = this.configService.get('REDIS_ENABLED') === 'true';
+        const redisActive = this.configService.get('REDIS_ENABLED') === 'true';
 
-        if (!redisEnabled) {
+        if (!redisActive) {
             return { status: 'disabled' };
         }
 
@@ -283,7 +285,7 @@ export class HealthService implements OnModuleInit {
         try {
             // Check if any backup configuration exists
             const result = await this.dataSource.query(
-                'SELECT COUNT(*) as count FROM backup_configuration WHERE "isEnabled" = true'
+                'SELECT COUNT(*) as count FROM backup_configurations WHERE "isActive" = true'
             );
             const count = parseInt(result[0]?.count || '0', 10);
 
@@ -323,43 +325,43 @@ export class HealthService implements OnModuleInit {
             switch (moduleName) {
                 case 'ticketing':
                     // Check if tickets table is accessible
-                    await this.dataSource.query('SELECT 1 FROM ticket LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM tickets LIMIT 1');
                     break;
                 case 'auth':
                     // Check if users table is accessible
-                    await this.dataSource.query('SELECT 1 FROM "user" LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM users LIMIT 1');
                     break;
                 case 'notifications':
                     // Check notifications table
-                    await this.dataSource.query('SELECT 1 FROM notification LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM notifications LIMIT 1');
                     break;
                 case 'knowledge-base':
                     // Check knowledge base table
-                    await this.dataSource.query('SELECT 1 FROM knowledge_base_article LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM articles LIMIT 1');
                     break;
                 case 'zoom-booking':
                     // Check zoom tables
-                    await this.dataSource.query('SELECT 1 FROM zoom_account LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM zoom_accounts LIMIT 1');
                     break;
                 case 'telegram':
                     // Check telegram sessions
-                    await this.dataSource.query('SELECT 1 FROM telegram_session LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM telegram_sessions LIMIT 1');
                     break;
                 case 'audit':
                     // Check audit logs
-                    await this.dataSource.query('SELECT 1 FROM audit_log LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM audit_logs LIMIT 1');
                     break;
                 case 'users':
                     // Check users table
-                    await this.dataSource.query('SELECT 1 FROM "user" LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM users LIMIT 1');
                     break;
                 case 'reports':
                     // Reports service depends on tickets
-                    await this.dataSource.query('SELECT 1 FROM ticket LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM tickets LIMIT 1');
                     break;
                 case 'automation':
                     // Check automation rules
-                    await this.dataSource.query('SELECT 1 FROM automation_rule LIMIT 1');
+                    await this.dataSource.query('SELECT 1 FROM workflow_rules LIMIT 1');
                     break;
                 default:
                     // Basic database check for unknown modules

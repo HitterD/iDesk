@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/useAuth';
-import { useHasPermission } from '@/hooks/usePermissions';
+import { useHasPermission, useHasPageAccess } from '@/hooks/usePermissions';
 import { ShieldAlert } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -11,6 +11,8 @@ interface ProtectedRouteProps {
     requiredPermission?: string;
     /** Permission action to check (default: 'view') */
     permissionAction?: 'view' | 'create' | 'edit' | 'delete';
+    /** V9: Page access key from preset (e.g., 'renewal', 'reports') */
+    requiredPageAccess?: string;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -18,14 +20,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     allowedRoles,
     requiredPermission,
     permissionAction = 'view',
+    requiredPageAccess,
 }) => {
     const { token, user } = useAuth();
     const location = useLocation();
 
     // Check feature permission if specified
-    const { hasPermission, isLoading } = useHasPermission(
+    const { hasPermission, isLoading: permissionLoading } = useHasPermission(
         requiredPermission || '',
         permissionAction
+    );
+
+    // V9: Check page access from preset if specified
+    const { hasAccess: hasPageAccess, isLoading: pageAccessLoading } = useHasPageAccess(
+        requiredPageAccess || ''
     );
 
     // Not logged in
@@ -33,21 +41,43 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // Role-based check (existing behavior)
+    // ADMIN bypasses all checks
+    if (user.role === 'ADMIN') {
+        return <>{children}</>;
+    }
+
+    // V9: Page access check (NEW - takes priority over role check when specified)
+    if (requiredPageAccess) {
+        // Loading state
+        if (pageAccessLoading) {
+            return (
+                <div className="flex items-center justify-center min-h-screen">
+                    <div className="animate-pulse flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
+                    </div>
+                </div>
+            );
+        }
+
+        // Page access denied
+        if (!hasPageAccess) {
+            return <Navigate to="/unauthorized" replace />;
+        }
+
+        // Has page access - allow through (skip role check)
+        return <>{children}</>;
+    }
+
+    // Role-based check (existing behavior - only if no requiredPageAccess)
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         return <Navigate to="/unauthorized" replace />;
     }
 
-
-    // Feature permission check (new behavior)
+    // Feature permission check (existing behavior)
     if (requiredPermission) {
-        // ADMIN bypass permission checks (full access)
-        if (user.role === 'ADMIN') {
-            return <>{children}</>;
-        }
-
         // Loading state
-        if (isLoading) {
+        if (permissionLoading) {
             return (
                 <div className="flex items-center justify-center min-h-screen">
                     <div className="animate-pulse flex flex-col items-center gap-4">

@@ -175,25 +175,33 @@ export const ContractTable: React.FC<ContractTableProps> = ({
 
     if (contracts.length === 0) {
         return (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-12">
+            <div className="bg-white dark:bg-white/5 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-white/10 p-12">
                 <div className="max-w-md mx-auto text-center">
-                    <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                    {/* Floating animated icon */}
+                    <div className="w-20 h-20 bg-gradient-to-br from-primary/30 to-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-bounce shadow-lg shadow-primary/20">
                         <FileText className="w-10 h-10 text-primary" />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No Contracts Found</h3>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Contracts Found</h3>
                     <p className="text-slate-500 dark:text-slate-400 mb-6">Get started by uploading your first contract or adding one manually.</p>
 
-                    {/* CTA Buttons */}
+                    {/* CTA Buttons - Clear Primary/Secondary */}
                     {(onUpload || onAddManual) && (
                         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
                             {onUpload && (
-                                <Button onClick={onUpload} className="bg-primary text-slate-900 font-bold hover:bg-primary/90">
+                                <Button
+                                    onClick={onUpload}
+                                    className="bg-gradient-to-r from-primary to-blue-600 text-white font-semibold hover:shadow-lg hover:shadow-primary/30 transition-all"
+                                >
                                     <FileText className="w-4 h-4 mr-2" />
                                     Upload PDF Contract
                                 </Button>
                             )}
                             {onAddManual && (
-                                <Button variant="outline" onClick={onAddManual} className="border-slate-200 dark:border-slate-700">
+                                <Button
+                                    variant="outline"
+                                    onClick={onAddManual}
+                                    className="border-slate-200 dark:border-white/20 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300 dark:hover:border-white/30 transition-all"
+                                >
                                     <Edit2 className="w-4 h-4 mr-2" />
                                     Add Manually
                                 </Button>
@@ -202,7 +210,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                     )}
 
                     {/* Quick Setup Guide */}
-                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 text-left">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 text-left border border-slate-100 dark:border-white/5">
                         <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">✨ Quick Setup Guide</h4>
                         <div className="space-y-2 text-sm text-slate-500 dark:text-slate-400">
                             <div className="flex items-center gap-2">

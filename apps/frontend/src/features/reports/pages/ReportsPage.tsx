@@ -90,7 +90,7 @@ export const ReportsPage = () => {
                     </Select>
                     <Button
                         onClick={handleDownload}
-                        className="bg-neon-green text-navy-dark hover:bg-neon-green/90 font-bold"
+                        className="bg-primary text-white hover:bg-primary/90 font-bold"
                     >
                         <Download className="w-4 h-4 mr-2" />
                         Export Excel
@@ -112,7 +112,7 @@ export const ReportsPage = () => {
                     <Card className="bg-navy-light border-white/10">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-slate-400">Resolved</CardTitle>
-                            <BarChart3 className="h-4 w-4 text-neon-green" />
+                            <BarChart3 className="h-4 w-4 text-primary" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-white">{stats.resolvedTickets}</div>

@@ -142,6 +142,10 @@ export class NotificationPreferencesController {
                 [NotificationType.ZOOM_BOOKING_CONFIRMED]: 'Zoom booking confirmed',
                 [NotificationType.ZOOM_BOOKING_CANCELLED]: 'Zoom booking cancelled',
                 [NotificationType.ZOOM_BOOKING_REMINDER]: 'Zoom meeting reminder',
+                [NotificationType.VPN_EXPIRY_D60]: 'VPN access expiring in 60 days',
+                [NotificationType.VPN_EXPIRY_D30]: 'VPN access expiring in 30 days',
+                [NotificationType.VPN_EXPIRY_D7]: 'VPN access expiring in 7 days',
+                [NotificationType.VPN_EXPIRY_D1]: 'VPN access expiring tomorrow',
             },
         };
     }

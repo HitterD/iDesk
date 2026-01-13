@@ -170,54 +170,45 @@ export const RenewalDashboardPage = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in-up">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
-                        <CalendarClock className="w-7 h-7 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Renewal Reminders</h1>
-                        <p className="text-slate-500 dark:text-slate-400">
-                            Manage contract renewals and receive automated reminders
-                        </p>
-                    </div>
-                </div>
-                <div className="flex gap-3">
-                    <Button
-                        variant="outline"
-                        onClick={handleExport}
-                        className="border-slate-200 dark:border-slate-700"
-                        disabled={contracts.length === 0}
-                    >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export CSV
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={handleRefresh}
-                        className="border-slate-200 dark:border-slate-700"
-                    >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Refresh
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => setIsManualModalOpen(true)}
-                        className="border-slate-200 dark:border-slate-700"
-                    >
-                        <FileText className="w-4 h-4 mr-2" />
-                        Add Manual
-                    </Button>
-                    <Button
-                        onClick={() => setIsUploadModalOpen(true)}
-                        className="bg-primary text-slate-900 font-bold hover:bg-primary/90"
-                    >
-                        <Upload className="w-5 h-5 mr-2" />
-                        Upload PDF
-                    </Button>
-                </div>
+        <div className="p-6 space-y-6 animate-fade-in-up">
+            {/* Compact Actions Row - Header is now in RenewalHubPage */}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExport}
+                    disabled={contracts.length === 0}
+                    className="border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5"
+                >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    className="border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5"
+                >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsManualModalOpen(true)}
+                    className="border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5"
+                >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Add Manual
+                </Button>
+                <Button
+                    size="sm"
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="bg-gradient-to-r from-primary to-blue-600 text-white font-medium shadow-lg shadow-primary/25"
+                >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload PDF
+                </Button>
             </div>
 
             {/* Stats Cards - Now Clickable */}
@@ -237,7 +228,7 @@ export const RenewalDashboardPage = () => {
                         placeholder="Search by PO number, vendor, or filename..."
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/30 transition-all"
                     />
                     {searchInput !== debouncedSearch && (
                         <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -250,7 +241,7 @@ export const RenewalDashboardPage = () => {
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as ContractStatus | '')}
-                        className="appearance-none pl-12 pr-10 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-[180px]"
+                        className="appearance-none pl-12 pr-10 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/30 min-w-[180px] transition-all"
                     >
                         <option value="">All Status</option>
                         <option value={ContractStatus.ACTIVE}>Active</option>
@@ -264,7 +255,7 @@ export const RenewalDashboardPage = () => {
                     <select
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value as ContractCategory | '')}
-                        className="appearance-none px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-[160px]"
+                        className="appearance-none px-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/30 min-w-[160px] transition-all"
                     >
                         <option value="">All Categories</option>
                         <option value={ContractCategory.SOFTWARE}>Software</option>
@@ -313,6 +304,7 @@ export const RenewalDashboardPage = () => {
                 <ContractCalendar
                     contracts={contracts}
                     onContractClick={(contract) => setPreviewContract(contract)}
+                    isLoading={contractsLoading}
                 />
             )}
 

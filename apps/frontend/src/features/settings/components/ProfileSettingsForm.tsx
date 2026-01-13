@@ -143,7 +143,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                     <button
                         type="button"
                         onClick={handleAvatarClick}
-                        className="mt-2 text-xs text-neon-green hover:text-neon-green/80 font-medium"
+                        className="mt-2 text-xs text-primary hover:text-primary/80 font-medium"
                     >
                         Change Avatar
                     </button>
@@ -211,7 +211,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                     <button
                         type="submit"
                         disabled={mutation.isPending}
-                        className="flex items-center gap-2 px-6 py-2 bg-neon-green text-navy-main font-bold rounded-lg hover:bg-neon-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Save Changes

@@ -1,0 +1,265 @@
+@utility animate-fade-in-up {
+  /* ========================================
+     BASIC FADE & SLIDE ANIMATIONS
+     ======================================== */
+
+  /* Fade In Up - for cards, modals */
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+@utility animate-fade-in-down {
+  /* Fade In Down */
+  animation: fadeInDown 0.4s ease-out forwards;
+}
+
+@utility animate-slide-in-right {
+  /* Slide In Right - for sidebars, panels */
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+@utility animate-slide-in-left {
+  /* Slide In Left */
+  animation: slideInLeft 0.3s ease-out forwards;
+}
+
+@utility animate-scale-in {
+  /* ========================================
+     SCALE & POP ANIMATIONS
+     ======================================== */
+
+  /* Scale In - for buttons, badges */
+  animation: scaleIn 0.2s ease-out forwards;
+}
+
+@utility animate-pop-in {
+  /* Pop In - for notifications, toasts */
+  animation: popIn 0.3s ease-out forwards;
+}
+
+@utility animate-bounce-subtle {
+  /* ========================================
+     ATTENTION ANIMATIONS
+     ======================================== */
+
+  /* Bounce Subtle - for attention */
+  animation: bounceSubtle 2s infinite ease-in-out;
+}
+
+@utility animate-pulse-ring {
+  /* Pulse Ring - for notification badges */
+  animation: pulseRing 1.5s infinite;
+}
+
+@utility animate-shimmer {
+  /* Shimmer - for skeleton loading */
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@utility animate-shake {
+  /* ========================================
+     SHAKE ANIMATIONS (ERROR STATES)
+     ======================================== */
+
+  /* Shake - for errors */
+  animation: shake 0.5s ease-in-out;
+}
+
+@utility animate-shake-strong {
+  /* Strong Shake - for critical alerts */
+  animation: shakeStrong 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@utility animate-pulse-red {
+  /* ========================================
+     PRIORITY & STATUS PULSE ANIMATIONS
+     ======================================== */
+
+  /* Red Pulse - for critical/overdue backgrounds */
+  animation: pulseRed 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@utility animate-spin-slow {
+  /* Spin Slow - for loading indicators */
+  animation: spinSlow 2s linear infinite;
+}
+
+@utility stagger-1 {
+  /* ========================================
+     STAGGER DELAYS FOR LISTS
+     ======================================== */
+  animation-delay: 0.05s;
+}
+
+@utility stagger-2 {
+  animation-delay: 0.1s;
+}
+
+@utility stagger-3 {
+  animation-delay: 0.15s;
+}
+
+@utility stagger-4 {
+  animation-delay: 0.2s;
+}
+
+@utility stagger-5 {
+  animation-delay: 0.25s;
+}
+
+@utility stagger-6 {
+  animation-delay: 0.3s;
+}
+
+@utility stagger-7 {
+  animation-delay: 0.35s;
+}
+
+@utility stagger-8 {
+  animation-delay: 0.4s;
+}
+
+@utility stagger-9 {
+  animation-delay: 0.45s;
+}
+
+@utility stagger-10 {
+  animation-delay: 0.5s;
+}
+
+@utility stagger-11 {
+  animation-delay: 0.55s;
+}
+
+@utility stagger-12 {
+  animation-delay: 0.6s;
+}
+
+@utility transition-smooth {
+  /* ========================================
+     TRANSITION UTILITIES
+     ======================================== */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@utility transition-fast {
+  transition: all 0.15s ease-out;
+}
+
+@utility hover-lift {
+  /* ========================================
+     HOVER EFFECTS
+     ======================================== */
+
+  /* Hover lift effect for cards */
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+}
+
+@utility hover-scale {
+  /* Hover scale effect for buttons */
+  transition: transform 0.15s ease;
+
+  &:hover {
+    transform: scale(1.02);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+@utility animate-page-in {
+  /* Glass morphism effect - see glassmorphism.css for full implementation */
+  /* Classes: .glass-card, .glass-card-elevated, .glass-card-subtle */
+
+  /* ========================================
+     PAGE TRANSITION ANIMATIONS
+     ======================================== */
+
+  /* Page fade in */
+  animation: pageIn 0.4s ease-out forwards;
+}
+
+@utility animate-blur-in {
+  /* Blur fade in */
+  animation: blurIn 0.5s ease-out forwards;
+}
+
+@utility animate-slide-up-bounce {
+  /* Slide up with bounce */
+  animation: slideUpBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@utility animate-notification-enter {
+  /* Notification enter */
+  animation: notificationEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@utility animate-backdrop-in {
+  /* Modal backdrop */
+  animation: backdropIn 0.3s ease-out forwards;
+}
+
+@utility animate-modal-in {
+  /* Modal content */
+  animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@utility animate-floating {
+  /* Floating animation */
+  animation: floating 3s ease-in-out infinite;
+}
+
+@utility animate-pulse-glow {
+  /* Pulse glow */
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@utility skeleton-wave {
+  /* ========================================
+     SKELETON ANIMATIONS
+     ======================================== */
+  background: linear-gradient(
+    90deg,
+    hsl(40 15% 92%) 0%,
+    hsl(40 15% 96%) 50%,
+    hsl(40 15% 92%) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonWave 1.5s ease-in-out infinite;
+
+  .dark & {
+    background: linear-gradient(
+      90deg,
+      hsl(217 33% 17%) 0%,
+      hsl(217 33% 22%) 50%,
+      hsl(217 33% 17%) 100%
+    );
+    background-size: 200% 100%;
+  }
+}
+
+@utility dark {
+  & .skeleton-wave {
+    background: linear-gradient(
+      90deg,
+      hsl(217 33% 17%) 0%,
+      hsl(217 33% 22%) 50%,
+      hsl(217 33% 17%) 100%
+    );
+    background-size: 200% 100%;
+  }
+}

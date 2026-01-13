@@ -118,12 +118,15 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
                 showSiteColumn
                     ? "lg:grid-cols-[32px_3fr_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
                     : "lg:grid-cols-[32px_3fr_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]",
-                "hover:bg-gradient-to-r hover:from-white/80 hover:to-white/40 dark:hover:from-slate-800/80 dark:hover:to-slate-800/40",
+                // Zebra striping for light mode
+                index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-gray-50/70 dark:bg-slate-800/20",
+                // Premium hover effect
+                "hover:bg-gradient-to-r hover:from-blue-50/80 hover:via-blue-50/50 hover:to-transparent dark:hover:from-slate-800/80 dark:hover:to-slate-800/40",
                 "hover:shadow-md hover:-translate-y-0.5 hover:border-primary/20 hover:z-10 relative",
-                ticket.isOverdue && "animate-overdue bg-red-50/50 dark:bg-red-900/10 border-l-4 border-l-red-500",
-                ticket.priority === 'CRITICAL' && !ticket.isOverdue && "animate-critical-pulse border-l-4 border-l-orange-500",
+                ticket.isOverdue && "animate-overdue !bg-red-50/50 dark:!bg-red-900/10 border-l-4 border-l-red-500",
+                ticket.priority === 'CRITICAL' && !ticket.isOverdue && "animate-critical-pulse border-l-4 border-l-orange-500 !bg-orange-50/30 dark:!bg-orange-900/10",
                 ticket.priority === 'HIGH' && !ticket.isOverdue && "animate-high-priority",
-                isSelected && "bg-primary/5 dark:bg-primary/10 shadow-sm"
+                isSelected && "!bg-primary/10 dark:!bg-primary/10 shadow-sm ring-1 ring-primary/30"
             )}
             style={rowStyle}
         >

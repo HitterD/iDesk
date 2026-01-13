@@ -212,7 +212,7 @@ export const AccessTypeSettings = () => {
                                                 type="file"
                                                 accept=".pdf"
                                                 className="hidden"
-                                                ref={(el) => (fileInputRefs.current[type.id] = el)}
+                                                ref={(el) => { fileInputRefs.current[type.id] = el; }}
                                                 onChange={(e) => handleFileChange(type.id, e.target.files?.[0])}
                                             />
                                             <Button

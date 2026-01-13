@@ -1,22 +1,17 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { Site } from '@/types/admin.types';
 
-interface Site {
-    id: string;
-    code: string;
-    name: string;
-}
-
-interface User {
+// GridUser for virtualized display - minimal required fields
+interface GridUser {
     id: string;
     fullName: string;
     email: string;
     role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
-    avatarUrl?: string;
     site?: Site;
-    department?: { name: string };
     isActive?: boolean;
-    // Performance stats (optional, from merged agentStats)
+    avatarUrl?: string;
+    // Performance stats
     openTickets?: number;
     inProgressTickets?: number;
     resolvedThisWeek?: number;
@@ -25,13 +20,13 @@ interface User {
 }
 
 interface VirtualizedAgentGridProps {
-    users: User[];
+    users: GridUser[];
     selectedIds: Set<string>;
     onSelect: (id: string) => void;
-    onViewDetails: (user: User) => void;
-    onEdit: (user: User) => void;
-    onDelete: (user: User) => void;
-    renderCard: (user: User, isSelected: boolean) => React.ReactNode;
+    onViewDetails: (user: GridUser) => void;
+    onEdit: (user: GridUser) => void;
+    onDelete?: (user: GridUser) => void;  // Made optional
+    renderCard: (user: GridUser, isSelected: boolean) => React.ReactNode;
     itemHeight?: number;
     itemWidth?: number;
     gap?: number;

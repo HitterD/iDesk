@@ -7,6 +7,7 @@ import {
     Param,
     Body,
     UseGuards,
+    Req,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
@@ -14,6 +15,7 @@ import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { PermissionsService } from './permissions.service';
 import { UpdateUserPermissionsDto, BulkUpdatePermissionsDto } from './dto/update-permissions.dto';
+import { CreatePresetDto, UpdatePresetDto } from './dto/create-preset.dto';
 
 @Controller('permissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,18 +34,43 @@ export class PermissionsController {
         return this.permissionsService.getPresets();
     }
 
-    // Get user's permissions
+    // Get CURRENT user's own permissions (no role restriction - any authenticated user)
+    @Get('me')
+    async getMyPermissions(@Req() req: any) {
+        const userId = req.user?.userId || req.user?.id;
+        if (!userId) {
+            return { userId: null, permissions: {}, pageAccess: {}, appliedPreset: null };
+        }
+
+        // OLD: Complex permissions (for backward compatibility)
+        const permissions = await this.permissionsService.getUserPermissions(userId);
+        const appliedPreset = await this.permissionsService.getUserAppliedPreset(userId);
+
+        // NEW: Simple page access
+        const pageAccess = await this.permissionsService.getUserPageAccess(userId);
+
+        return {
+            userId,
+            permissions,
+            pageAccess,  // NEW: Simple page access map
+            appliedPreset,
+        };
+    }
+
+    // Get any user's permissions (ADMIN/MANAGER only)
     @Get('users/:userId')
     @Roles(UserRole.ADMIN, UserRole.MANAGER)
     async getUserPermissions(@Param('userId') userId: string) {
         const permissions = await this.permissionsService.getUserPermissions(userId);
         const features = await this.permissionsService.getFeatureDefinitions();
+        const appliedPreset = await this.permissionsService.getUserAppliedPreset(userId);
 
-        // Return merged view: all features with user's current permissions
+        // Return merged view: all features with user's current permissions + applied preset
         return {
             userId,
             permissions,
             features,
+            appliedPreset,
         };
     }
 
@@ -104,14 +131,14 @@ export class PermissionsController {
     // Create new preset
     @Post('presets')
     @Roles(UserRole.ADMIN)
-    async createPreset(@Body() dto: any) {
+    async createPreset(@Body() dto: CreatePresetDto) {
         return this.permissionsService.createPreset(dto);
     }
 
     // Update preset
     @Put('presets/:id')
     @Roles(UserRole.ADMIN)
-    async updatePreset(@Param('id') id: string, @Body() dto: any) {
+    async updatePreset(@Param('id') id: string, @Body() dto: UpdatePresetDto) {
         return this.permissionsService.updatePreset(id, dto);
     }
 

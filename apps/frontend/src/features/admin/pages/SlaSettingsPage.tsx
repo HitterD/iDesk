@@ -85,9 +85,9 @@ export const SlaSettingsPage: React.FC = () => {
                                 <TableCell className="font-medium text-white">
                                     <div className="flex items-center gap-2">
                                         <div className={`w-2 h-2 rounded-full ${config.priority === 'CRITICAL' ? 'bg-red-500' :
-                                                config.priority === 'HIGH' ? 'bg-orange-500' :
-                                                    config.priority === 'MEDIUM' ? 'bg-yellow-500' :
-                                                        'bg-blue-500'
+                                            config.priority === 'HIGH' ? 'bg-orange-500' :
+                                                config.priority === 'MEDIUM' ? 'bg-yellow-500' :
+                                                    'bg-blue-500'
                                             }`} />
                                         {config.priority}
                                     </div>
@@ -111,7 +111,7 @@ export const SlaSettingsPage: React.FC = () => {
                                         <Button
                                             size="sm"
                                             onClick={() => handleSave(config.id)}
-                                            className="bg-neon-green text-navy-dark hover:bg-neon-green/90"
+                                            className="bg-primary text-white hover:bg-primary/90"
                                         >
                                             <Save className="w-4 h-4 mr-2" />
                                             Save

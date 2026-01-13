@@ -1,7 +1,7 @@
 import 'dotenv/config'; // Load .env first
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, VersioningType } from '@nestjs/common';
 import { HttpExceptionFilter } from './shared/core/filters/http-exception.filter';
 import { ValidationExceptionFilter } from './shared/core/filters/validation-exception.filter';
 import { DatabaseExceptionFilter } from './shared/core/filters/database-exception.filter';
@@ -9,6 +9,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
 import { LoggingInterceptor } from './shared/core/interceptors/logging.interceptor';
+import { CorrelationMiddleware } from './shared/core/middleware/correlation.middleware';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
@@ -35,9 +36,16 @@ function validateEnvironment() {
 
 async function bootstrap() {
     validateEnvironment();
+    const logger = new Logger('Bootstrap');
 
     process.env.TZ = 'UTC';
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+    // Enable API Versioning for backward compatibility
+    app.enableVersioning({
+        type: VersioningType.URI,
+        defaultVersion: '1',
+    });
 
     app.enableCors({
         origin: ['http://localhost:4050', 'http://localhost:5173', 'http://localhost:3000'],
@@ -78,6 +86,10 @@ async function bootstrap() {
         new ValidationExceptionFilter(),  // Format validation errors
         new DatabaseExceptionFilter(),    // Handle TypeORM errors
     );
+
+    // Apply correlation ID middleware for request tracing
+    app.use(new CorrelationMiddleware().use);
+
     app.useGlobalInterceptors(new LoggingInterceptor());
 
     // Security Headers - Enhanced Configuration (Section 5.5.B)
@@ -106,8 +118,20 @@ async function bootstrap() {
         referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }));
 
-    // Enable Gzip compression
-    app.use(compression());
+    // Enable Gzip compression with optimized settings
+    app.use(compression({
+        filter: (req, res) => {
+            // Skip compression if client requests it
+            if (req.headers['x-no-compression']) {
+                return false;
+            }
+            // Use default filter for compression eligibility
+            return compression.filter(req, res);
+        },
+        level: 6,          // Balanced compression (1-9, 6 is default)
+        threshold: 1024,   // Only compress responses > 1KB
+        memLevel: 8,       // Memory level for compression (1-9)
+    }));
 
     // Swagger Documentation
     const config = new DocumentBuilder()
@@ -127,7 +151,18 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
 
-    await app.listen(5050);
-    console.log(`Application is running on: ${await app.getUrl()}`);
+    // Start server and configure timeouts
+    const server = await app.listen(5050);
+
+    // Server timeout configuration to prevent resource exhaustion
+    server.setTimeout(30000);         // 30 second request timeout
+    server.keepAliveTimeout = 65000;  // Slightly higher than ALB's 60s default
+    server.headersTimeout = 66000;    // Slightly higher than keepAliveTimeout
+
+    const url = await app.getUrl();
+    logger.log(`🚀 Application is running on: ${url}`);
+    logger.log(`📚 API Documentation: ${url}/api/docs`);
+    logger.log(`⏱️  Server timeout: 30s, Keep-alive: 65s`);
 }
+
 bootstrap();

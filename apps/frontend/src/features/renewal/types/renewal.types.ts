@@ -113,3 +113,21 @@ export interface DuplicateCheckResult {
     isDuplicate: boolean;
     existingContract?: RenewalContract;
 }
+
+// Audit Log types
+export interface ContractAuditLog {
+    id: string;
+    contractId: string;
+    action: 'CREATED' | 'UPDATED' | 'DELETED' | 'ACKNOWLEDGED' | 'UNACKNOWLEDGED' | 'STATUS_CHANGED' | 'REMINDER_SENT' | 'FILE_UPLOADED';
+    description: string | null;
+    previousData: Record<string, unknown> | null;
+    newData: Record<string, unknown> | null;
+    metadata: Record<string, unknown> | null;
+    performedById: string | null;
+    performedBy: {
+        id: string;
+        fullName: string;
+        email: string;
+    } | null;
+    createdAt: string;
+}

@@ -9,7 +9,7 @@ const ticketData = [
     { name: 'Other', value: 200 },
 ];
 
-const COLORS = ['#39ff14', '#0088FE', '#FFBB28', '#FF8042'];
+const COLORS = ['#2196F3', '#0088FE', '#FFBB28', '#FF8042'];
 
 const agentPerformance = [
     { name: 'Agent A', tickets: 45 },
@@ -26,10 +26,10 @@ export const ManagerInsights: React.FC = () => {
                 <div className="bg-navy-main border border-white/10 p-6 rounded-xl">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-slate-400 font-medium">Avg Resolution Time</h3>
-                        <Clock className="text-neon-green w-5 h-5" />
+                        <Clock className="text-primary w-5 h-5" />
                     </div>
                     <p className="text-3xl font-bold text-white">2h 15m</p>
-                    <span className="text-xs text-neon-green flex items-center mt-2">
+                    <span className="text-xs text-primary flex items-center mt-2">
                         <TrendingUp className="w-3 h-3 mr-1" /> -15% vs last week
                     </span>
                 </div>
@@ -43,7 +43,7 @@ export const ManagerInsights: React.FC = () => {
                 <div className="bg-navy-main border border-white/10 p-6 rounded-xl">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-slate-400 font-medium">Active Agents</h3>
-                        <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                     </div>
                     <p className="text-3xl font-bold text-white">12/15</p>
                 </div>
@@ -87,7 +87,7 @@ export const ManagerInsights: React.FC = () => {
                                 cursor={{ fill: '#ffffff10' }}
                                 contentStyle={{ backgroundColor: '#0f172a', borderColor: '#333', color: '#fff' }}
                             />
-                            <Bar dataKey="tickets" fill="#39ff14" radius={[0, 4, 4, 0]} barSize={20} />
+                            <Bar dataKey="tickets" fill="#2196F3" radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

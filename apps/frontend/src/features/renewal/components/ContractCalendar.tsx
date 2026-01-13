@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 interface ContractCalendarProps {
     contracts: RenewalContract[];
     onContractClick?: (contract: RenewalContract) => void;
+    isLoading?: boolean;
 }
 
 interface DayData {
@@ -23,10 +24,63 @@ const getMonthStart = (year: number, month: number): number => {
     return new Date(year, month, 1).getDay();
 };
 
+// Skeleton loader component for calendar
+const CalendarSkeleton: React.FC = () => (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-pulse">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="w-40 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                <div className="w-28 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                <div className="w-14 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg ml-2" />
+            </div>
+        </div>
+        {/* Calendar grid skeleton */}
+        <div className="p-4">
+            {/* Day headers */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+                {[...Array(7)].map((_, i) => (
+                    <div key={i} className="h-4 bg-slate-200 dark:bg-slate-700 rounded mx-2" />
+                ))}
+            </div>
+            {/* Days grid */}
+            <div className="grid grid-cols-7 gap-1">
+                {[...Array(42)].map((_, i) => (
+                    <div key={i} className="min-h-[80px] p-1 rounded-lg bg-slate-100 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
+                        <div className="w-4 h-3 bg-slate-200 dark:bg-slate-600 rounded mb-1" />
+                        {i % 7 === 2 && <div className="w-full h-4 bg-slate-200 dark:bg-slate-600 rounded mt-1" />}
+                        {i % 5 === 0 && <div className="w-3/4 h-4 bg-slate-200 dark:bg-slate-600 rounded mt-1" />}
+                    </div>
+                ))}
+            </div>
+        </div>
+        {/* Legend skeleton */}
+        <div className="flex items-center justify-center gap-6 px-6 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30">
+            {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-600" />
+                    <div className="w-12 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
 export const ContractCalendar: React.FC<ContractCalendarProps> = ({
     contracts,
     onContractClick,
+    isLoading = false,
 }) => {
+    // Show skeleton while loading
+    if (isLoading) {
+        return <CalendarSkeleton />;
+    }
+
     const today = new Date();
     const [viewYear, setViewYear] = React.useState(today.getFullYear());
     const [viewMonth, setViewMonth] = React.useState(today.getMonth());

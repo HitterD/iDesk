@@ -12,7 +12,7 @@ interface SparklineProps {
 }
 
 const colorMap = {
-  primary: { stroke: '#5CB88A', fill: 'rgba(92, 184, 138, 0.1)' },
+  primary: { stroke: '#2196F3', fill: 'rgba(33, 150, 243, 0.1)' },
   success: { stroke: '#10B981', fill: 'rgba(16, 185, 129, 0.1)' },
   warning: { stroke: '#F59E0B', fill: 'rgba(245, 158, 11, 0.1)' },
   danger: { stroke: '#EF4444', fill: 'rgba(239, 68, 68, 0.1)' },
@@ -63,7 +63,7 @@ export const Sparkline: React.FC<SparklineProps> = ({
 
   if (!data || data.length < 2) {
     return (
-      <div 
+      <div
         className={cn("flex items-center justify-center text-slate-400 text-xs", className)}
         style={{ width, height }}
       >
@@ -76,9 +76,9 @@ export const Sparkline: React.FC<SparklineProps> = ({
   const trend = data[data.length - 1] > data[0] ? 'up' : data[data.length - 1] < data[0] ? 'down' : 'neutral';
 
   return (
-    <svg 
-      width={width} 
-      height={height} 
+    <svg
+      width={width}
+      height={height}
       className={cn("overflow-visible", className)}
       viewBox={`0 0 ${width} ${height}`}
     >

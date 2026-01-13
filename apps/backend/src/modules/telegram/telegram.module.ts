@@ -55,20 +55,20 @@ import { AppCacheModule } from '../../shared/core/cache';
                 const webhookDomain = configService.get<string>('TELEGRAM_WEBHOOK_DOMAIN');
                 const webhookPath = configService.get<string>('TELEGRAM_WEBHOOK_PATH', '/telegram/webhook');
                 const logger = new Logger('TelegramModule');
-                
+
                 if (!token) {
                     logger.warn('TELEGRAM_BOT_TOKEN not set. Bot will not start.');
                     return { token: 'dummy-token-bot-disabled' };
                 }
-                
+
                 logger.log(`Telegram Bot Token: ${token.substring(0, 10)}...`);
                 logger.log(`Mode: ${useWebhook ? 'Webhook' : 'Polling'}`);
-                
+
                 if (useWebhook && webhookDomain) {
                     // Webhook mode for production
                     const webhookUrl = `${webhookDomain}${webhookPath}`;
                     logger.log(`Setting webhook to: ${webhookUrl}`);
-                    
+
                     const { Telegraf } = require('telegraf');
                     const tempBot = new Telegraf(token);
                     try {
@@ -77,7 +77,7 @@ import { AppCacheModule } from '../../shared/core/cache';
                     } catch (e: any) {
                         logger.error('Failed to set webhook:', e.message);
                     }
-                    
+
                     return {
                         token,
                         launchOptions: false, // Don't launch polling
@@ -88,13 +88,18 @@ import { AppCacheModule } from '../../shared/core/cache';
                     const tempBot = new Telegraf(token);
                     try {
                         await tempBot.telegram.deleteWebhook({ drop_pending_updates: true });
-                        logger.log('Webhook cleared, waiting 3 seconds...');
-                        await new Promise(r => setTimeout(r, 3000));
+                        // Only wait in production mode - dev mode doesn't need this delay
+                        if (process.env.NODE_ENV === 'production') {
+                            logger.log('Webhook cleared, waiting 3 seconds...');
+                            await new Promise(r => setTimeout(r, 3000));
+                        } else {
+                            logger.log('Webhook cleared (dev mode - skipping 3s delay)');
+                        }
                     } catch (e) {
                         logger.warn('Could not clear webhook');
                     }
-                    
-                    return { 
+
+                    return {
                         token,
                         launchOptions: {
                             dropPendingUpdates: true,
@@ -105,9 +110,9 @@ import { AppCacheModule } from '../../shared/core/cache';
         }),
     ],
     providers: [
-        TelegramService, 
-        TelegramChatBridgeService, 
-        TelegramUpdate, 
+        TelegramService,
+        TelegramChatBridgeService,
+        TelegramUpdate,
         WebAppService,
         // Handlers (17.8)
         StartHandler,
@@ -119,8 +124,8 @@ import { AppCacheModule } from '../../shared/core/cache';
     ],
     controllers: [TelegramController, WebAppController],
     exports: [
-        TelegramService, 
-        TelegramChatBridgeService, 
+        TelegramService,
+        TelegramChatBridgeService,
         WebAppService,
         // Export handlers for external use
         StartHandler,
@@ -133,12 +138,12 @@ import { AppCacheModule } from '../../shared/core/cache';
 })
 export class TelegramModule implements OnModuleInit {
     private readonly logger = new Logger('TelegramModule');
-    
+
     constructor(
         @InjectBot() private readonly bot: Telegraf<Context>,
         private readonly configService: ConfigService,
-    ) {}
-    
+    ) { }
+
     async onModuleInit() {
         try {
             const me = await this.bot.telegram.getMe();

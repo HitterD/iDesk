@@ -18,7 +18,7 @@ interface UseFocusTrapOptions {
 }
 
 export function useFocusTrap<T extends HTMLElement>(
-    containerRef: RefObject<T>,
+    containerRef: RefObject<T | null>,
     options: UseFocusTrapOptions = {}
 ) {
     const {
@@ -35,7 +35,7 @@ export function useFocusTrap<T extends HTMLElement>(
         if (!enabled || !containerRef.current) return;
 
         const container = containerRef.current;
-        
+
         // Store the previously focused element
         previousActiveElement.current = document.activeElement;
 
@@ -127,9 +127,9 @@ export function useFocusTrap<T extends HTMLElement>(
 // Simple hook for just trapping focus without options
 export function useSimpleFocusTrap(isOpen: boolean) {
     const containerRef = useRef<HTMLDivElement>(null);
-    
+
     useFocusTrap(containerRef, { enabled: isOpen });
-    
+
     return containerRef;
 }
 

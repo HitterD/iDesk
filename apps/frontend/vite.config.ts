@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 /**
+ * Bundle Analyzer (Optional)
+ * To analyze the bundle size:
+ * 1. Run: npm install rollup-plugin-visualizer -D
+ * 2. Set ANALYZE=true when building: ANALYZE=true npm run build
+ * 3. Open dist/stats.html in browser
+ */
+// Conditional import for bundle analyzer
+const visualizer = process.env.ANALYZE
+    ? require('rollup-plugin-visualizer').visualizer
+    : null;
+
+/**
  * PWA Configuration (Optional)
  * To enable PWA support:
  * 1. Run: npm install vite-plugin-pwa -D
@@ -18,6 +30,16 @@ export default defineConfig({
         react(),
         // Uncomment to enable PWA:
         // VitePWA(pwaConfig),
+        // Bundle analyzer - only active when ANALYZE=true
+        ...(process.env.ANALYZE && visualizer
+            ? [visualizer({
+                filename: 'dist/stats.html',
+                open: true,
+                gzipSize: true,
+                brotliSize: true,
+                template: 'treemap', // 'sunburst', 'treemap', 'network'
+            })]
+            : []),
     ],
     server: {
         port: 4050,
@@ -55,5 +77,7 @@ export default defineConfig({
         target: 'es2020',
         // Chunk size warning limit (in kB)
         chunkSizeWarningLimit: 500,
+        // Generate source maps for production debugging
+        sourcemap: process.env.NODE_ENV !== 'production',
     },
 })

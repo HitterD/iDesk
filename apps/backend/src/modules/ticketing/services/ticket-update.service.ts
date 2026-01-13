@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
@@ -41,6 +41,8 @@ export class TicketUpdateService {
         @Optional()
         private readonly businessHoursService: BusinessHoursService,
         private readonly auditService: AuditService,
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
@@ -388,50 +390,70 @@ export class TicketUpdateService {
         const updated: string[] = [];
         const failed: string[] = [];
 
-        for (const ticket of tickets) {
-            try {
-                const changes: string[] = [];
+        // Use transaction for atomic bulk updates
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-                if (updateData.status && updateData.status !== ticket.status) {
-                    if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
-                        failed.push(ticket.id);
-                        continue;
+        try {
+            for (const ticket of tickets) {
+                try {
+                    const changes: string[] = [];
+
+                    if (updateData.status && updateData.status !== ticket.status) {
+                        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
+                            failed.push(ticket.id);
+                            continue;
+                        }
+                        changes.push(`Status: ${ticket.status} → ${updateData.status}`);
+                        ticket.status = updateData.status;
                     }
-                    changes.push(`Status: ${ticket.status} → ${updateData.status}`);
-                    ticket.status = updateData.status;
+
+                    if (updateData.priority && updateData.priority !== ticket.priority) {
+                        changes.push(`Priority: ${ticket.priority} → ${updateData.priority}`);
+                        ticket.priority = updateData.priority as any;
+                    }
+
+                    if (updateData.category && updateData.category !== ticket.category) {
+                        changes.push(`Category: ${ticket.category} → ${updateData.category}`);
+                        ticket.category = updateData.category;
+                    }
+
+                    if (assignee && ticket.assignedTo?.id !== assignee.id) {
+                        changes.push(`Assigned to: ${assignee.fullName}`);
+                        ticket.assignedTo = assignee;
+                    }
+
+                    if (changes.length > 0) {
+                        // Save using transaction manager
+                        await queryRunner.manager.save(Ticket, ticket);
+
+                        const systemMessage = queryRunner.manager.create(TicketMessage, {
+                            content: `System: Bulk update by ${user.fullName} - ${changes.join(', ')}`,
+                            ticket,
+                            senderId: userId,
+                            isSystemMessage: true,
+                        });
+                        await queryRunner.manager.save(TicketMessage, systemMessage);
+
+                        updated.push(ticket.id);
+                    }
+                } catch (error) {
+                    this.logger.error(`Bulk update failed for ticket ${ticket.id}: ${error.message}`);
+                    failed.push(ticket.id);
+                    // Don't throw - continue with other tickets
                 }
-
-                if (updateData.priority && updateData.priority !== ticket.priority) {
-                    changes.push(`Priority: ${ticket.priority} → ${updateData.priority}`);
-                    ticket.priority = updateData.priority as any;
-                }
-
-                if (updateData.category && updateData.category !== ticket.category) {
-                    changes.push(`Category: ${ticket.category} → ${updateData.category}`);
-                    ticket.category = updateData.category;
-                }
-
-                if (assignee && ticket.assignedTo?.id !== assignee.id) {
-                    changes.push(`Assigned to: ${assignee.fullName}`);
-                    ticket.assignedTo = assignee;
-                }
-
-                if (changes.length > 0) {
-                    await this.ticketRepo.save(ticket);
-
-                    const systemMessage = this.messageRepo.create({
-                        content: `System: Bulk update by ${user.fullName} - ${changes.join(', ')}`,
-                        ticket,
-                        senderId: userId,
-                        isSystemMessage: true,
-                    });
-                    await this.messageRepo.save(systemMessage);
-
-                    updated.push(ticket.id);
-                }
-            } catch (error) {
-                failed.push(ticket.id);
             }
+
+            // Commit all changes
+            await queryRunner.commitTransaction();
+        } catch (error) {
+            // Rollback on any unhandled error
+            await queryRunner.rollbackTransaction();
+            this.logger.error(`Bulk update transaction failed: ${error.message}`);
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
 
         if (updated.length > 0) {

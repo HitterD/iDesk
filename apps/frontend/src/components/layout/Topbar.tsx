@@ -8,14 +8,14 @@ export const Topbar: React.FC = () => {
     const { user } = useAuth();
 
     return (
-        <header className="sticky top-0 z-40 w-full h-16 bg-navy-main/80 backdrop-blur-md border-b border-neon-green/20 flex items-center justify-between px-6">
+        <header className="sticky top-0 z-40 w-full h-16 bg-navy-main/80 backdrop-blur-md border-b border-primary/20 flex items-center justify-between px-6">
             {/* Left: Logo */}
             <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-neon-green to-neon-blue rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center">
                     <span className="text-navy-main font-bold text-lg">A</span>
                 </div>
                 <span className="text-xl font-bold text-white tracking-tight">
-                    Antigravity<span className="text-neon-green">.</span>
+                    Antigravity<span className="text-primary">.</span>
                 </span>
             </div>
 
@@ -27,7 +27,7 @@ export const Topbar: React.FC = () => {
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 bg-navy-light border border-white/10 rounded-full text-sm text-white placeholder-slate-500 focus:outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all"
+                        className="block w-full pl-10 pr-3 py-2 bg-navy-light border border-white/10 rounded-full text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                         placeholder="Search tickets, agents, or knowledge base..."
                     />
                 </div>

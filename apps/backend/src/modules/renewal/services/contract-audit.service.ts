@@ -150,4 +150,73 @@ export class ContractAuditService {
             isAcknowledged: contract.isAcknowledged,
         };
     }
+
+    // === EXPORT AUDIT LOGS ===
+    async exportAuditLogs(filters: {
+        fromDate?: string;
+        toDate?: string;
+        contractId?: string;
+    }): Promise<{
+        data: string;
+        filename: string;
+        contentType: string;
+        count: number;
+    }> {
+        const query = this.auditLogRepo
+            .createQueryBuilder('log')
+            .leftJoinAndSelect('log.performedBy', 'user')
+            .leftJoinAndSelect('log.contract', 'contract')
+            .orderBy('log.createdAt', 'DESC');
+
+        if (filters.contractId) {
+            query.andWhere('log.contractId = :contractId', { contractId: filters.contractId });
+        }
+
+        if (filters.fromDate) {
+            query.andWhere('log.createdAt >= :fromDate', { fromDate: filters.fromDate });
+        }
+
+        if (filters.toDate) {
+            query.andWhere('log.createdAt <= :toDate', { toDate: filters.toDate });
+        }
+
+        const logs = await query.getMany();
+
+        // Generate CSV
+        const headers = [
+            'Timestamp',
+            'Action',
+            'Contract PO',
+            'Contract Vendor',
+            'Performed By',
+            'Description',
+            'Previous Data',
+            'New Data',
+        ];
+
+        const rows = logs.map(log => [
+            log.createdAt?.toISOString() || '',
+            log.action || '',
+            log.contract?.poNumber || '',
+            log.contract?.vendorName || '',
+            log.performedBy?.fullName || log.performedBy?.email || 'System',
+            log.description || '',
+            log.previousData ? JSON.stringify(log.previousData) : '',
+            log.newData ? JSON.stringify(log.newData) : '',
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        ].join('\n');
+
+        const timestamp = new Date().toISOString().split('T')[0];
+
+        return {
+            data: csvContent,
+            filename: `audit-logs-${timestamp}.csv`,
+            contentType: 'text/csv',
+            count: logs.length,
+        };
+    }
 }

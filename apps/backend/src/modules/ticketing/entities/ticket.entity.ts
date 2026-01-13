@@ -51,6 +51,8 @@ export enum TicketType {
 @Index(['assignedToId']) // Index for agent's assigned tickets
 @Index(['status', 'slaTarget']) // Index for SLA breach queries
 @Index(['priority']) // Index for priority filtering
+@Index(['category']) // Index for category filtering
+@Index(['siteId']) // Index for multi-site filtering
 export class Ticket {
     @PrimaryGeneratedColumn('uuid')
     id: string;

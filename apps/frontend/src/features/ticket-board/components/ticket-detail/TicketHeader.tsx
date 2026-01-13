@@ -118,19 +118,19 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
     return (
         <>
-            <div className={`flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 ${isTerminal ? 'opacity-90' : ''}`}>
+            <div className={`flex items-center justify-between gap-3 px-4 py-2.5 bg-white dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-white/10 shadow-sm dark:shadow-none ${isTerminal ? 'opacity-90' : ''}`}>
                 {/* Left Section: Back + Ticket Info */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                     <button
                         onClick={() => navigate('/tickets/list')}
-                        className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-all shrink-0"
+                        className="p-2 rounded-lg bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-slate-700 transition-all shrink-0"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
 
                     {/* Ticket Number + Status + Priority - Inline */}
                     <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono text-slate-400 text-xs bg-slate-800 px-2 py-1 rounded shrink-0">
+                        <span className="font-mono text-gray-600 dark:text-slate-400 text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded shrink-0">
                             #{ticket.ticketNumber || ticket.id.split('-')[0]}
                         </span>
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold shrink-0 ${statusConfig.color}`}>
@@ -144,7 +144,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                     </div>
 
                     {/* Ticket Title - Truncated */}
-                    <h1 className={`text-sm font-semibold truncate ${isTerminal ? 'text-slate-500' : 'text-white'}`}>
+                    <h1 className={`text-sm font-semibold truncate ${isTerminal ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`}>
                         {ticket.title}
                     </h1>
                 </div>
@@ -162,7 +162,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
                     {/* First Response */}
                     {firstResponse && (
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700`}>
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700`}>
                             <MessageSquare className="w-3 h-3 text-slate-400" />
                             <span className={firstResponse.color}>{firstResponse.text}</span>
                         </div>

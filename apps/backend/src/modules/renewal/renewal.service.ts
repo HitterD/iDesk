@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not, In } from 'typeorm';
+import { Repository, IsNull, Not, In, DataSource } from 'typeorm';
 import { RenewalContract, ContractStatus, ContractCategory } from './entities/renewal-contract.entity';
 import { PdfExtractionService } from './services/pdf-extraction.service';
 import { CreateContractDto } from './dto/create-contract.dto';
@@ -16,6 +16,7 @@ export class RenewalService {
         @InjectRepository(RenewalContract)
         private readonly contractRepo: Repository<RenewalContract>,
         private readonly pdfExtractionService: PdfExtractionService,
+        private readonly dataSource: DataSource,
     ) { }
 
     // === DUPLICATE CHECK ===
@@ -141,30 +142,33 @@ export class RenewalService {
             throw new BadRequestException('No contract IDs provided');
         }
 
-        // Get contracts to find file paths for cleanup
-        const contracts = await this.contractRepo.find({ where: { id: In(ids) } });
+        // Use transaction for data consistency
+        return await this.dataSource.transaction(async (manager) => {
+            // Get contracts to find file paths for cleanup
+            const contracts = await manager.find(RenewalContract, { where: { id: In(ids) } });
 
-        // Delete from database
-        const result = await this.contractRepo.delete({ id: In(ids) });
+            // Delete from database within transaction
+            const result = await manager.delete(RenewalContract, { id: In(ids) });
 
-        // Clean up files
-        let filesDeleted = 0;
-        for (const contract of contracts) {
-            if (contract.filePath && contract.filePath !== '') {
-                try {
-                    const fullPath = path.join(process.cwd(), contract.filePath);
-                    if (fs.existsSync(fullPath)) {
-                        fs.unlinkSync(fullPath);
-                        filesDeleted++;
+            // Clean up files (after successful DB deletion)
+            let filesDeleted = 0;
+            for (const contract of contracts) {
+                if (contract.filePath && contract.filePath !== '') {
+                    try {
+                        const fullPath = path.join(process.cwd(), contract.filePath);
+                        if (fs.existsSync(fullPath)) {
+                            fs.unlinkSync(fullPath);
+                            filesDeleted++;
+                        }
+                    } catch (err) {
+                        this.logger.warn(`Failed to delete file for contract ${contract.id}: ${err.message}`);
                     }
-                } catch (err) {
-                    this.logger.warn(`Failed to delete file for contract ${contract.id}: ${err.message}`);
                 }
             }
-        }
 
-        this.logger.log(`Bulk deleted ${result.affected} contracts, removed ${filesDeleted} files`);
-        return { affected: result.affected || 0, filesDeleted };
+            this.logger.log(`Bulk deleted ${result.affected} contracts, removed ${filesDeleted} files`);
+            return { affected: result.affected || 0, filesDeleted };
+        });
     }
 
     // === CRUD OPERATIONS ===
@@ -174,6 +178,8 @@ export class RenewalService {
         search?: string;
         page?: number;
         limit?: number;
+        fromDate?: string;  // ISO date string
+        toDate?: string;    // ISO date string
     }): Promise<{ items: RenewalContract[]; total: number; page: number; limit: number; totalPages: number }> {
         const page = Math.max(1, filters?.page || 1);
         const limit = Math.min(100, Math.max(1, filters?.limit || 25));
@@ -198,6 +204,15 @@ export class RenewalService {
                 '(c.poNumber ILIKE :search OR c.vendorName ILIKE :search OR c.originalFileName ILIKE :search)',
                 { search: `%${filters.search}%` },
             );
+        }
+
+        // Date range filtering for calendar performance
+        if (filters?.fromDate) {
+            query.andWhere('c.endDate >= :fromDate', { fromDate: filters.fromDate });
+        }
+
+        if (filters?.toDate) {
+            query.andWhere('c.endDate <= :toDate', { toDate: filters.toDate });
         }
 
         const [items, total] = await query
@@ -255,6 +270,57 @@ export class RenewalService {
         await this.contractRepo.remove(contract);
     }
 
+    // === RENEWAL WORKFLOW ===
+    /**
+     * Create a new contract version as renewal of an existing contract
+     * Copies data from previous contract with new dates
+     */
+    async renewContract(
+        id: string,
+        renewalData: {
+            newEndDate: Date;
+            newStartDate?: Date;
+            newContractValue?: number;
+            notes?: string;
+        },
+        renewedById: string,
+    ): Promise<RenewalContract> {
+        const previousContract = await this.findOne(id);
+
+        const newContract = this.contractRepo.create({
+            // Copy from previous
+            poNumber: `${previousContract.poNumber}-R`,
+            vendorName: previousContract.vendorName,
+            description: renewalData.notes || previousContract.description,
+            category: previousContract.category,
+            contractValue: renewalData.newContractValue ?? previousContract.contractValue,
+            originalFileName: `Renewal of ${previousContract.originalFileName}`,
+            filePath: previousContract.filePath, // Can override later with new PDF
+
+            // New dates
+            startDate: renewalData.newStartDate || new Date(),
+            endDate: renewalData.newEndDate,
+            status: this.calculateStatus(renewalData.newEndDate),
+
+            // Relations
+            uploadedBy: { id: renewedById } as any,
+
+            // Link to previous contract
+            previousContractId: previousContract.id,
+        });
+
+        const saved = await this.contractRepo.save(newContract);
+
+        // Mark previous contract as renewed
+        previousContract.isRenewed = true;
+        previousContract.renewedContractId = saved.id;
+        await this.contractRepo.save(previousContract);
+
+        this.logger.log(`Contract ${id} renewed to ${saved.id}`);
+
+        return saved;
+    }
+
     // === DASHBOARD STATS ===
     async getDashboardStats(): Promise<{
         total: number;
@@ -262,6 +328,11 @@ export class RenewalService {
         expiringSoon: number;
         expired: number;
         draft: number;
+        // Cost analytics
+        totalContractValue: number;
+        activeContractValue: number;
+        expiringSoonValue: number;
+        valueByCategory: Record<string, number>;
     }> {
         const [total, active, expiringSoon, expired, draft] = await Promise.all([
             this.contractRepo.count(),
@@ -271,7 +342,31 @@ export class RenewalService {
             this.contractRepo.count({ where: { status: ContractStatus.DRAFT } }),
         ]);
 
-        return { total, active, expiringSoon, expired, draft };
+        // Cost analytics
+        const contracts = await this.contractRepo.find({
+            select: ['contractValue', 'status', 'category'],
+        });
+
+        const totalContractValue = contracts.reduce((sum, c) => sum + (Number(c.contractValue) || 0), 0);
+        const activeContractValue = contracts
+            .filter(c => c.status === ContractStatus.ACTIVE)
+            .reduce((sum, c) => sum + (Number(c.contractValue) || 0), 0);
+        const expiringSoonValue = contracts
+            .filter(c => c.status === ContractStatus.EXPIRING_SOON)
+            .reduce((sum, c) => sum + (Number(c.contractValue) || 0), 0);
+
+        // Group by category
+        const valueByCategory: Record<string, number> = {};
+        contracts.forEach(c => {
+            const cat = c.category || 'OTHER';
+            valueByCategory[cat] = (valueByCategory[cat] || 0) + (Number(c.contractValue) || 0);
+        });
+
+        return {
+            total, active, expiringSoon, expired, draft,
+            totalContractValue, activeContractValue, expiringSoonValue,
+            valueByCategory,
+        };
     }
 
     // === STATUS CALCULATION ===

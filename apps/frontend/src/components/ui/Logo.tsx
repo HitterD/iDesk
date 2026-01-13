@@ -16,41 +16,27 @@ const sizeConfig = {
   xl: { icon: 'w-16 h-16', text: 'text-3xl', iconText: 'text-xl' },
 };
 
-const IconLogo: React.FC<{ size: keyof typeof sizeConfig; animated?: boolean; className?: string }> = ({ 
-  size, 
+const IconLogo: React.FC<{ size: keyof typeof sizeConfig; animated?: boolean; className?: string }> = ({
+  size,
   animated,
-  className 
+  className
 }) => (
-  <div 
+  <div
     className={cn(
-      "relative rounded-2xl bg-gradient-to-br from-primary via-primary to-emerald-600 flex items-center justify-center shadow-lg",
+      "relative rounded-2xl overflow-hidden flex items-center justify-center shadow-lg",
       sizeConfig[size].icon,
       animated && "hover:shadow-primary/40 hover:scale-105 transition-all duration-300",
       className
     )}
-    style={{ boxShadow: '0 10px 40px -10px hsla(150, 50%, 50%, 0.35)' }}
+    style={{ boxShadow: '0 10px 40px -10px hsla(210, 100%, 55%, 0.35)' }}
   >
-    {/* iD Monogram */}
-    <svg viewBox="0 0 40 40" fill="none" className="w-[65%] h-[65%]">
-      {/* i dot */}
-      <circle cx="11" cy="9" r="2.5" fill="white" />
-      {/* i stem */}
-      <rect x="9" y="14" width="4" height="14" rx="2" fill="white" />
-      {/* D letter */}
-      <path 
-        d="M18 8h5c6 0 10 4 10 12s-4 12-10 12h-5V8z" 
-        stroke="white" 
-        strokeWidth="3.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      {/* Connection bar */}
-      <rect x="13" y="18" width="5" height="3" rx="1.5" fill="white" opacity="0.9" />
-    </svg>
-    
+    <img
+      src="/idesk-logo.png"
+      alt="iDesk Logo"
+      className="w-full h-full object-cover"
+    />
     {/* Shine effect */}
-    <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/25 to-transparent pointer-events-none" />
+    <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/15 to-transparent pointer-events-none" />
   </div>
 );
 
@@ -61,8 +47,8 @@ const TextLogo: React.FC<{ size: keyof typeof sizeConfig; className?: string }> 
   </span>
 );
 
-export const Logo: React.FC<LogoProps> = ({ 
-  size = 'md', 
+export const Logo: React.FC<LogoProps> = ({
+  size = 'md',
   variant = 'full',
   className,
   animated = false
@@ -70,7 +56,7 @@ export const Logo: React.FC<LogoProps> = ({
   if (variant === 'icon') {
     return <IconLogo size={size} animated={animated} className={className} />;
   }
-  
+
   if (variant === 'text') {
     return <TextLogo size={size} className={className} />;
   }

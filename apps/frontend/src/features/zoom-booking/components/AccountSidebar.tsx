@@ -39,26 +39,28 @@ export function AccountSidebar({
     return (
         <div className={cn("flex flex-col h-full", className)}>
             {/* P2: Glassmorphism Stats Section */}
-            <div className="p-4 border-b">
+            <div className="p-4 grid-separator-h">
                 <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
                     <BarChart3 className="h-3.5 w-3.5" />
                     <span>Quick Stats</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                    {/* Accounts Card */}
-                    <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-transparent backdrop-blur-sm rounded-xl p-3 border border-blue-500/20 shadow-lg shadow-blue-500/5">
-                        <div className="absolute -top-2 -right-2 w-12 h-12 bg-blue-500/10 rounded-full blur-xl" />
+                    {/* Accounts Card - Premium Glow */}
+                    <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/30 via-blue-600/20 to-blue-700/10 backdrop-blur-md rounded-2xl p-4 border border-blue-400/30 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-300 group">
+                        <div className="absolute -top-4 -right-4 w-20 h-20 bg-blue-400/30 rounded-full blur-2xl group-hover:bg-blue-400/50 transition-all" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-blue-500/5 to-transparent" />
                         <div className="relative">
-                            <div className="text-2xl font-bold text-blue-500">{accounts.length}</div>
-                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Accounts</div>
+                            <div className="text-3xl font-black text-blue-400 drop-shadow-lg">{accounts.length}</div>
+                            <div className="text-[10px] font-semibold text-blue-300/80 uppercase tracking-widest">Accounts</div>
                         </div>
                     </div>
-                    {/* Bookings Card */}
-                    <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent backdrop-blur-sm rounded-xl p-3 border border-emerald-500/20 shadow-lg shadow-emerald-500/5">
-                        <div className="absolute -top-2 -right-2 w-12 h-12 bg-emerald-500/10 rounded-full blur-xl" />
+                    {/* Bookings Card - Premium Glow */}
+                    <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/30 via-emerald-600/20 to-emerald-700/10 backdrop-blur-md rounded-2xl p-4 border border-emerald-400/30 shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all duration-300 group">
+                        <div className="absolute -top-4 -right-4 w-20 h-20 bg-emerald-400/30 rounded-full blur-2xl group-hover:bg-emerald-400/50 transition-all" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/5 to-transparent" />
                         <div className="relative">
-                            <div className="text-2xl font-bold text-emerald-500">{totalBookings}</div>
-                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">This Week</div>
+                            <div className="text-3xl font-black text-emerald-400 drop-shadow-lg">{totalBookings}</div>
+                            <div className="text-[10px] font-semibold text-emerald-300/80 uppercase tracking-widest">This Week</div>
                         </div>
                     </div>
                 </div>
@@ -66,7 +68,7 @@ export function AccountSidebar({
 
             {/* P4: Mini Calendar Widget */}
             {currentWeek && onWeekChange && (
-                <div className="p-3 border-b">
+                <div className="p-3 grid-separator-h">
                     <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                         <Calendar className="h-3.5 w-3.5" />
                         <span>Quick Navigation</span>
@@ -212,7 +214,7 @@ export function AccountSidebar({
             </div>
 
             {/* Status indicator */}
-            <div className="p-4 border-t">
+            <div className="p-4 grid-separator-h" style={{ borderTopWidth: 'var(--border-width-default)', borderBottomWidth: 0 }}>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span>{accounts.filter(a => a.isActive).length} accounts active</span>

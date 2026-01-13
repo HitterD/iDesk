@@ -6,6 +6,7 @@ import {
     UpdateDateColumn,
 } from 'typeorm';
 
+// OLD complex interface - kept for migration compatibility
 export interface PermissionSet {
     [featureKey: string]: {
         canView: boolean;
@@ -15,22 +16,39 @@ export interface PermissionSet {
     };
 }
 
+// NEW simple interface - just page access
+export interface PageAccess {
+    [pageKey: string]: boolean;
+}
+
+// Role types for preset targeting
+export type PresetTargetRole = 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';
+
 @Entity('permission_presets')
 export class PermissionPreset {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
     @Column()
-    name: string; // e.g., 'Standard User', 'Power User', 'Limited User'
+    name: string; // e.g., 'Standard User', 'Agent - Renewal'
 
     @Column({ nullable: true })
     description: string;
 
-    @Column('jsonb')
+    // NEW: Target role for this preset (USER, AGENT, MANAGER, ADMIN)
+    @Column({ default: 'USER' })
+    targetRole: PresetTargetRole;
+
+    // NEW: Simple page access map
+    @Column('jsonb', { nullable: true })
+    pageAccess: PageAccess;
+
+    // OLD: Complex permissions - kept for migration, will be deprecated
+    @Column('jsonb', { nullable: true })
     permissions: PermissionSet;
 
     @Column({ default: false })
-    isDefault: boolean; // Default preset for new users
+    isDefault: boolean;
 
     @Column({ default: 0 })
     sortOrder: number;
@@ -39,7 +57,7 @@ export class PermissionPreset {
     isActive: boolean;
 
     @Column({ default: false })
-    isSystem: boolean; // System presets cannot be deleted
+    isSystem: boolean;
 
     @CreateDateColumn()
     createdAt: Date;

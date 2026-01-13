@@ -145,21 +145,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
             <div className="flex items-center gap-1 p-2 border-b border-white/10 bg-navy-main/50">
                 <button
                     onClick={() => editor.chain().focus().toggleBold().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('bold') ? 'bg-white/20 text-neon-green' : 'text-slate-400'}`}
+                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('bold') ? 'bg-white/20 text-primary' : 'text-slate-400'}`}
                     title="Bold"
                 >
                     <Bold className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => editor.chain().focus().toggleItalic().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('italic') ? 'bg-white/20 text-neon-green' : 'text-slate-400'}`}
+                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('italic') ? 'bg-white/20 text-primary' : 'text-slate-400'}`}
                     title="Italic"
                 >
                     <Italic className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('codeBlock') ? 'bg-white/20 text-neon-green' : 'text-slate-400'}`}
+                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('codeBlock') ? 'bg-white/20 text-primary' : 'text-slate-400'}`}
                     title="Code Block"
                 >
                     <Code className="w-4 h-4" />
@@ -167,14 +167,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
                 <div className="w-px h-4 bg-white/10 mx-1" />
                 <button
                     onClick={() => editor.chain().focus().toggleBulletList().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('bulletList') ? 'bg-white/20 text-neon-green' : 'text-slate-400'}`}
+                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('bulletList') ? 'bg-white/20 text-primary' : 'text-slate-400'}`}
                     title="Bullet List"
                 >
                     <List className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('orderedList') ? 'bg-white/20 text-neon-green' : 'text-slate-400'}`}
+                    className={`p-1.5 rounded hover:bg-white/10 ${editor.isActive('orderedList') ? 'bg-white/20 text-primary' : 'text-slate-400'}`}
                     title="Ordered List"
                 >
                     <ListOrdered className="w-4 h-4" />

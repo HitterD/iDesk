@@ -37,7 +37,8 @@ export const ManagerSidebar = () => {
     return (
         <aside
             className={cn(
-                "glass-card-subtle h-screen flex flex-col transition-all duration-300 relative",
+                "h-screen flex flex-col transition-all duration-300 relative z-10",
+                "sidebar-frosted",
                 isCollapsed ? "w-20 p-4" : "w-64 p-6"
             )}
         >
@@ -46,7 +47,7 @@ export const ManagerSidebar = () => {
                 onClick={() => setIsCollapsed(!isCollapsed)}
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 aria-expanded={!isCollapsed}
-                className="absolute -right-3 top-10 w-6 h-6 glass-card border border-white/40 dark:border-white/10 rounded-full flex items-center justify-center text-slate-500 hover:text-primary transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
+                className="absolute -right-3 top-10 w-6 h-6 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-full flex items-center justify-center text-gray-600 dark:text-slate-400 hover:text-primary transition-colors shadow-md z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
             >
                 {isCollapsed ? <ChevronRight className="w-4 h-4" aria-hidden="true" /> : <ChevronLeft className="w-4 h-4" aria-hidden="true" />}
             </button>
@@ -63,7 +64,7 @@ export const ManagerSidebar = () => {
             {/* Role Badge */}
             {!isCollapsed && (
                 <div className="px-2 mb-6">
-                    <div className="flex items-center gap-2 px-3 py-2 text-xs glass-card rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 px-3 py-2 text-xs glass-card rounded-xl bg-gradient-to-r from-gray-100 to-gray-50 dark:from-slate-800 dark:to-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200/50 dark:border-slate-700">
                         <Building2 className="w-4 h-4" />
                         <span className="font-medium">Manager Portal</span>
                     </div>
@@ -83,8 +84,8 @@ export const ManagerSidebar = () => {
                                 "flex items-center gap-3 rounded-2xl transition-all duration-300 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 glass-hover-scale",
                                 isCollapsed ? "justify-center p-3" : "px-4 py-3",
                                 isActive
-                                    ? 'bg-white/80 dark:bg-slate-800/80 text-primary shadow-sm backdrop-blur-sm border border-white/50 dark:border-slate-700/50'
-                                    : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-white'
+                                    ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 ring-1 ring-slate-900/10 dark:bg-blue-600 dark:text-white dark:shadow-blue-900/20 dark:ring-blue-500/50'
+                                    : 'text-slate-600 font-medium dark:text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800/40 dark:hover:text-slate-200 transition-colors'
                             )
                         }
                     >
@@ -104,7 +105,7 @@ export const ManagerSidebar = () => {
                     <UserAvatar useCurrentUser size="md" />
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0 animate-in fade-in duration-300">
-                            <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user?.fullName}</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user?.fullName}</p>
                             <p className="text-xs text-primary dark:text-primary truncate font-medium">Manager</p>
                         </div>
                     )}

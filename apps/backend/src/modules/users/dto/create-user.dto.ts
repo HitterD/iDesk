@@ -38,6 +38,16 @@ export class CreateUserDto {
     @IsOptional()
     departmentId?: string;
 
+    @ApiPropertyOptional({ example: 'site-uuid-here', description: 'Site/Location ID' })
+    @IsUUID('4', { message: 'Site ID must be a valid UUID' })
+    @IsOptional()
+    siteId?: string;
+
+    @ApiPropertyOptional({ example: 'preset-uuid-here', description: 'Permission preset ID' })
+    @IsUUID('4', { message: 'Preset ID must be a valid UUID' })
+    @IsOptional()
+    presetId?: string;
+
     @ApiPropertyOptional({ example: true, description: 'If true, password field is ignored and a random password is generated.' })
     @IsBoolean()
     @IsOptional()

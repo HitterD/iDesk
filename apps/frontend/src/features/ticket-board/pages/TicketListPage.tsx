@@ -120,7 +120,7 @@ export const TicketListPage: React.FC = () => {
                         <LayoutGrid className="w-5 h-5" />
                     </button>
                     <button
-                        className="p-2 bg-white/10 text-neon-green rounded-md shadow-sm"
+                        className="p-2 bg-white/10 text-primary rounded-md shadow-sm"
                         title="List View"
                     >
                         <List className="w-5 h-5" />

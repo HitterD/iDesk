@@ -16,6 +16,7 @@ import { CustomerSession } from './customer-session.entity';
 import { Department } from './department.entity';
 import { UserRole } from '../enums/user-role.enum';
 import { Site } from '../../sites/entities/site.entity';
+import { PermissionPreset } from '../../permissions/entities/permission-preset.entity';
 
 @Entity('users')
 @Index(['role'])
@@ -83,6 +84,17 @@ export class User {
     @ManyToOne(() => Site, { nullable: true })
     @JoinColumn({ name: 'siteId' })
     site: Site;
+
+    // Permission Preset tracking - which preset was last applied to this user
+    @Column({ nullable: true })
+    appliedPresetId: string;
+
+    @Column({ nullable: true })
+    appliedPresetName: string;
+
+    @ManyToOne(() => PermissionPreset, { nullable: true })
+    @JoinColumn({ name: 'appliedPresetId' })
+    appliedPreset: PermissionPreset;
 
     // @OneToMany(() => Ticket, (ticket) => ticket.user)
     // tickets: Ticket[];

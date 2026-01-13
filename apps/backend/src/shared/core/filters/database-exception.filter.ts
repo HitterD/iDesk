@@ -53,8 +53,17 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
                 // Not null violation
                 case '23502':
                     status = HttpStatus.BAD_REQUEST;
-                    message = 'Required field is missing';
+                    const columnName = driverError.column || this.extractColumnFromDetail(driverError.detail);
+                    message = columnName
+                        ? `Required field is missing: ${columnName}`
+                        : 'Required field is missing';
                     code = 'MISSING_REQUIRED_FIELD';
+                    // Log full error for debugging
+                    this.logger.error(`NOT NULL violation on column: ${columnName}`, {
+                        table: driverError.table,
+                        column: driverError.column,
+                        detail: driverError.detail,
+                    });
                     break;
 
                 // Check constraint violation
@@ -135,5 +144,15 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
             .split('_')
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
+    }
+
+    /**
+     * Extract column name from PostgreSQL NOT NULL violation detail
+     */
+    private extractColumnFromDetail(detail?: string): string | undefined {
+        if (!detail) return undefined;
+        // Pattern: column "column_name" violates not-null constraint
+        const match = detail.match(/column "(\w+)"/);
+        return match ? match[1] : undefined;
     }
 }

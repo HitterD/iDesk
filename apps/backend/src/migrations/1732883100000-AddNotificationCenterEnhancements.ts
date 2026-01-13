@@ -44,7 +44,7 @@ export class AddNotificationCenterEnhancements1732883100000 implements Migration
         await queryRunner.query(`
             CREATE INDEX IF NOT EXISTS idx_notifications_category ON notifications(category);
         `);
-        
+
         await queryRunner.query(`
             CREATE INDEX IF NOT EXISTS idx_notifications_reference ON notifications("referenceId");
         `);
@@ -94,46 +94,57 @@ export class AddNotificationCenterEnhancements1732883100000 implements Migration
             WHERE category IS NULL;
         `);
 
-        // Step 8: Add new notification types to enum (if not exists)
-        await queryRunner.query(`
-            DO $$ BEGIN
-                ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D60_WARNING';
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
+        // Step 8: Add new notification types to enum (only if enum exists)
+        // Check if notification_type_enum exists first
+        const enumExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 FROM pg_type WHERE typname = 'notification_type_enum'
+            ) as exists;
         `);
 
-        await queryRunner.query(`
-            DO $$ BEGIN
-                ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D30_WARNING';
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        `);
+        if (enumExists[0]?.exists) {
+            await queryRunner.query(`
+                DO $$ BEGIN
+                    ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D60_WARNING';
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            `);
 
-        await queryRunner.query(`
-            DO $$ BEGIN
-                ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D7_WARNING';
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        `);
+            await queryRunner.query(`
+                DO $$ BEGIN
+                    ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D30_WARNING';
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            `);
 
-        await queryRunner.query(`
-            DO $$ BEGIN
-                ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D1_WARNING';
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        `);
+            await queryRunner.query(`
+                DO $$ BEGIN
+                    ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D7_WARNING';
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            `);
 
-        await queryRunner.query(`
-            DO $$ BEGIN
-                ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_EXPIRED';
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        `);
+            await queryRunner.query(`
+                DO $$ BEGIN
+                    ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_D1_WARNING';
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            `);
+
+            await queryRunner.query(`
+                DO $$ BEGIN
+                    ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'RENEWAL_EXPIRED';
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+            `);
+        } else {
+            console.log('[Migration] notification_type_enum does not exist, skipping enum additions');
+        }
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {

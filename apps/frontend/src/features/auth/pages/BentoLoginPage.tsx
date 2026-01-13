@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Logo } from '../../../components/ui/Logo';
 import { useAuth } from '../../../stores/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, AlertTriangle, WifiOff, Lock, Info } from 'lucide-react';
@@ -265,9 +266,7 @@ export const BentoLoginPage = () => {
             {/* Enhanced Glassmorphism Card */}
             <div className="w-full max-w-md bg-white/60 backdrop-blur-3xl p-8 rounded-[3rem] shadow-2xl border-2 border-white/80 relative z-10">
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30 ring-4 ring-white/50">
-                        <span className="text-white font-bold text-3xl">iD</span>
-                    </div>
+                    <Logo size="xl" variant="icon" className="mx-auto mb-4 ring-4 ring-white/50 rounded-2xl" animated />
                     <h2 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">Welcome Back</h2>
                     <p className="text-slate-600 font-medium">Sign in to access your workspace</p>
                 </div>

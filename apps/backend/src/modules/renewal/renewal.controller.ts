@@ -18,22 +18,21 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
-import { RolesGuard } from '../../shared/core/guards/roles.guard';
-import { Roles } from '../../shared/core/decorators/roles.decorator';
+import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
+import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 import { RenewalService } from './renewal.service';
 import { PdfValidationService } from './services/pdf-validation.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 import { ContractStatus, ContractCategory } from './entities/renewal-contract.entity';
-import { UserRole } from '../users/enums/user-role.enum';
 import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
 import { ContractAuditService } from './services/contract-audit.service';
 
 @ApiTags('Renewal Contracts')
 @ApiBearerAuth()
 @Controller('renewal')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@UseGuards(JwtAuthGuard, PageAccessGuard) // V9: Use PageAccessGuard instead of RolesGuard
+@PageAccess('renewal') // V9: Requires 'renewal' page access from user's preset
 export class RenewalController {
     constructor(
         private readonly renewalService: RenewalService,
@@ -76,12 +75,16 @@ export class RenewalController {
     @ApiQuery({ name: 'search', required: false, type: String })
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
+    @ApiQuery({ name: 'fromDate', required: false, type: String, description: 'Filter contracts with endDate >= fromDate (ISO format)' })
+    @ApiQuery({ name: 'toDate', required: false, type: String, description: 'Filter contracts with endDate <= toDate (ISO format)' })
     async findAll(
         @Query('status') status?: ContractStatus,
         @Query('category') category?: ContractCategory,
         @Query('search') search?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Query('fromDate') fromDate?: string,
+        @Query('toDate') toDate?: string,
     ) {
         return this.renewalService.findAll({
             status,
@@ -89,6 +92,8 @@ export class RenewalController {
             search,
             page: page ? parseInt(page, 10) : undefined,
             limit: limit ? parseInt(limit, 10) : undefined,
+            fromDate,
+            toDate,
         });
     }
 
@@ -216,5 +221,51 @@ export class RenewalController {
     async delete(@Param('id', ParseUUIDPipe) id: string) {
         await this.renewalService.delete(id);
         return { message: 'Contract deleted successfully' };
+    }
+
+    // === RENEWAL WORKFLOW ===
+    @Post(':id/renew')
+    @ApiOperation({ summary: 'Create a renewal of an existing contract' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                newEndDate: { type: 'string', format: 'date', description: 'New contract end date' },
+                newStartDate: { type: 'string', format: 'date', description: 'New contract start date (optional)' },
+                newContractValue: { type: 'number', description: 'New contract value (optional)' },
+                notes: { type: 'string', description: 'Notes for the renewal (optional)' },
+            },
+            required: ['newEndDate'],
+        },
+    })
+    async renewContract(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: { newEndDate: string; newStartDate?: string; newContractValue?: number; notes?: string },
+        @Req() req: any,
+    ) {
+        return this.renewalService.renewContract(
+            id,
+            {
+                newEndDate: new Date(body.newEndDate),
+                newStartDate: body.newStartDate ? new Date(body.newStartDate) : undefined,
+                newContractValue: body.newContractValue,
+                notes: body.notes,
+            },
+            req.user.userId,
+        );
+    }
+
+    // === EXPORT AUDIT LOGS ===
+    @Get('audit/export')
+    @ApiOperation({ summary: 'Export audit logs as CSV' })
+    @ApiQuery({ name: 'fromDate', required: false, type: String })
+    @ApiQuery({ name: 'toDate', required: false, type: String })
+    @ApiQuery({ name: 'contractId', required: false, type: String })
+    async exportAuditLogs(
+        @Query('fromDate') fromDate?: string,
+        @Query('toDate') toDate?: string,
+        @Query('contractId') contractId?: string,
+    ) {
+        return this.auditService.exportAuditLogs({ fromDate, toDate, contractId });
     }
 }

@@ -304,47 +304,50 @@ export class UsersService {
      * Roles: USER, AGENT, MANAGER, ADMIN
      */
     generateImportTemplate(): { data: string; filename: string } {
-        // Headers match the importUsers processing
+        // Headers match the importUsers processing (P4: Added presetName)
         const headers = [
             'email',
             'fullName',
             'role',
             'siteCode',
             'departmentCode',
+            'presetName', // P4: Permission preset name
             'employeeId',
             'jobTitle',
             'phoneNumber',
             'isActive'
         ];
 
-        // Example rows showing all 4 roles and 4 sites
+        // Example rows showing all 4 roles and 4 sites (P4: Added preset examples)
         const exampleRows = [
             // USER role examples - different sites
-            ['user1@example.com', 'John Doe', 'USER', 'SPJ', 'IT', 'EMP001', 'Staff', '+6281234567890', 'true'],
-            ['user2@example.com', 'Jane Smith', 'USER', 'SMG', 'HR', 'EMP002', 'Employee', '', 'true'],
-            ['user3@example.com', 'Bob Wilson', 'USER', 'KRW', 'FIN', 'EMP003', 'Clerk', '+6281122334455', 'true'],
-            ['user4@example.com', 'Alice Brown', 'USER', 'JTB', 'OPS', 'EMP004', 'Assistant', '', 'true'],
+            ['user1@example.com', 'John Doe', 'USER', 'SPJ', 'IT', 'User', 'EMP001', 'Staff', '+6281234567890', 'true'],
+            ['user2@example.com', 'Jane Smith', 'USER', 'SMG', 'HR', 'User', 'EMP002', 'Employee', '', 'true'],
+            ['user3@example.com', 'Bob Wilson', 'USER', 'KRW', 'FIN', 'User', 'EMP003', 'Clerk', '+6281122334455', 'true'],
+            ['user4@example.com', 'Alice Brown', 'USER', 'JTB', 'OPS', 'User', 'EMP004', 'Assistant', '', 'true'],
             // AGENT role examples
-            ['agent1@example.com', 'Charlie Agent', 'AGENT', 'SPJ', 'IT', 'AGT001', 'Support Agent', '+6281234500001', 'true'],
-            ['agent2@example.com', 'Diana Support', 'AGENT', 'SMG', 'IT', 'AGT002', 'Helpdesk Agent', '+6281234500002', 'true'],
+            ['agent1@example.com', 'Charlie Agent', 'AGENT', 'SPJ', 'IT', 'Agent', 'AGT001', 'Support Agent', '+6281234500001', 'true'],
+            ['agent2@example.com', 'Diana Support', 'AGENT', 'SMG', 'IT', 'Agent', 'AGT002', 'Helpdesk Agent', '+6281234500002', 'true'],
             // MANAGER role
-            ['manager@example.com', 'Mike Manager', 'MANAGER', 'SPJ', 'IT', 'MGR001', 'IT Manager', '+6281234500003', 'true'],
+            ['manager@example.com', 'Mike Manager', 'MANAGER', 'SPJ', 'IT', 'Manager', 'MGR001', 'IT Manager', '+6281234500003', 'true'],
             // ADMIN role
-            ['admin@example.com', 'Admin User', 'ADMIN', 'SPJ', '', 'ADM001', 'System Admin', '+6287654321098', 'true'],
+            ['admin@example.com', 'Admin User', 'ADMIN', 'SPJ', '', 'Admin', 'ADM001', 'System Admin', '+6287654321098', 'true'],
         ];
 
         // Add comment row explaining available options
         const commentRow = [
             '# Valid roles: USER,AGENT,MANAGER,ADMIN',
             '# Valid sites: SPJ,SMG,KRW,JTB',
+            '# Presets: User,Agent,Manager,Admin (or custom preset names)',
             '# Departments: IT,HR,FIN,OPS,MKT,SALES',
-            '', '', '', '', '', ''
+            '', '', '', '', '', '', ''
         ];
 
         const csvContent = [
             '# Import Users Template - iDesk Helpdesk',
             '# Available Site Codes: SPJ (Surabaya Pusat), SMG (Semarang), KRW (Karawang), JTB (Jakarta Barat)',
             '# Available Roles: USER, AGENT, MANAGER, ADMIN',
+            '# Available Presets: User, Agent, Manager, Admin (or any custom preset name)',
             '# Departments are optional - leave blank if not applicable',
             headers.join(','),
             ...exampleRows.map(row => row.map(cell => `"${cell}"`).join(',')),
@@ -391,6 +394,8 @@ export class UsersService {
             role: dto.role,
             password: hashedPassword,
             departmentId: dto.departmentId,
+            siteId: dto.siteId, // P3: Site support
+            appliedPresetId: dto.presetId, // P3: Map to entity's appliedPresetId
         });
 
         const savedUser = await this.userRepo.save(user);

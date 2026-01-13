@@ -77,13 +77,10 @@ export class ZoomApiAdapter implements OnModuleInit {
     }
 
     async onModuleInit() {
+        // Lazy initialization - don't make network calls during startup
+        // Token will be refreshed on first API request
         if (this.accountId && this.clientId && this.clientSecret) {
-            try {
-                await this.refreshAccessToken();
-                this.logger.log('Zoom API adapter initialized successfully');
-            } catch (error) {
-                this.logger.warn('Failed to initialize Zoom API adapter. Check credentials.');
-            }
+            this.logger.log('Zoom API adapter configured (lazy initialization - token will refresh on first use)');
         } else {
             this.logger.warn('Zoom credentials not configured. Zoom features will be disabled.');
         }

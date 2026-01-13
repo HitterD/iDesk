@@ -60,11 +60,11 @@ export const KnowledgeBasePage = () => {
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Search for articles (e.g. 'printer', 'vpn')..."
-                            className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-neon-green/50 transition-all"
+                            className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                         />
                         <Button
                             type="submit"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-neon-green text-navy-dark hover:bg-neon-green/90"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-white hover:bg-primary/90"
                         >
                             Search
                         </Button>
@@ -80,14 +80,14 @@ export const KnowledgeBasePage = () => {
                 ) : (
                     articles.map((article) => (
                         <Link key={article.id} to={`/kb/articles/${article.id}`}>
-                            <Card className="h-full hover:border-neon-green/50 transition-all cursor-pointer group bg-navy-light border-white/10">
+                            <Card className="h-full hover:border-primary/50 transition-all cursor-pointer group bg-navy-light border-white/10">
                                 <CardHeader>
                                     <div className="flex justify-between items-start mb-2">
-                                        <span className="px-2 py-1 rounded-md bg-white/5 text-xs font-medium text-neon-green border border-neon-green/20">
+                                        <span className="px-2 py-1 rounded-md bg-white/5 text-xs font-medium text-primary border border-primary/20">
                                             {article.category}
                                         </span>
                                     </div>
-                                    <CardTitle className="text-xl text-white group-hover:text-neon-green transition-colors">
+                                    <CardTitle className="text-xl text-white group-hover:text-primary transition-colors">
                                         {article.title}
                                     </CardTitle>
                                 </CardHeader>
@@ -95,7 +95,7 @@ export const KnowledgeBasePage = () => {
                                     <p className="text-slate-400 line-clamp-3 text-sm">
                                         {article.content}
                                     </p>
-                                    <div className="mt-4 flex items-center text-neon-green text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="mt-4 flex items-center text-primary text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                                         Read Article <ChevronRight className="w-4 h-4 ml-1" />
                                     </div>
                                 </CardContent>

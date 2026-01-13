@@ -4,60 +4,69 @@
    ======================================== */
 
 /* ========================================
-   BUTTON MICRO-INTERACTIONS
+   UNIFIED CARD BORDER SYSTEM
    ======================================== */
 
-@layer components {
-
-    /* Primary button with press effect */
-    .btn-primary {
-        @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-        @apply font-medium rounded-xl transition-all duration-200;
-        @apply bg-primary text-slate-900;
-        @apply hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5;
-        @apply active:scale-[0.97] active:translate-y-0;
-        @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
-        @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none;
-    }
-
-    .btn-secondary {
-        @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-        @apply font-medium rounded-xl transition-all duration-200;
-        @apply bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300;
-        @apply hover:bg-slate-200 dark:hover:bg-slate-700 hover:shadow-md;
-        @apply active:scale-[0.97];
-        @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2;
-        @apply disabled:opacity-50 disabled:cursor-not-allowed;
-    }
-
-    .btn-danger {
-        @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-        @apply font-medium rounded-xl transition-all duration-200;
-        @apply bg-red-500 text-white;
-        @apply hover:bg-red-600 hover:shadow-lg hover:shadow-red-500/25;
-        @apply active:scale-[0.97];
-        @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2;
-        @apply disabled:opacity-50 disabled:cursor-not-allowed;
-    }
-
-    .btn-ghost {
-        @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-        @apply font-medium rounded-xl transition-all duration-200;
-        @apply text-slate-600 dark:text-slate-400;
-        @apply hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white;
-        @apply active:scale-[0.97];
-        @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2;
-    }
-
-    .btn-icon {
-        @apply inline-flex items-center justify-center;
-        @apply w-10 h-10 rounded-xl transition-all duration-200;
-        @apply text-slate-500 dark:text-slate-400;
-        @apply hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white;
-        @apply active:scale-[0.95];
-        @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400;
-    }
+.card-bordered {
+    border: var(--border-width-default) solid var(--color-border-default);
+    border-radius: var(--border-radius-card);
 }
+
+.card-bordered-subtle {
+    border: var(--border-width-default) solid var(--color-border-subtle);
+    border-radius: var(--border-radius-card);
+}
+
+.card-bordered-accent {
+    border: var(--border-width-accent) solid var(--separator-accent);
+    border-radius: var(--border-radius-card);
+}
+
+/* ========================================
+   GRID SEPARATOR SYSTEM
+   ======================================== */
+
+.grid-separator-h {
+    border-bottom: var(--border-width-default) solid var(--separator-color);
+}
+
+.grid-separator-h-strong {
+    border-bottom: var(--border-width-accent) solid var(--separator-color);
+}
+
+.grid-separator-v {
+    border-right: var(--border-width-default) solid var(--separator-color);
+}
+
+.grid-separator-v-strong {
+    border-right: var(--border-width-accent) solid var(--separator-color);
+}
+
+/* ========================================
+   UNIFIED HOVER SYSTEM
+   ======================================== */
+
+.hover-lift {
+    transition: transform var(--duration-fast) var(--ease-out-expo),
+        box-shadow var(--duration-fast) var(--ease-out-expo);
+}
+
+.hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+}
+
+.hover-glow-primary {
+    transition: box-shadow var(--duration-normal) ease;
+}
+
+.hover-glow-primary:hover {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.4);
+}
+
+/* ========================================
+   BUTTON MICRO-INTERACTIONS
+   ======================================== */
 
 /* ========================================
    MODERN CALENDAR STYLES
@@ -119,7 +128,7 @@
 
 .calendar-nav-btn:hover {
     background: hsl(40, 15%, 94%);
-    color: hsl(150, 50%, 50%);
+    color: hsl(210, 100%, 55%);
 }
 
 .dark .calendar-nav-btn:hover {
@@ -171,33 +180,33 @@
 
 /* Hover State */
 .calendar-day:hover:not(.disabled):not(.selected) {
-    background: hsl(150, 50%, 95%);
+    background: hsl(210, 100%, 95%);
     transform: scale(1.1);
 }
 
 .dark .calendar-day:hover:not(.disabled):not(.selected) {
-    background: hsl(150, 50%, 20%);
+    background: hsl(210, 100%, 20%);
 }
 
 /* Selected State */
 .calendar-day.selected {
-    background: linear-gradient(135deg, hsl(150, 50%, 50%) 0%, hsl(150, 60%, 40%) 100%);
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
     color: white;
     font-weight: 600;
-    box-shadow: 0 4px 12px rgba(92, 184, 138, 0.4);
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
     transform: scale(1.05);
 }
 
 /* Today Indicator */
 .calendar-day.today:not(.selected) {
-    border: 2px solid hsl(150, 50%, 50%);
+    border: 2px solid hsl(210, 100%, 55%);
     font-weight: 600;
 }
 
 .calendar-day.today.selected {
     box-shadow:
-        0 4px 12px rgba(92, 184, 138, 0.4),
-        0 0 0 3px rgba(92, 184, 138, 0.2);
+        0 4px 12px rgba(33, 150, 243, 0.4),
+        0 0 0 3px rgba(33, 150, 243, 0.2);
 }
 
 /* Outside Month */
@@ -224,7 +233,7 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: hsl(150, 50%, 50%);
+    background: hsl(210, 100%, 55%);
 }
 
 .calendar-day.has-urgent::after {
@@ -235,23 +244,23 @@
 /* Range Selection */
 .calendar-day.range-start {
     border-radius: 12px 0 0 12px;
-    background: linear-gradient(135deg, hsl(150, 50%, 50%) 0%, hsl(150, 60%, 40%) 100%);
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
     color: white;
 }
 
 .calendar-day.range-end {
     border-radius: 0 12px 12px 0;
-    background: linear-gradient(135deg, hsl(150, 50%, 50%) 0%, hsl(150, 60%, 40%) 100%);
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
     color: white;
 }
 
 .calendar-day.in-range {
-    background: hsl(150, 50%, 95%);
+    background: hsl(210, 100%, 95%);
     border-radius: 0;
 }
 
 .dark .calendar-day.in-range {
-    background: hsl(150, 50%, 15%);
+    background: hsl(210, 100%, 15%);
 }
 
 /* Calendar Footer */
@@ -300,17 +309,17 @@
 }
 
 .calendar-preset:hover {
-    background: hsl(150, 50%, 95%);
-    color: hsl(150, 50%, 40%);
+    background: hsl(210, 100%, 95%);
+    color: hsl(210, 100%, 45%);
 }
 
 .dark .calendar-preset:hover {
-    background: hsl(150, 50%, 20%);
-    color: hsl(150, 50%, 70%);
+    background: hsl(210, 100%, 20%);
+    color: hsl(210, 100%, 70%);
 }
 
 .calendar-preset.active {
-    background: linear-gradient(135deg, hsl(150, 50%, 50%) 0%, hsl(150, 60%, 40%) 100%);
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
     color: white;
 }
 
@@ -376,7 +385,7 @@
 
 .stat-card-enhanced:hover {
     transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 20px 40px -15px rgba(92, 184, 138, 0.3);
+    box-shadow: 0 20px 40px -15px rgba(33, 150, 243, 0.3);
 }
 
 .stat-card-enhanced:hover .stat-icon {
@@ -388,7 +397,7 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(135deg, transparent 0%, rgba(92, 184, 138, 0.1) 100%);
+    background: linear-gradient(135deg, transparent 0%, rgba(33, 150, 243, 0.1) 100%);
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -418,7 +427,7 @@
     transform: translateY(-4px);
     box-shadow:
         0 20px 40px -15px rgba(0, 0, 0, 0.12),
-        0 0 0 1px rgba(92, 184, 138, 0.2);
+        0 0 0 1px rgba(33, 150, 243, 0.2);
 }
 
 .article-card-enhanced .article-thumbnail {
@@ -442,7 +451,7 @@
     top: 0;
     left: 0;
     height: 3px;
-    background: linear-gradient(90deg, hsl(150, 50%, 50%) 0%, hsl(150, 60%, 40%) 100%);
+    background: linear-gradient(90deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
     z-index: 9999;
     transition: width 0.1s linear;
 }
@@ -645,13 +654,13 @@
 }
 
 .category-pill:hover {
-    background: hsl(150, 50%, 95%);
-    color: hsl(150, 50%, 40%);
-    border-color: hsl(150, 50%, 80%);
+    background: hsl(210, 100%, 95%);
+    color: hsl(210, 100%, 45%);
+    border-color: hsl(210, 100%, 80%);
 }
 
 .category-pill.active {
-    background: linear-gradient(135deg, hsl(150, 50%, 50%) 0%, hsl(150, 60%, 40%) 100%);
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
     color: white;
     border-color: transparent;
 }
@@ -669,7 +678,7 @@
     content: '';
     position: absolute;
     inset: -4px;
-    border: 2px solid hsl(150, 50%, 50%);
+    border: 2px solid hsl(210, 100%, 55%);
     border-radius: 12px;
     animation: settingsHighlight 2s ease-out forwards;
 }
@@ -707,7 +716,7 @@
 .form-input-animated input:not(:placeholder-shown)~.input-label {
     top: 0;
     font-size: 12px;
-    color: hsl(150, 50%, 50%);
+    color: hsl(210, 100%, 55%);
     background: white;
 }
 

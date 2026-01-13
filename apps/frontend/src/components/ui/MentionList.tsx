@@ -48,7 +48,7 @@ export const MentionList = forwardRef((props: any, ref) => {
                 props.items.map((item: any, index: number) => (
                     <button
                         key={item.id}
-                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${index === selectedIndex ? 'bg-neon-green/20 text-white' : 'text-slate-300 hover:bg-white/5'
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${index === selectedIndex ? 'bg-primary/20 text-white' : 'text-slate-300 hover:bg-white/5'
                             }`}
                         onClick={() => selectItem(index)}
                     >

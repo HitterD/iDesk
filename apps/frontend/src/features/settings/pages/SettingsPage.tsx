@@ -21,9 +21,9 @@ export const SettingsPage: React.FC = () => {
                         <Tabs.Trigger
                             key={tab.value}
                             value={tab.value}
-                            className="group flex items-center gap-2 px-6 py-3 text-sm font-medium text-slate-400 hover:text-white border-b-2 border-transparent data-[state=active]:border-neon-green data-[state=active]:text-neon-green transition-all outline-none"
+                            className="group flex items-center gap-2 px-6 py-3 text-sm font-medium text-slate-400 hover:text-white border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary transition-all outline-none"
                         >
-                            <tab.icon className="w-4 h-4 group-data-[state=active]:text-neon-green" />
+                            <tab.icon className="w-4 h-4 group-data-[state=active]:text-primary" />
                             {tab.label}
                         </Tabs.Trigger>
                     ))}
@@ -40,26 +40,26 @@ export const SettingsPage: React.FC = () => {
                                 <label className="text-sm font-medium text-slate-300">Current Password</label>
                                 <input
                                     type="password"
-                                    className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                                    className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary transition-colors"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-300">New Password</label>
                                 <input
                                     type="password"
-                                    className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                                    className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary transition-colors"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-300">Confirm New Password</label>
                                 <input
                                     type="password"
-                                    className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-neon-green transition-colors"
+                                    className="w-full bg-navy-main border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary transition-colors"
                                 />
                             </div>
                         </div>
                         <div className="pt-4">
-                            <button className="flex items-center gap-2 px-6 py-2 bg-neon-green text-navy-main font-bold rounded-lg hover:bg-neon-green/90 transition-colors">
+                            <button className="flex items-center gap-2 px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors">
                                 <Save className="w-4 h-4" />
                                 Update Password
                             </button>
@@ -71,7 +71,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="max-w-2xl bg-navy-light border border-white/10 rounded-xl p-6">
                         <h3 className="text-lg font-medium text-white mb-4">Theme Preference</h3>
                         <div className="grid grid-cols-2 gap-4">
-                            <button className="p-4 rounded-xl border-2 border-neon-green bg-navy-main text-left space-y-2">
+                            <button className="p-4 rounded-xl border-2 border-primary bg-navy-main text-left space-y-2">
                                 <div className="w-full h-24 bg-navy-light rounded-lg border border-white/10" />
                                 <p className="font-medium text-white">Dark Mode</p>
                                 <p className="text-xs text-slate-400">Default high-contrast theme</p>

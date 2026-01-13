@@ -8,13 +8,24 @@ import { AgentDetailModal } from '../components/AgentDetailModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BulkRoleChangeDialog } from '../components/BulkRoleChangeDialog';
 import { BulkPermissionDialog } from '../components/BulkPermissionDialog';
-import { PresetEditorDialog } from '../components/PresetEditorDialog';
+
 import { PresetManagementDialog } from '../components/PresetManagementDialog';
 import { ExportPreviewDialog } from '../components/ExportPreviewDialog';
 import { AgentComparisonDialog } from '../components/AgentComparisonDialog';
 import { BulkSiteChangeDialog } from '../components/BulkSiteChangeDialog';
 import { OnboardingTutorial, shouldShowOnboarding } from '../components/OnboardingTutorial';
 import { ExportPdfDialog } from '../components/ExportPdfDialog';
+import { VirtualizedAgentGrid } from '../components/VirtualizedAgentGrid';
+// P2: Error boundary for agent cards
+// C1+C2: Import extracted components to eliminate duplicates
+import {
+    AgentCardErrorBoundary,
+    AgentCard,
+    StatCard,
+    SITE_COLORS as AGENT_SITE_COLORS,
+    ROLE_CONFIG as AGENT_ROLE_CONFIG,
+    getAvatarColor as agentGetAvatarColor,
+} from '../components/agent-management';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -23,44 +34,8 @@ import * as Tabs from '@radix-ui/react-tabs';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Ticket } from '@/types/ticket.types';
+import { Site, User, AgentStats, PaginatedResponse } from '@/types/admin.types';
 import * as Tooltip from '@radix-ui/react-tooltip';
-
-interface Site {
-    id: string;
-    code: string;
-    name: string;
-}
-
-interface User {
-    id: string;
-    fullName: string;
-    email: string;
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
-    department?: { id: string; name: string };
-    site?: Site;
-    siteId?: string;
-    createdAt: string;
-    isActive?: boolean;
-    employeeId?: string;
-    jobTitle?: string;
-    phoneNumber?: string;
-}
-
-interface AgentStats {
-    id: string;
-    fullName: string;
-    email: string;
-    role: string;
-    avatarUrl?: string;
-    department?: string;
-    site?: Site;
-    openTickets: number;
-    inProgressTickets: number;
-    resolvedThisWeek: number;
-    resolvedThisMonth: number;
-    resolvedTotal: number;
-    slaCompliance: number;
-}
 
 // Extended Ticket interface with site field (backend returns this)
 interface TicketWithSite extends Ticket {
@@ -127,50 +102,7 @@ const highlightText = (text: string, query: string): React.ReactNode => {
     );
 };
 
-// P2-3: Enhanced StatCard with gradient support AND click-to-filter
-const StatCard: React.FC<{
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    icon: React.ElementType;
-    variant?: 'default' | 'blue' | 'green' | 'purple' | 'amber';
-    onClick?: () => void;
-    isActive?: boolean;
-}> = ({ title, value, subtitle, icon: Icon, variant = 'default', onClick, isActive }) => {
-    const variantStyles = {
-        default: 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
-        blue: 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30 text-white',
-        green: 'bg-gradient-to-br from-green-500 to-green-600 border-green-400/30 text-white',
-        purple: 'bg-gradient-to-br from-purple-500 to-purple-600 border-purple-400/30 text-white',
-        amber: 'bg-gradient-to-br from-amber-500 to-amber-600 border-amber-400/30 text-white',
-    };
-
-    const isColored = variant !== 'default';
-    const Component = onClick ? 'button' : 'div';
-
-    return (
-        <Component
-            onClick={onClick}
-            className={cn(
-                "rounded-2xl p-5 border hover:shadow-lg transition-all hover:-translate-y-0.5 text-left w-full",
-                variantStyles[variant],
-                onClick && "cursor-pointer",
-                isActive && "ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900"
-            )}
-        >
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className={cn("text-sm mb-1", isColored ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>{title}</p>
-                    <p className={cn("text-2xl font-bold", isColored ? "text-white" : "text-slate-800 dark:text-white")}>{value}</p>
-                    {subtitle && <p className={cn("text-xs mt-1", isColored ? "text-white/70" : "text-slate-400")}>{subtitle}</p>}
-                </div>
-                <div className={cn("p-3 rounded-xl", isColored ? "bg-white/20" : "bg-slate-100 dark:bg-slate-700")}>
-                    <Icon className={cn("w-5 h-5", isColored ? "text-white" : "text-slate-600 dark:text-slate-300")} />
-                </div>
-            </div>
-        </Component>
-    );
-};
+// StatCard is now imported from '../components/agent-management'
 
 // Top Performer Hero Card with gold gradient
 const TopPerformerCard: React.FC<{ name: string; tickets: number }> = ({ name, tickets }) => (
@@ -191,80 +123,40 @@ const TopPerformerCard: React.FC<{ name: string; tickets: number }> = ({ name, t
     </div>
 );
 
-// P1-1: Agent Card Component for Grid View
-const AgentCard: React.FC<{
-    agent: AgentStats;
-    onView: () => void;
-    onSelect: () => void;
-    isSelected: boolean;
-}> = ({ agent, onView, onSelect, isSelected }) => {
-    const roleConfig = ROLE_CONFIG[agent.role as keyof typeof ROLE_CONFIG] || ROLE_CONFIG.USER;
+// AgentCard is now imported from '../components/agent-management'
 
-    return (
-        <div className={cn(
-            "glass-card p-4 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group",
-            isSelected && "ring-2 ring-primary"
-        )}>
-            <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg text-white", getAvatarColor(agent.fullName))}>
-                        {agent.fullName.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                        <p className="font-bold text-slate-800 dark:text-white truncate">{agent.fullName}</p>
-                        <p className="text-xs text-slate-500 truncate">{agent.email}</p>
+// B12: Loading Skeleton for Grid View
+const AgentGridSkeleton: React.FC = () => (
+    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        {[...Array(10)].map((_, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl animate-pulse">
+                <div className="flex items-start gap-3 mb-3">
+                    <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                    <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
                     </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); onSelect(); }} className="p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {isSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-slate-400" />}
-                </button>
-            </div>
-
-            <div className="flex items-center gap-2 mb-3">
-                {agent.site && (
-                    <span className={cn("px-2 py-0.5 rounded-lg text-xs font-bold", SITE_COLORS[agent.site.code] || 'bg-slate-100 text-slate-600')}>
-                        {agent.site.code}
-                    </span>
-                )}
-                <span className={cn("px-2 py-0.5 rounded-lg text-xs font-bold", roleConfig.badgeColor)}>
-                    {agent.role}
-                </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-slate-100 dark:bg-slate-700/50 rounded-lg p-2">
-                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{agent.inProgressTickets}</p>
-                    <p className="text-xs text-slate-500">Active</p>
+                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full mb-3" />
+                <div className="flex gap-2 mb-3">
+                    <div className="h-5 w-10 bg-slate-200 dark:bg-slate-700 rounded" />
+                    <div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded" />
                 </div>
-                <div className="bg-slate-100 dark:bg-slate-700/50 rounded-lg p-2">
-                    <p className="text-lg font-bold text-green-600 dark:text-green-400">{agent.resolvedThisMonth}</p>
-                    <p className="text-xs text-slate-500">Month</p>
-                </div>
-                <div className={cn(
-                    "rounded-lg p-2",
-                    agent.slaCompliance >= 90 ? "bg-green-100 dark:bg-green-900/30" :
-                        agent.slaCompliance >= 70 ? "bg-yellow-100 dark:bg-yellow-900/30" :
-                            "bg-red-100 dark:bg-red-900/30"
-                )}>
-                    <p className={cn(
-                        "text-lg font-bold",
-                        agent.slaCompliance >= 90 ? "text-green-600 dark:text-green-400" :
-                            agent.slaCompliance >= 70 ? "text-yellow-600 dark:text-yellow-400" :
-                                "text-red-600 dark:text-red-400"
-                    )}>{agent.slaCompliance}%</p>
-                    <p className="text-xs text-slate-500">SLA</p>
+                <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3].map((j) => (
+                        <div key={j} className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                    ))}
                 </div>
             </div>
+        ))}
+    </div>
+);
 
-            <button
-                onClick={onView}
-                className="w-full mt-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-xl transition-colors"
-            >
-                View Details
-            </button>
-        </div>
-    );
-};
+// Loading Skeleton for Agent Table
+
+
+
+
 
 // Loading Skeleton for Agent Table
 const AgentTableSkeleton: React.FC = () => (
@@ -318,7 +210,7 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ messag
 
 // Collapsible Role Section Component
 const RoleSection: React.FC<{
-    role: 'ADMIN' | 'AGENT' | 'USER';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
     users: User[];
     onEdit: (user: User) => void;
     onDelete: (user: User) => void;
@@ -461,7 +353,7 @@ const UnifiedUserTable: React.FC<{
 
     // Format relative time for lastActiveAt
     const formatLastActive = (date: string | undefined) => {
-        if (!date) return <span className="text-slate-400">Never</span>;
+        if (!date) return <span className="text-slate-400 italic">Not yet logged in</span>;
         const d = new Date(date);
         const now = new Date();
         const diffMs = now.getTime() - d.getTime();
@@ -579,9 +471,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
     const [isBulkRoleChangeOpen, setIsBulkRoleChangeOpen] = useState(false);
-    const [isPresetEditorOpen, setIsPresetEditorOpen] = useState(false);
     const [isPresetManageOpen, setIsPresetManageOpen] = useState(false);
-    const [editingPreset, setEditingPreset] = useState<any>(null);
     const [isExportPreviewOpen, setIsExportPreviewOpen] = useState(false);
     const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
     const [isComparisonOpen, setIsComparisonOpen] = useState(false);
@@ -600,6 +490,18 @@ export const BentoAdminAgentsPage: React.FC = () => {
 
     // P2-3: Stats card filter (click to filter by status)
     const [statsFilter, setStatsFilter] = useState<'all' | 'active' | 'resolved' | 'top'>('all');
+
+    // E3: Sort config for performance table
+    type SortKey = 'fullName' | 'openTickets' | 'inProgressTickets' | 'resolvedThisWeek' | 'resolvedThisMonth' | 'slaCompliance';
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'resolvedThisMonth', dir: 'desc' });
+
+    // E3: Handle column sort
+    const handleSort = (key: SortKey) => {
+        setSortConfig(prev => ({
+            key,
+            dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc'
+        }));
+    };
 
     // M1: Unified view toggle - 'unified' shows all users in single table, 'collapsed' shows by role
     const [displayMode, setDisplayMode] = useState<'unified' | 'collapsed'>('unified');
@@ -689,8 +591,8 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 setShowKeyboardHelp(true);
             }
 
-            // Ctrl+A - Select all users
-            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+            // Ctrl+Shift+A - Select all users (avoids browser Ctrl+A conflict)
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'A') {
                 e.preventDefault();
                 const allIds = filteredUsers.map(u => u.id);
                 setSelectedUserIds(new Set(allIds));
@@ -721,6 +623,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     // Group users by role
     const usersByRole = useMemo(() => ({
         ADMIN: filteredUsers.filter(u => u.role === 'ADMIN'),
+        MANAGER: filteredUsers.filter(u => u.role === 'MANAGER'),
         AGENT: filteredUsers.filter(u => u.role === 'AGENT'),
         USER: filteredUsers.filter(u => u.role === 'USER'),
     }), [filteredUsers]);
@@ -752,18 +655,38 @@ export const BentoAdminAgentsPage: React.FC = () => {
         };
     }, [filteredAgentStats]);
 
-    // P2-3: Displayed agent stats with stats card filter
+    // P2-3: Displayed agent stats with stats card filter + E3: sorting
     const displayedAgentStats = useMemo(() => {
-        if (statsFilter === 'all') return filteredAgentStats;
-        if (statsFilter === 'active') return filteredAgentStats.filter(a => a.inProgressTickets > 0);
-        if (statsFilter === 'resolved') return filteredAgentStats.filter(a => a.resolvedThisMonth > 0);
+        let result = filteredAgentStats;
+
+        // Apply stats filter
+        if (statsFilter === 'active') result = result.filter(a => a.inProgressTickets > 0);
+        if (statsFilter === 'resolved') result = result.filter(a => a.resolvedThisMonth > 0);
         if (statsFilter === 'top') {
             // Show only the top performer
-            const sorted = [...filteredAgentStats].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth);
+            const sorted = [...result].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth);
             return sorted.slice(0, 1);
         }
-        return filteredAgentStats;
-    }, [filteredAgentStats, statsFilter]);
+
+        // E3: Apply column sorting
+        return [...result].sort((a, b) => {
+            const aVal = sortConfig.key === 'fullName'
+                ? a.fullName.toLowerCase()
+                : (a as any)[sortConfig.key] ?? 0;
+            const bVal = sortConfig.key === 'fullName'
+                ? b.fullName.toLowerCase()
+                : (b as any)[sortConfig.key] ?? 0;
+
+            if (sortConfig.key === 'fullName') {
+                return sortConfig.dir === 'asc'
+                    ? (aVal as string).localeCompare(bVal as string)
+                    : (bVal as string).localeCompare(aVal as string);
+            }
+            return sortConfig.dir === 'asc'
+                ? (aVal as number) - (bVal as number)
+                : (bVal as number) - (aVal as number);
+        });
+    }, [filteredAgentStats, statsFilter, sortConfig]);
 
     // Site counts for tabs - use agentStats for accurate total (C2 fix)
     // Note: Using agentStats instead of paginated users for correct total counts
@@ -915,6 +838,47 @@ export const BentoAdminAgentsPage: React.FC = () => {
         }
         setSelectedUserIds(newSet);
     };
+
+    // U2: Toggle active/inactive mutation with optimistic update
+    const toggleActiveMutation = useMutation({
+        mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
+            await api.patch(`/users/${userId}`, { isActive });
+            return { userId, isActive };
+        },
+        onMutate: async ({ userId, isActive }) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['users'] });
+            await queryClient.cancelQueries({ queryKey: ['agent-stats'] });
+
+            // Optimistic update for users
+            const previousUsers = queryClient.getQueryData(['users']);
+            queryClient.setQueryData(['users'], (old: any) => {
+                if (!old?.data) return old;
+                return {
+                    ...old,
+                    data: old.data.map((u: User) =>
+                        u.id === userId ? { ...u, isActive } : u
+                    )
+                };
+            });
+
+            return { previousUsers };
+        },
+        onError: (err, variables, context) => {
+            // Rollback on error
+            if (context?.previousUsers) {
+                queryClient.setQueryData(['users'], context.previousUsers);
+            }
+            toast.error('Failed to update user status');
+        },
+        onSuccess: (data) => {
+            toast.success(`User ${data.isActive ? 'activated' : 'deactivated'}`);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['agent-stats'] });
+        },
+    });
 
     // Bulk role change mutation
     const bulkRoleChangeMutation = useMutation({
@@ -1227,39 +1191,158 @@ export const BentoAdminAgentsPage: React.FC = () => {
                         </h3>
                     </div>
 
-                    {/* P1-1: Grid View */}
+                    {/* P1-1: Grid View - B1: Now using VirtualizedAgentGrid for performance */}
                     {viewMode === 'grid' ? (
-                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                            {displayedAgentStats.map((agent, index) => (
-                                <div key={agent.id} className="animate-fade-in-up" style={{ animationDelay: `${index * 30}ms` }}>
-                                    <AgentCard
-                                        agent={agent}
-                                        onView={() => setSelectedAgentDetail({
-                                            id: agent.id,
-                                            fullName: agent.fullName,
-                                            email: agent.email,
-                                            role: agent.role as 'ADMIN' | 'AGENT' | 'USER',
-                                            site: agent.site,
-                                            createdAt: '',
-                                        })}
-                                        onSelect={() => toggleUserSelection(agent.id)}
-                                        isSelected={selectedUserIds.has(agent.id)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                        displayedAgentStats.length > 50 ? (
+                            /* B1: Virtualized grid for 50+ agents - only renders visible cards */
+                            <div className="h-[600px]">
+                                <VirtualizedAgentGrid
+                                    users={displayedAgentStats.map(agent => ({
+                                        id: agent.id,
+                                        fullName: agent.fullName,
+                                        email: agent.email,
+                                        role: agent.role as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER',
+                                        site: agent.site,
+                                        isActive: users.find(u => u.id === agent.id)?.isActive,
+                                        openTickets: agent.openTickets,
+                                        inProgressTickets: agent.inProgressTickets,
+                                        resolvedThisMonth: agent.resolvedThisMonth,
+                                        slaCompliance: agent.slaCompliance,
+                                    }))}
+                                    selectedIds={selectedUserIds}
+                                    onSelect={toggleUserSelection}
+                                    onViewDetails={(user) => setSelectedAgentDetail({
+                                        id: user.id,
+                                        fullName: user.fullName,
+                                        email: user.email,
+                                        role: user.role,
+                                        site: user.site,
+                                        createdAt: '',
+                                    })}
+                                    onEdit={(user) => {
+                                        const fullUser = users.find(u => u.id === user.id);
+                                        if (fullUser) handleEditUser(fullUser);
+                                    }}
+                                    renderCard={(user, isSelected) => (
+                                        <AgentCardErrorBoundary>
+                                            <AgentCard
+                                                agent={{
+                                                    id: user.id,
+                                                    fullName: user.fullName,
+                                                    email: user.email,
+                                                    role: user.role,
+                                                    site: user.site,
+                                                    openTickets: user.openTickets || 0,
+                                                    inProgressTickets: user.inProgressTickets || 0,
+                                                    resolvedThisWeek: user.resolvedThisWeek || 0,
+                                                    resolvedThisMonth: user.resolvedThisMonth || 0,
+                                                    resolvedTotal: 0,
+                                                    slaCompliance: user.slaCompliance || 100,
+                                                }}
+                                                onView={() => setSelectedAgentDetail({
+                                                    id: user.id,
+                                                    fullName: user.fullName,
+                                                    email: user.email,
+                                                    role: user.role,
+                                                    site: user.site,
+                                                    createdAt: '',
+                                                })}
+                                                onSelect={() => toggleUserSelection(user.id)}
+                                                isSelected={isSelected}
+                                                onEdit={() => {
+                                                    const fullUser = users.find(u => u.id === user.id);
+                                                    if (fullUser) handleEditUser(fullUser);
+                                                }}
+                                                onToggleActive={() => {
+                                                    const fullUser = users.find(u => u.id === user.id);
+                                                    if (fullUser) {
+                                                        toggleActiveMutation.mutate({ userId: user.id, isActive: !fullUser.isActive });
+                                                    }
+                                                }}
+                                                isActive={user.isActive ?? true}
+                                            />
+                                        </AgentCardErrorBoundary>
+                                    )}
+                                />
+                            </div>
+                        ) : (
+                            /* Standard grid for <50 agents - keeps animations */
+                            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                                {displayedAgentStats.map((agent, index) => (
+                                    <div key={agent.id} className="animate-fade-in-up" style={{ animationDelay: `${index * 30}ms` }}>
+                                        <AgentCardErrorBoundary>
+                                            <AgentCard
+                                                agent={agent}
+                                                onView={() => setSelectedAgentDetail({
+                                                    id: agent.id,
+                                                    fullName: agent.fullName,
+                                                    email: agent.email,
+                                                    role: agent.role as 'ADMIN' | 'AGENT' | 'USER',
+                                                    site: agent.site,
+                                                    createdAt: '',
+                                                })}
+                                                onSelect={() => toggleUserSelection(agent.id)}
+                                                isSelected={selectedUserIds.has(agent.id)}
+                                                onEdit={() => {
+                                                    const user = users.find(u => u.id === agent.id);
+                                                    if (user) handleEditUser(user);
+                                                }}
+                                                onToggleActive={() => {
+                                                    const user = users.find(u => u.id === agent.id);
+                                                    if (user) {
+                                                        toggleActiveMutation.mutate({ userId: agent.id, isActive: !user.isActive });
+                                                    }
+                                                }}
+                                                isActive={users.find(u => u.id === agent.id)?.isActive ?? true}
+                                            />
+                                        </AgentCardErrorBoundary>
+                                    </div>
+                                ))}
+                            </div>
+                        )
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                {/* P2-3: Sticky headers for better scroll experience */}
+                                <thead className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Agent</th>
+                                        <th
+                                            onClick={() => handleSort('fullName')}
+                                            className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            Agent {sortConfig.key === 'fullName' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                                        </th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Site</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Open</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">In Progress</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Resolved (Week)</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Resolved (Month)</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">SLA %</th>
+                                        <th
+                                            onClick={() => handleSort('openTickets')}
+                                            className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            Open {sortConfig.key === 'openTickets' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                                        </th>
+                                        <th
+                                            onClick={() => handleSort('inProgressTickets')}
+                                            className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            In Progress {sortConfig.key === 'inProgressTickets' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                                        </th>
+                                        <th
+                                            onClick={() => handleSort('resolvedThisWeek')}
+                                            className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            Week {sortConfig.key === 'resolvedThisWeek' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                                        </th>
+                                        <th
+                                            onClick={() => handleSort('resolvedThisMonth')}
+                                            className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            Month {sortConfig.key === 'resolvedThisMonth' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                                        </th>
+                                        <th
+                                            onClick={() => handleSort('slaCompliance')}
+                                            className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            SLA % {sortConfig.key === 'slaCompliance' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                                        </th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Actions</th>
                                     </tr>
                                 </thead>
@@ -1549,13 +1632,6 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 })}
                 selectedCount={selectedUserIds.size}
                 isLoading={bulkRoleChangeMutation.isPending}
-            />
-
-            {/* Preset Editor Dialog */}
-            <PresetEditorDialog
-                isOpen={isPresetEditorOpen}
-                onClose={() => setIsPresetEditorOpen(false)}
-                preset={editingPreset}
             />
 
             {/* Preset Management Dialog */}

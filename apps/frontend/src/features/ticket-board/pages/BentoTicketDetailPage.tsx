@@ -278,7 +278,7 @@ export const BentoTicketDetailPage: React.FC = () => {
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
 
     return (
-        <div className="flex flex-col h-screen overflow-hidden bg-slate-950">
+        <div className="flex flex-col h-full w-full bg-gray-100 dark:bg-slate-950 overflow-hidden">
             {/* Compact Header with SLA + Cancel */}
             <TicketHeader
                 ticket={ticket}
@@ -291,7 +291,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             {/* 2-Section Layout: Sidebar + Main */}
             <div className="flex flex-1 overflow-hidden">
                 {/* LEFT: Compact Sidebar */}
-                <div className="w-64 flex flex-col border-r border-white/10 bg-slate-900/50 overflow-y-auto custom-scrollbar">
+                <div className="w-64 flex flex-col border-r border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/50 overflow-y-auto custom-scrollbar shadow-sm">
                     <TicketSidebar
                         ticket={ticket}
                         agents={agents}
@@ -313,14 +313,14 @@ export const BentoTicketDetailPage: React.FC = () => {
                 {/* RIGHT: Main Content Area */}
                 <div className="flex-1 flex flex-col overflow-hidden">
                     {/* Description - Compact */}
-                    <div className="shrink-0 border-b border-white/10">
+                    <div className="shrink-0 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-transparent">
                         <TicketInfoCard ticket={ticket} />
                     </div>
 
                     {/* Chat + Activity Side by Side */}
                     <div className="flex-1 flex overflow-hidden">
                         {/* Chat Area */}
-                        <div className="flex-1 flex flex-col overflow-hidden" ref={chatSectionRef}>
+                        <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-transparent" ref={chatSectionRef}>
                             <TicketChat
                                 ticket={ticket}
                                 isConnected={isConnected}
@@ -333,7 +333,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                         </div>
 
                         {/* Activity History - Compact Right Panel */}
-                        <div className="w-56 border-l border-white/10 overflow-y-auto custom-scrollbar hidden lg:block">
+                        <div className="w-56 border-l border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-900/30 overflow-y-auto custom-scrollbar hidden lg:block">
                             <TicketHistory ticket={ticket} />
                         </div>
                     </div>

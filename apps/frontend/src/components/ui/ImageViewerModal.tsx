@@ -19,7 +19,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ isOpen, imag
                     <div className="relative">
                         <button
                             onClick={onClose}
-                            className="absolute -top-12 -right-12 text-white hover:text-neon-green transition-colors"
+                            className="absolute -top-12 -right-12 text-white hover:text-primary transition-colors"
                         >
                             <X className="w-8 h-8" />
                         </button>

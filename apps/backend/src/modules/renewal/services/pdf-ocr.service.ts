@@ -27,10 +27,15 @@ export class PdfOcrService implements OnModuleInit {
     private recognizeFunction: ((image: any, langs: string, options?: any) => Promise<any>) | null = null;
 
     async onModuleInit() {
-        await this.initializeTesseract();
+        // Lazy loading - Tesseract will be loaded on first use
+        this.logger.log('PdfOcrService initialized (Tesseract will lazy-load on first use)');
     }
 
     private async initializeTesseract() {
+        if (this.tesseractAvailable || this.recognizeFunction) {
+            return; // Already initialized
+        }
+
         try {
             // Use require to avoid compile-time errors
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -50,6 +55,9 @@ export class PdfOcrService implements OnModuleInit {
      * Note: For PDF files, you need to convert pages to images first using pdf-poppler.
      */
     async extractWithOcr(filePath: string): Promise<OcrResult> {
+        // Lazy-load Tesseract on first use
+        await this.initializeTesseract();
+
         if (!this.tesseractAvailable || !this.recognizeFunction) {
             return {
                 text: '',
@@ -106,7 +114,8 @@ export class PdfOcrService implements OnModuleInit {
     /**
      * Check if OCR is available
      */
-    isAvailable(): boolean {
+    async isAvailable(): Promise<boolean> {
+        await this.initializeTesseract();
         return this.tesseractAvailable;
     }
 

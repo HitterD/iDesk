@@ -4,15 +4,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { PresetEditorDialog } from './PresetEditorDialog';
+import { PagePresetEditor } from './PagePresetEditor';
+
+interface PageAccess {
+    [pageKey: string]: boolean;
+}
 
 interface PermissionPreset {
     id: string;
     name: string;
     description?: string;
+    targetRole?: 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';
+    pageAccess?: PageAccess;
     isSystem: boolean;
     permissions: Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>;
     createdAt: string;
+    usageCount?: number; // Number of users with this preset applied
 }
 
 interface PresetManagementDialogProps {
@@ -93,14 +100,16 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
     const systemPresets = filteredPresets.filter(p => p.isSystem);
     const customPresets = filteredPresets.filter(p => !p.isSystem);
 
-    // Count enabled permissions
-    const countEnabledPermissions = (permissions: PermissionPreset['permissions']) => {
+    // Count enabled pages (NEW: uses pageAccess, fallback to permissions)
+    const countEnabledPages = (preset: PermissionPreset) => {
+        // NEW: Use pageAccess if available
+        if (preset.pageAccess) {
+            return Object.values(preset.pageAccess).filter(Boolean).length;
+        }
+        // Fallback: count old permissions (View only)
         let count = 0;
-        for (const perm of Object.values(permissions)) {
+        for (const perm of Object.values(preset.permissions || {})) {
             if (perm.canView) count++;
-            if (perm.canCreate) count++;
-            if (perm.canEdit) count++;
-            if (perm.canDelete) count++;
         }
         return count;
     };
@@ -124,9 +133,9 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
 
     return (
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-                <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-violet-500 to-purple-600 flex-shrink-0">
                         <div>
@@ -170,8 +179,28 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto p-6">
                         {isLoading ? (
-                            <div className="flex items-center justify-center py-12">
-                                <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                            <div className="space-y-6">
+                                {/* Skeleton Loading */}
+                                <div>
+                                    <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mb-3" />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {[1, 2, 3, 4].map(i => (
+                                            <div key={i} className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                                    <div className="flex-1 space-y-2">
+                                                        <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                        <div className="h-3 w-40 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                        <div className="flex gap-2">
+                                                            <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                                                            <div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <div className="space-y-6">
@@ -186,7 +215,7 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                                             {systemPresets.map(preset => {
                                                 const style = getPresetStyle(preset.name);
                                                 const IconComponent = style.icon;
-                                                const permCount = countEnabledPermissions(preset.permissions);
+                                                const permCount = countEnabledPages(preset);
 
                                                 return (
                                                     <div
@@ -209,9 +238,20 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                                                                     {preset.description || 'No description'}
                                                                 </p>
                                                                 <div className="flex items-center gap-2 mt-2">
+                                                                    {preset.targetRole && (
+                                                                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 rounded-full font-medium">
+                                                                            {preset.targetRole}
+                                                                        </span>
+                                                                    )}
                                                                     <span className="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
-                                                                        {permCount} permissions
+                                                                        {permCount} pages
                                                                     </span>
+                                                                    {typeof preset.usageCount === 'number' && (
+                                                                        <span className="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center gap-1">
+                                                                            <Users className="w-3 h-3" />
+                                                                            {preset.usageCount} users
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -243,7 +283,7 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                                             {customPresets.map(preset => {
                                                 const style = getPresetStyle(preset.name);
                                                 const IconComponent = style.icon;
-                                                const permCount = countEnabledPermissions(preset.permissions);
+                                                const permCount = countEnabledPages(preset);
 
                                                 return (
                                                     <div
@@ -260,9 +300,20 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                                                                     {preset.description || 'No description'}
                                                                 </p>
                                                                 <div className="flex items-center gap-2 mt-2">
+                                                                    {preset.targetRole && (
+                                                                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 rounded-full font-medium">
+                                                                            {preset.targetRole}
+                                                                        </span>
+                                                                    )}
                                                                     <span className="text-xs px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full">
-                                                                        {permCount} permissions
+                                                                        {permCount} pages
                                                                     </span>
+                                                                    {typeof preset.usageCount === 'number' && (
+                                                                        <span className="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center gap-1">
+                                                                            <Users className="w-3 h-3" />
+                                                                            {preset.usageCount} users
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -294,6 +345,15 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                                                 );
                                             })}
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* P4-4: Empty state for no custom presets */}
+                                {customPresets.length === 0 && systemPresets.length > 0 && (
+                                    <div className="mt-6 p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center">
+                                        <Settings className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                                        <p className="text-slate-500 dark:text-slate-400 text-sm">No custom presets yet</p>
+                                        <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Click "Create Preset" to make your own</p>
                                     </div>
                                 )}
 
@@ -356,7 +416,7 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
             )}
 
             {/* Preset Editor */}
-            <PresetEditorDialog
+            <PagePresetEditor
                 isOpen={isEditorOpen}
                 onClose={handleEditorClose}
                 preset={editingPreset}

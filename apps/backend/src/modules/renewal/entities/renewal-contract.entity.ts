@@ -128,4 +128,14 @@ export class RenewalContract {
 
     @Column({ type: 'jsonb', nullable: true })
     rawExtractedData: Record<string, any>;
+
+    // === RENEWAL WORKFLOW ===
+    @Column({ default: false })
+    isRenewed: boolean;
+
+    @Column({ type: 'uuid', nullable: true })
+    renewedContractId: string; // Points to the NEW contract
+
+    @Column({ type: 'uuid', nullable: true })
+    previousContractId: string; // Points to the OLD contract
 }

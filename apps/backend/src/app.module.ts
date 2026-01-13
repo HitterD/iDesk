@@ -7,6 +7,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './shared/core/guards/custom-throttler.guard';
+import { CustomTypeOrmLogger } from './shared/core/logger/typeorm-logger';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TicketingModule } from './modules/ticketing/ticketing.module';
@@ -103,6 +104,16 @@ import { FeatureDefinition } from './modules/permissions/entities/feature-defini
 import { UserFeaturePermission } from './modules/permissions/entities/user-feature-permission.entity';
 import { PermissionPreset } from './modules/permissions/entities/permission-preset.entity';
 
+// New modules for Phase 10: Google Sync
+import { GoogleSyncModule } from './modules/google-sync/google-sync.module';
+import { SpreadsheetConfig } from './modules/google-sync/entities/spreadsheet-config.entity';
+import { SpreadsheetSheet } from './modules/google-sync/entities/spreadsheet-sheet.entity';
+import { SyncLog } from './modules/google-sync/entities/sync-log.entity';
+
+// New modules for Phase 11: VPN Access Tracking
+import { VpnAccessModule } from './modules/vpn-access/vpn-access.module';
+import { VpnAccess } from './modules/vpn-access/entities/vpn-access.entity';
+
 @Module({
     imports: [
         ConfigModule.forRoot({
@@ -138,13 +149,20 @@ import { PermissionPreset } from './modules/permissions/entities/permission-pres
                 ZoomAccount, ZoomBooking, ZoomMeeting, ZoomParticipant, ZoomSettings, ZoomAuditLog,
                 // New entities (Phase 9: Permissions)
                 FeatureDefinition, UserFeaturePermission, PermissionPreset,
+                // New entities (Phase 10: Google Sync)
+                SpreadsheetConfig, SpreadsheetSheet, SyncLog,
+                // New entities (Phase 11: VPN Access)
+                VpnAccess,
             ],
             // SECURITY: Use migrations in production, never auto-sync
             synchronize: process.env.NODE_ENV !== 'production',
             // Enable migrations for production
             migrationsRun: process.env.NODE_ENV === 'production',
             migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
-            logging: process.env.DB_LOGGING === 'true',
+            // Slow query logging with custom logger
+            logging: ['error', 'warn', 'schema', 'migration'],
+            logger: new CustomTypeOrmLogger(),
+            maxQueryExecutionTime: 1000, // Log queries taking > 1 second
             // Connection Pool Configuration (Section 5.3.B)
             extra: {
                 max: parseInt(process.env.DB_POOL_MAX, 10) || 20,
@@ -175,7 +193,8 @@ import { PermissionPreset } from './modules/permissions/entities/permission-pres
                 from: process.env.SMTP_FROM || '"No Reply" <noreply@idesk.com>',
             },
             template: {
-                dir: join(__dirname, 'assets', 'templates'),
+                // Fix: __dirname is dist/src, templates are in dist/assets/templates
+                dir: join(__dirname, '..', 'assets', 'templates'),
                 adapter: new HandlebarsAdapter(),
                 options: {
                     strict: true,
@@ -208,6 +227,8 @@ import { PermissionPreset } from './modules/permissions/entities/permission-pres
         IpWhitelistModule, // Phase 7: IP Whitelist Management
         ZoomBookingModule, // Phase 8: Zoom Booking Calendar
         PermissionsModule, // Phase 9: Feature Access Control
+        GoogleSyncModule, // Phase 10: Google Spreadsheet Sync
+        VpnAccessModule, // Phase 11: VPN Access Tracking
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 100, // 100 requests per minute

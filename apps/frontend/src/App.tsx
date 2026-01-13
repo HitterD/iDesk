@@ -39,7 +39,7 @@ const BentoEditArticlePage = lazy(() => import('./features/knowledge-base/pages/
 const BentoManageArticlesPage = lazy(() => import('./features/knowledge-base/pages/BentoManageArticlesPage').then(m => ({ default: m.BentoManageArticlesPage })));
 const BentoSlaSettingsPage = lazy(() => import('./features/admin/pages/BentoSlaSettingsPage').then(m => ({ default: m.BentoSlaSettingsPage })));
 const BentoFeedbackPage = lazy(() => import('./features/public/pages/BentoFeedbackPage').then(m => ({ default: m.BentoFeedbackPage })));
-const RenewalDashboardPage = lazy(() => import('./features/renewal/pages/RenewalDashboardPage').then(m => ({ default: m.RenewalDashboardPage })));
+const RenewalHubPage = lazy(() => import('./features/renewal/pages/RenewalHubPage'));
 const NotificationCenterPage = lazy(() => import('./features/notifications/pages/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
 const ClientNotificationCenter = lazy(() => import('./features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
 const AutomationRulesPage = lazy(() => import('./features/automation/pages/AutomationRulesPage').then(m => ({ default: m.AutomationRulesPage })));
@@ -55,6 +55,8 @@ const SystemHealthPage = lazy(() => import('./features/admin/pages/SystemHealthP
 // Zoom Booking Calendar
 const ZoomCalendarPage = lazy(() => import('./features/zoom-booking/pages/ZoomCalendarPage').then(m => ({ default: m.ZoomCalendarPage })));
 const ZoomSettingsPage = lazy(() => import('./features/zoom-booking/pages/ZoomSettingsPage').then(m => ({ default: m.ZoomSettingsPage })));
+
+// VPN Access and Google Sync are now integrated into RenewalHubPage
 
 // Loading fallback component
 const PageLoader = () => (
@@ -155,7 +157,7 @@ function App() {
                                 <Route
                                     path="reports"
                                     element={
-                                        <ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                                        <ProtectedRoute requiredPageAccess="reports">
                                             <FeatureErrorBoundary featureName="Reports">
                                                 <Suspense fallback={<PageLoader />}>
                                                     <BentoReportsPage />
@@ -179,10 +181,10 @@ function App() {
                                 <Route
                                     path="renewal"
                                     element={
-                                        <ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
-                                            <FeatureErrorBoundary featureName="Renewal Reminders">
+                                        <ProtectedRoute requiredPageAccess="renewal">
+                                            <FeatureErrorBoundary featureName="Renewal Hub">
                                                 <Suspense fallback={<PageLoader />}>
-                                                    <RenewalDashboardPage />
+                                                    <RenewalHubPage />
                                                 </Suspense>
                                             </FeatureErrorBoundary>
                                         </ProtectedRoute>
@@ -241,6 +243,8 @@ function App() {
                                         </ProtectedRoute>
                                     }
                                 />
+
+                                {/* VPN Access and Google Sync are now in Renewal Hub */}
 
                                 {/* Zoom Booking Calendar */}
                                 <Route path="zoom-calendar" element={
@@ -320,9 +324,9 @@ function App() {
                                     </FeatureErrorBoundary>
                                 } />
                                 <Route path="renewal" element={
-                                    <FeatureErrorBoundary featureName="Renewal Reminders">
+                                    <FeatureErrorBoundary featureName="Renewal Hub">
                                         <Suspense fallback={<PageLoader />}>
-                                            <RenewalDashboardPage />
+                                            <RenewalHubPage />
                                         </Suspense>
                                     </FeatureErrorBoundary>
                                 } />

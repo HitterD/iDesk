@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Mail, Building, Shield, Phone, Briefcase, Save, ToggleLeft, ToggleRight, MapPin, Key, Sparkles } from 'lucide-react';
+import { X, User, Mail, Building, Shield, Phone, Briefcase, Save, ToggleLeft, ToggleRight, MapPin, Key, Sparkles, CheckCircle } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -63,6 +63,30 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
     // H4: Fetch permission presets
     const { data: presets = [] } = usePermissionPresets();
 
+    // Fetch user's current applied preset
+    const { data: userPermissionData } = useQuery<{
+        appliedPreset: { presetId: string | null; presetName: string | null };
+    }>({
+        queryKey: ['user-permissions', user?.id],
+        queryFn: async () => {
+            const res = await api.get(`/permissions/users/${user?.id}`);
+            return res.data;
+        },
+        enabled: !!user?.id && isOpen,
+    });
+
+    // Track current applied preset name (from API or after applying)
+    const [currentPresetName, setCurrentPresetName] = useState<string | null>(null);
+
+    // Update current preset name when data loads
+    useEffect(() => {
+        if (userPermissionData?.appliedPreset?.presetName) {
+            setCurrentPresetName(userPermissionData.appliedPreset.presetName);
+        } else {
+            setCurrentPresetName(null);
+        }
+    }, [userPermissionData]);
+
     useEffect(() => {
         if (user) {
             setFormData({
@@ -97,15 +121,34 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
     // H4: Apply permission preset mutation
     const applyPresetMutation = useMutation({
         mutationFn: async (presetId: string) => {
+            console.log('[DEBUG] Applying preset:', presetId, 'to user:', user?.id);
             const res = await api.post(`/permissions/users/${user?.id}/preset/${presetId}`);
-            return res.data;
+            console.log('[DEBUG] Response:', res.data);
+            return res.data as { applied: boolean; presetName: string };
         },
-        onSuccess: () => {
-            toast.success('Permission preset applied successfully');
+        onSuccess: (data, variables) => {
+            // variables = presetId that was passed to mutationFn
+            const presetId = variables;
+            console.log('[DEBUG] onSuccess - data:', data, 'presetId:', presetId);
+
+            // Get preset name: first try backend response, then local lookup
+            let presetName = data?.presetName;
+            if (!presetName) {
+                const foundPreset = presets.find(p => p.id === presetId);
+                presetName = foundPreset?.name || 'Unknown Preset';
+            }
+
+            setCurrentPresetName(presetName);
+            toast.success(`Preset "${presetName}" applied successfully`);
+
+            // Invalidate queries to refetch updated data
             queryClient.invalidateQueries({ queryKey: ['user-permissions', user?.id] });
+            queryClient.invalidateQueries({ queryKey: ['my-permissions'] });
+            queryClient.invalidateQueries({ queryKey: ['users'] });
             setSelectedPresetId('');
         },
         onError: (error: any) => {
+            console.error('[DEBUG] Apply preset error:', error);
             toast.error(error.response?.data?.message || 'Failed to apply preset');
         },
     });
@@ -279,9 +322,22 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                     {/* H4: Permission Preset Selector */}
                     {formData.role !== 'ADMIN' && (
                         <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-xl border border-violet-200 dark:border-violet-800">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Key className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                                <p className="font-medium text-slate-800 dark:text-white">Permission Preset</p>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Key className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                                    <p className="font-medium text-slate-800 dark:text-white">Permission Preset</p>
+                                </div>
+                                {/* Current Applied Preset Badge - always visible */}
+                                {currentPresetName ? (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-medium">
+                                        <CheckCircle className="w-3.5 h-3.5" />
+                                        <span>{currentPresetName}</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg text-xs font-medium">
+                                        <span>No Preset</span>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex gap-2">
                                 <select
@@ -289,7 +345,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                                     onChange={(e) => setSelectedPresetId(e.target.value)}
                                     className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-violet-200 dark:border-violet-700 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 outline-none"
                                 >
-                                    <option value="">Select a preset...</option>
+                                    <option value="">{currentPresetName ? 'Change preset...' : 'Select a preset...'}</option>
                                     {presets.map((preset) => (
                                         <option key={preset.id} value={preset.id}>
                                             {preset.name} {preset.isDefault && '(Default)'}

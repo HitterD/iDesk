@@ -1,15 +1,20 @@
 /* ========================================
    GLASSMORPHISM DESIGN SYSTEM - V6 Complete
+   
+   NOTE: Animation keyframes (glass-pulse, glass-float, blur-in, etc.)
+   have been consolidated to styles/animations.css as canonical versions.
+   This file keeps utility classes (.glass-pulse, .glass-blur-in, etc.)
+   that reference those keyframes for backward compatibility.
    ======================================== */
 
 /* ========================================
    LIGHT MODE TOKENS
    ======================================== */
 :root {
-    /* Glass Background Colors - Light Mode */
-    --glass-bg: rgba(255, 255, 255, 0.65);
-    --glass-bg-elevated: rgba(255, 255, 255, 0.75);
-    --glass-bg-subtle: rgba(255, 255, 255, 0.35);
+    /* Glass Background Colors - Light Mode (Premium with subtle blue tint) */
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-bg-elevated: rgba(255, 255, 255, 0.95);
+    --glass-bg-subtle: rgba(248, 250, 252, 0.9);
 
     /* Backdrop Blur Specifications */
     --glass-blur: blur(20px);
@@ -17,26 +22,26 @@
     --glass-blur-subtle: blur(12px);
 
     /* Glass Border Colors - Light Mode */
-    --glass-border: rgba(255, 255, 255, 0.4);
-    --glass-border-subtle: rgba(255, 255, 255, 0.2);
-    --glass-border-highlight: rgba(255, 255, 255, 0.6);
+    --glass-border: rgba(226, 232, 240, 0.8);
+    --glass-border-subtle: rgba(226, 232, 240, 0.5);
+    --glass-border-highlight: rgba(255, 255, 255, 0.9);
 
-    /* Glass Shadows - Light Mode */
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-    --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08), inset 0 2px 0 rgba(255, 255, 255, 0.8);
-    --glass-shadow-subtle: 0 4px 12px rgba(0, 0, 0, 0.04);
-    --glass-shadow-light: 0 4px 6px rgba(0, 0, 0, 0.03), 0 12px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-    --glass-shadow-medium: 0 8px 16px rgba(0, 0, 0, 0.06), 0 20px 40px rgba(0, 0, 0, 0.1), inset 0 2px 0 rgba(255, 255, 255, 0.8);
-    --glass-shadow-heavy: 0 10px 20px rgba(0, 0, 0, 0.08), 0 30px 60px rgba(0, 0, 0, 0.15), inset 0 2px 0 rgba(255, 255, 255, 0.9);
+    /* Glass Shadows - Light Mode (Soft blue-tinted) */
+    --glass-shadow: 0 4px 20px rgba(148, 163, 184, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05);
+    --glass-shadow-elevated: 0 8px 30px rgba(148, 163, 184, 0.2), 0 4px 12px rgba(33, 150, 243, 0.08);
+    --glass-shadow-subtle: 0 2px 8px rgba(148, 163, 184, 0.1);
+    --glass-shadow-light: 0 2px 8px rgba(148, 163, 184, 0.1), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --glass-shadow-medium: 0 6px 20px rgba(148, 163, 184, 0.18), 0 3px 8px rgba(33, 150, 243, 0.06);
+    --glass-shadow-heavy: 0 12px 40px rgba(148, 163, 184, 0.25), 0 6px 16px rgba(33, 150, 243, 0.1);
 
     /* Glass Accent Glow */
-    --glass-accent-glow: 0 0 20px rgba(92, 184, 138, 0.15);
+    --glass-accent-glow: 0 0 20px rgba(33, 150, 243, 0.15);
 
     /* App Background Gradients - Light Mode */
     --app-bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --app-bg-blobs: radial-gradient(circle at 20% 80%, rgba(168, 230, 207, 0.5) 0%, transparent 30%),
-        radial-gradient(circle at 80% 20%, rgba(255, 200, 200, 0.4) 0%, transparent 30%),
-        radial-gradient(circle at 50% 50%, rgba(180, 200, 255, 0.3) 0%, transparent 40%);
+    --app-bg-blobs: radial-gradient(circle at 20% 80%, rgba(33, 150, 243, 0.12) 0%, transparent 35%),
+        radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.10) 0%, transparent 35%),
+        radial-gradient(circle at 50% 50%, rgba(96, 165, 250, 0.08) 0%, transparent 45%);
 
     /* Typography for Glass */
     --glass-text-h1: rgba(30, 41, 59, 0.95);
@@ -66,9 +71,9 @@
     --glass-shadow-light: 0 4px 6px rgba(0, 0, 0, 0.2), 0 12px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --glass-shadow-medium: 0 8px 16px rgba(0, 0, 0, 0.3), 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.08);
     --glass-shadow-heavy: 0 10px 20px rgba(0, 0, 0, 0.35), 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.1);
-    --glass-accent-glow: 0 0 30px rgba(92, 184, 138, 0.2);
+    --glass-accent-glow: 0 0 30px rgba(33, 150, 243, 0.2);
     --app-bg-gradient: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
-    --app-bg-blobs: radial-gradient(circle at 20% 80%, rgba(92, 184, 138, 0.2) 0%, transparent 30%),
+    --app-bg-blobs: radial-gradient(circle at 20% 80%, rgba(33, 150, 243, 0.2) 0%, transparent 30%),
         radial-gradient(circle at 80% 20%, rgba(147, 51, 234, 0.15) 0%, transparent 30%),
         radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
     --glass-text-h1: rgba(255, 255, 255, 0.95);
@@ -122,7 +127,7 @@
 }
 
 .glass-border-accent:hover {
-    border-color: rgba(92, 184, 138, 0.4);
+    border-color: rgba(33, 150, 243, 0.4);
     box-shadow: var(--glass-shadow), var(--glass-accent-glow);
 }
 
@@ -262,11 +267,11 @@
 
     0%,
     100% {
-        box-shadow: var(--glass-shadow), 0 0 0 0 rgba(92, 184, 138, 0.4);
+        box-shadow: var(--glass-shadow), 0 0 0 0 rgba(33, 150, 243, 0.4);
     }
 
     50% {
-        box-shadow: var(--glass-shadow), 0 0 20px 4px rgba(92, 184, 138, 0.2);
+        box-shadow: var(--glass-shadow), 0 0 20px 4px rgba(33, 150, 243, 0.2);
     }
 }
 
@@ -314,7 +319,7 @@
 /* Focus ring for accessibility */
 .glass-focus:focus-visible {
     outline: none;
-    box-shadow: var(--glass-shadow), 0 0 0 3px rgba(92, 184, 138, 0.5);
+    box-shadow: var(--glass-shadow), 0 0 0 3px rgba(33, 150, 243, 0.5);
 }
 
 /* Active/pressed state */
@@ -376,4 +381,240 @@
 
 .glass-stagger-5 {
     animation-delay: 0.25s;
+}
+
+/* ========================================
+   PREMIUM ANIMATED BACKGROUND ORBS
+   ======================================== */
+
+/* Floating orb animation */
+@keyframes orb-float {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.6;
+    }
+
+    25% {
+        transform: translate(30px, -40px) scale(1.1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: translate(-20px, 20px) scale(0.95);
+        opacity: 0.5;
+    }
+
+    75% {
+        transform: translate(40px, 30px) scale(1.05);
+        opacity: 0.7;
+    }
+}
+
+@keyframes orb-float-reverse {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.5;
+    }
+
+    25% {
+        transform: translate(-40px, 30px) scale(0.9);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: translate(30px, -20px) scale(1.1);
+        opacity: 0.6;
+    }
+
+    75% {
+        transform: translate(-30px, -40px) scale(1);
+        opacity: 0.8;
+    }
+}
+
+/* Premium orbs - Light Mode (STRONGER) */
+.premium-orb-blue {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 60%);
+    filter: blur(60px);
+    animation: orb-float 25s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.premium-orb-purple {
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.20) 0%, transparent 60%);
+    filter: blur(60px);
+    animation: orb-float-reverse 30s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.premium-orb-cyan {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 60%);
+    filter: blur(50px);
+    animation: orb-float 20s ease-in-out infinite;
+    animation-delay: -10s;
+    pointer-events: none;
+}
+
+/* Dark Mode - stronger orbs */
+.dark .premium-orb-blue {
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.40) 0%, transparent 60%);
+}
+
+.dark .premium-orb-purple {
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 60%);
+}
+
+.dark .premium-orb-cyan {
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.25) 0%, transparent 60%);
+}
+
+/* ========================================
+   PREMIUM SIDEBAR WITH ACCENT STRIPE
+   ======================================== */
+
+/* ========================================
+   PREMIUM SIDEBAR (ELEGANT & CLEAN)
+   ======================================== */
+
+.sidebar-frosted {
+    position: relative;
+    /* VISIBLE AURORA: Clean White to VISIBLE Blue Gradient */
+    background: linear-gradient(180deg,
+            #ffffff 0%,
+            #f8fafc 40%,
+            #eff6ff 80%,
+            #dbeafe 100%);
+    /* Stronger Blue at bottom */
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+
+    /* Physical Edge Border */
+    border-right: 1px solid rgba(255, 255, 255, 0.6);
+
+    /* Layer Separation Shadow */
+    box-shadow:
+        15px 0 30px -5px rgba(0, 0, 0, 0.05),
+        1px 0 0 rgba(255, 255, 255, 1) inset;
+}
+
+/* Accent Line - Left Clean Blue */
+.sidebar-frosted::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    /* Thicker */
+    z-index: 10;
+    background: linear-gradient(to bottom, #2563eb, #3b82f6);
+    box-shadow: 2px 0 15px rgba(37, 99, 235, 0.6);
+}
+
+.dark .sidebar-frosted {
+    /* RICH NAVY GLASS */
+    background: linear-gradient(180deg,
+            rgba(15, 23, 42, 0.9) 0%,
+            rgba(15, 23, 50, 0.95) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        20px 0 50px -10px rgba(0, 0, 0, 0.4),
+        1px 0 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+/* ========================================
+   DRAMATIC ATMOSPHERE BACKGROUND
+   ======================================== */
+
+.premium-bg-container {
+    position: relative;
+    overflow: hidden;
+    /* VISIBLE ATMOSPHERE - 40% Opacity Blue/Purple Bleed */
+    background:
+        radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.4) 0%, transparent 45%),
+        radial-gradient(circle at 0% 20%, rgba(168, 85, 247, 0.15) 0%, transparent 40%),
+        #f8fafc;
+    /* Slate 50 base */
+}
+
+/* Noise texture overlay */
+.premium-bg-container::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    /* Increased texture */
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Content sits above noise */
+.premium-bg-container>* {
+    position: relative;
+    z-index: 2;
+}
+
+.dark .premium-bg-container {
+    /* DEEP CRYSTAL DARK MODE */
+    background:
+        radial-gradient(circle at 100% 0%, rgba(37, 99, 235, 0.3) 0%, transparent 50%),
+        linear-gradient(135deg, #0f172a 0%, #020617 100%);
+}
+
+.dark .premium-bg-container::before {
+    opacity: 0.04;
+}
+
+/* ========================================
+   STATS CARD GLOW EFFECT
+   ======================================== */
+
+.stats-card-glow {
+    transition: all 0.3s ease;
+}
+
+.stats-card-glow:hover {
+    box-shadow:
+        0 0 30px rgba(59, 130, 246, 0.25),
+        0 10px 40px -10px rgba(59, 130, 246, 0.3);
+    transform: translateY(-2px);
+}
+
+.dark .stats-card-glow:hover {
+    box-shadow:
+        0 0 40px rgba(168, 85, 247, 0.30),
+        0 10px 50px -10px rgba(168, 85, 247, 0.4);
+}
+
+/* ========================================
+   CONTENT AREA INNER GLOW
+   ======================================== */
+
+.content-inner-glow {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+}
+
+.dark .content-inner-glow {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 }

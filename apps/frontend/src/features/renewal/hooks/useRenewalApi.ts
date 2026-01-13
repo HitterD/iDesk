@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { RenewalContract, DashboardStats, UploadResult, ContractStatus, ContractCategory, UpdateContractDto } from '../types/renewal.types';
+import { RenewalContract, DashboardStats, UploadResult, ContractStatus, ContractCategory, UpdateContractDto, ContractAuditLog } from '../types/renewal.types';
 
 // Paginated Response Type
 export interface PaginatedContracts {
@@ -54,7 +54,7 @@ export function useContractHistory(contractId: string) {
     return useQuery({
         queryKey: renewalKeys.history(contractId),
         queryFn: async () => {
-            const res = await api.get<any[]>(`/renewal/${contractId}/history`);
+            const res = await api.get<ContractAuditLog[]>(`/renewal/${contractId}/history`);
             return res.data;
         },
         enabled: !!contractId,
@@ -117,8 +117,34 @@ export function useDeleteContract() {
     return useMutation({
         mutationFn: async (id: string) => {
             await api.delete(`/renewal/${id}`);
+            return id;
         },
-        onSuccess: () => {
+        // Optimistic update - remove from list immediately
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: renewalKeys.all });
+            const previousData = queryClient.getQueriesData({ queryKey: renewalKeys.all });
+
+            queryClient.setQueriesData<PaginatedContracts | undefined>(
+                { queryKey: renewalKeys.all },
+                (old) => {
+                    if (!old?.items) return old;
+                    return {
+                        ...old,
+                        items: old.items.filter((item: RenewalContract) => item.id !== id),
+                        total: Math.max(0, (old.total || 0) - 1),
+                    };
+                }
+            );
+            return { previousData };
+        },
+        onError: (_, __, context) => {
+            if (context?.previousData) {
+                context.previousData.forEach(([queryKey, data]) => {
+                    queryClient.setQueryData(queryKey, data);
+                });
+            }
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: renewalKeys.all });
         },
     });
@@ -147,7 +173,35 @@ export function useAcknowledgeContract() {
             const res = await api.post<RenewalContract>(`/renewal/${id}/acknowledge`);
             return res.data;
         },
-        onSuccess: (_, id) => {
+        // Optimistic update
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: renewalKeys.all });
+            const previousData = queryClient.getQueriesData({ queryKey: renewalKeys.all });
+
+            // Optimistically update all list queries
+            queryClient.setQueriesData<PaginatedContracts | undefined>(
+                { queryKey: renewalKeys.all },
+                (old) => {
+                    if (!old?.items) return old;
+                    return {
+                        ...old,
+                        items: old.items.map((item: RenewalContract) =>
+                            item.id === id ? { ...item, isAcknowledged: true, acknowledgedAt: new Date().toISOString() } : item
+                        ),
+                    };
+                }
+            );
+            return { previousData };
+        },
+        onError: (_, __, context) => {
+            // Rollback on error
+            if (context?.previousData) {
+                context.previousData.forEach(([queryKey, data]) => {
+                    queryClient.setQueryData(queryKey, data);
+                });
+            }
+        },
+        onSettled: (_, __, id) => {
             queryClient.invalidateQueries({ queryKey: renewalKeys.all });
             queryClient.invalidateQueries({ queryKey: renewalKeys.detail(id) });
         },
@@ -162,7 +216,33 @@ export function useUnacknowledgeContract() {
             const res = await api.post<RenewalContract>(`/renewal/${id}/unacknowledge`);
             return res.data;
         },
-        onSuccess: (_, id) => {
+        // Optimistic update
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: renewalKeys.all });
+            const previousData = queryClient.getQueriesData({ queryKey: renewalKeys.all });
+
+            queryClient.setQueriesData<PaginatedContracts | undefined>(
+                { queryKey: renewalKeys.all },
+                (old) => {
+                    if (!old?.items) return old;
+                    return {
+                        ...old,
+                        items: old.items.map((item: RenewalContract) =>
+                            item.id === id ? { ...item, isAcknowledged: false, acknowledgedAt: null } : item
+                        ),
+                    };
+                }
+            );
+            return { previousData };
+        },
+        onError: (_, __, context) => {
+            if (context?.previousData) {
+                context.previousData.forEach(([queryKey, data]) => {
+                    queryClient.setQueryData(queryKey, data);
+                });
+            }
+        },
+        onSettled: (_, __, id) => {
             queryClient.invalidateQueries({ queryKey: renewalKeys.all });
             queryClient.invalidateQueries({ queryKey: renewalKeys.detail(id) });
         },

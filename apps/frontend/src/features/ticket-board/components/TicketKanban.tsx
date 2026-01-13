@@ -48,7 +48,7 @@ const COLUMNS = [
     { id: 'TODO', title: 'To Do', color: 'border-slate-500' },
     { id: 'IN_PROGRESS', title: 'In Progress', color: 'border-blue-500' },
     { id: 'WAITING', title: 'Waiting', color: 'border-yellow-500' },
-    { id: 'RESOLVED', title: 'Resolved', color: 'border-neon-green' },
+    { id: 'RESOLVED', title: 'Resolved', color: 'border-primary' },
 ];
 
 interface KanbanColumnProps {
