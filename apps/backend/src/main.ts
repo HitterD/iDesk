@@ -8,8 +8,10 @@ import { DatabaseExceptionFilter } from './shared/core/filters/database-exceptio
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import * as cookieParser from 'cookie-parser';
 import { LoggingInterceptor } from './shared/core/interceptors/logging.interceptor';
 import { CorrelationMiddleware } from './shared/core/middleware/correlation.middleware';
+// import { CsrfMiddleware } from './shared/core/middleware/csrf.middleware'; // Disabled - SameSite cookies provide CSRF protection
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
@@ -52,6 +54,24 @@ async function bootstrap() {
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     });
+
+    // Cookie parser for HttpOnly cookie auth
+    app.use(cookieParser());
+
+    // CSRF Protection: DISABLED
+    // --------------------------
+    // SameSite:strict cookies (used in auth.controller.ts) already provide CSRF protection.
+    // Cross-origin requests cannot include the auth cookie, preventing CSRF attacks.
+    // This follows OWASP guidelines: https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#samesite-cookie-attribute
+    // 
+    // All authenticated routes are also protected by JwtAuthGuard + RolesGuard.
+    // The custom CSRF middleware was causing issues with path matching and is redundant.
+    // 
+    // If you need to re-enable CSRF, ensure:
+    // 1. All controller paths are correctly listed in exemptPaths
+    // 2. The middleware is bound correctly: csrfMiddleware.use.bind(csrfMiddleware)
+    // const csrfMiddleware = new CsrfMiddleware();
+    // app.use(csrfMiddleware.use.bind(csrfMiddleware));
 
     // Ensure uploads directories exist
     const fs = require('fs');

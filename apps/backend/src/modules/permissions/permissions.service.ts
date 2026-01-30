@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { FeatureDefinition } from './entities/feature-definition.entity';
@@ -6,6 +6,8 @@ import { UserFeaturePermission } from './entities/user-feature-permission.entity
 import { PermissionPreset, PermissionSet, PageAccess, PresetTargetRole } from './entities/permission-preset.entity';
 import { User } from '../users/entities/user.entity';
 import { FeaturePermissionDto } from './dto/update-permissions.dto';
+import { CacheService, CacheKeys } from '../../shared/core/cache/cache.service';
+import { PermissionsGateway } from './permissions.gateway';
 
 // ============================================
 // NEW: SIMPLIFIED PAGE-BASED ACCESS SYSTEM
@@ -342,6 +344,9 @@ export class PermissionsService implements OnModuleInit {
         private readonly presetRepo: Repository<PermissionPreset>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        private readonly cacheService: CacheService,
+        @Inject(forwardRef(() => PermissionsGateway))
+        private readonly permissionsGateway: PermissionsGateway,
     ) { }
 
     async onModuleInit() {
@@ -581,6 +586,12 @@ export class PermissionsService implements OnModuleInit {
         user.appliedPresetName = preset.name;
         await this.userRepo.save(user);
 
+        // Invalidate page access cache for this user
+        await this.cacheService.delAsync(CacheKeys.pageAccess(userId));
+
+        // FI-8: Notify user via WebSocket for real-time update
+        this.permissionsGateway.notifyPresetChange(userId, preset.id, preset.name);
+
         this.logger.log(`Applied preset "${preset.name}" to user ${userId}`);
         return { applied: true, presetName: preset.name };
     }
@@ -702,7 +713,26 @@ export class PermissionsService implements OnModuleInit {
         if (data.pageAccess !== undefined) preset.pageAccess = data.pageAccess;
         if (data.permissions !== undefined) preset.permissions = data.permissions;
 
-        return this.presetRepo.save(preset);
+        const savedPreset = await this.presetRepo.save(preset);
+
+        // CRITICAL FIX: Invalidate cache for ALL users with this preset
+        // When preset changes, all users with this preset need fresh permissions
+        const usersWithPreset = await this.userRepo.find({
+            where: { appliedPresetId: presetId },
+            select: ['id'],
+        });
+
+        for (const user of usersWithPreset) {
+            // Invalidate page access cache
+            await this.cacheService.delAsync(CacheKeys.pageAccess(user.id));
+
+            // Notify user via WebSocket for real-time update
+            this.permissionsGateway.notifyPresetChange(user.id, preset.id, preset.name);
+        }
+
+        this.logger.log(`Updated preset "${preset.name}" and invalidated cache for ${usersWithPreset.length} users`);
+
+        return savedPreset;
     }
 
     // Delete preset (only non-system presets)

@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { useAuth } from '../../stores/useAuth';
+import { useAuth, performLogout } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Logo } from '../ui/Logo';
@@ -34,11 +34,11 @@ const pageVariants: Variants = {
 export const ClientLayout: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await performLogout();
         navigate('/login');
     };
 

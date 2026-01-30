@@ -1,7 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
-import { decrypt } from './crypto';
 import { getErrorMessage } from './errorMessages';
 
 // Generate unique request ID for error correlation
@@ -12,6 +11,7 @@ const generateRequestId = (): string => {
 const api = axios.create({
     baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:5050') + '/v1',
     timeout: 30000, // Increased for file uploads
+    withCredentials: true, // Enable HttpOnly cookie auth
 });
 
 // === 4.4.2 Implement Retry with Exponential Backoff ===
@@ -28,7 +28,7 @@ axiosRetry(api, {
     },
 });
 
-// === 4.4.1 Request Interceptor with Dev Logging ===
+// === Request Interceptor with Dev Logging ===
 api.interceptors.request.use(
     (config) => {
         // Generate and attach request ID for error correlation
@@ -36,20 +36,18 @@ api.interceptors.request.use(
         config.headers['X-Request-ID'] = requestId;
         (config as any).requestId = requestId;
 
-        // Add auth token - decrypt from encrypted storage (4.3.2)
-        const encryptedStorage = localStorage.getItem('auth-storage');
-        if (encryptedStorage) {
-            try {
-                // Decrypt the storage first, then parse JSON
-                const decrypted = decrypt(encryptedStorage);
-                if (decrypted) {
-                    const { state } = JSON.parse(decrypted);
-                    if (state && state.token) {
-                        config.headers.Authorization = `Bearer ${state.token}`;
-                    }
-                }
-            } catch (error) {
-                console.error('Error parsing auth storage:', error);
+        // Token is now in HttpOnly cookie - browser handles it automatically
+        // No need to manually inject Authorization header
+
+        // Add CSRF token for state-changing requests (POST, PUT, PATCH, DELETE)
+        const stateChangingMethods = ['post', 'put', 'patch', 'delete'];
+        const method = config.method?.toLowerCase();
+
+        if (method && stateChangingMethods.includes(method)) {
+            // Read CSRF token from cookie (set by /auth/csrf-token endpoint)
+            const csrfToken = getCsrfTokenFromCookie();
+            if (csrfToken) {
+                config.headers['X-CSRF-TOKEN'] = csrfToken;
             }
         }
 
@@ -67,6 +65,20 @@ api.interceptors.request.use(
         return Promise.reject(error);
     }
 );
+
+/**
+ * Read CSRF token from cookie
+ */
+function getCsrfTokenFromCookie(): string | null {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrf-token') {
+            return decodeURIComponent(value);
+        }
+    }
+    return null;
+}
 
 // Response Interceptor with Dev Logging
 api.interceptors.response.use(
@@ -115,4 +127,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-

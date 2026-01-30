@@ -135,13 +135,18 @@ function App() {
                                         </Suspense>
                                     </FeatureErrorBoundary>
                                 } />
-                                <Route path="settings" element={
-                                    <FeatureErrorBoundary featureName="Settings">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <BentoSettingsPage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
-                                } />
+                                <Route
+                                    path="settings"
+                                    element={
+                                        <ProtectedRoute requiredPageAccess="settings">
+                                            <FeatureErrorBoundary featureName="Settings">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <BentoSettingsPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
                                 <Route
                                     path="agents"
                                     element={
@@ -193,11 +198,13 @@ function App() {
                                 <Route
                                     path="notifications"
                                     element={
-                                        <FeatureErrorBoundary featureName="Notification Center">
-                                            <Suspense fallback={<PageLoader />}>
-                                                <NotificationCenterPage />
-                                            </Suspense>
-                                        </FeatureErrorBoundary>
+                                        <ProtectedRoute requiredPageAccess="notifications">
+                                            <FeatureErrorBoundary featureName="Notification Center">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <NotificationCenterPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
                                     }
                                 />
                                 <Route
@@ -212,11 +219,11 @@ function App() {
                                         </ProtectedRoute>
                                     }
                                 />
-                                <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><BentoKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="kb/manage" element={<FeatureErrorBoundary featureName="Manage Articles"><Suspense fallback={<PageLoader />}><BentoManageArticlesPage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="kb/create" element={<FeatureErrorBoundary featureName="Create Article"><Suspense fallback={<PageLoader />}><BentoCreateArticlePage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><BentoArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="kb/articles/:id/edit" element={<FeatureErrorBoundary featureName="Edit Article"><Suspense fallback={<PageLoader />}><BentoEditArticlePage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="kb" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><BentoKnowledgeBasePage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="kb/manage" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Manage Articles"><Suspense fallback={<PageLoader />}><BentoManageArticlesPage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="kb/create" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Create Article"><Suspense fallback={<PageLoader />}><BentoCreateArticlePage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="kb/articles/:id" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><BentoArticleDetailPage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="kb/articles/:id/edit" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Edit Article"><Suspense fallback={<PageLoader />}><BentoEditArticlePage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
 
                                 {/* Admin-only Feature Pages */}
                                 <Route
@@ -247,13 +254,18 @@ function App() {
                                 {/* VPN Access and Google Sync are now in Renewal Hub */}
 
                                 {/* Zoom Booking Calendar */}
-                                <Route path="zoom-calendar" element={
-                                    <FeatureErrorBoundary featureName="Zoom Calendar">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <ZoomCalendarPage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
-                                } />
+                                <Route
+                                    path="zoom-calendar"
+                                    element={
+                                        <ProtectedRoute requiredPageAccess="zoom_calendar">
+                                            <FeatureErrorBoundary featureName="Zoom Calendar">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <ZoomCalendarPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
 
                                 {/* Zoom Settings (Admin Only) */}
                                 <Route path="zoom-settings" element={
@@ -295,41 +307,60 @@ function App() {
                                         </Suspense>
                                     </FeatureErrorBoundary>
                                 } />
-                                <Route path="reports" element={
-                                    <FeatureErrorBoundary featureName="Manager Reports">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <ManagerReportsPage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
-                                } />
+                                <Route
+                                    path="reports"
+                                    element={
+                                        <ProtectedRoute requiredPageAccess="reports">
+                                            <FeatureErrorBoundary featureName="Manager Reports">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <ManagerReportsPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
                                 <Route path="kb" element={
-                                    <FeatureErrorBoundary featureName="Knowledge Base">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <BentoKnowledgeBasePage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
+                                    <ProtectedRoute requiredPageAccess="knowledge_base">
+                                        <FeatureErrorBoundary featureName="Knowledge Base">
+                                            <Suspense fallback={<PageLoader />}>
+                                                <BentoKnowledgeBasePage />
+                                            </Suspense>
+                                        </FeatureErrorBoundary>
+                                    </ProtectedRoute>
                                 } />
                                 <Route path="kb/articles/:id" element={
-                                    <FeatureErrorBoundary featureName="Article Detail">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <BentoArticleDetailPage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
+                                    <ProtectedRoute requiredPageAccess="knowledge_base">
+                                        <FeatureErrorBoundary featureName="Article Detail">
+                                            <Suspense fallback={<PageLoader />}>
+                                                <BentoArticleDetailPage />
+                                            </Suspense>
+                                        </FeatureErrorBoundary>
+                                    </ProtectedRoute>
                                 } />
-                                <Route path="zoom-calendar" element={
-                                    <FeatureErrorBoundary featureName="Zoom Calendar">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <ZoomCalendarPage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
-                                } />
-                                <Route path="renewal" element={
-                                    <FeatureErrorBoundary featureName="Renewal Hub">
-                                        <Suspense fallback={<PageLoader />}>
-                                            <RenewalHubPage />
-                                        </Suspense>
-                                    </FeatureErrorBoundary>
-                                } />
+                                <Route
+                                    path="zoom-calendar"
+                                    element={
+                                        <ProtectedRoute requiredPageAccess="zoom_calendar">
+                                            <FeatureErrorBoundary featureName="Zoom Calendar">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <ZoomCalendarPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="renewal"
+                                    element={
+                                        <ProtectedRoute requiredPageAccess="renewal">
+                                            <FeatureErrorBoundary featureName="Renewal Hub">
+                                                <Suspense fallback={<PageLoader />}>
+                                                    <RenewalHubPage />
+                                                </Suspense>
+                                            </FeatureErrorBoundary>
+                                        </ProtectedRoute>
+                                    }
+                                />
                             </Route>
 
                             {/* Client Routes - Lazy loaded portal (separate bundle from Admin) */}
@@ -346,10 +377,10 @@ function App() {
                                 <Route path="my-tickets" element={<FeatureErrorBoundary featureName="My Tickets"><Suspense fallback={<PageLoader />}><BentoMyTicketsPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="create" element={<FeatureErrorBoundary featureName="Create Ticket"><Suspense fallback={<PageLoader />}><BentoCreateTicketPage /></Suspense></FeatureErrorBoundary>} />
                                 <Route path="tickets/:id" element={<FeatureErrorBoundary featureName="Ticket Detail"><Suspense fallback={<PageLoader />}><ClientTicketDetailPage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="notifications" element={<FeatureErrorBoundary featureName="Notifications"><Suspense fallback={<PageLoader />}><ClientNotificationCenter /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="zoom-calendar" element={<FeatureErrorBoundary featureName="Zoom Calendar"><Suspense fallback={<PageLoader />}><ZoomCalendarPage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="kb" element={<FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><ClientKnowledgeBasePage /></Suspense></FeatureErrorBoundary>} />
-                                <Route path="kb/articles/:id" element={<FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><ClientArticleDetailPage /></Suspense></FeatureErrorBoundary>} />
+                                <Route path="notifications" element={<ProtectedRoute requiredPageAccess="notifications"><FeatureErrorBoundary featureName="Notifications"><Suspense fallback={<PageLoader />}><ClientNotificationCenter /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="zoom-calendar" element={<ProtectedRoute requiredPageAccess="zoom_calendar"><FeatureErrorBoundary featureName="Zoom Calendar"><Suspense fallback={<PageLoader />}><ZoomCalendarPage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="kb" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Knowledge Base"><Suspense fallback={<PageLoader />}><ClientKnowledgeBasePage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
+                                <Route path="kb/articles/:id" element={<ProtectedRoute requiredPageAccess="knowledge_base"><FeatureErrorBoundary featureName="Article Detail"><Suspense fallback={<PageLoader />}><ClientArticleDetailPage /></Suspense></FeatureErrorBoundary></ProtectedRoute>} />
                                 <Route path="profile" element={<FeatureErrorBoundary featureName="Profile"><Suspense fallback={<PageLoader />}><ClientProfilePage /></Suspense></FeatureErrorBoundary>} />
                                 <Route index element={<Navigate to="/client/my-tickets" replace />} />
                             </Route>

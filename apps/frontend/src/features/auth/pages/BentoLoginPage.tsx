@@ -198,18 +198,15 @@ export const BentoLoginPage = () => {
 
         try {
             const res = await api.post('/auth/login', { email, password });
-            const { access_token, user } = res.data;
-
-            // Store token based on Remember Me preference
-            if (rememberMe) {
-                localStorage.setItem('auth-storage', JSON.stringify({ state: { token: access_token, user }, version: 0 }));
-            } else {
-                sessionStorage.setItem('auth-storage', JSON.stringify({ state: { token: access_token, user }, version: 0 }));
-            }
+            // Token is now set via HttpOnly cookie by backend
+            // We only receive user data in response
+            const { user } = res.data;
 
             // Reset failed attempts on success
             setFailedAttempts(0);
-            login(access_token, user);
+
+            // Store user in Zustand (token is in HttpOnly cookie)
+            login(user);
 
             if (user.role === 'ADMIN' || user.role === 'AGENT') {
                 navigate('/dashboard');

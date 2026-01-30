@@ -41,7 +41,7 @@ export class GoogleSyncController {
 
     @Get('status')
     @ApiOperation({ summary: 'Get Google Sync integration status' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
     async getStatus() {
         return this.service.getStatus();
     }

@@ -60,6 +60,10 @@ export enum AuditAction {
     // === REPORTS ===
     REPORT_GENERATE = 'REPORT_GENERATE',
     REPORT_EXPORT = 'REPORT_EXPORT',
+
+    // === PAGE ACCESS CONTROL ===
+    PAGE_ACCESS_DENIED = 'PAGE_ACCESS_DENIED',
+    PAGE_ACCESS_LOCKOUT = 'PAGE_ACCESS_LOCKOUT',
 }
 
 export enum AuditSeverity {

@@ -143,8 +143,18 @@ export function useMyPermissions() {
  * Uses preset pageAccess for authorization
  */
 export function useHasPageAccess(pageKey: string) {
-    const authData = localStorage.getItem('auth');
-    const user = authData ? JSON.parse(authData) : null;
+    // CRITICAL FIX: Zustand uses 'auth-storage' key, not 'auth'
+    // Also Zustand wraps state in { state: { user: ... } }
+    const authData = localStorage.getItem('auth-storage');
+    let user = null;
+    if (authData) {
+        try {
+            const parsed = JSON.parse(authData);
+            user = parsed?.state?.user;
+        } catch {
+            user = null;
+        }
+    }
 
     // ADMIN bypasses page access checks
     if (user?.role === 'ADMIN') {
@@ -157,7 +167,7 @@ export function useHasPageAccess(pageKey: string) {
             const res = await api.get('/permissions/me');
             return res.data;
         },
-        enabled: !!user?.id, // V10 FIX: was userId, should be id
+        enabled: !!user?.id,
         staleTime: 30 * 1000,
     });
 
@@ -169,3 +179,52 @@ export function useHasPageAccess(pageKey: string) {
     return { hasAccess, isLoading };
 }
 
+/**
+ * FI-7: Hook to check if current user has specific feature-level CRUD permission
+ * Uses preset permissions for granular access control
+ * 
+ * Usage:
+ * const canCreate = useHasFeaturePermission('tickets', 'create');
+ * const canDelete = useHasFeaturePermission('kb', 'delete');
+ */
+export function useHasFeaturePermission(feature: string, action: 'view' | 'create' | 'edit' | 'delete'): boolean {
+    // CRITICAL FIX: Zustand uses 'auth-storage' key
+    const authData = localStorage.getItem('auth-storage');
+    let user = null;
+    if (authData) {
+        try {
+            const parsed = JSON.parse(authData);
+            user = parsed?.state?.user;
+        } catch {
+            user = null;
+        }
+    }
+
+    // ADMIN bypasses feature access checks
+    if (user?.role === 'ADMIN') {
+        return true;
+    }
+
+    const { data: permissions } = useQuery<MyPermissionsResponse>({
+        queryKey: ['my-permissions'],
+        queryFn: async () => {
+            const res = await api.get('/permissions/me');
+            return res.data;
+        },
+        enabled: !!user?.id,
+        staleTime: 30 * 1000,
+    });
+
+    // Check feature permission from preset's permissions object
+    // Format: permissions.permissions['feature.action'].canAction
+    const featureKey = `${feature}.${action}`;
+    const actionMap: Record<string, keyof FeaturePermission> = {
+        view: 'view',
+        create: 'create',
+        edit: 'edit',
+        delete: 'delete',
+    };
+
+    const featurePermission = permissions?.permissions?.[featureKey];
+    return featurePermission?.[actionMap[action]] === true;
+}

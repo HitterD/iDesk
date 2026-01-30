@@ -39,7 +39,7 @@ export class VpnAccessController {
     @ApiQuery({ name: 'vpnType', enum: VpnType, required: false })
     @ApiQuery({ name: 'site', required: false })
     @ApiQuery({ name: 'search', required: false })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
     async findAll(
         @Query('status') status?: VpnStatus,
         @Query('vpnType') vpnType?: VpnType,
@@ -51,7 +51,7 @@ export class VpnAccessController {
 
     @Get('stats')
     @ApiOperation({ summary: 'Get VPN access statistics' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
     async getStats() {
         return this.service.getStats();
     }
@@ -59,14 +59,14 @@ export class VpnAccessController {
     @Get('expiring')
     @ApiOperation({ summary: 'Get VPNs expiring within specified days' })
     @ApiQuery({ name: 'days', required: false })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
     async findExpiring(@Query('days') days?: number) {
         return this.service.findExpiring(days || 30);
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get VPN access record by ID' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
     async findById(@Param('id', ParseUUIDPipe) id: string) {
         return this.service.findById(id);
     }

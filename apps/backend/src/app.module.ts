@@ -114,6 +114,9 @@ import { SyncLog } from './modules/google-sync/entities/sync-log.entity';
 import { VpnAccessModule } from './modules/vpn-access/vpn-access.module';
 import { VpnAccess } from './modules/vpn-access/entities/vpn-access.entity';
 
+// Shared Guards Module (provides PageAccessGuard, FeatureAccessGuard with dependencies)
+import { SharedGuardsModule } from './shared/core/shared-guards.module';
+
 @Module({
     imports: [
         ConfigModule.forRoot({
@@ -229,6 +232,7 @@ import { VpnAccess } from './modules/vpn-access/entities/vpn-access.entity';
         PermissionsModule, // Phase 9: Feature Access Control
         GoogleSyncModule, // Phase 10: Google Spreadsheet Sync
         VpnAccessModule, // Phase 11: VPN Access Tracking
+        SharedGuardsModule, // Provides PageAccessGuard and FeatureAccessGuard with dependencies
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 100, // 100 requests per minute

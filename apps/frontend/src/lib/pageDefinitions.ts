@@ -35,13 +35,15 @@ export const AGENT_PAGES: PageDefinition[] = [
     { key: 'settings', name: 'Settings', icon: 'Settings', route: '/settings', adminOnly: true },
 ];
 
-// Pages available for MANAGER role (5 pages)
+// Pages available for MANAGER role (7 pages)
 export const MANAGER_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard' },
     { key: 'tickets', name: 'Team Tickets', icon: 'Ticket', route: '/tickets' },
     { key: 'zoom_calendar', name: 'Zoom Calendar', icon: 'Video', route: '/zoom-calendar' },
     { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports' },
     { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb' },
+    { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal' },
+    { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications' },
 ];
 
 export type TargetRole = 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';

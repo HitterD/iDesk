@@ -11,18 +11,18 @@ import {
     Building2,
     Video,
 } from 'lucide-react';
-import { useAuth } from '../../stores/useAuth';
+import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Logo } from '@/components/ui/Logo';
 
 export const ManagerSidebar = () => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await performLogout();
         navigate('/login');
     };
 

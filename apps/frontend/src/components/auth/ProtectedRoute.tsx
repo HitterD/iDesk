@@ -22,7 +22,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     permissionAction = 'view',
     requiredPageAccess,
 }) => {
-    const { token, user } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const location = useLocation();
 
     // Check feature permission if specified
@@ -36,8 +36,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         requiredPageAccess || ''
     );
 
-    // Not logged in
-    if (!token || !user) {
+    // Not logged in - token is in HttpOnly cookie, we check auth state
+    if (!isAuthenticated || !user) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 

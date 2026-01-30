@@ -1,6 +1,30 @@
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Request } from 'express';
+
+/**
+ * Custom JWT extractor that checks cookie first, then Authorization header
+ * This supports both cookie-based auth (browser) and header-based auth (API clients)
+ */
+const cookieOrHeaderExtractor = (req: Request): string | null => {
+    let token: string | null = null;
+
+    // First, try to extract from HttpOnly cookie
+    if (req && req.cookies) {
+        token = req.cookies['access_token'];
+    }
+
+    // Fallback to Authorization header for API clients
+    if (!token && req.headers.authorization) {
+        const [type, headerToken] = req.headers.authorization.split(' ');
+        if (type === 'Bearer' && headerToken) {
+            token = headerToken;
+        }
+    }
+
+    return token;
+};
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -14,7 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         super({
-            jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: cookieOrHeaderExtractor,
             ignoreExpiration: false,
             secretOrKey: jwtSecret,
         });

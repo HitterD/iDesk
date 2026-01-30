@@ -21,6 +21,18 @@ export interface PageAccess {
     [pageKey: string]: boolean;
 }
 
+// NEW: Feature-level CRUD permissions (FI-7)
+export interface FeaturePermission {
+    view: boolean;
+    create: boolean;
+    edit: boolean;
+    delete: boolean;
+}
+
+export interface FeatureAccess {
+    [featureKey: string]: FeaturePermission;
+}
+
 // Role types for preset targeting
 export type PresetTargetRole = 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';
 

@@ -1,10 +1,16 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
+import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 
 @ApiTags('Reports')
+@ApiBearerAuth()
 @Controller('reports')
+@UseGuards(JwtAuthGuard, PageAccessGuard)
+@PageAccess('reports')
 export class ReportsController {
     constructor(private readonly reportsService: ReportsService) { }
 

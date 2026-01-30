@@ -24285,3 +24285,1439 @@ Stack: UnauthorizedException: Unauthorized
     at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
 
+2026-01-13T08:43:15.533Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:43:15.502Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:43:18.632Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:43:18.629Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:43:21.552Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:43:21.549Z","path":"/v1/permissions/presets/9e4f9bed-c0b5-4d78-91df-fd30f496a707","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:45:21.086Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:45:21.083Z","path":"/v1/permissions/presets","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:45:24.035Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:45:24.030Z","path":"/v1/permissions/presets","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:45:36.541Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:45:36.538Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:45:43.820Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:45:43.817Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:45:44.967Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:45:44.963Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:45:45.599Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:45:45.597Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T08:47:00.818Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T08:47:00.816Z","path":"/v1/permissions/presets/58c7251a-ab1f-446d-949d-5b9df9e5290f","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:80:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T09:15:26.609Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T09:15:26.603Z","path":"/v1/users/8f30a28a-b949-4a5c-b8b2-bd2f2d336462","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:84:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T09:15:31.453Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T09:15:31.451Z","path":"/v1/users/8f30a28a-b949-4a5c-b8b2-bd2f2d336462","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:84:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T09:15:43.534Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T09:15:43.531Z","path":"/v1/users/8f30a28a-b949-4a5c-b8b2-bd2f2d336462","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:84:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T09:15:47.405Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T09:15:47.403Z","path":"/v1/users/8f30a28a-b949-4a5c-b8b2-bd2f2d336462","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:84:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-13T09:16:31.419Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-13T09:16:31.416Z","path":"/v1/users/8f30a28a-b949-4a5c-b8b2-bd2f2d336462","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:84:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-14T01:53:10.466Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T01:53:10.462Z","path":"/v1/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T01:53:10.514Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T01:53:10.497Z","path":"/v1/users?page=1&limit=50","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T01:53:10.531Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T01:53:10.527Z","path":"/v1/users/agents/stats","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T01:53:10.551Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T01:53:10.547Z","path":"/v1/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T01:53:10.583Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T01:53:10.579Z","path":"/v1/sites/active","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T01:53:10.632Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T01:53:10.597Z","path":"/v1/permissions/presets","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T02:08:30.254Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-14T02:08:30.223Z","path":"/v1/permissions/me","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T02:08:42.186Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:42.158Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:42.242Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:42.225Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:43.251Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:43.250Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:43.305Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:43.302Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:50.653Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:50.651Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:50.664Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:50.660Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:51.686Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:51.685Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:08:51.692Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:08:51.690Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:09:15.253Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:09:15.226Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:09:15.396Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:09:15.395Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:44.713Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:44.663Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:44.807Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:44.803Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:49.746Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:49.743Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:49.757Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:49.754Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:50.785Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:50.783Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:50.788Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:50.787Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:53.308Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:53.306Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:53.313Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:53.312Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:54.339Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:54.337Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:12:54.350Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:12:54.346Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:13:14.938Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:13:14.424Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:13:15.260Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:13:15.258Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:13:15.949Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:13:15.948Z","path":"/v1/google-sync/status","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:13:16.279Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:13:16.273Z","path":"/v1/vpn-access/stats","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:50.058Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:50.054Z","path":"/v1/google-sync/configs","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:50.065Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:50.064Z","path":"/v1/google-sync/sheets","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:50.075Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:50.071Z","path":"/v1/google-sync/logs?limit=50","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:51.143Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:51.141Z","path":"/v1/google-sync/configs","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:51.151Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:51.148Z","path":"/v1/google-sync/sheets","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:51.157Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:51.156Z","path":"/v1/google-sync/logs?limit=50","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:58.168Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:58.165Z","path":"/v1/google-sync/configs","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:58.172Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:58.171Z","path":"/v1/google-sync/sheets","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:58.177Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:58.175Z","path":"/v1/google-sync/logs?limit=50","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:59.185Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:59.183Z","path":"/v1/google-sync/configs","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:59.190Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:59.188Z","path":"/v1/google-sync/sheets","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:49:59.193Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-14T02:49:59.192Z","path":"/v1/google-sync/logs?limit=50","message":"Forbidden resource"}
+Stack: ForbiddenException: Forbidden resource
+    at canActivateFn (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:137:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+2026-01-14T02:51:02.166Z - HTTP Error: 404 - {"statusCode":404,"timestamp":"2026-01-14T02:51:02.162Z","path":"/v1/synology/status","message":"Cannot GET /v1/synology/status"}
+Stack: NotFoundException: Cannot GET /v1/synology/status
+    at callback (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:147:12)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at read (C:\iDesk\apps\backend\node_modules\body-parser\lib\read.js:54:5)
+    at urlencodedParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\urlencoded.js:58:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+
+2026-01-14T02:51:07.495Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-14T02:51:07.477Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T02:51:07.740Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-14T02:51:07.738Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T02:51:08.166Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-14T02:51:08.164Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-14T02:51:09.109Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-14T02:51:09.107Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:07:11.939Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:07:11.911Z","path":"/v1/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:07:12.030Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:07:12.026Z","path":"/v1/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:07:12.082Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:07:12.073Z","path":"/v1/google-sync/status","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:07:12.101Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:07:12.093Z","path":"/v1/renewal/stats","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:07:12.135Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:07:12.113Z","path":"/v1/vpn-access/stats","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:07:12.162Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:07:12.141Z","path":"/v1/renewal?page=1&limit=25","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.731Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.730Z","path":"/v1/permissions/me","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.736Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.735Z","path":"/v1/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.747Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.746Z","path":"/v1/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.752Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.751Z","path":"/v1/renewal/stats","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.760Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.756Z","path":"/v1/google-sync/status","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.764Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.763Z","path":"/v1/vpn-access/stats","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:09:53.767Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-19T04:09:53.766Z","path":"/v1/renewal?page=1&limit=25","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-19T04:16:42.647Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T04:16:42.637Z","path":"/v1/google-sync/sync-all","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:86:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:16:48.817Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T04:16:48.814Z","path":"/v1/google-sync/sync-all","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:86:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:20:49.667Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T04:20:49.663Z","path":"/v1/renewal/upload","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:86:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:21:30.846Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T04:21:30.841Z","path":"/v1/google-sync/sync-all","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:86:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:29:38.647Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T04:29:38.617Z","path":"/v1/google-sync/sync-all","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:86:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:29:40.139Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T04:29:40.131Z","path":"/v1/google-sync/sync-all","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:86:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:54:50.089Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-19T04:54:50.076Z","path":"/v1/renewal/upload","message":"Cannot read properties of undefined (reading 'isTokenValid')","error":"Cannot read properties of undefined (reading 'isTokenValid')"}
+Stack: TypeError: Cannot read properties of undefined (reading 'isTokenValid')
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:167:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:54:59.263Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-19T04:54:59.260Z","path":"/v1/renewal/upload","message":"Cannot read properties of undefined (reading 'isTokenValid')","error":"Cannot read properties of undefined (reading 'isTokenValid')"}
+Stack: TypeError: Cannot read properties of undefined (reading 'isTokenValid')
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:167:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:55:01.255Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-19T04:55:01.250Z","path":"/v1/renewal/upload","message":"Cannot read properties of undefined (reading 'isTokenValid')","error":"Cannot read properties of undefined (reading 'isTokenValid')"}
+Stack: TypeError: Cannot read properties of undefined (reading 'isTokenValid')
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:167:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:55:02.017Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-19T04:55:02.013Z","path":"/v1/renewal/upload","message":"Cannot read properties of undefined (reading 'isTokenValid')","error":"Cannot read properties of undefined (reading 'isTokenValid')"}
+Stack: TypeError: Cannot read properties of undefined (reading 'isTokenValid')
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:167:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T04:55:20.473Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-19T04:55:20.469Z","path":"/v1/renewal/upload","message":"Cannot read properties of undefined (reading 'isTokenValid')","error":"Cannot read properties of undefined (reading 'isTokenValid')"}
+Stack: TypeError: Cannot read properties of undefined (reading 'isTokenValid')
+    at use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:167:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T06:04:25.645Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T06:04:25.637Z","path":"/v1/renewal/upload","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at CsrfMiddleware.use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:147:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T06:04:54.315Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T06:04:54.312Z","path":"/v1/renewal/upload","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at CsrfMiddleware.use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:147:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-19T06:04:59.941Z - HTTP Error: 403 - {"statusCode":403,"timestamp":"2026-01-19T06:04:59.935Z","path":"/v1/renewal/upload","message":"CSRF token missing"}
+Stack: ForbiddenException: CSRF token missing
+    at CsrfMiddleware.use (C:\iDesk\apps\backend\src\shared\core\middleware\csrf.middleware.ts:147:19)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cookieParser (C:\iDesk\apps\backend\node_modules\cookie-parser\index.js:71:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at cors (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:188:7)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\iDesk\apps\backend\node_modules\cors\lib\index.js:214:15)
+    at C:\iDesk\apps\backend\node_modules\cors\lib\index.js:219:13
+
+2026-01-27T01:32:38.990Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:38.989Z","path":"/v1/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:32:38.997Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:38.995Z","path":"/v1/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:32:39.009Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:39.006Z","path":"/v1/users?page=1&limit=50","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:32:39.021Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:39.020Z","path":"/v1/sites/active","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:32:39.026Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:39.025Z","path":"/v1/permissions/presets","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:32:39.058Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:39.056Z","path":"/v1/users/agents/stats","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:32:48.687Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-27T01:32:48.685Z","path":"/v1/auth/login","message":"Incorrect password. Please try again"}
+Stack: LoginException: Incorrect password. Please try again
+    at LocalStrategy.validate (C:\iDesk\apps\backend\src\modules\auth\infrastructure\strategies\local.strategy.ts:39:27)
+    at async LocalStrategy.callback [as _verify] (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\passport\passport.strategy.js:13:44)
+
+2026-01-27T01:33:14.183Z - HTTP Error: 404 - {"statusCode":404,"timestamp":"2026-01-27T01:33:14.181Z","path":"/v1/synology/status","message":"Cannot GET /v1/synology/status"}
+Stack: NotFoundException: Cannot GET /v1/synology/status
+    at callback (C:\iDesk\apps\backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:147:12)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+    at C:\iDesk\apps\backend\node_modules\router\index.js:297:9
+    at processParams (C:\iDesk\apps\backend\node_modules\router\index.js:582:12)
+    at next (C:\iDesk\apps\backend\node_modules\router\index.js:291:5)
+    at read (C:\iDesk\apps\backend\node_modules\body-parser\lib\read.js:54:5)
+    at urlencodedParser (C:\iDesk\apps\backend\node_modules\body-parser\lib\types\urlencoded.js:58:5)
+    at Layer.handleRequest (C:\iDesk\apps\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (C:\iDesk\apps\backend\node_modules\router\index.js:342:13)
+
+2026-01-27T01:33:41.066Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-27T01:33:41.061Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:33:41.297Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-27T01:33:41.294Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:33:41.757Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-27T01:33:41.756Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-27T01:33:42.713Z - HTTP Error: 500 - {"statusCode":500,"timestamp":"2026-01-27T01:33:42.713Z","path":"/v1/notifications/push/status","message":"No metadata for \"PushSubscription\" was found.","error":"No metadata for \"PushSubscription\" was found."}
+Stack: EntityMetadataNotFoundError: No metadata for "PushSubscription" was found.
+    at DataSource.getMetadata (C:\iDesk\apps\backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.count (C:\iDesk\apps\backend\node_modules\typeorm\repository\src\repository\Repository.ts:516:40)
+    at PushChannelService.getSubscriptionCount (C:\iDesk\apps\backend\src\modules\notifications\channels\push-channel.service.ts:247:42)
+    at PushSubscriptionController.getStatus (C:\iDesk\apps\backend\src\modules\notifications\push-subscription.controller.ts:149:65)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-30T01:41:10.398Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-30T01:41:10.393Z","path":"/v1/notifications?limit=20","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-30T01:41:10.417Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-30T01:41:10.417Z","path":"/v1/notifications/count","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-30T01:41:10.422Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-30T01:41:10.422Z","path":"/v1/notifications/count/by-category","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+2026-01-30T01:41:10.425Z - HTTP Error: 401 - {"statusCode":401,"timestamp":"2026-01-30T01:41:10.425Z","path":"/v1/notifications?limit=100","message":"Unauthorized"}
+Stack: UnauthorizedException: Unauthorized
+    at JwtAuthGuard.handleRequest (C:\iDesk\apps\backend\src\modules\auth\infrastructure\guards\jwt-auth.guard.ts:29:26)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:314:9)
+    at JwtStrategy.authenticate (C:\iDesk\apps\backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:378:16)
+    at authenticate (C:\iDesk\apps\backend\node_modules\passport\lib\middleware\authenticate.js:379:7)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+    at new Promise (<anonymous>)
+    at C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:80:83
+    at JwtAuthGuard.canActivate (C:\iDesk\apps\backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+

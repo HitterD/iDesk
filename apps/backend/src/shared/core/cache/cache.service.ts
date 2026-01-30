@@ -335,4 +335,5 @@ export const CacheKeys = {
     slaConfig: () => `sla:config`,
     kbArticles: (page: number) => `kb:articles:${page}`,
     kbArticle: (id: string) => `kb:article:${id}`,
+    pageAccess: (userId: string) => `pageAccess:${userId}`,
 };

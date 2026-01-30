@@ -14,6 +14,8 @@ import { KnowledgeBaseService, ArticleFilters } from './knowledge-base.service';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
+import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { CreateArticleDto } from './dto/create-article.dto';
@@ -91,8 +93,9 @@ export class KnowledgeBaseController {
 
     @Post('articles')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Create new article' })
     async create(@Body() createArticleDto: CreateArticleDto, @Request() req: any) {
         const authorId = req.user?.id;
@@ -102,8 +105,9 @@ export class KnowledgeBaseController {
 
     @Put('articles/:id')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Update article' })
     async update(@Param('id') id: string, @Body() updateArticleDto: UpdateArticleDto) {
         return this.kbService.update(id, updateArticleDto);
@@ -111,8 +115,9 @@ export class KnowledgeBaseController {
 
     @Patch('articles/:id/status')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Update article status' })
     async updateStatus(@Param('id') id: string, @Body('status') status: ArticleStatus) {
         return this.kbService.updateStatus(id, status);
@@ -120,8 +125,9 @@ export class KnowledgeBaseController {
 
     @Delete('articles/:id')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Soft delete article' })
     async remove(@Param('id') id: string) {
         await this.kbService.remove(id);
@@ -130,8 +136,9 @@ export class KnowledgeBaseController {
 
     @Post('articles/:id/restore')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Restore deleted article' })
     async restore(@Param('id') id: string) {
         return this.kbService.restore(id);
@@ -141,8 +148,9 @@ export class KnowledgeBaseController {
 
     @Post('upload')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Upload single image for KB article' })
     @UseInterceptors(
         FileInterceptor('file', {
@@ -181,8 +189,9 @@ export class KnowledgeBaseController {
 
     @Post('upload/multiple')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Upload multiple images for KB article' })
     @UseInterceptors(
         FilesInterceptor('files', 10, {

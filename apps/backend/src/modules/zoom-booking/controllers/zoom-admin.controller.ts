@@ -16,6 +16,8 @@ import { Request } from 'express';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
+import { PageAccessGuard } from '../../../shared/core/guards/page-access.guard';
+import { PageAccess } from '../../../shared/core/decorators/page-access.decorator';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
 
@@ -34,8 +36,9 @@ import { BookingStatus } from '../enums/booking-status.enum';
 
 @ApiTags('Zoom Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
 @Roles(UserRole.ADMIN)
+@PageAccess('zoom_calendar')
 @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for admin
 @Controller('admin/zoom')
 export class ZoomAdminController {

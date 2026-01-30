@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
+import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { SettingsService } from './settings.service';
@@ -24,7 +26,8 @@ import {
 } from './dto/scheduling-config.dto';
 
 @Controller('settings')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
+@PageAccess('settings')
 export class SettingsController {
     constructor(
         private readonly settingsService: SettingsService,

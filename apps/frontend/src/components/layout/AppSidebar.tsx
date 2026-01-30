@@ -17,16 +17,16 @@ import {
     CalendarClock,
     HardDrive
 } from 'lucide-react';
-import { useAuth } from '../../stores/useAuth';
+import { useAuth, performLogout } from '../../stores/useAuth';
 import { CreateTicketDialog } from '../../features/ticket-board/components/CreateTicketDialog';
 
 export const AppSidebar: React.FC = () => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await performLogout();
         navigate('/login');
     };
 

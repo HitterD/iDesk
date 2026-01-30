@@ -2,11 +2,15 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Logger }
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { PAGE_ACCESS_KEY } from '../decorators/page-access.decorator';
 import { PageKey, PageAccess } from '../types/page-access.types';
 import { User } from '../../../modules/users/entities/user.entity';
 import { PermissionPreset } from '../../../modules/permissions/entities/permission-preset.entity';
 import { UserRole } from '../../../modules/users/enums/user-role.enum';
+import { CacheService } from '../cache/cache.service';
+import { AuditService } from '../../../modules/audit/audit.service';
+import { AuditAction, AuditSeverity } from '../../../modules/audit/entities/audit-log.entity';
 
 /**
  * PageAccessGuard
@@ -18,12 +22,18 @@ import { UserRole } from '../../../modules/users/enums/user-role.enum';
  * 
  * Priority order:
  * 1. ADMIN role always has access (bypass)
- * 2. Check user's appliedPreset.pageAccess
+ * 2. Check user's appliedPreset.pageAccess (CACHED)
  * 3. Fallback to role-based defaults if no preset
+ * 
+ * Performance: Uses CacheService to avoid DB queries on every request
+ * Cache TTL is configurable via PAGE_ACCESS_CACHE_TTL env var (default: 300 seconds)
  */
 @Injectable()
 export class PageAccessGuard implements CanActivate {
     private readonly logger = new Logger(PageAccessGuard.name);
+    private readonly cacheTtl: number;
+    private readonly maxDenials: number;
+    private readonly denialLockoutMinutes: number;
 
     constructor(
         private reflector: Reflector,
@@ -31,7 +41,26 @@ export class PageAccessGuard implements CanActivate {
         private readonly userRepo: Repository<User>,
         @InjectRepository(PermissionPreset)
         private readonly presetRepo: Repository<PermissionPreset>,
-    ) { }
+        private readonly cacheService: CacheService,
+        private readonly configService: ConfigService,
+        private readonly auditService: AuditService,
+    ) {
+        // Configurable cache TTL via environment variable (default: 300 seconds = 5 minutes)
+        this.cacheTtl = parseInt(
+            this.configService.get<string>('PAGE_ACCESS_CACHE_TTL', '300'),
+            10
+        );
+        // Rate limiting config (default: 10 denials, 15 min lockout)
+        this.maxDenials = parseInt(
+            this.configService.get<string>('PAGE_ACCESS_MAX_DENIALS', '10'),
+            10
+        );
+        this.denialLockoutMinutes = parseInt(
+            this.configService.get<string>('PAGE_ACCESS_LOCKOUT_MINUTES', '15'),
+            10
+        );
+        this.logger.log(`PageAccessGuard initialized with cache TTL: ${this.cacheTtl}s, max denials: ${this.maxDenials}, lockout: ${this.denialLockoutMinutes}min`);
+    }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         // Get the required page access from decorator
@@ -54,35 +83,48 @@ export class PageAccessGuard implements CanActivate {
             throw new ForbiddenException('Authentication required');
         }
 
-        // Fetch user with role and preset info
-        const user = await this.userRepo.findOne({
-            where: { id: userId },
-            select: ['id', 'role', 'appliedPresetId'],
-        });
+        // Use cache-aside pattern: check cache first, fetch from DB if miss
+        const cacheKey = `pageAccess:${userId}`;
+        const cached = await this.cacheService.getOrSet<{ user: User; pageAccess: PageAccess } | null>(
+            cacheKey,
+            async () => {
+                const user = await this.userRepo.findOne({
+                    where: { id: userId },
+                    select: ['id', 'role', 'appliedPresetId'],
+                });
 
-        if (!user) {
+                if (!user) {
+                    return null;
+                }
+
+                const pageAccess = await this.getUserPageAccess(user);
+                return { user, pageAccess };
+            },
+            this.cacheTtl
+        );
+
+        if (!cached) {
             this.logger.warn(`PageAccessGuard: User ${userId} not found`);
             throw new ForbiddenException('User not found');
         }
+
+        const { user, pageAccess } = cached;
 
         // ADMIN always has access
         if (user.role === UserRole.ADMIN) {
             return true;
         }
 
-        // Get user's page access from preset or role defaults
-        const pageAccess = await this.getUserPageAccess(user);
-
         // Check access based on requirement type
         if (typeof requiredAccess === 'string') {
             // Single page requirement
-            return this.checkSingleAccess(pageAccess, requiredAccess, user);
+            return this.checkSingleAccess(pageAccess, requiredAccess, user, request);
         } else if (requiredAccess.type === 'any') {
             // Any of the pages
-            return this.checkAnyAccess(pageAccess, requiredAccess.pages, user);
+            return this.checkAnyAccess(pageAccess, requiredAccess.pages, user, request);
         } else if (requiredAccess.type === 'all') {
             // All pages required
-            return this.checkAllAccess(pageAccess, requiredAccess.pages, user);
+            return this.checkAllAccess(pageAccess, requiredAccess.pages, user, request);
         }
 
         return false;
@@ -178,13 +220,66 @@ export class PageAccessGuard implements CanActivate {
     }
 
     /**
-     * Check single page access
+     * Check single page access with rate limiting and audit logging
      */
-    private checkSingleAccess(pageAccess: PageAccess, page: PageKey, user: User): boolean {
+    private async checkSingleAccess(pageAccess: PageAccess, page: PageKey, user: User, request: any): Promise<boolean> {
         const hasAccess = pageAccess[page] === true;
 
         if (!hasAccess) {
-            this.logger.warn(`PageAccessGuard: User ${user.id} (${user.role}) denied access to '${page}'`);
+            // FI-6: Rate limiting - check if user is locked out
+            const denialKey = `accessDenials:${user.id}`;
+            const lockoutKey = `accessLockout:${user.id}`;
+
+            // Check if currently locked out
+            const isLockedOut = await this.cacheService.getAsync<boolean>(lockoutKey);
+            if (isLockedOut) {
+                throw new ForbiddenException(`Account temporarily locked due to repeated access violations. Try again in ${this.denialLockoutMinutes} minutes.`);
+            }
+
+            // Increment denial count
+            const currentDenials = (await this.cacheService.getAsync<number>(denialKey)) || 0;
+            const newDenialCount = currentDenials + 1;
+            await this.cacheService.setAsync(denialKey, newDenialCount, 300); // 5 min window
+
+            // FI-5: Persist to database via AuditService
+            this.auditService.logAsync({
+                userId: user.id,
+                action: AuditAction.PAGE_ACCESS_DENIED,
+                entityType: 'page',
+                entityId: page,
+                newValue: {
+                    requestedPage: page,
+                    presetId: user.appliedPresetId || 'none',
+                    denialCount: newDenialCount,
+                },
+                description: `User denied access to '${page}' (denial #${newDenialCount})`,
+                request,
+            });
+
+            // Check if should lock out
+            if (newDenialCount >= this.maxDenials) {
+                // Lock out user
+                await this.cacheService.setAsync(lockoutKey, true, this.denialLockoutMinutes * 60);
+                await this.cacheService.delAsync(denialKey); // Reset counter
+
+                // Log lockout event
+                this.auditService.logAsync({
+                    userId: user.id,
+                    action: AuditAction.PAGE_ACCESS_LOCKOUT,
+                    entityType: 'user',
+                    entityId: user.id,
+                    newValue: {
+                        lockoutMinutes: this.denialLockoutMinutes,
+                        totalDenials: newDenialCount,
+                    },
+                    description: `User locked out for ${this.denialLockoutMinutes} minutes after ${newDenialCount} access denials`,
+                    request,
+                });
+
+                this.logger.warn(`User ${user.id} locked out after ${newDenialCount} access denials`);
+                throw new ForbiddenException(`Account locked due to repeated access violations. Try again in ${this.denialLockoutMinutes} minutes.`);
+            }
+
             throw new ForbiddenException(`Access denied: '${page}' permission required`);
         }
 
@@ -194,7 +289,7 @@ export class PageAccessGuard implements CanActivate {
     /**
      * Check if user has access to ANY of the pages
      */
-    private checkAnyAccess(pageAccess: PageAccess, pages: PageKey[], user: User): boolean {
+    private checkAnyAccess(pageAccess: PageAccess, pages: PageKey[], user: User, request: any): boolean {
         const hasAccess = pages.some(page => pageAccess[page] === true);
 
         if (!hasAccess) {
@@ -208,7 +303,7 @@ export class PageAccessGuard implements CanActivate {
     /**
      * Check if user has access to ALL pages
      */
-    private checkAllAccess(pageAccess: PageAccess, pages: PageKey[], user: User): boolean {
+    private checkAllAccess(pageAccess: PageAccess, pages: PageKey[], user: User, request: any): boolean {
         const hasAccess = pages.every(page => pageAccess[page] === true);
 
         if (!hasAccess) {

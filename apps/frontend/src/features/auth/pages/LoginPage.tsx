@@ -34,9 +34,10 @@ export const LoginPage: React.FC = () => {
 
         try {
             const res = await api.post('/auth/login', data);
-            const { access_token, user } = res.data;
+            // Token is now set via HttpOnly cookie by backend
+            const { user } = res.data;
 
-            login(access_token, user);
+            login(user);
 
             if (user.role === 'ADMIN') {
                 navigate('/dashboard');

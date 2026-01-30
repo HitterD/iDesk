@@ -13,6 +13,8 @@ import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
+import { PageAccessGuard } from '../../../shared/core/guards/page-access.guard';
+import { PageAccess } from '../../../shared/core/decorators/page-access.decorator';
 import { ZoomBookingService } from '../services/zoom-booking.service';
 import { ZoomAccountService } from '../services/zoom-account.service';
 import { ZoomSettingsService } from '../services/zoom-settings.service';
@@ -20,7 +22,8 @@ import { CreateBookingDto, GetCalendarDto, RescheduleBookingDto, CancelBookingDt
 
 @ApiTags('Zoom Booking')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PageAccessGuard)
+@PageAccess('zoom_calendar')
 @Throttle({ default: { limit: 60, ttl: 60000 } }) // 60 requests per minute
 @Controller('zoom-booking')
 export class ZoomBookingController {

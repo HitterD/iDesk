@@ -25,7 +25,7 @@ import {
     KeyRound,
     LucideIcon
 } from 'lucide-react';
-import { useAuth } from '../../stores/useAuth';
+import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Logo } from '@/components/ui/Logo';
@@ -169,7 +169,7 @@ const NavGroupComponent: React.FC<{
 };
 
 export const BentoSidebar = () => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -326,8 +326,8 @@ export const BentoSidebar = () => {
         });
     }, [location.pathname]);
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await performLogout();
         navigate('/login');
     };
 

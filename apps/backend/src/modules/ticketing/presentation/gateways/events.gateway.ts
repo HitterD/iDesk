@@ -12,6 +12,7 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { RateLimiter } from '../../../../shared/core/utils/rate-limiter';
 
 @WebSocketGateway({
     cors: {
@@ -25,14 +26,24 @@ export class EventsGateway
     private logger: Logger = new Logger('EventsGateway');
     // Map to store socketId -> userId
     private connectedUsers: Map<string, string> = new Map();
-    
+
+    // Rate limiters for connection abuse prevention
+    private connectionLimiter = new RateLimiter(5, 60000); // 5 connections per minute per IP
+    private messageLimiter = new RateLimiter(30, 60000); // 30 messages per minute per IP
+
     constructor(
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
-    ) {}
+    ) {
+        // Clean up rate limiter entries periodically
+        setInterval(() => {
+            this.connectionLimiter.cleanup();
+            this.messageLimiter.cleanup();
+        }, 60000); // Every minute
+    }
 
     afterInit(server: Server) {
-        this.logger.log('EventsGateway Initialized');
+        this.logger.log('EventsGateway Initialized with rate limiting');
     }
 
     handleDisconnect(client: Socket) {
@@ -50,23 +61,35 @@ export class EventsGateway
     }
 
     handleConnection(client: Socket, ...args: any[]) {
-        this.logger.log(`Client connected: ${client.id}`);
-        
+        // Get client IP for rate limiting
+        const clientIp = client.handshake.address || 'unknown';
+
+        // Check connection rate limit
+        if (!this.connectionLimiter.isAllowed(clientIp)) {
+            this.logger.warn(`Connection rate limit exceeded for IP: ${clientIp}`);
+            client.emit('error', { message: 'Connection rate limit exceeded. Try again later.' });
+            client.disconnect(true);
+            return;
+        }
+
+        this.logger.log(`Client connected: ${client.id} (IP: ${clientIp})`);
+
         // Try to authenticate via token in handshake
         try {
-            const token = client.handshake.auth?.token || 
-                          client.handshake.headers?.authorization?.split(' ')[1] ||
-                          client.handshake.query?.token;
-            
+            const token = client.handshake.auth?.token ||
+                client.handshake.headers?.authorization?.split(' ')[1] ||
+                client.handshake.query?.token;
+
             if (token) {
                 const payload = this.jwtService.verify(token, {
                     secret: this.configService.get('JWT_SECRET'),
                 });
-                
+
                 if (payload && payload.sub) {
                     // Auto-identify user from token
                     client.data.userId = payload.sub;
                     client.data.role = payload.role;
+                    client.data.clientIp = clientIp; // Store IP for message rate limiting
                     this.connectedUsers.set(client.id, payload.sub);
                     client.join(`user:${payload.sub}`);
                     this.server.emit('user:online', { userId: payload.sub });
@@ -78,6 +101,23 @@ export class EventsGateway
             this.logger.debug(`Token verification failed for ${client.id}: ${error.message}`);
         }
     }
+
+    /**
+     * Helper to check message rate limit
+     * @returns true if allowed, false if rate limited
+     */
+    private checkMessageRateLimit(client: Socket): boolean {
+        const clientIp = client.data.clientIp || client.handshake.address || 'unknown';
+
+        if (!this.messageLimiter.isAllowed(clientIp)) {
+            this.logger.warn(`Message rate limit exceeded for IP: ${clientIp}`);
+            client.emit('error', { message: 'Message rate limit exceeded. Slow down.' });
+            return false;
+        }
+
+        return true;
+    }
+
 
     @SubscribeMessage('identify')
     handleIdentify(@ConnectedSocket() client: Socket, @MessageBody() userId: string) {
