@@ -1,0 +1,202 @@
+# Zoom Calendar — Redesign UI/UX Premium
+
+Redesign halaman Zoom Calendar agar tidak terlihat basic/membosankan. Menyesuaikan warna dark mode dengan dashboard & tickets, memperbaiki detail meeting panel, menghilangkan scroll informatif yang rawan terlewat, mengubah navigasi bulan, dan menampilkan nama hari lengkap.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Default view akan diubah dari `week` ke `month`** — URL tanpa query `?view=` akan otomatis menampilkan month view.
+
+> [!IMPORTANT]
+> **Navigasi bulan diubah dari prev/next arrow menjadi month picker dropdown** — user bisa langsung pilih bulan & tahun dari dropdown, tidak perlu klik next berkali-kali.
+
+> [!WARNING]
+> **Nama hari di month view akan ditampilkan lengkap** (Senin, Selasa, Rabu, Kamis, Jumat, Sabtu, Minggu) — tidak disingkat. Ini membutuhkan ruang horizontal lebih lebar, pastikan monitor target ≥1280px.
+
+---
+
+## Proposed Changes
+
+Perubahan dikelompokkan per area fungsional.
+
+---
+
+### 1. Default View → Month
+
+#### [MODIFY] [useCalendarView.ts](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/hooks/useCalendarView.ts)
+
+- **Baris 59**: Ubah default view dari `'week'` → `'month'`
+  ```diff
+  - const view = (searchParams.get('view') as CalendarView) || 'week';
+  + const view = (searchParams.get('view') as CalendarView) || 'month';
+  ```
+
+---
+
+### 2. Nama Hari Lengkap (Tidak Disingkat)
+
+#### [MODIFY] [ZoomMonthView.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomMonthView.tsx)
+
+- **Baris 8**: Ubah `DAY_NAMES` dari singkatan ke nama lengkap:
+  ```diff
+  - const DAY_NAMES = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+  + const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+  ```
+
+---
+
+### 3. Navigasi Bulan → Month/Year Picker Dropdown
+
+#### [MODIFY] [ZoomCalendarHeader.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomCalendarHeader.tsx)
+
+**Masalah saat ini:** Navigasi hanya menggunakan `<` dan `>` arrow — user harus klik berkali-kali untuk pindah ke bulan yang jauh.
+
+**Solusi:** Ganti title "April 2026" yang static menjadi **clickable month-year picker**:
+
+- **Month picker**: Grid 4×3 bulan (Jan–Des) + year selector (prev/next year)
+- Menggunakan **Popover** dari shadcn/ui (sudah ada di project)
+- Tepat menggantikan area title tanpa mengubah layout header lainnya
+- Props baru: `onNavigateToDate: (date: Date) => void` untuk navigasi langsung ke bulan tertentu
+
+**UI flow:**
+1. User klik "April 2026" → Popover muncul
+2. Tampilkan grid 12 bulan + year navigation
+3. Click bulan → navigasi langsung, popover tertutup
+4. Bulan aktif di-highlight dengan warna primary
+
+---
+
+### 4. Dark Mode Alignment dengan Dashboard & Tickets
+
+#### [MODIFY] [ZoomMonthView.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomMonthView.tsx)
+
+Mengganti hardcoded `slate-*` colors dengan token design system:
+
+| Current (hardcoded)                            | Replacement (design tokens)                                   |
+|-----------------------------------------------|---------------------------------------------------------------|
+| `border-slate-200 dark:border-slate-700`      | `border-[hsl(var(--border))]`                                 |
+| `text-slate-500 dark:text-slate-400`          | `text-[hsl(var(--muted-foreground))]`                         |
+| `bg-white dark:bg-slate-900`                  | `bg-[hsl(var(--card))]`                                       |
+| `bg-slate-50/40 dark:bg-slate-800/20`        | `bg-[hsl(var(--muted))]/30`                                   |
+| `text-slate-800 dark:text-slate-200`          | `text-[hsl(var(--foreground))]`                               |
+| `text-slate-400 dark:text-slate-600`          | `text-[hsl(var(--muted-foreground))]/60`                      |
+| `bg-blue-50/60 dark:bg-blue-950/20`          | `bg-[hsl(var(--primary))]/8`                                  |
+
+**Pill badge colors** — upgrade ke design tokens:
+- `booked` → gradient using `var(--accent)` (warm amber)
+- `my_booking` → gradient using `var(--primary)` (deep sapphire)
+
+#### [MODIFY] [ZoomCalendarShell.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomCalendarShell.tsx)
+
+- Replace `bg-white/95 dark:bg-slate-900/95` → `bg-[hsl(var(--card))]/95`
+- Replace `border-slate-200/80 dark:border-slate-700/80` → `border-[hsl(var(--border))]`
+- Replace `border-slate-200 dark:border-slate-700` → `border-[hsl(var(--border))]`
+
+#### [MODIFY] [ZoomBookingPanel.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomBookingPanel.tsx)
+
+- Replace `bg-white dark:bg-slate-900` → `bg-[hsl(var(--card))]`
+- Replace `border-slate-200 dark:border-slate-700` → `border-[hsl(var(--border))]`
+- Replace `text-slate-900 dark:text-slate-100` → `text-[hsl(var(--foreground))]`
+- Replace `bg-slate-300 dark:bg-slate-600` → `bg-[hsl(var(--muted-foreground))]`
+
+---
+
+### 5. Redesign Detail Meeting Panel
+
+#### [MODIFY] [ZoomBookingDetailView.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomBookingDetailView.tsx)
+
+**Masalah saat ini:**
+1. Status banner border atas terlalu generic (gradient emerald/red/amber hardcoded)
+2. Layout informatif membutuhkan scroll — rawan user tidak melihat info penting
+3. Warna tidak konsisten dengan design system
+
+**Perubahan:**
+
+1. **Status banner** — Redesign:
+   - Tinggi dikurangi dari `h-20` → `h-14` (lebih compact)
+   - Gradient menggunakan warna dari zoom account `colorHex` sebagai accent, bukan generic emerald/red/amber
+   - Border-top 3px menggunakan `colorHex` zoom account
+
+2. **Layout informatif** — Compact tanpa scroll:
+   - Info grid (Tanggal & Waktu): Tetap grid 2 kolom tapi padding dikurangi (`p-3` → `p-2.5`)
+   - Replace semua `slate-*` hardcoded dengan design tokens
+   - Zoom info section: Lebih compact
+   - Semua section terlihat tanpa scroll di viewport standar (768px height)
+   
+3. **Color alignment:**
+   - Replace `bg-slate-50 dark:bg-slate-900/50` → `bg-[hsl(var(--muted))]/30`
+   - Replace `border-slate-100 dark:border-slate-800` → `border-[hsl(var(--border))]`
+   - Replace `text-slate-900 dark:text-white` → `text-[hsl(var(--foreground))]`
+   - Replace `bg-blue-50/50 dark:bg-blue-950/20` → `bg-[hsl(var(--info-50))]/50`
+   - Replace action button destructive colors ke `var(--destructive)`
+
+---
+
+### 6. Bottom Strip → Prominent & Tidak Perlu Scroll
+
+#### [MODIFY] [UpcomingMeetingsPanel.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/UpcomingMeetingsPanel.tsx)
+
+**Masalah:** Compact strip di bawah terlalu subtle, rawan user tidak melihat.
+
+**Solusi:**
+- Tambah visual prominence: background lebih solid, font sedikit lebih besar
+- Badge "NEXT" lebih menonjol dengan warna accent
+- Replace hardcoded slate colors → design tokens
+- Tambah subtle pulse/glow animation pada badge "NEXT" jika meeting dalam 30 menit
+
+---
+
+### 7. Overall Visual Polish
+
+#### [MODIFY] [ZoomMonthView.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomMonthView.tsx)
+
+- **Day cells**: Tambah subtle hover effect yang lebih premium
+- **Today indicator**: Lebih menonjol dengan primary color ring
+- **Event pills**: Rounded lebih refined (`rounded` → `rounded-md`), shadow lebih subtle
+- **Grid**: Border lebih halus menggunakan design tokens
+- **Day number styling**: Font weight dan size disesuaikan untuk hierarchy visual yang lebih baik
+
+#### [MODIFY] [ZoomViewSwitcher.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomViewSwitcher.tsx)
+
+- Replace `bg-[hsl(var(--secondary))]/50` → Warna yang lebih consistent dengan header lainnya
+- Tidak ada perubahan struktural, hanya refinement warna
+
+---
+
+## Files Summary
+
+| File | Perubahan |
+|------|-----------|
+| `useCalendarView.ts` | Default view → `month` |
+| `ZoomMonthView.tsx` | Nama hari lengkap, token colors, visual polish |
+| `ZoomCalendarHeader.tsx` | Month/Year picker dropdown |
+| `ZoomCalendarShell.tsx` | Dark mode token alignment |
+| `ZoomBookingPanel.tsx` | Dark mode token alignment |
+| `ZoomBookingDetailView.tsx` | Redesign status banner, compact layout, token colors |
+| `UpcomingMeetingsPanel.tsx` | Prominent compact strip, token colors |
+| `ZoomViewSwitcher.tsx` | Color refinement |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Month picker style**: Apakah lebih prefer model **Popover dropdown** (klik title → muncul grid bulan) atau **inline month selector** (year + bulan selalu terlihat di header)? Saya merekomendasikan Popover karena lebih hemat ruang.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Jalankan `npm run build` untuk memastikan tidak ada TypeScript error
+- Smoke test: Buka halaman Zoom Calendar, verifikasi rendering month view
+
+### Manual Verification (Browser)
+1. Buka Zoom Calendar — default harus month view
+2. Verifikasi nama hari lengkap (Senin, Selasa, dst)
+3. Klik title bulan → month picker muncul
+4. Pilih bulan → navigasi benar
+5. Toggle dark mode → warna consistent dengan dashboard
+6. Klik event → detail panel muncul, semua info terlihat tanpa scroll
+7. Cek bottom strip — "NEXT" meeting terlihat jelas
+8. Responsive: test di width 1280px dan 1920px

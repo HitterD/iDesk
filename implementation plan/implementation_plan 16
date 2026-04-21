@@ -1,0 +1,62 @@
+# Implementation Plan 16: Animation Polish & Optimization (Phase 6+)
+
+Melanjutkan inisiatif *Animation Overhaul* (Prinsip Emil Kowalski) dari `implementation_plan 15`, fase ini berfokus pada pembersihan menyeluruh (*tech debt eradication*), optimasi performa *bundle size*, dan penambahan *micro-interactions* yang meningkatkan *perceived quality* sistem iDesk ke standar *flagship*.
+
+## Goals & Objectives
+1. **Performance:** Mengurangi *initial load time* dan ukuran bundle JavaScript dari Framer Motion.
+2. **Consistency:** Menghapus sisa penggunaan *anti-pattern* `transition-all` di 97+ file yang masih ada secara bertahap.
+3. **Perceived Speed:** Mengubah indikator *loading* menjadi efek *shimmer* premium yang secara psikologis terasa lebih cepat.
+4. **Interaction Polish:** Menambahkan *micro-interactions* cerdas pada *form inputs* dan notifikasi status untuk mengurangi *cognitive load*.
+
+---
+
+## Phase 6: Incremental `transition-all` Eradication
+Masih terdapat sekitar 97 file yang menggunakan `transition-all`, berisiko menyebabkan *layout thrashing* saat render browser. Pembersihan akan dilakukan per modul.
+
+### Step 1: Modul Request Center (`features/request-center/`)
+- Target File Utama: `HardwareInstallForm.tsx`, `IctBudgetRequestForm.tsx`, `AccessRequestForm.tsx`, `HardwareRequestListItem.tsx`, dll.
+- **Tugas:** Ganti semua `transition-all` dengan spesifik:
+  - Tombol/Input: `transition-colors duration-150`
+  - Elemen yang bergerak (hover/scale): `transition-[transform,box-shadow,border-color] duration-200 ease-out`
+  - Hapus transisi pada elemen yang tidak interaktif.
+
+### Step 2: Modul Settings & Lainnya (`features/settings/`, `components/`)
+- Target File: `BentoSettingsPage.tsx`, `StorageSettingsPage.tsx`, `ZoomSettingsPage.tsx`.
+- **Tugas:** Terapkan standar spesifik yang sama dengan Step 1.
+
+---
+
+## Phase 7: Framer Motion Bundle Optimization
+`framer-motion` adalah *library* yang berat (~30kb gzipped). Kita akan memuat *feature set* animasinya secara asinkron (*lazy load*).
+
+### Step 1: Update `main.tsx` atau Root `App.tsx`
+- **File:** `apps/frontend/src/App.tsx` (atau root entry).
+- **Tugas:** Bungkus aplikasi dengan `<LazyMotion features={domAnimation}>` dan ganti semua *import* `motion` biasa menjadi `m` di seluruh komponen (jika diperlukan untuk *strict size reduction*).
+- **Konfigurasi:** Buat file *helper* `animations.ts` untuk memisahkan logika `domAnimation` agar tidak masuk di *main bundle*.
+
+---
+
+## Phase 8: Premium Skeleton & Micro-interactions
+
+### Step 1: Glossy Shimmer Skeleton
+- **File:** `apps/frontend/src/styles/animations.css` & `index.css`.
+- **Tugas:** Modifikasi keyframe `animate-pulse` statis Tailwind menjadi *skeleton sweep* (seperti efek kaca yang mengkilap bergerak miring).
+- Ubah class `.animate-pulse` bawaan atau buat `animate-glossy-shimmer` yang menggunakan gradien `linear-gradient` bergeser (*background-position*).
+
+### Step 2: Form Input Micro-interactions
+- **Tugas:** Terapkan efek *subtle focus ring* pada input form (menggunakan properti `box-shadow` dengan animasi `ring` dari dalam ke luar). 
+- Opsional: Tambahkan animasi *floating label* pada form pendaftaran/pembuatan tiket panjang jika memungkinkan tanpa merusak arsitektur *form hook* yang ada.
+
+### Step 3: Reactive Status Feedback (Success/Error)
+- **Tugas:** Tambahkan *shake animation* (efek getar ringan) untuk aksi yang gagal/error (misal validasi form gagal).
+- Tambahkan efek letupan halus (`animate-success-pop`) ketika tiket berhasil diubah statusnya menjadi `RESOLVED` (misal di ikon checklist `CheckCircle2` di dalam baris tiket atau modal).
+
+---
+
+## Verification & Testing
+1. **Bundle Size Check:** Jalankan `npm run build` dan amati penurunan ukuran *chunk* vendor (harus berkurang signifikan karena LazyMotion).
+2. **Visual Testing (Pembersihan `transition-all`):** Buka halaman *Request Center* dan *Settings*. Uji *hover* seluruh input dan kartu untuk memastikan transisi berjalan mulus (hanya warna dan shadow) tanpa membebani CPU.
+3. **Skeleton Testing:** Matikan koneksi ke `slow 3G` via DevTools, cek tampilan *Skeleton* apakah terlihat *glossy sweep*.
+4. **Interaction Testing:** Masukkan *input* salah pada *form* dan pastikan ada efek *shake*. Ubah status tiket menjadi *RESOLVED* dan pastikan efek letupan muncul.
+
+> **Catatan Eksekusi:** Setiap Phase harus diuji secara individual sebelum pindah ke Phase berikutnya. Dilarang menggunakan *global search & replace* untuk Phase 6 guna mencegah regresi UI.

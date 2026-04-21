@@ -1,0 +1,133 @@
+<h2>Design: Hardware Installation Integration</h2>
+<p class="subtitle">Section 3/4 — Inline Installation di Card & Detail Page</p>
+
+<div class="section">
+  <h3>A. Card List — Installation Indicator</h3>
+  <p style="font-size:13px; color:#666; margin-bottom:12px;">Indicator kecil muncul di card ketika request punya installation tickets (status Arrived atau Realized).</p>
+
+  <div class="mockup">
+    <div class="mockup-header">Hardware Requests List — Cards dengan Indicator</div>
+    <div class="mockup-body" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+      <!-- Card 1: Has installation -->
+      <div style="border:1px solid #e0e0e0; border-radius:10px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-weight:600; font-size:14px;">PC AIO Dell × 3</div>
+            <div style="font-size:12px; color:#888; margin-top:2px;">bagas · Operations · SPJ · 03 Apr</div>
+          </div>
+          <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:12px; font-size:11px;">Arrived</span>
+        </div>
+        <div style="margin-top:10px; display:flex; align-items:center; gap:8px;">
+          <span style="background:#ede9fe; color:#6d28d9; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:500;">🔧 2/3 installed</span>
+          <span style="font-size:11px; color:#888;">Next: 12 Apr 2026</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Has installation, all done -->
+      <div style="border:1px solid #e0e0e0; border-radius:10px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-weight:600; font-size:14px;">Printer Epson L3210 × 1</div>
+            <div style="font-size:12px; color:#888; margin-top:2px;">vian · Finance · SPJ · 01 Apr</div>
+          </div>
+          <span style="background:#e0e7ff; color:#3730a3; padding:3px 10px; border-radius:12px; font-size:11px;">Realized</span>
+        </div>
+        <div style="margin-top:10px; display:flex; align-items:center; gap:8px;">
+          <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:500;">✅ 1/1 installed</span>
+        </div>
+      </div>
+
+      <!-- Card 3: No installation yet -->
+      <div style="border:1px solid #e0e0e0; border-radius:10px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-weight:600; font-size:14px;">Laptop HP EliteBook × 2</div>
+            <div style="font-size:12px; color:#888; margin-top:2px;">rina · HR · HO · 28 Mar</div>
+          </div>
+          <span style="background:#fef3c7; color:#92400e; padding:3px 10px; border-radius:12px; font-size:11px;">Purchasing</span>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:#bbb; font-style:italic;">Belum ada instalasi</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px;">
+  <h3>B. Detail Page — Installation Section</h3>
+  <p style="font-size:13px; color:#666; margin-bottom:12px;">Section baru di detail page <code>/hardware-requests/:id</code>, muncul setelah section Items.</p>
+
+  <div class="mockup">
+    <div class="mockup-header">Hardware Request Detail — Installation Section</div>
+    <div class="mockup-body" style="padding:20px;">
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+          <div style="font-size:16px; font-weight:700;">PC AIO Dell × 3</div>
+          <div style="font-size:13px; color:#888;">Request #ICT-2026-042 · bagas · SPJ</div>
+        </div>
+        <span style="background:#dcfce7; color:#166534; padding:4px 14px; border-radius:12px; font-size:12px; font-weight:500;">Arrived</span>
+      </div>
+
+      <!-- Status Pipeline (existing) -->
+      <div style="display:flex; gap:4px; margin-bottom:20px;">
+        <div style="flex:1; height:6px; background:#1a56db; border-radius:3px;"></div>
+        <div style="flex:1; height:6px; background:#1a56db; border-radius:3px;"></div>
+        <div style="flex:1; height:6px; background:#1a56db; border-radius:3px;"></div>
+        <div style="flex:1; height:6px; background:#1a56db; border-radius:3px;"></div>
+        <div style="flex:1; height:6px; background:#e0e0e0; border-radius:3px;"></div>
+      </div>
+
+      <!-- Existing sections hint -->
+      <div style="background:#f9fafb; border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:12px; color:#999; text-align:center;">
+        ... Items section (existing) ...
+      </div>
+
+      <!-- NEW: Installation Section -->
+      <div id="installation-section" style="background:#f8f6ff; border:1px solid #e0d9f7; border-radius:10px; padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">🔧</span>
+            <span style="font-size:15px; font-weight:700; color:#5b21b6;">Installation Progress</span>
+          </div>
+          <span style="background:#ede9fe; color:#6d28d9; padding:3px 10px; border-radius:10px; font-size:12px; font-weight:500;">2/3 completed</span>
+        </div>
+
+        <!-- Installation Item 1: Completed -->
+        <div style="background:white; border-radius:8px; padding:14px; margin-bottom:10px; border-left:3px solid #16a34a;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-weight:600; font-size:13px;">Item 1: PC AIO Dell</div>
+              <div style="font-size:12px; color:#888; margin-top:2px;">Ticket #8e6e0a86 · Assigned: yudi</div>
+            </div>
+            <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:12px; font-size:11px;">✅ Completed</span>
+          </div>
+          <div style="font-size:12px; color:#888; margin-top:6px;">Installed on 05 Apr 2026, 08:00</div>
+        </div>
+
+        <!-- Installation Item 2: In Progress -->
+        <div style="background:white; border-radius:8px; padding:14px; margin-bottom:10px; border-left:3px solid #2563eb;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-weight:600; font-size:13px;">Item 2: PC AIO Dell</div>
+              <div style="font-size:12px; color:#888; margin-top:2px;">Ticket #6f5bc011 · Assigned: IT-Admin</div>
+            </div>
+            <span style="background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:12px; font-size:11px;">🔧 In Progress</span>
+          </div>
+          <div style="font-size:12px; color:#888; margin-top:6px;">Scheduled: 08 Apr 2026, 13:00 - 17:00</div>
+        </div>
+
+        <!-- Installation Item 3: Scheduled -->
+        <div style="background:white; border-radius:8px; padding:14px; border-left:3px solid #d97706;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-weight:600; font-size:13px;">Item 3: PC AIO Dell</div>
+              <div style="font-size:12px; color:#888; margin-top:2px;">Ticket #b9fed8ee · Unassigned</div>
+            </div>
+            <span style="background:#fef3c7; color:#92400e; padding:3px 10px; border-radius:12px; font-size:11px;">📅 Scheduled</span>
+          </div>
+          <div style="font-size:12px; color:#888; margin-top:6px;">Scheduled: 12 Apr 2026, 08:00 - 12:00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

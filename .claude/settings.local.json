@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "Bash(pnpm --filter backend test -- --testPathPattern=\"hardware-request.gateway.auth|ict-budget-redirect|hardware-activity.rbac\" --runInBand --no-coverage)",
+      "Bash(pnpm --filter backend test -- --testPathPattern=\"gateway.auth\" --runInBand --no-coverage)",
+      "Bash(npx jest *)",
+      "Bash(rtk --version)"
+    ]
+  }
+}

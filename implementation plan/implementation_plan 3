@@ -1,0 +1,330 @@
+# Redesign Workflow & UI Hardware Request — E-Commerce Style
+
+Overhaul menyeluruh modul **Hardware Request** agar workflow-nya menyerupai pengalaman belanja di online shop (request → approval → purchasing → arrive → schedule installation) dengan redesign UI yang premium, menghilangkan "AI slop".
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Workflow Fundamental Berubah:** Hardware Installation **BUKAN** lagi tipe request terpisah. Instalasi hanya bisa dijadwalkan **setelah** barang dari ICT Budget Request berstatus `ARRIVED`. Ini mengubah step 1 wizard — pilihan "Hardware Installation" di form create dihapus.
+
+> [!WARNING]  
+> **Breaking Change pada Status Enum:** Backend dan frontend enum `IctBudgetRealizationStatus` akan ditambah status `ARRIVED` di antara `PURCHASING` dan `REALIZED`. Database migration perlu dijalankan.
+
+> [!IMPORTANT]
+> **Konfirmasi Alur Baru:**
+> 1. User submit **ICT Budget Request** (form procurement) → Status `PENDING`
+> 2. Manager/Admin **Approve** → Status `APPROVED`  
+> 3. Agent klik **Start Purchasing** → Status `PURCHASING`
+> 4. Agent klik **Mark Arrived** (barang diterima) → Status `ARRIVED`
+> 5. **Setelah ARRIVED**, user bisa menjadwalkan instalasi per-item (tiap item bisa beda jadwal)
+> 6. Setelah semua instalasi selesai → Agent klik **Complete** → Status `REALIZED`
+>
+> **Apakah alur ini sudah sesuai yang dimaksud?**
+
+---
+
+## Proposed Changes
+
+Perubahan dikelompokkan per komponen, diurutkan dari dependency paling dasar ke UI paling atas.
+
+---
+
+### Komponen A — Backend Entity & Database
+
+#### [MODIFY] [ict-budget-request.entity.ts](file:///d:/iDesk/apps/backend/src/modules/ict-budget/entities/ict-budget-request.entity.ts)
+- **Tambah status `ARRIVED`** pada enum `IctBudgetRealizationStatus` antara `PURCHASING` dan `REALIZED`
+- Setelah `ARRIVED`, status `REALIZED` menjadi langkah final setelah semua instalasi selesai
+- Enum final: `PENDING → APPROVED → PURCHASING → ARRIVED → REALIZED` (+ `REJECTED`)
+
+#### [MODIFY] [installation-schedule.entity.ts](file:///d:/iDesk/apps/backend/src/modules/ticketing/entities/installation-schedule.entity.ts)
+- Tambah kolom `itemName` (string, nullable) — untuk menandai item spesifik yang diinstal
+- Tambah kolom `itemIndex` (number, nullable) — index item dari budget request (untuk multi-item)
+- Pastikan relasi `ictBudgetRequestId` sudah mapped dengan benar
+
+---
+
+### Komponen B — Backend Service & Controller
+
+#### [MODIFY] [ict-budget.service.ts](file:///d:/iDesk/apps/backend/src/modules/ict-budget/ict-budget.service.ts)
+- **Tambah method `markArrived(id, agentId)`:**
+  - Validasi status harus `PURCHASING`
+  - Set status ke `ARRIVED`
+  - Log activity `ITEM_ARRIVED`
+  - Emit event `ict-budget.arrived`
+- **Ubah method `realize()`:**
+  - Ganti validasi: hanya bisa dari status `ARRIVED` (bukan `PURCHASING`)
+  - Hapus auto-create hardware ticket (karena jadwal instalasi sekarang terpisah)
+  - Realize menjadi final step setelah instalasi
+
+#### [MODIFY] [ict-budget.controller.ts](file:///d:/iDesk/apps/backend/src/modules/ict-budget/ict-budget.controller.ts)
+- **Tambah endpoint `PATCH /ict-budget/:id/arrived`** — untuk agent menandai barang sudah sampai
+- Guard: hanya `ADMIN`, `AGENT` yang bisa akses
+
+#### [MODIFY] [installation-schedule.service.ts](file:///d:/iDesk/apps/backend/src/modules/ticketing/services/installation-schedule.service.ts)
+- **Ubah `createSchedule()`:** 
+  - Validasi bahwa ICT Budget Request terkait berstatus `ARRIVED` sebelum izinkan scheduling
+  - Terima `itemName` dan `itemIndex` dari request body
+  - Satu ICT Budget bisa punya **multiple schedules** (per-item)
+- **Tambah method `getSchedulesByBudgetRequest(id)`** — fetch semua jadwal untuk satu budget request
+
+#### [MODIFY] [installation-schedule.controller.ts](file:///d:/iDesk/apps/backend/src/modules/ticketing/presentation/installation-schedule.controller.ts)
+- Pastikan endpoint `POST /installation-schedule` menerima `ictBudgetRequestId`, `itemName`, `itemIndex`
+- Pastikan endpoint `GET /installation-schedule/budget/:id` berfungsi
+
+---
+
+### Komponen C — Frontend API Hooks
+
+#### [MODIFY] [ict-budget.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/ict-budget.api.ts)
+- **Sync enum `IctBudgetRealizationStatus`** — tambah `ARRIVED`
+- **Tambah hook `useMarkArrived()`** — mutation ke `PATCH /ict-budget/:id/arrived`
+- **Tambah field `itemName`, `quantity`** pada interface jika belum ada
+
+#### [MODIFY] [schedule.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/schedule.api.ts)
+- **Tambah hook `useSchedulesByBudget(budgetId)`** — query ke `GET /installation-schedule/budget/:id`
+- Update interface `InstallationSchedule` tambah `itemName`, `itemIndex`
+
+---
+
+### Komponen D — Redesign UI Components (Anti AI-Slop)
+
+> **Aesthetic Direction:** Luxury/Refined Dark — Terinspirasi dari dashboard dan ticket board yang sudah ada, tapi lebih premium. Color palette: Deep Slate (`#0a0f1e`) + Gold Accent (`#f59e0b`) + Teal highlights (`#14b8a6`) + Glassmorphism borders.
+
+#### [MODIFY] [StatusPipeline.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/StatusPipeline.tsx)
+**Redesign total — dari stepper flat menjadi E-Commerce Order Tracker:**
+- Visual seperti progress tracker Tokopedia/Shopee:
+  - Ikon per-stage: 📋 Submitted → ✅ Approved → 🛒 Purchasing → 📦 Arrived → 🔧 Installing → ✨ Complete
+  - Line connector dengan animasi gradient pulse untuk stage aktif
+  - Step yang completed: filled circle + checkmark + glow
+  - Step aktif: pulsing ring + icon bounce
+- Rejected status: red badge overlay bukan di bawah
+- CSS animations: `@keyframes pulse-glow`, `@keyframes slide-connect`
+
+#### [MODIFY] [RequestWizard.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/RequestWizard.tsx)
+**Redesign:**
+- Backdrop glassmorphism `bg-slate-900/60 backdrop-blur-xl`
+- Step indicators: glassmorphic circles dengan glow effect
+- Footer buttons: gradient hover, micro-animation pada transition
+- Content area: smooth slide transition antar step (CSS `transform`)
+
+#### [MODIFY] [IctBudgetRequestForm.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/IctBudgetRequestForm.tsx)
+**Redesign layout:**
+- Grid 2 kolom yang lebih proportional
+- Input fields: glassmorphic styling dengan subtle inner-glow on focus
+- Request type selector: card-style toggle (bukan flat button) dengan icon per-type
+- Budget category: visual card selector (bukan dropdown)
+- Cost input: premium styling dengan animated currency symbol
+- Hapus semua uppercase tracking yang berlebihan (AI slop signature)
+
+#### [NEW] [InstallationScheduler.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/InstallationScheduler.tsx)
+**Komponen baru — Jadwal Instalasi per-Item:**
+- Hanya muncul ketika status ICT Budget = `ARRIVED`  
+- Menampilkan list item dari budget request (berdasarkan `quantity`)
+- Tiap item punya:
+  - Nama item + index
+  - Date picker (calendar visual)
+  - Time slot selector (pill buttons)
+  - Status install (Pending/Scheduled/Completed)
+- User bisa set jadwal berbeda untuk tiap item
+- Design: Card-per-item layout dengan drag-and-drop feel
+- Animasi: staggered entrance per card, slot expansion on click
+
+#### [MODIFY] [ApprovalPanel.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/ApprovalPanel.tsx)
+- Redesign: glassmorphic card
+- Approve button: gradient green + shine animation on hover
+- Reject button: subtle red outline, expand confirmation on click
+- Notes textarea: premium styling
+
+#### [MODIFY] [PurchasingPanel.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/PurchasingPanel.tsx)
+- Redesign: tambah stage "Mark Arrived" button
+- Workflow visual: mini e-commerce tracker di panel
+- PO/Invoice input: group styling yang rapi
+- Complete Realization: hanya aktif setelah status `ARRIVED`
+
+#### [NEW] [ArrivedConfirmation.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/ArrivedConfirmation.tsx)
+**Panel konfirmasi barang sampai:**
+- Icon animasi 📦→✅ saat agent confirm
+- Input optional: delivery note, receiver name  
+- Button dengan confetti micro-animation saat confirm berhasil
+
+#### [MODIFY] [ActivityTimeline.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/ActivityTimeline.tsx)
+- Redesign: vertical timeline dengan dot connectors
+- Setiap entry: glassmorphic card
+- Icon berbeda per action type
+- Timestamp styling yang lebih readable
+- Animasi: fade-in staggered saat load
+
+---
+
+### Komponen E — Redesign Pages
+
+#### [MODIFY] [HardwareRequestPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+**Redesign total — List Page ala Dashboard:**
+- **Header:** Gradient text title, subtitle elegant, button "New Request" dengan glow effect
+- **Stat Cards:** 
+  - 5 cards: Total | Pending | Purchasing | Arrived | Completed
+  - Glassmorphic dengan color-coded icon glow
+  - Hover: subtle scale + shadow expand
+  - Angka dengan count-up animation on mount
+- **Search & Filter Bar:** Glassmorphic container, input dengan animated border, filter dropdown yang premium
+- **Table:**
+  - Header: frosted glass sticky header
+  - Rows: hover glow + slide-right indicator
+  - Status badge: pill dengan icon per-status + subtle pulse pada active status
+  - Row click: ripple effect + navigate
+- **Empty State:** Illustrated (bukan hanya icon), subtle float animation
+- **Skeleton Loading:** Shimmer gradient loading
+
+#### [MODIFY] [HardwareRequestCreatePage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestCreatePage.tsx)
+**Redesign & Workflow Fix:**
+- **Hapus pilihan "Hardware Installation"** di Step 1 — karena sekarang instalasi dijadwalkan setelah barang arrive
+- Step 1 langsung menampilkan form ICT Budget Request (skip type selection)
+- Atau: tetap wizard tapi hanya untuk ICT Budget, step 1 = Basic Info, step 2 = Cost & Justification, step 3 = Review
+- Header: gradient accent
+- Form: premium glassmorphic panels
+- Step transition: smooth slide + fade animation
+
+#### [MODIFY] [HardwareRequestDetailPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestDetailPage.tsx)
+**Redesign total — E-Commerce Order Detail Page:**
+- **Header:** Request ID badge + status pill yang prominent (bukan kecil-kecil)
+- **Order Tracker (StatusPipeline):** Full-width, visual e-commerce style
+- **Main Content (2-column grid 8:4):**
+  - **Left (8 cols):**
+    - Order Summary Card: glassmorphic, item detail + quantity + cost
+    - Justification Card: premium text block
+    - **Installation Scheduler** (NEW): muncul hanya saat `ARRIVED`
+      - List per-item dengan date/time picker
+      - Schedule berbeda per item
+    - Activity Timeline: redesigned vertical timeline
+  - **Right (4 cols, sticky):**
+    - Action Panel (Approve/Purchasing/Arrived/Complete) — context-sensitive
+    - Request Info Card: requester, date, urgency
+    - Help Card
+
+---
+
+### Komponen F — Routing & Configuration Updates
+
+#### [MODIFY] [App.tsx](file:///d:/iDesk/apps/frontend/src/App.tsx)
+- Pastikan semua route hardware-request sudah benar
+- Tidak ada route baru yang perlu ditambahkan (path tetap sama)
+
+#### [MODIFY] [BentoCreateTicketPage.tsx](file:///d:/iDesk/apps/frontend/src/features/client/pages/BentoCreateTicketPage.tsx)
+- Update card navigasi: "Hardware Installation" card mengarah ke `/hardware-requests` (list page) bukan create
+- Atau: hapus "Hardware Installation" card terpisah, gabungkan informasinya ke ICT Budget card
+- Tambah tooltip/info bahwa instalasi dijadwalkan setelah barang arrive
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Q1: Apakah wizard create tetap punya pilihan "Hardware Installation" sebagai shortcut langsung schedule?**
+> Berdasarkan instruksi user, instalasi HANYA bisa dijadwalkan setelah ICT Budget `ARRIVED`. Jadi opsi "Hardware Installation" di wizard create dihapus.
+> Konfirmasi: Apakah benar wizard create hanya untuk ICT Budget Request saja?
+
+> [!WARNING]
+> **Q2: Multi-Item Scheduling Detail**
+> User bilang "barang lebih dari 1, jadwal instalasinya bisa berbeda-beda". 
+> Implementasi yang direncanakan:
+> - Berdasarkan field `quantity` di ICT Budget request (misal: 5 laptop)
+> - Setiap unit/item bisa dijadwalkan terpisah
+> - UI menampilkan list item 1..N, masing-masing punya date picker + time slot
+> Apakah ini sesuai? Atau "barang lebih dari 1" berarti satu ICT Budget bisa punya multiple unique items (bukan qty)?
+
+> [!IMPORTANT]
+> **Q3: Status ARRIVED — siapa yang menandai?**
+> Dipastikan hanya Agent/Admin yang bisa mark item sebagai "Arrived". User (requester) tidak bisa. Benar?
+
+> [!IMPORTANT]
+> **Q4: Design Reference**
+> Saya akan mengikuti color palette & pattern dari:
+> - **Dashboard page** (glassmorphism, gradient accents, stat cards)
+> - **Ticket board page** (table design, filter bar, row interactions)
+> Dengan adaptasi ke aesthetic "E-Commerce Order Tracking" yang lebih premium.
+> Apakah ada referensi visual lain yang diinginkan?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Backend: Compile check
+cd apps/backend && npx tsc --noEmit
+
+# Frontend: Build check
+cd apps/frontend && npx tsc --noEmit
+
+# Dev server smoke test
+npm run dev
+```
+
+### Browser Verification
+1. **Halaman List (`/hardware-requests`):**
+   - Stat cards render dengan angka yang benar
+   - Search & filter berfungsi
+   - Tabel menampilkan data dengan status badge yang benar
+   - Animasi entrance smooth
+
+2. **Halaman Create (`/hardware-requests/new`):**
+   - Wizard only shows ICT Budget flow
+   - Form fields terisi dan tervalidasi
+   - Submit berhasil create request ke backend
+   
+3. **Halaman Detail (`/hardware-requests/:id`):**
+   - Status pipeline menunjukkan posisi saat ini
+   - Action panel context-sensitive (approve/purchasing/arrived/complete)
+   - Setelah status ARRIVED: Installation Scheduler muncul
+   - Bisa jadwalkan instalasi per-item dengan tanggal berbeda
+   - Activity timeline menampilkan log yang benar
+
+4. **Workflow End-to-End:**
+   - User: Create → PENDING
+   - Manager: Approve → APPROVED
+   - Agent: Start Purchasing → PURCHASING
+   - Agent: Mark Arrived → ARRIVED
+   - User/Agent: Schedule Installation per-item
+   - Agent: Complete → REALIZED
+
+### Manual Verification
+- User diminta review visual design untuk memastikan bukan "AI slop"
+- Cross-check responsive layout (desktop + tablet)
+- Verify animasi tidak mengganggu UX
+
+---
+
+## Summary Perubahan
+
+```mermaid
+graph TD
+    A["📋 User Submit<br/>ICT Budget Request"] -->|PENDING| B["✅ Manager Approve"]
+    B -->|APPROVED| C["🛒 Agent Start Purchasing"]
+    C -->|PURCHASING| D["📦 Agent Mark Arrived"]
+    D -->|ARRIVED| E["🔧 Schedule Installation<br/>(per-item, beda jadwal)"]
+    E --> F["✨ Agent Complete<br/>All Installations Done"]
+    F -->|REALIZED| G["🏁 Request Selesai"]
+    
+    B -->|REJECTED| H["❌ Request Ditolak"]
+    
+    style A fill:#1e293b,stroke:#f59e0b,color:#fff
+    style B fill:#1e293b,stroke:#10b981,color:#fff
+    style C fill:#1e293b,stroke:#8b5cf6,color:#fff
+    style D fill:#1e293b,stroke:#3b82f6,color:#fff
+    style E fill:#1e293b,stroke:#14b8a6,color:#fff
+    style F fill:#1e293b,stroke:#f59e0b,color:#fff
+    style G fill:#065f46,stroke:#10b981,color:#fff
+    style H fill:#7f1d1d,stroke:#ef4444,color:#fff
+```
+
+| Layer | File Count | Scope |
+|-------|-----------|-------|
+| Backend Entity | 2 files | Tambah status, tambah kolom |
+| Backend Service/Controller | 4 files | Tambah method, ubah validasi |
+| Frontend API | 2 files | Sync enum, tambah hooks |
+| Frontend Components | 8 files (6 modify + 2 new) | Redesign UI + komponen baru |
+| Frontend Pages | 3 files | Redesign total |
+| Routing/Config | 2 files | Update navigation |
+| **Total** | **~21 files** | **Full-stack overhaul** |

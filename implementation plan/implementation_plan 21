@@ -1,0 +1,324 @@
+# Plan: Total Rework Modul Hardware Requests (ICT-Only)
+
+**Date:** 2026-04-17
+**Branch:** `claude/tender-payne-8e173c`
+**Scope:** Frontend total rework + backend role tightening + DB minimal change
+
+---
+
+## Context
+
+Modul Hardware Request saat ini punya 3+ peran (User, Manager/Admin, Agent IT) dengan flow yang menganggap ada peran "procurement" eksternal. Tapi kenyataannya **app iDesk hanya dipakai tim ICT** — tidak ada divisi procurement terpisah. Ini menimbulkan beberapa masalah:
+
+1. **DetailPage 32K LOC** monolitik dengan 6 panel kondisional per role → hard to maintain & UX cluttered.
+2. **Approval superior** menambah delay padahal ICT yang akhirnya kerjakan semua.
+3. **Installation flow** dibuat sebagai ticket terpisah (`HARDWARE_INSTALLATION`) → user harus mondar-mandir antar halaman.
+4. **Sidebar/Routing inkonsisten**: hardware-requests muncul di `/client/*`, `/manager/*`, dan root, tanpa pemisahan jelas user-facing vs ICT-facing.
+5. **Notifikasi over-broadcast** ke semua admin/manager/agent, bukan hanya ICT yang relevan.
+
+**Decisions (sudah dikonfirmasi user):**
+- **Role ICT** = `MANAGER` + `AGENT` (semua varian AGENT_*) — pakai role existing, no DB migration.
+- **Approval flow simplified**: hapus `superiorId` step. ICT langsung triage di status PENDING → APPROVED/REJECTED.
+- **Status pipeline 6-step dipertahankan**: `PENDING → APPROVED → PURCHASING → PARTIALLY_ARRIVED → ARRIVED → REALIZED` (+ REJECTED, CANCELLED).
+- **Installation inline**: saat status ARRIVED, ICT jadwalkan langsung di DetailPage. Tidak buat ticket `HARDWARE_INSTALLATION` baru. `InstallationSchedule` entity tetap dipakai (linked langsung ke `IctBudgetRequest`).
+
+**Outcome target:** UX clean & friendly untuk 2 audience (user submit minimalis, ICT control center penuh), kode terpecah ke file <300 LOC, animasi smooth, satu source of truth per fitur.
+
+---
+
+## High-Level Architecture
+
+### Routing baru
+```
+/client/hardware-requests            → UserHardwareListPage (own requests)
+/client/hardware-requests/new        → UserHardwareSubmitPage (form ringan)
+/client/hardware-requests/:id        → UserHardwareDetailPage (read-only + cancel)
+
+/manager/hardware-requests           → IctHardwareDashboard (full kanban + tabel)
+/manager/hardware-requests/:id       → IctHardwareControlCenter (panel aksi penuh)
+/manager/hardware-requests/calendar  → IctInstallationCalendar (jadwal pemasangan)
+```
+
+Routing `BentoLayout` (`/hardware-requests`) di-redirect ke `/manager/hardware-requests` (legacy URL backwards-compat).
+
+### Role guard
+- `/client/hardware-requests/*` → semua user yang punya `pageAccess.hardware_requests = true`.
+- `/manager/hardware-requests/*` → role `MANAGER`, `AGENT`, `AGENT_*`, `ADMIN` (alias "ICT").
+- Backend: helper `isIctRole(user)` di `apps/backend/src/modules/auth/utils/roles.util.ts` (NEW), dipakai di semua endpoint sensitif.
+
+---
+
+## Files to Modify / Create
+
+### Backend (minimal change, focus on guards & cleanup)
+
+| File | Action | Detail |
+|------|--------|--------|
+| `apps/backend/src/modules/auth/utils/roles.util.ts` | **CREATE** | `isIctRole(user)`, `ICT_ROLES` const array. Export untuk dipakai di guards & services. |
+| `apps/backend/src/modules/ict-budget/ict-budget.controller.ts` | **EDIT** | Update `@Roles()` di setiap endpoint: `approve/reject/start-purchasing/mark-arrived/realize` → ICT_ROLES only. Endpoint `POST /` (create) tetap terbuka semua role. `GET /` filter berdasarkan role: USER lihat sendiri, ICT lihat semua. |
+| `apps/backend/src/modules/ict-budget/ict-budget.service.ts` | **EDIT** | (1) `findAll(filters, currentUser)` — auto-filter `requesterId = currentUser.id` jika non-ICT. (2) Hapus logic `superiorId` (set null on create, deprecate field). (3) Tambah `scheduleInstallation(requestId, itemId, scheduleData)` method untuk inline scheduling tanpa buat ticket baru. (4) Reuse existing `logActivity()`. |
+| `apps/backend/src/modules/ict-budget/dto/create-ict-budget.dto.ts` | **EDIT** | Hapus field `superiorId`. Tambah validasi minimal: title, items[], category, justification (opsional), urgency enum. |
+| `apps/backend/src/modules/ict-budget/listeners/ict-budget-notification.listener.ts` | **EDIT** | Filter notifikasi dashboard actions hanya ke ICT_ROLES. Notifikasi user (status update) tetap ke requester. |
+| `apps/backend/src/modules/ticketing/services/installation-schedule.service.ts` | **EDIT** | Tambah method `createInline(ictBudgetRequestId, itemId, slotData)` yang **tidak membuat ticket HARDWARE_INSTALLATION**, hanya entry InstallationSchedule. |
+| `apps/backend/src/modules/ticketing/presentation/installation-schedule.controller.ts` | **EDIT** | Endpoint `POST /installation-schedules/inline` (ICT only). Existing endpoints tetap untuk backwards-compat (lifecycle complete/reschedule). |
+| `apps/backend/src/modules/ict-budget/entities/ict-budget-request.entity.ts` | **EDIT** | Mark `superiorId` deprecated (nullable, no FK enforcement). Tidak ada migration breaking — biarkan kolom existing untuk data lama. |
+
+### Frontend (rework total — split & polish)
+
+#### Hapus / Konsolidasi
+| File | Action |
+|------|--------|
+| `apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx` | **DELETE** (split jadi 2 page baru) |
+| `apps/frontend/src/features/request-center/pages/HardwareRequestDetailPage.tsx` | **DELETE** (split jadi UserDetail + IctControlCenter) |
+| `apps/frontend/src/features/request-center/pages/HardwareRequestCreatePage.tsx` | **DELETE** (replaced by UserHardwareSubmitPage minimalis) |
+| `apps/frontend/src/features/request-center/components/InstallationScheduler.tsx` | **DELETE** (duplicate dari InstallationScheduleModal) |
+| `apps/frontend/src/features/request-center/components/HardwareRequestCardItem.tsx` | **DELETE** (kanban card baru menggantikan, list jadi default user view) |
+| `apps/frontend/src/features/request-center/components/RequestWizard.tsx` | **DELETE** (form user single-page, tidak butuh wizard) |
+
+#### CREATE pages baru
+```
+apps/frontend/src/features/hardware-requests/                 ← NEW feature folder
+├── pages/
+│   ├── user/
+│   │   ├── UserHardwareListPage.tsx        (~180 LOC) — list own requests, status badges, search
+│   │   ├── UserHardwareSubmitPage.tsx      (~220 LOC) — single-page form, friendly copy
+│   │   └── UserHardwareDetailPage.tsx      (~200 LOC) — read-only + cancel button + status timeline
+│   └── ict/
+│       ├── IctHardwareDashboard.tsx        (~250 LOC) — kanban + table toggle, bulk actions
+│       ├── IctHardwareControlCenter.tsx    (~280 LOC) — left: info+timeline, right: contextual action panel
+│       └── IctInstallationCalendar.tsx     (~200 LOC) — minggu view kalender, drag schedule slot
+├── components/
+│   ├── shared/
+│   │   ├── StatusBadge.tsx                 (~60 LOC)  — pill warna per status
+│   │   ├── StatusPipeline.tsx              (~120 LOC) — refactor existing, tambah animasi spring
+│   │   ├── ActivityTimeline.tsx            (~100 LOC) — refactor existing, smoother
+│   │   ├── ItemListPreview.tsx             (~80 LOC)  — chip array of items
+│   │   └── UrgencyPill.tsx                 (~40 LOC)
+│   ├── user/
+│   │   ├── HardwareSubmitForm.tsx          (~250 LOC) — form fields (title, type, items, urgency, justification, requiresInstallation)
+│   │   ├── ItemsRepeater.tsx               (~150 LOC) — add/remove item rows dengan smooth height anim
+│   │   └── SubmitSuccessSheet.tsx          (~100 LOC) — bottom sheet sukses + CTA "Lihat Status"
+│   └── ict/
+│       ├── KanbanBoard.tsx                 (~220 LOC) — 6 kolom status, drag-drop optional (dnd-kit)
+│       ├── KanbanCard.tsx                  (~130 LOC) — kompak: judul, requester, urgency, hari, items count
+│       ├── RequestTable.tsx                (~180 LOC) — sortable table alternatif kanban
+│       ├── ActionDock.tsx                  (~200 LOC) — contextual action panel (Approve/Reject/StartPurchasing/MarkArrived/Realize)
+│       ├── PurchaseRecordForm.tsx          (~160 LOC) — form: vendor, PO, invoice, attachment
+│       ├── ArrivalChecklist.tsx            (~140 LOC) — check items per arrival, partial/full
+│       ├── InlineScheduler.tsx             (~200 LOC) — pilih tanggal+slot tanpa keluar dari DetailPage
+│       └── BulkActionBar.tsx               (~120 LOC) — sticky bar saat ada selection di table
+│   └── notifications/
+│       └── RescheduleAcknowledgeModal.tsx  (~150 LOC) — modal untuk user accept reschedule
+├── hooks/
+│   ├── useHardwareRequests.ts              (~80 LOC)  — wrapper useIctBudgetRequests dengan role-aware filter
+│   ├── useHardwareRequestDetail.ts         (~50 LOC)
+│   ├── useHardwareActions.ts               (~120 LOC) — bundling semua mutation hooks dengan toast handling
+│   └── useInstallationSchedules.ts         (~60 LOC)
+├── api/
+│   ├── hardware-requests.api.ts            (~200 LOC) — re-export & wrap existing ict-budget.api.ts hooks dengan naming baru
+│   └── installation.api.ts                 (~150 LOC) — wrapper schedule.api.ts + inline scheduler endpoint baru
+└── types/
+    └── hardware.types.ts                   (~80 LOC)  — shared types untuk feature baru
+```
+
+#### Routing & Sidebar update
+| File | Action |
+|------|--------|
+| `apps/frontend/src/routes/AppRoutes.tsx` | **EDIT** — ganti import 3 page lama → 6 page baru. Tambah redirect dari `/hardware-requests` → `/manager/hardware-requests`. |
+| `apps/frontend/src/components/layout/ClientLayout.tsx` | **EDIT** — pastikan nav item "Hardware Request" punya icon + badge count notifikasi. |
+| `apps/frontend/src/components/layout/ManagerSidebar.tsx` | **EDIT** — group nav: tambah sub-item "Calendar" di bawah "Hardware Requests". |
+| `apps/frontend/src/features/client/pages/BentoCreateTicketPage.tsx` | **EDIT** — tipe `hardware` & `ict-budget` redirect ke `/client/hardware-requests/new`, hapus form duplikat. |
+| `apps/frontend/src/components/notifications/utils/notificationRouter.ts` | **EDIT** — redirect path notifikasi hardware berdasarkan role: USER → `/client/...`, ICT → `/manager/...`. |
+
+#### Reuse existing API (no rewrite)
+- `apps/frontend/src/features/request-center/api/ict-budget.api.ts` — hooks API tetap dipakai, hanya di-wrap dengan naming baru.
+- `apps/frontend/src/features/request-center/api/schedule.api.ts` — sama.
+- `apps/frontend/src/features/request-center/utils/hardware-request.utils.ts` — keep, mungkin pindahkan ke folder baru.
+
+---
+
+## UI/UX Design Direction (akan dipoles dengan `frontend-design` skill di phase implementasi)
+
+### Theme
+- Pertahankan HSL CSS variables existing (`--primary`, `--card`, dst).
+- **Industrial/Utilitarian** vibe (Slate base + Amber accent) — sudah konsisten dengan walkthrough doc.
+- Spacing generous: `gap-6`, `p-7`, `rounded-2xl`/`rounded-3xl`.
+- Typography: heading `font-extrabold tracking-tighter uppercase`, label `font-bold tracking-widest text-[10px] uppercase`.
+
+### User Portal (ringan, friendly)
+- **Submit form**: single page, conversational. Field: judul + tipe + items (repeater) + urgency (Low/Normal/High pill selector) + alasan + checkbox "butuh dibantu instalasi".
+- **List page**: card grid responsif, status badge prominent, hover lift animation.
+- **Detail page**: hero summary di atas + status pipeline animated + timeline. Tombol "Cancel Request" hanya jika status PENDING.
+- **Empty state**: ilustrasi friendly + CTA besar "Ajukan Request Pertama".
+
+### ICT Control Center
+- **Dashboard**: toggle Kanban/Table. Kanban 6 kolom, card draggable optional (dnd-kit). Counts badge per kolom.
+- **Filter strip**: search, urgency, requester dept, date range, status.
+- **Bulk actions**: di table view, select multiple → approve/reject batch.
+- **Detail / Control Center**:
+  - Layout 12-grid: kiri 7 kolom (info+items+timeline), kanan 5 kolom (sticky `ActionDock`).
+  - `ActionDock` kontekstual:
+    - PENDING → Approve / Reject form
+    - APPROVED → Start Purchasing button + form vendor/budget
+    - PURCHASING → Mark Arrived (per item checklist)
+    - PARTIALLY_ARRIVED / ARRIVED → Schedule Installation (inline) + Realize (PO+Invoice form)
+    - REALIZED → Read-only summary
+  - Setiap aksi punya optimistic update + toast.
+- **Calendar**: minggu view, drag schedule antar slot ICT. Slot fix: `08:00-12:00`, `13:00-17:00` (sesuai existing).
+
+### Animations (using `framer-motion` jika belum ada, atau CSS transition)
+- Page transition: fade-in + slide-up subtle.
+- Kanban card: spring drag animation.
+- Status pipeline: stagger node fill saat status berubah.
+- Form repeater: smooth height transition saat add/remove item.
+- Modal: backdrop blur + scale in.
+- Notification toast: slide from top-right.
+- Empty state: subtle floating ilustrasi.
+
+### Accessibility
+- Semua tombol punya `aria-label`.
+- Form field punya `<label>` + `aria-describedby` untuk error.
+- Kanban: keyboard navigation (arrow keys + space to drag).
+- Color contrast WCAG AA minimum.
+
+---
+
+## Workflow Phases (untuk implementation plan nanti)
+
+1. **Phase 1 — Backend tightening** (1d)
+   - Buat `roles.util.ts` + `isIctRole()`.
+   - Update controller guards.
+   - Update service `findAll()` filter by role.
+   - Tambah method `scheduleInstallation` inline.
+   - Update notification listener filter.
+
+2. **Phase 2 — Frontend scaffold** (1d)
+   - Buat folder `features/hardware-requests/` lengkap.
+   - Migrate hooks API ke wrapper baru.
+   - Update routing & sidebar.
+
+3. **Phase 3 — User portal pages** (1.5d)
+   - UserHardwareSubmitPage + form components.
+   - UserHardwareListPage.
+   - UserHardwareDetailPage.
+
+4. **Phase 4 — ICT Control Center** (2.5d)
+   - IctHardwareDashboard (kanban + table).
+   - IctHardwareControlCenter dengan ActionDock kontekstual.
+   - IctInstallationCalendar.
+   - Inline scheduler.
+
+5. **Phase 5 — Polish & animation** (1d)
+   - Apply framer-motion / CSS transitions.
+   - Empty states & micro-interactions.
+   - Pakai `frontend-design` skill untuk review design final.
+
+6. **Phase 6 — Cleanup & migration** (0.5d)
+   - Delete file lama (HardwareRequestPage, DetailPage, dll).
+   - Hapus referensi yang tidak terpakai.
+   - Pakai `caveman` skill review consolidation.
+
+7. **Phase 7 — Test & verify** (1d)
+   - Smoke test seluruh flow user → ICT → realize.
+   - E2E test golden path dengan Playwright (jika ada).
+   - Manual QA per role.
+
+**Total estimasi: ~9 hari kerja.**
+
+---
+
+## Verification
+
+### Manual smoke (per role)
+1. **As USER**:
+   - Login → buka `/client/hardware-requests` → klik "Ajukan Request" → isi form (judul, 2 item, urgency High, "butuh instalasi") → submit → toast sukses → otomatis redirect ke detail page.
+   - Verifikasi detail: status `PENDING`, timeline punya 1 entry "Created", tombol "Cancel" muncul.
+2. **As ICT (MANAGER)**:
+   - Login → `/manager/hardware-requests` → kanban menampilkan card baru di kolom PENDING.
+   - Klik card → control center → klik Approve di ActionDock → modal konfirmasi note → status pindah ke APPROVED, ActionDock berubah jadi "Start Purchasing".
+   - Klik Start Purchasing → input vendor + estimasi → status PURCHASING.
+   - Klik Mark Arrived → checklist 2 item → centang 1 → status PARTIALLY_ARRIVED. Centang sisanya → ARRIVED.
+   - Inline scheduler muncul → pilih slot → status di item: scheduled.
+   - Klik Realize → input PO + Invoice + upload attachment → status REALIZED.
+3. **As USER (kembali)**:
+   - Refresh detail → timeline lengkap, status REALIZED, tombol cancel hilang, info instalasi visible.
+
+### Automated
+- `cd apps/backend && npm run test -- ict-budget` — pastikan unit test pass.
+- `cd apps/frontend && npm run typecheck` — pastikan no TS error.
+- `cd apps/frontend && npm run build` — production build success.
+
+### Cross-role guard test
+- USER tidak bisa hit `PATCH /ict-budget/:id/approve` (return 403).
+- USER tidak bisa akses `/manager/hardware-requests` (redirect ke client portal).
+- ICT bisa lihat semua request, USER hanya lihat sendiri.
+
+---
+
+## Dependencies & Risks
+
+### Dependencies
+- `framer-motion` (untuk animasi smooth) — cek di `package.json`, install jika belum.
+- `@dnd-kit/core` + `@dnd-kit/sortable` (untuk kanban drag) — install jika kanban drag dibutuhkan, atau skip & buat klik-to-move.
+- `react-day-picker` atau `date-fns` (untuk kalender installation) — cek existing, banyak project pakai ini.
+
+### Risks
+- **Data lama**: Field `superiorId` di-deprecate tapi tidak di-drop. Pastikan service tidak crash saat ketemu request lama dengan `superiorId` non-null.
+- **URL legacy**: Path `/hardware-requests` (root) dipakai di notifikasi/email lama. Tambah redirect 301-style biar tidak broken.
+- **Role MANAGER non-ICT**: Bagaimana jika ada MANAGER bukan dari ICT? → Tambah opsi konfigurasi via permission preset (`pageAccess.hardware_requests = false` untuk manager non-ICT).
+- **Performance kanban**: Kalau request >500 entries, kanban bisa lag. Mitigation: virtualize per kolom + pagination per kolom.
+
+---
+
+## Files Reference (untuk eksekusi)
+
+**Critical files yang akan disentuh — full path:**
+```
+Backend:
+  apps/backend/src/modules/auth/utils/roles.util.ts                              (NEW)
+  apps/backend/src/modules/ict-budget/ict-budget.controller.ts                   (EDIT)
+  apps/backend/src/modules/ict-budget/ict-budget.service.ts                      (EDIT)
+  apps/backend/src/modules/ict-budget/dto/create-ict-budget.dto.ts               (EDIT)
+  apps/backend/src/modules/ict-budget/listeners/ict-budget-notification.listener.ts (EDIT)
+  apps/backend/src/modules/ticketing/services/installation-schedule.service.ts   (EDIT)
+  apps/backend/src/modules/ticketing/presentation/installation-schedule.controller.ts (EDIT)
+
+Frontend (DELETE):
+  apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx
+  apps/frontend/src/features/request-center/pages/HardwareRequestDetailPage.tsx
+  apps/frontend/src/features/request-center/pages/HardwareRequestCreatePage.tsx
+  apps/frontend/src/features/request-center/components/InstallationScheduler.tsx
+  apps/frontend/src/features/request-center/components/HardwareRequestCardItem.tsx
+  apps/frontend/src/features/request-center/components/RequestWizard.tsx
+
+Frontend (NEW under apps/frontend/src/features/hardware-requests/):
+  pages/user/{UserHardwareListPage,UserHardwareSubmitPage,UserHardwareDetailPage}.tsx
+  pages/ict/{IctHardwareDashboard,IctHardwareControlCenter,IctInstallationCalendar}.tsx
+  components/shared/{StatusBadge,StatusPipeline,ActivityTimeline,ItemListPreview,UrgencyPill}.tsx
+  components/user/{HardwareSubmitForm,ItemsRepeater,SubmitSuccessSheet}.tsx
+  components/ict/{KanbanBoard,KanbanCard,RequestTable,ActionDock,PurchaseRecordForm,ArrivalChecklist,InlineScheduler,BulkActionBar}.tsx
+  components/notifications/RescheduleAcknowledgeModal.tsx
+  hooks/{useHardwareRequests,useHardwareRequestDetail,useHardwareActions,useInstallationSchedules}.ts
+  api/{hardware-requests.api,installation.api}.ts
+  types/hardware.types.ts
+
+Frontend (EDIT):
+  apps/frontend/src/routes/AppRoutes.tsx
+  apps/frontend/src/components/layout/ClientLayout.tsx
+  apps/frontend/src/components/layout/ManagerSidebar.tsx
+  apps/frontend/src/features/client/pages/BentoCreateTicketPage.tsx
+  apps/frontend/src/components/notifications/utils/notificationRouter.ts
+```
+
+---
+
+## Open Questions Yang Tertunda (boleh di-defer ke saat eksekusi)
+
+1. Apakah perlu fitur **export PDF/Excel** untuk laporan ICT? (default: skip, tambah jika diminta).
+2. Apakah perlu **bulk approve** di kanban? (default: ya, di table view).
+3. Apakah `attachment` di realization perlu support multi-file? (default: ya, max 5 files).
+4. **Theme dark mode** sudah konsisten di komponen baru? (default: pakai HSL var, otomatis ikut tema).
+
+---
+
+*Plan disusun mengikuti aturan CLAUDE.md project (HONESTY > CORRECTNESS, EVIDENCE > ASSUMPTION, MINIMAL CHANGES).*

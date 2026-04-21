@@ -1,0 +1,48 @@
+@utility btn-primary {
+  /* Primary button with press effect */
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2;
+  @apply font-medium rounded-xl transition-[opacity,transform,colors] duration-200 ease-out;
+  @apply bg-primary text-slate-900;
+  @apply hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5;
+  @apply active:scale-[0.97] active:translate-y-0;
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none;
+}
+
+@utility btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2;
+  @apply font-medium rounded-xl transition-[opacity,transform,colors] duration-200 ease-out;
+  @apply bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300;
+  @apply hover:bg-slate-200 dark:hover:bg-slate-700 hover:shadow-md;
+  @apply active:scale-[0.97];
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+@utility btn-danger {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2;
+  @apply font-medium rounded-xl transition-[opacity,transform,colors] duration-200 ease-out;
+  @apply bg-red-500 text-white;
+  @apply hover:bg-red-600 hover:shadow-lg hover:shadow-red-500/25;
+  @apply active:scale-[0.97];
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+@utility btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2;
+  @apply font-medium rounded-xl transition-[opacity,transform,colors] duration-200 ease-out;
+  @apply text-slate-600 dark:text-slate-400;
+  @apply hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white;
+  @apply active:scale-[0.97];
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2;
+}
+
+@utility btn-icon {
+  @apply inline-flex items-center justify-center;
+  @apply w-10 h-10 rounded-xl transition-[opacity,transform,colors] duration-200 ease-out;
+  @apply text-slate-500 dark:text-slate-400;
+  @apply hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white;
+  @apply active:scale-[0.95];
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400;
+}

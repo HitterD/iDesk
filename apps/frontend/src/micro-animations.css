@@ -1,0 +1,164 @@
+/* ========================================
+   MICRO-ANIMATION UTILITIES
+   Additional animation utilities for enhanced UI interactions
+   
+   NOTE: Keyframes (bounceIn, slideFadeIn, float) have been 
+   consolidated to styles/animations.css as canonical versions:
+   - animations.css: bounceInScale, slideFadeInUp, floatGentle
+   
+   This file remains for utility classes that use those keyframes.
+   Future work should use the consolidated keyframe names.
+   ======================================== */
+
+/* Button press feedback - haptic-like effect */
+.btn-feedback {
+    transition: transform 100ms ease;
+}
+
+.btn-feedback:active {
+    transform: scale(0.97);
+}
+
+/* Hover glow effect for accent items */
+.hover-glow {
+    transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.hover-glow:hover {
+    box-shadow: 0 0 20px -5px hsl(var(--primary));
+    transform: translateY(-1px);
+}
+
+/* Interactive card with spring animation */
+.card-interactive {
+    transition: all 200ms ease-out;
+}
+
+.card-interactive:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.card-interactive:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Icon spin on hover */
+.icon-hover-spin:hover {
+    animation: spin 0.5s ease-in-out;
+}
+
+/* Icon bounce on hover */
+.icon-hover-bounce:hover {
+    animation: bounce 0.5s ease-in-out;
+}
+
+/* Link underline animation */
+.link-underline {
+    position: relative;
+}
+
+.link-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: currentColor;
+    transition: width 0.3s ease;
+}
+
+.link-underline:hover::after {
+    width: 100%;
+}
+
+/* Pulse on hover for notifications */
+.hover-pulse:hover {
+    animation: pulse 1s ease-in-out;
+}
+
+/* Shake animation for errors */
+.animate-shake-error {
+    animation: shake 0.5s ease-in-out;
+}
+
+/* Bounce in animation */
+.animate-bounce-in {
+    animation: bounceIn 0.5s ease-out;
+}
+
+/* Slide fade in from bottom */
+.animate-slide-fade-in {
+    animation: slideFadeIn 0.4s ease-out forwards;
+}
+
+/* Subtle float animation */
+.animate-float {
+    animation: float 3s ease-in-out infinite;
+}
+
+/* Additional keyframes */
+@keyframes bounceIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    70% {
+        transform: scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+
+    .btn-feedback,
+    .hover-glow,
+    .card-interactive,
+    .icon-hover-spin,
+    .icon-hover-bounce,
+    .link-underline,
+    .hover-pulse,
+    .animate-shake-error,
+    .animate-bounce-in,
+    .animate-slide-fade-in,
+    .animate-float {
+        animation: none !important;
+        transition: none !important;
+    }
+}

@@ -1,0 +1,87 @@
+<h2>Di mana Hardware Installation ditampilkan?</h2>
+<p class="subtitle">Saat ini Hardware Installation tickets tercampur di halaman Tickets umum. Pilih cara terbaik untuk mengintegrasikannya ke halaman Hardware Requests.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Tab Baru "Installation"</h3>
+      <p>Tambah tab <strong>Installation</strong> di samping tab Pending / Purchasing / Arrived / Completed pada halaman Hardware Requests.</p>
+      <div class="mockup" style="margin-top: 12px;">
+        <div class="mockup-header">Hardware Requests - Tab Bar</div>
+        <div class="mockup-body" style="padding: 16px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">All 5</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Pending 1</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Purchasing 2</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Arrived 1</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Completed 1</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#1a56db; color:white; font-size:13px; font-weight:600;">🔧 Installation 3</span>
+          </div>
+          <div style="margin-top:16px; border:1px dashed #ccc; border-radius:8px; padding:20px; text-align:center; color:#888;">
+            Daftar hardware installation tickets muncul di sini
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Mudah ditemukan, 1 klik akses</li><li>Konsisten dengan UI tab yang sudah ada</li><li>Terpisah jelas dari procurement flow</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Tab bar makin panjang</li><li>Terpisah dari konteks request asal</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Inline dalam Card Request</h3>
+      <p>Instalasi ditampilkan sebagai bagian dari setiap Hardware Request card — muncul ketika status item sudah Arrived.</p>
+      <div class="mockup" style="margin-top: 12px;">
+        <div class="mockup-header">Hardware Request Card</div>
+        <div class="mockup-body" style="padding: 16px;">
+          <div style="border:1px solid #e0e0e0; border-radius:8px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>PC AIO - Dept. Finance</strong>
+              <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:12px; font-size:12px;">Arrived</span>
+            </div>
+            <div style="margin-top:12px; background:#f0f4ff; border-radius:6px; padding:12px; border-left:3px solid #1a56db;">
+              <div style="font-size:12px; color:#1a56db; font-weight:600;">🔧 INSTALLATION</div>
+              <div style="font-size:13px; margin-top:4px;">Scheduled: 10 Apr 2026, 08:00-12:00</div>
+              <div style="font-size:13px;">Status: <span style="color:#d97706;">In Progress</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Konteks lengkap — lihat request + instalasi sekaligus</li><li>Tidak perlu navigasi tambahan</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Sulit melihat semua instalasi sekaligus</li><li>Admin harus scroll satu-satu</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Tab + Inline (Hybrid)</h3>
+      <p>Gabungan: Tab "Installation" untuk overview semua instalasi, <strong>dan</strong> info instalasi juga muncul inline di card request masing-masing.</p>
+      <div class="mockup" style="margin-top: 12px;">
+        <div class="mockup-header">Best of Both Worlds</div>
+        <div class="mockup-body" style="padding: 16px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">All</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Pending</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Purchasing</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Arrived</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#e8e8e8; font-size:13px;">Completed</span>
+            <span style="padding:6px 16px; border-radius:20px; background:#1a56db; color:white; font-size:13px; font-weight:600;">🔧 Installation</span>
+          </div>
+          <div style="font-size:13px; color:#666; margin-bottom:8px;">Tab → overview semua instalasi</div>
+          <div style="font-size:13px; color:#666;">Card → detail instalasi per request</div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Overview + detail kontekstual</li><li>Admin bisa kerja dari kedua arah</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Lebih kompleks untuk dibangun</li><li>Info duplikat di 2 tempat</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

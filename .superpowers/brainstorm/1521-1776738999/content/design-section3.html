@@ -1,0 +1,180 @@
+<h2>Design Section 3 — Bottom Drawer Detail & Reschedule Modal</h2>
+<p class="subtitle">Drawer saat event diklik + modal konfirmasi reschedule (drag & drop) + User view redesign</p>
+
+<div class="section">
+  <h3>3A — Bottom Drawer States</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Drawer: Collapsed (handle visible)</div>
+      <div class="mockup-body" style="background:#f1f5f9;padding:0;min-height:80px;position:relative">
+        <div style="background:#f1f5f9;height:50px"></div>
+        <!-- Collapsed drawer -->
+        <div style="background:#fff;border-top:1px solid #e2e8f0;padding:6px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 8px rgba(0,0,0,0.06)">
+          <div style="width:32px;height:3px;background:#cbd5e1;border-radius:2px;margin:0 auto;position:absolute;left:50%;transform:translateX(-50%);top:6px"></div>
+          <div style="margin-top:4px;font-size:9px;color:#94a3b8">Klik tanggal atau event untuk lihat detail jadwal</div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Drawer: Expanded (event selected)</div>
+      <div class="mockup-body" style="background:#f1f5f9;padding:0">
+        <div style="background:#f1f5f9;height:20px"></div>
+        <div style="background:#fff;border-top:2px solid #e2e8f0;box-shadow:0 -4px 20px rgba(0,0,0,0.1)">
+          <div style="text-align:center;padding:6px">
+            <div style="width:32px;height:3px;background:#cbd5e1;border-radius:2px;display:inline-block"></div>
+          </div>
+          <div style="padding:6px 12px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
+            <div>
+              <div style="font-size:10px;font-weight:bold;color:#0f172a">Selasa, 8 April 2026</div>
+              <div style="font-size:8px;color:#64748b">3 instalasi</div>
+            </div>
+            <button style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:3px 7px;font-size:8px;color:#475569">✕</button>
+          </div>
+          <!-- Horizontal scroll cards -->
+          <div style="padding:8px 12px;display:flex;gap:6px;overflow-x:auto">
+            <!-- Selected card (expanded) -->
+            <div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;padding:8px;min-width:200px;flex-shrink:0">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px">
+                <span style="font-weight:bold;font-size:10px;color:#1d4ed8">HR-2024-044</span>
+                <span style="background:#dbeafe;color:#1d4ed8;font-size:7px;padding:1px 4px;border-radius:10px">CONFIRMED</span>
+              </div>
+              <div style="font-size:8px;color:#475569;line-height:1.6">
+                <div>🏢 Gedung A Lt.3</div>
+                <div>💻 Laptop HP ProBook</div>
+                <div>👷 Budi S. • 09:00–11:00</div>
+                <div>👤 Ahmad Fauzi / Finance</div>
+              </div>
+              <div style="display:flex;gap:3px;margin-top:6px">
+                <button style="flex:1;background:#3b82f6;color:#fff;border:none;border-radius:5px;padding:4px;font-size:7px;font-weight:600">✓ Konfirmasi</button>
+                <button style="flex:1;background:#fff;border:1px solid #bfdbfe;color:#3b82f6;border-radius:5px;padding:4px;font-size:7px">📅 Reschedule</button>
+                <button style="background:#fff;border:1px solid #e2e8f0;color:#64748b;border-radius:5px;padding:4px 6px;font-size:7px">→</button>
+              </div>
+            </div>
+            <!-- Other cards (compact) -->
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px;min-width:150px;flex-shrink:0;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px">
+                <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b"></div>
+                <span style="font-size:9px;font-weight:600;color:#92400e">HR-2024-045</span>
+              </div>
+              <div style="font-size:8px;color:#64748b;line-height:1.5">Desktop PC<br>Andi R. • 14:00<br>Gedung B Lt.1</div>
+              <div style="font-size:7px;color:#3b82f6;margin-top:4px">Klik untuk detail ▸</div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px;min-width:150px;flex-shrink:0;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px">
+                <div style="width:6px;height:6px;border-radius:50%;background:#8b5cf6"></div>
+                <span style="font-size:9px;font-weight:600;color:#6d28d9">HR-2024-046</span>
+              </div>
+              <div style="font-size:8px;color:#64748b;line-height:1.5">Monitor 27"<br>Citra D. • 16:00<br>Gedung C Lt.2</div>
+              <div style="font-size:7px;color:#3b82f6;margin-top:4px">Klik untuk detail ▸</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>3B — Reschedule Confirm Modal (setelah drag & drop)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Modal konfirmasi reschedule</div>
+    <div class="mockup-body" style="background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#fff;border-radius:12px;padding:16px;max-width:320px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="background:#fef3c7;border-radius:8px;padding:6px;font-size:14px">📅</div>
+          <div>
+            <div style="font-size:11px;font-weight:bold;color:#0f172a">Konfirmasi Reschedule</div>
+            <div style="font-size:8px;color:#64748b">HR-2024-044 — Laptop HP ProBook</div>
+          </div>
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:10px;margin-bottom:10px;font-size:9px;color:#475569">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:#94a3b8">Dari:</span>
+            <span style="font-weight:600;text-decoration:line-through;color:#94a3b8">Selasa, 8 Apr • 09:00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:#94a3b8">Ke:</span>
+            <span style="font-weight:600;color:#10b981">Kamis, 10 Apr • 09:00</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:9px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Alasan reschedule <span style="color:#ef4444">*</span></label>
+          <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;font-size:9px;color:#64748b;background:#f9fafb;min-height:36px">Teknisi tidak tersedia pada tanggal sebelumnya...</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:7px;font-size:9px;color:#475569;cursor:pointer">Batal</button>
+          <button style="flex:1;background:#3b82f6;border:none;border-radius:8px;padding:7px;font-size:9px;color:#fff;font-weight:600;cursor:pointer">✓ Konfirmasi Reschedule</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>3C — User View (non-ICT role) Redesign</h3>
+  <div class="mockup">
+    <div class="mockup-header">UserInstallationCalendar — read-only, personal view</div>
+    <div class="mockup-body" style="background:#f8fafc;padding:10px">
+      <!-- Info banner -->
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:14px">📋</span>
+        <div>
+          <div style="font-size:9px;font-weight:600;color:#1d4ed8">Kalender Instalasi Anda</div>
+          <div style="font-size:8px;color:#3b82f6">Jadwal instalasi hardware yang diajukan atas nama Anda. Read-only.</div>
+        </div>
+      </div>
+      <!-- Status legend -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:50%;background:#8b5cf6"></div><span style="font-size:8px;color:#64748b">Proposed</span></div>
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></div><span style="font-size:8px;color:#64748b">Confirmed</span></div>
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:50%;background:#f59e0b"></div><span style="font-size:8px;color:#64748b">In Progress</span></div>
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:50%;background:#10b981"></div><span style="font-size:8px;color:#64748b">Done</span></div>
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:50%;background:#ef4444"></div><span style="font-size:8px;color:#64748b">Rescheduled</span></div>
+      </div>
+      <!-- Mini calendar + upcoming -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px">
+          <div style="font-size:9px;font-weight:600;color:#0f172a;margin-bottom:6px">April 2026</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">M</div>
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">T</div>
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">W</div>
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">T</div>
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">F</div>
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">S</div>
+            <div style="text-align:center;font-size:7px;color:#94a3b8;padding:2px">S</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">1</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">2</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">3</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">4</div>
+            <div style="background:#d1fae5;border-radius:3px;padding:3px;text-align:center;font-size:8px;color:#065f46;font-weight:600">5</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#94a3b8">6</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#94a3b8">7</div>
+            <div style="background:#dbeafe;border:2px solid #3b82f6;border-radius:3px;padding:3px;text-align:center;font-size:8px;color:#1d4ed8;font-weight:bold">8</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">9</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">10</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">11</div>
+            <div style="padding:3px;text-align:center;font-size:8px;color:#475569">12</div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px">
+          <div style="font-size:9px;font-weight:600;color:#0f172a;margin-bottom:6px">Jadwal Mendatang</div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="border-left:3px solid #3b82f6;padding:4px 6px;background:#f8fafc;border-radius:0 4px 4px 0">
+              <div style="font-size:8px;font-weight:600;color:#1d4ed8">8 Apr • 09:00</div>
+              <div style="font-size:8px;color:#64748b">Laptop HP — Budi S.</div>
+              <span style="background:#dbeafe;color:#1d4ed8;font-size:7px;padding:1px 4px;border-radius:8px">CONFIRMED</span>
+            </div>
+            <div style="border-left:3px solid #8b5cf6;padding:4px 6px;background:#f8fafc;border-radius:0 4px 4px 0">
+              <div style="font-size:8px;font-weight:600;color:#6d28d9">15 Apr • 13:00</div>
+              <div style="font-size:8px;color:#64748b">Monitor 27" — TBD</div>
+              <span style="background:#ede9fe;color:#6d28d9;font-size:7px;padding:1px 4px;border-radius:8px">PROPOSED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:12px">Apakah 3 section ini sudah sesuai? Lanjut ke penulisan design doc.</p>

@@ -1,0 +1,520 @@
+/* ========================================
+   UTILITY CLASSES
+   Light mode, mobile, accessibility, loading states
+   ======================================== */
+
+/* ========================================
+   LIGHT MODE IMPROVEMENTS
+   ======================================== */
+
+/* Light mode component overrides (non-dark mode) */
+:root:not(.dark) {
+
+    /* Cards with visible shadows */
+    .card,
+    [class*="rounded"][class*="bg-white"],
+    [class*="rounded"][class*="bg-card"] {
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+    }
+
+    /* Hover states with better feedback */
+    .hover\:bg-slate-50:hover,
+    .hover\:bg-gray-50:hover {
+        background-color: hsl(40, 15%, 94%);
+    }
+
+    /* Input fields with better visibility */
+    input:not([type="checkbox"]):not([type="radio"]),
+    textarea,
+    select {
+        background-color: hsl(40, 15%, 98%);
+        border-color: hsl(40, 10%, 82%);
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):focus,
+    textarea:focus,
+    select:focus {
+        border-color: hsl(210, 100%, 55%);
+        box-shadow: 0 0 0 2px hsla(210, 100%, 55%, 0.15);
+    }
+
+    /* Better dividers */
+    hr,
+    [class*="divide-"]>*:not(:last-child) {
+        border-color: hsl(40, 10%, 88%);
+    }
+
+    /* Primary button with better contrast */
+    .bg-primary {
+        background-color: hsl(210, 100%, 55%);
+    }
+
+    .text-primary {
+        color: hsl(210, 100%, 50%);
+    }
+
+    /* Sidebar and navigation backgrounds */
+    [class*="bg-slate-50"],
+    [class*="bg-gray-50"] {
+        background-color: hsl(40, 15%, 94%);
+    }
+
+    /* Skeleton loading states */
+    [class*="animate-pulse"] {
+        background-color: hsl(40, 15%, 90%);
+    }
+}
+
+/* ========================================
+   GRADIENT SYSTEM
+   ======================================== */
+
+/* ========================================
+   ENHANCED HOVER EFFECTS
+   ======================================== */
+
+/* ========================================
+   ACCESSIBILITY
+   ======================================== */
+
+/* High contrast focus states */
+:focus-visible {
+    outline: 2px solid hsl(210 100% 55%);
+    outline-offset: 2px;
+}
+
+/* Skip link */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    padding: 8px 16px;
+    background: hsl(210 100% 55%);
+    color: white;
+    font-weight: bold;
+    z-index: 100;
+    transition: top 0.3s;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Screen reader only */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+.sr-only-focusable:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+}
+
+/* Live region for screen reader announcements */
+.sr-announce {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus visible for keyboard navigation */
+.focus-ring {
+    @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+}
+
+.focus-ring-destructive {
+    @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive/50 focus-visible:ring-offset-2;
+}
+
+.focus-ring-inset {
+    @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset;
+}
+
+.focus-ring-secondary {
+    @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2;
+}
+
+/* Focus ring enhancement */
+.focus-ring-enhanced:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 2px white,
+        0 0 0 4px hsl(210, 100%, 55%);
+}
+
+.dark .focus-ring-enhanced:focus-visible {
+    box-shadow:
+        0 0 0 2px hsl(217.2, 32.6%, 12%),
+        0 0 0 4px hsl(210, 100%, 55%);
+}
+
+/* ========================================
+   MOBILE UTILITIES
+   ======================================== */
+
+/* ========================================
+   LOADING STATES
+   ======================================== */
+
+/* Enhanced Loading Skeleton */
+.skeleton-enhanced {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg,
+            hsl(40, 15%, 92%) 0%,
+            hsl(40, 15%, 96%) 50%,
+            hsl(40, 15%, 92%) 100%);
+    background-size: 200% 100%;
+    animation: shimmerEnhanced 1.5s ease-in-out infinite;
+    border-radius: 8px;
+}
+
+.dark .skeleton-enhanced {
+    background: linear-gradient(90deg,
+            hsl(217, 33%, 17%) 0%,
+            hsl(217, 33%, 22%) 50%,
+            hsl(217, 33%, 17%) 100%);
+    background-size: 200% 100%;
+}
+
+@keyframes shimmerEnhanced {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Skeleton shapes for different content types */
+.skeleton-text {
+    height: 1em;
+    border-radius: 4px;
+}
+
+.skeleton-title {
+    height: 1.5em;
+    width: 60%;
+    border-radius: 6px;
+}
+
+.skeleton-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+.skeleton-avatar-lg {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+}
+
+.skeleton-button {
+    height: 36px;
+    width: 100px;
+    border-radius: 8px;
+}
+
+.skeleton-card {
+    height: 120px;
+    border-radius: 16px;
+}
+
+.skeleton-stat {
+    height: 80px;
+    border-radius: 12px;
+}
+
+/* Content loading overlay */
+.content-loading-overlay {
+    position: relative;
+}
+
+.content-loading-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
+    border-radius: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.dark .content-loading-overlay::after {
+    background: rgba(15, 23, 42, 0.8);
+}
+
+/* Loading spinner */
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid hsl(210, 100%, 90%);
+    border-top-color: hsl(210, 100%, 55%);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.loading-spinner-lg {
+    width: 40px;
+    height: 40px;
+    border-width: 4px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Loading dots */
+.loading-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.loading-dots span {
+    width: 8px;
+    height: 8px;
+    background: hsl(210, 100%, 55%);
+    border-radius: 50%;
+    animation: loadingDotBounce 1.4s ease-in-out infinite both;
+}
+
+.loading-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes loadingDotBounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ========================================
+   ERROR STATES
+   ======================================== */
+
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.error-state-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    color: #ef4444;
+    animation: errorShake 0.5s ease-in-out;
+}
+
+@keyframes errorShake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20%,
+    60% {
+        transform: translateX(-8px);
+    }
+
+    40%,
+    80% {
+        transform: translateX(8px);
+    }
+}
+
+.error-state-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: hsl(220, 15%, 15%);
+    margin-bottom: 8px;
+}
+
+.dark .error-state-title {
+    color: hsl(210, 40%, 98%);
+}
+
+.error-state-message {
+    font-size: 0.875rem;
+    color: hsl(220, 10%, 45%);
+    max-width: 400px;
+    margin-bottom: 16px;
+}
+
+.error-state-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-weight: 500;
+    border-radius: 12px;
+    background: #ef4444;
+    color: white;
+    transition: all 0.2s ease;
+}
+
+.error-state-action:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Offline indicator */
+.offline-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    font-weight: 500;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    animation: slideDownIn 0.3s ease-out;
+}
+
+@keyframes slideDownIn {
+    from {
+        transform: translateY(-100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* Enhanced toast styles */
+.toast-enhanced {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid hsl(40, 10%, 88%);
+    box-shadow:
+        0 10px 38px -10px rgba(22, 23, 24, 0.25),
+        0 10px 20px -15px rgba(22, 23, 24, 0.15);
+    animation: toastSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dark .toast-enhanced {
+    background: hsl(217.2, 32.6%, 12%);
+    border-color: hsl(217.2, 32.6%, 20%);
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%) scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+/* Toast progress bar */
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    animation: toastProgress linear forwards;
+}
+
+@keyframes toastProgress {
+    from {
+        width: 100%;
+    }
+
+    to {
+        width: 0%;
+    }
+}
+
+/* Enhanced dropdown item hover effect */
+.dropdown-item-enhanced {
+    position: relative;
+    overflow: hidden;
+}
+
+.dropdown-item-enhanced::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 0;
+    background: hsl(210, 100%, 55%);
+    border-radius: 0 2px 2px 0;
+    transition: height 0.2s ease;
+}
+
+.dropdown-item-enhanced:hover::before,
+.dropdown-item-enhanced:focus::before {
+    height: 60%;
+}

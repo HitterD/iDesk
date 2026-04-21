@@ -1,0 +1,224 @@
+# Zoom Calendar Design Overhaul — Menghilangkan "AI Slop"
+
+Redesign halaman Zoom Calendar agar tidak terlihat **basic/generic** dengan memperbaiki color harmony, menambahkan animasi transisi saat switch view/filter, dan membuat Zoom Account picker yang lebih user-friendly.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Aesthetic Direction: "Luxury / Refined"** — Mengikuti design system existing (Warm Ivory & Deep Sapphire palette), tapi dengan penambahan visual depth, subtle gradients, dan micro-interactions yang terasa premium. Bukan perubahan total, melainkan polishing dan elevasi dari dasar yang sudah ada.
+
+> [!WARNING]
+> **Zoom Account Picker (1-10)** — Saat ini berupa `<Select>` dropdown sederhana di header. Akan diubah menjadi **horizontal pill/chip bar** dengan color dot + animated underline indicator (sliding pill pattern). Ini jauh lebih user-friendly karena semua opsi terlihat tanpa perlu klik dropdown.
+
+---
+
+## Current State Analysis
+
+### Masalah yang Ditemukan
+
+| Area | Problem | Impact |
+|------|---------|--------|
+| **Zoom Account Filter** | Generic `<Select>` dropdown — user harus klik untuk lihat opsi | Low discoverability, extra click |
+| **View Switcher** | Static button group tanpa animasi transisi | Terasa "mati" dan generic |
+| **Calendar Header** | Flat, tanpa depth — semua elemen terasa setingkat | Tidak ada visual hierarchy |
+| **Month View Grid** | Flat borders tanpa soft shadows, warna pill event generic | Kurang visual richness |
+| **Color Harmony** | Menggunakan raw Tailwind `slate-*` alih-alih design tokens | Tidak kohesif dengan design system |
+| **Upcoming Meetings** | Strip di bawah terlalu plain | Missed opportunity untuk visual polish |
+| **View Transition** | Tidak ada animasi saat switch Month → Week → Day | Jarring, terasa broken |
+
+---
+
+## Proposed Changes
+
+### Component 1: Zoom Account Picker (REDESIGN BESAR)
+
+#### [MODIFY] [ZoomCalendarHeader.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomCalendarHeader.tsx)
+
+**Sebelum:** `<Select>` dropdown untuk pilih Zoom Account  
+**Sesudah:** Horizontal scrollable **chip/pill bar** dengan:
+
+- Setiap Zoom Account ditampilkan sebagai pill dengan **color dot** + nama
+- **Sliding animated indicator** (background pill yang slide ke posisi active item) — menggunakan framer-motion `layoutId`
+- Pill yang active mendapat glow effect dengan warna account-nya
+- Smooth horizontal scroll jika account > 5 (dengan fade edges)
+- Animasi `spring` saat click (duration: 0.4s, bounce: 0.15)
+
+```tsx
+// Konsep: AccountPillBar
+<motion.div layoutId="account-indicator" /> // Sliding background
+accounts.map(account => (
+  <button onClick={() => select(account.id)}>
+    <dot color={account.colorHex} />
+    <span>{account.name}</span>
+  </button>
+))
+```
+
+**Kenapa chips lebih baik dari dropdown:**
+1. Semua opsi terlihat langsung (zero-click discovery)
+2. Warna account langsung visible
+3. Spatial memory — user ingat posisi, bukan teks
+4. Animasi sliding indicator memberi feedback visual
+
+---
+
+### Component 2: View Switcher — Animated Tab Bar
+
+#### [MODIFY] [ZoomViewSwitcher.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomViewSwitcher.tsx)
+
+**Perubahan:**
+
+- Tambahkan `motion.div` dengan `layoutId="view-indicator"` sebagai sliding background tab
+- Background active tab: subtle gradient menggunakan design token primary
+- Easing: `cubic-bezier(0.23, 1, 0.32, 1)` (strong ease-out, per Emil Kowalski)
+- Duration: 200ms (snappy, per Emil: UI animations < 300ms)
+- Active state: subtle `box-shadow` glow + scale feedback on `:active`
+- "My Bookings" separator: animated opacity transition
+
+---
+
+### Component 3: Calendar View Transitions (ANIMASI BARU)
+
+#### [MODIFY] [ZoomCalendarPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/pages/ZoomCalendarPage.tsx)
+
+**Perubahan:**
+
+- Wrap calendar content dalam `<AnimatePresence mode="wait">` dari framer-motion
+- Setiap view (Month/Week/Day) mendapat `motion.div` wrapper dengan:
+  - **Enter**: `opacity: 0, y: 8` → `opacity: 1, y: 0` (200ms, ease-out)
+  - **Exit**: `opacity: 0, y: -4` (150ms, ease-in — asymmetric per Emil)
+  - Key: `view` value untuk trigger AnimatePresence
+- Ini membuat perpindahan Month ↔ Week ↔ Day terasa smooth dan alive
+
+---
+
+### Component 4: Month View Visual Enhancement
+
+#### [MODIFY] [ZoomMonthView.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomMonthView.tsx)
+
+**Perubahan warna & visual:**
+
+- Day header row: menggunakan design token `--color-bg-sunken` instead of raw slate
+- Today highlight: sapphire gradient ring (`primary` token) instead of flat `bg-blue-600`
+- Event pills: hapus raw gradient, gunakan design token-based colors:
+  - `booked`: warm amber dari `--accent` token
+  - `my_booking`: sapphire dari `--primary` token  
+  - `blocked`: destructive dari `--destructive` token
+- Hover on day cell: subtle `box-shadow: var(--shadow-sm)` + scale `1.01`
+- Day cells: soft border using `--color-border-subtle` token
+- Stagger animation pada event pills saat month berubah
+
+---
+
+### Component 5: Calendar Shell — Depth & Atmosphere
+
+#### [MODIFY] [ZoomCalendarShell.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/ZoomCalendarShell.tsx)
+
+**Perubahan:**
+
+- Header area: tambahkan subtle bottom gradient shadow (bukan flat border)
+- Calendar area background: gunakan `--color-bg-primary` token
+- Side panel transition: gunakan framer-motion untuk slide-in dengan spring animation
+- Bottom strip: tambahkan subtle top gradient fade
+
+---
+
+### Component 6: Upcoming Meetings Strip Polish
+
+#### [MODIFY] [UpcomingMeetingsPanel.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/components/UpcomingMeetingsPanel.tsx)
+
+**Perubahan pada compact mode:**
+
+- Background: subtle gradient dari `--color-bg-elevated` ke transparent
+- "Next:" label: gunakan primary color badge style
+- Meeting title: animated text reveal on mount
+- Add subtle sapphire left border accent
+
+---
+
+### Component 7: New CSS Keyframes untuk Zoom
+
+#### [MODIFY] [animations.css](file:///d:/iDesk-main/apps/frontend/src/styles/animations.css)
+
+**Tambahan keyframes baru:**
+
+```css
+/* Zoom calendar specific */
+@keyframes zoomViewTransition {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pillSlideIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+```
+
+---
+
+## Deliverables Summary
+
+| # | File | Jenis Perubahan | Effort |
+|---|------|----------------|--------|
+| 1 | `ZoomCalendarHeader.tsx` | Redesign account picker → pill bar | **High** |
+| 2 | `ZoomViewSwitcher.tsx` | Animated sliding tab indicator | Medium |
+| 3 | `ZoomCalendarPage.tsx` | AnimatePresence view transitions | Medium |
+| 4 | `ZoomMonthView.tsx` | Color harmony + visual polish | Medium |
+| 5 | `ZoomCalendarShell.tsx` | Depth & atmosphere improvements | Low |
+| 6 | `UpcomingMeetingsPanel.tsx` | Compact strip polish | Low |
+| 7 | `animations.css` | New keyframes | Low |
+
+---
+
+## Design Decisions
+
+### Color Palette Alignment
+
+Semua raw `slate-*` dan hardcoded colors akan diganti dengan design tokens:
+
+| Before (AI Slop) | After (Design System) |
+|-------------------|----------------------|
+| `bg-slate-100` | `bg-[hsl(var(--secondary))]` |
+| `text-slate-500` | `text-[hsl(var(--muted-foreground))]` |
+| `bg-blue-600` | `bg-[hsl(var(--primary))]` |  
+| `border-slate-200` | `border-[hsl(var(--border))]` |
+| `bg-amber-400 to-amber-500` | `bg-[hsl(var(--accent))]` with opacity |
+| `text-blue-600` | `text-[hsl(var(--primary))]` |
+
+### Animation Philosophy (Per Emil Kowalski Skill)
+
+| Interaction | Duration | Easing | Technique |
+|-------------|----------|--------|-----------|
+| Account pill switch | 200ms | `ease-out` spring | framer-motion `layoutId` |
+| View tab switch | 200ms | `cubic-bezier(0.23, 1, 0.32, 1)` | framer-motion `layoutId` |
+| Calendar view transition | Enter 200ms / Exit 150ms | `ease-out` / `ease-in` | `AnimatePresence mode="wait"` |
+| Month day hover | 150ms | `ease` | CSS transition |
+| Event pill appear | 300ms stagger 50ms | `ease-out` | CSS keyframe |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Zoom Account Display**: Saat ini account ditampilkan sebagai full name. Apakah perlu disingkat? Misalnya "Zoom 1", "Zoom 2" dst. untuk membuat pill bar lebih compact? Atau tetap nama lengkap?
+
+> [!NOTE] 
+> **Dark Mode**: Semua perubahan akan menggunakan design tokens yang otomatis mendukung dark mode, jadi tidak perlu effort tambahan.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Visual check di browser: navigasi ke `/zoom-calendar?view=month`
+- Test klik semua zoom account pills — verify animasi sliding indicator
+- Test switch Month → Week → Day → My Bookings — verify transisi smooth
+- Test responsive: check pill bar scroll di mobile width
+- Verify tidak ada regresi pada booking functionality
+
+### Manual Verification
+- Screenshot before/after untuk perbandingan visual
+- Verify color harmony dengan design system tokens
+- Test dark mode consistency
+- Record browser session untuk demo animasi

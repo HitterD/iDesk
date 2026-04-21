@@ -1,0 +1,214 @@
+# Fix Notifikasi Spam & Redesign Critical Banner
+
+## Problem Summary
+
+3 masalah ditemukan:
+
+1. **Notifikasi hanya dikirim ke ADMIN/MANAGER** — seharusnya ke **semua user yang punya akses ke Renewal Hub** (via preset permission `renewal.view`)
+2. **Notifikasi spam duplikat** — cron `vpn-scheduler` dan `renewal-scheduler` berjalan setiap hari tanpa cek apakah notifikasi untuk item yang sama sudah pernadi-create. Jadi jika VPN sudah expired 5 hari, maka 5 notifikasi "VPN EXPIRED" yang identik ter-create.
+3. **Design Critical Banner jelek** — icon danger putih di light mode, layout terlalu kotak/boxy, perlu redesign premium
+
+---
+
+## Root Cause Analysis
+
+### Bug 1: Recipient Salah
+**File:** [vpn-scheduler.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/vpn-access/vpn-scheduler.service.ts#L43-L45)
+
+```typescript
+// CURRENT: Hardcode ADMIN + MANAGER saja
+const admins = await this.userRepo.find({
+    where: { role: In([UserRole.ADMIN, UserRole.MANAGER]) },
+});
+```
+
+**File:** [renewal-scheduler.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/renewal/services/renewal-scheduler.service.ts#L59)
+
+```typescript
+// CURRENT: Hardcode ADMIN saja
+const admins = await this.userRepo.find({ where: { role: UserRole.ADMIN } });
+```
+
+Seharusnya query users yang punya permission `renewal.view` via preset system.
+
+### Bug 2: Notifikasi Spam
+**File:** [vpn-scheduler.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/vpn-access/vpn-scheduler.service.ts#L76-L88)
+
+```typescript
+// CURRENT: cek statusIctH1 field, tapi field ini hanya di-set sekali
+// PROBLEM: H+1 condition (daysUntilExpiry <= -1) tetap true setiap hari setelah expired
+// statusIctH1 memang di-set, tapi cek ini sudah benar secara logic
+// REAL PROBLEM: Sebenarnya ada guard `!vpn.statusIctH1`, jadi seharusnya TIDAK spam
+```
+
+Setelah baca ulang kode lebih detail:
+- VPN scheduler: **statusUserH1** dan **statusIctH1** flag sudah ada sebagai guard → seharusnya tidak spam
+- TETAPI: `notification.service.create()` **tidak ada duplicate check** — kalau cron dijalankan manual berkali-kali, atau ada race condition, notifikasi bisa duplikat
+- Renewal scheduler: `markReminderSent(contract.id, days)` sudah ada "reminder sent" tracking, tapi juga **tidak ada duplicate check di notification level**
+
+> [!IMPORTANT]
+> **Root cause spam kemungkinan besar:**
+> 1. Cron manual trigger (`triggerReminderCheck()`) dipanggil berulang
+> 2. Atau: `statusIctH1`/`statusUserH1` field tidak tersave dengan benar (race condition pada batch processing)
+> 3. Atau: Multiple VPN entries untuk user yang sama
+>
+> **Solusi terbaik:** Tambah **deduplication** di `notification.service.create()` — cek apakah notifikasi dengan `type + referenceId + userId` yang sama sudah ada dalam 24 jam terakhir
+
+### Bug 3: Design Banner Light Mode
+**File:** [CriticalNotificationBanner.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/CriticalNotificationBanner.tsx)
+
+- Icon `AlertTriangle` menggunakan class `text-white` tanpa conditional → di light mode, background merah terang + icon putih OK, tapi gambar user menunjukkan icon jadi putih/invisible
+- Layout sangat linear/boxy — satu baris horizontal tanpa visual interest
+- Tidak ada glassmorphism, depth, atau premium feel
+
+---
+
+## Proposed Changes
+
+### Komponen 1: Backend — Notification Deduplication
+
+#### [MODIFY] [notification.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.service.ts)
+
+Tambah **deduplication check** di method `create()`:
+
+```typescript
+async create(data: { ... }): Promise<Notification> {
+    // DEDUP: Check existing notification with same type + referenceId + userId within 24h
+    if (data.referenceId) {
+        const existing = await this.notificationRepo.findOne({
+            where: {
+                userId: data.userId,
+                type: data.type,
+                referenceId: data.referenceId,
+                createdAt: MoreThan(new Date(Date.now() - 24 * 60 * 60 * 1000)),
+            },
+        });
+        if (existing) {
+            // Skip duplicate — return existing notification
+            return existing;
+        }
+    }
+    // ... rest of create logic
+}
+```
+
+---
+
+### Komponen 2: Backend — Fix Recipient Based on Permission
+
+#### [MODIFY] [vpn-scheduler.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/vpn-access/vpn-scheduler.service.ts)
+
+- Inject `PermissionsService`
+- Replace hardcoded role query dengan `getUsersWithPermission('renewal.view')`
+
+```diff
+- const admins = await this.userRepo.find({
+-     where: { role: In([UserRole.ADMIN, UserRole.MANAGER]) },
+- });
++ const recipients = await this.permissionsService.getUsersWithPermission('renewal.view');
+```
+
+#### [MODIFY] [renewal-scheduler.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/renewal/services/renewal-scheduler.service.ts)
+
+- Inject `PermissionsService`  
+- Replace hardcoded `UserRole.ADMIN` query
+
+```diff
+- const admins = await this.userRepo.find({ where: { role: UserRole.ADMIN } });
++ const recipients = await this.permissionsService.getUsersWithPermission('renewal.view');
+```
+
+#### [MODIFY] [permissions.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/permissions/permissions.service.ts)
+
+Tambah method baru:
+
+```typescript
+async getUsersWithPermission(permissionKey: string): Promise<User[]> {
+    // 1. Get all users with presets that include this permission
+    // 2. Also include ADMIN users (always have all permissions)
+    // 3. Return unique user list
+}
+```
+
+---
+
+### Komponen 3: Frontend — Critical Banner Redesign
+
+#### [MODIFY] [CriticalNotificationBanner.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/CriticalNotificationBanner.tsx)
+
+**Design direction:** Luxury/Refined — glassmorphism + premium feel
+
+Perubahan:
+
+1. **Fix light mode icon bug** — `AlertTriangle` icon conditionally styled for light/dark
+2. **Redesign layout** dari flat horizontal ke layered, premium card:
+   - Rounded corners lebih generous (`rounded-3xl`)
+   - Glassmorphism backdrop: `backdrop-blur-xl` + `bg-white/80 dark:bg-slate-900/90`
+   - Gradient border glow effect
+   - Icon area dengan circular badge, bukan kotak flat
+   - Text area dengan better typography hierarchy
+   - Action buttons lebih refined dengan hover states
+   - Subtle pulse animation pada icon, bukan seluruh element
+3. **Better color scheme:**
+   - Light mode urgent: `bg-red-50/90` + `border-red-200` + `text-red-800` icon
+   - Dark mode urgent: `bg-red-950/90` + `border-red-500/30` + `text-red-400` icon
+   - Light mode warning: `bg-amber-50/90` + `border-amber-200` + `text-amber-700` icon
+   - Dark mode warning: keep current dark tones
+4. **Better spatial composition:**
+   - Max-width container centered
+   - Internal padding more generous
+   - Gap between elements refined
+   - Marquee animation bisa di-pause on hover
+5. **Interactive refinements:**
+   - Acknowledge button: glassmorphic style, not flat
+   - Navigate chevron: lebih subtle
+   - Dismiss X: lebih refined with hover ring
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Q1: Skema Notifikasi Ideal**
+> Saya usulkan skema berikut — mohon review:
+>
+> | Event | Notifikasi | Frequency | Target |
+> |-------|-----------|-----------|--------|
+> | VPN H-1 (besok expired) | "VPN Expiring SOON" | **1x per VPN entry** | All `renewal.view` users |
+> | VPN H+1 (sudah expired) | "VPN EXPIRED" | **1x per VPN entry** | All `renewal.view` users |
+> | Contract D-60/D-30/D-7/D-1 | "Contract Expiring" | **1x per milestone per contract** | All `renewal.view` users |
+>
+> Dedup window: **24 jam** — jadi meskipun cron jalan berkali-kali dalam sehari, notifikasi sama tidak akan duplikat.
+>
+> Apakah skema ini sesuai harapan?
+
+> [!WARNING]
+> **Q2: Permission `renewal.view`**
+> Saat ini `renewal.view` hanya available sebagai **preset permission untuk role AGENT**. ADMIN dan MANAGER otomatis punya akses via default preset.
+> Artinya: Non-AGENT users yang diberi akses manual ke Renewal Hub juga akan mendapat notifikasi.
+> Apakah ini behavior yang diinginkan?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Build check
+cd d:/iDesk-main && npm run build
+
+# Verify no TypeScript errors
+cd apps/backend && npx tsc --noEmit
+cd apps/frontend && npx tsc --noEmit
+```
+
+### Manual Verification
+1. **Dedup test:** Panggil `triggerReminderCheck()` 3x berturut-turut → verify notifikasi hanya muncul 1x
+2. **Recipient test:** Buat user AGENT dengan preset `renewal.view` → verify dia terima notifikasi renewal/VPN
+3. **Banner light mode:** Switch ke light mode → verify icon danger terlihat jelas (tidak putih)
+4. **Banner design:** Screenshot before/after comparison di dark mode dan light mode
+
+### Browser Testing
+- Buka `CriticalNotificationBanner` di browser test
+- Verify responsive di mobile dan desktop
+- Verify glassmorphism effect render properly

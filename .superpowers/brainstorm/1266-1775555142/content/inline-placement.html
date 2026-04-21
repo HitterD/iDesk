@@ -1,0 +1,86 @@
+<h2>Inline Instalasi — di mana muncul?</h2>
+<p class="subtitle">Info instalasi inline di card Hardware Request: hanya di detail page, atau juga di list card?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Hanya di Detail Page</h3>
+      <p>Info instalasi muncul sebagai section di halaman detail <code>/hardware-requests/:id</code>. Card di list tetap bersih.</p>
+      <div class="split" style="margin-top:12px;">
+        <div class="mockup" style="flex:1;">
+          <div class="mockup-header">List Card — Bersih</div>
+          <div class="mockup-body" style="padding:14px;">
+            <div style="border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+              <div style="display:flex; justify-content:space-between;">
+                <div>
+                  <div style="font-weight:600; font-size:14px;">PC AIO Dell × 3</div>
+                  <div style="font-size:12px; color:#888;">bagas · SPJ · 03 Apr</div>
+                </div>
+                <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:12px; font-size:11px; height:fit-content;">Arrived</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mockup" style="flex:1;">
+          <div class="mockup-header">Detail Page — Ada Section Instalasi</div>
+          <div class="mockup-body" style="padding:14px;">
+            <div style="font-weight:600; margin-bottom:8px;">PC AIO Dell × 3</div>
+            <div style="font-size:12px; color:#888; margin-bottom:12px;">Request oleh bagas · SPJ</div>
+            <div style="background:#f0f4ff; border-radius:6px; padding:12px; border-left:3px solid #1a56db;">
+              <div style="font-size:12px; color:#1a56db; font-weight:600;">🔧 INSTALLATION</div>
+              <div style="font-size:12px; margin-top:6px;">
+                <div>Item 1: PC AIO → <span style="color:#d97706;">In Progress</span></div>
+                <div>Item 2: PC AIO → <span style="color:#166534;">Completed</span></div>
+                <div>Item 3: PC AIO → <span style="color:#888;">Scheduled 12 Apr</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Di List Card + Detail Page</h3>
+      <p>Card di list menampilkan indicator kecil jumlah instalasi, detail page menampilkan info lengkap.</p>
+      <div class="split" style="margin-top:12px;">
+        <div class="mockup" style="flex:1;">
+          <div class="mockup-header">List Card — Dengan Indicator</div>
+          <div class="mockup-body" style="padding:14px;">
+            <div style="border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+              <div style="display:flex; justify-content:space-between;">
+                <div>
+                  <div style="font-weight:600; font-size:14px;">PC AIO Dell × 3</div>
+                  <div style="font-size:12px; color:#888;">bagas · SPJ · 03 Apr</div>
+                </div>
+                <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:12px; font-size:11px; height:fit-content;">Arrived</span>
+              </div>
+              <div style="margin-top:10px; display:flex; align-items:center; gap:6px;">
+                <span style="background:#ede9fe; color:#6d28d9; padding:2px 8px; border-radius:10px; font-size:11px;">🔧 2/3 installed</span>
+                <span style="font-size:11px; color:#888;">· Next: 12 Apr</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mockup" style="flex:1;">
+          <div class="mockup-header">Detail Page — Info Lengkap</div>
+          <div class="mockup-body" style="padding:14px;">
+            <div style="font-weight:600; margin-bottom:8px;">PC AIO Dell × 3</div>
+            <div style="font-size:12px; color:#888; margin-bottom:12px;">Request oleh bagas · SPJ</div>
+            <div style="background:#f0f4ff; border-radius:6px; padding:12px; border-left:3px solid #1a56db;">
+              <div style="font-size:12px; color:#1a56db; font-weight:600;">🔧 INSTALLATION</div>
+              <div style="font-size:12px; margin-top:6px;">
+                <div>Item 1: PC AIO → <span style="color:#d97706;">In Progress</span></div>
+                <div>Item 2: PC AIO → <span style="color:#166534;">Completed</span></div>
+                <div>Item 3: PC AIO → <span style="color:#888;">Scheduled 12 Apr</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,169 @@
+# Fix Hardware Request — Full Workflow Bugs
+
+## Ringkasan
+
+Ditemukan **4 bug kritikal** dan **2 bug major** dari investigasi keseluruhan modul Hardware Request. Root cause sudah diidentifikasi semua.
+
+---
+
+## Bug Map
+
+| # | Severity | Problem | Root Cause |
+|---|----------|---------|------------|
+| 1 | 🔴 CRITICAL | Comment → `authorId` NULL | Controller pakai `req.user.id`, JWT strategy return `userId` |
+| 2 | 🔴 CRITICAL | Activity controller → same `req.user.id` bug | Copy-paste dari comment controller |
+| 3 | 🔴 CRITICAL | Procurement complete → "cannot complete from status APPROVED" | `decideItems()` tidak transisi status APPROVED → PROCUREMENT |
+| 4 | 🟡 MAJOR | Duplikat `completeProcurement` di 2 service, beda behavior | `CommandService` skip AWAITING_DELIVERY, langsung → INSTALLATION |
+| 5 | 🟡 MAJOR | Cancel hanya dari SUBMITTED | State machine izinkan cancel dari AWAITING_DELIVERY & INSTALLATION juga |
+| 6 | 🔵 MINOR | No CLOSED transition | COMPLETED → CLOSED ada di state machine tapi tidak ada endpoint |
+
+---
+
+## Proposed Changes
+
+### 1. Backend — Fix `req.user.id` → `req.user.userId`
+
+#### [MODIFY] [hardware-comment.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/presentation/hardware-comment.controller.ts)
+
+Semua `req.user.id` → `req.user.userId` (line 22, 33, 46, 59):
+
+```diff
+-const data = await this.service.list({ id: req.user.id, role }, requestId);
++const data = await this.service.list({ id: req.user.userId, role }, requestId);
+```
+
+Same fix untuk `add()`, `edit()`, `softDelete()`.
+
+#### [MODIFY] [hardware-activity.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/presentation/hardware-activity.controller.ts)
+
+Line 17:
+```diff
+-const data = await this.service.listForRequest({ id: req.user.id, role }, requestId);
++const data = await this.service.listForRequest({ id: req.user.userId, role }, requestId);
+```
+
+---
+
+### 2. Backend — Fix Procurement Workflow
+
+#### [MODIFY] [procurement-decision.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/services/procurement-decision.service.ts)
+
+**Problem:** `decideItems()` tidak transisi status dari APPROVED → PROCUREMENT. Akibatnya `completeProcurement()` gagal karena expect status PROCUREMENT.
+
+**Fix:** Tambah auto-transition di `decideItems()` — saat request masih APPROVED, transisi ke PROCUREMENT.
+
+```diff
+ async decideItems(
+   requestId: string,
+   dto: ProcurementDecisionDto,
+   actorId: string,
+ ): Promise<HardwareRequestItem[]> {
++  // Auto-transition APPROVED → PROCUREMENT when first procurement decision is made
++  const req = await this.reqRepo.findOne({ where: { id: requestId } });
++  if (!req) throw new NotFoundException('request not found');
++  if (req.status === RequestStatus.APPROVED) {
++    if (!canTransition(RequestStatus.APPROVED, RequestStatus.PROCUREMENT)) {
++      throw new BadRequestException('cannot start procurement from current status');
++    }
++    req.status = RequestStatus.PROCUREMENT;
++    req.procuredById = actorId;
++    await this.reqRepo.save(req);
++  } else if (req.status !== RequestStatus.PROCUREMENT) {
++    throw new BadRequestException(`cannot decide items in status ${req.status}`);
++  }
++
+   const ids = dto.decisions.map((d) => d.itemId);
+   // ... rest unchanged
+```
+
+---
+
+### 3. Backend — Reconcile Duplicate `completeProcurement`
+
+#### [MODIFY] [hardware-request-command.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/services/hardware-request-command.service.ts)
+
+**Problem:** `HardwareRequestCommandService.completeProcurement()` (line 389-426) transition PROCUREMENT → INSTALLATION, violates state machine (should go via AWAITING_DELIVERY).
+
+**Fix:** Hapus method ini. Frontend sudah pakai `ProcurementDecisionService.completeProcurement()` yang benar (PROCUREMENT → AWAITING_DELIVERY/REJECTED). Tidak ada controller yang call method ini.
+
+```diff
+-    async completeProcurement(userId: string, requestId: string): Promise<HardwareRequest> {
+-        // ... 36 lines removed
+-    }
+```
+
+> [!IMPORTANT]
+> Perlu verifikasi tidak ada caller lain di codebase sebelum delete.
+
+---
+
+### 4. Backend — Fix Cancel Scope
+
+#### [MODIFY] [hardware-request-command.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/services/hardware-request-command.service.ts)
+
+**Problem:** `cancel()` (line 209-244) hanya izinkan dari SUBMITTED. State machine izinkan cancel dari AWAITING_DELIVERY & INSTALLATION juga.
+
+**Fix:** Expand cancellable statuses:
+
+```diff
+-if (existing.status !== RequestStatus.SUBMITTED) {
+-    throw new InvalidStateTransitionError(existing.status, RequestStatus.CANCELLED);
+-}
++const CANCELLABLE = [
++    RequestStatus.SUBMITTED,
++    RequestStatus.AWAITING_DELIVERY,
++    RequestStatus.INSTALLATION,
++];
++if (!CANCELLABLE.includes(existing.status)) {
++    throw new InvalidStateTransitionError(existing.status, RequestStatus.CANCELLED);
++}
+```
+
+Juga perlu tambah permission check — ICT_STAFF bisa cancel dari status lanjut, USER hanya dari SUBMITTED:
+
+```diff
++// USER can only cancel SUBMITTED requests they own
++// ICT_STAFF can cancel from SUBMITTED, AWAITING_DELIVERY, INSTALLATION
+```
+
+> [!WARNING]
+> Cancel dari AWAITING_DELIVERY / INSTALLATION = hanya ICT_STAFF yang boleh. Bukan user biasa. Perlu `actorRole` parameter tambahan di `cancel()`.
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Q1:** Apakah user biasa boleh cancel dari status selain SUBMITTED? Atau hanya ICT_STAFF?
+> 
+> **Q2:** Apakah perlu endpoint untuk COMPLETED → CLOSED? Atau itu auto-close via cron/admin?
+>
+> **Q3:** State machine saat ini: DRAFT → CANCELLED tidak ada. Apakah user boleh cancel draft (atau cukup delete)?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Run existing backend tests
+cd d:\iDesk-main && npx nx test backend --testPathPattern=hardware-request
+
+# Specific test files affected:
+# - hardware-comment.service.spec.ts  
+# - procurement-decision.service.spec.ts
+# - hardware-request-command.service.spec.ts
+```
+
+### Manual Verification
+1. **Comment:** Login → buka hardware request → tambah komentar → cek authorId terisi di DB
+2. **Procurement:** APPROVED request → POST `/procurement/decision` → cek status jadi PROCUREMENT → POST `/procurement/complete` → cek status jadi AWAITING_DELIVERY
+3. **Cancel:** Coba cancel dari SUBMITTED (user), AWAITING_DELIVERY (ICT), INSTALLATION (ICT)
+
+### Checklist
+- [x] `req.user.id` → `req.user.userId` di comment controller (4 tempat)
+- [x] `req.user.id` → `req.user.userId` di activity controller (1 tempat)
+- [x] `decideItems()` auto-transition APPROVED → PROCUREMENT
+- [x] Hapus/refactor duplikat `completeProcurement` di CommandService
+- [x] Expand `cancel()` cancellable statuses
+- [x] Update tests

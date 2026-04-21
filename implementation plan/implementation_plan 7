@@ -1,0 +1,226 @@
+# Redesign: Search Bar & Hardware Requests Page
+
+## Deskripsi Masalah
+
+Dua masalah utama yang perlu diperbaiki:
+
+1. **Search Bar (BentoTopbar)** — Search dropdown menggunakan hardcoded `slate/dark` color palette yang **tidak konsisten** dengan design system iDesk (yang menggunakan CSS custom properties dari `tokens.css` dan `glassmorphism.css`). Saat ini dropdown menggunakan `bg-slate-800`, `border-slate-700`, dll. yang terlihat out of place dibanding halaman dashboard dan tickets yang sudah menggunakan design system.
+
+2. **Hardware Requests Page** — Halaman terlalu basic dan banyak space kosong. Card bento yang ada saat ini hanya menampilkan: Order ID, Category title, Status badge, Requester name, Date, dan Progress bar. **Informasi detail item** (apa yang dipesan, sudah datang atau belum per item, vendor, dll.) tidak terlihat dari luar card — harus klik dulu ke detail page.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Arah Estetik:** Redesign ini akan menggunakan aesthetic direction **"Industrial / Utilitarian"** yang konsisten dengan Bento-style existing di dashboard — monospace accents, mechanical feel, functional density. Bukan minimalist kosong, tapi dense & informative.
+
+> [!IMPORTANT]
+> **Layout Shift:** Hardware Requests page akan berubah dari grid card layout ke **Table/List View** sebagai default, dengan dense rows yang menampilkan informasi komprehensif. Card view tetap tersedia sebagai toggle alternatif.
+
+---
+
+## Proposed Changes
+
+### Component 1: Search Bar — BentoTopbar
+
+#### [MODIFY] [BentoTopbar.tsx](file:///d:/iDesk/apps/frontend/src/components/layout/BentoTopbar.tsx)
+
+**Masalah saat ini:**
+- Search input menggunakan hardcoded `bg-white dark:bg-slate-900/80`, `border-slate-200 dark:border-slate-700` — **sudah cukup baik** untuk input
+- **Search dropdown** menggunakan `bg-white dark:bg-slate-800`, `border-slate-100 dark:border-slate-700` — ini yang terlihat out of place di dark mode
+- Section headers menggunakan `bg-slate-50 dark:bg-slate-900/50` — flat, tidak glassmorphic
+- Hover states menggunakan raw `hover:bg-slate-50 dark:hover:bg-slate-700/50`
+
+**Perubahan yang akan dilakukan:**
+
+1. **Search Dropdown Container** — Ganti background dan border ke design system tokens:
+   ```diff
+   - bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700
+   + bg-[hsl(var(--card))] rounded-2xl shadow-xl border border-[hsl(var(--border))] backdrop-blur-sm
+   ```
+
+2. **Section Headers** (Tickets, Users, Knowledge Base) — Gunakan muted background:
+   ```diff
+   - bg-slate-50 dark:bg-slate-900/50
+   + bg-[hsl(var(--muted))]/50
+   ```
+
+3. **Result Items Hover** — Konsistenkan dengan design system:
+   ```diff
+   - hover:bg-slate-50 dark:hover:bg-slate-700/50
+   + hover:bg-[hsl(var(--muted))]/30
+   ```
+
+4. **Icon Containers** — Gunakan design system colors:
+   ```diff
+   - bg-primary/10
+   + bg-[hsl(var(--primary))]/10
+   ```
+   (Ini sudah benar untuk beberapa, tapi perlu konsistensi)
+
+5. **Text Colors** — Ganti hardcoded slate ke CSS variables:
+   ```diff
+   - text-slate-700 dark:text-slate-200
+   + text-[hsl(var(--foreground))]
+   
+   - text-slate-400
+   + text-[hsl(var(--muted-foreground))]
+   
+   - text-slate-500 dark:text-slate-400
+   + text-[hsl(var(--muted-foreground))]
+   ```
+
+6. **Status/Priority Colors** — Ganti ke design system semantic colors:
+   ```diff
+   - bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400
+   + bg-[hsl(var(--success-500))]/10 text-[hsl(var(--success-500))]
+   ```
+
+7. **Footer Timing Bar** — Gunakan muted background:
+   ```diff
+   - bg-slate-50 dark:bg-slate-900/50
+   + bg-[hsl(var(--muted))]/30
+   ```
+
+8. **No Results State** — Konsistenkan warna text:
+   ```diff
+   - text-slate-300 dark:text-slate-600
+   + text-[hsl(var(--muted-foreground))]/30
+   ```
+
+---
+
+### Component 2: Hardware Requests Page — Full Redesign
+
+#### [MODIFY] [HardwareRequestPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+
+**Masalah saat ini (dari screenshot & code review):**
+- Card bento hanya menampilkan: Order ID, Category (selalu "HARDWARE"), requester, date, progress bar → **kurang informatif**
+- Title card selalu "HARDWARE" (dari `req.budgetCategory`) — redundant karena halaman ini sudah di-filter hardware only
+- Progress bar menampilkan "1/2 ITEMS" tapi **tidak ada detail** item apa saja
+- Banyak **space kosong** di dalam card
+- Status badge kecil di pojok — tidak eye-catching
+- Grid 3-column menyebabkan card terlalu kecil untuk informasi yang berguna
+
+**Redesign yang diusulkan — Dense Table View + Enriched Cards:**
+
+##### A. Stats Overview — Compact Horizontal (bukan rounded cards)
+
+Ubah dari 5 large rounded cards ke **compact stat strip** yang lebih space-efficient:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 12 Total  │  0 Pending  │  0 Procurement  │  0 Arrived  │  0 Done │
+│           │  ● Yellow   │  ● Blue         │  ● Cyan     │  ● Green│
+└──────────────────────────────────────────────────────────────────┘
+```
+
+##### B. Default View: Table/List Layout
+
+Ganti grid card ke **table-like list** yang menampilkan lebih banyak info per row:
+
+```
+┌──────┬────────────────────────┬───────────┬──────────────┬───────────┬──────────────┬────────┐
+│  #   │ Items                  │ Requester │ Status       │ Items     │ Progress     │ Date   │
+├──────┼────────────────────────┼───────────┼──────────────┼───────────┼──────────────┼────────┤
+│ F589 │ Laptop Dell, Printer   │ Bagas     │ PART ARRIVED │ 1/2 ✓    │ ████░░ 50%   │ 06 Apr │
+│      │ Epson L3250            │           │              │          │              │        │
+├──────┼────────────────────────┼───────────┼──────────────┼───────────┼──────────────┼────────┤
+│ W085 │ PC AIO x3, Printer x2 │ Bagas     │ ARRIVED      │ 2/3 ✓    │ ██████░ 67%  │ 03 Apr │
+│      │ Laptop Sharing         │           │              │          │              │        │
+├──────┼────────────────────────┼───────────┼──────────────┼───────────┼──────────────┼────────┤
+│ W008 │ Monitor LG 27"        │ Bagas     │ ARRIVED      │ 4/4 ✓    │ ████████ 100%│ 01 Apr │
+└──────┴────────────────────────┴───────────┴──────────────┴───────────┴──────────────┴────────┘
+```
+
+**Key differences dari saat ini:**
+- Setiap row menampilkan **nama-nama item** yang dipesan (bukan hanya "HARDWARE")
+- Status badge lebih prominent — full width kolom
+- Kolom **Items** menunjukkan berapa yang sudah arrived vs total
+- Progress bar inline
+- Tanggal order terlihat langsung
+- **Row expandable** — klik untuk lihat detail item per-item (arrived/not arrived per item)
+
+##### C. Expanded Row Detail
+
+Saat row diklik/diperluas, tampilkan detail item:
+
+```
+┌─ ORDER #F589C924 ────────────────────────────────────────────────┐
+│                                                                   │
+│   ✅ Laptop Dell Latitude 5540      — Arrived 05 Apr 2026        │
+│   ⏳ Printer Epson L3250            — Awaiting Delivery          │
+│                                                                   │
+│   Requester: Bagas  •  Vendor: PT. XYZ  •  Created: 06 Apr 2026 │
+│                                         [View Full Details →]     │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+##### D. View Toggle
+
+Tambahkan toggle di toolbar bar untuk switch antara:
+- **List View** (default) — table layout untuk overview cepat
+- **Card View** — grid cards existing (tetap tersedia untuk yang suka visual layout)
+
+##### E. Quick Status Filters
+
+Ubah dropdown select ke **pill/tab filter** bar yang clickable:
+
+```
+[ All (12) ] [ Pending (0) ] [ Purchasing (0) ] [ Arrived (0) ] [ Completed (0) ]
+```
+
+---
+
+## Data Model — Tidak Ada Perubahan Backend
+
+Semua informasi yang diperlukan sudah tersedia di `IctBudgetRequest` interface:
+- `items: RequestedItem[]` — array item dengan `name`, `isArrived`, `arrivedAt`
+- `vendor` — nama vendor
+- `title` / `budgetCategory` — judul order
+- `realizationStatus` / `status` — current status
+- `requester?.fullName` — requester
+- `createdAt` — tanggal
+
+**Tidak perlu perubahan backend atau API.**
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Default View Preference:** Apakah List View (table) sebagai default sudah sesuai? Atau tetap card view sebagai default?
+
+> [!IMPORTANT]
+> 2. **Expanded Row:** Apakah perlu fitur expand row in-place, atau cukup klik langsung ke detail page?
+
+> [!IMPORTANT]
+> 3. **Scope tambahan:** Apakah `GlobalSearch.tsx` (file terpisah dari BentoTopbar) juga perlu di-redesign? Dari screenshot yang diberikan, yang terlihat adalah search di **BentoTopbar** (topbar search bar), bukan GlobalSearch modal. Saya akan fokus pada BentoTopbar saja kecuali diminta otherwise.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Build check: `npm run build` — pastikan no TypeScript errors
+- Visual regression: Buka browser ke halaman `/hardware-requests` dan verifikasi tampilan baru
+
+### Manual Verification
+- Screenshot sebelum dan sesudah redesign
+- Verifikasi search dropdown di BentoTopbar match dengan tema dark mode
+- Verifikasi tabel hardware requests menampilkan semua item names
+- Verifikasi progress indicator per-item terlihat
+- Verifikasi responsiveness pada mobile viewport
+- Verifikasi expand/collapse row berfungsi
+- Verifikasi filter pills berfungsi
+- Test klik row navigasi ke detail page
+
+---
+
+## Files Summary
+
+| File | Action | Scope |
+|------|--------|-------|
+| `BentoTopbar.tsx` | MODIFY | Replace hardcoded slate colors → design system tokens |
+| `HardwareRequestPage.tsx` | MODIFY | Full redesign — table layout, enriched data display, filter pills, view toggle |

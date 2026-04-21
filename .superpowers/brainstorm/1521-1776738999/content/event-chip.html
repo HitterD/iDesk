@@ -1,0 +1,147 @@
+<h2>Event Display — Info di Kalender</h2>
+<p class="subtitle">Seberapa banyak info yang tampil langsung di calendar cell? (sebelum klik)</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:8px;padding:14px">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:60px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Mon 21</div>
+              <div style="background:#dbeafe;border-left:3px solid #3b82f6;border-radius:3px;padding:3px 5px;font-size:9px;color:#1d4ed8;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">HR-045</div>
+              <div style="background:#d1fae5;border-left:3px solid #10b981;border-radius:3px;padding:3px 5px;font-size:9px;color:#065f46">HR-046</div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:60px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Tue 22</div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:60px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Wed 23</div>
+              <div style="background:#fef3c7;border-left:3px solid #f59e0b;border-radius:3px;padding:3px 5px;font-size:9px;color:#92400e">HR-047</div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:60px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Thu 24</div>
+              <div style="background:#dbeafe;border-left:3px solid #3b82f6;border-radius:3px;padding:3px 5px;font-size:9px;color:#1d4ed8">HR-048</div>
+              <div style="background:#dbeafe;border-left:3px solid #3b82f6;border-radius:3px;padding:3px 5px;font-size:9px;color:#1d4ed8;margin-top:2px">HR-049</div>
+              <div style="background:#f1f5f9;border-radius:3px;padding:2px 4px;font-size:8px;color:#64748b;margin-top:2px;text-align:center">+2 more</div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:60px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Fri 25</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:8px">
+          <div style="font-size:9px;color:#64748b;margin-bottom:4px">Klik HR-045 → popover detail:</div>
+          <div style="background:#f8fafc;border-radius:4px;padding:6px;font-size:9px;color:#475569">
+            <span style="color:#1d4ed8;font-weight:bold">HR-2024-045</span> • CONFIRMED<br>
+            Site: Gedung A Lt.3 • Laptop HP<br>
+            Teknisi: Budi S. • 09:00–11:00
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Minimal Chip (nomor request saja)</h3>
+      <p>Chip kecil hanya tampilkan nomor HR + status color. Detail lengkap di popover saat klik. Kalender tetap bersih meski banyak event.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:8px;padding:14px">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:80px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Mon 21</div>
+              <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:4px 6px;margin-bottom:3px">
+                <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+                  <div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div>
+                  <span style="font-size:9px;color:#1d4ed8;font-weight:600">HR-045</span>
+                  <span style="margin-left:auto;font-size:7px;background:#dbeafe;color:#1d4ed8;padding:1px 4px;border-radius:10px">CONFIRMED</span>
+                </div>
+                <div style="font-size:8px;color:#64748b;padding-left:9px">Budi • 09:00</div>
+              </div>
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:4px 6px">
+                <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+                  <div style="width:6px;height:6px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
+                  <span style="font-size:9px;color:#065f46;font-weight:600">HR-046</span>
+                  <span style="margin-left:auto;font-size:7px;background:#d1fae5;color:#065f46;padding:1px 4px;border-radius:10px">DONE</span>
+                </div>
+                <div style="font-size:8px;color:#64748b;padding-left:9px">Andi • 14:00</div>
+              </div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:80px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Tue 22</div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:6px;padding:6px;min-height:80px">
+              <div style="font-size:9px;color:#64748b;margin-bottom:4px">Wed 23</div>
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:4px 6px">
+                <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+                  <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+                  <span style="font-size:9px;color:#92400e;font-weight:600">HR-047</span>
+                  <span style="margin-left:auto;font-size:7px;background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:10px">IN PROGRESS</span>
+                </div>
+                <div style="font-size:8px;color:#64748b;padding-left:9px">Citra • 10:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Medium Card (nomor + teknisi + jam)</h3>
+      <p>Chip lebih besar: nomor HR, badge status, nama teknisi, jam mulai. Sekilas sudah tahu siapa dan kapan tanpa harus klik. Best for week view.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:8px;padding:14px">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <div style="font-size:8px;color:#94a3b8;margin-bottom:6px">Month view → dot indicators:</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:8px">
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center">
+              <div style="font-size:9px;color:#64748b;margin-bottom:3px">21</div>
+              <div style="display:flex;gap:1px;justify-content:center"><div style="width:5px;height:5px;border-radius:50%;background:#3b82f6"></div><div style="width:5px;height:5px;border-radius:50%;background:#10b981"></div></div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center"><div style="font-size:9px;color:#64748b">22</div></div>
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center">
+              <div style="font-size:9px;color:#64748b;margin-bottom:3px">23</div>
+              <div style="display:flex;gap:1px;justify-content:center"><div style="width:5px;height:5px;border-radius:50%;background:#f59e0b"></div></div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center"><div style="font-size:9px;color:#64748b">24</div></div>
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center">
+              <div style="font-size:9px;color:#64748b;margin-bottom:3px">25</div>
+              <div style="display:flex;gap:1px;justify-content:center"><div style="width:5px;height:5px;border-radius:50%;background:#3b82f6"></div><div style="width:5px;height:5px;border-radius:50%;background:#3b82f6"></div><div style="width:5px;height:5px;border-radius:50%;background:#ef4444"></div></div>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center"><div style="font-size:9px;color:#64748b">26</div></div>
+            <div style="border:1px solid #e2e8f0;border-radius:4px;padding:4px;text-align:center"><div style="font-size:9px;color:#64748b">27</div></div>
+          </div>
+          <div style="font-size:8px;color:#94a3b8;margin-bottom:4px">Klik tanggal → expand panel bawah (agenda view):</div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px">
+            <div style="font-size:9px;font-weight:bold;color:#1e293b;margin-bottom:4px">Senin, 21 April — 2 installations</div>
+            <div style="display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid #f1f5f9">
+              <div style="font-size:9px;color:#94a3b8;width:35px">09:00</div>
+              <div style="width:6px;height:6px;border-radius:50%;background:#3b82f6"></div>
+              <div style="font-size:9px;color:#1e293b;flex:1">HR-045 • Laptop HP • Budi S.</div>
+              <div style="font-size:7px;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:10px">CONFIRMED</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;padding:4px 0">
+              <div style="font-size:9px;color:#94a3b8;width:35px">14:00</div>
+              <div style="width:6px;height:6px;border-radius:50%;background:#10b981"></div>
+              <div style="font-size:9px;color:#1e293b;flex:1">HR-046 • PC • Andi R.</div>
+              <div style="font-size:7px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:10px">DONE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Dot Indicator + Agenda Panel</h3>
+      <p>Month view pakai dot berwarna per event. Klik tanggal buka agenda panel di bawah kalender dengan detail lengkap. Kalender tetap bersih, info accessible.</p>
+    </div>
+  </div>
+
+</div>
+<p class="subtitle" style="margin-top:16px">Pilih A, B, atau C — atau ketik preferensi kombinasi.</p>

@@ -1,0 +1,94 @@
+<h2>Design: Hardware Installation Integration</h2>
+<p class="subtitle">Section 1/4 — Backend API Changes</p>
+
+<div class="section">
+  <h3>Backend: Endpoint Baru & Response Extension</h3>
+
+  <div class="mockup">
+    <div class="mockup-header">1. GET /ict-budget/:id/installations</div>
+    <div class="mockup-body" style="padding:16px; font-size:13px;">
+      <p style="margin-bottom:8px;"><strong>Purpose:</strong> Return semua hardware installation tickets terkait satu ICT Budget request</p>
+      <pre style="background:#1e1e1e; color:#d4d4d4; padding:14px; border-radius:6px; overflow-x:auto; font-size:12px;">
+// Response
+{
+  "data": [
+    {
+      "id": "ticket-uuid",
+      "ticketNumber": "#b9fed8ee",
+      "title": "Hardware Installation: PC AIO",
+      "status": "IN_PROGRESS",
+      "hardwareType": "PC",
+      "scheduledDate": "2026-04-10",
+      "scheduledTime": "08:00",
+      "assignedTo": { "id": "...", "name": "IT-Admin" },
+      "itemIndex": 0,
+      "itemName": "PC AIO Dell",
+      "createdAt": "2026-04-03T..."
+    }
+  ],
+  "total": 3,
+  "installed": 1,
+  "inProgress": 1,
+  "scheduled": 1
+}
+      </pre>
+    </div>
+  </div>
+
+  <div class="mockup" style="margin-top:16px;">
+    <div class="mockup-header">2. GET /ict-budget (extended response)</div>
+    <div class="mockup-body" style="padding:16px; font-size:13px;">
+      <p style="margin-bottom:8px;"><strong>Purpose:</strong> Extend existing list response dengan installation summary per request</p>
+      <pre style="background:#1e1e1e; color:#d4d4d4; padding:14px; border-radius:6px; overflow-x:auto; font-size:12px;">
+// Each item in response.data gets:
+{
+  "id": "ict-budget-uuid",
+  "ticketId": "...",
+  "items": [...],
+  "realizationStatus": "ARRIVED",
+  // NEW FIELDS:
+  "installationSummary": {
+    "total": 3,
+    "installed": 1,
+    "inProgress": 1,
+    "scheduled": 1,
+    "nextScheduledDate": "2026-04-12"
+  }
+}
+      </pre>
+    </div>
+  </div>
+
+  <div class="mockup" style="margin-top:16px;">
+    <div class="mockup-header">3. GET /ict-budget/installations (NEW)</div>
+    <div class="mockup-body" style="padding:16px; font-size:13px;">
+      <p style="margin-bottom:8px;"><strong>Purpose:</strong> Endpoint untuk tab Installation — paginated list semua HW installation tickets across all requests</p>
+      <pre style="background:#1e1e1e; color:#d4d4d4; padding:14px; border-radius:6px; overflow-x:auto; font-size:12px;">
+// Query: ?page=1&limit=20&status=IN_PROGRESS&siteId=...
+// Response
+{
+  "data": [
+    {
+      "id": "ticket-uuid",
+      "ticketNumber": "#b9fed8ee",
+      "title": "Hardware Installation: PC AIO",
+      "status": "IN_PROGRESS",
+      "hardwareType": "PC",
+      "scheduledDate": "2026-04-10",
+      "scheduledTime": "08:00",
+      "site": { "id": "...", "name": "SPJ" },
+      "requester": { "id": "...", "name": "bagas" },
+      "assignedTo": { "id": "...", "name": "IT-Admin" },
+      "ictBudgetRequestId": "budget-uuid",
+      "itemName": "PC AIO Dell"
+    }
+  ],
+  "total": 15,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}
+      </pre>
+    </div>
+  </div>
+</div>

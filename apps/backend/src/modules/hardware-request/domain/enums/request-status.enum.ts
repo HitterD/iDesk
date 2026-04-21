@@ -1,0 +1,18 @@
+export enum RequestStatus {
+    DRAFT = 'DRAFT',
+    SUBMITTED = 'SUBMITTED',
+    UNDER_REVIEW = 'UNDER_REVIEW',
+    APPROVED = 'APPROVED',
+    REJECTED = 'REJECTED',
+    CANCELLED = 'CANCELLED',
+    PROCUREMENT = 'PROCUREMENT',
+    AWAITING_DELIVERY = 'AWAITING_DELIVERY',
+    INSTALLATION = 'INSTALLATION',
+    COMPLETED = 'COMPLETED',
+    CLOSED = 'CLOSED',
+}
+export const TERMINAL_STATUSES: ReadonlyArray<RequestStatus> = [
+    RequestStatus.REJECTED,
+    RequestStatus.CANCELLED,
+    RequestStatus.COMPLETED,
+];

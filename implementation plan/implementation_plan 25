@@ -1,0 +1,151 @@
+# Hardware Requests — Full Review & Improvement Plan
+
+Perbaikan menyeluruh halaman hardware-requests berdasarkan 5 catatan user + temuan bug/logic dari code review.
+
+---
+
+## User Review Required
+
+> [!CAUTION]
+> **Bug Kritis (P0)** — Halaman "Jadwal Instalasi" crash total untuk user. Error: `Cannot read properties of undefined (reading 'tone')`. Penyebab: backend return `InstallStatus` (PROPOSED/CONFIRMED/IN_PROGRESS/DONE) tapi frontend cast ke `RequestStatus` yang tidak punya key tersebut di `STATUS_META`.
+
+> [!WARNING]
+> **Comment Ordering** — Backend return `createdAt: 'ASC'` (terlama di atas). User ingin terbaru di atas. Perubahan ini ubah backend + frontend + test.
+
+> [!IMPORTANT]
+> **UX Overhaul** — Filter chips (Status/Kategori) tidak punya visual feedback jelas. Tombol "Buat Request Baru" posisi tidak konsisten dengan halaman lain. Navigasi jadwal instalasi membingungkan user.
+
+---
+
+## Proposed Changes
+
+### Komponen 1: Fix Calendar Crash (P0 — Gambar 1)
+
+**Root Cause:** Backend `calendar()` dan `my-schedules` return field `status` berisi `InstallStatus` enum (`PROPOSED`, `CONFIRMED`, `IN_PROGRESS`, `DONE`, `RESCHEDULED`, `CANCELLED`). Frontend `UserInstallationCalendar.tsx` dan `InstallationCalendarPage.tsx` pakai `STATUS_META[e.status as RequestStatus]` — key tidak ditemukan → `undefined` → `.hex` / `.tone` crash.
+
+`EventPopover.tsx` line 68 juga cast: `<StatusBadge status={event.status as any} />` — `StatusBadge` akses `STATUS_META[status].tone` → crash juga.
+
+#### [MODIFY] [status.util.ts](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/utils/status.util.ts)
+- Tambah `INSTALL_STATUS_META` map untuk `InstallStatus` dengan label, tone, hex yang sesuai
+- Tambah helper function `getStatusMeta(status: string)` yang cek dua map dan return fallback
+
+#### [MODIFY] [StatusBadge.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/common/StatusBadge.tsx)
+- Pakai `getStatusMeta()` bukan akses langsung `STATUS_META[status]` — null-safe
+
+#### [NEW] [InstallStatusBadge.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/common/InstallStatusBadge.tsx)
+- Badge khusus untuk `InstallStatus` yang pakai `INSTALL_STATUS_META`
+
+#### [MODIFY] [EventPopover.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/EventPopover.tsx)
+- Ganti `<StatusBadge status={event.status as any} />` → `<InstallStatusBadge status={event.status} />`
+
+#### [MODIFY] [UserInstallationCalendar.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/UserInstallationCalendar.tsx)
+- Line 30-31: Ganti `STATUS_META[e.status as RequestStatus]?.hex` → pakai `INSTALL_STATUS_META` atau helper function dengan fallback
+
+#### [MODIFY] [InstallationCalendarPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/InstallationCalendarPage.tsx)
+- Line 47-48: Sama — pakai `INSTALL_STATUS_META` dengan fallback
+
+---
+
+### Komponen 2: UX Navigasi Jadwal Instalasi untuk User (Gambar 2)
+
+**Problem:** User bingung di tab "Jadwal Instalasi" — tidak tahu harus klik apa atau melihat apa.
+
+#### [MODIFY] [UserInstallationCalendar.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/UserInstallationCalendar.tsx)
+- Tambah empty state yang jelas saat tidak ada jadwal: info card dengan penjelasan singkat
+- Tambah legend/keterangan warna status instalasi
+- Tambah panel sidebar "Jadwal Mendatang" (upcoming schedules) dalam bentuk list sederhana supaya user tahu ada jadwal apa saja tanpa harus klik kalender
+- Tambah info banner di atas: "Jadwal instalasi Anda ditampilkan di kalender ini. Klik event untuk melihat detail."
+
+---
+
+### Komponen 3: Normalisasi Tombol "Buat Request Baru" (Gambar 3)
+
+**Problem:** Tombol "Buat Request Baru" berada di dalam card header "Daftar Permintaan". Seharusnya konsisten — di pojok kanan atas, sejajar dengan page header (seperti halaman lain di iDesk).
+
+#### [MODIFY] [HardwareRequestsLayout.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/layouts/HardwareRequestsLayout.tsx)
+- Pindahkan tombol "Buat Request Baru" ke level layout header, sebelah kanan judul "Hardware Requests"
+- Buat consistent: header → title + action button | tabs dibawah
+
+#### [MODIFY] [HardwareRequestListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/pages/HardwareRequestListPage.tsx)
+- Hapus tombol "Buat Request Baru" dari card header
+- Simplify header card — hanya title, subtitle, dan view toggle
+
+---
+
+### Komponen 4: Perbaiki Filter Chips Status & Kategori (Gambar 4)
+
+**Problem:** Filter chips tanpa visual feedback. User tidak tahu ini toggle filter atau button navigasi. Saat di-klik, efeknya hanya filter list tapi tidak ada indikasi visual yang jelas.
+
+#### [MODIFY] [RequestFilters.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/list/RequestFilters.tsx)
+- Tambah label/tooltip yang menjelaskan behavior: "Klik untuk filter berdasarkan status" 
+- Tambah count badge per status chip — tampilkan jumlah request per status
+- Tambah "Clear All" button saat ada filter aktif
+- Tambah visual summary: "Menampilkan X dari Y request" saat filter aktif
+- Perbaiki visual: chip aktif pakai warna status masing-masing (bukan semua hitam) — match dengan `STATUS_META` colors
+- Kategori chip aktif pakai accent color yang berbeda per kategori
+
+---
+
+### Komponen 5: Comment Ordering — Terbaru di Atas (Gambar 5)
+
+**Problem:** Backend return comments `order: { createdAt: 'ASC' }` (terlama dulu). User ingin komentar terbaru di atas.
+
+#### [MODIFY] [hardware-comment.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/services/hardware-comment.service.ts)
+- Line 47: Ubah `order: { createdAt: 'ASC' }` → `order: { createdAt: 'DESC' }`
+
+#### [MODIFY] [hardware-comment.service.spec.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/services/hardware-comment.service.spec.ts)
+- Update test expectation dari `'ASC'` → `'DESC'`
+
+#### [MODIFY] [CommentThread.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/CommentThread.tsx)
+- Pindahkan `CommentComposer` ke atas list (sudah di atas ✓)
+- Ubah "Load older…" button text → "Muat komentar lama…"
+- Comments sudah akan tampil terbaru di atas karena backend DESC
+
+---
+
+### Komponen 6: Bug & Logic Fixes Tambahan (Ditemukan Selama Review)
+
+#### [MODIFY] [StatusBadge.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/common/StatusBadge.tsx)
+- **Bug:** `const m = STATUS_META[status]` — tidak ada null check. Jika status tidak dikenal → crash.
+- **Fix:** Tambah fallback: `const m = STATUS_META[status] ?? { label: status, tone: 'bg-slate-100 text-slate-600 ring-slate-200', hex: '#94a3b8' }`
+
+#### [MODIFY] [CommentThread.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/CommentThread.tsx)  
+- **Issue:** Bahasa campuran — "Load older…" → "Muat komentar lama…"
+- **Issue:** "Belum ada komentar." sudah OK
+
+#### [MODIFY] [RequestFilters.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/list/RequestFilters.tsx)
+- **Bug potensial:** `useEffect` dependency `onChange` dan `value` bisa cause infinite re-render jika parent tidak memoize. Tambah `useCallback` guard.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Backend test — comment ordering
+cd d:/iDesk-main && npx jest --config apps/backend/jest.config.ts --testPathPattern hardware-comment.service.spec
+
+# Frontend tests
+cd d:/iDesk-main && npx vitest run --reporter=verbose apps/frontend/src/features/hardware-request
+```
+
+### Manual Verification (Browser)
+1. Buka halaman `/client/hardware_requests/calendar` — pastikan kalender render tanpa error
+2. Klik event di kalender — `EventPopover` tampil dengan badge `InstallStatus` yang benar
+3. Buka tab "Daftar Request" — pastikan tombol "Buat Request Baru" di pojok kanan atas header
+4. Klik filter chips Status — pastikan visual feedback jelas (warna sesuai status)
+5. Buka detail request → section Komentar — komentar terbaru di atas
+6. User role: Pastikan jadwal instalasi punya empty state dan info banner yang jelas
+
+---
+
+## Urutan Eksekusi
+
+| # | Task | Priority | Effort |
+|---|------|----------|--------|
+| 1 | Fix Calendar Crash + InstallStatusBadge | P0 | Medium |
+| 2 | Fix StatusBadge null-safety | P0 | Low |
+| 3 | Comment ordering DESC | P1 | Low |
+| 4 | Normalisasi tombol "Buat Request Baru" | P1 | Low |
+| 5 | Improve filter chips UX | P2 | Medium |
+| 6 | Improve user calendar navigation/UX | P2 | Medium |

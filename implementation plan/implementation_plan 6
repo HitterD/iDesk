@@ -1,0 +1,358 @@
+# E-Form Access Portal — Redesign Layout & Multi-Form Support
+
+Redesain halaman pembuatan E-Form Access agar **tidak lagi menggunakan 3-step wizard**, melainkan layout **scrollable single-page** yang mengikuti format PDF asli "Form Permintaan Akses VPN SJA". Form dibagi 3 bagian (section) yang terbuka secara sequential (progressive disclosure). Ditambah dukungan 3 jenis form dan perbaikan logic approval/inbox atasan.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Keputusan desain yang membutuhkan persetujuan:**
+> 1. **Layout Scrollable 3-Section**: Mengubah dari multi-step wizard menjadi single-page scrollable form dengan 3 bagian yang terbuka bertahap (Section 1 → centang T&C → Section 2 terbuka → tanda tangan → Section 3 terbuka). Apakah ini sesuai harapan?
+> 2. **3 Jenis Form**: Halaman list akan menampilkan semua jenis form (VPN, Website Access, Network Access). Saat "New Request", user memilih jenis form di awal. Apakah ketiga form ini punya kolom data yang berbeda atau sama?
+> 3. **Approval Inbox Model**: Saya usulkan menambahkan endpoint `GET /eform-request/pending-approvals` yang mengembalikan semua request yang menunggu approval dari user yang login (berdasarkan `currentApproverId`). Ini terpisah dari logic utama form dan bisa diakses via notifikasi atau menu khusus.
+
+> [!WARNING]
+> **Perubahan signifikan:**
+> - `EformAccessCreatePage.tsx` akan di-**rewrite total** (dari wizard ke scrollable form)
+> - `EformAccessListPage.tsx` title & button berubah dari "VPN Access Forms" ke "E-Form Access" yang mendukung 3 jenis form
+> - Backend entity `eform-request.entity.ts` kolom `formType` perlu mendukung 3 nilai: `VPN`, `WEBSITE`, `NETWORK`
+
+---
+
+## A. Analisis Kondisi Saat Ini
+
+### Yang Sudah Ada & Berjalan
+
+| Komponen | File | Status |
+|----------|------|--------|
+| Backend CRUD + State Machine | `eform-request.service.ts` (246 lines) | ✅ Lengkap |
+| Backend Controller | `eform-request.controller.ts` (93 lines) | ✅ Lengkap |
+| Entities (4 tabel) | `entities/*.entity.ts` | ✅ Lengkap |
+| Frontend API Hooks | `eform-request.api.ts` (166 lines) | ✅ Lengkap |
+| Create Page (3-step wizard) | `EformAccessCreatePage.tsx` (244 lines) | ⚠️ Perlu rewrite |
+| List Page | `EformAccessListPage.tsx` (230 lines) | ⚠️ Perlu update |
+| Detail Page | `EformAccessDetailPage.tsx` (336 lines) | ✅ Cukup baik |
+| SignaturePad | `components/eform/SignaturePad.tsx` | ✅ Reusable |
+| ManagerSelector | `components/eform/ManagerSelector.tsx` (126 lines) | ⚠️ Perlu review logic |
+| TermsAndConditions | `components/eform/TermsAndConditions.tsx` | ✅ Reusable |
+| CredentialViewer | `components/eform/CredentialViewer.tsx` | ✅ Reusable |
+| StatusPipeline | `components/eform/EformStatusPipeline.tsx` | ✅ Reusable |
+| Approvers endpoint | `GET /users/approvers` → semua user aktif | ⚠️ Terlalu luas |
+
+### Masalah yang Ditemukan
+
+1. **`getApprovers()`** di `users.service.ts` line 493 mengembalikan **SEMUA user aktif**, bukan hanya yang punya role manager/admin. Ini membuat ManagerSelector menampilkan terlalu banyak user.
+2. **Tidak ada mekanisme "inbox"** khusus untuk atasan — mereka hanya bisa melihat request jika membuka halaman E-Form Access dan mencari request mereka.
+3. **`formType`** di entity hanya default `'VPN'`, belum ada validasi/enum untuk 3 jenis form.
+
+---
+
+## B. Arsitektur Perubahan (High-Level)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    PERUBAHAN UTAMA                                │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. FRONTEND — EformAccessCreatePage.tsx [REWRITE]               │
+│     Dari: 3-step wizard (AnimatePresence, step state)            │
+│     Ke:   Single-page scrollable form, 3 collapsible sections    │
+│                                                                  │
+│     ┌─────────────────────────────────────┐                      │
+│     │ SECTION 1: PEMOHON + DETAIL AKSES   │ ← Selalu terbuka    │
+│     │ - Pilih Jenis Form (VPN/Website/Net)│                      │
+│     │ - Data Pemohon (auto-fill profile)  │                      │
+│     │ - Detail Akses (tanggal, alasan)    │                      │
+│     ├─────────────────────────────────────┤                      │
+│     │ SECTION 2: SYARAT & KETENTUAN       │ ← Terbuka setelah   │
+│     │ - Teks T&C dinamis                  │   Section 1 lengkap  │
+│     │ - Checkbox "Saya menyetujui..."     │                      │
+│     ├─────────────────────────────────────┤                      │
+│     │ SECTION 3: TANDA TANGAN & SUBMIT    │ ← Terbuka setelah   │
+│     │ - Pilih Atasan Persetujuan          │   T&C di-centang     │
+│     │ - Canvas Tanda Tangan Digital       │                      │
+│     │ - Tombol SUBMIT                     │                      │
+│     └─────────────────────────────────────┘                      │
+│                                                                  │
+│  2. FRONTEND — EformAccessListPage.tsx [UPDATE]                  │
+│     - Title: "E-Form Access" (bukan "VPN Access Forms")          │
+│     - Button: "+ New Access Request"                             │
+│     - Card menampilkan formType (VPN/Website/Network)            │
+│     - Filter by formType                                         │
+│                                                                  │
+│  3. BACKEND — Approval Inbox [NEW ENDPOINT]                      │
+│     GET /eform-request/pending-approvals                         │
+│     → Return requests where currentApproverId === req.user.id    │
+│     → Terpisah dari logic utama, bisa diakses dari notifikasi    │
+│                                                                  │
+│  4. BACKEND — Fix getApprovers() [UPDATE]                        │
+│     Filter hanya MANAGER + ADMIN role, bukan semua user aktif    │
+│                                                                  │
+│  5. BACKEND — FormType Validation [UPDATE]                       │
+│     Tambah validasi enum di DTO: 'VPN' | 'WEBSITE' | 'NETWORK'  │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## C. Proposed Changes
+
+### Component 1: Frontend — EformAccessCreatePage.tsx (REWRITE)
+
+Redesain total dari wizard ke single-page scrollable form.
+
+#### [REWRITE] [EformAccessCreatePage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/EformAccessCreatePage.tsx)
+
+**Layout baru mengikuti PDF asli:**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  ← Kembali                              E-Form Access    │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ [1] PILIH JENIS FORM                             │    │
+│  │ ┌──────────┐ ┌──────────────┐ ┌──────────────┐  │    │
+│  │ │ 🔒 VPN   │ │ 🌐 Website  │ │ 🔗 Network   │  │    │
+│  │ │  Access  │ │   Access    │ │   Access     │  │    │
+│  │ └──────────┘ └──────────────┘ └──────────────┘  │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ [SECTION 1] PEMOHON                              │    │
+│  │                                                   │    │
+│  │  Nama:        [Auto-fill dari profil]            │    │
+│  │  E-mail:      [Auto-fill dari profil]            │    │
+│  │  Jabatan:     [Auto-fill dari profil]            │    │
+│  │  Departemen:  [Auto-fill dari profil]            │    │
+│  │                                                   │    │
+│  │  ── DETAIL AKSES ──                              │    │
+│  │                                                   │    │
+│  │  Kebutuhan Akses:                                │    │
+│  │    ☑ Remote PC Kantor  ☐ Jaringan Kantor         │    │
+│  │                                                   │    │
+│  │  Dari:     [________]  Sampai:  [________]       │    │
+│  │  Alasan:   [________________________...]         │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ [SECTION 2] SYARAT & KETENTUAN                   │    │
+│  │  (Locked sampai Section 1 lengkap)               │    │
+│  │                                                   │    │
+│  │  [Teks T&C dari server...]                       │    │
+│  │                                                   │    │
+│  │  ☐ Saya mengerti dan menyetujui Syarat &         │    │
+│  │    Ketentuan Akses VPN PT. Santos Jaya Abadi     │    │
+│  │                                                   │    │
+│  │  Tanggal  |  Nama Pemohon  |  Tanda Tangan       │    │
+│  │  [auto]   |  [auto]        |  [__ canvas __]     │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ [SECTION 3] PERSETUJUAN & SUBMIT                 │    │
+│  │  (Locked sampai T&C di-centang + tanda tangan)   │    │
+│  │                                                   │    │
+│  │  Pilih Atasan Persetujuan:                       │    │
+│  │  [________ Dropdown ________]                    │    │
+│  │                                                   │    │
+│  │  [ 📤 KIRIM PENGAJUAN ]                          │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Perubahan teknis:**
+- Hapus `step` state, `AnimatePresence`, navigation buttons (Next/Back)
+- Gunakan 3 `<section>` dengan CSS `opacity/pointer-events` untuk lock/unlock
+- Section 2 terbuka otomatis saat Section 1 form valid (semua required field terisi)
+- Section 3 terbuka otomatis saat checkbox T&C dicentang DAN signature sudah diisi
+- Auto-scroll ke section yang baru terbuka menggunakan `scrollIntoView`
+- Tambah form type selector di bagian atas (3 pilihan kartu: VPN, Website, Network)
+- Data pemohon auto-fill dari `useAuth()` user profile
+
+---
+
+### Component 2: Frontend — EformAccessListPage.tsx (UPDATE)
+
+#### [MODIFY] [EformAccessListPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx)
+
+Perubahan:
+- **Title**: "VPN Access Forms" → "E-Form Access"
+- **Subtitle**: Update deskripsi untuk mencakup 3 jenis form
+- **Button**: "New VPN Request" → "New Access Request"
+- **Card**: Tampilkan `formType` label (VPN / Website / Network) dengan warna berbeda
+- **Filter**: Tambah dropdown filter by `formType` selain filter by `status`
+- **Empty State**: Update copy text
+
+---
+
+### Component 3: Backend — Approval Inbox Endpoint (NEW)
+
+#### [MODIFY] [eform-request.controller.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/eform-request.controller.ts)
+
+Tambah endpoint baru:
+
+```typescript
+@Get('pending-approvals')
+@ApiOperation({ summary: 'Get requests pending my approval' })
+async getPendingApprovals(@Request() req) {
+  return this.eformRequestService.getPendingApprovals(req.user.userId);
+}
+```
+
+#### [MODIFY] [eform-request.service.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/eform-request.service.ts)
+
+Tambah method baru:
+
+```typescript
+async getPendingApprovals(userId: string) {
+  return this.eformRequestRepository.find({
+    where: { currentApproverId: userId },
+    order: { createdAt: 'DESC' },
+  });
+}
+```
+
+> [!NOTE]
+> Endpoint ini memungkinkan atasan melihat **hanya** request yang menunggu persetujuan mereka, tanpa harus menelusuri seluruh daftar. Bisa diintegrasikan dengan notifikasi sidebar atau dashboard.
+
+---
+
+### Component 4: Backend — Fix getApprovers() (UPDATE)
+
+#### [MODIFY] [users.service.ts](file:///d:/iDesk/apps/backend/src/modules/users/users.service.ts)
+
+**Saat ini** (line 493-499):
+```typescript
+async getApprovers(): Promise<User[]> {
+  return this.userRepo.find({
+    where: { isActive: true },  // ← Terlalu luas! Semua user aktif
+    order: { fullName: 'ASC' },
+    relations: ['department'],
+  });
+}
+```
+
+**Perbaikan:**
+```typescript
+async getApprovers(): Promise<User[]> {
+  return this.userRepo.find({
+    where: [
+      { role: UserRole.MANAGER, isActive: true },
+      { role: UserRole.ADMIN, isActive: true },
+    ],
+    order: { fullName: 'ASC' },
+    relations: ['department'],
+  });
+}
+```
+
+Ini memastikan ManagerSelector hanya menampilkan user dengan role MANAGER atau ADMIN.
+
+---
+
+### Component 5: Backend — FormType Enum Validation (UPDATE)
+
+#### [MODIFY] [create-eform-request.dto.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/dto/create-eform-request.dto.ts)
+
+Tambah validasi enum untuk `formType`:
+
+```typescript
+import { IsEnum } from 'class-validator';
+
+export enum EFormType {
+  VPN = 'VPN',
+  WEBSITE = 'WEBSITE',
+  NETWORK = 'NETWORK',
+}
+
+// Di DTO:
+@IsEnum(EFormType)
+formType: EFormType;
+```
+
+#### [MODIFY] [eform-request.entity.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/entities/eform-request.entity.ts)
+
+Update kolom `formType` untuk menggunakan enum:
+
+```typescript
+@Column({ type: 'enum', enum: EFormType, default: EFormType.VPN })
+formType: EFormType;
+```
+
+> [!NOTE]
+> Karena database PostgreSQL, perubahan enum ini memerlukan migration. TypeORM dengan `synchronize: true` akan otomatis menghandle, tapi jika production menggunakan migration manual, perlu dibuat migration file.
+
+---
+
+### Component 6: Frontend API — Tambah Hook Pending Approvals (UPDATE)
+
+#### [MODIFY] [eform-request.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/eform-request.api.ts)
+
+Tambah hook baru:
+
+```typescript
+export const usePendingApprovals = () => {
+  return useQuery<EFormRequest[]>({
+    queryKey: ['eform-pending-approvals'],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_BASE}/pending-approvals`);
+      return Array.isArray(data) ? data : [];
+    },
+  });
+};
+```
+
+---
+
+## D. File Change Summary
+
+| Action | File | Deskripsi |
+|--------|------|-----------|
+| **REWRITE** | `EformAccessCreatePage.tsx` | Wizard → single-page scrollable, 3 sections, form type selector |
+| **MODIFY** | `EformAccessListPage.tsx` | Title, button, card labels, filter by formType |
+| **MODIFY** | `eform-request.controller.ts` | + `GET /pending-approvals` endpoint |
+| **MODIFY** | `eform-request.service.ts` | + `getPendingApprovals()` method |
+| **MODIFY** | `users.service.ts` | Fix `getApprovers()` filter hanya MANAGER+ADMIN |
+| **MODIFY** | `create-eform-request.dto.ts` | + `EFormType` enum, validasi `formType` |
+| **MODIFY** | `eform-request.entity.ts` | `formType` kolom → enum type |
+| **MODIFY** | `eform-request.api.ts` | + `usePendingApprovals` hook |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Pertanyaan yang mempengaruhi implementasi:**
+>
+> 1. **Kolom form per jenis**: Apakah form Website Access dan Network Access punya kolom yang berbeda dari VPN? (misalnya: URL target untuk Website, VLAN/IP range untuk Network) — atau ketiga form punya kolom yang sama (Kebutuhan, Dari/Sampai, Alasan)?
+>
+> 2. **T&C per jenis form**: Apakah Syarat & Ketentuan berbeda untuk setiap jenis form, atau satu T&C universal?
+>
+> 3. **Approval chain**: Saat ini ada 2 tier approval (Manager 1 → Manager 2/GM → ICT). Apakah ini tetap sama untuk ketiga jenis form?
+>
+> 4. **Tanda tangan di Section 2 vs Section 3**: Berdasarkan PDF, tanda tangan pemohon ada di bawah T&C (Section 2). Apakah pilih atasan harus di bagian terpisah (Section 3) atau digabung dengan tanda tangan?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Backend build check
+cd apps/backend && npm run build
+
+# Frontend build check  
+cd apps/frontend && npm run build
+```
+
+### Manual Verification (Browser Testing)
+1. **Form Layout**: Buka `/eform-access/new` → verifikasi layout scrollable, bukan wizard
+2. **Progressive Disclosure**: Section 2 locked → isi Section 1 → Section 2 terbuka
+3. **T&C Gate**: Centang T&C + tanda tangan → Section 3 terbuka
+4. **Form Type**: Pilih VPN/Website/Network → verifikasi label & data tersimpan benar
+5. **Manager Filter**: ManagerSelector hanya menampilkan MANAGER + ADMIN
+6. **Pending Approvals**: Login sebagai Manager → hit `/eform-request/pending-approvals` → verifikasi hanya request yang menunggu approval mereka
+7. **List Page**: Verifikasi title "E-Form Access", filter by formType berfungsi

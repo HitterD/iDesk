@@ -1,0 +1,240 @@
+# Notification Center — Full-Stack Improvement Plan
+
+## Current State
+
+Notification Center sudah functional tapi punya masalah significant di UI/UX, code quality, dan feature completeness.
+
+### Files Involved
+
+**Frontend:**
+- [NotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationCenter.tsx) — Main page (660 lines)
+- [NotificationCenterPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/notifications/pages/NotificationCenterPage.tsx) — Wrapper page
+- [NotificationPopover.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationPopover.tsx) — Bell icon dropdown (371 lines)
+- [InAppNotificationToast.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/InAppNotificationToast.tsx) — Toast notifications (262 lines)
+- [CriticalNotificationModal.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/CriticalNotificationModal.tsx) — Critical alert modal (265 lines)
+- [ClientNotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/features/client/pages/ClientNotificationCenter.tsx) — Client view (365 lines)
+- [useNotificationCenter.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationCenter.ts) — Hook logic (189 lines)
+- [useNotificationQueries.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationQueries.ts) — API queries
+- [notification.types.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/types/notification.types.ts) — Type definitions
+- [notificationRouter.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/utils/notificationRouter.ts) — Route utility
+- [NotificationSettings.tsx](file:///d:/iDesk-main/apps/frontend/src/features/settings/components/NotificationSettings.tsx) — Settings page (545 lines)
+
+**Backend:**
+- [notification.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.controller.ts) — API controller (126 lines)
+- [notification.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.service.ts) — Service (352 lines)
+- [notification-center.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification-center.service.ts) — Center service (559 lines)
+- [notification.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/entities/notification.entity.ts) — Entity (134 lines)
+- [notification-preference.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/entities/notification-preference.entity.ts) — Preferences entity
+- [notification-routes.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/config/notification-routes.ts) — Route config
+
+---
+
+## Issues Found
+
+### P0 — Critical Bugs
+
+| # | Issue | File | Line |
+|---|-------|------|------|
+| 1 | **Type mismatch**: Frontend `notification.types.ts` hanya 3 categories (TICKET/RENEWAL/HARDWARE), backend punya 5 (+ ZOOM, EFORM). Missing categories = silent data loss | [notification.types.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/types/notification.types.ts) | All |
+| 2 | **Type mismatch**: Frontend `NotificationType` enum hanya 17 types, backend punya 33+ types. Zoom, E-Form, VPN, ICT Budget types missing = icon/routing errors | [notification.types.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/types/notification.types.ts) | All |
+| 3 | **Delete button bug**: Delete icon di notification item trigger `handleBulkDelete()` bukan single delete — menghapus semua selected items instead of single item | [NotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationCenter.tsx#L372-L380) | 372-380 |
+
+### P1 — Functional Issues
+
+| # | Issue | File | Details |
+|---|-------|------|---------|
+| 4 | **No pagination** — hardcoded `limit=100`. Large notification sets = slow load, missing data | [useNotificationQueries.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationQueries.ts) | line 27 |
+| 5 | **Bulk operations inefficient** — `bulkDeleteMutation` sends N individual DELETE requests via `Promise.all`. Should be single batch endpoint | [useNotificationQueries.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationQueries.ts) | line 74-77 |
+| 6 | **No real-time updates** — NotificationCenter page doesn't listen to socket events, unlike Popover. New notifications don't appear live | [NotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationCenter.tsx) | Missing |
+| 7 | **Route mismatch** — Frontend router missing routes for ZOOM/EFORM categories. Backend has `NOTIFICATION_ROUTES` with 5 categories, frontend `notificationRouter.ts` only handles 3 | [notificationRouter.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/utils/notificationRouter.ts) | line 13-40 |
+| 8 | **No bulk delete endpoint** — Backend hanya punya single delete + delete all. No batch delete for selected IDs | [notification.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.controller.ts) | Missing |
+| 9 | **CriticalNotificationModal uses emoji** — `🚨 URGENT ACTION REQUIRED` dan `⚠️ RENEWAL ATTENTION NEEDED` pakai emoji, bukan icon enterprise | [CriticalNotificationModal.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/CriticalNotificationModal.tsx) | line 173 |
+
+### P2 — UI/UX Issues
+
+| # | Issue | Details |
+|---|-------|---------|
+| 10 | **No icon for new categories** — NOTIFICATION_ICONS missing: ICT_BUDGET_*, HARDWARE_INSTALL_REQUESTED/APPROVED/RESCHEDULED/COMPLETED, ZOOM_*, VPN_*, EFORM_* types. Default to Bell (generic) |
+| 11 | **No Zoom/E-Form stat cards** — StatCards only show 4: Total, Tickets, Hardware, Renewals. Zoom + E-Form missing |
+| 12 | **Empty state is boring** — Simple icon + text, no suggestion or action. Should guide user |
+| 13 | **No loading skeletons** — Just spinner. Should show shimmer/skeleton placeholders per notification row |
+| 14 | **Monolithic component** — NotificationCenter.tsx 660 lines in one file. StatCard, NotificationItem, DateGroupHeader should be separate components |
+| 15 | **Duplicate code** — `formatTimeAgo()`, `getDateGroup()`, `groupNotificationsByDate()`, icon mappings duplicated across NotificationCenter, NotificationPopover, ClientNotificationCenter, InAppNotificationToast (4 copies!) |
+| 16 | **ClientNotificationCenter outdated** — Doesn't use `useNotificationCenter` hook, no selection mode, no search, no expanding, basic design vs admin version |
+| 17 | **No notification priority indicator** — Critical/SLA_BREACHED/RENEWAL_EXPIRED should have stronger visual hierarchy |
+| 18 | **Font generic** — Uses default system font, no distinctive typography |
+| 19 | **No keyboard shortcut hints** — Has `j/k/Enter/d/r` keyboard shortcuts but no visual indicator or help tooltip |
+
+---
+
+## Proposed Changes
+
+### Phase 1: Backend Improvements
+
+#### [MODIFY] [notification.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.controller.ts)
+- Add `POST /notifications/bulk-delete` — batch delete endpoint (accepts array of IDs)
+- Add `POST /notifications/bulk-read` — batch mark-as-read endpoint (accepts array of IDs)
+- Add pagination support to `GET /notifications` — `page`, `limit`, return `{ data, total, page, pageSize }`
+
+#### [MODIFY] [notification.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.service.ts)
+- Add `bulkDelete(ids: string[], userId: string)` — single query bulk delete
+- Add `bulkMarkAsRead(ids: string[], userId: string)` — single query bulk update
+- Modify `findAllForUser` to return paginated response with total count
+
+---
+
+### Phase 2: Frontend Types & Utilities (DRY)
+
+#### [MODIFY] [notification.types.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/types/notification.types.ts)
+- Sync `NotificationCategory` enum → add `CATEGORY_ZOOM`, `CATEGORY_EFORM` (match backend)
+- Sync `NotificationType` enum → add all 33+ types from backend entity
+- Add `PaginatedResponse<T>` interface
+
+#### [NEW] [notification.constants.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/constants/notification.constants.ts)
+- Single source of truth: `NOTIFICATION_ICONS` mapping (all 33+ types → Lucide icons, NO emoji)
+- `NOTIFICATION_COLORS` mapping
+- `NOTIFICATION_LABELS` mapping (human-readable labels per type)
+- `CATEGORY_CONFIG` — stat card configs (icon, color, label) per category
+
+#### [NEW] [notification.utils.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/utils/notification.utils.ts)
+- Extract: `formatTimeAgo()`, `getDateGroup()`, `groupNotificationsByDate()` → single source, remove 4 duplicates
+
+#### [MODIFY] [notificationRouter.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/utils/notificationRouter.ts)
+- Add routes for `CATEGORY_ZOOM` → `/zoom-calendar`
+- Add routes for `CATEGORY_EFORM` → `/eform-access`
+
+---
+
+### Phase 3: Component Decomposition
+
+#### [NEW] [NotificationItem.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationItem.tsx)
+- Extracted notification row component
+- Enterprise icons from constants (no emoji)
+- Priority visual indicator (red pulse for critical, orange for warning)
+- Proper a11y: `role="listitem"`, keyboard focus styles
+
+#### [NEW] [NotificationStatCard.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationStatCard.tsx)
+- Extracted stat card component
+- Reusable across admin + client pages
+- Support 5 categories (Ticket, Hardware, Renewal, Zoom, E-Form)
+
+#### [NEW] [NotificationSkeleton.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationSkeleton.tsx)
+- Loading skeleton — shimmer animation for notification rows
+- Replace spinner with progressive skeleton loading
+
+#### [NEW] [NotificationDateGroup.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationDateGroup.tsx)
+- Date group header component
+- Collapsible with chevron animation
+
+#### [NEW] [NotificationToolbar.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationToolbar.tsx)
+- Search, filter, selection mode controls
+- Keyboard shortcut hints (`?` to show shortcuts panel)
+
+#### [NEW] [NotificationEmptyState.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationEmptyState.tsx)
+- Rich empty state with contextual messaging
+- Quick action buttons (e.g., "Go to tickets", "View all")
+- Enterprise illustration (SVG-based, no emoji)
+
+---
+
+### Phase 4: Main Component Rewrite
+
+#### [MODIFY] [NotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationCenter.tsx)
+**Complete rewrite using extracted components:**
+- Premium **Luxury/Refined** aesthetic matching iDesk design system
+- Import from constants/utils instead of inline definitions
+- 5 stat cards (add Zoom + E-Form)
+- Skeleton loading state
+- Rich empty state
+- Keyboard shortcut hints panel (`?` toggle)
+- Real-time socket integration (listen for `notification:${userId}`)
+- Infinite scroll / load more (pagination support)
+- Fix delete button bug (single delete, not bulk)
+- Responsive improvements: mobile-first layout
+- Subtle staggered entry animations (CSS-only, no framer-motion dependency check needed — already using `animationDelay`)
+- **NO emoji anywhere** — all Lucide icons
+
+#### [MODIFY] [CriticalNotificationModal.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/CriticalNotificationModal.tsx)
+- Replace emoji `🚨` → `<AlertTriangle />` Lucide icon with red color
+- Replace emoji `⚠️` → `<AlertTriangle />` Lucide icon with orange color
+- Enterprise styling
+
+---
+
+### Phase 5: Query & Hook Updates
+
+#### [MODIFY] [useNotificationQueries.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationQueries.ts)
+- Replace `Promise.all(ids.map(...))` bulk ops → single batch API call
+- Add pagination support (`page` parameter, return total count)
+- Add `useInfiniteQuery` option for infinite scroll
+
+#### [MODIFY] [useNotificationCenter.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationCenter.ts)
+- Add socket listener for real-time updates
+- Add pagination state (page, hasMore)
+- Add `TabValue` expand: add `'zoom'` and `'eform'` tabs
+- Add keyboard shortcut help state
+
+---
+
+### Phase 6: Popover & Toast Sync
+
+#### [MODIFY] [NotificationPopover.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationPopover.tsx)
+- Import shared constants/utils instead of inline duplicates
+- Add missing notification types to icon mapping (sync with constants)
+
+#### [MODIFY] [InAppNotificationToast.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/InAppNotificationToast.tsx)
+- Import shared constants/utils instead of inline duplicates
+- Ensure all 33+ types mapped
+
+#### [MODIFY] [ClientNotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/features/client/pages/ClientNotificationCenter.tsx)
+- Modernize to use shared components (NotificationItem, NotificationSkeleton, etc.)
+- Import shared utils (remove duplicate `formatTimeAgo`, etc.)
+- Add search capability
+- Match admin design quality
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **5 Stat Cards vs 4**: Backend support 5 categories (Ticket, Hardware, Renewal, Zoom, E-Form). Mau tampilkan semua 5 sebagai stat cards, atau tetap 4 + group Zoom/E-Form ke "Other"?
+
+> [!IMPORTANT]
+> **Infinite Scroll vs Pagination**: Prefer load more button (click to load next page) atau true infinite scroll (auto-load on scroll bottom)?
+
+> [!IMPORTANT]
+> **Tab Layout**: Saat ini tab pakai stat cards. Apakah tetap stat cards sebagai tab, atau mau tambah horizontal tab bar terpisah di bawah stat cards?
+
+> [!WARNING]
+> **ClientNotificationCenter**: Client version sangat outdated vs admin version. Scope ini include modernize client page juga, atau focus admin page dulu?
+
+---
+
+## Open Questions
+
+1. **Design System**: Apakah ada custom font yang sudah dipakai di halaman lain iDesk? (Saya lihat pakai default system font)
+2. **Notification Sound**: `useSoundNotification.ts` exist — apakah perlu integrate sound toggle ke notification center page?
+3. **Priority Level**: Backend entity punya apakah ada `priority` field? Saya tidak menemukan di entity, tapi service ada reference. Need confirmation.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- TypeScript compilation check (`tsc --noEmit`)
+- Backend: existing test suite run
+- Visual: browser subagent screenshot before/after
+
+### Manual Verification
+- Baca ulang semua file yang dimodifikasi
+- Test di browser: open notification center, verify:
+  - Stat cards show all categories
+  - Notifications load with skeleton
+  - Click notification → expand → view details (navigate)
+  - Bulk select → bulk mark read / bulk delete
+  - Search filter works
+  - Real-time: new notification appears without refresh
+  - Delete single item (not bulk)
+  - Critical modal has no emoji
+  - Empty state shows proper message
+  - Keyboard shortcuts functional (j/k/Enter/d/r)

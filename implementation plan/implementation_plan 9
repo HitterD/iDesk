@@ -1,0 +1,183 @@
+# Hardware Requests — Design Overhaul
+
+Perbaikan menyeluruh desain modul Hardware Requests untuk menghilangkan "AI slop" (warna ungu generik), memperbaiki dark mode yang rusak, dan meningkatkan kualitas visual agar sesuai design system **Warm Ivory & Sapphire** yang sudah ada di `tokens.css`.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Warna ungu akan dihapus sepenuhnya** dari seluruh modul Hardware Requests dan diganti dengan warna dari design system yang sudah ada (`--primary: Sapphire`, `--accent: Amber`, `--success`, dll). Ini akan mengubah tampilan Installation tab, installation badges, dan Installation Progress section secara signifikan.
+
+> [!WARNING]
+> **6 komponen tidak punya dark mode sama sekali** — `InstallationTab.tsx`, `InstallationProgressSection.tsx` paling parah karena menggunakan hardcoded `bg-white`, `text-gray-*`, `border-gray-*` tanpa variant `dark:`. Screenshot dark mode yang user berikan membuktikan tabel Installation hancur.
+
+---
+
+## Analisis Masalah
+
+### 1. Warna Ungu = AI Slop
+Berdasarkan [Frontend Design Plugin Prompt](file:///d:/iDesk-main/prompt/frontend-design-plugin-prompt.md) Phase 4:
+> ❌ "Purple gradient on white background" → ✅ "Commit to an unexpected, context-specific palette"
+
+File-file yang menggunakan warna ungu hardcoded di modul ini:
+
+| File | Penggunaan Purple |
+|------|-------------------|
+| [HardwareRequestPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx#L33-L35) | Installation tab: `bg-purple-600`, `text-purple-700`, `hover:bg-purple-50` |
+| [HardwareRequestCardItem.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/HardwareRequestCardItem.tsx#L72) | Installation badge: `bg-purple-100 text-purple-700` |
+| [HardwareRequestListItem.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/HardwareRequestListItem.tsx#L70) | Installation badge: `bg-purple-100 text-purple-700` |
+| [InstallationProgressSection.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationProgressSection.tsx#L37-L67) | Seluruh section: `bg-purple-50`, `text-purple-700`, `border-purple-200`, `bg-[#f8f6ff]`, `border-[#e0d9f7]` |
+| [InstallationTab.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationTab.tsx#L80-L152) | Filter tabs: `bg-indigo-600`, hover: `bg-indigo-50/30`, text: `text-indigo-600`, pagination: `bg-indigo-600` |
+
+### 2. Dark Mode Rusak Total
+Komponen-komponen berikut menggunakan hardcoded light-mode colors tanpa variant `dark:`:
+
+| File | Masalah |
+|------|---------|
+| [InstallationTab.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationTab.tsx) | **0 dark variant** — `bg-gray-100`, `text-gray-700`, `border-gray-200`, `bg-gray-50`, `text-gray-500`, `bg-gray-400`, `hover:bg-gray-200`, `hover:bg-gray-50` |
+| [InstallationProgressSection.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationProgressSection.tsx) | **0 dark variant** — `bg-white`, `text-gray-900`, `text-gray-500`, hardcoded hex `#f8f6ff`, `#e0d9f7` |
+
+### 3. Desain Terlalu Basic
+- InstallationTab menggunakan plain `<table>` tanpa premium styling
+- Filter buttons tidak konsisten dengan tab bar di parent page
+- Tidak ada micro-interactions atau hover effects
+- Pagination sederhana tanpa styling konsisten
+
+---
+
+## Proposed Changes
+
+### Komponen Halaman Utama
+
+---
+
+#### [MODIFY] [HardwareRequestPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+
+**Perubahan:**
+1. **Installation tab color**: `purple` → menggunakan `--accent` (Amber) atau `--primary` (Sapphire) — konsisten dengan tab lainnya
+2. Tab styling: `bg-purple-600` → `bg-[hsl(var(--accent))]` dengan `text-accent-foreground`
+3. Inactive: `text-purple-700 hover:bg-purple-50` → `text-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/5`
+4. Menyederhanakan logic — tidak perlu special-case `isInstallation` untuk warna
+
+```diff
+- { label: 'Installation', value: 'INSTALLATION', icon: Wrench, color: 'purple' },
++ { label: 'Installation', value: 'INSTALLATION', icon: Wrench, color: 'amber' },
+```
+
+```diff
+- ? isInstallation ? 'bg-purple-600 text-white shadow-md' : 'bg-[hsl(var(--primary))] text-white shadow-md' 
+- : isInstallation ? 'text-purple-700 hover:bg-purple-50' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
++ ? 'bg-[hsl(var(--primary))] text-white shadow-md'
++ : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+```
+
+---
+
+#### [MODIFY] [InstallationTab.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationTab.tsx)
+
+**Perubahan kritis — komponen ini butuh rewrite styling hampir total:**
+
+1. **Filter buttons**: `bg-indigo-600` → `bg-[hsl(var(--primary))]`, `bg-gray-100 text-gray-700` → `bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground`
+2. **Search input**: `border-gray-300 focus:ring-indigo-500` → `border-[hsl(var(--border))] bg-[hsl(var(--card))] focus:ring-[hsl(var(--primary))]`
+3. **Table container**: `border-gray-200` → `border-[hsl(var(--border))]`
+4. **Table header**: `bg-gray-50 text-gray-500` → `bg-muted/50 text-muted-foreground dark:bg-muted/30`
+5. **Table rows**: `border-gray-100 hover:bg-indigo-50/30` → `border-[hsl(var(--border))] hover:bg-muted/30`
+6. **Cell text**: Semua `text-gray-*` → semantic tokens (`text-[hsl(var(--foreground))]`, `text-muted-foreground`)
+7. **Avatar circles**: `bg-blue-500` → `bg-[hsl(var(--primary))]`, `bg-emerald-500` → `bg-[hsl(var(--success-500))]`
+8. **Status badges di `getStatusBadge()`**: Tambahkan dark mode variants
+9. **Site badge**: `bg-gray-100 text-gray-700` → `bg-muted text-muted-foreground`
+10. **Pagination**: `bg-indigo-600 border-indigo-600` → `bg-[hsl(var(--primary))] border-[hsl(var(--primary))]`, semua `hover:bg-gray-50` → `hover:bg-muted`
+11. **Empty/Loading state**: `text-gray-400` → `text-muted-foreground`
+12. **Pagination info**: `text-gray-500` → `text-muted-foreground`
+
+---
+
+#### [MODIFY] [InstallationProgressSection.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationProgressSection.tsx)
+
+**Perubahan total — setiap baris styling perlu diganti:**
+
+1. **Container**: `bg-[#f8f6ff] border-[#e0d9f7]` → `bg-[hsl(var(--primary))]/5 border-[hsl(var(--primary))]/15 dark:bg-[hsl(var(--primary))]/10 dark:border-[hsl(var(--primary))]/20`
+2. **Loading skeleton**: `bg-purple-50/50 border-purple-200` → token-based + dark variants
+3. **Header icon**: `text-purple-700` → `text-[hsl(var(--primary))]`
+4. **Header text**: `text-purple-800` → `text-[hsl(var(--foreground))]`
+5. **Badge**: `bg-purple-100 text-purple-700` → `bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]`
+6. **Item cards**: `bg-white` → `bg-[hsl(var(--card))]`
+7. **Item text**: `text-gray-900` → `text-[hsl(var(--foreground))]`
+8. **Sub-text**: `text-gray-500` → `text-muted-foreground`
+9. **Status colors di `getStatusColor()`**: Tambahkan dark variants + gunakan token
+
+---
+
+#### [MODIFY] [HardwareRequestCardItem.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/HardwareRequestCardItem.tsx)
+
+**Perubahan:**
+1. **Installation badge (in-progress)**: `bg-purple-100 text-purple-700` → `bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] dark:bg-[hsl(var(--primary))]/15 dark:text-[hsl(var(--primary))]`
+2. **"Belum ada instalasi" text**: `text-gray-400` → `text-muted-foreground`
+3. **Next schedule text**: `text-gray-500` → `text-muted-foreground`
+
+---
+
+#### [MODIFY] [HardwareRequestListItem.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/HardwareRequestListItem.tsx)
+
+**Perubahan:**
+1. **Installation badge (in-progress)**: `bg-purple-100 text-purple-700` → `bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] dark:bg-[hsl(var(--primary))]/15`
+
+---
+
+### Utility File
+
+---
+
+#### [MODIFY] [hardware-request.utils.ts](file:///d:/iDesk-main/apps/frontend/src/features/request-center/utils/hardware-request.utils.ts)
+
+Tidak ada perubahan warna ungu di sini — file ini sudah menggunakan design system tokens dengan benar. Status badge styles sudah include dark variants. ✅
+
+---
+
+## Rangkuman Perubahan Per Warna
+
+| Warna Lama | Warna Baru | Alasan |
+|------------|------------|--------|
+| `purple-600/700/800` | `hsl(var(--primary))` — Deep Sapphire | Design system primary color |
+| `purple-50/100` (bg) | `hsl(var(--primary))/5~10` | Transparan dari primary |
+| `indigo-600` | `hsl(var(--primary))` | Konsistensi design system |
+| `indigo-50/30` (hover) | `hsl(var(--muted))/30` atau `bg-muted/30` | Hover state semantik |
+| `gray-50/100/200/300/400/500/700/900` | Token semantik (`--foreground`, `--muted-foreground`, `--border`, `--card`, `--muted`) | Dark mode support |
+| `bg-white` / `bg-gray-50` | `bg-[hsl(var(--card))]` / `bg-muted/50` | Dark mode support |
+| Hex `#f8f6ff`, `#e0d9f7` | Token-based | Hardcoded hex → design system |
+| `bg-blue-500` (avatar) | `bg-[hsl(var(--primary))]` | Konsistensi |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Installation tab warna apa?** Saat ini purple, opsinya:
+> - **Opsi A**: Gunakan `--primary` (Sapphire) — sama seperti tab lain, konsisten & clean
+> - **Opsi B**: Gunakan `--accent` (Amber/Gold) — memberi aksen visual berbeda untuk tab "special"
+> 
+> **Rekomendasi: Opsi A** — konsistensi lebih penting, Installation bukan tab yang perlu di-highlight berbeda.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Build check: `npm run build` di `apps/frontend` untuk memastikan tidak ada error
+- Jalankan dev server dan buka halaman Hardware Requests
+
+### Manual Verification (Browser)
+1. **Light mode** — Buka `/hardware-requests`, cek semua tab, filter, tabel
+2. **Dark mode** — Toggle dark mode, pastikan:
+   - InstallationTab tabel terbaca (bukan text putih di bg putih)
+   - InstallationProgressSection background proper
+   - Semua badge status terlihat kontras
+   - Filter buttons & pagination proper
+3. **Ticket list** — Cek `TicketListRow` installation highlight masih proper
+4. **Card view vs List view** — Cek installation badge di kedua mode
+
+### File-file yang TIDAK diubah (skop terbatas)
+- `TicketListRow.tsx` — purple di sini untuk installation highlight di Ticket Board, bukan bagian request-center
+- `AccessRequestForm.tsx` — purple/indigo di sini untuk Access Request, scope berbeda
+- `ReportsPage.tsx` / charts — konteks berbeda

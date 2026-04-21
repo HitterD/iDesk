@@ -1,0 +1,167 @@
+# Redesign Halaman Hardware Request Create (`/hardware-requests/new`)
+
+## Masalah Saat Ini
+
+Berdasarkan analisis screenshot dan kode sumber, halaman ini memiliki beberapa masalah kritis:
+
+> [!CAUTION]
+> **Kontras & Warna**: Seluruh halaman menggunakan warna warm ivory/beige yang sama — card, background, input, button — sehingga TIDAK ADA pembeda visual antar elemen. Semua terlihat menyatu dan sulit dibaca.
+
+> [!WARNING]
+> **Layout**: Grid 2-kolom (5:7) membuat form terasa cramped. Request Type dan Category di kiri terlalu sempit, Items List di kanan juga terbatas.
+
+**Detail masalah:**
+| Elemen | Masalah |
+|--------|---------|
+| Request Type buttons | Warna sama dengan background, hanya border tipis yang membedakan selected/unselected |
+| Category dropdown | Blend dengan card di belakangnya, tidak ada visual hierarchy |
+| Items input | Background input `hsl(var(--input))` hampir sama dengan card — sulit dibedakan |
+| Labels | `text-[10px] uppercase tracking-widest` terlalu kecil dan sulit dibaca |
+| Stepper | Minimalis tapi kurang jelas — step number kecil, connection line terlalu tipis |
+| Overall | Tidak ada penggunaan warna semantik (sapphire, amber, teal) dari design tokens |
+
+---
+
+## Arah Desain: **Refined & Functional**
+
+Mengikuti panduan Frontend Design Plugin, estetika yang dipilih: **Luxury / Refined** — high contrast, clear hierarchy, intentional use of color.
+
+**Prinsip redesign:**
+1. **Single-column layout** — lebih lega, tidak cramped
+2. **Numbered sections** dengan visual markers — user tahu di bagian mana mereka
+3. **Warna semantik** — setiap request type punya warna identitas sendiri
+4. **High contrast** — input fields jelas terlihat, labels readable
+5. **Hapus policy information** — sudah tidak diperlukan (✅ done)
+
+---
+
+## Proposed Changes
+
+### Component 1: IctBudgetRequestForm (Form Utama)
+
+#### [MODIFY] [IctBudgetRequestForm.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/IctBudgetRequestForm.tsx)
+
+**Perubahan layout dari 2-kolom → single-column dengan numbered sections:**
+
+```
+BEFORE (2-kolom cramped):
+┌─────────────────┬──────────────────────┐
+│ Request Type    │ Requirements List     │
+│ [PURCHASE]      │ [01] [input.........]│
+│ [RENEWAL ]      │ [+ Add Another]      │
+│ [LICENSE ]      │                      │
+│                 │                      │
+│ Category        │                      │
+│ [HARDWARE ▼]    │                      │
+└─────────────────┴──────────────────────┘
+
+AFTER (single-column, numbered sections):
+┌────────────────────────────────────────┐
+│ ① REQUEST TYPE                         │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐│
+│ │🛒 Purchase│ │🔄 Renewal│ │🔑 License││
+│ │ selected  │ │          │ │          ││
+│ └──────────┘ └──────────┘ └──────────┘│
+├────────────────────────────────────────┤
+│ ② CATEGORY                             │
+│ ┌──────────────────────────────────┐   │
+│ │ 🏷️ HARDWARE                  ▼  │   │
+│ └──────────────────────────────────┘   │
+├────────────────────────────────────────┤
+│ ③ PROCUREMENT ITEMS          2 items   │
+│ ┌─┐ ┌──────────────────────┐ ┌───┐    │
+│ │1│ │ Laptop MacBook Pro    │ │ 🗑│    │
+│ └─┘ └──────────────────────┘ └───┘    │
+│ ┌─┐ ┌──────────────────────┐ ┌───┐    │
+│ │2│ │ Monitor Dell 27"      │ │ 🗑│    │
+│ └─┘ └──────────────────────┘ └───┘    │
+│ ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐  │
+│ │        + Add Another Item        │  │
+│ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘  │
+└────────────────────────────────────────┘
+```
+
+**Detail perubahan styling:**
+
+1. **Request Type Cards** — 3 kartu horizontal dengan ikon & warna distinktif:
+   - `PURCHASE`: ikon `ShoppingCart`, warna sapphire blue accent saat selected
+   - `RENEWAL`: ikon `RefreshCw`, warna amber accent saat selected
+   - `LICENSE`: ikon `KeyRound`, warna teal/success accent saat selected
+   - Unselected: white bg + solid border, clearly different from selected
+
+2. **Category Dropdown** — Lebih besar, lebih jelas:
+   - Background putih solid (bukan `bg-input` yang transparan)
+   - Border lebih tebal saat focus
+   - Ukuran font dinaikkan dari `text-xs` → `text-sm`
+
+3. **Items List** — Kontras tinggi:
+   - Number badge: solid sapphire blue background, white text
+   - Input field: `bg-white` dengan `border-2` yang jelas
+   - Placeholder text: lebih visible (`opacity-50` → `opacity-70`)
+   - Delete button: more prominent red
+
+4. **Section Headers** — Labels readable:
+   - Font size: `text-[10px]` → `text-xs` (12px)
+   - Tambah numbered step indicator (①②③) dengan warna primary
+   - Tidak semua uppercase — title case lebih readable
+
+5. **Spacing** — Sections terpisah jelas:
+   - Gap antar sections: `gap-8`
+   - Padding internal: `p-6` → `p-8`
+   - Divider/border antar sections
+
+---
+
+### Component 2: RequestWizard (Stepper & Navigation)
+
+#### [MODIFY] [RequestWizard.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/RequestWizard.tsx)
+
+**Perubahan stepper:**
+- Step circles: lebih besar (`w-12 h-12` → `w-14 h-14`)
+- Active step: filled primary color (bukan outline)
+- Connection line: lebih tebal dan progress-aware (filled portion)
+- Step labels: font size naik, tidak `opacity-40` untuk inactive
+
+---
+
+### Component 3: HardwareRequestCreatePage (Page Wrapper)
+
+#### [MODIFY] [HardwareRequestCreatePage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestCreatePage.tsx)
+
+**Perubahan:**
+- Header subtitle: font size naik, warna lebih kontras
+- Review step (Step 2): tetap sama, hanya perbaikan kontras minor
+- Hapus policy info disclaimer yang tersisa di step 2
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Layout Change**: Dari 2-kolom menjadi single-column. Ini mengubah visual secara signifikan. Form akan terasa lebih lega tapi halaman jadi lebih panjang (scroll).
+
+> [!IMPORTANT]
+> **Request Type Cards**: Setiap type akan punya warna identitas sendiri (Purchase=blue, Renewal=amber, License=teal). Apakah ini sesuai harapan?
+
+---
+
+## Open Questions
+
+1. **Font size label**: Apakah `text-xs` (12px) cukup besar, atau mau `text-sm` (14px)?
+2. **Back button di header**: Tetap dipertahankan atau tidak perlu karena wizard sudah ada tombol back?
+3. **Request Type icons**: Ada preferensi ikon tertentu selain yang saya usulkan (ShoppingCart, RefreshCw, KeyRound)?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Build check: `npm run build` — pastikan tidak ada TypeScript error
+- Smoke test: buka `/hardware-requests/new` di browser
+
+### Manual Verification
+- Buka halaman di browser, bandingkan before/after
+- Cek kontras warna dengan visual inspection
+- Test flow: pilih request type → pilih category → tambah items → klik Continue → review → submit
+- Test responsive behavior (resize browser)
+- Pastikan existing logic (form validation, submit API) tetap berfungsi

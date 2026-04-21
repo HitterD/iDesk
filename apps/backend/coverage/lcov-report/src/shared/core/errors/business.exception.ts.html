@@ -1,0 +1,487 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/shared/core/errors/business.exception.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../../prettify.css" />
+    <link rel="stylesheet" href="../../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../../index.html">All files</a> / <a href="index.html">src/shared/core/errors</a> business.exception.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/11</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/6</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/2</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/11</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { HttpException } from '@nestjs/common';</span>
+<span class="cstat-no" title="statement not covered" >import { ErrorCode, ErrorCodeHttpStatus } from './error-codes.enum';</span>
+&nbsp;
+/**
+ * BusinessException - Custom exception for business logic errors
+ * 
+ * Uses standardized error codes and provides consistent error responses.
+ * 
+ * Usage:
+ * throw new BusinessException(ErrorCode.TKT_NOT_FOUND, 'Ticket with ID xxx not found');
+ * throw new BusinessException(ErrorCode.USR_EMAIL_EXISTS);
+ */
+<span class="cstat-no" title="statement not covered" >export class B</span>usinessException extends HttpException {
+    public readonly errorCode: ErrorCode;
+    public readonly details?: Record&lt;string, any&gt;;
+    public readonly timestamp: string;
+&nbsp;
+<span class="fstat-no" title="function not covered" >    constructor(</span>
+        errorCode: ErrorCode,
+        message?: string,
+        details?: Record&lt;string, any&gt;,
+    ) {
+        const httpStatus = <span class="cstat-no" title="statement not covered" >ErrorCodeHttpStatus[errorCode] || 500;</span>
+        const errorMessage = <span class="cstat-no" title="statement not covered" >message || getDefaultMessage(errorCode);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        super(</span>
+            {
+                statusCode: httpStatus,
+                errorCode: errorCode,
+                message: errorMessage,
+                details: details,
+                timestamp: new Date().toISOString(),
+            },
+            httpStatus,
+        );
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        this.errorCode = errorCode;</span>
+<span class="cstat-no" title="statement not covered" >        this.details = details;</span>
+<span class="cstat-no" title="statement not covered" >        this.timestamp = new Date().toISOString();</span>
+    }
+}
+&nbsp;
+/**
+ * Default messages for error codes
+ * These are fallback messages when no custom message is provided
+ */
+function <span class="fstat-no" title="function not covered" >getDefaultMessage(</span>errorCode: ErrorCode): string {
+    const defaultMessages: Record&lt;ErrorCode, string&gt; = <span class="cstat-no" title="statement not covered" >{</span>
+        // Auth
+        [ErrorCode.AUTH_INVALID_CREDENTIALS]: 'Invalid email or password',
+        [ErrorCode.AUTH_TOKEN_EXPIRED]: 'Your session has expired. Please log in again',
+        [ErrorCode.AUTH_TOKEN_INVALID]: 'Invalid authentication token',
+        [ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS]: 'You do not have permission to perform this action',
+        [ErrorCode.AUTH_USER_DISABLED]: 'Your account has been disabled',
+        [ErrorCode.AUTH_SESSION_EXPIRED]: 'Your session has expired',
+        [ErrorCode.AUTH_MFA_REQUIRED]: 'Multi-factor authentication is required',
+        [ErrorCode.AUTH_PASSWORD_MISMATCH]: 'Current password is incorrect',
+        [ErrorCode.AUTH_PASSWORD_TOO_WEAK]: 'Password does not meet security requirements',
+&nbsp;
+        // CSRF
+        [ErrorCode.CSRF_TOKEN_MISSING]: 'CSRF token is missing',
+        [ErrorCode.CSRF_TOKEN_INVALID]: 'CSRF token is invalid',
+        [ErrorCode.CSRF_TOKEN_EXPIRED]: 'CSRF token has expired',
+&nbsp;
+        // Rate Limiting
+        [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Too many requests. Please try again later',
+        [ErrorCode.RATE_WS_CONNECTION_EXCEEDED]: 'Connection rate limit exceeded',
+        [ErrorCode.RATE_WS_MESSAGE_EXCEEDED]: 'Message rate limit exceeded',
+&nbsp;
+        // Tickets
+        [ErrorCode.TKT_NOT_FOUND]: 'Ticket not found',
+        [ErrorCode.TKT_ALREADY_CLOSED]: 'This ticket is already closed',
+        [ErrorCode.TKT_SLA_BREACH]: 'SLA has been breached for this ticket',
+        [ErrorCode.TKT_INVALID_STATUS_TRANSITION]: 'Invalid status transition',
+        [ErrorCode.TKT_ATTACHMENT_TOO_LARGE]: 'Attachment file is too large',
+        [ErrorCode.TKT_ASSIGNEE_NOT_FOUND]: 'Assignee not found',
+        [ErrorCode.TKT_DUPLICATE]: 'A similar ticket already exists',
+        [ErrorCode.TKT_LOCKED]: 'This ticket is locked for editing',
+&nbsp;
+        // Users
+        [ErrorCode.USR_NOT_FOUND]: 'User not found',
+        [ErrorCode.USR_EMAIL_EXISTS]: 'An account with this email already exists',
+        [ErrorCode.USR_INVALID_ROLE]: 'Invalid user role specified',
+        [ErrorCode.USR_CANNOT_DELETE_SELF]: 'You cannot delete your own account',
+        [ErrorCode.USR_DEPARTMENT_REQUIRED]: 'Department is required for this user role',
+        [ErrorCode.USR_PRESET_NOT_FOUND]: 'Permission preset not found',
+&nbsp;
+        // Validation
+        [ErrorCode.VAL_MISSING_FIELD]: 'Required field is missing',
+        [ErrorCode.VAL_INVALID_FORMAT]: 'Invalid data format',
+        [ErrorCode.VAL_FIELD_TOO_LONG]: 'Field value exceeds maximum length',
+        [ErrorCode.VAL_FIELD_TOO_SHORT]: 'Field value is too short',
+        [ErrorCode.VAL_INVALID_EMAIL]: 'Invalid email format',
+        [ErrorCode.VAL_INVALID_DATE]: 'Invalid date format',
+        [ErrorCode.VAL_INVALID_ID]: 'Invalid ID format',
+&nbsp;
+        // System
+        [ErrorCode.SYS_INTERNAL_ERROR]: 'An internal error occurred',
+        [ErrorCode.SYS_DATABASE_ERROR]: 'Database operation failed',
+        [ErrorCode.SYS_EXTERNAL_SERVICE_ERROR]: 'External service is unavailable',
+        [ErrorCode.SYS_CONFIGURATION_ERROR]: 'System configuration error',
+        [ErrorCode.SYS_FEATURE_DISABLED]: 'This feature is currently disabled',
+        [ErrorCode.SYS_MAINTENANCE_MODE]: 'System is under maintenance',
+&nbsp;
+        // Zoom
+        [ErrorCode.ZOOM_NOT_CONFIGURED]: 'Zoom integration is not configured',
+        [ErrorCode.ZOOM_AUTH_FAILED]: 'Failed to authenticate with Zoom',
+        [ErrorCode.ZOOM_MEETING_NOT_FOUND]: 'Zoom meeting not found',
+        [ErrorCode.ZOOM_BOOKING_CONFLICT]: 'This time slot conflicts with another booking',
+        [ErrorCode.ZOOM_SLOT_UNAVAILABLE]: 'This time slot is no longer available',
+&nbsp;
+        // Knowledge Base
+        [ErrorCode.KB_ARTICLE_NOT_FOUND]: 'Article not found',
+        [ErrorCode.KB_CATEGORY_NOT_FOUND]: 'Category not found',
+        [ErrorCode.KB_DUPLICATE_SLUG]: 'An article with this URL already exists',
+&nbsp;
+        // Notifications
+        [ErrorCode.NTF_NOT_FOUND]: 'Notification not found',
+        [ErrorCode.NTF_ALREADY_READ]: 'Notification is already marked as read',
+        [ErrorCode.NTF_DELIVERY_FAILED]: 'Failed to deliver notification',
+&nbsp;
+        // Files
+        [ErrorCode.FILE_TOO_LARGE]: 'File size exceeds the maximum limit',
+        [ErrorCode.FILE_TYPE_NOT_ALLOWED]: 'This file type is not allowed',
+        [ErrorCode.FILE_UPLOAD_FAILED]: 'Failed to upload file',
+        [ErrorCode.FILE_NOT_FOUND]: 'File not found',
+&nbsp;
+        // Network
+        [ErrorCode.NET_CONNECTION_FAILED]: 'Connection to external service failed',
+        [ErrorCode.NET_TIMEOUT]: 'Request timed out',
+    };
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return defaultMessages[errorCode] || 'An error occurred';</span>
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-04-19T04:36:05.430Z
+            </div>
+        <script src="../../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../../sorter.js"></script>
+        <script src="../../../../block-navigation.js"></script>
+    </body>
+</html>
+    

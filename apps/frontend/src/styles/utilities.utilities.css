@@ -1,0 +1,310 @@
+@utility light-card {
+  /* Light mode card with subtle shadow */
+  @apply bg-white border border-border;
+  box-shadow: var(--shadow-md);
+}
+
+@utility light-card-elevated {
+  /* Light mode elevated card */
+  @apply bg-white border border-border;
+  box-shadow: var(--shadow-lg);
+}
+
+@utility light-subtle-bg {
+  /* Light mode subtle background */
+  background-color: hsl(40, 23%, 96%);
+}
+
+@utility light-text-primary {
+  /* Light mode text contrast classes */
+  color: hsl(220, 15%, 15%);
+}
+
+@utility light-text-secondary {
+  color: hsl(220, 10%, 45%);
+}
+
+@utility light-text-muted {
+  color: hsl(220, 10%, 55%);
+}
+
+@utility gradient-primary {
+  /* Premium Gradient Collection */
+  background: linear-gradient(135deg,
+      hsl(210 100% 55%) 0%,
+      hsl(210 100% 45%) 100%);
+}
+
+@utility gradient-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+@utility gradient-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+@utility gradient-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+@utility gradient-info {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+@utility gradient-purple {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+@utility gradient-hero {
+  background: linear-gradient(135deg,
+      hsl(210 100% 55%) 0%,
+      hsl(200 90% 50%) 50%,
+      hsl(190 80% 50%) 100%);
+}
+
+@utility gradient-dark {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+@utility gradient-mesh {
+  background:
+    radial-gradient(at 40% 20%, hsla(210, 100%, 55%, 0.3) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, hsla(200, 70%, 50%, 0.2) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, hsla(210, 100%, 45%, 0.2) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, hsla(38, 100%, 85%, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, hsla(210, 100%, 55%, 0.2) 0px, transparent 50%);
+}
+
+@utility glass-light {
+  /* Glass Morphism Variants */
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@utility glass-dark {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@utility glass-primary {
+  background: rgba(33, 150, 243, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(33, 150, 243, 0.2);
+}
+
+@utility card-hover {
+  /* Card hover with lift and glow */
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+@utility card-hover-glow {
+
+  /* Card hover with primary glow */
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -15px rgba(33, 150, 243, 0.25);
+    border-color: hsl(210 100% 55% / 0.3);
+  }
+}
+
+@utility icon-rotate-hover {
+  /* Icon rotate on parent hover */
+  transition: transform 0.3s ease;
+
+  .group:hover & {
+    transform: rotate(15deg);
+  }
+}
+
+@utility group {
+  &:hover .icon-rotate-hover {
+    transform: rotate(15deg);
+  }
+
+  &:hover .icon-scale-hover {
+    transform: scale(1.1);
+  }
+}
+
+@utility icon-scale-hover {
+  /* Icon scale on parent hover */
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .group:hover & {
+    transform: scale(1.1);
+  }
+}
+
+@utility underline-animate {
+  /* Underline animation */
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: currentColor;
+    transition: width 0.3s ease;
+  }
+
+  &:hover::after {
+    width: 100%;
+  }
+}
+
+@utility btn-press {
+  /* Button press effect */
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+@utility focus-glow {
+
+  /* Glow on focus */
+  &:focus {
+    box-shadow: 0 0 0 3px hsla(210, 100%, 55%, 0.3);
+  }
+}
+
+@utility safe-area-pb {
+  /* Safe area padding for mobile */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@utility safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+@utility touch-target {
+  /* Touch-friendly tap targets */
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@utility scrollbar-hide {
+  /* Hide scrollbar but keep scrolling */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility scrollbar-custom {
+  /* Custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: hsl(210 100% 55% / 0.3) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: hsl(210 100% 55% / 0.3);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: hsl(210 100% 55% / 0.5);
+  }
+}
+
+@utility custom-scrollbar {
+  /* Modern thin scrollbar - used across the app */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.3);
+    border-radius: 9999px;
+    transition: background 0.2s ease;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.5);
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Dark mode scrollbar */
+  .dark & {
+    scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+  }
+
+  .dark &::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.3);
+  }
+
+  .dark &::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.5);
+  }
+}
+
+@utility dark {
+
+  /* Dark mode scrollbar */
+  & .custom-scrollbar {
+    scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+  }
+
+  & .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.3);
+  }
+
+  & .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.5);
+  }
+}
+
+@utility swipe-action-left {
+  /* Swipe action backgrounds */
+  @apply absolute inset-y-0 left-0 flex items-center justify-center bg-green-500;
+}
+
+@utility swipe-action-right {
+  @apply absolute inset-y-0 right-0 flex items-center justify-center bg-red-500;
+}
+
+@utility pull-indicator {
+  /* Pull to refresh indicator */
+  @apply absolute top-0 left-0 right-0 flex items-center justify-center transition-[opacity,transform,colors] duration-200 ease-out;
+}

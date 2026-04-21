@@ -1,0 +1,120 @@
+# Notification System Full-Stack Review & Improvement
+
+Review lengkap notification workflow iDesk — fix missing notification triggers, hapus emoji, dan redesign UI notification center.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Chat Module**: Chat module saat ini **TIDAK** memiliki integrasi notification sama sekali. Apakah ingin saya tambahkan notification ketika user mengirim pesan chat? Ini memerlukan:
+> - Tambah `NotificationType.CHAT_MESSAGE_RECEIVED` di entity
+> - Integrasi `NotificationService` di chat gateway/service
+> - Tambah `CATEGORY_CHAT` di NotificationCategory (atau masuk ke `CATEGORY_TICKET` jika chat terkait ticket?)
+
+> [!WARNING]
+> **Breaking change**: Stat card redesign akan mengubah apa yang ditampilkan — dari total query result menjadi dual display (total + unread). Pastikan ini sesuai ekspektasi.
+
+---
+
+## Proposed Changes
+
+### Phase 1: Backend — Fix Emoji & Add Missing Chat Notification
+
+---
+
+#### [MODIFY] [notification.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.service.ts)
+- **Line 352**: Hapus emoji `🎫` dari `notifyNewTicketToAdmins` title → ganti `'New Ticket'`
+- Tambah helper method `notifyChatMessage()` untuk chat notification
+
+#### [MODIFY] [notification.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/entities/notification.entity.ts)  
+- Tambah `NotificationType.CHAT_MESSAGE_RECEIVED` di enum
+- Tambah `NotificationCategory.CATEGORY_CHAT` di enum (opsional — tergantung user feedback)
+
+#### [MODIFY] [category-mapper.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/utils/category-mapper.ts)
+- Map `CHAT_MESSAGE_RECEIVED` ke category yang sesuai
+
+---
+
+### Phase 2: Frontend — Hapus Semua Emoji & Fix Count Logic
+
+---
+
+#### [MODIFY] [CriticalNotificationModal.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/CriticalNotificationModal.tsx)
+- **Line 173**: Hapus `🚨` dan `⚠️` emoji
+- Ganti dengan text only: `'URGENT ACTION REQUIRED'` dan `'RENEWAL ATTENTION NEEDED'`
+
+#### [MODIFY] [notification.types.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/types/notification.types.ts)
+- Tambah `CHAT_MESSAGE_RECEIVED` di frontend enum (sync dengan backend)
+- Tambah `CATEGORY_CHAT` jika dipilih
+
+#### [MODIFY] [notification.constants.ts](file:///d:/iDesk-main/apps/frontend/src/components/notifications/constants/notification.constants.ts)
+- Tambah icon mapping untuk `CHAT_MESSAGE_RECEIVED` → `MessageCircle` dari Lucide
+- Tambah `CATEGORY_CONFIG` untuk `CATEGORY_CHAT` jika ada
+
+---
+
+### Phase 3: Redesign Notification Center UI
+
+---
+
+#### [MODIFY] [NotificationCenter.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationCenter.tsx)
+
+**Masalah saat ini:**
+1. Stat cards menampilkan `total` (paginated total = tergantung filter) sebagai "Total Alerts" — **rancu**
+2. Category counts = **unread only** tapi tidak ada label "Unread" — **rancu**
+3. Padding kurang generous, layout terlalu rapat
+4. Tab ALL/UNREAD/READ tidak punya visual indicator count
+
+**Redesign:**
+1. **Stats card "Total Alerts"** → tampilkan total ALL notifications + badge unread count
+2. **Category stat cards** → tampilkan total count per category + badge unread jika ada
+3. **Tab filter** → tambahkan count badge di tab "UNREAD" untuk konteks
+4. **Padding** → upgrade dari `p-4` ke `p-6` di content area, `gap-4` ke `gap-6`
+5. **Visual hierarchy** → perbesar header, tambah subtle divider
+6. Overall layout spacing lebih generous
+
+**Pendekatan Stats Count:**
+- Perlu endpoint baru: `GET /notifications/count/total-by-category` yang menghitung **total** (bukan hanya unread)
+- Atau ubah frontend logic: Stats card tampilkan total count (semua), dengan badge kecil untuk unread count
+
+#### [MODIFY] [useNotificationQueries.ts](file:///d:/iDesk-main/apps/frontend/src/features/notifications/hooks/useNotificationQueries.ts)
+- Tambah query untuk total count per category (bukan hanya unread)
+- Atau modifikasi existing query untuk dapat total + unread bersamaan
+
+#### [MODIFY] [notification.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.controller.ts)
+- Tambah endpoint `GET /notifications/count/total-by-category` yang hitung total per category
+
+#### [MODIFY] [notification.service.ts (backend)](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.service.ts)
+- Tambah method `countTotalByCategory()` — mirip `countUnreadByCategory()` tapi tanpa filter isRead
+
+#### [MODIFY] [NotificationStatCard.tsx](file:///d:/iDesk-main/apps/frontend/src/components/notifications/NotificationStatCard.tsx)
+- Redesign: tampilkan total count prominent + unread badge kecil jika >0
+- Perbaiki padding dan spacing
+
+#### [MODIFY] [NotificationCenterPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/notifications/pages/NotificationCenterPage.tsx)
+- Upgrade padding wrapper dari `p-4 md:p-6 lg:p-8` ke lebih generous spacing
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Chat Notification Category**: Chat masuk ke `CATEGORY_TICKET` (karena chat biasanya terkait ticket) atau buat `CATEGORY_CHAT` baru? Buat category baru berarti perlu stat card baru di notif center.
+> 2. **Stat Cards**: Preferensi — tampilkan **total count** dengan badge unread, atau tetap hanya **unread count** tapi dengan label yang jelas "X Unread"?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` — pastikan frontend compile tanpa error
+- Verifikasi backend compile clean
+- Cek semua notification types sync antara frontend dan backend enum
+
+### Manual Verification
+- Browser: Buka `/notifications` → verifikasi:
+  - Tidak ada emoji di title/message
+  - Stat cards menampilkan angka yang benar (total vs unread jelas)
+  - Tab ALL/UNREAD/READ filter bekerja benar
+  - Padding dan spacing nyaman, enterprise-grade
+- Create ticket baru → verifikasi notification muncul tanpa emoji `🎫`
+- CriticalNotificationModal → verifikasi tidak ada emoji `🚨`/`⚠️`

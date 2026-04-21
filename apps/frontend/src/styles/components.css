@@ -1,0 +1,723 @@
+/* ========================================
+   COMPONENT STYLES
+   Buttons, cards, calendar, progress bars, etc.
+   ======================================== */
+
+/* ========================================
+   UNIFIED CARD BORDER SYSTEM
+   ======================================== */
+
+.card-bordered {
+    border: var(--border-width-default) solid var(--color-border-default);
+    border-radius: var(--border-radius-card);
+}
+
+.card-bordered-subtle {
+    border: var(--border-width-default) solid var(--color-border-subtle);
+    border-radius: var(--border-radius-card);
+}
+
+.card-bordered-accent {
+    border: var(--border-width-accent) solid var(--separator-accent);
+    border-radius: var(--border-radius-card);
+}
+
+/* ========================================
+   GRID SEPARATOR SYSTEM
+   ======================================== */
+
+.grid-separator-h {
+    border-bottom: var(--border-width-default) solid var(--separator-color);
+}
+
+.grid-separator-h-strong {
+    border-bottom: var(--border-width-accent) solid var(--separator-color);
+}
+
+.grid-separator-v {
+    border-right: var(--border-width-default) solid var(--separator-color);
+}
+
+.grid-separator-v-strong {
+    border-right: var(--border-width-accent) solid var(--separator-color);
+}
+
+/* ========================================
+   UNIFIED HOVER SYSTEM
+   ======================================== */
+
+.hover-lift {
+    transition: transform var(--duration-fast) var(--ease-out-expo),
+        box-shadow var(--duration-fast) var(--ease-out-expo);
+}
+
+.hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.hover-glow-primary {
+    transition: box-shadow var(--duration-normal) ease;
+}
+
+.hover-glow-primary:hover {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.4);
+}
+
+/* ========================================
+   BUTTON MICRO-INTERACTIONS
+   ======================================== */
+
+/* ========================================
+   MODERN CALENDAR STYLES
+   ======================================== */
+
+.calendar-modern {
+    background: var(--color-bg-elevated, white);
+    border-radius: var(--radius-xl, 20px);
+    box-shadow: var(--shadow-xl);
+    padding: 20px;
+    min-width: 320px;
+    border: 1px solid var(--color-border-default, hsl(40, 10%, 88%));
+}
+
+.dark .calendar-modern {
+    background: hsl(217.2, 32.6%, 10%);
+    border: 1px solid hsl(217.2, 32.6%, 20%);
+    box-shadow:
+        0 10px 38px -10px rgba(0, 0, 0, 0.4),
+        0 10px 20px -15px rgba(0, 0, 0, 0.3);
+}
+
+/* Calendar Header */
+.calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 16px;
+    border-bottom: 1px solid hsl(40, 10%, 90%);
+    margin-bottom: 16px;
+}
+
+.dark .calendar-header {
+    border-bottom-color: hsl(217.2, 32.6%, 20%);
+}
+
+.calendar-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary, hsl(220, 15%, 15%));
+}
+
+.dark .calendar-title {
+    color: hsl(210, 40%, 98%);
+}
+
+.calendar-nav-btn {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: transparent;
+    border: none;
+    color: hsl(220, 10%, 45%);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+    background: hsl(40, 15%, 94%);
+    color: hsl(210, 100%, 55%);
+}
+
+.dark .calendar-nav-btn:hover {
+    background: hsl(217.2, 32.6%, 17.5%);
+}
+
+/* Weekday Headers */
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.calendar-weekday {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(220, 10%, 45%);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 0;
+}
+
+/* Date Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md, 12px);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary, hsl(220, 15%, 15%));
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    border: none;
+    background: transparent;
+}
+
+.dark .calendar-day {
+    color: hsl(210, 40%, 98%);
+}
+
+/* Hover State */
+.calendar-day:hover:not(.disabled):not(.selected) {
+    background: hsl(210, 100%, 95%);
+    transform: scale(1.1);
+}
+
+.dark .calendar-day:hover:not(.disabled):not(.selected) {
+    background: hsl(210, 100%, 20%);
+}
+
+/* Selected State */
+.calendar-day.selected {
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+    transform: scale(1.05);
+}
+
+/* Today Indicator */
+.calendar-day.today:not(.selected) {
+    border: 2px solid hsl(210, 100%, 55%);
+    font-weight: 600;
+}
+
+.calendar-day.today.selected {
+    box-shadow:
+        0 4px 12px rgba(33, 150, 243, 0.4),
+        0 0 0 3px rgba(33, 150, 243, 0.2);
+}
+
+/* Outside Month */
+.calendar-day.outside-month {
+    color: hsl(220, 10%, 70%);
+}
+
+.dark .calendar-day.outside-month {
+    color: hsl(220, 10%, 40%);
+}
+
+/* Disabled */
+.calendar-day.disabled {
+    color: hsl(220, 10%, 80%);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* Event Indicators */
+.calendar-day.has-events::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: hsl(210, 100%, 55%);
+}
+
+.calendar-day.has-urgent::after {
+    background: #ef4444;
+    animation: pulseRing 1.5s infinite;
+}
+
+/* Range Selection */
+.calendar-day.range-start {
+    border-radius: 12px 0 0 12px;
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    color: white;
+}
+
+.calendar-day.range-end {
+    border-radius: 0 12px 12px 0;
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    color: white;
+}
+
+.calendar-day.in-range {
+    background: hsl(210, 100%, 95%);
+    border-radius: 0;
+}
+
+.dark .calendar-day.in-range {
+    background: hsl(210, 100%, 15%);
+}
+
+/* Calendar Footer */
+.calendar-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    margin-top: 16px;
+    border-top: 1px solid hsl(40, 10%, 90%);
+}
+
+.dark .calendar-footer {
+    border-top-color: hsl(217.2, 32.6%, 20%);
+}
+
+/* Preset Chips */
+.calendar-presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid hsl(40, 10%, 90%);
+}
+
+.dark .calendar-presets {
+    border-bottom-color: hsl(217.2, 32.6%, 20%);
+}
+
+.calendar-preset {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 20px;
+    background: hsl(40, 15%, 94%);
+    color: hsl(220, 15%, 25%);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dark .calendar-preset {
+    background: hsl(217.2, 32.6%, 17.5%);
+    color: hsl(210, 40%, 80%);
+}
+
+.calendar-preset:hover {
+    background: hsl(210, 100%, 95%);
+    color: hsl(210, 100%, 45%);
+}
+
+.dark .calendar-preset:hover {
+    background: hsl(210, 100%, 20%);
+    color: hsl(210, 100%, 70%);
+}
+
+.calendar-preset.active {
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    color: white;
+}
+
+/* Month Transition Animation */
+@keyframes calendarSlideInFromRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes calendarSlideInFromLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.calendar-slide-right {
+    animation: calendarSlideInFromRight 0.3s ease-out;
+}
+
+.calendar-slide-left {
+    animation: calendarSlideInFromLeft 0.3s ease-out;
+}
+
+/* Day Entry Stagger Animation */
+@keyframes calendarDayFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.calendar-day-animate {
+    animation: calendarDayFadeIn 0.2s ease-out forwards;
+    opacity: 0;
+}
+
+/* ========================================
+   STAT CARDS
+   ======================================== */
+
+.stat-card-enhanced {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.stat-card-enhanced:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.stat-card-enhanced:hover .stat-icon {
+    transform: scale(1.05);
+}
+
+.stat-card-enhanced::before {
+    display: none;
+}
+
+.stat-card-enhanced:hover::before {
+    opacity: 1;
+}
+
+/* ========================================
+   ARTICLE CARDS
+   ======================================== */
+
+.article-card-enhanced {
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafb 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+}
+
+.dark .article-card-enhanced {
+    background: linear-gradient(145deg, hsl(217, 33%, 15%) 0%, hsl(217, 33%, 12%) 100%);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.article-card-enhanced:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 20px 40px -15px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(33, 150, 243, 0.2);
+}
+
+.article-card-enhanced .article-thumbnail {
+    transition: transform 0.5s ease;
+}
+
+.article-card-enhanced:hover .article-thumbnail {
+    transform: scale(1.05);
+}
+
+/* Search Highlight */
+.search-highlight {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.3) 0%, rgba(251, 191, 36, 0.2) 100%);
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* Reading Progress Bar */
+.reading-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    z-index: 9999;
+    transition: width 0.1s linear;
+}
+
+/* ========================================
+   AVATAR STATUS
+   ======================================== */
+
+.avatar-status-ring {
+    position: relative;
+    display: inline-block;
+}
+
+.avatar-status-ring::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+}
+
+.avatar-status-ring.online::after {
+    border-color: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+    animation: statusRingPulse 2s ease-in-out infinite;
+}
+
+.avatar-status-ring.busy::after {
+    border-color: #f59e0b;
+    animation: statusRingPulse 1.5s ease-in-out infinite;
+}
+
+.avatar-status-ring.offline::after {
+    border-color: #94a3b8;
+}
+
+@keyframes statusRingPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 currentColor;
+    }
+
+    50% {
+        box-shadow: 0 0 10px 2px currentColor;
+    }
+}
+
+/* ========================================
+   PROGRESS BARS
+   ======================================== */
+
+/* Report Metric Animation */
+.report-metric {
+    font-variant-numeric: tabular-nums;
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.report-metric.positive {
+    color: #22c55e;
+}
+
+.report-metric.positive::after {
+    content: ' ↑';
+    animation: bounceSubtle 1s ease-in-out infinite;
+}
+
+.report-metric.negative {
+    color: #ef4444;
+}
+
+.report-metric.negative::after {
+    content: ' ↓';
+}
+
+/* SLA Progress Bar */
+.sla-progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: hsl(40, 15%, 90%);
+    overflow: hidden;
+}
+
+.dark .sla-progress-bar {
+    background: hsl(217, 33%, 20%);
+}
+
+.sla-progress-bar .progress {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease-out, background-color 0.3s ease;
+}
+
+.sla-progress-bar .progress.safe {
+    background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+}
+
+.sla-progress-bar .progress.warning {
+    background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+}
+
+.sla-progress-bar .progress.danger {
+    background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+    animation: progressPulse 1s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Priority Color Bar */
+.priority-bar {
+    width: 4px;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+}
+
+.priority-bar.critical {
+    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.priority-bar.high {
+    background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+}
+
+.priority-bar.medium {
+    background: linear-gradient(180deg, #eab308 0%, #ca8a04 100%);
+}
+
+.priority-bar.low {
+    background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+}
+
+/* ========================================
+   ROW PREVIEW & PILLS
+   ======================================== */
+
+/* Row Hover Quick Preview */
+.row-hover-preview {
+    position: relative;
+}
+
+.row-hover-preview .preview-panel {
+    position: absolute;
+    right: -320px;
+    top: 0;
+    width: 300px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-10px);
+    transition: all 0.2s ease;
+    z-index: 50;
+}
+
+.row-hover-preview:hover .preview-panel {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+}
+
+/* Category Pills */
+.category-pills {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 4px 0;
+}
+
+.category-pills::-webkit-scrollbar {
+    display: none;
+}
+
+.category-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: hsl(40, 15%, 94%);
+    color: hsl(220, 15%, 35%);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.dark .category-pill {
+    background: hsl(217, 33%, 17%);
+    color: hsl(210, 40%, 80%);
+}
+
+.category-pill:hover {
+    background: hsl(210, 100%, 95%);
+    color: hsl(210, 100%, 45%);
+    border-color: hsl(210, 100%, 80%);
+}
+
+.category-pill.active {
+    background: linear-gradient(135deg, hsl(210, 100%, 55%) 0%, hsl(210, 100%, 45%) 100%);
+    color: white;
+    border-color: transparent;
+}
+
+/* ========================================
+   FORM STYLES
+   ======================================== */
+
+/* Settings Search */
+.settings-search-highlight {
+    position: relative;
+}
+
+.settings-search-highlight::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border: 2px solid hsl(210, 100%, 55%);
+    border-radius: 12px;
+    animation: settingsHighlight 2s ease-out forwards;
+}
+
+@keyframes settingsHighlight {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.05);
+    }
+}
+
+/* Form Input Focus Animation */
+.form-input-animated {
+    position: relative;
+}
+
+.form-input-animated .input-label {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: hsl(220, 10%, 50%);
+    transition: all 0.2s ease;
+    pointer-events: none;
+    background: transparent;
+    padding: 0 4px;
+}
+
+.form-input-animated input:focus~.input-label,
+.form-input-animated input:not(:placeholder-shown)~.input-label {
+    top: 0;
+    font-size: 12px;
+    color: hsl(210, 100%, 55%);
+    background: white;
+}
+
+.dark .form-input-animated input:focus~.input-label,
+.dark .form-input-animated input:not(:placeholder-shown)~.input-label {
+    background: hsl(217.2, 32.6%, 12%);
+}
+
+/* Glass card note - see glassmorphism.css for canonical definitions */
+/* Use: .glass-card, .glass-card-elevated, .glass-card-subtle */

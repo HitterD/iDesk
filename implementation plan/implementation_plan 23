@@ -1,0 +1,352 @@
+# Hardware Requests — Full Review & Improvement Plan
+
+Comprehensive fix untuk 7 catatan user + improvement tambahan berdasarkan full-stack code review.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> Plan ini mencakup perubahan frontend + backend. Ada beberapa keputusan desain yang perlu konfirmasi:
+> 1. Untuk kolom "Divisi" pada form create — apakah divisi diambil dari data user yang login, atau manual input?
+> 2. Untuk "konfirmasi instalasi selesai oleh user" — apakah user cukup klik tombol confirm, atau perlu upload foto/bukti?
+> 3. Untuk jadwal instalasi user — apakah user perlu notifikasi email juga selain tampil di halaman?
+
+---
+
+## Catatan User & Root Cause Analysis
+
+### Catatan 1: User tidak menerima jadwal instalasi
+**Root cause:** `InstallationCalendarPage.tsx` line 55 → `if (!isIctRole) return <div>Akses ditolak.</div>`. Calendar page HANYA bisa diakses ICT_STAFF. User role = 'USER' langsung ditolak. Juga, di `HardwareRequestsTabs.tsx` semua tab termasuk "Jadwal Instalasi" tampil ke semua user, tapi content-nya block user.
+
+### Catatan 2: User tidak perlu Overview, tapi perlu akses Jadwal Instalasi
+**Root cause:** Tab "Overview" (dashboard) dan "Jadwal Instalasi" (calendar) ada di `HardwareRequestsTabs.tsx` line 12-16. Semua tab tampil ke semua role tanpa filter. User perlu kalender sendiri (bukan admin calendar), dan Overview hanya untuk ICT.
+
+### Catatan 3: Dark mode — tulisan tidak terlihat di header
+**Root cause:** `HardwareRequestsLayout.tsx` line 8 → `text-slate-900` tanpa dark mode variant. Line 11 → `text-slate-500` juga tanpa dark variant. `HardwareRequestsTabs.tsx` line 25 → `bg-white/70` tanpa dark variant, text colors hardcoded light-only.
+
+### Catatan 4: Dropdown ExpandableItemRow — nama item & qty tidak terlihat
+**Root cause:** `ExpandableItemRow.tsx` menerima `items` dengan interface `{ id, name, qty }`, tapi `RequestTable.tsx` line 51 passes `r.items` yang bertipe `HardwareRequestItem[]`. Field mapping mismatch: `HardwareRequestItem` punya `categorySnapshot.name` bukan `name`, dan `quantity` bukan `qty`.
+
+### Catatan 5: Form create tidak user friendly — perlu redesign
+**Root cause:** 
+- `InfoStep.tsx`: Recipient hanya text input biasa, tidak ada kolom Divisi terpisah
+- Justifikasi: `CreateWizard.tsx` line 17 → `z.string().min(20)` — minimal 20 karakter terlalu ketat
+- Form layout: basic, tanpa dark mode support, placeholder kurang jelas
+
+### Catatan 6: Jadwal instalasi perlu link ke recipient/divisi (opsional)
+**Root cause:** `InstallationSchedule` entity tidak punya field `recipientName` atau `division`. Calendar events tidak menampilkan info recipient.
+
+### Catatan 7: Komentar harus real-time tanpa refresh
+**Root cause:** Mismatch antara frontend event listener dan backend event emitter:
+- **Backend gateway** emit: `'new_comment'` (line 141)
+- **Frontend hook** listen: `'comment-added'` (line 27 useHardwareRequestRealtime.ts)
+- Event name berbeda → listener tidak pernah triggered!
+- Juga: frontend pakai `join-request`/`leave-request`, backend handle `subscribe_request`/`unsubscribe_request` → room join gagal
+
+---
+
+## Proposed Changes
+
+### Komponen 1: WebSocket Event Mismatch Fix (Catatan 7 — P0 Critical)
+
+#### [MODIFY] [useHardwareRequestRealtime.ts](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/hooks/useHardwareRequestRealtime.ts)
+
+**Masalah:** Event name mismatch antara frontend listener dan backend emitter.
+
+| Frontend Listen | Backend Emit | Status |
+|---|---|---|
+| `comment-added` | `new_comment` | ❌ MISMATCH |
+| `status-changed` | `status_changed` | ❌ MISMATCH (dash vs underscore) |
+| `schedule-updated` | `schedule_proposed` / `schedule_confirmed` / `schedule_rescheduled` | ❌ MISMATCH |
+| `install-progress` | (tidak ada) | ❌ DEAD LISTENER |
+| `join-request` | `subscribe_request` | ❌ MISMATCH |
+| `leave-request` | `unsubscribe_request` | ❌ MISMATCH |
+
+**Fix:**
+```typescript
+// Sync semua event name ke backend (underscore convention)
+s.emit('subscribe_request', { requestId });
+s.on('status_changed', onStatusChanged);
+s.on('new_comment', onComment);
+s.on('schedule_proposed', onSchedule);
+s.on('schedule_confirmed', onSchedule);
+s.on('schedule_rescheduled', onSchedule);
+// cleanup juga sync
+s.emit('unsubscribe_request', { requestId });
+```
+
+---
+
+### Komponen 2: Dark Mode Support — Layout & Tabs (Catatan 3)
+
+#### [MODIFY] [HardwareRequestsLayout.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/layouts/HardwareRequestsLayout.tsx)
+
+**Fix:** Tambah dark mode classes ke heading dan description:
+```diff
+-<h1 className="text-2xl font-semibold tracking-tight text-slate-900">
++<h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+
+-<p className="text-sm text-slate-500">
++<p className="text-sm text-slate-500 dark:text-slate-400">
+```
+
+#### [MODIFY] [HardwareRequestsTabs.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/common/HardwareRequestsTabs.tsx)
+
+**Fix:** Dark mode untuk tab bar:
+```diff
+-className="sticky top-0 z-10 -mx-4 px-4 py-2 backdrop-blur bg-white/70 border-b border-slate-200"
++className="sticky top-0 z-10 -mx-4 px-4 py-2 backdrop-blur bg-white/70 dark:bg-[hsl(var(--card))]/80 border-b border-slate-200 dark:border-slate-700"
+
+-isActive ? 'text-slate-900' : 'text-slate-500 hover:text-slate-900'
++isActive ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+
+-'rounded-full bg-slate-900 px-2 ...'
++'rounded-full bg-slate-900 dark:bg-white px-2 ... text-white dark:text-slate-900'
+
+-'bg-slate-900'  // underline
++'bg-slate-900 dark:bg-white'  // underline
+```
+
+---
+
+### Komponen 3: Tab Visibility per Role (Catatan 1, 2)
+
+#### [MODIFY] [HardwareRequestsTabs.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/common/HardwareRequestsTabs.tsx)
+
+**Current:** Semua 3 tab (Daftar Request, Overview, Jadwal Instalasi) tampil ke semua role.
+**Fix:** Filter tab berdasarkan role:
+
+```typescript
+interface TabDef {
+  to: string;
+  label: string;
+  end: boolean;
+  showBadge?: boolean;
+  roles?: HardwareRole[]; // NEW: role filter
+}
+
+const TABS: TabDef[] = [
+  { to: '.', label: 'Daftar Request', end: false, showBadge: true },
+  { to: 'dashboard', label: 'Overview', end: true, roles: ['ICT_STAFF'] },
+  { to: 'calendar', label: 'Jadwal Instalasi', end: true }, // semua role
+];
+
+// Filter tabs by role
+const { role } = useHardwareRole();
+const visibleTabs = TABS.filter(t => !t.roles || t.roles.includes(role));
+```
+
+---
+
+### Komponen 4: User-Facing Installation Calendar (Catatan 1, 2)
+
+#### [MODIFY] [InstallationCalendarPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/InstallationCalendarPage.tsx)
+
+**Current:** User ditolak akses → "Akses ditolak."
+**Fix:** Buat dual-view:
+- **ICT_STAFF**: Calendar admin (existing) — full calendar + unscheduled list + drag-reschedule
+- **USER**: Calendar readonly — hanya lihat jadwal instalasi milik sendiri sebagai kalender/tanggalan
+
+```typescript
+if (!isIctRole) {
+  // Render UserInstallationCalendar — read-only view
+  return <UserInstallationCalendar />;
+}
+// ... existing ICT calendar
+```
+
+#### [NEW] [UserInstallationCalendar.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/UserInstallationCalendar.tsx)
+
+Komponen baru untuk user:
+- Kalender read-only (FullCalendar tanpa drag/drop)
+- Hanya tampilkan jadwal instalasi untuk request milik user
+- Tampilkan tanggal & jam instalasi
+- Setelah status APPROVED, user bisa klik tombol **"Konfirmasi Terpasang"** untuk confirm bahwa asset sudah diinstall
+- Warna event berdasarkan status schedule (PROPOSED=kuning, CONFIRMED=biru, DONE=hijau)
+
+#### [NEW] Backend endpoint — `GET /hardware-requests/my-schedules`
+
+Endpoint baru untuk fetch jadwal instalasi milik user (berdasarkan requesterId).
+
+---
+
+### Komponen 5: ExpandableItemRow — Fix Item Name & Qty (Catatan 4)
+
+#### [MODIFY] [RequestTable.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/list/RequestTable.tsx)
+
+**Root cause:** `ExpandableItemRow` expect `{ id, name, qty }` tapi receive `HardwareRequestItem[]` yang punya `categorySnapshot.name` dan `quantity`.
+
+**Fix:** Map data sebelum pass ke ExpandableItemRow:
+```diff
+-<ExpandableItemRow items={r.items ?? []} />
++<ExpandableItemRow items={(r.items ?? []).map(i => ({
++  id: i.id,
++  name: i.categorySnapshot?.name ?? i.name ?? '—',
++  qty: i.quantity,
++}))} />
+```
+
+#### [MODIFY] [ExpandableItemRow.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/list/ExpandableItemRow.tsx)
+
+**Fix tambahan:** Dark mode support untuk expanded list:
+```diff
+-className="mt-2 overflow-hidden rounded-lg bg-slate-50 ring-1 ring-slate-200"
++className="mt-2 overflow-hidden rounded-lg bg-slate-50 dark:bg-slate-800/50 ring-1 ring-slate-200 dark:ring-slate-700"
+
+-<span className="text-slate-700">{it.name}</span>
++<span className="text-slate-700 dark:text-slate-200">{it.name}</span>
+
+-<span className="text-slate-500">qty: {it.qty}</span>
++<span className="text-slate-500 dark:text-slate-400">qty: {it.qty}</span>
+```
+
+---
+
+### Komponen 6: Create Wizard Redesign (Catatan 5)
+
+#### [MODIFY] [CreateWizard.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/create/CreateWizard.tsx)
+
+**Changes:**
+1. Hapus `min(20)` pada justification → ganti `min(1)` (yang penting ada isi)
+2. Tambah field `division` ke schema (string, opsional)
+
+```diff
+ const schema = z.object({
+     siteId: z.string().uuid(),
++    division: z.string().optional(),
+     recipientName: z.string().optional(),
+-    justification: z.string().min(20, 'Minimal 20 karakter'),
++    justification: z.string().min(1, 'Justifikasi wajib diisi'),
+     items: z.array(z.object({
+```
+
+#### [MODIFY] [InfoStep.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/create/InfoStep.tsx)
+
+**Full redesign:**
+
+1. **Kolom Divisi** — dropdown atau text input untuk divisi penerima
+2. **Recipient** — bisa tambah multiple recipient (multi-input chips) 
+3. **Justifikasi** — hapus counter "x/20", ganti hint "Jelaskan kebutuhan & urgency"
+4. **Dark mode** — semua input/select punya dark variant
+5. **UX improvement** — label lebih jelas, placeholder lebih helpful, spacing lebih baik
+6. **Design** — mengikuti frontend-design-plugin: Luxury/Refined aesthetic, high contrast, editorial spacing
+
+```tsx
+// Redesigned InfoStep:
+// - Kolom "Divisi" → text input atau select dari daftar divisi
+// - Kolom "Recipient" → text input multi-line hint (nama-nama penerima)  
+// - Justifikasi tanpa min 20 char, cukup min 1 char
+// - Dark mode full support
+// - Premium card design dengan subtle shadows dan borders
+```
+
+#### [MODIFY] Backend DTO — [create-request.dto.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/dto/create-request.dto.ts)
+
+**Changes:**
+1. Ubah justification `@MinLength(20)` → `@MinLength(1)` 
+2. Tambah field `division?: string`
+
+#### [MODIFY] Backend Entity — [hardware-request.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/hardware-request/domain/entities/hardware-request.entity.ts)
+
+**Changes:** Tambah kolom `division` (varchar, nullable)
+
+#### [NEW] Migration — Tambah kolom `division` ke tabel `hardware_requests`
+
+---
+
+### Komponen 7: Link Jadwal Instalasi ↔ Recipient (Catatan 6)
+
+#### [MODIFY] [EventPopover.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/calendar/EventPopover.tsx)
+
+Tampilkan info recipient & divisi dari request terkait di event popover kalender. Data ini sudah ada di `HardwareRequest.recipientName` dan field baru `division`.
+
+#### [MODIFY] Backend — Calendar Query
+
+Sertakan `recipientName` dan `division` di response jadwal instalasi. Field opsional, tidak blocking workflow.
+
+---
+
+### Komponen 8: Additional Improvements (Beyond 7 Catatan)
+
+#### 8a. CatalogPicker — Missing DESKTOP category filter
+
+**File:** [CatalogPicker.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/create/CatalogPicker.tsx)
+**Issue:** `CATS` array line 37 tidak include `'DESKTOP'` meskipun sudah ada di backend.
+**Fix:** Tambah `'DESKTOP'` ke CATS array.
+
+#### 8b. Pagination dark mode — List page
+
+**File:** [HardwareRequestListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/pages/HardwareRequestListPage.tsx)
+**Issue:** Pagination buttons line 110-117 — `bg-white`, `text-slate-700`, `ring-slate-200` tanpa dark variant.
+**Fix:** Tambah dark mode classes.
+
+#### 8c. CommentThread dark mode
+
+**File:** [CommentThread.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/CommentThread.tsx)
+**Issue:** Comment bubbles `bg-slate-50` tanpa dark variant, text colors light-only.
+**Fix:** Tambah dark mode classes.
+
+#### 8d. CommentComposer dark mode
+
+**File:** [CommentComposer.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/CommentComposer.tsx)  
+**Issue:** `ring-slate-200 bg-white` tanpa dark variant.
+**Fix:** Tambah dark mode classes.
+
+#### 8e. RequestInfoCard — Tambah Divisi display
+
+**File:** [RequestInfoCard.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/RequestInfoCard.tsx)
+**Issue:** Tidak menampilkan divisi + dark mode support kurang.
+**Fix:** Tampilkan divisi, dark mode classes.
+
+#### 8f. CreateWizard dark mode
+
+**File:** [CreateWizard.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/create/CreateWizard.tsx)
+**Issue:** Wizard step circles, buttons, background — semua light-only.
+**Fix:** Full dark mode support sesuai frontend-design-plugin aesthetic.
+
+---
+
+## Summary Perubahan
+
+| # | Catatan | File Utama | Severity |
+|---|---------|-----------|----------|
+| 7 | WS event mismatch | `useHardwareRequestRealtime.ts` | 🔴 P0 Critical |
+| 4 | Item name/qty tidak tampil | `RequestTable.tsx` | 🔴 P0 Critical |  
+| 3 | Dark mode header/tabs | `Layout`, `Tabs` | 🟡 P1 |
+| 1+2 | Tab visibility + user calendar | `Tabs`, `InstallationCalendarPage`, **NEW** `UserInstallationCalendar` | 🟡 P1 |
+| 5 | Form redesign | `InfoStep`, `CreateWizard`, backend DTO | 🟡 P1 |
+| 6 | Calendar ↔ recipient link | `EventPopover`, backend query | 🔵 P2 |
+| 8a-f | Dark mode + misc fixes | Multiple files | 🔵 P2 |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Divisi** — Data divisi diambil dari mana? Apakah sudah ada tabel `departments`/`divisions` di database, atau manual text input?
+> 2. **Konfirmasi instalasi** — Setelah approve, user konfirmasi asset terpasang. Apakah cukup klik button, atau perlu upload bukti foto?
+> 3. **Multiple recipients** — Apakah benar-benar butuh multiple recipients (chip input), atau cukup satu field text biasa?
+> 4. **Kalender user** — Library FullCalendar sudah terinstall. Untuk user view, pakai FullCalendar juga (konsisten) atau tampilan list/card lebih simpel?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Backend
+cd apps/backend && npm run test -- --testPathPattern=hardware-request
+
+# Frontend build check
+cd apps/frontend && npm run build
+```
+
+### Manual Verification
+1. **WS Comment sync**: Buka 2 browser (user A dan ICT), kirim komentar → cek otomatis muncul tanpa refresh
+2. **Dark mode**: Toggle dark mode → cek semua halaman hardware request (list, detail, create, calendar)
+3. **Tab visibility**: Login sebagai USER → hanya lihat "Daftar Request" dan "Jadwal Instalasi". Login sebagai ICT → lihat semua tab
+4. **ExpandableItemRow**: Klik "Lihat X item" → nama dan qty harus terlihat
+5. **Create form**: Buka form create → cek kolom Divisi ada, Recipient clear, Justifikasi tanpa min 20 char
+6. **User calendar**: Login sebagai USER → buka tab Jadwal Instalasi → lihat kalender read-only dengan jadwal sendiri
+7. **Browser recording**: Record semua flow di atas via browser_subagent

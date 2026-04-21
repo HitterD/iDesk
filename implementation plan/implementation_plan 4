@@ -1,0 +1,302 @@
+# Redesign Hardware Request — "Order & Delivery" Experience
+
+## Konteks Masalah
+
+Halaman Hardware Request saat ini menggunakan **design system lama** (hardcoded `bg-slate-900`, `border-slate-800`, warna amber) yang tidak selaras dengan halaman-halaman lain di iDesk (Dashboard, Tickets, Agent, Zoom Calendar) yang sudah menggunakan **design system V5** dengan CSS custom properties (`hsl(var(--card))`, `hsl(var(--border))`, `hsl(var(--primary))`, dll.) dan mendukung light/dark mode.
+
+Selain itu, layout dan UX-nya masih "tabel CRUD biasa" — bukan pengalaman premium yang intuitif seperti yang diinginkan user (terinspirasi dari konsep **order tracking online/delivery**).
+
+---
+
+## Design Direction: "Order & Delivery Tracking"
+
+> **Aesthetic:** Industrial / Utilitarian meets Luxury Refined — terinspirasi oleh pengalaman order tracking DHL/FedEx/Shopee yang digabungkan dengan keeleganan design system iDesk.
+
+### Prinsip Visual
+
+| Elemen | Pendekatan |
+|--------|-----------|
+| **Color palette** | Mengikuti tokens.css: `--primary` (Deep Sapphire), `--accent` (Warm Amber), `--success-500` (Teal), `--error-500` (Red) — mengganti semua hardcoded amber/slate |
+| **Background/Cards** | `bg-white dark:bg-[hsl(var(--card))]` dengan `border-[hsl(var(--border))]` — konsisten dengan Dashboard/Tickets |
+| **Typography** | `font-extrabold tracking-tight` untuk judul, `text-sm font-medium` untuk body — mengikuti pattern BentoDashboard |
+| **Radius** | `rounded-xl` dan `rounded-2xl` — mengikuti token `--radius-xl` (16px) |
+| **Animations** | `animate-fade-in-up`, `stagger-*`, chart-bar-animated — dari animations.css yang sudah ada |
+| **Layout** | Bento-style asymmetric grid, bukan centered single-column |
+
+---
+
+## Proposed Changes
+
+### Komponen 1 — HardwareRequestPage (List Page)
+
+#### [MODIFY] [HardwareRequestPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+
+**Current State:** Tabel CRUD dengan stat cards hardcoded `bg-slate-900`, table-based layout, warna amber.
+
+**Redesign to:** Pengalaman "My Orders" — terinspirasi halaman daftar pesanan online.
+
+##### Layout Baru
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ Header                                                       │
+│ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ │
+│ │ StatCard   │ │ StatCard   │ │ StatCard   │ │ StatCard   │ │
+│ │ Total      │ │ Pending    │ │ In Process │ │ Completed  │ │
+│ └────────────┘ └────────────┘ └────────────┘ └────────────┘ │
+│                                                              │
+│ ┌──────────────────────────────────────────────────────────┐ │
+│ │ Search + Filter Bar (Bento-style pill filters)           │ │
+│ └──────────────────────────────────────────────────────────┘ │
+│                                                              │
+│ ┌──────────────────────────────────────────────────────────┐ │
+│ │ Order Cards (bukan table rows!)                          │ │
+│ │ ┌────────────────────────────────────────────────┐       │ │
+│ │ │ 📦 PC AIO × 3        Status: Purchasing       │       │ │
+│ │ │ Requester: Bagas   • 03 Apr 2026               │       │ │
+│ │ │ ████████████░░░░░ 2/3 items arrived            │       │ │
+│ │ └────────────────────────────────────────────────┘       │ │
+│ │ ┌────────────────────────────────────────────────┐       │ │
+│ │ │ 📦 Printer Epson    Status: Pending             │       │ │
+│ │ │ Requester: Admin  • 01 Apr 2026                │       │ │
+│ │ │ ░░░░░░░░░░░░░░░░ 0/2 items arrived             │       │ │
+│ │ └────────────────────────────────────────────────┘       │ │
+│ └──────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────┘
+```
+
+##### Perubahan Spesifik
+
+1. **Header** — Ganti gradient amber → icon + title bold hitam/putih seperti Dashboard/Tickets. Tambahkan icon `Package` di rounded bg primary/10.
+2. **Stat Cards** — Ganti dari custom `StatCard` inline → mengikuti pattern yang ada di `BentoTicketListPage` (`StatsCard` dengan icon, color, bgColor, onClick interactive filter). Grid `grid-cols-2 md:grid-cols-4 lg:grid-cols-5`.
+3. **Filter Bar** — Ganti dari standalone dark box → compact Bento-style bar seperti Tickets (`bg-white dark:bg-[hsl(var(--card))]` dengan search + dropdown pills).
+4. **Request List** — Ganti dari `<table>` → **Order Card Grid/List** yang mirip notifikasi pengiriman:
+   - Setiap card menampilkan: header (ID + type badge), nama item utama, requester, status badge, mini progress bar `items arrived/total`, dan waktu relatif.
+   - Card layout responsive: 1 kolom di mobile, 2 kolom di lg, list view di xl.
+   - Hover effect: `border-primary/40`, shadow lift.
+   - Left accent bar berdasarkan status (primary untuk processing, success untuk arrived, warning untuk pending).
+5. **Empty/Loading states** — Mengikuti pattern Dashboard (icon centered, professional copy).
+6. **Hapus warna amber hardcoded** di seluruh halaman — ganti ke CSS custom properties.
+
+---
+
+### Komponen 2 — HardwareRequestDetailPage (Order Detail)
+
+#### [MODIFY] [HardwareRequestDetailPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestDetailPage.tsx)
+
+**Current State:** Layout two-column dengan `bg-black/20`, warna amber, dan card `border-white/5`.
+
+**Redesign to:** Pengalaman "Order Detail & Tracking" — halaman pelacakan pesanan seperti di Shopee/Tokopedia/DHL.
+
+##### Layout Baru
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ ← Back   Order #55244     PURCHASE badge                        │
+│ Pengajuan HARDWARE                                              │
+│ 👤 bagas • 03 April 2026                                        │
+├────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│ ┌────────────────────────────────────────────────────────────┐  │
+│ │           STATUS TRACKER (horizontal stepper)               │  │
+│ │  ✅ Submitted ──── ✅ Approved ──── 🔄 Purchasing ──── ○ Arrived ──── ○ Done │
+│ └────────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│ ┌─────────────────────────────────┐ ┌──────────────────────┐   │
+│ │        SHIPMENT ITEMS           │ │    ORDER SUMMARY     │   │
+│ │                                 │ │                      │   │
+│ │  📦 PC AIO                     │ │  Vendor: -           │   │
+│ │     ✅ Arrived 03 Apr 2026     │ │  Install: Yes        │   │
+│ │     [Jadwal Disetujui]          │ │                      │   │
+│ │                                 │ ├──────────────────────┤   │
+│ │  📦 Printer Epson              │ │   APPROVAL PANEL     │   │
+│ │     🔄 Konfirmasi Jadwal       │ │   [Approve] [Reject] │   │
+│ │     [Confirm] [Reschedule]      │ │                      │   │
+│ │                                 │ ├──────────────────────┤   │
+│ │  📦 Laptop Sharing             │ │   PROCUREMENT        │   │
+│ │     ⬜ Belum tiba              │ │   PO: ___  Inv: ___  │   │
+│ │                                 │ │   [Selesaikan]       │   │
+│ ├─────────────────────────────────┤ └──────────────────────┘   │
+│ │        TRACKING HISTORY         │                             │
+│ │                                 │                             │
+│ │  🟢 APPROVED            03 Apr │                             │
+│ │  │  Administrator               │                             │
+│ │  🔵 PURCHASING STARTED  03 Apr │                             │
+│ │  │  Administrator               │                             │
+│ │  🔵 PARTIAL ITEMS ARRIVED      │                             │
+│ │  │  "Ditandai tiba: 1 item(s)" │                             │
+│ └─────────────────────────────────┘                             │
+└────────────────────────────────────────────────────────────────┘
+```
+
+##### Perubahan Spesifik
+
+1. **Header** — Ganti `bg-black/20` → clean white/card bg. Badges menggunakan design system token colors. Back button rounded-xl, clean.
+2. **StatusPipeline** — Migrasi ke design system tokens (ganti hardcoded `bg-amber-500`, `bg-slate-800`) → `bg-primary`, `border-[hsl(var(--border))]`, dll.
+3. **Items Checklist → "Shipment Items"** — Redesign setiap item menjadi kartu mini yang mirip tracking paket:
+   - Icon paket (📦) + nama item bold
+   - Info kedatangan dengan timestamp
+   - Schedule badge + action buttons yang compact
+   - Progress indicator per-item
+   - Ganti `bg-white/5`, `border-white/5` → tokens
+4. **Right Sidebar** — Ganti `bg-black/20 border-white/5` → `bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]`. Panel summary + Approval + Procurement dalam cards bergaya Bento.
+5. **Activity Timeline → "Tracking History"** — Redesign mengikuti konsep tracking riwayat pengiriman:
+   - Timeline vertikal dengan dot berwarna sesuai status
+   - Ganti `bg-slate-800/40 backdrop-blur-md` → `bg-white dark:bg-[hsl(var(--card))]`
+6. **Installation actions** — Redesign tombol Confirm/Reschedule/Mark Done dengan branding design system.
+
+---
+
+### Komponen 3 — StatusPipeline (Order Tracker)
+
+#### [MODIFY] [StatusPipeline.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/StatusPipeline.tsx)
+
+**Perubahan:**
+- Ganti `bg-amber-500` → `bg-primary` atau `bg-[hsl(var(--primary))]`
+- Ganti `bg-slate-800`, `border-slate-700` → `bg-[hsl(var(--card))]`, `border-[hsl(var(--border))]`
+- Ping animation: ganti `border-amber-400/50` → `border-primary/50`
+- Label colors: ganti `text-amber-400` → `text-primary`
+- Tambahkan micro-animation stagger pada load
+- Rejected state: tetap `bg-[hsl(var(--error-500))]`
+- Progress bar line: ganti `bg-amber-500` → gradient `from-primary to-[hsl(var(--accent))]`
+
+---
+
+### Komponen 4 — ActivityTimeline (Tracking History)
+
+#### [MODIFY] [ActivityTimeline.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/ActivityTimeline.tsx)
+
+**Perubahan:**
+- Ganti seluruh `bg-slate-800/40 backdrop-blur-md border-slate-700/50` → `bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]`
+- Ganti `bg-slate-900/50 border-slate-700/30` → `bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))]`
+- Ganti `text-amber-500` → `text-primary`
+- Timeline line: ganti `from-amber-500/50 via-slate-700/50` → `from-primary/50 via-[hsl(var(--border))]`
+- Dot indicators: gunakan semantic colors dari tokens (`--success-500`, `--info-500`, `--error-500`, `--warning-500`)
+- Notes card: ganti left accent `bg-amber-500/50` → `bg-primary/50`
+- Date badge: ganti `bg-slate-900/50` → `bg-slate-100 dark:bg-slate-800`
+
+---
+
+### Komponen 5 — PurchasingPanel
+
+#### [MODIFY] [PurchasingPanel.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/PurchasingPanel.tsx)
+
+**Perubahan:**
+- Ganti `bg-emerald-500/5 border-emerald-500/20` → menggunakan `hsl(var(--success-*))` tokens
+- Ganti `bg-amber-500/5 border-amber-500/20` → menggunakan `hsl(var(--warning-*))` tokens
+- Ganti `bg-black/20 border-white/10` → `bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))]`
+- Input fields: ganti `bg-black/20 border-white/10` → `bg-white dark:bg-[hsl(var(--input))] border-[hsl(var(--border))]`
+- Button styling: konsisten dengan `bg-primary` / `bg-[hsl(var(--success-500))]`
+
+---
+
+### Komponen 6 — ApprovalPanel
+
+#### [MODIFY] [ApprovalPanel.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/ApprovalPanel.tsx)
+
+**Perubahan serupa:**
+- Migrasi semua warna hardcoded → CSS custom properties
+- Konsisten dengan button/input/border styling dari tokens.css
+
+---
+
+### Komponen 7 — HardwareRequestCreatePage (Create Form)
+
+#### [MODIFY] [HardwareRequestCreatePage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestCreatePage.tsx)
+
+**Perubahan:**
+- Header/back button: konsisten dengan pattern Dashboard
+- Form cards: ganti `bg-slate-900 border-slate-800` → tokens
+- Review section: ganti warna hardcoded
+- Button: `bg-primary text-primary-foreground`
+
+---
+
+### Komponen 8 — RequestWizard & IctBudgetRequestForm
+
+#### [MODIFY] [RequestWizard.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/RequestWizard.tsx)
+#### [MODIFY] [IctBudgetRequestForm.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/IctBudgetRequestForm.tsx)
+
+**Perubahan identik:**
+- Migrasi warna hardcoded → CSS custom properties
+- Wizard stepper mengikuti pola yang sama dengan StatusPipeline redesign
+
+---
+
+### Komponen 9 — InstallationScheduleModal
+
+#### [MODIFY] [InstallationScheduleModal.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/components/InstallationScheduleModal.tsx)
+
+**Perubahan:**
+- Kalender/modal cards: migrasi ke token colors
+- Calendar cells: ganti hardcoded colors → semantic tokens
+- Buttons: `bg-primary` / `bg-[hsl(var(--success-500))]`
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Total file yang akan dimodifikasi: 10 file**
+> Semua perubahan adalah **visual/styling** — TIDAK ADA perubahan pada business logic, API calls, atau data flow.
+
+> [!WARNING]  
+> **Transformasi konsep layout List Page:** Saya mengusulkan mengganti tabel (`<table>`) menjadi **Order Card List** (kartu-kartu pesanan). Ini adalah perubahan layout yang signifikan. Apakah Anda prefer:
+> 1. **Order Card List** (seperti daftar pesanan Shopee/Tokopedia) — lebih visual, mobile-friendly ✅
+> 2. **Table yang di-style ulang** — tetap tabel tapi dengan styling konsisten ❌
+> 
+> Saya merekomendasikan opsi **1 (Order Card List)** sesuai konsep "pengiriman barang online" yang Anda minta.
+
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Card vs Table di List Page?** Apakah menggunakan Order Card List (rekomendasi) atau tetap table di-restyle? 
+> 2. **Color accent** untuk Hardware Request: saat ini amber. Karena kita align ke design system, accent utama akan menjadi `--primary` (Deep Sapphire/Blue). Apakah OK, atau ingin tetap retain amber sebagai accent khusus request center?
+> 3. **Apakah ada komponen InstallationScheduler.tsx dan ArrivedConfirmation.tsx** yang juga perlu di-redesign? Atau hanya halaman utama yang visible ke user?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+cd d:/iDesk
+npm run build --workspace=apps/frontend
+```
+- Memastikan semua file compile tanpa error setelah perubahan.
+- Tidak ada runtime error di browser console.
+
+### Visual Verification (Browser)
+- Navigasi ke `/hardware-requests` — verify tampilan List Page yang baru
+- Navigasi ke `/hardware-requests/:id` — verify tampilan Detail Page
+- Navigasi ke `/hardware-requests/new` — verify form Create
+- Toggle dark/light mode — verify semua warna konsisten
+- Bandingkan side-by-side dengan Dashboard, Tickets, dan Zoom Calendar
+
+### Cross-Reference Checks
+- Pastikan semua `hsl(var(--...))` references ada di `tokens.css`
+- Pastikan tidak ada hardcoded `bg-slate-900`, `bg-black/20`, `border-white/5` tersisa di file yang di-modifikasi
+- Pastikan responsive layout bekerja di mobile (< 768px)
+
+---
+
+## Execution Order
+
+| # | File | Dependency |
+|---|------|-----------|
+| 1 | `StatusPipeline.tsx` | None — standalone component |
+| 2 | `ActivityTimeline.tsx` | None — standalone component |
+| 3 | `PurchasingPanel.tsx` | None — standalone component |
+| 4 | `ApprovalPanel.tsx` | None — standalone component |
+| 5 | `InstallationScheduleModal.tsx` | None — standalone component |
+| 6 | `RequestWizard.tsx` | None — standalone component |
+| 7 | `IctBudgetRequestForm.tsx` | None — standalone component |
+| 8 | `HardwareRequestPage.tsx` | Depends on 1 |
+| 9 | `HardwareRequestDetailPage.tsx` | Depends on 1-5 |
+| 10 | `HardwareRequestCreatePage.tsx` | Depends on 6-7 |
+
+---
+
+*Implementation Plan v1.0 — Hardware Request Redesign*
+*Last Updated: 2026-04-03*

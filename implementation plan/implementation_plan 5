@@ -1,0 +1,714 @@
+# E-Form Access Portal — Form Permintaan Akses VPN (MVP)
+
+Digitalisasi formulir akses VPN PT. Santos Jaya Abadi dari format kertas/PDF menjadi portal e-form digital terintegrasi dengan sistem iDesk. Implementasi ini mencakup workflow multi-stage: pengisian form → e-signature → routing manager → approval → provisioning ICT → credential delivery.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Keputusan arsitektur kunci yang membutuhkan persetujuan:**
+> 1. **E-Signature approach**: Menggunakan HTML Canvas signature pad (menggambar langsung di browser) yang disimpan sebagai data URL PNG di database. Bukan PKI/certificate-based signature. Apakah ini cukup untuk kebutuhan internal?
+> 2. **Credential encryption**: Menggunakan AES-256-GCM server-side encryption dengan per-request unique key derived dari master key. Credentials hanya bisa didekripsi via dedicated API endpoint yang memverifikasi `requesterId === userId`.
+> 3. **Reuse vs New Module**: Backend `access-request` module sudah ada tapi workflow-nya berbeda (download PDF → upload signed → verify). Rencana saya: **buat module baru** `eform-request` yang dedicated untuk digital form workflow (tanpa PDF), karena state machine workflow-nya sangat berbeda.
+> 4. **Manager routing**: Menggunakan dropdown dari `users` table yang di-filter `role = MANAGER`. Atau apakah perlu hierarki organisasi (user → direct manager mapping)?
+
+> [!WARNING]
+> **Breaking changes potensial:**
+> - Existing `EformAccessListPage` akan di-replace total (saat ini hanya dummy data)
+> - Route `/eform-access` akan diperluas dengan sub-routes: `/eform-access/new`, `/eform-access/:id`
+> - Frontend `access-request.api.ts` akan ditambahkan hooks baru yang berbeda dari yang ada
+
+---
+
+## A. Tech Stack (Existing — No New Dependencies)
+
+Berdasarkan riset codebase [package.json](file:///d:/iDesk/apps/frontend/package.json) dan [backend package.json](file:///d:/iDesk/apps/backend/package.json):
+
+### Sudah Tersedia — Akan Digunakan
+
+| Layer | Technology | Versi | Peran |
+|-------|-----------|-------|-------|
+| **Frontend** | React + Vite | 19.x + 7.x | SPA framework |
+| **State** | Zustand + TanStack Query | 5.x + 5.x | Client state + server state |
+| **Forms** | react-hook-form + Zod | 7.x + 4.x | Form validation |
+| **UI** | Radix UI + Lucide + Framer Motion | Various | Component primitives + icons + animation |
+| **Styling** | Tailwind CSS 4.x + Design Tokens | 4.x | CSS framework + custom CSS properties |
+| **Backend** | NestJS + TypeORM + PostgreSQL | 11.x + 0.3.x | API framework + ORM + database |
+| **Auth** | Passport JWT + bcrypt | Various | Authentication + hashing |
+| **Realtime** | Socket.io | 4.x | WebSocket notifications |
+| **Email** | Nodemailer + Handlebars | 7.x + 4.x | Email notifications |
+| **PDF** | PDFKit | 0.14.x | Generate PDF dokumen signed |
+| **Encryption** | Node.js native `crypto` | Built-in | AES-256-GCM credential encryption |
+
+### Perlu Install (Baru)
+
+| Package | Purpose | Install di |
+|---------|---------|-----------|
+| **Tidak ada** | Semua kebutuhan sudah tercukupi dengan stack existing | — |
+
+> [!NOTE]
+> E-signature pad akan diimplementasi menggunakan HTML5 Canvas API native — tidak perlu library tambahan. Ini konsisten dengan pendekatan "minimize dependencies" yang sudah ada di codebase.
+
+---
+
+## B. Database Schema
+
+### ERD — Relational State Machine
+
+```mermaid
+erDiagram
+    USERS ||--o{ EFORM_REQUESTS : "submits"
+    USERS ||--o{ EFORM_APPROVALS : "approves"
+    USERS ||--o{ EFORM_SIGNATURES : "signs"
+    EFORM_REQUESTS ||--|{ EFORM_APPROVALS : "has"
+    EFORM_REQUESTS ||--|{ EFORM_SIGNATURES : "has"
+    EFORM_REQUESTS ||--o| EFORM_CREDENTIALS : "receives"
+    DEPARTMENTS ||--o{ USERS : "contains"
+
+    USERS {
+        uuid id PK
+        string email UK
+        string fullName
+        enum role
+        string jobTitle
+        uuid departmentId FK
+    }
+
+    EFORM_REQUESTS {
+        uuid id PK
+        enum formType "VPN | NETWORK | INTERNET"
+        enum status "DRAFT | PENDING_MANAGER | PENDING_ICT | CONFIRMED | REJECTED"
+        uuid requesterId FK
+        string requesterName
+        string requesterEmail
+        string requesterJobTitle
+        string requesterDepartment
+        jsonb formData "Stores form-specific fields"
+        boolean termsAccepted
+        text rejectionReason
+        uuid currentApproverId FK "Manager yang sedang review"
+        timestamp submittedAt
+        timestamp resolvedAt
+        timestamp createdAt
+        timestamp updatedAt
+    }
+
+    EFORM_APPROVALS {
+        uuid id PK
+        uuid eformRequestId FK
+        uuid approverId FK
+        enum role "REQUESTER | MANAGER | ICT_ADMIN"
+        enum action "PENDING | APPROVED | REJECTED"
+        text notes
+        timestamp actionAt
+        int sequence "Urutan approval: 1=requester, 2=manager, 3=ICT"
+    }
+
+    EFORM_SIGNATURES {
+        uuid id PK
+        uuid eformRequestId FK
+        uuid signerId FK
+        string signerName
+        text signatureData "Base64 PNG dari canvas"
+        enum signerRole "REQUESTER | MANAGER | ICT_ADMIN"
+        timestamp signedAt
+    }
+
+    EFORM_CREDENTIALS {
+        uuid id PK
+        uuid eformRequestId FK
+        text encryptedUsername "AES-256-GCM encrypted"
+        text encryptedPassword "AES-256-GCM encrypted"
+        string iv "Initialization vector"
+        string authTag "GCM auth tag"
+        uuid provisionedById FK
+        timestamp provisionedAt
+        timestamp accessCreatedAt
+        timestamp accessExpiresAt
+    }
+
+    DEPARTMENTS {
+        uuid id PK
+        string name
+        string code UK
+    }
+```
+
+### State Machine — Request Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT: User mulai isi form
+    DRAFT --> PENDING_MANAGER: User submit + sign
+    PENDING_MANAGER --> PENDING_ICT: Manager approve + sign
+    PENDING_MANAGER --> REJECTED: Manager reject
+    PENDING_ICT --> CONFIRMED: ICT confirm + provision credentials
+    PENDING_ICT --> REJECTED: ICT reject
+    CONFIRMED --> [*]: User view credentials
+    REJECTED --> [*]: User notified
+```
+
+### Entity Details
+
+---
+
+#### [NEW] [eform-request.entity.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/entities/eform-request.entity.ts)
+
+```typescript
+// Tabel utama: menyimpan semua data form request
+// formData (JSONB) untuk VPN:
+// {
+//   kebutuhanAkses: 'Remote PC Kantor' | 'Jaringan Kantor',
+//   dariTanggal: '2026-04-03',
+//   sampaiTanggal: '2026-05-03',
+//   alasan: 'Work from home requirement'
+// }
+```
+
+#### [NEW] [eform-approval.entity.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/entities/eform-approval.entity.ts)
+
+```typescript
+// Tracks setiap approval step
+// sequence: 1 = Requester submit, 2 = Manager approval, 3 = ICT confirmation
+```
+
+#### [NEW] [eform-signature.entity.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/entities/eform-signature.entity.ts)
+
+```typescript
+// Menyimpan digital signature sebagai Base64 PNG
+// Linked ke signer (User) + request
+```
+
+#### [NEW] [eform-credential.entity.ts](file:///d:/iDesk/apps/backend/src/modules/eform-request/entities/eform-credential.entity.ts)
+
+```typescript
+// AES-256-GCM encrypted credentials
+// Hanya bisa dibaca oleh requester melalui dedicated decrypt endpoint
+```
+
+---
+
+## C. Security Architecture
+
+### 1. Digital Signature Security
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  E-SIGNATURE FLOW                                            │
+│                                                              │
+│  1. User draws signature on HTML Canvas                      │
+│  2. Canvas → toDataURL('image/png') → Base64 string          │
+│  3. Auto-append metadata:                                    │
+│     - Clear name (from user profile)                         │
+│     - Timestamp (server-side, not client)                    │
+│     - IP Address (from request context)                      │
+│  4. Store as text field in eform_signatures table            │
+│  5. For PDF generation: embed as PNG image                   │
+│                                                              │
+│  SECURITY NOTES:                                             │
+│  - Timestamp ALWAYS from server (Date.now() on backend)      │
+│  - Signature immutable once saved (no update endpoint)       │
+│  - Audit log tracks all signing events                       │
+│  - Non-repudiation via user session JWT correlation          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 2. Credential Encryption Strategy (AES-256-GCM)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  CREDENTIAL ENCRYPTION / DECRYPTION FLOW                     │
+│                                                              │
+│  ENCRYPT (ICT Admin writes credentials):                     │
+│  ┌──────────┐                                                │
+│  │ Plaintext │──▶ AES-256-GCM Encrypt                        │
+│  │ username  │    Key: ENV.EFORM_ENCRYPTION_KEY (32 bytes)   │
+│  │ password  │    IV:  crypto.randomBytes(12) per-record      │
+│  └──────────┘    ──▶ Stored in DB: ciphertext + iv + authTag │
+│                                                              │
+│  DECRYPT (Requester reads credentials):                      │
+│  ┌──────────────────────────────────────┐                    │
+│  │ 1. GET /eform-request/:id/credentials│                    │
+│  │ 2. Guard: req.user.id === requesterId│ ← CRITICAL         │
+│  │ 3. Decrypt server-side               │                    │
+│  │ 4. Return plaintext via HTTPS         │                    │
+│  │ 5. Frontend shows in masked field     │                    │
+│  │    (copy-to-clipboard, auto-hide)    │                    │
+│  └──────────────────────────────────────┘                    │
+│                                                              │
+│  WHO CAN READ:                                               │
+│  ✅ Original requester (verified via JWT userId)             │
+│  ❌ Manager — cannot read                                    │
+│  ❌ Other ICT agents — cannot read post-provision            │
+│  ❌ Any SQL dump — encrypted in database                     │
+│                                                              │
+│  ENV REQUIRED:                                               │
+│  EFORM_ENCRYPTION_KEY=<64-char hex string>                   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 3. Authorization Matrix
+
+| Action | USER | MANAGER | AGENT | ADMIN |
+|--------|------|---------|-------|-------|
+| Create request | ✅ Own | ✅ Own | ✅ Own | ✅ Any |
+| Sign as requester | ✅ Own | ✅ Own | ✅ Own | ✅ Any |
+| View own requests | ✅ | ✅ | ✅ | ✅ |
+| Approve as manager | ❌ | ✅ Assigned | ❌ | ✅ |
+| Confirm as ICT | ❌ | ❌ | ✅ | ✅ |
+| Provision credentials | ❌ | ❌ | ✅ | ✅ |
+| Read credentials | ✅ Own | ❌ | ❌ | ❌ |
+| Reject request | ❌ | ✅ Stage 2 | ✅ Stage 3 | ✅ |
+| View all requests | ❌ | ❌ | ✅ | ✅ |
+
+---
+
+## D. Design System — Color Palette & Aesthetics
+
+Sesuai dengan permintaan, menggunakan **palette yang sama** dengan Hardware Requests. Berdasarkan [HardwareRequestPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx) dan [tokens.css](file:///d:/iDesk/apps/frontend/src/styles/tokens.css):
+
+### Color Usage Map
+
+| Element | Token | Hex (Light) | Usage |
+|---------|-------|-------------|-------|
+| **Primary** | `--primary` | #2D4A8C (Deep Sapphire) | CTA buttons, accent bars, focus rings |
+| **Card BG** | `--card` | #FEFDFB (Warm white) | Form cards, panels |
+| **Background** | `--background` | #F8F6F3 (Warm ivory) | Page background |
+| **Foreground** | `--foreground` | #282D33 (Warm dark) | Text, headings |
+| **Border** | `--border` | #E2DFD9 (Warm border) | Card borders, dividers |
+| **Accent** | `--accent` | #E8A830 (Warm amber) | Highlights, badge accents |
+| **Success** | `--success-500` | Teal green | Completed/approved states |
+| **Warning** | Amber 500 | Amber | Pending states |
+| **Error** | `--error-500` | Deep red | Rejected states |
+| **Info** | `--info-500` | Sky sapphire | Info badges, ICT stage |
+
+### Visual Style Rules (Matching Hardware Requests)
+
+- **Rounded corners**: `rounded-[2rem]` untuk cards, `rounded-2xl` untuk buttons
+- **Font weight**: `font-extrabold` untuk headings, `tracking-tighter` untuk judul utama
+- **Status badges**: `text-[9px] font-extrabold uppercase tracking-widest`
+- **Left accent bar**: `absolute left-0 w-2` colored by status
+- **Hover effects**: `hover:shadow-xl hover:border-primary/30 transition-all duration-500`
+- **Decorative elements**: Rounded circles di corner cards
+- **Labels**: `text-[10px] font-extrabold uppercase tracking-widest opacity-60`
+- **Icons**: `lucide-react` icons, 16-20px in colored rounded containers
+
+---
+
+## Proposed Changes
+
+### Component 1: Backend — EForm Request Module
+
+Summary: Modul baru yang menangani seluruh lifecycle e-form request digital, dari submission hingga credential delivery.
+
+---
+
+#### [NEW] `apps/backend/src/modules/eform-request/` (directory)
+
+Struktur file baru:
+
+```
+eform-request/
+├── dto/
+│   ├── create-eform-request.dto.ts    # Input validation
+│   ├── approve-eform-request.dto.ts   # Manager approval payload
+│   ├── provision-credentials.dto.ts   # ICT credential input
+│   └── index.ts
+├── entities/
+│   ├── eform-request.entity.ts        # Main request table
+│   ├── eform-approval.entity.ts       # Approval workflow tracking
+│   ├── eform-signature.entity.ts      # Digital signature storage
+│   ├── eform-credential.entity.ts     # Encrypted credential storage
+│   └── index.ts
+├── eform-request.controller.ts        # REST API endpoints
+├── eform-request.service.ts           # Business logic + state machine
+├── eform-credential.service.ts        # Encryption/decryption logic
+└── eform-request.module.ts            # NestJS module registration
+```
+
+**Key API Endpoints:**
+
+| Method | Route | Role | Description |
+|--------|-------|------|-------------|
+| `POST` | `/eform-request` | ALL | Create new form request + sign |
+| `GET` | `/eform-request` | AGENT/ADMIN | List all requests (filterable) |
+| `GET` | `/eform-request/my` | ALL | List own requests |
+| `GET` | `/eform-request/:id` | * | Get single request detail |
+| `PATCH` | `/eform-request/:id/manager-approve` | MANAGER | Manager approves + signs |
+| `PATCH` | `/eform-request/:id/manager-reject` | MANAGER | Manager rejects |
+| `PATCH` | `/eform-request/:id/ict-confirm` | AGENT/ADMIN | ICT confirms + signs |
+| `PATCH` | `/eform-request/:id/ict-reject` | AGENT/ADMIN | ICT rejects |
+| `POST` | `/eform-request/:id/credentials` | AGENT/ADMIN | Provision encrypted credentials |
+| `GET` | `/eform-request/:id/credentials` | Requester only | Decrypt & read credentials |
+| `GET` | `/eform-request/:id/pdf` | * | Generate signed PDF document |
+| `GET` | `/eform-request/managers` | ALL | List available managers for routing |
+
+---
+
+#### [MODIFY] [app.module.ts](file:///d:/iDesk/apps/backend/src/app.module.ts)
+
+- Register `EformRequestModule` di imports
+
+---
+
+### Component 2: Backend — Notification Integration
+
+#### [MODIFY] [notification-routes.ts](file:///d:/iDesk/apps/backend/src/modules/notifications/config/notification-routes.ts)
+
+Tambahkan notification routes baru:
+
+| Event | Recipients | Channel |
+|-------|-----------|---------|
+| `eform.submitted` | Assigned Manager | In-App + Email |
+| `eform.manager-approved` | ICT Agents + Requester | In-App + Email |
+| `eform.manager-rejected` | Requester | In-App + Email |
+| `eform.ict-confirmed` | Requester | In-App + Email |
+| `eform.ict-rejected` | Requester | In-App + Email |
+| `eform.credentials-provisioned` | Requester | In-App (No email for security) |
+
+---
+
+### Component 3: Frontend — E-Form Pages & Components
+
+Struktur file baru:
+
+```
+features/request-center/
+├── api/
+│   └── eform-request.api.ts           # [NEW] TanStack Query hooks
+├── components/
+│   ├── eform/                          # [NEW] directory
+│   │   ├── VpnFormWizard.tsx           # Multi-step form wizard
+│   │   ├── SignaturePad.tsx            # HTML Canvas signature component
+│   │   ├── ManagerSelector.tsx         # Manager dropdown with search
+│   │   ├── EformStatusPipeline.tsx     # Visual progress pipeline
+│   │   ├── ApprovalActionPanel.tsx     # Manager/ICT action buttons
+│   │   ├── CredentialViewer.tsx        # Secure credential display
+│   │   └── TermsAndConditions.tsx      # VPN T&C display + checkbox
+│   └── ...
+├── pages/
+│   ├── EformAccessListPage.tsx         # [REWRITE] List semua e-forms
+│   ├── EformAccessCreatePage.tsx       # [NEW] Form wizard page
+│   └── EformAccessDetailPage.tsx       # [NEW] Detail + approval view
+```
+
+---
+
+#### [REWRITE] [EformAccessListPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx)
+
+- Hapus dummy data, ganti dengan real API hooks
+- Match visual style HardwareRequestPage: stat cards, card grid, accent bars
+- Status filter, search, pagination
+- "New Request" button → navigate to create page
+
+#### [NEW] `EformAccessCreatePage.tsx`
+
+Multi-step wizard form:
+
+```
+Step 1: Pilih Jenis Form → VPN / Network Access / Internet Access
+Step 2: Isi Data Pemohon (pre-filled dari profile) + Detail Akses
+Step 3: Review Syarat & Ketentuan → checkbox agree
+Step 4: Tanda Tangan Digital (Canvas Pad) + Pilih Atasan
+Step 5: Review & Submit
+```
+
+#### [NEW] `EformAccessDetailPage.tsx`
+
+- Timeline/pipeline status visual (DRAFT → MANAGER → ICT → COMPLETE)
+- Form data read-only display
+- Signature images display (requester + manager + ICT)
+- Action panel (conditional per role):
+  - Manager: Approve/Reject button + signature pad
+  - ICT Agent: Confirm/Reject + credential input form + signature pad
+- Credential viewer (requester only, post-confirmation)
+- PDF download button
+
+---
+
+#### [NEW] `SignaturePad.tsx`
+
+Reusable canvas signature component:
+
+```
+┌───────────────────────────────────────┐
+│                                       │
+│    [Canvas area for drawing]          │
+│                                       │
+│                                       │
+├───────────────────────────────────────┤
+│ Clear  |  Import/Upload  |  Save     │
+├───────────────────────────────────────┤
+│ Signed by: Ahmad Faisal              │
+│ Date: 3 April 2026, 21:56 WIB        │
+└───────────────────────────────────────┘
+```
+
+Features:
+- Draw with mouse/touch/stylus
+- Import PNG/JPG of existing signature
+- Auto-append signer name + server-side timestamp
+- Save as Base64 PNG
+
+---
+
+#### [NEW] `CredentialViewer.tsx`
+
+Secure credential display component:
+
+```
+┌───────────────────────────────────────┐
+│ 🔐 VPN Credentials                   │
+│ ─────────────────────────────────     │
+│ Username: ••••••••  [👁] [📋 Copy]    │
+│ Password: ••••••••  [👁] [📋 Copy]    │
+│ ─────────────────────────────────     │
+│ ⚠️ Credentials auto-hide in 60s      │
+│    Time remaining: 45s                │
+└───────────────────────────────────────┘
+```
+
+Features:
+- Toggle show/mask per field
+- Copy to clipboard
+- Auto-hide after 60 seconds timeout
+- Only renderable when `user.id === request.requesterId`
+
+---
+
+### Component 4: Frontend — Routing Updates
+
+#### [MODIFY] [App.tsx](file:///d:/iDesk/apps/frontend/src/App.tsx)
+
+Tambah sub-routes di bawah `eform-access`:
+
+```tsx
+<Route path="eform-access" element={<EformAccessListPage />} />
+<Route path="eform-access/new" element={<EformAccessCreatePage />} />
+<Route path="eform-access/:id" element={<EformAccessDetailPage />} />
+```
+
+Replicate untuk semua layout paths: `/client/`, `/manager/`, root `/`
+
+---
+
+### Component 5: Database Migration
+
+#### [NEW] Migration file
+
+```sql
+-- Tabel utama e-form requests
+CREATE TABLE eform_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    form_type VARCHAR(50) NOT NULL DEFAULT 'VPN',
+    status VARCHAR(50) NOT NULL DEFAULT 'DRAFT',
+    requester_id UUID NOT NULL REFERENCES users(id),
+    requester_name VARCHAR(200) NOT NULL,
+    requester_email VARCHAR(200),
+    requester_job_title VARCHAR(200),
+    requester_department VARCHAR(200),
+    form_data JSONB,
+    terms_accepted BOOLEAN DEFAULT false,
+    rejection_reason TEXT,
+    current_approver_id UUID REFERENCES users(id),
+    submitted_at TIMESTAMP,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Approval tracking per stage
+CREATE TABLE eform_approvals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eform_request_id UUID NOT NULL REFERENCES eform_requests(id) ON DELETE CASCADE,
+    approver_id UUID NOT NULL REFERENCES users(id),
+    role VARCHAR(50) NOT NULL,
+    action VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    notes TEXT,
+    action_at TIMESTAMP,
+    sequence INTEGER NOT NULL,
+    UNIQUE(eform_request_id, sequence)
+);
+
+-- Digital signatures
+CREATE TABLE eform_signatures (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eform_request_id UUID NOT NULL REFERENCES eform_requests(id) ON DELETE CASCADE,
+    signer_id UUID NOT NULL REFERENCES users(id),
+    signer_name VARCHAR(200) NOT NULL,
+    signature_data TEXT NOT NULL,
+    signer_role VARCHAR(50) NOT NULL,
+    signed_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Encrypted credentials
+CREATE TABLE eform_credentials (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eform_request_id UUID NOT NULL REFERENCES eform_requests(id) ON DELETE CASCADE,
+    encrypted_username TEXT NOT NULL,
+    encrypted_password TEXT NOT NULL,
+    iv VARCHAR(64) NOT NULL,
+    auth_tag VARCHAR(64) NOT NULL,
+    provisioned_by_id UUID NOT NULL REFERENCES users(id),
+    provisioned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    access_created_at TIMESTAMP,
+    access_expires_at TIMESTAMP,
+    UNIQUE(eform_request_id)
+);
+
+-- Indexes
+CREATE INDEX idx_eform_requests_status ON eform_requests(status);
+CREATE INDEX idx_eform_requests_requester ON eform_requests(requester_id);
+CREATE INDEX idx_eform_requests_approver ON eform_requests(current_approver_id);
+CREATE INDEX idx_eform_approvals_request ON eform_approvals(eform_request_id);
+```
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Perlu jawaban sebelum implementasi:**
+> 1. **E-Signature level**: Apakah signature canvas (draw + name + timestamp) sudah cukup? Atau perlu PKI-based digital signature yang lebih formal?
+> 2. **Manager selection**: Apakah user memilih manager sendiri dari dropdown, atau ada mapping org-chart predefined (user → direct manager)?
+> 3. **Approval chain "Disetujui Kadep & Kadiv, Mengetahui GM/Director Level"** — apakah ini satu approval step (pick salah satu approver) atau multiple sequential approvers?
+> 4. **PDF Generation**: Apakah perlu generate PDF output yang menyerupai form fisik asli untuk arsip/print? Atau cukup digital view saja?
+> 5. **VPN T&C text**: Apakah Syarat & Ketentuan yang tertera di PDF sudah final, atau perlu bisa di-edit oleh admin?
+> 6. **Hubungan dengan modul existing**: Apakah `vpn-access` module (yang mengelola data VPN aktif per area) perlu diintegrasi? Misalnya auto-create VPN access record setelah ICT confirm?
+
+---
+
+## Step-by-Step Development Phases
+
+### Phase 1: Database & Backend Core (Days 1-3)
+
+| # | Task | Files |
+|---|------|-------|
+| 1.1 | Create entity files (4 entities) | `entities/*.entity.ts` |
+| 1.2 | Create DTOs with class-validator | `dto/*.dto.ts` |
+| 1.3 | Run `migration:generate` + `migration:run` | migration file |
+| 1.4 | Implement `EformRequestService` — CRUD + state machine | `eform-request.service.ts` |
+| 1.5 | Implement `EformCredentialService` — AES-256-GCM encrypt/decrypt | `eform-credential.service.ts` |
+| 1.6 | Create controller with all endpoints | `eform-request.controller.ts` |
+| 1.7 | Register module, add to `AppModule` | `eform-request.module.ts` + `app.module.ts` |
+| 1.8 | Add notification event emitters | service files |
+
+### Phase 2: Frontend Components (Days 3-5)
+
+| # | Task | Files |
+|---|------|-------|
+| 2.1 | Build `SignaturePad.tsx` — Canvas component | `components/eform/SignaturePad.tsx` |
+| 2.2 | Build `ManagerSelector.tsx` — Searchable dropdown | `components/eform/ManagerSelector.tsx` |
+| 2.3 | Build `EformStatusPipeline.tsx` — Visual progress | `components/eform/EformStatusPipeline.tsx` |
+| 2.4 | Build `TermsAndConditions.tsx` — T&C display | `components/eform/TermsAndConditions.tsx` |
+| 2.5 | Build `CredentialViewer.tsx` — Secure display | `components/eform/CredentialViewer.tsx` |
+| 2.6 | Build `ApprovalActionPanel.tsx` — Action buttons | `components/eform/ApprovalActionPanel.tsx` |
+
+### Phase 3: Frontend Pages (Days 5-7)
+
+| # | Task | Files |
+|---|------|-------|
+| 3.1 | Create `eform-request.api.ts` — TanStack Query hooks | `api/eform-request.api.ts` |
+| 3.2 | Rewrite `EformAccessListPage.tsx` — Real data + HW style | `pages/EformAccessListPage.tsx` |
+| 3.3 | Create `EformAccessCreatePage.tsx` — Multi-step wizard | `pages/EformAccessCreatePage.tsx` |
+| 3.4 | Create `EformAccessDetailPage.tsx` — Detail + actions | `pages/EformAccessDetailPage.tsx` |
+| 3.5 | Update `App.tsx` routing | `App.tsx` |
+
+### Phase 4: Integration & Security (Days 7-8)
+
+| # | Task | Files |
+|---|------|-------|
+| 4.1 | Wire notification routes | `notification-routes.ts` |
+| 4.2 | Implement PDF generation endpoint | `eform-request.service.ts` |
+| 4.3 | Add `.env` `EFORM_ENCRYPTION_KEY` | `.env.example`, `config` |
+| 4.4 | RBAC guard testing — all role combinations | Manual testing |
+
+### Phase 5: Polish & Testing (Days 8-10)
+
+| # | Task | Files |
+|---|------|-------|
+| 5.1 | Framer Motion animations — page transitions, wizard steps | All pages |
+| 5.2 | Mobile responsive layout testing | All pages |
+| 5.3 | Dark mode verification | All pages |
+| 5.4 | End-to-end workflow testing (USER → MANAGER → ICT → USER) | Browser testing |
+| 5.5 | Edge cases: expired sessions, concurrent approvals, empty states | All |
+
+---
+
+## Verification Plan
+
+### Automated Tests
+
+```bash
+# Backend
+cd apps/backend && npm run test -- --testPathPattern=eform-request
+npm run build  # Verify compilation
+
+# Frontend
+cd apps/frontend && npm run build  # Verify no TypeScript errors
+```
+
+### Manual Verification (Browser Testing)
+
+1. **User flow**: Login as USER → Create VPN request → Sign → Select manager → Submit
+2. **Manager flow**: Login as MANAGER → See notification → Review form → Sign → Approve
+3. **ICT flow**: Login as AGENT → See approved request → Input credentials → Sign → Confirm
+4. **Credential flow**: Login as USER → Open confirmed request → View decrypted credentials → Verify auto-hide
+5. **Reject flows**: Test manager reject + ICT reject → verify notifications sent
+6. **Security**: Try accessing credentials endpoint as non-requester → verify 403
+7. **PDF**: Download signed PDF → verify all 3 signatures appear correctly
+
+---
+
+## Architecture Diagram — End-to-End Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User (Requester)
+    participant FE as Frontend (React)
+    participant BE as Backend (NestJS)
+    participant DB as PostgreSQL
+    participant NS as Notification Service
+    participant M as Manager
+    participant ICT as ICT Agent
+
+    U->>FE: 1. Select "Form VPN"
+    FE->>FE: 2. Multi-step wizard form
+    U->>FE: 3. Fill form + Sign + Select Manager
+    FE->>BE: POST /eform-request (formData + signature + managerId)
+    BE->>DB: INSERT eform_requests (status=PENDING_MANAGER)
+    BE->>DB: INSERT eform_signatures (requester)
+    BE->>DB: INSERT eform_approvals (sequence=1 APPROVED, sequence=2 PENDING)
+    BE->>NS: emit('eform.submitted')
+    NS->>M: 4. Notification: "New VPN request pending your approval"
+
+    M->>FE: 5. Open request detail
+    FE->>BE: GET /eform-request/:id
+    BE-->>FE: Return full form + signatures
+    M->>FE: 6. Review + Sign + Approve
+    FE->>BE: PATCH /eform-request/:id/manager-approve (signature)
+    BE->>DB: UPDATE status=PENDING_ICT
+    BE->>DB: INSERT eform_signatures (manager)
+    BE->>NS: emit('eform.manager-approved')
+    NS->>ICT: 7. Notification: "VPN request approved, pending provisioning"
+    NS->>U: Notification: "Your request was approved by manager"
+
+    ICT->>FE: 8. Open request detail
+    FE->>BE: GET /eform-request/:id
+    ICT->>FE: 9. Input credentials + Sign + Confirm
+    FE->>BE: PATCH /eform-request/:id/ict-confirm (signature)
+    FE->>BE: POST /eform-request/:id/credentials (username, password)
+    BE->>BE: 🔐 AES-256-GCM Encrypt(credentials)
+    BE->>DB: INSERT eform_credentials (encrypted)
+    BE->>DB: UPDATE status=CONFIRMED
+    BE->>NS: emit('eform.credentials-provisioned')
+    NS->>U: 10. Notification: "Your VPN access is ready!"
+
+    U->>FE: 11. Open request detail
+    FE->>BE: GET /eform-request/:id/credentials
+    BE->>BE: Verify req.user.id === requesterId
+    BE->>BE: 🔓 AES-256-GCM Decrypt(credentials)
+    BE-->>FE: Return plaintext username + password
+    FE->>FE: 12. Display in CredentialViewer (60s auto-hide)
+```

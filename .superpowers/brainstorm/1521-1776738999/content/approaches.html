@@ -1,0 +1,44 @@
+<h2>3 Pendekatan Implementasi</h2>
+<p class="subtitle">Semua pakai: Layout A (calendar-first) + Style B (clean light) + Chip B (medium card). Perbedaan di interaction pattern detail event.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Popover Enhanced ⭐ Rekomendasi</h3>
+      <p>Redesign total layout + style. Event klik buka <strong>enhanced popover</strong> yang lebih kaya info (status timeline, quick actions: reschedule/confirm). Sidebar collapsible dengan toggle button. Stats strip di header (scheduled/unscheduled/today/overdue). Filter technician jadi multi-select chips bukan dropdown.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Perubahan minimal pada logic/data fetching</li><li>UX familiar (popover sudah ada)</li><li>Cepat diimplementasi</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Popover bisa terpotong di layar kecil</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Detail Slide Panel</h3>
+      <p>Klik event → sidebar kanan <strong>berubah jadi detail panel</strong> yang slide-in (replace Today/Unscheduled sementara). Tampilkan info lengkap + action buttons. Tombol X untuk kembali ke Today/Unscheduled view. Tidak pakai popover sama sekali.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Tidak ada popover overflow issue</li><li>Space detail lebih lega</li><li>Mobile-friendly</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Kehilangan context Today/Unscheduled saat buka detail</li><li>Lebih banyak state management</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Agenda Bottom Drawer</h3>
+      <p>Calendar full-width tanpa sidebar. Klik tanggal/event buka <strong>bottom drawer</strong> yang slide-up dari bawah. Drawer tampilkan agenda hari itu + detail event yang diklik. Sidebar Today/Unscheduled jadi floating badge counter di pojok.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Kalender paling besar/lega</li><li>Pattern familiar dari mobile calendar</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Perubahan paling besar dari struktur sekarang</li><li>Sidebar logic perlu direfactor signifikan</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Rekomendasi: <strong>A</strong> — paling pragmatis, improvement signifikan tanpa refactor besar. Pilih atau ketik preferensi.</p>

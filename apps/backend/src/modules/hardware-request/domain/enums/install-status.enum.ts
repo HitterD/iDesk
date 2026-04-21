@@ -1,0 +1,16 @@
+export enum InstallStatus {
+    PROPOSED = 'PROPOSED',
+    PROPOSED_AWAITING_USER = 'PROPOSED_AWAITING_USER',
+    CONFIRMED = 'CONFIRMED',
+    IN_PROGRESS = 'IN_PROGRESS',
+    DONE = 'DONE',
+    RESCHEDULED = 'RESCHEDULED',
+    RESCHEDULE_REQUESTED = 'RESCHEDULE_REQUESTED',
+    CANCELLED = 'CANCELLED',
+}
+
+export const INSTALL_TERMINAL = new Set<InstallStatus>([
+    InstallStatus.DONE,
+    InstallStatus.RESCHEDULED,
+    InstallStatus.CANCELLED,
+]);

@@ -1,0 +1,136 @@
+<h2>Layout Approach — Pilih Arah Redesign</h2>
+<p class="subtitle">Mana yang paling sesuai dengan kebutuhan halaman calendar hardware requests?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f172a;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#94a3b8">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="background:#1e40af;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px">◀ Prev</div>
+          <div style="background:#1e40af;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px">Today</div>
+          <div style="flex:1;text-align:center;font-size:12px;color:#e2e8f0;font-weight:bold">April 2026</div>
+          <div style="background:#334155;padding:3px 8px;border-radius:4px;font-size:10px">Month ▾</div>
+        </div>
+        <div style="display:grid;grid-template-columns:3fr 1fr;gap:8px">
+          <div style="background:#1e293b;border-radius:6px;padding:8px">
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;color:#64748b;font-size:9px;margin-bottom:4px">
+              <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+              <div style="background:#1e3a5f;border-radius:3px;padding:4px 2px;text-align:center;font-size:9px;color:#7dd3fc">21<br><div style="background:#3b82f6;border-radius:2px;padding:1px;margin-top:1px;font-size:8px">Install</div></div>
+              <div style="padding:4px 2px;text-align:center;font-size:9px;color:#64748b">22</div>
+              <div style="background:#1e3a5f;border-radius:3px;padding:4px 2px;text-align:center;font-size:9px;color:#7dd3fc">23<br><div style="background:#10b981;border-radius:2px;padding:1px;margin-top:1px;font-size:8px">Done</div></div>
+              <div style="padding:4px 2px;text-align:center;font-size:9px;color:#64748b">24</div>
+              <div style="background:#1e3a5f;border-radius:3px;padding:4px 2px;text-align:center;font-size:9px;color:#7dd3fc">25<br><div style="background:#f59e0b;border-radius:2px;padding:1px;margin-top:1px;font-size:8px">3 items</div></div>
+              <div style="padding:4px 2px;text-align:center;font-size:9px;color:#64748b">26</div>
+              <div style="padding:4px 2px;text-align:center;font-size:9px;color:#64748b">27</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="background:#1e293b;border-radius:6px;padding:8px">
+              <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">TODAY</div>
+              <div style="background:#1e3a5f;border-radius:4px;padding:4px;font-size:9px;color:#7dd3fc;margin-bottom:3px">09:00 Install Laptop</div>
+              <div style="background:#1e3a5f;border-radius:4px;padding:4px;font-size:9px;color:#7dd3fc">14:00 Setup PC</div>
+            </div>
+            <div style="background:#1e293b;border-radius:6px;padding:8px">
+              <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">UNSCHEDULED</div>
+              <div style="background:#7c3aed22;border-radius:4px;padding:4px;font-size:9px;color:#a78bfa;margin-bottom:3px">HR-2024-045</div>
+              <div style="background:#7c3aed22;border-radius:4px;padding:4px;font-size:9px;color:#a78bfa">HR-2024-046</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Calendar-First + Collapsible Sidebar</h3>
+      <p>Kalender besar dominan (75%), sidebar kanan bisa expand/collapse. Filter technician di header. Fokus pada visual calendar.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f172a;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#94a3b8">
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <div style="background:#1e3a5f;border-radius:6px;padding:6px 10px;text-align:center;flex:1">
+            <div style="font-size:16px;color:#3b82f6;font-weight:bold">12</div>
+            <div style="font-size:9px;color:#64748b">Scheduled</div>
+          </div>
+          <div style="background:#1e3a5f;border-radius:6px;padding:6px 10px;text-align:center;flex:1">
+            <div style="font-size:16px;color:#f59e0b;font-weight:bold">5</div>
+            <div style="font-size:9px;color:#64748b">Unscheduled</div>
+          </div>
+          <div style="background:#1e3a5f;border-radius:6px;padding:6px 10px;text-align:center;flex:1">
+            <div style="font-size:16px;color:#10b981;font-weight:bold">3</div>
+            <div style="font-size:9px;color:#64748b">Today</div>
+          </div>
+          <div style="background:#1e3a5f;border-radius:6px;padding:6px 10px;text-align:center;flex:1">
+            <div style="font-size:16px;color:#ef4444;font-weight:bold">2</div>
+            <div style="font-size:9px;color:#64748b">Overdue</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+          <div style="background:#1e293b;border-radius:6px;padding:8px">
+            <div style="font-size:9px;color:#64748b;margin-bottom:4px">Full Calendar Grid</div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+              <div style="background:#1e3a5f;border-radius:3px;padding:5px 2px;text-align:center;font-size:9px;color:#7dd3fc">21<br><div style="background:#3b82f6;height:3px;border-radius:1px;margin-top:2px"></div></div>
+              <div style="padding:5px 2px;text-align:center;font-size:9px;color:#475569">22</div>
+              <div style="background:#1e3a5f;border-radius:3px;padding:5px 2px;text-align:center;font-size:9px;color:#7dd3fc">23<br><div style="background:#10b981;height:3px;border-radius:1px;margin-top:2px"></div></div>
+              <div style="padding:5px 2px;text-align:center;font-size:9px;color:#475569">24</div>
+              <div style="background:#1e3a5f;border-radius:3px;padding:5px 2px;text-align:center;font-size:9px;color:#7dd3fc">25<br><div style="background:#f59e0b;height:3px;border-radius:1px;margin-top:2px"></div></div>
+              <div style="padding:5px 2px;text-align:center;font-size:9px;color:#475569">26</div>
+              <div style="padding:5px 2px;text-align:center;font-size:9px;color:#475569">27</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="background:#1e293b;border-radius:6px;padding:8px">
+              <div style="font-size:9px;color:#f59e0b;margin-bottom:4px;font-weight:bold">⚠ UNSCHEDULED</div>
+              <div style="border-left:2px solid #f59e0b;padding-left:5px;font-size:9px;color:#94a3b8;margin-bottom:3px">HR-2024-045<br><span style="color:#64748b">Laptop • Div A</span></div>
+              <div style="border-left:2px solid #f59e0b;padding-left:5px;font-size:9px;color:#94a3b8">HR-2024-046<br><span style="color:#64748b">PC • Div B</span></div>
+            </div>
+            <div style="background:#1e293b;border-radius:6px;padding:8px">
+              <div style="font-size:9px;color:#10b981;margin-bottom:4px;font-weight:bold">✓ TODAY</div>
+              <div style="border-left:2px solid #10b981;padding-left:5px;font-size:9px;color:#94a3b8;margin-bottom:3px">09:00 Install<br><span style="color:#64748b">Budi • SiteA</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Stats Header + Richer Sidebar</h3>
+      <p>Strip statistik di atas (scheduled/unscheduled/today/overdue), kalender di bawah, sidebar dengan info card lebih detail per item.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f172a;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#94a3b8">
+        <div style="display:flex;border-bottom:1px solid #1e293b;margin-bottom:8px;gap:0">
+          <div style="padding:6px 12px;border-bottom:2px solid #3b82f6;color:#3b82f6;font-size:10px;font-weight:bold">📅 Calendar</div>
+          <div style="padding:6px 12px;color:#475569;font-size:10px">⏰ Today (3)</div>
+          <div style="padding:6px 12px;color:#475569;font-size:10px">⚠ Unscheduled (5)</div>
+          <div style="padding:6px 12px;color:#475569;font-size:10px">👷 Technicians</div>
+        </div>
+        <div style="background:#1e293b;border-radius:6px;padding:8px">
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">
+            <div style="background:#1e3a5f;border-radius:3px;padding:6px 2px;text-align:center;font-size:9px;color:#7dd3fc">21<br><div style="display:flex;gap:1px;justify-content:center;margin-top:2px"><div style="width:4px;height:4px;border-radius:50%;background:#3b82f6"></div><div style="width:4px;height:4px;border-radius:50%;background:#10b981"></div></div></div>
+            <div style="padding:6px 2px;text-align:center;font-size:9px;color:#475569">22</div>
+            <div style="background:#1e3a5f;border-radius:3px;padding:6px 2px;text-align:center;font-size:9px;color:#7dd3fc">23<br><div style="display:flex;gap:1px;justify-content:center;margin-top:2px"><div style="width:4px;height:4px;border-radius:50%;background:#10b981"></div></div></div>
+            <div style="padding:6px 2px;text-align:center;font-size:9px;color:#475569">24</div>
+            <div style="background:#1e3a5f;border-radius:3px;padding:6px 2px;text-align:center;font-size:9px;color:#7dd3fc">25<br><div style="display:flex;gap:1px;justify-content:center;margin-top:2px"><div style="width:4px;height:4px;border-radius:50%;background:#f59e0b"></div><div style="width:4px;height:4px;border-radius:50%;background:#f59e0b"></div><div style="width:4px;height:4px;border-radius:50%;background:#f59e0b"></div></div></div>
+            <div style="padding:6px 2px;text-align:center;font-size:9px;color:#475569">26</div>
+            <div style="padding:6px 2px;text-align:center;font-size:9px;color:#475569">27</div>
+          </div>
+        </div>
+        <div style="margin-top:6px;font-size:9px;color:#64748b;text-align:center">Tab "Today" → list jadwal hari ini • Tab "Unscheduled" → queue assignment</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Full-Width Calendar + Tab Navigation</h3>
+      <p>Calendar full-width tanpa sidebar. Info Today/Unscheduled/Technician pindah ke tab di bawah header. Lebih bersih, satu fokus per waktu.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Klik pilihan di atas, atau ketik di terminal jika mau kombinasi/modifikasi.</p>

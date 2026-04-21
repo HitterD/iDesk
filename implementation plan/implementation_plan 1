@@ -1,0 +1,301 @@
+# Request Center — Redesign Komprehensif
+
+## Latar Belakang
+
+Implementasi sebelumnya menghasilkan halaman **Hardware & Budget Portal** yang:
+- ❌ **Tidak konsisten** dengan design language Dashboard & Tickets (menggunakan `bg-white dark:bg-slate-800` bukan `bg-[hsl(var(--card))]`, tidak ada `glass-card`, tidak ada `animate-fade-in-up`)
+- ❌ **Budget tab menggunakan mock data** — bukan data real dari API `GET /ict-budget`
+- ❌ **Tidak ada stat cards** di bagian atas (Dashboard punya StatCard row, Tickets punya StatsCard)
+- ❌ **Tidak ada search/filter** — Tickets punya search bar, status filter, priority filter
+- ❌ **Drawer action buttons adalah placeholder** — belum terhubung ke mutation hooks
+- ❌ **Tabel sederhana** tanpa pagination, sorting, atau empty state yang baik
+- ❌ **Calendar tab terlalu basic** — tidak ada slot capacity indicator
+- ❌ **Tidak ada API hooks terpisah** untuk ICT Budget, Lost Item, dan Access Request
+
+---
+
+## Tujuan Redesign
+
+Membuat **3 halaman Request Center** yang sepenuhnya konsisten dengan design language halaman **Dashboard** dan **Tickets**:
+
+1. **Hardware Requests** (`/hardware-requests`) — Gabungan Hardware Installation + ICT Budget + Scheduling
+2. **E-Form Access** (`/eform-access`) — Access Request management
+3. **Lost Items** (`/lost-items`) — Lost Item Report management
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> ### Keputusan Desain yang Perlu Dikonfirmasi
+>
+> 1. **Layout Hardware Requests** — Saya rencanakan menggunakan **tab layout** (sama seperti sekarang tapi redesign total):
+>    - Tab 1: **Hardware Installations** (tabel + detail drawer)
+>    - Tab 2: **ICT Budget** (tabel + detail drawer, data real dari API)
+>    - Tab 3: **Scheduling Calendar** (calendar + slot capacity)
+>    
+>    Apakah layout ini OK? Atau ingin diubah?
+>
+> 2. **E-Form Access & Lost Items** — Apakah cukup dibuat sebagai **single-page list** (mirip Tickets page — stat cards + search + table + detail drawer)? Atau ada fitur khusus yang diinginkan?
+>
+> 3. **Budget Realization Tab** — Dihapus atau tetap? Data chart dari mana? Saat ini hanya mock data. Apakah cukup menampilkan summary cards dari data `GET /ict-budget` saja?
+
+---
+
+## Design System Reference
+
+Berdasarkan analisis mendalam terhadap halaman Dashboard ([BentoDashboardPage.tsx](file:///d:/iDesk/apps/frontend/src/features/dashboard/pages/BentoDashboardPage.tsx)) dan Tickets ([BentoTicketListPage.tsx](file:///d:/iDesk/apps/frontend/src/features/ticket-board/pages/BentoTicketListPage.tsx)), berikut pattern yang **WAJIB** diikuti:
+
+### CSS Classes & Tokens
+
+| Element | Pattern yang Digunakan |
+|---------|----------------------|
+| **Card background** | `bg-white dark:bg-[hsl(var(--card))]` |
+| **Card border** | `border border-[hsl(var(--border))]` |
+| **Card radius** | `rounded-xl` atau `rounded-2xl` |
+| **Page title** | `text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white` |
+| **Subtitle** | `text-slate-500 dark:text-slate-400 text-sm font-medium` |
+| **Animation** | `animate-fade-in-up`, `stagger-1`, `stagger-2` |
+| **Icon container** | `w-12 h-12 rounded-xl bg-[hsl(var(--primary))]/10 flex items-center justify-center` |
+| **Primary button** | `bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90` |
+| **Tabs** | Pill tabs di `bg-slate-50 dark:bg-slate-800/50` dengan active = `bg-white dark:bg-slate-700 text-primary shadow-sm ring-1` |
+| **Table header** | `text-xs font-semibold uppercase tracking-wider text-slate-500` |
+| **Status Badge** | `px-2.5 py-1 rounded-full text-xs font-bold` with color-specific bg/text |
+
+### Komponen yang Sudah Ada & Harus Di-reuse
+
+| Komponen | Path | Kegunaan |
+|----------|------|----------|
+| `StatsCard` | [StatsCard.tsx](file:///d:/iDesk/apps/frontend/src/features/ticket-board/components/StatsCard.tsx) | Stat cards di atas tabel |
+| `ModernCalendar` | [ModernCalendar.tsx](file:///d:/iDesk/apps/frontend/src/components/ui/ModernCalendar.tsx) | Calendar widget |
+| `Badge` | `@/components/ui/badge` | Status badges |
+| `Select` | `@/components/ui/select` | Filter dropdowns |
+| `AnimatedNumber` | `@/components/ui/AnimatedNumber` | Animated stat numbers |
+| `cn` | `@/lib/utils` | ClassName utility |
+| `UserAvatar` | `@/components/ui/UserAvatar` | User avatar display |
+
+---
+
+## Backend API Reference (Sudah Ada)
+
+### Hardware Installation (via Ticketing)
+```
+GET  /tickets/paginated?category=HARDWARE_INSTALLATION  → PaginatedResponse<Ticket>
+GET  /tickets/:id                                        → Ticket detail
+PATCH /tickets/:id/status                                → Update status
+```
+
+### ICT Budget
+```
+GET   /ict-budget           → IctBudgetRequest[]
+GET   /ict-budget/:id       → IctBudgetRequest
+PATCH /ict-budget/:id/status → { status: IctBudgetRealizationStatus }
+```
+**Status enum**: `FORM_PENDING → FORM_DOWNLOADED → FORM_UPLOADED → PENDING → APPROVED → PURCHASING → ARRIVED → REALIZED | REJECTED`
+
+### Installation Schedule
+```
+GET   /installation-schedule                    → InstallationSchedule[]
+GET   /installation-schedule/available-slots?date=YYYY-MM-DD → slot availability
+POST  /installation-schedule                    → Create schedule
+PATCH /installation-schedule/:id/approve        → Approve schedule
+PATCH /installation-schedule/:id/complete       → Complete schedule
+```
+
+### Access Request
+```
+GET   /access-request           → AccessRequest[]
+GET   /access-request/:id       → AccessRequest
+PATCH /access-request/:id/verify   → Verify
+PATCH /access-request/:id/approve  → Approve
+PATCH /access-request/:id/create-access → Create credentials
+PATCH /access-request/:id/reject   → Reject
+```
+**Status enum**: `PENDING → VERIFIED → APPROVED → ACCESS_CREATED | REJECTED`
+
+### Lost Item
+```
+GET   /lost-item           → LostItemReport[]
+GET   /lost-item/:id       → LostItemReport
+PATCH /lost-item/:id/status → { status: LostItemStatus }
+```
+**Status enum**: `REPORTED → FOUND | LOST`
+
+---
+
+## Proposed Changes
+
+### Component 1: Frontend API Hooks (NEW)
+
+#### [NEW] [ict-budget.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/ict-budget.api.ts)
+- `useIctBudgetRequests()` — `GET /ict-budget` with TanStack Query
+- `useIctBudgetDetail(id)` — `GET /ict-budget/:id`
+- `useUpdateIctBudgetStatus()` — `PATCH /ict-budget/:id/status` mutation
+
+#### [NEW] [access-request.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/access-request.api.ts)
+- `useAccessRequests()` — `GET /access-request`
+- `useVerifyAccessRequest()` — `PATCH /access-request/:id/verify`
+- `useApproveAccessRequest()` — `PATCH /access-request/:id/approve`
+- `useCreateAccessCredentials()` — `PATCH /access-request/:id/create-access`
+- `useRejectAccessRequest()` — `PATCH /access-request/:id/reject`
+
+#### [NEW] [lost-item.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/lost-item.api.ts)
+- `useLostItemReports()` — `GET /lost-item`
+- `useUpdateLostItemStatus()` — `PATCH /lost-item/:id/status` mutation
+
+#### [MODIFY] [schedule.api.ts](file:///d:/iDesk/apps/frontend/src/features/request-center/api/schedule.api.ts)
+- Sudah ada, pastikan hooks berjalan dan terhubung
+
+---
+
+### Component 2: HardwareRequestPage (REBUILD)
+
+#### [MODIFY] [HardwareRequestPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+
+**Rebuild total** — dari 379 baris menjadi ~600-700 baris dengan design language konsisten.
+
+**Layout Structure:**
+```
+┌─────────────────────────────────────────────────────┐
+│ Header (icon + title + subtitle + action buttons)   │
+│ Same pattern as BentoTicketListPage header           │
+├─────────────────────────────────────────────────────┤
+│ Stat Cards Row (4 cards, same as Tickets page)      │
+│ [Total HW] [Pending] [In Progress] [Completed]     │
+├─────────────────────────────────────────────────────┤
+│ Tab Bar (pill tabs, same style as Dashboard)        │
+│ [Hardware Install] [ICT Budget] [Schedule Calendar] │
+├─────────────────────────────────────────────────────┤
+│ Tab Content:                                        │
+│ - Search bar + status filter + refresh button       │
+│ - Data table with pagination                        │
+│ - Click row → Detail drawer (framer-motion)         │
+└─────────────────────────────────────────────────────┘
+```
+
+**Tab 1 — Hardware Installations:**
+- Fetch dari `GET /tickets/paginated?category=HARDWARE_INSTALLATION`
+- Search bar + status filter dropdown
+- Table columns: Ticket#, Title, Requester, Scheduled Date, Status, Arrow
+- Click row → Detail drawer dengan action buttons terhubung ke mutations
+- Pagination (jika > 20 items)
+
+**Tab 2 — ICT Budget:**
+- Fetch dari `GET /ict-budget` (data real, bukan mock!)
+- Search bar + status filter dropdown
+- Table columns: ID/Number, Request Type, Requester, Amount, Status, Date
+- Click row → Detail drawer dengan status workflow actions
+- Summary stats di atas: Total Requests, Total Amount, Approved, Pending
+
+**Tab 3 — Schedule Calendar:**
+- Same as current but with proper design tokens
+- Calendar widget (ModernCalendar) + Day schedule list
+- Show slot capacity indicator (2/2 capacity)
+- Proper empty state
+
+---
+
+### Component 3: EformAccessListPage (REBUILD)
+
+#### [MODIFY] [EformAccessListPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx)
+
+**Layout:** Same pattern as BentoTicketListPage — header + stat cards + search + table + drawer
+
+```
+┌─────────────────────────────────────────────────┐
+│ Header (KeyRound icon + "Access Requests")      │
+├─────────────────────────────────────────────────┤
+│ [Total] [Pending] [Approved] [Rejected]         │
+├─────────────────────────────────────────────────┤
+│ Search + Status Filter + Refresh                │
+├─────────────────────────────────────────────────┤
+│ Table: ID, Requester, Access Type, System,      │
+│        Status, Date → Click for drawer          │
+└─────────────────────────────────────────────────┘
+```
+
+- Fetch dari `GET /access-request`
+- Status filter: PENDING, VERIFIED, APPROVED, ACCESS_CREATED, REJECTED
+- Detail drawer dengan action buttons: Verify → Approve → Create Access | Reject
+- Actions terhubung ke mutation hooks
+
+---
+
+### Component 4: LostItemListPage (REBUILD)
+
+#### [MODIFY] [LostItemListPage.tsx](file:///d:/iDesk/apps/frontend/src/features/request-center/pages/LostItemListPage.tsx)
+
+**Layout:** Same pattern
+
+```
+┌─────────────────────────────────────────────────┐
+│ Header (Search icon + "Lost Item Reports")      │
+├─────────────────────────────────────────────────┤
+│ [Total] [Reported] [Found] [Lost]               │
+├─────────────────────────────────────────────────┤
+│ Search + Status Filter + Refresh                │
+├─────────────────────────────────────────────────┤
+│ Table: ID, Item Name, Type, Location, Reporter, │
+│        Status, Date → Click for drawer          │
+└─────────────────────────────────────────────────┘
+```
+
+- Fetch dari `GET /lost-item`
+- Status filter: REPORTED, FOUND, LOST
+- Detail drawer dengan status update actions
+- Actions terhubung ke mutation hooks
+
+---
+
+## Execution Order
+
+1. **[Frontend] API Hooks** — Create `ict-budget.api.ts`, `access-request.api.ts`, `lost-item.api.ts`
+2. **[Frontend] HardwareRequestPage** — Rebuild total (Tab 1: HW Installs, Tab 2: ICT Budget real data, Tab 3: Calendar)
+3. **[Frontend] EformAccessListPage** — Rebuild dengan layout konsisten
+4. **[Frontend] LostItemListPage** — Rebuild dengan layout konsisten
+5. **[Verification]** — Browser test semua 3 halaman
+
+---
+
+## Design Principles (NON-NEGOTIABLE)
+
+| Rule | Detail |
+|------|--------|
+| **Reuse existing components** | `StatsCard`, `Badge`, `Select`, `AnimatedNumber`, `UserAvatar`, `ModernCalendar` |
+| **HSL CSS Variables** | Gunakan `hsl(var(--primary))`, `hsl(var(--card))`, `hsl(var(--border))` — BUKAN `bg-white` atau `bg-slate-800` langsung |
+| **Animations** | `animate-fade-in-up`, `stagger-1/2/3` classes |
+| **Rounded corners** | `rounded-xl` untuk komponen kecil, `rounded-2xl` untuk panel besar |
+| **Font weights** | Title: `font-extrabold`, Labels: `font-semibold`, Body: `font-medium` |
+| **NO mock data** | Semua data dari API real. Jika API belum ada, tampilkan empty state yang proper |
+| **Drawer pattern** | `framer-motion` slide-in drawer untuk detail, actions terhubung ke mutation hooks |
+| **Consistent header** | Icon container (12x12 rounded-xl) + title (3xl extrabold) + subtitle + action buttons |
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` — pastikan compile tanpa error
+- TypeScript type check — pastikan semua types valid
+
+### Browser Testing
+- Navigate ke `/hardware-requests` → Verify 3 tabs berfungsi, data real tampil
+- Navigate ke `/eform-access` → Verify tabel + drawer berfungsi
+- Navigate ke `/lost-items` → Verify tabel + drawer berfungsi
+- Test search filter di setiap halaman
+- Test status filter dropdown
+- Test click row → drawer opens → action buttons work
+- Verify design consistent dengan Dashboard & Tickets
+
+---
+
+## File Impact Summary
+
+| Action | File | Description |
+|--------|------|-------------|
+| **NEW** | `request-center/api/ict-budget.api.ts` | TanStack Query hooks for ICT Budget |
+| **NEW** | `request-center/api/access-request.api.ts` | TanStack Query hooks for Access Request |
+| **NEW** | `request-center/api/lost-item.api.ts` | TanStack Query hooks for Lost Item |
+| **REBUILD** | `request-center/pages/HardwareRequestPage.tsx` | Total redesign with consistent design language |
+| **REBUILD** | `request-center/pages/EformAccessListPage.tsx` | From skeleton to full functional page |
+| **REBUILD** | `request-center/pages/LostItemListPage.tsx` | From skeleton to full functional page |

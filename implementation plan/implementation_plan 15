@@ -1,0 +1,234 @@
+# Animation Overhaul — Emil Kowalski Design Engineering Principles
+
+Implementasi prinsip animasi dari [Emil Kowalski's Design Engineering Skill](https://github.com/emilkowalski/skill) dan [animations.dev](https://animations.dev/) ke seluruh halaman iDesk. Saat ini animasi bersifat basic (CSS utilities sederhana, `transition-all` di 105 file, easing curve lemah). Goal: animasi yang **feel right** — responsive, performant, dan premium.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Scope besar** — 105 file menggunakan `transition-all` (anti-pattern). Implementasi dilakukan bertahap per phase untuk meminimalkan risiko regresi.
+
+> [!WARNING]
+> **`transition-all` → specific properties** akan mengubah banyak hover/interaction behavior. Beberapa edge case mungkin perlu fine-tuning manual.
+
+---
+
+## Audit Findings (Emil Kowalski Principles)
+
+### Masalah Yang Ditemukan
+
+| # | Issue | Severity | Count | Emil's Rule |
+|---|-------|----------|-------|-------------|
+| 1 | `transition-all` digunakan di mana-mana | 🔴 High | **105 files** | "Specify exact properties; avoid `all`" |
+| 2 | `ease-in` pada exit page transition | 🔴 High | BentoLayout L31 | "Never use ease-in for UI animations" |
+| 3 | CSS `easeOut`/`easeIn` bawaan (terlalu lemah) | 🟡 Medium | Semua transitions | "Use custom easing curves — built-in CSS easings are too weak" |
+| 4 | `animate-fade-in-up` tanpa definisi keyframe | 🟡 Medium | 24 files | Utility CSS tanpa keyframe = no animation |
+| 5 | No `prefers-reduced-motion` support | 🟡 Medium | Global | "Reduced motion means fewer animations, not zero" |
+| 6 | Stagger delay 0.4s terlalu lama | 🟠 Low | StaggerList | "Keep stagger delays short (30-80ms)" |
+| 7 | AnimatedCounter linear (bukan eased) | 🟠 Low | animated.tsx | Counter should use eased timing |
+| 8 | No active/press states pada buttons | 🟡 Medium | Semua buttons | "Buttons must feel responsive to press" |
+| 9 | Page transition hanya opacity (no subtle y) | 🟠 Low | BentoLayout | Enter should have subtle translateY |
+| 10 | ZoomCalendar minimal animation | 🟡 Medium | 1 animate class | Hampir tidak ada animation |
+| 11 | TicketList no list enter animation | 🟡 Medium | 7 animate refs | Data list tanpa stagger enter |
+| 12 | No exit animations on dynamic content | 🟡 Medium | Semua halaman | "Nothing disappears instantly" |
+
+---
+
+## Proposed Changes
+
+### Phase 1: Foundation — Animation System & CSS Variables (Core)
+
+Membangun sistem animasi yang konsisten sebagai foundation untuk semua halaman.
+
+---
+
+#### [MODIFY] [index.css](file:///d:/iDesk-main/apps/frontend/src/index.css)
+
+**Tambah CSS custom properties & keyframes:**
+
+```css
+:root {
+  /* Emil Kowalski recommended easing curves */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+/* Keyframes for animate-fade-in-up (currently undefined!) */
+@keyframes fade-in-up { ... }
+@keyframes fade-in-down { ... }
+@keyframes scale-in { ... }
+@keyframes slide-in-right { ... }
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.15s !important;
+  }
+}
+
+/* Button press feedback (global) */
+button:active, [role="button"]:active {
+  transform: scale(0.97);
+}
+```
+
+---
+
+#### [MODIFY] [tailwind.config.ts](file:///d:/iDesk-main/apps/frontend/tailwind.config.ts)
+
+Tambah custom animation utilities di Tailwind extend:
+- `fade-in-up`, `fade-in-down`, `scale-in`, `slide-in-right`, `slide-in-left`, `pop-in`
+- Semua menggunakan custom easing (`--ease-out`)
+- Duration ≤ 300ms
+
+---
+
+### Phase 2: Core Components — Animation Primitives
+
+Upgrade komponen animasi shared yang dipakai di mana-mana.
+
+---
+
+#### [MODIFY] [BentoLayout.tsx](file:///d:/iDesk-main/apps/frontend/src/components/layout/BentoLayout.tsx)
+
+| Before | After | Why |
+|--------|-------|-----|
+| `ease: 'easeOut'` (built-in lemah) | `ease: [0.23, 1, 0.32, 1]` (custom curve) | Built-in CSS easings lack punch |
+| `ease: 'easeIn'` on exit | `ease: [0.23, 1, 0.32, 1]` with shorter duration | Never use ease-in for UI |
+| `duration: 0.15` enter, `0.1` exit | `duration: 0.2` enter, `0.12` exit | Asymmetric: enter slightly longer |
+| Opacity only | `opacity + translateY(8px)` enter | Subtle movement makes it feel alive |
+
+---
+
+#### [MODIFY] [animated.tsx](file:///d:/iDesk-main/apps/frontend/src/components/ui/animated.tsx)
+
+| Before | After | Why |
+|--------|-------|-----|
+| CSS `animate-${animation}` (undefined) | Proper framer-motion integration | CSS keyframes are not defined |
+| AnimatedCounter linear steps | Eased animation with `requestAnimationFrame` | Linear counting feels robotic |
+| No exit animations | Exit support via AnimatePresence | Elements should not vanish |
+| `staggerDelay = 0.05` as string calc | `staggerDelay = 0.04` (40ms) | 30-80ms range per Emil |
+
+---
+
+#### [MODIFY] [StaggerList.tsx](file:///d:/iDesk-main/apps/frontend/src/components/ui/StaggerList.tsx)
+
+| Before | After | Why |
+|--------|-------|-----|
+| `ease: [0.25, 0.1, 0.25, 1]` (weak) | `ease: [0.23, 1, 0.32, 1]` (strong ease-out) | Custom curve feels more intentional |
+| `animationDuration = 0.4` (400ms!) | `animationDuration = 0.25` (250ms) | UI animations should stay under 300ms |
+| `filter: 'blur(4px)'` on all items | `filter: 'blur(2px)'` subtle only | 4px blur is too heavy, distracting |
+| `delayChildren: 0.1` (100ms wait) | `delayChildren: 0.05` (50ms) | Don't block interaction |
+
+---
+
+### Phase 3: High-Traffic Pages — Dashboard, Tickets, Zoom
+
+Upgrade animasi pada halaman yang paling sering diakses.
+
+---
+
+#### [MODIFY] [BentoDashboardPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/dashboard/pages/BentoDashboardPage.tsx)
+
+**Masalah:** 28 animation refs tapi semuanya CSS utility basic (`transition-all`, `animate-fade-in-up`, `animate-pulse`).
+
+| Before | After | Why |
+|--------|-------|-----|
+| `transition-all` pada stat cards | `transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out)` | Specify exact props |
+| `animate-fade-in-up` tanpa keyframe | framer-motion stagger entry | Actually animate |
+| `animate-pulse` pada live dot | Custom subtle pulse (scale 1→1.2→1) | animate-pulse is too aggressive |
+| `transition-all` pada chart bars | `transition: transform 150ms var(--ease-out)` | Chart bars only scale on hover |
+| No stagger on stat cards | Stagger 40ms delay between cards | Cascading feel |
+
+---
+
+#### [MODIFY] [BentoTicketListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/ticket-board/pages/BentoTicketListPage.tsx)
+
+**Masalah:** 7 animation refs, mostly basic. No list enter animation, no row transitions.
+
+| Before | After | Why |
+|--------|-------|-----|
+| `animate-pulse` loading | Subtle opacity pulse | Gentler loading state |
+| `transition-all` on buttons/filters | `transition: color 150ms, background-color 150ms` | Specific properties |
+| No ticket row animation | Stagger list rows on data load | Makes data feel alive |
+| No AnimatePresence on filter changes | AnimatePresence for filter UI toggle | Smooth filter show/hide |
+
+---
+
+#### [MODIFY] [ZoomCalendarPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/zoom-booking/pages/ZoomCalendarPage.tsx) + ZoomCalendar.tsx
+
+**Masalah:** Hampir zero animation (1 `animate-fade-in-up`, 2 `animate-spin`).
+
+| Before | After | Why |
+|--------|-------|-----|
+| `animate-spin` on sync button | Custom spinner with `ease-in-out` | Smoother spin |
+| No calendar transition | AnimatePresence for week/month changes | Calendar navigation feel |
+| No booking card animation | Scale-in animation on event cards | Events should feel present |
+| No modal enter/exit | Modal with `scale(0.95) + opacity` enter | Natural modal appearance |
+
+---
+
+### Phase 4: Global `transition-all` Cleanup
+
+Systematic replacement dari `transition-all` ke specific properties di 105 files.
+
+**Strategy:** Batch replacement menggunakan pattern:
+
+| Pattern | Replacement |
+|---------|-------------|
+| `transition-all` pada hover:bg, hover:text | `transition-colors` |
+| `transition-all` pada hover:scale, transform | `transition-transform` |
+| `transition-all` pada hover:opacity | `transition-opacity` |
+| `transition-all` pada mixed hover | Specific: `transition: color 150ms, transform 150ms` |
+
+> [!IMPORTANT]
+> Phase ini dilakukan incremental — mulai dari high-traffic pages (dashboard, tickets, zoom, login, notifications), kemudian sisanya. Setiap batch di-verify visual sebelum lanjut.
+
+---
+
+### Phase 5: Polish — Micro-interactions & Active States
+
+#### Global button active states
+```css
+/* In index.css */
+.btn-press:active {
+  transform: scale(0.97);
+  transition: transform 100ms var(--ease-out);
+}
+```
+
+#### Card hover improvements
+```css
+/* Subtle lift instead of generic transition */
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+```
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Prioritas phase?** Haruskah saya mulai dari Phase 1 + 2 (foundation) dulu, atau langsung focus Phase 3 (high-traffic pages) yang visible impact-nya lebih besar?
+
+> [!IMPORTANT]
+> **`transition-all` cleanup scope?** 105 files itu banyak. Apakah cukup handle yang high-traffic saja (dashboard, tickets, zoom, login, notifications — ~20 files), atau mau semua?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` — memastikan tidak ada TypeScript error
+- Browser test pada dashboard, ticket list, zoom calendar, login page
+
+### Manual Verification
+- Visual review setiap page setelah perubahan
+- Check `prefers-reduced-motion` di dev tools
+- Performance check: pastikan hanya transform+opacity yang di-animate
+- Test pada mobile viewport untuk responsiveness animation

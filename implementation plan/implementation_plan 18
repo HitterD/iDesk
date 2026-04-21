@@ -1,0 +1,419 @@
+# iDesk Full-Stack Review — Raw & Unfiltered
+
+> **Reviewer:** Antigravity AI (Claude Opus 4.6)  
+> **Date:** 2026-04-10  
+> **Scope:** Backend (NestJS/TypeORM), Frontend (React/Vite/TailwindCSS v4), Database (PostgreSQL), DevOps (Docker)  
+> **Credential/Password review:** SKIPPED per user request
+
+---
+
+## 📊 EXECUTIVE SCORE
+
+| Domain | Score | Rating |
+|--------|-------|--------|
+| **Backend Architecture** | 62/100 | ⚠️ Adequate with critical gaps |
+| **Frontend Architecture** | 68/100 | 🔶 Good foundation, DRY violations |
+| **Database Design** | 55/100 | 🔴 Significant concerns |
+| **DevOps/Infrastructure** | 52/100 | 🔴 Not production-ready |
+| **Testing** | 15/100 | 🔴 Critically deficient |
+| **Security** | 65/100 | ⚠️ Above average, gaps remain |
+| **Code Quality** | 60/100 | ⚠️ Inconsistent |
+| **UI/UX Design System** | 72/100 | 🟢 Strong but room to improve |
+| **Overall** | **56/100** | ⚠️ Functional prototype, not enterprise-grade |
+
+---
+
+## 1. BACKEND (NestJS + TypeORM)
+
+### ✅ PROS
+
+1. **Modular Architecture** — 20+ well-separated NestJS modules (`ticketing`, `auth`, `notifications`, `zoom-booking`, `eform-request`, etc.). Feature-based grouping is correct.
+
+2. **Event-Driven Design** — Uses `EventEmitter2` for domain events (`ticket.created`, etc.) + WebSocket (`EventsGateway`) for real-time updates. Decoupled architecture.
+
+3. **Security Basics Done Right:**
+   - JWT fail-fast validation in `AuthModule` (line 16-26) — refuses to start without 32+ char secret
+   - HttpOnly cookie auth (not localStorage tokens) ✅
+   - CSRF token via `X-CSRF-TOKEN` header for state-changing requests
+   - Rate limiting via `ThrottlerModule` (100 req/min)
+   - Non-root Docker user ✅
+
+4. **SLA System** — Comprehensive SLA tracking with first-response targets, resolution targets, pause/vendor-wait tracking, breach detection. Business-logic rich.
+
+5. **Optimistic Locking** — `@VersionColumn()` on Ticket entity prevents concurrent update conflicts. Evidence: [ticket.entity.ts:207](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/entities/ticket.entity.ts#L207)
+
+6. **Cache Layer** — `AppCacheModule` + `CacheInvalidationService` for centralized cache management with Redis support.
+
+7. **Audit Trail** — `AuditModule` with `logAsync()` for non-blocking audit logging on ticket CRUD.
+
+8. **Database Indexing** — Multiple composite indexes on Ticket entity for query performance: `[status, priority]`, `[status, slaTarget]`, `[userId]`, `[assignedToId]`, `[siteId]`, `[category]`.
+
+9. **Transaction Support** — Ticket creation wraps multi-entity writes (ticket + message) in `manager.transaction()`. Evidence: [ticket-create.service.ts:118](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-create.service.ts#L118)
+
+10. **Service Decomposition** — Ticketing split into `ticket-create`, `ticket-update`, `ticket-query`, `ticket-stats`, `ticket-merge`, `ticket-messaging`, `ticket-notification` services. Clean SRP.
+
+### ❌ CONS
+
+1. **🔴 `createTicketDto: any` — NO DTO VALIDATION on most critical endpoint!**
+   - [ticket-create.service.ts:38](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-create.service.ts#L38): `createTicketDto: any`
+   - Controller likely passes raw body. Attacker can inject ANY field into `ticketRepo.create({...createTicketDto})` (mass assignment vulnerability)
+   - `class-validator` is installed but potentially unused on this critical path
+
+2. **🔴 `synchronize: true` in non-production** — [app.module.ts:169](file:///d:/iDesk-main/apps/backend/src/modules/../../app.module.ts#L169)
+   - Auto-syncs schema in dev. Can DROP columns/data on entity changes
+   - Only 12 migration files for 57 entities — means most schema changes went through `synchronize`, not migrations
+   - In staged/QA environments this is data loss risk
+
+3. **🔴 Monolithic `app.module.ts` (259 lines)** — Manually imports ALL 57 entities into `TypeOrmModule.forRoot()`. Every new entity requires editing this file. Should use `autoLoadEntities: true`.
+
+4. **🔴 Ticket Number Race Condition** — [ticket-create.service.ts:70-77](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-create.service.ts#L70-L77)
+   ```typescript
+   const count = await this.ticketRepo.count({...});
+   const number = (count + 1).toString().padStart(4, '0');
+   ticket.ticketNumber = `${dateStr}-${division}-${number}`;
+   ```
+   - Two concurrent requests → same count → DUPLICATE ticket number → `unique` constraint violation crash
+   - Fix: database sequence or `SELECT ... FOR UPDATE` lock
+
+5. **🟡 Duplicate User Entity** — TWO `user.entity.ts` files:
+   - [auth/domain/user.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/auth/domain/user.entity.ts) — Plain class with `UserRole { MANAGER, TECHNICIAN }`
+   - [users/entities/user.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/users/entities/user.entity.ts) — TypeORM entity with full decorators
+   - Auth domain entity has stale roles (MANAGER, TECHNICIAN) vs production roles (ADMIN, AGENT, USER, MANAGER, etc.)
+   - Confusing — which is canonical?
+
+6. **🟡 Build Swallows Errors** — [Dockerfile:11](file:///d:/iDesk-main/apps/backend/Dockerfile#L11)
+   ```dockerfile
+   RUN npm run build || echo "Build completed with warnings"
+   ```
+   - If TypeScript compilation fails, Docker build still succeeds with broken code
+   - Deployed image may be non-functional
+
+7. **🟡 No Global Validation Pipe** — No `app.useGlobalPipes(new ValidationPipe())` visible. DTOs with decorators exist but might not be enforced globally.
+
+8. **🟡 `process.env` Direct Access in Module Decorator** — [app.module.ts:139-143](file:///d:/iDesk-main/apps/backend/src/modules/../../app.module.ts#L139-L143)
+   ```typescript
+   host: process.env.DB_HOST || 'localhost',
+   ```
+   - Bypasses `ConfigService`. Won't respect `.env` file loading order. Tests can't mock these values.
+
+9. **🟡 No Request Validation on Uploads** — `UploadsModule` exists but no evidence of file type/size validation (MIME type checking, max file size limits).
+
+10. **🟡 Missing Error Boundary on Transaction** — [ticket-create.service.ts:117-209](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-create.service.ts#L117-L209): WebSocket emissions and event emitter calls INSIDE transaction block but AFTER `savedTicket`. If `message.save()` fails, events already emitted for rollback-ed ticket. Side effects should be AFTER transaction commit.
+
+---
+
+## 2. FRONTEND (React 19 + Vite 7 + Tailwind v4)
+
+### ✅ PROS
+
+1. **Modern Stack** — React 19, Vite 7, Tailwind CSS v4, Zustand, TanStack Query v5, Framer Motion. All latest versions.
+
+2. **Code Splitting Done Right** — ALL pages lazy-loaded via `React.lazy()` with `Suspense` fallback. 50+ lazy imports in [AppRoutes.tsx](file:///d:/iDesk-main/apps/frontend/src/routes/AppRoutes.tsx). Bundle splitting is excellent.
+
+3. **LazyMotion** — Framer Motion features lazy-loaded to reduce main bundle. Evidence: [App.tsx:10](file:///d:/iDesk-main/apps/frontend/src/App.tsx#L10)
+
+4. **Role-Based Route Access** — `ProtectedRoute` with `allowedRoles` and `requiredPageAccess`. Three portals: Admin/Agent, Manager, Client. Clean separation.
+
+5. **Auth Architecture:**
+   - HttpOnly cookie (no token in localStorage)
+   - Zustand store only stores non-sensitive user info
+   - Auto token refresh with concurrent request queuing
+   - CSRF token for state-changing methods
+
+6. **API Client Sophistication:**
+   - Axios retry with exponential backoff (503, network errors)
+   - Request ID correlation (`X-Request-ID`)
+   - Dev-only request/response logging
+   - Centralized error message system via `getErrorMessage()`
+   - Silent rejection for GET + 403 (background permission checks)
+
+7. **Design System Architecture:**
+   - Structured CSS layers: `tokens.css` → `animations.css` → `utilities.css` → `components.css`
+   - CSS custom properties for all design tokens
+   - Light/dark mode with distinct palettes (Warm Ivory + Deep Navy)
+   - Custom font: Plus Jakarta Sans (characterful, not generic)
+
+8. **Error Boundaries** — `ErrorBoundary` + `FeatureErrorBoundary` wrapping every route. One page crash doesn't kill entire app.
+
+9. **Accessibility Foundations:**
+   - `ScreenReaderProvider` for announcements
+   - `prefers-reduced-motion` media query support
+   - `role`, `tabIndex`, `onKeyDown` on interactive elements
+
+10. **Radix UI Primitives** — Using Radix for checkboxes, dialogs, dropdowns, tabs, tooltips — accessible by default.
+
+### ❌ CONS
+
+1. **🔴 BentoDashboardPage = 921 LINES** — [BentoDashboardPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/dashboard/pages/BentoDashboardPage.tsx)
+   - Contains: MiniBarChart, DonutChart, StatCard, StatusBadge, PriorityDot — all inline
+   - 4 custom chart components defined IN the page file
+   - Violates KISS, SRP, and §4 max file size (800 lines)
+   - These components are NOT reusable elsewhere
+
+2. **🔴 AppRoutes.tsx = 498 lines of JSX boilerplate** — [AppRoutes.tsx](file:///d:/iDesk-main/apps/frontend/src/routes/AppRoutes.tsx)
+   - Every route wraps: `ProtectedRoute → FeatureErrorBoundary → Suspense → Component`
+   - Same 5-level nesting **repeated 50+ times**
+   - Zero abstraction. Should be a `LazyRoute` helper component
+   - Manager routes duplicate admin routes (hardware-requests, eform-access, lost-items, zoom-calendar)
+
+3. **🟡 `Toaster` imported in BOTH `App.tsx` AND `AppRoutes.tsx`** — [App.tsx:4](file:///d:/iDesk-main/apps/frontend/src/App.tsx#L4) + [AppRoutes.tsx:6](file:///d:/iDesk-main/apps/frontend/src/routes/AppRoutes.tsx#L6). Potential double-render.
+
+4. **🟡 `LazyMotion` + `loadFramerFeatures` duplicated** — Defined in BOTH [App.tsx:10](file:///d:/iDesk-main/apps/frontend/src/App.tsx#L10) AND [AppRoutes.tsx:12](file:///d:/iDesk-main/apps/frontend/src/routes/AppRoutes.tsx#L12). AppRoutes imports it but App.tsx already wraps everything.
+
+5. **🟡 Dashboard fetches ALL tickets client-side** — [BentoDashboardPage.tsx:299-307](file:///d:/iDesk-main/apps/frontend/src/features/dashboard/pages/BentoDashboardPage.tsx#L299-L307)
+   ```typescript
+   const res = await api.get('/tickets');
+   ```
+   - Downloads ENTIRE ticket list to compute stats in `useMemo`
+   - At 10,000+ tickets this crashes the browser
+   - Backend already has `/tickets/dashboard/stats` endpoint — why fetch all tickets too?
+
+6. **🟡 `auth-storage` in localStorage parsed with `JSON.parse` in render** — [AppRoutes.tsx:94-103](file:///d:/iDesk-main/apps/frontend/src/routes/AppRoutes.tsx#L94-L103)
+   - `RoleBasedRedirect` does `JSON.parse(localStorage.getItem('auth-storage'))` on every navigate
+   - Should use `useAuth()` hook instead of raw localStorage
+
+7. **🟡 Auth State has Stale Role Types** — [useAuth.ts:10](file:///d:/iDesk-main/apps/frontend/src/stores/useAuth.ts#L10)
+   ```typescript
+   role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
+   ```
+   - Missing: `AGENT_OPERATIONAL_SUPPORT`, `AGENT_ORACLE`, `AGENT_ADMIN` (used in routes)
+   - Routes check for these roles but TypeScript type doesn't include them
+
+8. **🟡 CSS File Fragmentation** — 12 CSS files totaling ~95KB
+   - `glassmorphism.css` (8.5KB), `micro-animations.css` (3.2KB), `consistency.css` (4.8KB), `select-styles.css` (2.5KB) — loaded separately
+   - Should be consolidated into design system layers
+
+9. **🟡 `useAuth` User Interface Missing Fields** — [useAuth.ts:6-16](file:///d:/iDesk-main/apps/frontend/src/stores/useAuth.ts#L6-L16)
+   - Missing: `siteId`, `telegramId`, `isActive`, `lastActiveAt`, `appliedPresetId`
+   - Frontend might not have access to site-specific filtering data
+
+10. **🟡 No Frontend Tests** — 0 test files found. Zero unit tests, zero component tests, zero integration tests.
+
+---
+
+## 3. DATABASE (PostgreSQL + TypeORM)
+
+### ✅ PROS
+
+1. **UUID Primary Keys** — All entities use `@PrimaryGeneratedColumn('uuid')`. No sequential ID guessing attacks.
+2. **Composite Indexes** — Ticket has 8 indexes covering major query patterns.
+3. **Enum Types** — PostgreSQL `enum` for status/priority/source with TypeScript enum backing.
+4. **Soft Delete on Users** — `onDelete: 'SET NULL'` preserves ticket history when users are removed.
+5. **Connection Pooling** — Configured with min/max/idle/timeout settings via env vars.
+
+### ❌ CONS
+
+1. **🔴 NO Migration Discipline** — 12 migrations for 57 entities.
+   - Most schema changes rely on `synchronize: true`
+   - Migration file `1775230430429-Migration.ts` has FUTURE timestamp (year 2026+) — autogenerated
+   - No migration naming convention (some named, some generic `Migration`)
+   - Production deployment with `migrationsRun: true` will fail if schema is out of sync
+
+2. **🔴 Ticket Entity is a God Object (211 lines, 35+ columns)** — [ticket.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/entities/ticket.entity.ts)
+   - Mixes: core ticket data + SLA fields + hardware installation fields + scheduling + reminder flags
+   - `isHardwareInstallation`, `scheduledDate`, `scheduledTime`, `hardwareType`, `reminderD1Sent`, `reminderD0Sent`, `userAcknowledged` — these belong in `InstallationSchedule` entity (which already exists!)
+   - Violates normalization: ticket-type-specific fields bloat every row
+
+3. **🔴 `priority` Column Inconsistency** — [ticket.entity.ts:86-89](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/entities/ticket.entity.ts#L86-L89)
+   ```typescript
+   @Column({ default: 'MEDIUM' })
+   priority: string;  // ← plain string, not enum!
+   ```
+   - `status` uses `type: 'enum'` but `priority` is plain `string`
+   - `TicketPriority` enum exists but isn't used in column definition
+   - Can store ANY string as priority — no database-level validation
+
+4. **🟡 No `@DeleteDateColumn` (Soft Delete)** — Tickets have no soft delete. Direct `DELETE` loses data permanently. No recycle bin.
+
+5. **🟡 Date Fields Without Timezone** — No explicit `timestamptz` specification. TypeORM defaults may cause timezone issues across deployments.
+
+6. **🟡 `date.setHours(0,0,0,0)` Mutates Date Object in Count Query** — [ticket-create.service.ts:72](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-create.service.ts#L72)
+   ```typescript
+   createdAt: MoreThanOrEqual(new Date(date.setHours(0, 0, 0, 0))),
+   ```
+   - `date.setHours()` MUTATES `date` variable used later for ticket number generation
+   - Can cause subtle time-related bugs
+
+7. **🟡 No Database Seeding for Required Data** — Permission presets, default SLA configs, feature definitions need seed scripts. `npm run seed` exists but unclear if comprehensive.
+
+---
+
+## 4. DEVOPS & INFRASTRUCTURE
+
+### ✅ PROS
+
+1. **Docker Multi-Stage Build** — Builder + production stages for both frontend and backend. Image size optimized.
+2. **Non-Root Containers** — Both backend (node) and frontend (nginx) run as non-root users.
+3. **Health Checks** — PostgreSQL and Redis have healthcheck configurations in docker-compose.
+4. **Service Dependencies** — Backend depends on postgres + redis with `condition: service_healthy`.
+
+### ❌ CONS
+
+1. **🔴 No Nginx Configuration Included** — Frontend Dockerfile references `apps/frontend/nginx.conf` but no evidence it exists in repo.
+
+2. **🔴 `docker-compose.yml` version '3.8'** — Deprecated. Docker Compose v2 doesn't need `version` field.
+
+3. **🔴 Build Error Silencing in BOTH Dockerfiles:**
+   ```dockerfile
+   RUN npm run build || echo "Build completed with warnings"
+   ```
+   - Backend AND frontend swallow build errors
+   - Deployed containers may have missing/broken code
+
+4. **🟡 No `.env.example`** — No template for required environment variables. New developers must guess.
+
+5. **🟡 No Docker Volume for Uploads** — Backend serves `/uploads` statically but docker-compose has no volume mount for it. Container restart = uploaded files lost.
+
+6. **🟡 Frontend Copies ENTIRE Monorepo** — [Dockerfile:14](file:///d:/iDesk-main/apps/frontend/Dockerfile#L14): `COPY . .` copies ALL workspace files including backend code, tests, etc. Bloated build context.
+
+7. **🟡 `.gitignore` is Minimal** — Root `.gitignore` only ignores `node_modules/`, `dist/`, and `idesk-*.json`. Missing:
+   - `.env` files
+   - `uploads/` directory
+   - `backups/` directory
+   - IDE files (`.idea/`, `.vscode/`)
+   - Coverage reports
+   - OS files (`.DS_Store`, `Thumbs.db`)
+
+8. **🟡 No CI/CD Pipeline** — No GitHub Actions, GitLab CI, or similar. No automated testing, linting, or deployment.
+
+9. **🟡 No Reverse Proxy/TLS** — Frontend serves on port 80 (HTTP). No HTTPS configuration. Backend exposed directly on 3001.
+
+10. **🟡 No Logging Stack** — No ELK/Grafana/Prometheus. Production observability is blind.
+
+---
+
+## 5. TESTING
+
+### ✅ PROS
+
+1. Backend: Jest configured with coverage reporting.
+2. 5 test files exist targeting critical paths (auth, ticketing, pagination).
+
+### ❌ CONS
+
+1. **🔴 5 Backend Tests for 200+ Files** — Coverage is ~2.5%. Unacceptable for any production system.
+2. **🔴 0 Frontend Tests** — Zero. Nothing. Not a single component test, hook test, or integration test.
+3. **🔴 No E2E Tests** — `jest-e2e.json` configured but no actual e2e test files.
+4. **🔴 No Contract Tests** — Backend and frontend share no type definitions. API contract changes can break frontend silently.
+
+---
+
+## 6. UI/UX DESIGN (Per Frontend Design Plugin Standards)
+
+### ✅ PROS
+
+1. **Distinctive Typography** — Plus Jakarta Sans as primary font. NOT Inter/Roboto/Arial. ✅
+2. **Premium Color Palette** — "Warm Ivory & Sapphire" light theme + "Deep Navy & Luminous" dark theme. Curated HSL values, not generic.
+3. **Design Token Architecture** — Comprehensive token system with 50+ custom properties covering colors, spacing, typography, shadows, borders, radii.
+4. **Glassmorphism Layer** — Dedicated `glassmorphism.css` (8.5KB) for glass effects.
+5. **Micro-Animations** — Dedicated CSS files for animations + Emil Kowalski easing curves (`ease-out-back`, `ease-spring`).
+6. **Custom Charts** — DonutChart, MiniBarChart, Sparkline built from scratch (SVG) — not generic chart library defaults.
+7. **Button Press Feedback** — Global `button:active { transform: scale(0.97) }` — tactile feel.
+8. **Skeleton Shimmer** — Custom glossy shimmer override for loading skeletons.
+9. **Dark Mode Parity** — Separate token values for dark mode (not just inverted).
+
+### ❌ CONS (Per Frontend Design Plugin Criteria)
+
+1. **🟡 Layout is Still 12-Column Grid** — Dashboard uses `grid-cols-1 xl:grid-cols-4`, standard grid. No asymmetry, overlap, or grid-breaking elements per Phase 4 requirements.
+
+2. **🟡 Backgrounds Lack Atmosphere** — Cards are flat solid colors (`bg-white dark:bg-[hsl(var(--card))]`). No gradient mesh, noise/grain overlay, geometric patterns, or layered transparencies.
+
+3. **🟡 Status Badges are Generic** — `StatusBadge` and `PriorityDot` are standard colored pills. No distinctive design language.
+
+4. **🟡 Font Scale Not Fully Utilised** — tokens.css defines `--text-display-2xl` through `--text-body-xs` but dashboard page uses Tailwind `text-3xl`, `text-xs` directly instead of token references.
+
+5. **🟡 Same Aesthetic Across Pages** — All pages likely share same card-grid-stat layout. No variation between dense/sparse, serious/playful per Plugin Phase 4 anti-pattern.
+
+6. **🟡 Radix Components Unstylized** — Using default Radix primitives. Not custom-crafted for iDesk's aesthetic direction.
+
+---
+
+## 7. SECURITY (Excluding Credentials)
+
+### ✅ PROS
+
+1. HttpOnly JWT cookies ✅
+2. CSRF protection ✅
+3. JWT secret minimum length validation ✅
+4. Rate limiting (100 req/min) ✅
+5. Non-root Docker containers ✅
+6. bcrypt for password hashing ✅
+7. Helmet middleware available ✅
+8. Audit logging on critical actions ✅
+
+### ❌ CONS
+
+1. **🔴 Mass Assignment** — `createTicketDto: any` → `ticketRepo.create({...createTicketDto})`. Attacker can set `assignedToId`, `slaTarget`, `isOverdue`, `version` directly.
+2. **🟡 No Input Sanitization** — `description` goes directly to DB as `text`. No XSS sanitization before storage or rendering.
+3. **🟡 `.env` NOT in `.gitignore`** — Secrets could be committed.
+4. **🟡 No CORS Configuration Visible** — Backend may accept requests from any origin.
+5. **🟡 Uploads Served Without Auth** — `ServeStaticModule` serves `/uploads` publicly. Any uploaded file is world-readable.
+
+---
+
+## 📋 PRIORITY IMPROVEMENT RECOMMENDATIONS
+
+### P0 — Fix Immediately
+
+| # | Issue | Impact | Effort |
+|---|-------|--------|--------|
+| 1 | Add DTO validation on `createTicket` (replace `any` with proper DTO + `ValidationPipe`) | Security: mass assignment | 2h |
+| 2 | Fix ticket number race condition (use `@Generated('increment')` or DB sequence) | Data integrity: duplicate IDs | 3h |
+| 3 | Remove `|| echo` from Dockerfiles — let builds fail properly | Deploy: broken containers | 10min |
+| 4 | Add `.env` to `.gitignore` | Security: leaked secrets | 5min |
+
+### P1 — Fix This Sprint
+
+| # | Issue | Impact | Effort |
+|---|-------|--------|--------|
+| 5 | Use `autoLoadEntities: true` in TypeORM config — delete 57 entity imports from app.module | Maintainability | 1h |
+| 6 | Extract `AppRoutes.tsx` into `LazyRoute` helper — reduce 498 lines to ~100 | DRY, maintainability | 3h |
+| 7 | Split `BentoDashboardPage.tsx` — extract chart components | Code quality, reusability | 2h |
+| 8 | Remove full-ticket-fetch from dashboard — use `/dashboard/stats` only | Performance: browser crash at scale | 1h |
+| 9 | Fix `priority` column to use `type: 'enum'` like `status` | Data integrity | 1h |
+| 10 | Add `GlobalValidationPipe` in `main.ts` | Security for all endpoints | 30min |
+
+### P2 — Fix This Month
+
+| # | Issue | Impact | Effort |
+|---|-------|--------|--------|
+| 11 | Write at minimum 30 backend unit tests (services, guards, DTOs) | Reliability | 2 weeks |
+| 12 | Write 15 frontend component tests (React Testing Library) | Reliability | 1 week |
+| 13 | Normalize Ticket entity — extract hardware installation fields to `InstallationSchedule` | DB cleanliness | 1 day |
+| 14 | Add `.env.example` with all required variables | DX onboarding | 1h |
+| 15 | Add Docker volume for uploads persistence | Data durability | 30min |
+| 16 | Consolidate CSS files into design system layers | Performance | 3h |
+| 17 | Fix auth role types — add missing agent sub-roles to `useAuth.ts` interface | Type safety | 30min |
+| 18 | Remove duplicate User entity in `auth/domain/` | Code hygiene | 1h |
+| 19 | Add CORS configuration with explicit allowed origins | Security | 30min |
+| 20 | Add upload file validation (MIME type whitelist, max size) | Security | 2h |
+
+### P3 — Backlog
+
+| # | Issue | Impact | Effort |
+|---|-------|--------|--------|
+| 21 | Add CI/CD pipeline (GitHub Actions) | Automation | 1 day |
+| 22 | Add Reverse proxy + TLS (Traefik/Caddy) in docker-compose | Security | 3h |
+| 23 | Add shared types package (`@idesk/types`) for frontend-backend contract | Type safety | 2 days |
+| 24 | Add logging stack (Loki/Grafana or ELK) | Observability | 2 days |
+| 25 | Add UI atmosphere per design plugin — grain overlays, gradient meshes | Visual polish | 1 week |
+| 26 | Break AppRoutes grid monotony — add asymmetric layouts per page | Design differentiation | 1 week |
+
+---
+
+## 🏁 VERDICT
+
+iDesk adalah **functional internal tool** yang working, tapi BUKAN enterprise-grade software.
+
+**Yang sudah baik:** Arsitektur modular, auth security, real-time updates, design token system, code splitting, SLA tracking.
+
+**Yang kritis:** Zero meaningful test coverage, mass assignment vulnerability, race conditions pada ticket numbering, Docker build yang swallow errors, dan single page file 921 baris.
+
+**Score 56/100** karena:
+- Functional? Ya. Works? Ya.  
+- Reliable? Tidak bisa dijamin tanpa tests.  
+- Secure? Ada gaps critical (mass assignment, no input sanitization).  
+- Scalable? Dashboard akan crash di 10k+ tickets.  
+- Maintainable? God objects dan DRY violations everywhere.  
+
+> iDesk butuh **3-4 sprint stabilization** sebelum layak disebut production-grade. Focus: P0 fixes → test coverage → DB normalization → CI/CD.

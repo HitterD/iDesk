@@ -1,0 +1,249 @@
+# Hardware Request & Installation — Full Review & Fix Plan
+
+## Executive Summary
+
+Deep audit 18 file (3895 LOC). Ditemukan **14 bug/issue** di hardware request + hardware installation pages. 2 critical issue sesuai user request (installation schedule broken, searchbar disconnected) + 12 issue lain yg impact UX/logic.
+
+---
+
+## Bug & Issue Inventory
+
+### 🔴 P0 — CRITICAL (User-reported)
+
+#### BUG-1: Installation Schedule Modal — `scheduledDate` Timezone Bug
+**File:** [InstallationScheduleModal.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationScheduleModal.tsx)  
+**Root Cause:** Backend `getMonthlyAvailability()` di [installation-schedule.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/installation-schedule.service.ts) mutasi `startDate` saat loop:
+```javascript
+// BUG: d.setDate(d.getDate() + 1) MUTASI startDate (same reference)
+for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+```
+`d.toISOString()` return UTC → timezone mismatch dengan Postgres `date` column. Juga `scheduledDate` column type `date` tapi query pakai `Between(startOfDay, endOfDay)` dengan timestamp — bisa miss data.
+
+**Juga:** Jika DB belum ada data schedule sama sekali, `getAvailableSlots()` tetap return slot available, tapi di frontend `getDayAvailability()` return `null` untuk hari yg tidak ada di response → hari tampil tanpa dot → user bingung.
+
+#### BUG-2: Hardware Request Page Searchbar — Client-Side Only, Not Connected to Backend/GlobalSearch
+**File:** [HardwareRequestPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx#L42-L62)  
+**Root Cause:** Searchbar hanya filter `filteredRequests` via client-side string match:
+```javascript
+const filteredRequests = requests.filter(req => {
+    const matchesSearch = (req.title?.toLowerCase() || req.budgetCategory?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase());
+    return matchesSearch;
+});
+```
+**Problems:**
+1. `debouncedSearchTerm` TIDAK dikirim ke `useIctBudgetRequests()` → backend returns semua data tanpa search
+2. Pattern `req.title?.toLowerCase() || req.budgetCategory?.toLowerCase()` hanya match satu field (jika title truthy, category diabaikan)
+3. Pagination + client-side filter = hanya search page pertama
+4. Tidak terhubung ke GlobalSearch (`useSearch` hook pakai `/search` endpoint terpisah)
+
+---
+
+### 🟡 P1 — MAJOR (Workflow/Logic Bugs)
+
+#### BUG-3: Backend `findAll` — `search` parameter TIDAK DI-SUPPORT
+**File:** [ict-budget.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/ict-budget/ict-budget.controller.ts#L35-L61)  
+Controller & service `findAll()` hanya accept `siteId`, `status`, `page`, `limit`. Tidak ada `search` parameter.
+
+#### BUG-4: `getMonthlyAvailability` — Date Loop Mutation
+**File:** [installation-schedule.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/installation-schedule.service.ts)  
+`for (let d = new Date(startDate)...)` mutasi `startDate` karena `setDate()` modifies in-place. Loop bisa skip hari atau infinite loop.
+
+#### BUG-5: Slot Data Shape Mismatch Frontend↔Backend
+**Frontend** `InstallationScheduleModal` expect:
+```ts
+slots: { time: string; available: boolean; capacity: number; booked: number }[]
+```
+**Backend** `getMonthlyAvailability` returns per-day `slots` tapi nested inside daily result. Frontend `getDayAvailability()` match by `a.date === dateStr` → **correct shape**. Tapi jika MongoDB empty, all days return `available: true` padahal no slot data → misleading availability display.
+
+#### BUG-6: InstallationDetailPage — Wrong Route for ICT Budget Link
+**File:** [InstallationDetailPage.tsx](file:///d:/iDesk-main/apps/frontend/src/pages/HardwareInstallation/InstallationDetailPage.tsx#L166)
+```tsx
+navigate(`/ict-budget/${detail.ictBudgetRequest?.id}`)
+```
+Tapi route yg benar adalah `/hardware-requests/${id}`. Route `/ict-budget/` TIDAK EXIST di router.
+
+#### BUG-7: InstallationDetailPage — `detail.ictBudgetRequest.title` field TIDAK return dari backend
+**File:** Backend `findOneInstallation()` hanya select `['id', 'realizationStatus']` dari ictBudgetRequest. Field `title` tidak di-select sehingga selalu undefined.
+
+#### BUG-8: InstallationDetailPage — Schedule Status Display Wrong Values
+**File:** [InstallationDetailPage.tsx](file:///d:/iDesk-main/apps/frontend/src/pages/HardwareInstallation/InstallationDetailPage.tsx#L213-L219)
+Cek `detail.schedule.status === 'ARRIVED'` dan `'REALIZED'` tapi ScheduleStatus enum hanya: `PENDING`, `APPROVED`, `RESCHEDULED`, `COMPLETED`, `CANCELLED`. Tidak ada `ARRIVED` atau `REALIZED`.
+
+#### BUG-9: `useHardwareStats` — Fetch ALL 1000 tickets for stats computation
+**File:** [useHardwareInstallation.ts](file:///d:/iDesk-main/apps/frontend/src/hooks/useHardwareInstallation.ts#L27-L34)
+`useAllHardwareTickets` fetch limit 1000 tiap kali. Ini wasteful dan bisa slow. Stats should come from backend aggregation.
+
+---
+
+### 🔵 P2 — MINOR (UX/Quality)
+
+#### BUG-10: HardwareRequestPage — Tab Count Inaccurate
+**File:** [HardwareRequestPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx#L123-L125)
+Tab count compute dari `requests.filter(r => r.realizationStatus === tab.value).length` — tapi `requests` hanya current page (max 10). Count tidak reflect total.
+
+#### BUG-11: GlobalSearch — Tidak Support `hardware-requests` Category 
+**File:** [GlobalSearch.tsx](file:///d:/iDesk-main/apps/frontend/src/features/search/components/GlobalSearch.tsx)
+`useSearch` scope hanya `tickets`, `users`, `articles`. No `hardware-requests` scope. Hardware request results appear as tickets in search.
+
+#### BUG-12: Search hook `scope` — No hardware_installation scope
+**File:** [useSearch.ts](file:///d:/iDesk-main/apps/frontend/src/features/search/hooks/useSearch.ts#L5)
+Type hardcoded: `('tickets' | 'users' | 'articles')[]`. Tidak ada `hardware-requests` atau `installations`.
+
+#### BUG-13: HardwareRequestPage — Pagination resets tapi status filter tidak reset search
+Saat ganti tab, `setPage(1)` tapi `searchTerm` tidak di-clear. User bisa stuck di "no results" tanpa sadar searchbar punya value.
+
+#### BUG-14: InstallationTab → handleRowClick navigates tanpa role-based path
+**File:** [InstallationTab.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationTab.tsx#L58-L64)
+Navigasi langsung ke `/hardware-requests/${id}?highlight=installation` tanpa prefix `/client` atau `/manager`. Works for agent tapi broken untuk user/manager role karena mereka punya prefix di route.
+
+---
+
+## Proposed Changes
+
+### Phase 1: Fix Critical — Search & Installation Schedule
+
+---
+
+#### [MODIFY] Backend: Add `search` to ICT Budget `findAll`
+**File:** [ict-budget.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/ict-budget/ict-budget.controller.ts)
+- Add `@Query('search') search?: string` parameter
+- Pass ke service
+
+**File:** [ict-budget.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ict-budget/ict-budget.service.ts)
+- Add search filter di `findAll()`:
+```typescript
+if (options.search) {
+    qb.andWhere(
+        '(ict.title ILIKE :search OR ticket.title ILIKE :search)',
+        { search: `%${options.search}%` }
+    );
+}
+```
+
+---
+
+#### [MODIFY] Frontend: Wire searchbar to backend
+**File:** [HardwareRequestPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+- Pass `debouncedSearchTerm` ke `useIctBudgetRequests()` sebagai `search` param
+- Hapus client-side `filteredRequests` filter
+- Pakai `requests` langsung
+
+**File:** [ict-budget.api.ts](file:///d:/iDesk-main/apps/frontend/src/features/request-center/api/ict-budget.api.ts)
+- Add `search` param ke `useIctBudgetRequests()` filters interface & query
+
+---
+
+#### [MODIFY] Backend: Fix `getMonthlyAvailability` timezone & Date mutation bug
+**File:** [installation-schedule.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/installation-schedule.service.ts)
+- Fix date loop mutation: `new Date(d.getTime())` per iteration
+- Use date-only string comparison instead of timestamp `Between()`
+- Handle empty schedule data gracefully → return all business days as available
+
+---
+
+#### [MODIFY] Backend: Fix `getAvailableSlots` — `scheduledDate` type is `date` not `timestamp`
+**File:** [installation-schedule.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/installation-schedule.service.ts)
+- Change `Between(startOfDay, endOfDay)` → use raw query with `date` comparison
+- Or: `scheduledDate = :date` karena column type `date` (tanpa jam)
+
+---
+
+### Phase 2: Fix Major Workflow Bugs
+
+---
+
+#### [MODIFY] Fix InstallationDetailPage — Route, data, status display
+**File:** [InstallationDetailPage.tsx](file:///d:/iDesk-main/apps/frontend/src/pages/HardwareInstallation/InstallationDetailPage.tsx)
+1. Fix navigate path: `/ict-budget/...` → role-aware `/hardware-requests/...`
+2. Fix schedule status display: use actual `ScheduleStatus` enum values (`PENDING`, `APPROVED`, `COMPLETED`)
+3. Tambah `title` ke backend select
+
+**File:** [ict-budget.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ict-budget/ict-budget.service.ts) — `findOneInstallation()`
+- Add `title` ke select: `select: ['id', 'realizationStatus', 'title']`  (tapi entity mungkin tidak punya title — perlu pakai relation ke ticket)
+
+---
+
+#### [MODIFY] Fix InstallationTab → Role-aware navigation
+**File:** [InstallationTab.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/InstallationTab.tsx)
+- Use `useLocation()` untuk detect base path, lalu navigate dengan prefix yg benar
+
+---
+
+#### [MODIFY] Fix tab counts — Show accurate total from backend
+**File:** [HardwareRequestPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx)
+- Option A: Fetch summary counts dari backend (another endpoint)
+- Option B: Show total count dari response, bukan per-page count → memang partial, tapi honest. Show `response.total` for ALL tab.
+
+---
+
+#### [MODIFY] Optimize stats — Move to backend aggregation
+**File:** [ict-budget.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/ict-budget/ict-budget.controller.ts)
+- Add `GET /ict-budget/installations/stats` endpoint
+- Return `{ total, pending, inProgress, completed }` tanpa fetch semua data
+
+**File:** [useHardwareInstallation.ts](file:///d:/iDesk-main/apps/frontend/src/hooks/useHardwareInstallation.ts)
+- `useHardwareStats` → hit new endpoint instead of fetching 1000 records
+
+---
+
+### Phase 3: Connect Hardware Request to Global Search
+
+---
+
+#### [MODIFY] GlobalSearch — Add `hardware-requests` result type
+**File:** [GlobalSearch.tsx](file:///d:/iDesk-main/apps/frontend/src/features/search/components/GlobalSearch.tsx)
+- Saat user search, hardware installation tickets sudah include di `tickets` scope (karena ticket type `HARDWARE_INSTALLATION`)
+- Add visual indicator untuk hardware-related tickets di search results
+- Add click handler: ticket dengan `source: 'HARDWARE_INSTALLATION'` atau `category: 'HARDWARE'` → navigasi ke `hardware-installation/{id}` bukan generic `tickets/{id}`
+
+**File:** [useSearch.ts](file:///d:/iDesk-main/apps/frontend/src/features/search/hooks/useSearch.ts)
+- Extend scope type jika backend juga handle ict-budget search
+
+---
+
+> [!IMPORTANT]
+> ### Scope Decision Required
+> 1. **Stats endpoint** — Mau bikin endpoint baru `/ict-budget/installations/stats` atau keep client-side computation (tapi ganti limit dari 1000 ke count query)?
+> 2. **GlobalSearch ↔ Hardware Request** — Mau hardware request (ict-budget) results muncul di global search sebagai kategori terpisah, atau cukup sebagai tickets + smart routing?
+> 3. **Tab counts** — Bikin endpoint baru untuk summary counts per status, atau accept partial count dari current page?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Backend compilation
+cd apps/backend && npm run build
+
+# Frontend compilation  
+cd apps/frontend && npm run build
+```
+
+### Manual Verification (Browser)
+1. **Searchbar:** Ketik keyword di HardwareRequestPage → verify data filter dari backend, bukan client-side
+2. **Installation Schedule:** Open modal → pick date → verify slots tampil correct. Submit → verify schedule terbuat
+3. **InstallationDetailPage:** Click installation ticket → verify page load, schedule data display correct
+4. **Navigation:** Dari InstallationTab, click row → verify navigate dengan role prefix yg benar
+5. **GlobalSearch:** Search hardware keyword → verify results clickable ke correct page
+
+---
+
+## File Change Summary
+
+| File | Change Type | Impact |
+|------|------------|--------|
+| `ict-budget.controller.ts` | ADD search param + stats endpoint | Backend |
+| `ict-budget.service.ts` | ADD search filter + stats query + fix select | Backend |
+| `installation-schedule.service.ts` | FIX timezone + date mutation | Backend |
+| `ict-budget.api.ts` | ADD search param to hook | Frontend API |
+| `HardwareRequestPage.tsx` | WIRE search to backend, fix counts | Frontend Page |
+| `InstallationScheduleModal.tsx` | Minor: handle null availability | Frontend Component |
+| `InstallationTab.tsx` | FIX role-aware navigation | Frontend Component |
+| `InstallationDetailPage.tsx` | FIX route, status display, data | Frontend Page |
+| `useHardwareInstallation.ts` | OPTIMIZE stats fetch | Frontend Hook |
+| `GlobalSearch.tsx` | ADD hardware routing | Frontend Component |
+| `useSearch.ts` | Extend types (if needed) | Frontend Hook |
+
+**Total: ~11 files, ~150 LOC changes**

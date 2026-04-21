@@ -1,0 +1,265 @@
+<h2>Design Section 1 — Overall Layout</h2>
+<p class="subtitle">Full mockup halaman calendar. Tinjau layout keseluruhan sebelum lanjut ke detail.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Installation Calendar — Full Page Mockup</div>
+  <div class="mockup-body" style="padding:0;background:#f1f5f9">
+
+    <!-- App shell nav -->
+    <div style="background:#1e293b;padding:8px 16px;display:flex;align-items:center;gap:12px">
+      <div style="color:#f8fafc;font-weight:bold;font-size:11px">iDesk</div>
+      <div style="color:#94a3b8;font-size:9px">Hardware Requests</div>
+      <div style="color:#94a3b8;font-size:9px">›</div>
+      <div style="color:#7dd3fc;font-size:9px">Calendar</div>
+    </div>
+
+    <!-- Page header -->
+    <div style="background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:bold;color:#0f172a">Installation Calendar</div>
+          <div style="font-size:9px;color:#64748b">Jadwal instalasi hardware — drag untuk reschedule</div>
+        </div>
+        <!-- Floating badge buttons (replace sidebar) -->
+        <div style="display:flex;gap:6px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:4px 10px;display:flex;align-items:center;gap:4px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+            <div style="width:7px;height:7px;border-radius:50%;background:#10b981"></div>
+            <span style="font-size:9px;color:#065f46;font-weight:600">Today</span>
+            <span style="background:#d1fae5;color:#065f46;font-size:8px;padding:1px 5px;border-radius:10px;font-weight:bold">3</span>
+          </div>
+          <div style="background:#fff;border:1px solid #fde68a;border-radius:20px;padding:4px 10px;display:flex;align-items:center;gap:4px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+            <div style="width:7px;height:7px;border-radius:50%;background:#f59e0b"></div>
+            <span style="font-size:9px;color:#92400e;font-weight:600">Unscheduled</span>
+            <span style="background:#fef3c7;color:#92400e;font-size:8px;padding:1px 5px;border-radius:10px;font-weight:bold">5</span>
+          </div>
+          <div style="background:#fff;border:1px solid #fecaca;border-radius:20px;padding:4px 10px;display:flex;align-items:center;gap:4px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+            <div style="width:7px;height:7px;border-radius:50%;background:#ef4444"></div>
+            <span style="font-size:9px;color:#991b1b;font-weight:600">Overdue</span>
+            <span style="background:#fee2e2;color:#991b1b;font-size:8px;padding:1px 5px;border-radius:10px;font-weight:bold">2</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats strip -->
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:16px;font-weight:bold;color:#3b82f6">24</div>
+          <div style="font-size:8px;color:#64748b;line-height:1.2">Total<br>Scheduled</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #d1fae5;border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:16px;font-weight:bold;color:#10b981">3</div>
+          <div style="font-size:8px;color:#065f46;line-height:1.2">Today's<br>Schedule</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:16px;font-weight:bold;color:#f59e0b">5</div>
+          <div style="font-size:8px;color:#92400e;line-height:1.2">Unscheduled<br>Requests</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:16px;font-weight:bold;color:#ef4444">2</div>
+          <div style="font-size:8px;color:#991b1b;line-height:1.2">Reschedule<br>Requested</div>
+        </div>
+        <div style="flex:1"></div>
+        <!-- Technician filter chips -->
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <span style="font-size:8px;color:#64748b">Filter teknisi:</span>
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 8px;font-size:8px;color:#1d4ed8;display:flex;align-items:center;gap:3px">Budi S. <span style="cursor:pointer">×</span></div>
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 8px;font-size:8px;color:#1d4ed8;display:flex;align-items:center;gap:3px">Andi R. <span style="cursor:pointer">×</span></div>
+          <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:20px;padding:3px 8px;font-size:8px;color:#64748b;cursor:pointer">+ Tambah teknisi</div>
+        </div>
+      </div>
+
+      <!-- Calendar nav -->
+      <div style="display:flex;align-items:center;gap:8px">
+        <button style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:9px;color:#475569;cursor:pointer">◀</button>
+        <span style="font-weight:bold;font-size:11px;color:#0f172a">April 2026</span>
+        <button style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:9px;color:#475569;cursor:pointer">▶</button>
+        <button style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;font-size:9px;color:#1d4ed8;font-weight:600">Today</button>
+        <div style="margin-left:auto;display:flex;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+          <button style="background:#eff6ff;border:none;padding:4px 10px;font-size:9px;color:#1d4ed8;font-weight:600">Month</button>
+          <button style="background:#fff;border-left:1px solid #e2e8f0;border:none;padding:4px 10px;font-size:9px;color:#64748b">Week</button>
+          <button style="background:#fff;border-left:1px solid #e2e8f0;border:none;padding:4px 10px;font-size:9px;color:#64748b">Day</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendar grid (full-width) -->
+    <div style="background:#fff;padding:8px 16px">
+      <!-- Day headers -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">MON</div>
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">TUE</div>
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">WED</div>
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">THU</div>
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">FRI</div>
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">SAT</div>
+        <div style="text-align:center;font-size:8px;font-weight:600;color:#94a3b8;padding:4px">SUN</div>
+      </div>
+      <!-- Week row 1 -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+        <div style="border:1px solid #f1f5f9;border-radius:8px;padding:6px;min-height:70px;background:#f8fafc">
+          <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">31</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer" onmouseover="this.style.borderColor='#bfdbfe'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">1</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer" onmouseover="this.style.borderColor='#bfdbfe'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">2</div>
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 5px;margin-bottom:2px">
+            <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div>
+              <span style="font-size:8px;color:#1d4ed8;font-weight:600">HR-041</span>
+              <span style="margin-left:auto;font-size:7px;background:#dbeafe;color:#1d4ed8;padding:0px 3px;border-radius:10px">CFM</span>
+            </div>
+            <div style="font-size:7px;color:#64748b;padding-left:8px">Budi • 09:00</div>
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">3</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">4</div>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:3px 5px">
+            <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
+              <span style="font-size:8px;color:#065f46;font-weight:600">HR-042</span>
+              <span style="margin-left:auto;font-size:7px;background:#d1fae5;color:#065f46;padding:0px 3px;border-radius:10px">DONE</span>
+            </div>
+            <div style="font-size:7px;color:#64748b;padding-left:8px">Andi • 13:00</div>
+          </div>
+        </div>
+        <div style="border:1px solid #f1f5f9;border-radius:8px;padding:6px;min-height:70px;background:#f8fafc">
+          <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">5</div>
+        </div>
+        <div style="border:1px solid #f1f5f9;border-radius:8px;padding:6px;min-height:70px;background:#f8fafc">
+          <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">6</div>
+        </div>
+      </div>
+      <!-- Current week (today highlight) -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">7</div>
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:3px 5px;margin-bottom:2px">
+            <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+              <span style="font-size:8px;color:#92400e;font-weight:600">HR-043</span>
+              <span style="margin-left:auto;font-size:7px;background:#fef3c7;color:#92400e;padding:0px 3px;border-radius:10px">IP</span>
+            </div>
+            <div style="font-size:7px;color:#64748b;padding-left:8px">Citra • 10:00</div>
+          </div>
+        </div>
+        <div style="border:2px solid #3b82f6;border-radius:8px;padding:6px;min-height:70px;background:#eff6ff;cursor:pointer;box-shadow:0 0 0 3px rgba(59,130,246,0.1)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:bold">8</div>
+          </div>
+          <div style="background:#fff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 5px;margin-bottom:2px;box-shadow:0 1px 2px rgba(59,130,246,0.15)">
+            <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div>
+              <span style="font-size:8px;color:#1d4ed8;font-weight:600">HR-044</span>
+              <span style="margin-left:auto;font-size:7px;background:#dbeafe;color:#1d4ed8;padding:0px 3px;border-radius:10px">CFM</span>
+            </div>
+            <div style="font-size:7px;color:#64748b;padding-left:8px">Budi • 09:00</div>
+          </div>
+          <div style="background:#fff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 5px;margin-bottom:2px;box-shadow:0 1px 2px rgba(59,130,246,0.15)">
+            <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+              <span style="font-size:8px;color:#92400e;font-weight:600">HR-045</span>
+              <span style="margin-left:auto;font-size:7px;background:#fef3c7;color:#92400e;padding:0px 3px;border-radius:10px">IP</span>
+            </div>
+            <div style="font-size:7px;color:#64748b;padding-left:8px">Andi • 14:00</div>
+          </div>
+          <div style="background:#f1f5f9;border-radius:4px;padding:2px 4px;font-size:7px;color:#64748b;text-align:center;cursor:pointer">+1 lagi ▾</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">9</div>
+          <div style="background:#fee2e2;border:1px solid #fecaca;border-radius:5px;padding:3px 5px">
+            <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#ef4444;flex-shrink:0"></div>
+              <span style="font-size:8px;color:#991b1b;font-weight:600">HR-046</span>
+              <span style="margin-left:auto;font-size:7px;background:#fecaca;color:#991b1b;padding:0px 3px;border-radius:10px">RSC</span>
+            </div>
+            <div style="font-size:7px;color:#64748b;padding-left:8px">Citra • 11:00</div>
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">10</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;min-height:70px;cursor:pointer">
+          <div style="font-size:10px;font-weight:600;color:#0f172a;margin-bottom:4px">11</div>
+        </div>
+        <div style="border:1px solid #f1f5f9;border-radius:8px;padding:6px;min-height:70px;background:#f8fafc">
+          <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">12</div>
+        </div>
+        <div style="border:1px solid #f1f5f9;border-radius:8px;padding:6px;min-height:70px;background:#f8fafc">
+          <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">13</div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:8px;color:#94a3b8;padding:8px">... minggu selanjutnya ...</div>
+    </div>
+
+    <!-- Bottom Drawer (open state) -->
+    <div style="position:relative;background:#fff;border-top:2px solid #e2e8f0;padding:12px 16px;box-shadow:0 -4px 20px rgba(0,0,0,0.08)">
+      <!-- Drawer handle -->
+      <div style="text-align:center;margin-bottom:8px">
+        <div style="width:32px;height:3px;background:#cbd5e1;border-radius:2px;display:inline-block"></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;font-weight:bold;color:#0f172a">Selasa, 8 April 2026</div>
+          <div style="font-size:8px;color:#64748b">3 instalasi terjadwal hari ini</div>
+        </div>
+        <button style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:9px;color:#475569">✕ Tutup</button>
+      </div>
+      <!-- Agenda items -->
+      <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
+        <!-- Selected event (expanded) -->
+        <div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;padding:10px;min-width:220px;flex-shrink:0;box-shadow:0 2px 8px rgba(59,130,246,0.15)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="font-weight:bold;font-size:11px;color:#1d4ed8">HR-2024-044</span>
+            <span style="background:#dbeafe;color:#1d4ed8;font-size:8px;padding:2px 6px;border-radius:10px;font-weight:600">CONFIRMED</span>
+          </div>
+          <div style="font-size:9px;color:#475569;line-height:1.6">
+            <div>🏢 <strong>Site:</strong> Gedung A Lt.3</div>
+            <div>💻 <strong>Item:</strong> Laptop HP ProBook</div>
+            <div>👷 <strong>Teknisi:</strong> Budi Santoso</div>
+            <div>🕘 <strong>Waktu:</strong> 09:00 – 11:00</div>
+            <div>👤 <strong>Penerima:</strong> Ahmad Fauzi / Div. Finance</div>
+          </div>
+          <div style="display:flex;gap:4px;margin-top:8px">
+            <button style="flex:1;background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:5px 8px;font-size:8px;font-weight:600;cursor:pointer">✓ Konfirmasi</button>
+            <button style="flex:1;background:#fff;border:1px solid #bfdbfe;color:#3b82f6;border-radius:6px;padding:5px 8px;font-size:8px;cursor:pointer">📅 Reschedule</button>
+            <button style="background:#fff;border:1px solid #e2e8f0;color:#64748b;border-radius:6px;padding:5px 8px;font-size:8px;cursor:pointer">→ Detail</button>
+          </div>
+        </div>
+        <!-- Other events same day -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;min-width:180px;flex-shrink:0;cursor:pointer" onmouseover="this.style.borderColor='#bfdbfe'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+            <span style="font-weight:bold;font-size:10px;color:#92400e">HR-2024-045</span>
+            <span style="background:#fef3c7;color:#92400e;font-size:7px;padding:1px 5px;border-radius:10px">IN PROGRESS</span>
+          </div>
+          <div style="font-size:8px;color:#64748b;line-height:1.6">
+            <div>🏢 Gedung B Lt.1</div>
+            <div>💻 Desktop PC</div>
+            <div>👷 Andi Rahmat • 14:00</div>
+          </div>
+          <div style="margin-top:6px;font-size:8px;color:#94a3b8;text-align:center">Klik untuk detail ▸</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;min-width:180px;flex-shrink:0;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;flex-shrink:0"></div>
+            <span style="font-weight:bold;font-size:10px;color:#6d28d9">HR-2024-046</span>
+            <span style="background:#ede9fe;color:#6d28d9;font-size:7px;padding:1px 5px;border-radius:10px">PROPOSED</span>
+          </div>
+          <div style="font-size:8px;color:#64748b;line-height:1.6">
+            <div>🏢 Gedung C Lt.2</div>
+            <div>💻 Monitor 27"</div>
+            <div>👷 Citra D. • 16:00</div>
+          </div>
+          <div style="margin-top:6px;font-size:8px;color:#94a3b8;text-align:center">Klik untuk detail ▸</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Apakah layout ini sudah sesuai? Ketik feedback atau lanjut ke Section 2 (sidebar badges + unscheduled panel).</p>

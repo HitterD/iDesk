@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iDesk Blueprint — Enterprise IT Helpdesk System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #1e293b;
+    background: #fff;
+    padding: 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 26pt;
+    color: #1e3a8a;
+    border-bottom: 4px solid #2563eb;
+    padding-bottom: 12px;
+    margin: 40px 0 20px;
+    page-break-before: always;
+  }
+  h1:first-of-type { page-break-before: avoid; }
+  h2 {
+    font-size: 16pt;
+    color: #1e40af;
+    border-left: 5px solid #2563eb;
+    padding-left: 12px;
+    margin: 30px 0 14px;
+  }
+  h3 {
+    font-size: 13pt;
+    color: #1e3a8a;
+    margin: 22px 0 10px;
+  }
+  h4 {
+    font-size: 11pt;
+    color: #374151;
+    font-weight: 700;
+    margin: 16px 0 8px;
+  }
+  p { margin: 8px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 10pt;
+  }
+  th {
+    background: #1e40af;
+    color: #fff;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+  }
+  td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 10px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f1f5f9; }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 9pt;
+    overflow-x: auto;
+    margin: 12px 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    background: #e2e8f0;
+    color: #dc2626;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10pt;
+  }
+  pre code {
+    background: transparent;
+    color: #e2e8f0;
+    padding: 0;
+  }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  hr {
+    border: none;
+    border-top: 2px solid #e2e8f0;
+    margin: 30px 0;
+  }
+  strong { color: #1e293b; }
+  .cover {
+    text-align: center;
+    padding: 80px 20px;
+    border-bottom: 4px solid #2563eb;
+    margin-bottom: 40px;
+  }
+  .cover h1 {
+    font-size: 36pt;
+    border: none;
+    page-break-before: avoid;
+    color: #1e3a8a;
+  }
+  .cover .subtitle {
+    font-size: 16pt;
+    color: #2563eb;
+    margin: 10px 0 30px;
+  }
+  .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px 30px; margin: 20px 0; }
+  @media print {
+    body { padding: 20px; }
+    h1 { page-break-before: always; }
+    h1:first-of-type { page-break-before: avoid; }
+    pre { page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <h1>iDesk</h1>
+  <div class="subtitle">Enterprise IT Helpdesk System</div>
+  <div class="subtitle" style="font-size:13pt;color:#374151;">Blueprint Teknis Lengkap — End to End</div>
+  <br>
+  <table style="max-width:500px;margin:0 auto;">
+    <tr><td><strong>Versi Dokumen</strong></td><td>1.0</td></tr>
+    <tr><td><strong>Tanggal</strong></td><td>24 Februari 2026</td></tr>
+    <tr><td><strong>Status</strong></td><td>Production Active</td></tr>
+    <tr><td><strong>Total Modul Backend</strong></td><td>28 Modules</td></tr>
+    <tr><td><strong>Total Fitur Frontend</strong></td><td>17 Feature Areas</td></tr>
+    <tr><td><strong>Total Entitas Database</strong></td><td>40+ Entities</td></tr>
+  </table>
+</div>
+﻿# BLUEPRINT APLIKASI WEB iDesk
+<h2>Enterprise IT Helpdesk System â€” Dokumentasi Teknis Lengkap</h2>
+
+| Field | Detail |
+|---|---|
+| <strong>Nama Aplikasi</strong> | iDesk â€” Enterprise IT Helpdesk System |
+| <strong>Versi Dokumen</strong> | 1.0 |
+| <strong>Tanggal</strong> | 24 Februari 2026 |
+| <strong>Status</strong> | Production Active |
+| <strong>Frontend URL</strong> | http://localhost:4050 |
+| <strong>Backend API</strong> | http://localhost:5050 |
+| <strong>Swagger Docs</strong> | http://localhost:5050/api |
+
+<hr>
+
+<h2>1. EXECUTIVE SUMMARY</h2>
+
+<strong>iDesk</strong> adalah sistem helpdesk dan ticketing enterprise full-stack (NestJS + React). Mengelola seluruh siklus hidup permintaan IT support dengan integrasi multi-channel dan otomasi.
+
+<strong>Tiga Portal:</strong>
+
+| Portal | Pengguna | Fungsi |
+|--------|----------|--------|
+| Admin/Agent Portal | ADMIN & AGENT | Kelola tiket, laporan, konfigurasi |
+| Manager Portal | MANAGER | Monitoring, laporan eksekutif |
+| Client Portal | USER | Buat tiket, pantau, knowledge base |
+
+<strong>Statistik:</strong> 28 Backend Modules, 17 Frontend Feature Areas, 44+ UI Components, 40+ DB Entities
+
+<hr>
+
+<h2>2. ARSITEKTUR SISTEM</h2>
+
+<h3>2.1 Stack Overview</h3>
+
+<ul><li><strong>Backend</strong>: NestJS 10 + TypeORM + PostgreSQL â€” Port 5050</li></ul>
+<ul><li><strong>Frontend</strong>: React 18 + Vite + TailwindCSS â€” Port 4050</li></ul>
+<ul><li><strong>Real-time</strong>: Socket.IO WebSocket bidirectional</li></ul>
+<ul><li><strong>Queue/Cache</strong>: Redis (Bull queues, optional)</li></ul>
+<ul><li><strong>Bot</strong>: Telegram via Telegraf (polling/webhook)</li></ul>
+<ul><li><strong>Container</strong>: Docker + Docker Compose</li></ul>
+
+<h3>2.2 Frontend Routing</h3>
+
+``<code>
+PUBLIC:
+  /login                   â†’ Login page
+  /feedback/:token         â†’ Survey page
+  /unauthorized            â†’ Access denied
+
+ADMIN/AGENT PORTAL (/):
+  /dashboard               â†’ Analytics dashboard
+  /kanban                  â†’ Kanban board
+  /tickets/list            â†’ Ticket list + filter
+  /tickets/:id             â†’ Ticket detail + chat
+  /tickets/create          â†’ New ticket
+  /agents                  â†’ User management [ADMIN]
+  /reports                 â†’ Reports PDF/Excel
+  /sla                     â†’ SLA config [ADMIN]
+  /renewal                 â†’ Contract management
+  /kb, /kb/manage          â†’ Knowledge base
+  /settings                â†’ System settings
+  /notifications           â†’ Notification center
+  /automation              â†’ Workflow rules [ADMIN]
+  /workloads               â†’ Agent workload [ADMIN]
+  /audit-logs              â†’ Audit trail [ADMIN]
+  /system-health           â†’ Health dashboard [ADMIN]
+  /zoom-calendar           â†’ Zoom booking
+  /zoom-settings           â†’ Zoom config [ADMIN]
+
+MANAGER PORTAL (/manager):
+  /manager/dashboard       â†’ Manager overview
+  /manager/workloads       â†’ Team workloads
+  /manager/tickets         â†’ All tickets view
+  /manager/reports         â†’ Executive reports
+  /manager/kb              â†’ Knowledge base
+  /manager/zoom-calendar   â†’ Zoom calendar
+  /manager/renewal         â†’ Contract renewal
+
+CLIENT PORTAL (/client):
+  /client/my-tickets       â†’ My tickets
+  /client/create           â†’ Submit ticket
+  /client/tickets/:id      â†’ Ticket detail
+  /client/notifications    â†’ Notifications
+  /client/zoom-calendar    â†’ Zoom calendar
+  /client/kb               â†’ Knowledge base
+  /client/profile          â†’ User profile
+</code>`<code>
+
+<hr>
+
+<h2>3. TECHNOLOGY STACK</h2>
+
+<h3>Backend</h3>
+| Teknologi | Kegunaan |
+|-----------|----------|
+| NestJS 10 | Framework modular |
+| TypeORM | ORM PostgreSQL |
+| Socket.IO | Real-time WebSocket |
+| Passport JWT | Auth + RBAC |
+| Telegraf | Telegram Bot |
+| Bull | Redis job queues |
+| PDFKit + ExcelJS | Report generation |
+| Nodemailer + Handlebars | Email SMTP + template |
+| @nestjs/schedule | Cron jobs |
+| @nestjs/event-emitter | Event-driven automation |
+| Multer | File upload |
+| Swagger | API documentation |
+| Helmet + Throttler | Security + rate limiting |
+| bcrypt | Password hashing |
+| Google APIs | Spreadsheet sync |
+
+<h3>Frontend</h3>
+| Teknologi | Kegunaan |
+|-----------|----------|
+| React 18 | UI library |
+| Vite | Build tool |
+| TailwindCSS 3 | Styling |
+| Radix UI | Accessible components |
+| TanStack Query | Server state |
+| Zustand | Client state |
+| React Router DOM v6 | Routing |
+| Framer Motion | Animations |
+| Recharts | Charts |
+| Socket.IO Client | WebSocket |
+| React Hook Form + Zod | Form + validation |
+| Tiptap | Rich text editor |
+| Sonner | Toast notifications |
+
+<h3>Infrastructure</h3>
+| Komponen | Teknologi |
+|----------|-----------|
+| Database | PostgreSQL 15+ |
+| Cache/Queue | Redis 7+ |
+| Container | Docker Compose |
+| Storage | Local ./uploads |
+
+<hr>
+
+<h2>4. AUTENTIKASI & OTORISASI</h2>
+
+<h3>4.1 Credential & Token</h3>
+
+<ul><li>JWT Bearer Token (stateless)</li></ul>
+<ul><li>Token disimpan di localStorage </code>auth-storage<code></li></ul>
+<ul><li>bcrypt password hashing</li></ul>
+<ul><li>Role-based expiry: Admin/Agent = 3h, User = 1h</li></ul>
+
+<h3>4.2 Roles</h3>
+
+| Role | Deskripsi | Default Password (seed) |
+|------|-----------|------------------------|
+| ADMIN | Administrator penuh | admin123 |
+| AGENT | IT Support staff | agent123 |
+| MANAGER | IT Manager | - |
+| USER | End user/karyawan | user123 |
+
+<h3>4.3 Guards & Middleware</h3>
+
+| Guard | Fungsi |
+|-------|--------|
+| JwtAuthGuard | Verifikasi JWT token |
+| RolesGuard | Cek role pada endpoint |
+| PageAccessGuard | Cek izin per halaman |
+| FeatureAccessGuard | Cek izin per fitur |
+| CustomThrottlerGuard | Rate limiting global |
+
+<h3>4.4 Security Features</h3>
+
+<ul><li>Rate limiting: 100 req/60s per IP</li></ul>
+<ul><li>IP Whitelist: blokir IP tidak diizinkan</li></ul>
+<ul><li>Page lockout: max 10 denial â†’ lockout 15 menit</li></ul>
+<ul><li>Helmet security headers</li></ul>
+<ul><li>Input validation via class-validator pada DTO</li></ul>
+<ul><li>Magic bytes check untuk upload file</li></ul>
+<ul><li>CORS protection</li></ul>
+
+<hr>
+
+<h2>5. CORE TICKETING SYSTEM</h2>
+
+<h3>5.1 Tiket â€” Field Lengkap</h3>
+
+| Field | Tipe | Keterangan |
+|-------|------|------------|
+| id | UUID | Primary key |
+| ticketNumber | String unique | Auto-generated nomor tiket |
+| title | String | Judul masalah |
+| description | Text | Deskripsi lengkap |
+| category | String | Kategori (GENERAL, dll) |
+| device | String | Nama perangkat |
+| software | String | Software terkait |
+| status | Enum | TODO/IN_PROGRESS/WAITING_VENDOR/RESOLVED/CANCELLED |
+| priority | String | LOW/MEDIUM/HIGH/CRITICAL |
+| ticketType | Enum | SERVICE/ICT_BUDGET/LOST_ITEM/ACCESS_REQUEST/HARDWARE_INSTALLATION/ORACLE_REQUEST |
+| source | Enum | WEB/TELEGRAM/EMAIL |
+| userId | UUID | Pembuat |
+| assignedToId | UUID | Agent ditugaskan |
+| siteId | UUID | Site/cabang |
+| slaTarget | Date | Deadline SLA |
+| firstResponseTarget | Date | Target respons pertama |
+| isOverdue | Boolean | Sudah terlambat |
+| isFirstResponseBreached | Boolean | Respons pertama terlambat |
+| criticalReason | Text | Alasan prioritas CRITICAL |
+| isHardwareInstallation | Boolean | Flag instalasi hardware |
+| scheduledDate | Date | Jadwal instalasi |
+| scheduledTime | String | Jam jadwal HH:mm |
+| hardwareType | String | PC/IP_PHONE/PRINTER |
+| version | Int | Optimistic locking |
+
+<h3>5.2 Status Flow</h3>
+
+</code>`<code>
+TODO â†’ IN_PROGRESS â†” WAITING_VENDOR â†’ RESOLVED
+                                    â†’ CANCELLED
+</code>`<code>
+
+<h3>5.3 Fitur Ticketing</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Multi-source | Buat tiket via Web, Telegram, Email |
+| Rich text messages | Editor WYSIWYG + attachment |
+| Internal notes | Pesan private agent-only |
+| @mention | Tag agent dalam percakapan |
+| File attachment | Gambar, PDF, dokumen |
+| Canned responses | Template jawaban cepat |
+| Ticket templates | Form pre-filled |
+| Bulk operations | Mass update status/priority/assignee |
+| Ticket surveys | Rating kepuasan post-resolve |
+| Custom attributes | Field tambahan per kategori |
+| SLA tracking | Countdown + breach alert |
+| Time entries | Log waktu pengerjaan |
+| Hardware scheduling | Jadwal instalasi + reminder otomatis |
+| Kanban view | Drag-drop per kolom status |
+| List view | Tabel dengan sort + filter + search |
+
+<h3>5.4 Ticket Message Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| ticketId | Referensi tiket |
+| senderId | User pengirim |
+| content | Isi pesan (rich text) |
+| isInternal | Flag internal note |
+| attachments | Array file attachment |
+| readBy | Array user yang sudah baca |
+| createdAt | Timestamp |
+
+
+<hr>
+
+<h2>6. MANAJEMEN PENGGUNA</h2>
+
+<h3>6.1 User Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID primary key |
+| email | Unique, login identifier |
+| password | bcrypt hashed |
+| fullName | Nama lengkap |
+| role | ADMIN/AGENT/MANAGER/USER |
+| employeeId | ID karyawan |
+| jobTitle | Jabatan |
+| phoneNumber | Nomor telepon |
+| departmentId | FK ke Department |
+| avatarUrl | URL foto profil |
+| telegramId | Linked Telegram account |
+| telegramChatId | Chat ID Telegram |
+| telegramNotifications | Toggle notif Telegram |
+| isActive | Status aktif |
+| lastActiveAt | Timestamp aktivitas terakhir |
+| siteId | FK ke Site (multi-site) |
+| appliedPresetId | Permission preset aktif |
+| appraisalPoints | Poin kinerja agent |
+| createdAt / updatedAt | Timestamps |
+
+<h3>6.2 Fitur User Management</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| CRUD Users | Create, Read, Update, Delete user |
+| CSV Import | Bulk import user dari file CSV |
+| Avatar Upload | Upload foto profil |
+| Department Management | Kelola departemen |
+| Telegram Linking | Hubungkan akun Telegram |
+| Role Management | Atur role & izin |
+| Permission Preset | Template izin per tipe user |
+| Activity Indicator | Status online terakhir |
+| Soft Delete | Deaktivasi user tanpa hapus data |
+| Password Reset | Admin reset password |
+
+<hr>
+
+<h2>7. SLA MANAGEMENT</h2>
+
+<h3>7.1 Konsep SLA</h3>
+
+SLA (Service Level Agreement) mendefinisikan tenggat waktu penyelesaian tiket berdasarkan prioritas.
+
+<h3>7.2 SLA Config Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| priority | LOW/MEDIUM/HIGH/CRITICAL |
+| responseTimeMinutes | Target waktu respons pertama |
+| resolutionTimeMinutes | Target waktu resolusi |
+| isActive | Status aktif |
+
+<h3>7.3 Business Hours</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| dayOfWeek | 0-6 (Minggu-Sabtu) |
+| startTime | Jam mulai kerja (HH:mm) |
+| endTime | Jam selesai kerja (HH:mm) |
+| isWorkingDay | Hari kerja atau tidak |
+| holidays | Daftar hari libur nasional Indonesia (2025-2026) |
+
+<h3>7.4 Cara Kerja SLA</h3>
+
+</code>`<code>
+<li>Tiket dibuat â†’ slaStartedAt = now</li>
+<li>Hitung slaTarget berdasarkan priority + business hours</li>
+<li>Cron job tiap 5 menit â†’ cek semua tiket aktif</li>
+<li>Jika slaTarget - now < threshold â†’ kirim SLA warning</li>
+<li>Jika now > slaTarget â†’ isOverdue = true + kirim breach alert</li>
+<li>Status WAITING_VENDOR â†’ clock di-pause (totalWaitingVendorMinutes++)</li>
+<li>SLA resume ketika status kembali ke IN_PROGRESS</li>
+</code>`<code>
+
+<h3>7.5 SLA Alerts</h3>
+
+<ul><li>Warning email ke assignee & admin saat mendekati deadline</li></ul>
+<ul><li>Telegram notification untuk agen</li></ul>
+<ul><li>Dashboard indicator merah pada tiket overdue</li></ul>
+<ul><li>Auto-reassign jika dikonfigurasi di workflow rules</li></ul>
+
+<hr>
+
+<h2>8. KNOWLEDGE BASE</h2>
+
+<h3>8.1 Article Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| title | Judul artikel |
+| content | Isi artikel (rich text/HTML) |
+| summary | Ringkasan singkat |
+| category | Kategori artikel |
+| tags | Array tags |
+| authorId | Penulis |
+| visibility | PUBLIC/INTERNAL/PRIVATE |
+| isPublished | Status publikasi |
+| viewCount | Jumlah tampilan |
+| helpfulCount | Jumlah "artikel ini membantu" |
+| notHelpfulCount | Jumlah "tidak membantu" |
+| createdAt / updatedAt | Timestamps |
+
+<h3>8.2 Fitur Knowledge Base</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Create/Edit Article | Editor WYSIWYG lengkap |
+| Categories & Tags | Organisasi konten |
+| Visibility Control | PUBLIC/INTERNAL/PRIVATE |
+| Full-text Search | Cari artikel berdasarkan kata kunci |
+| View Tracking | Hitung popularitas artikel |
+| Helpful/Not Helpful | Feedback rating |
+| Article Management | Daftar kelola untuk admin/agent |
+| Client Access | User dapat mengakses KB publik |
+
+<hr>
+
+<h2>9. NOTIFICATION SYSTEM</h2>
+
+<h3>9.1 Notification Channels</h3>
+
+| Channel | Deskripsi |
+|---------|-----------|
+| In-App | Notifikasi dalam aplikasi (real-time via WebSocket) |
+| Email | SMTP email dengan template HTML Handlebars |
+| Telegram | Pesan langsung ke akun Telegram user |
+| Push | Browser push notification (PWA) |
+
+<h3>9.2 Notification Entities</h3>
+
+| Entity | Keterangan |
+|--------|------------|
+| Notification | Notifikasi per user |
+| NotificationPreference | Preferensi channel per user |
+| NotificationLog | Log pengiriman (success/fail) |
+| PushSubscription | Data push subscription browser |
+
+<h3>9.3 Event yang Memicu Notifikasi</h3>
+
+| Event | Penerima |
+|-------|---------|
+| Tiket baru dibuat | Assignee + Admin |
+| Tiket di-assign | Agent ditugaskan |
+| Status tiket berubah | Pembuat tiket |
+| Pesan baru di tiket | Semua partisipan |
+| SLA mendekati deadline | Assignee + Admin |
+| SLA breach | Assignee + Admin |
+| Tiket resolved | Pembuat tiket |
+| Renewal kontrak mendekati expired | Admin |
+| Zoom booking dikonfirmasi/dibatalkan | Peserta |
+| Hardware installation reminder H-1 & H-0 | User & Agent |
+
+<hr>
+
+<h2>10. AUTOMATION ENGINE (WORKFLOW)</h2>
+
+<h3>10.1 Konsep</h3>
+
+Engine otomasi berbasis rule: <strong>Trigger â†’ Conditions â†’ Actions</strong>. Setiap rule mendengarkan event tertentu dan menjalankan aksi jika kondisi terpenuhi.
+
+<h3>10.2 WorkflowRule Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| name | Nama rule |
+| isActive | On/Off toggle |
+| priority | Urutan eksekusi (angka lebih kecil = prioritas lebih tinggi) |
+| trigger | JSON: { type, event } |
+| conditions | JSON Array: [{ field, operator, value }] |
+| actions | JSON Array: [{ type, params }] |
+
+<h3>10.3 Trigger Types (9 Jenis)</h3>
+
+| Trigger | Keterangan |
+|---------|------------|
+| TICKET_CREATED | Tiket baru dibuat |
+| TICKET_STATUS_CHANGED | Status tiket berubah |
+| TICKET_PRIORITY_CHANGED | Prioritas berubah |
+| TICKET_ASSIGNED | Tiket di-assign ke agent |
+| MESSAGE_RECEIVED | Pesan baru masuk |
+| SLA_WARNING | SLA mendekati deadline |
+| SLA_BREACHED | SLA sudah terlampaui |
+| TICKET_IDLE | Tiket tidak ada aktivitas selama X jam |
+| SCHEDULED | Berbasis jadwal/waktu |
+
+<h3>10.4 Condition Operators (14 Jenis)</h3>
+
+EQUALS, NOT_EQUALS, CONTAINS, NOT_CONTAINS, STARTS_WITH, ENDS_WITH, IN, NOT_IN, GREATER_THAN, LESS_THAN, IS_NULL, IS_NOT_NULL, MATCHES_REGEX, NOT_MATCHES_REGEX
+
+<h3>10.5 Action Types (7 Jenis)</h3>
+
+| Aksi | Keterangan |
+|------|------------|
+| CHANGE_STATUS | Ubah status tiket |
+| CHANGE_PRIORITY | Ubah prioritas tiket |
+| ASSIGN_TO | Assign ke agent spesifik |
+| SEND_NOTIFICATION | Kirim notifikasi ke user/group |
+| SEND_EMAIL | Kirim email |
+| SEND_WEBHOOK | HTTP callback ke URL eksternal |
+| ADD_TAG | Tambah tag/label tiket |
+
+<h3>10.6 Auto-Assignment</h3>
+
+| Mode | Deskripsi |
+|------|-----------|
+| ROUND_ROBIN | Distribusi merata bergiliran antar agent |
+| LEAST_BUSY | Assign ke agent dengan tiket aktif paling sedikit |
+
+<h3>10.7 Pre-built Templates</h3>
+
+5 template bawaan tersedia:
+<li>High Priority Escalation â€” eskalasi tiket HIGH/CRITICAL</li>
+<li>SLA Warning Notification â€” ingatkan sebelum breach</li>
+<li>Auto-assign New Tickets â€” round-robin assignment</li>
+<li>Close Resolved Tickets â€” auto-close setelah X hari resolved</li>
+<li>Routing by Category â€” arahkan tiket berdasarkan kategori</li>
+
+<hr>
+
+<h2>11. LAPORAN & ANALITIK</h2>
+
+<h3>11.1 Jenis Laporan</h3>
+
+| Laporan | Format | Keterangan |
+|---------|--------|------------|
+| Monthly Summary | PDF + Excel | Ringkasan tiket bulanan |
+| Agent Performance | PDF | Metrik per agent |
+| SLA Compliance | PDF | Tingkat kepatuhan SLA |
+| Ticket by Category | Excel | Distribusi per kategori |
+| Resolution Time | Excel | Rata-rata waktu penyelesaian |
+| Trend Analysis | Chart | Grafik tren tiket |
+
+<h3>11.2 Dashboard Analytics (Real-time)</h3>
+
+Widget di BentoDashboard:
+<ul><li>Total tiket (hari ini / bulan ini / all-time)</li></ul>
+<ul><li>Tiket by status (TODO, IN_PROGRESS, WAITING, RESOLVED, CANCELLED)</li></ul>
+<ul><li>Tiket overdue</li></ul>
+<ul><li>Average response time</li></ul>
+<ul><li>SLA compliance rate</li></ul>
+<ul><li>Agent performance comparison</li></ul>
+<ul><li>Ticket volume trend (chart line)</li></ul>
+<ul><li>Category distribution (pie chart)</li></ul>
+<ul><li>Top performing agents</li></ul>
+
+<h3>11.3 Manager Dashboard</h3>
+
+Khusus role MANAGER:
+<ul><li>Team workload overview</li></ul>
+<ul><li>Per-agent ticket count</li></ul>
+<ul><li>Resolution rate comparison</li></ul>
+<ul><li>SLA performance heatmap</li></ul>
+<ul><li>Reports download</li></ul>
+
+<hr>
+
+<h2>12. INTEGRASI TELEGRAM BOT</h2>
+
+<h3>12.1 Fitur Bot</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Create ticket | Buat tiket baru via chat |
+| View ticket status | Cek status tiket aktif |
+| Receive notifications | Notifikasi real-time |
+| Two-way messaging | Balas tiket via Telegram |
+| Role-based menus | Menu berbeda per role |
+| Account linking | Hubungkan akun iDesk dengan Telegram |
+
+<h3>12.2 Role-based Menu</h3>
+
+| Role | Menu yang Tersedia |
+|------|-------------------|
+| USER | Buat tiket, lihat tiket saya, KB |
+| AGENT | Lihat tiket assigned, update status, kirim pesan |
+| ADMIN | Semua menu + statistik singkat |
+
+<h3>12.3 Mode Operasi</h3>
+
+<ul><li><strong>Polling</strong>: Untuk development (terus-menerus tanya API Telegram)</li></ul>
+<ul><li><strong>Webhook</strong>: Untuk production (Telegram push ke server)</li></ul>
+
+<h3>12.4 TelegramSession Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| telegramId | Telegram user ID |
+| chatId | Telegram chat ID |
+| userId | Linked iDesk user ID |
+| state | State machine percakapan |
+| context | Data konteks sementara |
+| lastActiveAt | Aktivitas terakhir |
+
+<hr>
+
+<h2>13. CONTRACT RENEWAL (RENEWAL HUB)</h2>
+
+<h3>13.1 RenewalContract Entity</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| contractName | Nama kontrak |
+| vendorName | Nama vendor |
+| contractNumber | Nomor kontrak |
+| startDate | Tanggal mulai |
+| expiryDate | Tanggal kadaluarsa |
+| value | Nilai kontrak |
+| currency | Mata uang |
+| category | Kategori (SOFTWARE/HARDWARE/SERVICE) |
+| status | ACTIVE/EXPIRING/EXPIRED/RENEWED |
+| documentUrl | URL file kontrak (PDF) |
+| notes | Catatan tambahan |
+| acknowledgedBy | User yang konfirmasi |
+| acknowledgedAt | Waktu konfirmasi |
+
+<h3>13.2 Fitur Renewal</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| PDF Parsing | Auto-ekstrak data dari kontrak PDF |
+| Manual Entry | Input manual jika PDF tidak bisa diparse |
+| Expiry Alerts | Notifikasi 30/60/90 hari sebelum expired |
+| Acknowledgment | Tracking konfirmasi renewal |
+| Dashboard | Overview status semua kontrak |
+| VPN Access Tracking | Pantau akses VPN per user |
+| Google Sync | Sinkronisasi ke Google Spreadsheet |
+
+<hr>
+
+<h2>14. ZOOM BOOKING CALENDAR</h2>
+
+<h3>14.1 Entities</h3>
+
+| Entity | Keterangan |
+|--------|------------|
+| ZoomAccount | Akun Zoom terdaftar (S2S OAuth) |
+| ZoomBooking | Reservasi meeting |
+| ZoomMeeting | Data meeting Zoom aktual |
+| ZoomParticipant | Peserta meeting |
+| ZoomSettings | Pengaturan global |
+| ZoomAuditLog | Log perubahan booking |
+
+<h3>14.2 ZoomBooking Fields</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| title | Judul meeting |
+| description | Deskripsi |
+| bookingDate | Tanggal meeting |
+| startTime / endTime | Jam mulai & selesai (HH:mm) |
+| durationMinutes | Durasi dalam menit |
+| status | PENDING/CONFIRMED/CANCELLED |
+| bookedByUserId | User yang booking |
+| zoomAccountId | Akun Zoom yang digunakan |
+| cancellationReason | Alasan pembatalan |
+| participants | Daftar peserta |
+
+<h3>14.3 Fitur Zoom Calendar</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Visual Calendar | Tampilan kalender bulanan |
+| Slot Availability | Cek ketersediaan slot |
+| Booking | Reservasi meeting Zoom |
+| Cancellation | Batalkan dengan alasan |
+| participants | Tambah peserta |
+| Auto-create Zoom meeting | Otomatis buat meeting di Zoom |
+| Notifikasi | Email & in-app ke semua peserta |
+| Audit trail | Log semua perubahan |
+| Multi-account | Kelola beberapa akun Zoom |
+| All roles access | Admin/Agent/Manager/User bisa akses |
+
+<hr>
+
+<h2>15. SISTEM IZIN AKSES (PERMISSIONS)</h2>
+
+<h3>15.1 Entities</h3>
+
+| Entity | Keterangan |
+|--------|------------|
+| FeatureDefinition | Definisi fitur yang dikontrol |
+| UserFeaturePermission | Izin per user per fitur |
+| PermissionPreset | Template izin yang bisa diterapkan ke banyak user |
+
+<h3>15.2 Cara Kerja</h3>
+
+</code>`<code>
+<li>Admin buat FeatureDefinition (e.g., "zoom_calendar")</li>
+<li>Admin buat PermissionPreset (e.g., "IT Staff Preset")</li>
+<li>Preset berisi konfigurasi izin per fitur</li>
+<li>Admin terapkan preset ke user/group</li>
+<li>Saat user akses halaman â†’ PageAccessGuard cek UserFeaturePermission</li>
+<li>Jika tidak ada permission â†’ redirect ke /unauthorized</li>
+</code>`<code>
+
+<h3>15.3 Fitur yang Dikontrol Permission</h3>
+
+<ul><li>zoom_calendar</li></ul>
+<ul><li>knowledge_base</li></ul>
+<ul><li>reports</li></ul>
+<ul><li>renewal</li></ul>
+<ul><li>notifications</li></ul>
+<ul><li>settings</li></ul>
+<ul><li>Dan dapat ditambah fitur baru</li></ul>
+
+<hr>
+
+<h2>16. GOOGLE SPREADSHEET SYNC</h2>
+
+<h3>16.1 Entities</h3>
+
+| Entity | Keterangan |
+|--------|------------|
+| SpreadsheetConfig | Konfigurasi spreadsheet tujuan |
+| SpreadsheetSheet | Sheet dalam spreadsheet |
+| SyncLog | Log sinkronisasi |
+
+<h3>16.2 Fitur</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Auto-sync | Sync data secara berkala ke Google Sheets |
+| Manual sync | Trigger sync manual |
+| Multiple sheets | Sinkronisasi ke beberapa sheet |
+| Sync log | Riwayat sync berhasil/gagal |
+| Kolom mapping | Peta kolom data ke spreadsheet |
+| Service Account auth | Auth via Google Service Account JSON |
+
+<h3>16.3 Use Cases</h3>
+
+<ul><li>Export data tiket ke Google Sheets (monitoring)</li></ul>
+<ul><li>Renewal contract tracking di Sheets</li></ul>
+<ul><li>VPN access log di Sheets</li></ul>
+<ul><li>Custom data sync sesuai kebutuhan</li></ul>
+
+<hr>
+
+<h2>17. MODUL TAMBAHAN</h2>
+
+<h3>17.1 ICT Budget Request</h3>
+
+Form permintaan anggaran untuk pembelian IT:
+<ul><li>Judul & deskripsi kebutuhan</li></ul>
+<ul><li>Estimasi biaya</li></ul>
+<ul><li>Justifikasi</li></ul>
+<ul><li>Status approval</li></ul>
+<ul><li>Integrasi dengan ticket type ICT_BUDGET</li></ul>
+
+<h3>17.2 Lost Item Report</h3>
+
+Laporan kehilangan barang milik perusahaan:
+<ul><li>Deskripsi barang</li></ul>
+<ul><li>Lokasi terakhir diketahui</li></ul>
+<ul><li>Tanggal kehilangan</li></ul>
+<ul><li>Status investigasi</li></ul>
+
+<h3>17.3 Access Request</h3>
+
+Permintaan akses ke sistem/aplikasi/jaringan:
+<ul><li>Jenis akses yang diminta (AccessType entity)</li></ul>
+<ul><li>Alasan kebutuhan akses</li></ul>
+<ul><li>Durasi akses</li></ul>
+<ul><li>Status approve/reject</li></ul>
+
+<h3>17.4 VPN Access Tracking</h3>
+
+Pantau dan kelola akses VPN per user:
+<ul><li>Request akses VPN</li></ul>
+<ul><li>Approval workflow</li></ul>
+<ul><li>Log akses</li></ul>
+<ul><li>Revoke akses</li></ul>
+
+<h3>17.5 IP Whitelist Management</h3>
+
+Kelola IP yang diizinkan mengakses sistem:
+<ul><li>CRUD IP address/range</li></ul>
+<ul><li>Enable/disable per IP</li></ul>
+<ul><li>Deskripsi/alasan whitelist</li></ul>
+
+<h3>17.6 Agent Workload & Appraisal</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| PriorityWeight | Bobot poin per prioritas tiket |
+| AgentDailyWorkload | Tracking beban kerja harian |
+| Appraisal points | Akumulasi poin kinerja per agent |
+| Workload dashboard | Visualisasi distribusi beban kerja |
+
+<h3>17.7 Synology Backup Integration</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| BackupConfiguration | Konfigurasi backup ke Synology NAS |
+| BackupHistory | Riwayat backup berhasil/gagal |
+| Scheduled backup | Backup otomatis terjadwal |
+| Status monitoring | Monitor status backup |
+
+<h3>17.8 Sound Notifications</h3>
+
+Kustomisasi suara notifikasi:
+<ul><li>NotificationSound entity</li></ul>
+<ul><li>Upload custom sound file</li></ul>
+<ul><li>Assign sound per event type</li></ul>
+<ul><li>Toggle per user</li></ul>
+
+<h3>17.9 Multi-Site Support</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Site entity | Kelola multiple cabang/lokasi |
+| Site isolation | Tiket & user ter-isolasi per site |
+| Site-based reporting | Laporan per site |
+| Cross-site admin | Admin bisa akses semua site |
+
+<h3>17.10 System Health</h3>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Health check endpoint | GET /health |
+| Database connectivity | Cek koneksi PostgreSQL |
+| Redis connectivity | Cek koneksi Redis |
+| Memory usage | Monitor penggunaan RAM |
+| System info | Versi, uptime, environment |
+
+<h3>17.11 Audit Log</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| userId | User yang melakukan aksi |
+| action | Jenis aksi (CREATE/UPDATE/DELETE) |
+| entityType | Tipe entitas (Ticket, User, dll) |
+| entityId | ID entitas yang terpengaruh |
+| oldValues | Nilai sebelum perubahan (JSON) |
+| newValues | Nilai setelah perubahan (JSON) |
+| ipAddress | IP address user |
+| createdAt | Timestamp |
+
+<hr>
+
+<h2>18. SEARCH SYSTEM</h2>
+
+<h3>18.1 Global Search</h3>
+
+<ul><li>Unified search across: Tiket, Artikel KB, User</li></ul>
+<ul><li>Command palette (shortcut Ctrl+K / Cmd+K)</li></ul>
+<ul><li>Real-time autocomplete</li></ul>
+<ul><li>Filter by type</li></ul>
+
+<h3>18.2 Saved Search</h3>
+
+| Field | Keterangan |
+|-------|------------|
+| id | UUID |
+| userId | Pemilik |
+| name | Nama pencarian |
+| query | String pencarian |
+| filters | JSON filter kriteria |
+| createdAt | Timestamp |
+
+<hr>
+
+<h2>19. FILE UPLOAD</h2>
+
+| Fitur | Deskripsi |
+|-------|-----------|
+| Upload endpoint | POST /uploads |
+| Supported types | Image (jpg/png/gif/webp), PDF, Office docs |
+| Size limit | Konfigurasi via env |
+| Magic bytes check | Validasi tipe file sebenarnya |
+| Static serving | GET /uploads/:filename |
+| Drag & drop UI | React Dropzone di frontend |
+
+<hr>
+
+<h2>20. API ENDPOINTS UTAMA</h2>
+
+<h3>Auth</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| POST | /auth/login | Login + get JWT |
+| GET | /auth/profile | Data user aktif |
+| POST | /auth/refresh | Refresh token |
+
+<h3>Tickets</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /tickets | List tiket + filter |
+| POST | /tickets | Buat tiket baru |
+| GET | /tickets/:id | Detail tiket |
+| PATCH | /tickets/:id | Update tiket |
+| DELETE | /tickets/:id | Hapus tiket |
+| GET | /tickets/:id/messages | Pesan tiket |
+| POST | /tickets/:id/messages | Kirim pesan |
+| PATCH | /tickets/bulk | Bulk update |
+
+<h3>Users</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /users | List user |
+| POST | /users | Buat user |
+| PATCH | /users/:id | Update user |
+| DELETE | /users/:id | Hapus user |
+| POST | /users/import-csv | Import CSV |
+| GET | /departments | List departemen |
+
+<h3>Knowledge Base</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /kb/articles | List artikel |
+| POST | /kb/articles | Buat artikel |
+| GET | /kb/articles/:id | Detail artikel |
+| PATCH | /kb/articles/:id | Edit artikel |
+| DELETE | /kb/articles/:id | Hapus artikel |
+
+<h3>Notifications</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /notifications | List notifikasi |
+| PATCH | /notifications/read-all | Tandai semua dibaca |
+| GET | /notifications/preferences | Preferensi notif |
+| PATCH | /notifications/preferences | Update preferensi |
+
+<h3>Reports</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /reports/monthly | Laporan bulanan |
+| GET | /reports/agent-performance | Kinerja agent |
+| GET | /reports/export/pdf | Export PDF |
+| GET | /reports/export/excel | Export Excel |
+
+<h3>Zoom Booking</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /zoom-booking/accounts | List akun Zoom |
+| GET | /zoom-booking/bookings | List booking |
+| POST | /zoom-booking/bookings | Buat booking |
+| PATCH | /zoom-booking/bookings/:id | Update booking |
+| DELETE | /zoom-booking/bookings/:id | Cancel booking |
+
+<h3>Automation</h3>
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | /automation/rules | List workflow rules |
+| POST | /automation/rules | Buat rule |
+| PATCH | /automation/rules/:id | Update rule |
+| DELETE | /automation/rules/:id | Hapus rule |
+
+<hr>
+
+<h2>21. REAL-TIME SYSTEM (WEBSOCKET)</h2>
+
+<h3>21.1 Events yang Di-emit Backend â†’ Frontend</h3>
+
+| Event | Payload | Keterangan |
+|-------|---------|------------|
+| ticket:created | Ticket data | Tiket baru dibuat |
+| ticket:updated | Ticket data | Tiket diupdate |
+| ticket:status-changed | { id, status } | Status berubah |
+| ticket:message | Message data | Pesan baru masuk |
+| notification:new | Notification | Notifikasi untuk user |
+| agent:online | { userId } | Agent aktif |
+| zoom:booking-updated | Booking data | Booking Zoom berubah |
+
+<h3>21.2 Rooms & Namespaces</h3>
+
+<ul><li>User masuk room berdasarkan role dan ticket ID</li></ul>
+<ul><li>Notifikasi dikirim hanya ke room yang relevan</li></ul>
+<ul><li>Heartbeat connection management</li></ul>
+
+<hr>
+
+<h2>22. KONFIGURASI ENVIRONMENT</h2>
+
+</code>`<code>env
+<h1>Database PostgreSQL</h1>
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=your-secure-password
+DB_DATABASE=idesk_db
+DB_POOL_MIN=2
+DB_POOL_MAX=10
+
+<h1>JWT Authentication</h1>
+JWT_SECRET=generate-a-strong-64-char-secret
+JWT_EXPIRES_IN=60m
+
+<h1>Telegram Bot</h1>
+TELEGRAM_BOT_TOKEN=your-telegram-token
+TELEGRAM_USE_WEBHOOK=false  # true for production
+TELEGRAM_WEBHOOK_DOMAIN=https://api.yourapp.com
+
+<h1>Redis (optional)</h1>
+REDIS_ENABLED=false
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+<h1>Email SMTP</h1>
+SMTP_HOST=smtp.ethereal.email
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-pass
+SMTP_FROM='iDesk Support <noreply@idesk.com>'
+
+<h1>Zoom API (Server-to-Server OAuth)</h1>
+ZOOM_ACCOUNT_ID=your-zoom-account-id
+ZOOM_CLIENT_ID=your-zoom-client-id
+ZOOM_CLIENT_SECRET=your-zoom-client-secret
+
+<h1>Google API</h1>
+GOOGLE_CREDENTIALS_PATH=path/to/service-account.json
+
+<h1>Application</h1>
+PORT=5050
+NODE_ENV=development
+FRONTEND_URL=http://localhost:4050
+UPLOAD_DIR=./uploads
+
+<h1>Rate Limiting</h1>
+THROTTLE_TTL=60000
+THROTTLE_LIMIT=100
+PAGE_ACCESS_CACHE_TTL=300
+PAGE_ACCESS_MAX_DENIALS=10
+PAGE_ACCESS_LOCKOUT_MINUTES=15
+</code>`<code>
+
+<hr>
+
+<h2>23. INFRASTRUKTUR & DEPLOYMENT</h2>
+
+<h3>23.1 Development Setup</h3>
+
+</code>`<code>bash
+<h1>1. Clone repository</h1>
+git clone https://github.com/HitterD/iDesk.git
+cd iDesk
+
+<h1>2. Setup environment</h1>
+cp .env.example .env
+<h1>Edit .env sesuai kebutuhan</h1>
+
+<h1>3. Start database (Docker)</h1>
+docker-compose -f docker-compose.db.yml up -d
+<h1>Atau: deploy_database_docker.bat (Windows)</h1>
+
+<h1>4. Install dependencies</h1>
+npm run install:all
+
+<h1>5. Run migrations</h1>
+cd apps/backend && npm run migration:run
+
+<h1>6. Seed database</h1>
+npm run seed
+
+<h1>7. Start all services</h1>
+npm start
+<h1>Atau: startup.bat (Windows)</h1>
+</code>`<code>
+
+<h3>23.2 Default Login Credentials</h3>
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@idesk.com | admin123 |
+| Agent | agent@idesk.com | agent123 |
+| User | user@idesk.com | user123 |
+
+<h3>23.3 Ports</h3>
+
+| Service | Port |
+|---------|------|
+| Frontend (Vite dev) | 4050 |
+| Backend (NestJS) | 5050 |
+| PostgreSQL | 5432 |
+| Redis | 6379 |
+| Swagger UI | 5050/api |
+
+<h3>23.4 Docker Services (docker-compose.yml)</h3>
+
+| Service | Image | Keterangan |
+|---------|-------|------------|
+| postgres | postgres:15 | Database utama |
+| redis | redis:7 | Cache + queue (optional) |
+| backend | Custom Dockerfile | NestJS app |
+| frontend | Custom Dockerfile | React app |
+
+<h3>23.5 Database Scripts</h3>
+
+</code>`<code>bash
+<h1>Backup database</h1>
+backup_db.bat
+
+<h1>Run migrations</h1>
+npm run migration:run
+
+<h1>Generate migration</h1>
+npm run migration:generate -- -n MigrationName
+
+<h1>Revert migration</h1>
+npm run migration:revert
+</code>`<code>
+
+<hr>
+
+<h2>24. STRUKTUR KOMPONEN FRONTEND (44+ Components)</h2>
+
+<h3>24.1 Layout Components</h3>
+<ul><li></code>BentoLayout<code> â€” Admin/Agent portal shell (sidebar + topbar)</li></ul>
+<ul><li></code>ClientLayout<code> â€” Client portal shell</li></ul>
+<ul><li></code>ManagerLayout<code> â€” Manager portal shell</li></ul>
+<ul><li></code>Sidebar<code> â€” Navigation sidebar dengan collapsible</li></ul>
+<ul><li></code>TopBar<code> â€” Header dengan search, notif, user menu</li></ul>
+
+<h3>24.2 Core UI Components</h3>
+<ul><li></code>Button<code>, </code>Input<code>, </code>Select<code>, </code>Checkbox<code>, </code>RadioGroup<code></li></ul>
+<ul><li></code>Dialog/Modal<code>, </code>Popover<code>, </code>Dropdown<code></li></ul>
+<ul><li></code>Card<code>, </code>Badge<code>, </code>Avatar<code></li></ul>
+<ul><li></code>Table<code>, </code>DataGrid<code></li></ul>
+<ul><li></code>Progress<code>, </code>Slider<code>, </code>Switch<code></li></ul>
+<ul><li></code>Tabs<code>, </code>Accordion<code></li></ul>
+<ul><li></code>Toast<code>/Sonner notifications</li></ul>
+<ul><li></code>LoadingScreen<code>, </code>Skeleton<code> loaders</li></ul>
+
+<h3>24.3 Advanced Feature Components</h3>
+<ul><li></code>CommandPalette<code> â€” Global search (Ctrl+K)</li></ul>
+<ul><li></code>RichTextEditor<code> â€” Tiptap WYSIWYG</li></ul>
+<ul><li></code>VirtualizedList<code> â€” Performance list untuk data besar</li></ul>
+<ul><li></code>ActivityFeed<code> â€” Real-time activity stream</li></ul>
+<ul><li></code>CannedResponses<code> â€” Quick reply picker</li></ul>
+<ul><li></code>ArticleSearchAutocomplete<code> â€” KB search inline</li></ul>
+<ul><li></code>BulkActionsToolbar<code> â€” Mass operations UI</li></ul>
+<ul><li></code>PDFPreviewModal<code> â€” Preview PDF in-browser</li></ul>
+<ul><li></code>ErrorBoundary<code> + </code>FeatureErrorBoundary<code> â€” Error isolation</li></ul>
+<ul><li></code>ScreenReaderAnnounce<code> â€” Accessibility</li></ul>
+
+<h3>24.4 Custom Hooks (19 hooks)</h3>
+<ul><li></code>useAuth<code> â€” Auth state & actions</li></ul>
+<ul><li></code>useTickets<code> â€” Ticket CRUD + realtime</li></ul>
+<ul><li></code>useNotifications<code> â€” Notification center</li></ul>
+<ul><li></code>useSocket<code> â€” WebSocket management</li></ul>
+<ul><li></code>usePermissions<code> â€” Permission checks</li></ul>
+<ul><li></code>useDebounce<code> â€” Search input debounce</li></ul>
+<ul><li></code>useLocalStorage` â€” Typed localStorage</li></ul>
+<ul><li>Dan lainnya...</li></ul>
+
+<hr>
+
+<h2>25. KEAMANAN SISTEM</h2>
+
+| Aspek | Implementasi |
+|-------|-------------|
+| Password | bcrypt hashing dengan salt |
+| JWT | Signed tokens, role-based expiry |
+| Rate Limiting | 100 req/menit per IP |
+| IP Whitelist | Blokir IP tidak diizinkan |
+| Page Access | Guard per halaman + lockout |
+| File Upload | Magic bytes validation |
+| Headers | Helmet (X-XSS, HSTS, CSP) |
+| Input | class-validator pada semua DTO |
+| CORS | Konfigurasi origin whitelist |
+| SQL Injection | TypeORM query builder (parameterized) |
+| Slow Query | Log query > 1 detik |
+| DB Pool | Min 5, Max 20 connections |
+
+<hr>
+
+<h2>26. RINGKASAN FITUR Aâ€“Z</h2>
+
+| Fitur | Deskripsi | Role |
+|-------|-----------|------|
+| Access Request | Permintaan akses sistem/jaringan | All |
+| Agent Management | Kelola user agent & admin | ADMIN |
+| Appraisal Points | Poin kinerja agent otomatis | ADMIN |
+| Audit Trail | Log semua perubahan sistem | ADMIN |
+| Automation Rules | Workflow IF-THEN otomatis | ADMIN |
+| Backup Synology | Integrasi backup ke NAS Synology | ADMIN |
+| Bulk Operations | Mass update tiket | ADMIN/AGENT |
+| Business Hours | Konfigurasi jam kerja SLA | ADMIN |
+| Canned Responses | Template jawaban cepat | AGENT |
+| Contract Renewal | Manajemen kontrak IT dengan alert | ADMIN/AGENT |
+| CSV Import | Bulk import user | ADMIN |
+| Dashboard Analytics | Statistik real-time | ADMIN/AGENT |
+| Department Management | Struktur organisasi | ADMIN |
+| Events & Notifications | Notifikasi multi-channel | All |
+| File Attachments | Upload dokumen ke tiket | All |
+| Google Sheets Sync | Sinkronisasi data ke Google Sheets | ADMIN |
+| Hardware Installation | Request + jadwal instalasi hardware | All |
+| Health Monitoring | Status sistem real-time | ADMIN |
+| ICT Budget Request | Pengajuan anggaran IT | All |
+| Internal Notes | Note private antar agent | AGENT/ADMIN |
+| IP Whitelist | Kelola izin akses per IP | ADMIN |
+| JWT Authentication | Login aman dengan token | All |
+| Kanban Board | Visual drag-drop ticket management | ADMIN/AGENT |
+| Knowledge Base | Artikel panduan & FAQ | All |
+| Lost Item Report | Laporan kehilangan barang | All |
+| Manager Dashboard | Monitoring khusus manajer | MANAGER |
+| Multi-site Support | Manajemen multi cabang | ADMIN |
+| Notification Center | Pusat semua notifikasi | All |
+| Oracle Access Request | Permintaan akses sistem Oracle | All |
+| Permission Presets | Template izin per tipe user | ADMIN |
+| PDF Reports | Generate laporan PDF | ADMIN/MANAGER |
+| Push Notifications | Browser push notification | All |
+| Rate Limiting | Proteksi brute-force | System |
+| Real-time Updates | WebSocket live updates | All |
+| Reports & Analytics | Laporan performa | ADMIN/MANAGER |
+| Role-based Access | Akses granular per peran | System |
+| Saved Replies | Simpan teks jawaban | AGENT/ADMIN |
+| Search Global | Cari tiket/artikel/user | All |
+| Settings | Preferensi sistem & profil | All |
+| SLA Management | Tracking & alert keterlambatan | System |
+| Sound Notifications | Kustomisasi suara notif | All |
+| Surveys/Feedback | Rating kepuasan setelah tiket selesai | All |
+| Telegram Bot | Buat & pantau tiket via Telegram | All |
+| Ticket Templates | Form pre-filled untuk tiket umum | ADMIN/AGENT |
+| Time Tracking | Log waktu pengerjaan tiket | AGENT |
+| User Management | CRUD pengguna sistem | ADMIN |
+| VPN Access Tracking | Kelola & pantau akses VPN | ADMIN/AGENT |
+| Workload Dashboard | Distribusi beban kerja agent | ADMIN/MANAGER |
+| WYSIWYG Editor | Editor teks kaya untuk tiket & KB | All |
+| Zoom Booking | Kalender booking meeting Zoom | All |
+
+</body>
+</html>

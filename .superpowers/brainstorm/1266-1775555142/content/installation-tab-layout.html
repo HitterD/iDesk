@@ -1,0 +1,134 @@
+<h2>Layout Tab Installation — Kolom apa saja?</h2>
+<p class="subtitle">Pilih informasi yang ditampilkan di tab Installation pada halaman Hardware Requests</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Table View (seperti Tickets List)</h3>
+      <p>Format tabel dengan kolom-kolom, konsisten dengan halaman Tickets saat ini.</p>
+      <div class="mockup" style="margin-top: 12px;">
+        <div class="mockup-header">Tab Installation — Table View</div>
+        <div class="mockup-body" style="padding: 0;">
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="background:#f8f9fa; text-align:left;">
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Ticket</th>
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Hardware</th>
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Site</th>
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Status</th>
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Requester</th>
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Assigned To</th>
+                <th style="padding:10px 12px; border-bottom:1px solid #e0e0e0;">Scheduled</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid #f0f0f0;">
+                <td style="padding:10px 12px;"><span style="color:#1a56db;">#b9fed8ee</span><br><small>Hardware Installation: Macbook</small></td>
+                <td style="padding:10px 12px;">Macbook Pro 14"</td>
+                <td style="padding:10px 12px;"><span style="background:#e8e8e8; padding:2px 8px; border-radius:4px; font-size:11px;">SPJ</span></td>
+                <td style="padding:10px 12px;"><span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:12px; font-size:11px;">Open</span></td>
+                <td style="padding:10px 12px;">bagas</td>
+                <td style="padding:10px 12px; color:#999;">Unassigned</td>
+                <td style="padding:10px 12px;">10 Apr, 08:00</td>
+              </tr>
+              <tr style="border-bottom:1px solid #f0f0f0;">
+                <td style="padding:10px 12px;"><span style="color:#1a56db;">#6f5bc011</span><br><small>Hardware Installation: PC AIO</small></td>
+                <td style="padding:10px 12px;">PC AIO Dell</td>
+                <td style="padding:10px 12px;"><span style="background:#e8e8e8; padding:2px 8px; border-radius:4px; font-size:11px;">SPJ</span></td>
+                <td style="padding:10px 12px;"><span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:12px; font-size:11px;">In Progress</span></td>
+                <td style="padding:10px 12px;">bagas</td>
+                <td style="padding:10px 12px;">IT-Admin</td>
+                <td style="padding:10px 12px;">08 Apr, 13:00</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 12px;"><span style="color:#1a56db;">#8e6e0a86</span><br><small>Hardware Installation: Printer</small></td>
+                <td style="padding:10px 12px;">Printer Epson</td>
+                <td style="padding:10px 12px;"><span style="background:#e8e8e8; padding:2px 8px; border-radius:4px; font-size:11px;">SPJ</span></td>
+                <td style="padding:10px 12px;"><span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:11px;">Resolved</span></td>
+                <td style="padding:10px 12px;">vian</td>
+                <td style="padding:10px 12px;">yudi</td>
+                <td style="padding:10px 12px;">05 Apr, 08:00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Card View (seperti Hardware Requests saat ini)</h3>
+      <p>Format card dengan info lebih visual, konsisten dengan tampilan Hardware Requests existing.</p>
+      <div class="mockup" style="margin-top: 12px;">
+        <div class="mockup-header">Tab Installation — Card View</div>
+        <div class="mockup-body" style="padding: 16px; display:flex; flex-direction:column; gap:12px;">
+          <div style="border:1px solid #e0e0e0; border-radius:10px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <span style="font-size:12px; color:#666;">#b9fed8ee</span>
+                <div style="font-weight:600; margin-top:2px;">Hardware Installation: Macbook Pro 14"</div>
+                <div style="font-size:13px; color:#888; margin-top:4px;">Requester: bagas · Site: SPJ</div>
+              </div>
+              <span style="background:#fef3c7; color:#92400e; padding:4px 12px; border-radius:12px; font-size:12px;">Open</span>
+            </div>
+            <div style="display:flex; gap:16px; margin-top:12px; font-size:13px; color:#555;">
+              <span>📅 10 Apr 2026, 08:00-12:00</span>
+              <span>👤 Unassigned</span>
+            </div>
+          </div>
+          <div style="border:1px solid #e0e0e0; border-radius:10px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <span style="font-size:12px; color:#666;">#6f5bc011</span>
+                <div style="font-weight:600; margin-top:2px;">Hardware Installation: PC AIO Dell</div>
+                <div style="font-size:13px; color:#888; margin-top:4px;">Requester: bagas · Site: SPJ</div>
+              </div>
+              <span style="background:#dbeafe; color:#1e40af; padding:4px 12px; border-radius:12px; font-size:12px;">In Progress</span>
+            </div>
+            <div style="display:flex; gap:16px; margin-top:12px; font-size:13px; color:#555;">
+              <span>📅 08 Apr 2026, 13:00-17:00</span>
+              <span>👤 IT-Admin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Kanban Board (by Status)</h3>
+      <p>Tampilan kanban berdasarkan status instalasi: Scheduled → In Progress → Completed.</p>
+      <div class="mockup" style="margin-top: 12px;">
+        <div class="mockup-header">Tab Installation — Kanban</div>
+        <div class="mockup-body" style="padding: 16px; display:flex; gap:12px;">
+          <div style="flex:1; background:#fef3c7; border-radius:8px; padding:12px;">
+            <div style="font-weight:600; font-size:13px; margin-bottom:8px;">📋 Scheduled (2)</div>
+            <div style="background:white; border-radius:6px; padding:10px; margin-bottom:8px; font-size:12px;">
+              <strong>Macbook Pro</strong><br>bagas · SPJ<br>10 Apr, 08:00
+            </div>
+            <div style="background:white; border-radius:6px; padding:10px; font-size:12px;">
+              <strong>Printer Epson</strong><br>vian · SPJ<br>11 Apr, 13:00
+            </div>
+          </div>
+          <div style="flex:1; background:#dbeafe; border-radius:8px; padding:12px;">
+            <div style="font-weight:600; font-size:13px; margin-bottom:8px;">🔧 In Progress (1)</div>
+            <div style="background:white; border-radius:6px; padding:10px; font-size:12px;">
+              <strong>PC AIO Dell</strong><br>bagas · SPJ<br>08 Apr, 13:00
+            </div>
+          </div>
+          <div style="flex:1; background:#dcfce7; border-radius:8px; padding:12px;">
+            <div style="font-weight:600; font-size:13px; margin-bottom:8px;">✅ Completed (1)</div>
+            <div style="background:white; border-radius:6px; padding:10px; font-size:12px;">
+              <strong>Laptop HP</strong><br>bagas · SPJ<br>03 Apr, 08:00
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

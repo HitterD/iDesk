@@ -1,0 +1,52 @@
+<h2>Klik item Installation → kemana?</h2>
+<p class="subtitle">Saat admin klik baris di tab Installation, halaman mana yang dibuka?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Ke Detail Hardware Request</h3>
+      <p>Klik baris → buka <code>/hardware-requests/:id</code> dengan section instalasi ter-highlight. Admin melihat konteks lengkap: procurement + instalasi dalam 1 halaman.</p>
+      <div class="mockup" style="margin-top:12px;">
+        <div class="mockup-header">Flow: Tab Installation → HW Request Detail</div>
+        <div class="mockup-body" style="padding:16px;">
+          <div style="display:flex; align-items:center; gap:12px; font-size:13px;">
+            <div style="background:#f0f0f0; padding:8px 14px; border-radius:6px;">Tab Installation</div>
+            <span style="font-size:18px;">→</span>
+            <div style="background:#1a56db; color:white; padding:8px 14px; border-radius:6px;">Hardware Request Detail</div>
+          </div>
+          <div style="margin-top:12px; font-size:13px; color:#666;">
+            ✅ Lihat request asal + item + status procurement<br>
+            ✅ Lihat jadwal instalasi + assignment<br>
+            ✅ 1 halaman untuk semua konteks
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Ke Detail Ticket</h3>
+      <p>Klik baris → buka <code>/tickets/:id</code> (halaman ticket detail yang sudah ada). Admin bisa update status, assign, chat, dll. Lalu ada link balik ke hardware request.</p>
+      <div class="mockup" style="margin-top:12px;">
+        <div class="mockup-header">Flow: Tab Installation → Ticket Detail</div>
+        <div class="mockup-body" style="padding:16px;">
+          <div style="display:flex; align-items:center; gap:12px; font-size:13px;">
+            <div style="background:#f0f0f0; padding:8px 14px; border-radius:6px;">Tab Installation</div>
+            <span style="font-size:18px;">→</span>
+            <div style="background:#1a56db; color:white; padding:8px 14px; border-radius:6px;">Ticket Detail</div>
+            <span style="font-size:18px;">↔</span>
+            <div style="background:#f0f0f0; padding:8px 14px; border-radius:6px;">HW Request (link)</div>
+          </div>
+          <div style="margin-top:12px; font-size:13px; color:#666;">
+            ✅ Bisa update status, assign, messaging<br>
+            ✅ Familiar — UI ticket detail sudah ada<br>
+            ⚠️ Perlu navigasi tambahan untuk lihat konteks procurement
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

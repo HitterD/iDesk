@@ -1,0 +1,346 @@
+# Hardware Request — Full-Stack Workflow Overhaul
+
+## Problem Statement
+
+Halaman **Hardware Request** saat ini masih berupa **mockup/AI slop** yang tidak fungsional:
+
+1. **Klik "ICT Budget" atau "Hardware Installation" di Create Ticket** → langsung di-redirect ke `/hardware-requests` **tanpa form pengisian apapun**
+2. **Tombol "New Request"** tidak ada handler — hanya dekoratif
+3. **Tombol APPROVE/REJECT di Drawer** tidak terhubung ke API
+4. **Seluruh halaman adalah tabel read-only** tanpa workflow yang jelas
+5. **Tidak ada form buat ICT Budget Request dari halaman ini**
+6. **Tidak ada stepper/wizard** untuk create request
+7. **Design masih "AI slob"** — generik, flat, tanpa personality
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Routing Decision:** Saat user klik "ICT Budget" atau "Hardware Installation" di Create Ticket page, apakah sebaiknya:
+> - **(A)** Dibawa ke form langsung di `/hardware-requests/new?type=ict-budget` (recommended)
+> - **(B)** Tetap dibawa ke list `/hardware-requests` tapi dengan modal form di dalamnya
+> - **(C)** Form tetap inline di Create Ticket page (cara sekarang untuk Service Ticket)
+
+> [!IMPORTANT]
+> **Approval Workflow:** Untuk ICT Budget, workflow yang diinginkan:
+> - **(A)** User → Superior Approval → ICT Agent Purchasing → Arrived → Realized (workflow saat ini di backend)
+> - **(B)** Workflow berbeda? Misalnya ada GM approval setelah superior?
+
+> [!WARNING]
+> **Breaking Change:** Halaman `/hardware-requests` akan di-redesign total. Layout, komponen, routing akan berubah signifikan.
+
+---
+
+## Proposed Changes (End-to-End)
+
+### Arsitektur Besar — Apa yang Akan Dibangun
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     HARDWARE REQUEST MODULE                          │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  CREATE TICKET PAGE (BentoCreateTicketPage)                         │
+│  ├── "Hardware Installation" → /hardware-requests/new?type=hw       │
+│  └── "ICT Budget" → /hardware-requests/new?type=budget              │
+│                                                                      │
+│  /hardware-requests                                                  │
+│  ├── Tab: Installations (list + detail drawer + approve/reject)     │
+│  ├── Tab: ICT Budget (list + detail drawer + workflow actions)      │
+│  └── Tab: Schedule (calendar + assign/reschedule)                   │
+│                                                                      │
+│  /hardware-requests/new (NEW PAGE — Wizard Form)                    │
+│  ├── Step 1: Select Type (Hardware Install / ICT Budget)            │
+│  ├── Step 2A: HW Install → hardware type, schedule, description    │
+│  ├── Step 2B: ICT Budget → item, cost, vendor, justification       │
+│  └── Step 3: Review + Submit                                        │
+│                                                                      │
+│  /hardware-requests/:id (NEW PAGE — Detail + Workflow)              │
+│  ├── Status Timeline (visual Kanban-like pipeline)                  │
+│  ├── Request Details (full info)                                    │
+│  ├── Approval Actions (approve/reject/notes)                        │
+│  ├── Purchasing Actions (PO number, invoice)                        │
+│  ├── Realization Actions (mark arrived/realized)                    │
+│  └── Installation Schedule (link to HW install ticket)              │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Component 1: Frontend — Create Request Wizard Page
+
+#### [NEW] `HardwareRequestCreatePage.tsx`
+Path: `apps/frontend/src/features/request-center/pages/HardwareRequestCreatePage.tsx`
+
+**Multi-step wizard** dengan 3 langkah:
+
+**Step 1 — Select Type**
+- 2 card pillihan: "Hardware Installation" atau "ICT Budget Request"
+- Jika dibuka via URL param `?type=hw` atau `?type=budget`, auto-skip ke step 2
+
+**Step 2A — Hardware Installation Form** (jika type = hw)
+- Hardware type selector (dari API scheduling config)
+- Date picker + dynamic time slot (dari `useAvailableSlots`)
+- Description/keterangan hardware
+- File attachments
+- Acknowledgment checkbox
+
+**Step 2B — ICT Budget Form** (jika type = budget)  
+- Request type: PURCHASE / RENEWAL / LICENSE
+- Item name, vendor, quantity
+- Budget category (dynamic berdasarkan request type)
+- Estimated cost
+- Justification/alasan
+- Urgency level
+- Checkbox "Perlu instalasi hardware"
+
+**Step 3 — Review & Submit**
+- Summary card showing semua field yang diisi
+- Edit button per section untuk kembali
+- Submit button dengan loading state
+- Sukses → redirect ke detail page baru
+
+---
+
+#### [NEW] `HardwareRequestDetailPage.tsx`
+Path: `apps/frontend/src/features/request-center/pages/HardwareRequestDetailPage.tsx`
+
+Halaman detail untuk **satu request** (ICT Budget ATAU Hardware Installation) dengan:
+
+1. **Status Pipeline** — visual horizontal stepper menunjukkan di mana request berada:
+   - ICT Budget: `PENDING → APPROVED → PURCHASING → ARRIVED → REALIZED`
+   - Hardware Install: `TODO → IN_PROGRESS → RESOLVED`
+
+2. **Request Info Card** — semua detail request dalam format bersih
+
+3. **Approval Panel** (hanya tampil untuk Superior/Admin):
+   - Approve / Reject button
+   - Notes textarea
+   - Reject reason (required jika reject)
+
+4. **Purchasing Panel** (hanya tampil untuk Agent setelah approved):  
+   - PO Number input
+   - Invoice Number input
+   - Vendor info
+   - Mark as "Purchasing"
+
+5. **Realization Panel** (hanya tampil setelah purchasing):
+   - Mark as "Arrived"
+   - Mark as "Realized" + notes
+   - Auto-create Hardware Installation ticket jika `requiresInstallation = true`
+
+6. **Installation Schedule Section** (jika linked ke HW ticket):
+   - Calendar view mini
+   - Schedule card with status
+   - Reschedule action
+
+7. **Activity Timeline** — log semua status changes
+
+---
+
+#### [MODIFY] `HardwareRequestPage.tsx`
+Path: `apps/frontend/src/features/request-center/pages/HardwareRequestPage.tsx`
+
+Perubahan besar:
+- **"New Request" button** → navigasi ke `/hardware-requests/new`
+- **Tab Installations** → table row klik navigasi ke detail page (`/hardware-requests/:id?type=hw`)
+- **Tab ICT Budget** → table row klik navigasi ke detail page (`/hardware-requests/:id?type=budget`)
+- **Tab Schedule** → tetap calendar view tapi dengan action buttons (approve, reschedule)
+- **Remove DetailDrawer** (diganti dengan full detail page)
+- **UI Redesign** sesuai Frontend Design plugin — bukan generik lagi
+
+---
+
+#### [MODIFY] `BentoCreateTicketPage.tsx`
+Path: `apps/frontend/src/features/client/pages/BentoCreateTicketPage.tsx`
+
+Perubahan:
+- **"Hardware Installation" card** → navigate ke `/hardware-requests/new?type=hw` (bukan `/hardware-requests`)
+- **"ICT Budget" card** → navigate ke `/hardware-requests/new?type=budget` (bukan `/hardware-requests`)
+- Kedua card sekarang membawa user ke **wizard form**, bukan list page
+
+---
+
+### Component 2: Frontend — New Components
+
+#### [NEW] `RequestWizard.tsx`
+Path: `apps/frontend/src/features/request-center/components/RequestWizard.tsx`
+- Reusable multi-step wizard container
+- Step indicator (1, 2, 3) dengan progress line
+- Back/Next navigation
+- Form validation per step
+
+#### [NEW] `StatusPipeline.tsx`  
+Path: `apps/frontend/src/features/request-center/components/StatusPipeline.tsx`
+- Horizontal stepper showing workflow stages
+- Current stage highlighted
+- Completed stages with checkmark
+- Animated transitions
+
+#### [NEW] `HardwareInstallForm.tsx`
+Path: `apps/frontend/src/features/request-center/components/HardwareInstallForm.tsx`
+- Extracted HW install form (currently inline di BentoCreateTicketPage)
+- Hardware type, date, time slot, description, attachments
+
+#### [NEW] `IctBudgetRequestForm.tsx`
+Path: `apps/frontend/src/features/request-center/components/IctBudgetRequestForm.tsx`
+- Enhanced version of existing `IctBudgetForm.tsx`
+- Better validation, more fields
+- Step-aware (integrates with wizard)
+
+#### [NEW] `ApprovalPanel.tsx`
+Path: `apps/frontend/src/features/request-center/components/ApprovalPanel.tsx`
+- Approve/reject UI for managers
+- Notes field, reject reason
+- Confirmation modal
+
+#### [NEW] `PurchasingPanel.tsx`
+Path: `apps/frontend/src/features/request-center/components/PurchasingPanel.tsx`
+- PO number, invoice number inputs
+- Mark purchasing/arrived/realized actions
+
+#### [NEW] `ActivityTimeline.tsx`
+Path: `apps/frontend/src/features/request-center/components/ActivityTimeline.tsx`
+- Chronological log of all status changes
+- Shows who did what, when
+
+#### [NEW] `ReviewSummary.tsx`
+Path: `apps/frontend/src/features/request-center/components/ReviewSummary.tsx`
+- Step 3 review card before submit
+- Shows all filled fields
+- Edit buttons per section
+
+---
+
+### Component 3: Frontend — API Layer Enhancement
+
+#### [MODIFY] `ict-budget.api.ts`
+Path: `apps/frontend/src/features/request-center/api/ict-budget.api.ts`
+
+Perubahan:
+- Add `useCreateIctBudgetRequest` mutation hook
+- Add `useApproveIctBudget` mutation hook  
+- Add `useRejectIctBudget` mutation hook
+- Add `useStartPurchasing` mutation hook
+- Add `useRealizeIctBudget` mutation hook
+- Fix type mismatch antara frontend enum dan backend enum (frontend punya `FORM_PENDING`, backend tidak)
+
+#### [MODIFY] `schedule.api.ts`
+Path: `apps/frontend/src/features/request-center/api/schedule.api.ts`
+
+Perubahan:
+- Add `useRescheduleSchedule` mutation hook
+- Fix `useAvailableSlots` return type match
+
+#### [NEW] `hardware-request.api.ts`
+Path: `apps/frontend/src/features/request-center/api/hardware-request.api.ts`
+- Unified API hooks for hardware request detail
+- `useHardwareRequestDetail(id)` — combined ticket + ICT budget data
+- `useHardwareRequestActivities(id)` — activity log
+
+---
+
+### Component 4: Frontend — Routing
+
+#### [MODIFY] `App.tsx`
+Path: `apps/frontend/src/App.tsx`
+
+Tambah routes baru:
+```tsx
+<Route path="hardware-requests/new" element={<HardwareRequestCreatePage />} />
+<Route path="hardware-requests/:id" element={<HardwareRequestDetailPage />} />
+```
+
+Untuk semua role paths (admin, manager, client).
+
+---
+
+### Component 5: Backend — Enhancements
+
+#### [MODIFY] `ict-budget.controller.ts`
+Tambah endpoint:
+- `GET /ict-budget/:id/activities` — status change log
+- Ensure proper error responses
+
+#### [MODIFY] `ict-budget.service.ts`
+- Add activity logging saat status change
+- Enhance validation messages
+
+#### [NEW] `ict-budget-activity.entity.ts`
+Path: `apps/backend/src/modules/ict-budget/entities/ict-budget-activity.entity.ts`
+- Log setiap status change: who, when, from_status, to_status, notes
+- Entity untuk activity timeline di frontend
+
+#### [NEW] Migration untuk activity log table
+
+---
+
+### Component 6: Design Overhaul
+
+Mengikuti **Frontend Design Plugin** guidelines, aesthetic direction: **"Industrial / Utilitarian"** with amber/warm accents.
+
+Alasan: System ini untuk IT infrastructure management — harus terasa **purposeful, functional, precise** seperti control dashboard, bukan generic SaaS.
+
+**Design tokens:**
+- Primary: Amber-500 (`#F59E0B`) — warm, action-oriented
+- Background: Deep slate dark mode (`#0F172A`)
+- Status colors: pipeline-inspired (blue → amber → green progression)
+- Typography: **JetBrains Mono** untuk request IDs/codes, **Plus Jakarta Sans** untuk body
+- Micro-animations: pipeline step transitions, card reveals, status badge pulse
+
+**Key UI decisions:**
+- **Status Pipeline** → bukan badge, tapi full horizontal stepper dengan animated progress
+- **Detail page** → 2-column layout: left = info, right = actions/timeline
+- **Wizard form** → step-by-step, clean, not overwhelming
+- **Tables** → denser, more data, column customization
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Routing choice** untuk create form: (A) dedicated page, (B) modal, atau (C) inline? Saya recommend **(A)**.
+
+> [!IMPORTANT]
+> 2. **Approval workflow ICT Budget**: Apakah flow `PENDING → APPROVED → PURCHASING → ARRIVED → REALIZED` sudah benar? Atau ada step tambahan?
+
+> [!IMPORTANT]
+> 3. **Activity Log**: Apakah perlu new table di DB untuk mencatat history status changes, atau cukup gunakan data yang ada (superiorApprovedAt, realizedAt, dll)?
+
+> [!IMPORTANT]
+> 4. **Role access**: Siapa yang bisa approve ICT Budget? Hanya Manager/Superior atau Admin juga?
+
+> [!IMPORTANT]  
+> 5. **Notifikasi**: Apakah perlu integrasi Telegram notification untuk setiap status change?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+1. Backend:
+   - `npm run test` — pastikan existing tests pass
+   - Manual API test via browser untuk ICT Budget CRUD
+   
+2. Frontend:
+   - `npm run build` — pastikan no TypeScript errors
+   - `npm run dev` — visual verification di browser
+
+### Manual Verification
+1. **Create Flow**: User klik "New Request" → wizard form → submit → redirect ke detail
+2. **Approval Flow**: Manager/Admin buka detail → approve/reject → status berubah
+3. **Purchasing Flow**: Agent marking purchasing → arrived → realized
+4. **Schedule Integration**: Hardware installation ticket auto-linked
+5. **Navigation**: Semua link/button bekerja, tidak ada dead-end
+6. **Responsive**: Test di mobile view
+7. **Dark Mode**: Verify consistent styling
+
+### Browser Testing
+- Buka `/hardware-requests` — verify list view
+- Buka `/hardware-requests/new` — verify wizard
+- Buka `/hardware-requests/new?type=budget` — verify auto-skip
+- Submit form → verify success redirect
+- Klik row di table → verify detail page
+- Test approve/reject actions

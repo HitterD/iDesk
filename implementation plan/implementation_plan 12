@@ -1,0 +1,449 @@
+# Audit Log — Comprehensive End-to-End Implementation Plan
+
+## Summary
+
+Audit system sudah ada tapi coverage sangat incomplete. Dari 30+ modules, hanya **7 service** yang terintegrasi audit logging. Mayoritas operasi CRUD belum tercatat.
+
+## Current State
+
+### ✅ SUDAH Terintegrasi (7 services)
+
+| Module | Service | Actions Logged |
+|---|---|---|
+| **Auth** | auth.service.ts | `USER_LOGIN`, `LOGIN_FAILED`, `PASSWORD_CHANGE` |
+| **Users** | users.service.ts | `USER_CREATE`, `USER_UPDATE`, `USER_DELETE`, `USER_ROLE_CHANGE`, `PASSWORD_RESET`, `USER_STATUS_TOGGLE` |
+| **Ticketing** | ticket-create.service.ts | `CREATE_TICKET` |
+| **Ticketing** | ticket-update.service.ts | `UPDATE_TICKET`, `ASSIGN_TICKET`, `TICKET_CANCEL` |
+| **Ticketing** | ticket-merge.service.ts | `TICKET_MERGE` |
+| **Knowledge Base** | knowledge-base.service.ts | `ARTICLE_CREATE`, `ARTICLE_UPDATE`, `ARTICLE_PUBLISH`, `ARTICLE_DELETE` |
+| **Settings** | settings.service.ts | `SETTINGS_CHANGE` |
+| **Page Access Guard** | page-access.guard.ts | `PAGE_ACCESS_DENIED`, `PAGE_ACCESS_LOCKOUT` |
+
+### ❌ BELUM Terintegrasi (21+ modules/services)
+
+| # | Module | Operasi yang TIDAK Tercatat |
+|---|---|---|
+| 1 | **Access Request** | create, createAccess, reject, updateAccessType |
+| 2 | **E-Form Request** | createRequest, approveManager1, approveManager2, rejectRequest |
+| 3 | **ICT Budget** | create, approve, cancelRequest |
+| 4 | **VPN Access** | create, update, delete, deleteMany |
+| 5 | **Zoom Booking** | createBooking, cancelBooking, rescheduleBooking *(punya audit sendiri tapi terpisah)* |
+| 6 | **Lost Item** | create, updateStatus |
+| 7 | **Renewal** | createManual, update, delete |
+| 8 | **Automation** | create, update, delete, toggleActive |
+| 9 | **Permissions** | updateUserPermissions, createPreset, updatePreset, deletePreset |
+| 10 | **Sites** | create, update, remove |
+| 11 | **SLA Config** | *(semua operasi)* |
+| 12 | **Business Hours** | update, removeHoliday |
+| 13 | **IP Whitelist** | create, update, remove |
+| 14 | **Reports** | generateExcelReport, generatePDF, generateCustomRangeExcel |
+| 15 | **Google Sync** | createConfig, updateConfig, deleteConfig, createSheetMapping |
+| 16 | **Ticketing — Messaging** | replyToTicket |
+| 17 | **Ticketing — Templates** | create, update, remove |
+| 18 | **Ticketing — Attributes** | create, remove |
+| 19 | **Ticketing — Time Tracking** | startTimer, stopTimer, addManualEntry, updateEntry, deleteEntry |
+| 20 | **Ticketing — Bulk Update** | bulkUpdate |
+| 21 | **Installation Schedule** | createSchedule |
+| 22 | **Workload** | updatePriorityWeight |
+| 23 | **Auth** | `USER_LOGOUT` *(enum ada, tapi tidak pernah dilog)* |
+| 24 | **Users** | `USER_BULK_IMPORT` *(enum ada, belum dilog — hanya bulk delete ada)* |
+| 25 | **Ticket** | `STATUS_CHANGE`, `PRIORITY_CHANGE`, `DELETE_TICKET`, `BULK_UPDATE` *(enum ada, belum dilog)* |
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Zoom Booking** punya audit system terpisah (`zoom_audit_logs` table + `ZoomAuditLogService`). 
+> Pilihan:
+> 1. **Unify** — Migrate ke centralized `AuditService` (lebih konsisten, semua audit di satu tempat)
+> 2. **Dual** — Keep zoom audit + tambah ke centralized juga (redundant tapi safe)
+> 3. **Keep separate** — Zoom tetap pakai sendiri, tidak masuk centralized audit
+>
+> Rekomendasi: **Option 2 (Dual)** — tambah `auditService.logAsync` di zoom-booking tanpa hapus system existing.
+
+> [!WARNING]
+> **Renewal** juga punya `contract-audit.service.ts` terpisah. Sama seperti zoom — perlu keputusan apakah juga di-bridge ke centralized audit.
+
+> [!IMPORTANT]
+> **Scope confirmation**: Apakah semua module di atas perlu diaudit? Atau ada yg mau di-skip (misal: Reports generate, Google Sync config)?
+
+---
+
+## Proposed Changes
+
+### Phase 1: Extend AuditAction Enum (+40 actions baru)
+
+#### [MODIFY] [audit-log.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/audit/entities/audit-log.entity.ts)
+
+Tambah enum values baru:
+
+```typescript
+// === ACCESS REQUEST ===
+ACCESS_REQUEST_CREATE = 'ACCESS_REQUEST_CREATE',
+ACCESS_REQUEST_APPROVE = 'ACCESS_REQUEST_APPROVE',
+ACCESS_REQUEST_REJECT = 'ACCESS_REQUEST_REJECT',
+ACCESS_TYPE_UPDATE = 'ACCESS_TYPE_UPDATE',
+
+// === E-FORM ===
+EFORM_REQUEST_CREATE = 'EFORM_REQUEST_CREATE',
+EFORM_APPROVE_MANAGER1 = 'EFORM_APPROVE_MANAGER1',
+EFORM_APPROVE_MANAGER2 = 'EFORM_APPROVE_MANAGER2',
+EFORM_REJECT = 'EFORM_REJECT',
+
+// === ICT BUDGET / HARDWARE REQUEST ===
+ICT_BUDGET_CREATE = 'ICT_BUDGET_CREATE',
+ICT_BUDGET_APPROVE = 'ICT_BUDGET_APPROVE',
+ICT_BUDGET_CANCEL = 'ICT_BUDGET_CANCEL',
+
+// === VPN ACCESS ===
+VPN_ACCESS_CREATE = 'VPN_ACCESS_CREATE',
+VPN_ACCESS_UPDATE = 'VPN_ACCESS_UPDATE',
+VPN_ACCESS_DELETE = 'VPN_ACCESS_DELETE',
+
+// === ZOOM BOOKING (centralized) ===
+ZOOM_BOOKING_CREATE = 'ZOOM_BOOKING_CREATE',  // already exists
+ZOOM_BOOKING_CANCEL = 'ZOOM_BOOKING_CANCEL',  // already exists
+ZOOM_BOOKING_RESCHEDULE = 'ZOOM_BOOKING_RESCHEDULE',  // already exists
+
+// === LOST & FOUND ===
+LOST_ITEM_CREATE = 'LOST_ITEM_CREATE',
+LOST_ITEM_STATUS_UPDATE = 'LOST_ITEM_STATUS_UPDATE',
+
+// === CONTRACT RENEWAL ===
+CONTRACT_CREATE = 'CONTRACT_CREATE',
+CONTRACT_UPDATE = 'CONTRACT_UPDATE',
+CONTRACT_DELETE = 'CONTRACT_DELETE',
+
+// === AUTOMATION ===
+AUTOMATION_CREATE = 'AUTOMATION_CREATE',  // already exists
+AUTOMATION_UPDATE = 'AUTOMATION_UPDATE',  // already exists
+AUTOMATION_DELETE = 'AUTOMATION_DELETE',  // already exists
+AUTOMATION_TOGGLE = 'AUTOMATION_TOGGLE',
+
+// === PERMISSIONS ===
+PERMISSION_UPDATE = 'PERMISSION_UPDATE',
+PERMISSION_PRESET_CREATE = 'PERMISSION_PRESET_CREATE',
+PERMISSION_PRESET_UPDATE = 'PERMISSION_PRESET_UPDATE',
+PERMISSION_PRESET_DELETE = 'PERMISSION_PRESET_DELETE',
+
+// === SITES ===
+SITE_CREATE = 'SITE_CREATE',
+SITE_UPDATE = 'SITE_UPDATE',
+SITE_DELETE = 'SITE_DELETE',
+
+// === SLA CONFIG ===
+SLA_CONFIG_CHANGE = 'SLA_CONFIG_CHANGE',  // already exists
+BUSINESS_HOURS_UPDATE = 'BUSINESS_HOURS_UPDATE',
+HOLIDAY_REMOVE = 'HOLIDAY_REMOVE',
+
+// === IP WHITELIST ===
+IP_WHITELIST_CREATE = 'IP_WHITELIST_CREATE',
+IP_WHITELIST_UPDATE = 'IP_WHITELIST_UPDATE',
+IP_WHITELIST_DELETE = 'IP_WHITELIST_DELETE',
+
+// === REPORTS ===
+REPORT_GENERATE = 'REPORT_GENERATE',  // already exists
+REPORT_EXPORT = 'REPORT_EXPORT',      // already exists
+
+// === GOOGLE SYNC ===
+SYNC_CONFIG_CREATE = 'SYNC_CONFIG_CREATE',
+SYNC_CONFIG_UPDATE = 'SYNC_CONFIG_UPDATE',
+SYNC_CONFIG_DELETE = 'SYNC_CONFIG_DELETE',
+
+// === TICKET (missing events) ===
+DELETE_TICKET = 'DELETE_TICKET',       // already in enum, not logged
+STATUS_CHANGE = 'STATUS_CHANGE',       // already in enum, not logged
+PRIORITY_CHANGE = 'PRIORITY_CHANGE',   // already in enum, not logged
+TICKET_REPLY = 'TICKET_REPLY',        // already in enum, not logged
+BULK_UPDATE = 'BULK_UPDATE',           // already in enum, not logged
+
+// === TICKET SUPPORT ===
+TICKET_TEMPLATE_CREATE = 'TICKET_TEMPLATE_CREATE',
+TICKET_TEMPLATE_UPDATE = 'TICKET_TEMPLATE_UPDATE',
+TICKET_TEMPLATE_DELETE = 'TICKET_TEMPLATE_DELETE',
+TICKET_ATTRIBUTE_CREATE = 'TICKET_ATTRIBUTE_CREATE',
+TICKET_ATTRIBUTE_DELETE = 'TICKET_ATTRIBUTE_DELETE',
+TIME_ENTRY_CREATE = 'TIME_ENTRY_CREATE',
+TIME_ENTRY_UPDATE = 'TIME_ENTRY_UPDATE',
+TIME_ENTRY_DELETE = 'TIME_ENTRY_DELETE',
+
+// === INSTALLATION ===
+INSTALLATION_SCHEDULE_CREATE = 'INSTALLATION_SCHEDULE_CREATE',
+
+// === WORKLOAD ===
+WORKLOAD_PRIORITY_UPDATE = 'WORKLOAD_PRIORITY_UPDATE',
+
+// === NOTIFICATIONS ===  
+NOTIFICATION_PREFS_UPDATE = 'NOTIFICATION_PREFS_UPDATE',
+
+// === AUTH (missing) ===
+USER_LOGOUT = 'USER_LOGOUT',  // already in enum, not logged
+```
+
+---
+
+### Phase 2: Integrate AuditService ke Semua Module
+
+Untuk setiap module: inject `AuditService`, tambah `logAsync()` call di setiap operasi mutasi.
+
+Pattern yang digunakan (sama dengan existing):
+
+```typescript
+// Di constructor
+private readonly auditService: AuditService,
+
+// Di method
+this.auditService.logAsync({
+    userId,
+    action: AuditAction.XXX,
+    entityType: 'EntityName',
+    entityId: entity.id,
+    description: 'Human readable description',
+    newValue: { ...relevantData },
+});
+```
+
+---
+
+#### [MODIFY] [access-request.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/access-request/access-request.service.ts)
+- Inject `AuditService`
+- `create()` → `ACCESS_REQUEST_CREATE`
+- `createAccess()` → `ACCESS_REQUEST_APPROVE`  
+- `reject()` → `ACCESS_REQUEST_REJECT`
+- `updateAccessType()` → `ACCESS_TYPE_UPDATE`
+
+---
+
+#### [MODIFY] [eform-request.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/eform-request/eform-request.service.ts)
+- Inject `AuditService`
+- `createRequest()` → `EFORM_REQUEST_CREATE`
+- `approveManager1()` → `EFORM_APPROVE_MANAGER1`
+- `approveManager2()` → `EFORM_APPROVE_MANAGER2`
+- `rejectRequest()` → `EFORM_REJECT`
+
+---
+
+#### [MODIFY] [ict-budget.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ict-budget/ict-budget.service.ts)
+- Inject `AuditService`
+- `create()` → `ICT_BUDGET_CREATE`
+- `approve()` → `ICT_BUDGET_APPROVE`
+- `cancelRequest()` → `ICT_BUDGET_CANCEL`
+
+---
+
+#### [MODIFY] [vpn-access.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/vpn-access/vpn-access.service.ts)
+- Inject `AuditService`
+- `create()` → `VPN_ACCESS_CREATE`
+- `update()` → `VPN_ACCESS_UPDATE`
+- `delete()` → `VPN_ACCESS_DELETE`
+- `deleteMany()` → `VPN_ACCESS_DELETE` (bulk, log setiap ID)
+
+---
+
+#### [MODIFY] [zoom-booking.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/zoom-booking/services/zoom-booking.service.ts)
+- Inject `AuditService` (tambahan — keep existing `ZoomAuditLog` system)
+- `createBooking()` → `ZOOM_BOOKING_CREATE`
+- `cancelBooking()` → `ZOOM_BOOKING_CANCEL`
+- `rescheduleBooking()` → `ZOOM_BOOKING_RESCHEDULE`
+
+---
+
+#### [MODIFY] [lost-item.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/lost-item/lost-item.service.ts)
+- Inject `AuditService`
+- `create()` → `LOST_ITEM_CREATE`
+- `updateStatus()` → `LOST_ITEM_STATUS_UPDATE`
+
+---
+
+#### [MODIFY] [renewal.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/renewal/renewal.service.ts)
+- Inject `AuditService`
+- `createManual()` → `CONTRACT_CREATE`
+- `update()` → `CONTRACT_UPDATE`
+- `delete()` → `CONTRACT_DELETE`
+
+---
+
+#### [MODIFY] [workflow-rule.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/automation/services/workflow-rule.service.ts)
+- Inject `AuditService`
+- `create()` → `AUTOMATION_CREATE`
+- `update()` → `AUTOMATION_UPDATE`
+- `delete()` → `AUTOMATION_DELETE`
+- `toggleActive()` → `AUTOMATION_TOGGLE`
+
+---
+
+#### [MODIFY] [permissions.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/permissions/permissions.service.ts)
+- Inject `AuditService`
+- `updateUserPermissions()` → `PERMISSION_UPDATE`
+- `createPreset()` → `PERMISSION_PRESET_CREATE`
+- `updatePreset()` → `PERMISSION_PRESET_UPDATE`
+- `deletePreset()` → `PERMISSION_PRESET_DELETE`
+
+---
+
+#### [MODIFY] [sites.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/sites/sites.service.ts)
+- Inject `AuditService`
+- `create()` → `SITE_CREATE`
+- `update()` → `SITE_UPDATE`
+- `remove()` → `SITE_DELETE`
+
+---
+
+#### [MODIFY] [sla-config.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/sla-config/sla-config.service.ts)
+- Inject `AuditService`
+- Semua operasi CRUD → `SLA_CONFIG_CHANGE`
+
+---
+
+#### [MODIFY] [business-hours.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/sla-config/business-hours.service.ts)
+- Inject `AuditService`
+- `update()` → `BUSINESS_HOURS_UPDATE`
+- `removeHoliday()` → `HOLIDAY_REMOVE`
+
+---
+
+#### [MODIFY] [ip-whitelist.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ip-whitelist/ip-whitelist.service.ts)
+- Inject `AuditService`
+- `create()` → `IP_WHITELIST_CREATE`
+- `update()` → `IP_WHITELIST_UPDATE`
+- `remove()` → `IP_WHITELIST_DELETE`
+
+---
+
+#### [MODIFY] [reports.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/reports/reports.service.ts)
+- Inject `AuditService`
+- `generateExcelReport()` → `REPORT_GENERATE`
+- `generateAgentPerformancePDF()` → `REPORT_GENERATE`
+- `generateTicketVolumePDF()` → `REPORT_GENERATE`
+- `generateMonthlySummaryPDF()` → `REPORT_GENERATE`
+- `generateCustomRangeExcel()` → `REPORT_EXPORT`
+
+---
+
+#### [MODIFY] [google-sync.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/google-sync/google-sync.service.ts)
+- Inject `AuditService`
+- `createConfig()` → `SYNC_CONFIG_CREATE`
+- `updateConfig()` → `SYNC_CONFIG_UPDATE`
+- `deleteConfig()` → `SYNC_CONFIG_DELETE`
+
+---
+
+#### [MODIFY] [ticket-messaging.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-messaging.service.ts)
+- Inject `AuditService`
+- `replyToTicket()` → `TICKET_REPLY`
+
+---
+
+#### [MODIFY] [ticket-update.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-update.service.ts)
+- Add missing events:
+  - Detect status change in `updateTicket()` → `STATUS_CHANGE`
+  - Detect priority change in `updateTicket()` → `PRIORITY_CHANGE`
+  - `bulkUpdate()` → `BULK_UPDATE`
+
+---
+
+#### [MODIFY] [ticket-template.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/ticket-template.service.ts)
+- Inject `AuditService`
+- `create()` → `TICKET_TEMPLATE_CREATE`
+- `update()` → `TICKET_TEMPLATE_UPDATE`
+- `remove()` → `TICKET_TEMPLATE_DELETE`
+
+---
+
+#### [MODIFY] [ticket-attributes.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/ticket-attributes.service.ts)
+- Inject `AuditService`
+- `create()` → `TICKET_ATTRIBUTE_CREATE`
+- `remove()` → `TICKET_ATTRIBUTE_DELETE`
+
+---
+
+#### [MODIFY] [time-tracking.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/time-tracking.service.ts)
+- Inject `AuditService`
+- `startTimer()` + `addManualEntry()` → `TIME_ENTRY_CREATE`
+- `updateEntry()` → `TIME_ENTRY_UPDATE`
+- `deleteEntry()` → `TIME_ENTRY_DELETE`
+
+---
+
+#### [MODIFY] [installation-schedule.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/services/installation-schedule.service.ts)
+- Inject `AuditService`
+- `createSchedule()` → `INSTALLATION_SCHEDULE_CREATE`
+
+---
+
+#### [MODIFY] [workload.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/workload/workload.service.ts)
+- Inject `AuditService`
+- `updatePriorityWeight()` → `WORKLOAD_PRIORITY_UPDATE`
+
+---
+
+#### [MODIFY] [auth.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/auth/application/auth.service.ts)
+- Add `USER_LOGOUT` logging (currently in enum but never logged)
+
+---
+
+### Phase 3: Frontend — Update Type Definitions
+
+#### [MODIFY] [audit.types.ts](file:///d:/iDesk-main/apps/frontend/src/types/audit.types.ts)
+- Sync `AuditAction` enum dengan backend (add semua enum baru)
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Zoom & Renewal**: Unify ke centralized audit, dual-write, atau keep separate?
+> 2. **Scope filter**: Ada module yg mau di-exclude? (misal: Google Sync, Sound, Health)
+> 3. **userId availability**: Beberapa service (SLA Config, Sites, Business Hours, Ticket Attributes) mungkin tidak punya `userId` di method signature — perlu trace dari controller/request context. Boleh pass dari controller?
+> 4. **Report audit**: Apakah perlu log setiap kali user generate/export report?
+> 5. **Notification preferences update**: Perlu diaudit?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Build check
+cd d:/iDesk-main/apps/backend && npx tsc --noEmit
+
+# Test existing
+npm test
+```
+
+### Manual Verification
+1. Trigger setiap action yg baru di-audit
+2. Cek di Audit Logs page — confirm event muncul dengan correct:
+   - Action type
+   - Entity type & ID
+   - User info
+   - Description
+   - IP Address
+3. Filter & search berfungsi untuk action baru
+4. Export CSV/XLSX include action baru
+
+---
+
+## Execution Order
+
+```
+1. Extend AuditAction enum (1 file)
+2. Module tanpa dependency (parallel batch):
+   - access-request, eform-request, ict-budget, vpn-access
+   - lost-item, renewal, automation, permissions
+   - sites, sla-config, business-hours, ip-whitelist
+   - reports, google-sync, workload
+3. Ticketing sub-services (need careful — shared module):
+   - ticket-update (add STATUS_CHANGE, PRIORITY_CHANGE, BULK_UPDATE)
+   - ticket-messaging (add TICKET_REPLY)
+   - ticket-template, ticket-attributes, time-tracking
+   - installation-schedule
+4. Auth — add USER_LOGOUT
+5. Zoom Booking — add centralized audit (keep existing)
+6. Frontend — sync types
+7. Build & verify
+```
+
+Total files: **~25 backend files** + **1 frontend file**
+Total new audit calls: **~55+ logAsync() calls**

@@ -1,0 +1,320 @@
+# Hardware Requests — Fix 3 Catatan + Full Error Scan
+
+---
+
+## Root Cause Analysis
+
+### Catatan 1: Penjadwalan Instalasi UI/UX jelek
+
+**Evidence dari screenshot:**
+- `ScheduleProposeModal` pakai native `<input type="datetime-local">` — format `mm/dd/yyyy --:-- --`, scroll picker jelek
+- User harus isi start + end per slot, sampai 3 slot → 6 datetime input = ribet
+- Tidak ada visual preview kalender
+- Modal layout polos, tanpa polish
+
+**Root files:**
+- [ScheduleProposeModal.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/scheduling/ScheduleProposeModal.tsx) — native datetime input, MAX_SLOTS=3
+- [SlotPickerModal.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/scheduling/SlotPickerModal.tsx) — user slot picker (OK tapi plain)
+
+---
+
+### Catatan 2: Tandai datang tidak ada feedback, harus refresh
+
+**Evidence dari code:**
+
+```
+useDeliveryUpdate.ts line 10:
+  qc.invalidateQueries({ queryKey: ['hardware-request', requestId] });
+                                      ^^^^^^^^^^^^^^^
+useHardwareRequest.ts line 4:
+  queryKey: ['hardware-requests', 'detail', id],
+               ^^^^^^^^^^^^^^^^^^
+```
+
+🔴 **QUERY KEY MISMATCH!**
+- `useDeliveryUpdate` invalidate: `['hardware-request', requestId]` (singular, no 'detail')
+- `useHardwareRequest` queryKey: `['hardware-requests', 'detail', id]` (plural + 'detail')
+- Invalidation MISS → data TIDAK terefresh → user harus manual refresh
+
+Sama bug di `useScheduleSelection.ts line 5`:
+```
+qc.invalidateQueries({ queryKey: ['hardware-request', requestId] });
+// Harusnya: ['hardware-requests', 'detail', requestId]
+```
+
+---
+
+### Catatan 3: Komentar tidak real-time
+
+**Evidence dari code:**
+
+| Frontend Listen (useHardwareRequestRealtime.ts) | Backend Emit (gateway.ts) | Status |
+|---|---|---|
+| `s.emit('join-request', ...)` | `@SubscribeMessage('subscribe_request')` | ❌ MISMATCH — room join gagal |
+| `s.on('comment-added', ...)` | `this.broadcastToRoom(..., 'new_comment', ...)` | ❌ MISMATCH — listener mati |
+| `s.on('status-changed', ...)` | `this.broadcastToRoom(..., 'status_changed', ...)` | ❌ MISMATCH (dash vs underscore) |
+| `s.on('schedule-updated', ...)` | emit `schedule_proposed` / `schedule_confirmed` / `schedule_rescheduled` | ❌ MISMATCH |
+| `s.on('install-progress', ...)` | (tidak ada event ini di backend) | ❌ DEAD LISTENER |
+
+**Impact:** Karena `join-request` ≠ `subscribe_request`, client TIDAK pernah join room → SEMUA realtime events gagal (bukan cuma komentar, tapi juga status change, schedule update, dll).
+
+---
+
+### Additional Bugs Found (Error Scan)
+
+#### Bug A: `useDeliveryUpdate` invalidation key wrong
+**Severity:** 🔴 P0 — Delivery status tidak refresh setelah update
+**File:** `useDeliveryUpdate.ts` line 10
+**Fix:** `['hardware-request', requestId]` → `['hardware-requests', 'detail', requestId]`
+
+#### Bug B: `useScheduleSelection` invalidation key wrong
+**Severity:** 🔴 P0 — Schedule data tidak refresh setelah propose/confirm/reschedule
+**File:** `useScheduleSelection.ts` line 5-6
+**Fix:** `['hardware-request', requestId]` → `['hardware-requests', 'detail', requestId]`
+
+#### Bug C: `ExpandableItemRow` field mapping mismatch (dari review sebelumnya)
+**Severity:** 🟡 P1 — Nama item & quantity tidak tampil di list view
+**File:** `RequestTable.tsx` line 51 — pass `HardwareRequestItem[]` tapi component expect `{ name, qty }`
+**Fix:** Map field sebelum pass
+
+#### Bug D: Dark mode broken di multiple components
+**Severity:** 🟡 P1 — Layout, tabs, comments, delivery — semua hardcode light-only colors
+
+---
+
+## Proposed Changes
+
+### Komponen 1: WebSocket Event Name Fix (Catatan 3 — P0)
+
+#### [MODIFY] [useHardwareRequestRealtime.ts](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/hooks/useHardwareRequestRealtime.ts)
+
+Sync semua event names ke backend convention:
+
+```diff
+-       s.emit('join-request', { requestId });
+-       s.on('status-changed', onStatusChanged);
+-       s.on('comment-added', onComment);
+-       s.on('schedule-updated', onSchedule);
+-       s.on('install-progress', onStatusChanged);
++       s.emit('subscribe_request', { requestId });
++       s.on('status_changed', onStatusChanged);
++       s.on('new_comment', onComment);
++       s.on('schedule_proposed', onSchedule);
++       s.on('schedule_confirmed', onSchedule);
++       s.on('schedule_rescheduled', onSchedule);
++       s.on('procurement_updated', onStatusChanged);
+```
+
+Cleanup juga sync:
+```diff
+-           s.emit('leave-request', { requestId });
+-           s.off('status-changed', onStatusChanged);
+-           s.off('comment-added', onComment);
+-           s.off('schedule-updated', onSchedule);
+-           s.off('install-progress', onStatusChanged);
++           s.emit('unsubscribe_request', { requestId });
++           s.off('status_changed', onStatusChanged);
++           s.off('new_comment', onComment);
++           s.off('schedule_proposed', onSchedule);
++           s.off('schedule_confirmed', onSchedule);
++           s.off('schedule_rescheduled', onSchedule);
++           s.off('procurement_updated', onStatusChanged);
+```
+
+---
+
+### Komponen 2: Query Key Fix — Delivery & Schedule (Catatan 2 — P0)
+
+#### [MODIFY] [useDeliveryUpdate.ts](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/hooks/useDeliveryUpdate.ts)
+
+```diff
+     onSuccess: (_, vars) => {
+-      qc.invalidateQueries({ queryKey: ['hardware-request', requestId] });
++      qc.invalidateQueries({ queryKey: ['hardware-requests', 'detail', requestId] });
++      qc.invalidateQueries({ queryKey: ['hardware-requests', 'list'] });
+       toast.success(
+```
+
+#### [MODIFY] [useScheduleSelection.ts](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/hooks/useScheduleSelection.ts)
+
+```diff
+   const invalidate = () => {
+-    qc.invalidateQueries({ queryKey: ['hardware-request', requestId] });
++    qc.invalidateQueries({ queryKey: ['hardware-requests', 'detail', requestId] });
++    qc.invalidateQueries({ queryKey: ['hardware-requests', 'list'] });
+     qc.invalidateQueries({ queryKey: ['installation-calendar'] });
+   };
+```
+
+---
+
+### Komponen 3: ScheduleProposeModal Redesign (Catatan 1 — P1)
+
+#### [MODIFY] [ScheduleProposeModal.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/scheduling/ScheduleProposeModal.tsx)
+
+**Current UX problems:**
+1. Native `<input type="datetime-local">` — ugly, inconsistent cross-browser
+2. User harus isi start + end per slot (6 inputs untuk 3 slot)
+3. Tidak ada visual calendar context
+4. Plain dialog tanpa polish
+
+**Redesign approach (Frontend Design Plugin — Luxury/Refined aesthetic):**
+
+1. **Simplified slot input:**
+   - Ganti 2 datetime-input per slot → 1 date picker + duration preset
+   - User pilih tanggal → pilih jam mulai dari preset (08:00, 09:00, ..., 16:00)
+   - Duration auto 1 jam (bisa adjust)
+   - Max 3 slot tetap, tapi UX jauh lebih simpel
+
+2. **Visual design:**
+   - Card-based slot selector dengan hover effect
+   - Date picker pakai mini calendar inline (bukan native browser picker)
+   - Time slots sebagai clickable chips (09:00, 10:00, 11:00...)
+   - Selected slot = highlighted card dengan animasi smooth
+   - Dark mode full support
+
+3. **Layout redesign:**
+   ```
+   ┌─────────────────────────────────────────┐
+   │  📅 Jadwalkan Instalasi                  │
+   │                                           │
+   │  Item:  ☑ PC AIO (qty: 1)               │
+   │         ☑ PC Rakitan (qty: 1)            │
+   │                                           │
+   │  Teknisi: [Dropdown]                      │
+   │                                           │
+   │  ── Slot 1 ──────────────────────────    │
+   │  📅 [21 Apr 2026]  ⏰ [09:00] ~ 1 jam   │
+   │                                           │
+   │  + Tambah slot alternatif                 │
+   │                                           │
+   │  Catatan: [________________]              │
+   │                                           │
+   │         [Batal]  [Usulkan ke User]        │
+   └─────────────────────────────────────────┘
+   ```
+
+4. **Implementation:**
+   - Custom date picker component (pakai `date-fns` yang sudah terinstall)
+   - Time chip grid: jam 08-17, interval 30 min
+   - Auto calculate `end` = `start + 1h` (editable)
+   - Framer Motion: stagger reveal, slot card hover scale
+   - Dark mode: semua elemen
+
+#### [MODIFY] [SlotPickerModal.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/scheduling/SlotPickerModal.tsx)
+
+Polish user-facing slot picker:
+- Slot cards lebih visual (icon kalender, format tanggal Indonesia)
+- Selected state: ring + scale animation
+- Reject/reschedule button lebih jelas
+
+---
+
+### Komponen 4: ExpandableItemRow Fix (P1)
+
+#### [MODIFY] [RequestTable.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/list/RequestTable.tsx)
+
+```diff
+-<ExpandableItemRow items={r.items ?? []} />
++<ExpandableItemRow items={(r.items ?? []).map(i => ({
++  id: i.id,
++  name: i.categorySnapshot?.name ?? i.name ?? '—',
++  qty: i.quantity,
++}))} />
+```
+
+#### [MODIFY] [ExpandableItemRow.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/list/ExpandableItemRow.tsx)
+
+Dark mode support:
+```diff
+-className="mt-2 overflow-hidden rounded-lg bg-slate-50 ring-1 ring-slate-200"
++className="mt-2 overflow-hidden rounded-lg bg-slate-50 dark:bg-slate-800/50 ring-1 ring-slate-200 dark:ring-slate-700"
+```
+
+---
+
+### Komponen 5: Dark Mode Fixes (P1)
+
+Multiple files dark mode patch:
+
+#### [MODIFY] [HardwareRequestsLayout.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/layouts/HardwareRequestsLayout.tsx)
+- `text-slate-900` → `text-slate-900 dark:text-white`
+- `text-slate-500` → `text-slate-500 dark:text-slate-400`
+
+#### [MODIFY] [HardwareRequestsTabs.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/common/HardwareRequestsTabs.tsx)
+- `bg-white/70` → `bg-white/70 dark:bg-[hsl(var(--card))]/80`
+- `border-slate-200` → `border-slate-200 dark:border-slate-700`
+- Tab text: `text-slate-900` → `dark:text-white`, `text-slate-500` → `dark:text-slate-400`
+- Badge: `bg-slate-900` → `dark:bg-white`, `text-white` → `dark:text-slate-900`
+- Underline: `bg-slate-900` → `dark:bg-white`
+
+#### [MODIFY] [CommentThread.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/CommentThread.tsx)
+- Comment bubble: `bg-slate-50` → `dark:bg-slate-800/50`
+- Author name: `text-slate-900` → `dark:text-white`
+- Body text: `text-slate-800` → `dark:text-slate-200`
+
+#### [MODIFY] [CommentComposer.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/detail/CommentComposer.tsx)
+- Container: `ring-slate-200 bg-white` → `dark:ring-slate-700 dark:bg-slate-800`
+- Textarea: outline dark
+
+#### [MODIFY] [DeliveryBoard.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/components/delivery/DeliveryBoard.tsx)
+- Item rows dark mode
+
+#### [MODIFY] [HardwareRequestListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/hardware-request/pages/HardwareRequestListPage.tsx)
+- Pagination buttons dark mode
+
+---
+
+## Summary Perubahan
+
+| # | Masalah | Severity | File Utama | Root Cause |
+|---|---------|----------|-----------|------------|
+| 3 | Komentar + semua realtime gagal | 🔴 P0 | `useHardwareRequestRealtime.ts` | Event name mismatch: `join-request`≠`subscribe_request`, `comment-added`≠`new_comment` |
+| 2 | Tandai datang tidak refresh | 🔴 P0 | `useDeliveryUpdate.ts` | Query key `['hardware-request']` ≠ `['hardware-requests','detail']` |
+| B | Schedule tidak refresh | 🔴 P0 | `useScheduleSelection.ts` | Same query key mismatch |
+| 1 | Jadwal instalasi UI jelek | 🟡 P1 | `ScheduleProposeModal.tsx` | Native datetime-local, terlalu banyak input |
+| C | Item name/qty tidak tampil | 🟡 P1 | `RequestTable.tsx` | Field mapping: `name`/`qty` ≠ `categorySnapshot.name`/`quantity` |
+| D | Dark mode broken | 🟡 P1 | 8 files | Hardcoded light-only color classes |
+
+**Total: 12 file modifications. 0 new files. 0 migrations.**
+
+---
+
+## Execution Order
+
+```
+Phase 1 (P0 — Blocking bugs):
+  1. useHardwareRequestRealtime.ts — fix event names
+  2. useDeliveryUpdate.ts — fix query key
+  3. useScheduleSelection.ts — fix query key
+
+Phase 2 (P1 — UX fixes):
+  4. ScheduleProposeModal.tsx — full redesign
+  5. SlotPickerModal.tsx — polish
+  6. RequestTable.tsx — fix item field mapping
+  7. ExpandableItemRow.tsx — dark mode
+
+Phase 3 (P1 — Dark mode):
+  8. HardwareRequestsLayout.tsx
+  9. HardwareRequestsTabs.tsx
+  10. CommentThread.tsx + CommentComposer.tsx
+  11. DeliveryBoard.tsx
+  12. HardwareRequestListPage.tsx
+```
+
+---
+
+## Verification Plan
+
+### Automated
+```bash
+cd apps/backend && npx jest --testPathPattern=hardware-request --passWithNoTests
+cd apps/frontend && npx tsc --noEmit
+```
+
+### Manual (Browser Test)
+1. **Realtime comments**: Buka 2 browser (USER + ICT), kirim komentar → muncul tanpa refresh
+2. **Delivery update**: Tandai item "Sudah Datang" → tombol "Jadwalkan Instalasi" muncul tanpa refresh
+3. **Schedule propose**: Buka modal jadwal → UX smooth, date picker visual, time chips
+4. **Dark mode**: Toggle dark → semua halaman konsisten
+5. **Expandable items**: Klik "Lihat X item" → nama + qty terlihat

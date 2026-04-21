@@ -1,0 +1,106 @@
+/* ========================================
+   NATIVE SELECT STYLING
+   Consistent styling for native <select> elements
+   ======================================== */
+
+/* Base select styling - consistent across app */
+select.select-styled,
+.dark select,
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25em 1.25em;
+    padding-right: 2.5rem;
+}
+
+/* Dark mode select option styling */
+.dark select option {
+    background-color: hsl(222.2, 84%, 6%);
+    color: hsl(210, 40%, 98%);
+    padding: 0.5rem;
+}
+
+.dark select option:hover,
+.dark select option:focus,
+.dark select option:checked {
+    background-color: hsl(217.2, 32.6%, 20%);
+    color: hsl(210, 40%, 98%);
+}
+
+/* Light mode select option styling */
+select option {
+    background-color: white;
+    color: hsl(222.2, 84%, 4.9%);
+    padding: 0.5rem;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+    background-color: hsl(210, 40%, 96%);
+}
+
+/* Firefox specific */
+@-moz-document url-prefix() {
+    .dark select option {
+        background-color: hsl(222.2, 84%, 6%);
+        color: hsl(210, 40%, 98%);
+    }
+
+    select option {
+        background-color: white;
+        color: hsl(222.2, 84%, 4.9%);
+    }
+}
+
+/* Webkit scrollbar for select dropdown */
+select::-webkit-scrollbar {
+    width: 8px;
+}
+
+select::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+select::-webkit-scrollbar-thumb {
+    background: hsl(217.2, 32.6%, 30%);
+    border-radius: 4px;
+}
+
+.dark select::-webkit-scrollbar-thumb {
+    background: hsl(217.2, 32.6%, 40%);
+}
+
+/* Focus state for selects */
+select:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3);
+}
+
+/* Disabled state */
+select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Custom select wrapper for better styling control */
+.select-wrapper {
+    position: relative;
+}
+
+.select-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid currentColor;
+    pointer-events: none;
+}
