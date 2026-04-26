@@ -3,46 +3,106 @@ import api from '@/lib/api';
 
 export enum LostItemStatus {
     REPORTED = 'REPORTED',
-    FOUND = 'FOUND',
-    LOST = 'LOST',
+    SEARCHING = 'SEARCHING',
+    CLAIMED = 'CLAIMED',
+    VERIFIED = 'VERIFIED',
+    RETURNED = 'RETURNED',
+    CLOSED_LOST = 'CLOSED_LOST',
+}
+
+export interface StatusLog {
+    id: string;
+    fromStatus: string | null;
+    toStatus: string;
+    changedBy?: { fullName: string };
+    notes?: string;
+    timestamp: string;
 }
 
 export interface LostItemReport {
     id: string;
     ticketId?: string;
-    reporterId: string;
-    reporter?: {
-        id: string;
-        fullName: string;
-        email?: string;
-    };
     itemName: string;
     itemType: string;
-    locationLost: string;
-    description: string;
+    serialNumber?: string;
+    assetTag?: string;
+    locationLost?: string;
+    lastSeenLocation: string;
+    lastSeenDatetime: string;
+    description?: string;
+    circumstances: string;
     status: LostItemStatus;
-    foundById?: string;
+    photoUrls: string[];
+    qrCodeUrl?: string;
+    qrCodeToken?: string;
     foundAt?: string;
+    foundLocation?: string;
+    foundBy?: string;
+    estimatedValue?: number;
+    finderRewardOffered?: boolean;
+    reporter?: { id: string; fullName: string; email?: string };
+    ticket?: { user?: { fullName: string; email: string } };
+    statusLogs?: StatusLog[];
     createdAt: string;
     updatedAt: string;
 }
 
-// Fetch all Lost Item Reports
-export const useLostItemReports = (filters?: { status?: LostItemStatus; reporterId?: string }) => {
-    return useQuery<LostItemReport[]>({
+export const useLostItemReports = (filters?: { status?: LostItemStatus; reporterId?: string }) =>
+    useQuery<LostItemReport[]>({
         queryKey: ['lost-item-reports', filters],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (filters?.status) params.append('status', filters.status);
             if (filters?.reporterId) params.append('reporterId', filters.reporterId);
-            
-            const res = await api.get(`/lost-item?${params.toString()}`);
+            const res = await api.get(`/lost-item?${params}`);
             return res.data;
+        },
+    });
+
+export const useMyLostReports = () =>
+    useQuery<LostItemReport[]>({
+        queryKey: ['lost-item-reports', 'my'],
+        queryFn: async () => {
+            const res = await api.get('/lost-item/my');
+            return res.data;
+        },
+    });
+
+export const useLostItemReport = (id: string) =>
+    useQuery<LostItemReport>({
+        queryKey: ['lost-item-report', id],
+        queryFn: async () => {
+            const res = await api.get(`/lost-item/${id}`);
+            return res.data;
+        },
+        enabled: !!id,
+    });
+
+export const useQrTokenReport = (token: string | null) =>
+    useQuery<{ reportId: string; itemName: string; itemType: string; photoUrls: string[] }>({
+        queryKey: ['lost-item-qr', token],
+        queryFn: async () => {
+            const res = await api.get(`/lost-item/qr/${token}`);
+            return res.data;
+        },
+        enabled: !!token,
+    });
+
+export const useCreateLostItem = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (formData: FormData) => {
+            const res = await api.post('/lost-item', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['lost-item-reports'] });
         },
     });
 };
 
-// Update Lost Item Status
 export const useUpdateLostItemStatus = () => {
     const queryClient = useQueryClient();
     return useMutation({

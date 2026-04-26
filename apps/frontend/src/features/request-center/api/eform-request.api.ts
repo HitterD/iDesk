@@ -3,14 +3,20 @@ import api from '@/lib/api';
 
 const API_BASE = '/eform-request';
 
+export interface EFormSignature {
+  id: string;
+  signerName: string;
+  signatureData: string;
+  signerRole: string;
+  signedAt: string;
+}
+
 export interface EFormRequest {
   id: string;
   formType: string;
   status: string;
   requesterId: string;
   requesterName: string;
-  requesterEmail?: string;
-  requesterJobTitle?: string;
   requesterDepartment?: string;
   formData: any;
   requestedWebsites?: string;
@@ -22,8 +28,16 @@ export interface EFormRequest {
   resolvedAt?: string;
   createdAt: string;
   updatedAt: string;
-  signatures?: any[];
+  signatures?: EFormSignature[];
   approvals?: any[];
+}
+
+export interface EFormCredentials {
+  username: string;
+  password: string;
+  vpnServer?: string;
+  notes?: string;
+  provisionedAt?: string;
 }
 
 export const useEformRequests = (all = false) => {
@@ -44,6 +58,8 @@ export const usePendingApprovals = () => {
       const { data } = await api.get(`${API_BASE}/pending-approvals`);
       return Array.isArray(data) ? data : [];
     },
+    refetchInterval: 30_000, // Poll every 30s so managers see new requests without refresh
+    staleTime: 15_000,
   });
 };
 
@@ -78,13 +94,25 @@ export const useEformDetail = (id: string) => {
       return data;
     },
     enabled: !!id,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 };
 
 export const useCreateEformRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: {
+      formType: string;
+      requesterName?: string;
+      requesterDepartment?: string;
+      formData: any;
+      requestedWebsites?: string;
+      networkPurpose?: string;
+      termsAccepted: boolean;
+      signatureData: string;
+      managerId: string;
+    }) => {
       const { data } = await api.post(API_BASE, payload);
       return data;
     },
@@ -94,45 +122,57 @@ export const useCreateEformRequest = () => {
   });
 };
 
-export const useApproveManager1 = () => {
+export const useApproveByManager = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...payload }: { id: string; signatureData: string; nextApproverId?: string }) => {
-      const { data } = await api.patch(`${API_BASE}/${id}/manager1-approve`, payload);
+    mutationFn: async (payload: {
+      id: string;
+      action: 'APPROVE' | 'REJECT';
+      signatureData?: string;
+      rejectionReason?: string;
+    }) => {
+      const { id, ...body } = payload;
+      const { data } = await api.patch(`${API_BASE}/${id}/manager-approve`, body);
       return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['eform-request', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['eform-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['eform-pending-approvals'] });
+    },
+  });
+};
+
+export const useSubmitCredentials = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      username: string;
+      password: string;
+      vpnServer?: string;
+      notes?: string;
+    }) => {
+      const { id, ...body } = payload;
+      const { data } = await api.post(`${API_BASE}/${id}/credentials`, body);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['eform-request', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['eform-credentials', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['eform-requests'] });
     },
   });
 };
 
-export const useApproveManager2 = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, signatureData }: { id: string; signatureData: string }) => {
-      const { data } = await api.patch(`${API_BASE}/${id}/manager2-approve`, { signatureData });
+export const useGetCredentials = (id: string, enabled = false) => {
+  return useQuery<EFormCredentials>({
+    queryKey: ['eform-credentials', id],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_BASE}/${id}/credentials`);
       return data;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['eform-request', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['eform-requests'] });
-    },
-  });
-};
-
-export const useConfirmIct = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: { id: string; username: string; password: string }) => {
-      const { data } = await api.patch(`${API_BASE}/${id}/ict-confirm`, payload);
-      return data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['eform-request', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['eform-requests'] });
-    },
+    enabled: enabled && !!id,
   });
 };
 
@@ -150,23 +190,10 @@ export const useRejectRequest = () => {
   });
 };
 
-export const useGetCredentialsSecure = (id: string) => {
-  return useQuery({
-    queryKey: ['eform-credentials', id],
-    queryFn: async () => {
-      const { data } = await api.get(`${API_BASE}/${id}/credentials`);
-      return data;
-    },
-    enabled: false, // Manual trigger only
-  });
-};
-
 export const useGetEformPdf = (id: string) => {
   return async () => {
-    const response = await api.get(`${API_BASE}/${id}/pdf`, {
-      responseType: 'blob',
-    });
-    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const response = await api.get(`${API_BASE}/${id}/pdf`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data as any]));
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `EForm-VPN-${id}.pdf`);
