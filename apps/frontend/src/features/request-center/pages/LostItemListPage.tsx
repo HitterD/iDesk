@@ -1,21 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { 
-    PackageSearch, 
-    Search, 
-    Filter, 
-    RefreshCw, 
-    Plus, 
+import {
+    PackageSearch,
+    Search,
+    RefreshCw,
+    Plus,
     TrendingUp,
     Inbox,
     CheckCircle2,
     XCircle,
     X,
-    User,
     ArrowRight,
     MapPin,
     Calendar,
     Tag,
-    Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -24,96 +21,55 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { StatsCard } from '@/features/ticket-board/components/StatsCard';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { toast } from 'sonner';
-
-// ==========================================
-// Dummy Data
-// ==========================================
-
-const DUMMY_LOST_ITEMS = [
-    {
-        id: 'LST-2024-001',
-        itemName: 'MacBook Pro 14"',
-        itemType: 'Electronics',
-        locationLost: 'Meeting Room 4B',
-        description: 'Silver MacBook Pro with a blue sticker on the back.',
-        reporter: { fullName: 'Riana Putri', email: 'riana.putri@company.com' },
-        status: 'REPORTED',
-        createdAt: '2024-03-21T09:00:00Z',
-    },
-    {
-        id: 'LST-2024-002',
-        itemName: 'Sony WH-1000XM4',
-        itemType: 'Electronics',
-        locationLost: 'Canteen Area',
-        description: 'Black noise-canceling headphones in a gray case.',
-        reporter: { fullName: 'Kevin Sanjaya', email: 'kevin.sanjaya@company.com' },
-        status: 'FOUND',
-        createdAt: '2024-03-20T11:30:00Z',
-    },
-    {
-        id: 'LST-2024-003',
-        itemName: 'Office Access Card',
-        itemType: 'Document',
-        locationLost: 'Parking Lot A',
-        description: 'Standard office ID card with a black lanyard.',
-        reporter: { fullName: 'Linda Wijaya', email: 'linda.wijaya@company.com' },
-        status: 'LOST',
-        createdAt: '2024-03-19T08:45:00Z',
-    },
-    {
-        id: 'LST-2024-004',
-        itemName: 'Leather Wallet',
-        itemType: 'Personal Item',
-        locationLost: 'Lobby Lounge',
-        description: 'Brown leather wallet containing IDs and transit card.',
-        reporter: { fullName: 'Denny Huang', email: 'denny.huang@company.com' },
-        status: 'REPORTED',
-        createdAt: '2024-03-18T17:20:00Z',
-    },
-    {
-        id: 'LST-2024-005',
-        itemName: 'Car Keys',
-        itemType: 'Personal Item',
-        locationLost: 'Elevator Hall L3',
-        description: 'Key fob for a Toyota with a metallic keychain.',
-        reporter: { fullName: 'Siska Pratama', email: 'siska.pratama@company.com' },
-        status: 'FOUND',
-        createdAt: '2024-03-17T13:10:00Z',
-    },
-];
-
-// ==========================================
-// Main Component
-// ==========================================
+import { QRCodeSVG } from 'qrcode.react';
+import { useLostItemReports, useUpdateLostItemStatus, LostItemStatus, LostItemReport } from '../api/lost-item.api';
 
 export const LostItemListPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [selectedItem, setSelectedItem] = useState<LostItemReport | null>(null);
     const [statusFilter, setStatusFilter] = useState('ALL');
 
-    const handleRefresh = () => {
-        toast.success('Reports updated');
-    };
+    const { data: items = [], isLoading, refetch } = useLostItemReports(
+        statusFilter !== 'ALL' ? { status: statusFilter as LostItemStatus } : undefined
+    );
+    const updateStatus = useUpdateLostItemStatus();
 
-    const filteredItems = useMemo(() => {
-        return DUMMY_LOST_ITEMS.filter(item => {
-            const matchesSearch = 
-                item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.reporter.fullName.toLowerCase().includes(searchQuery.toLowerCase());
-            
-            const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
-            
-            return matchesSearch && matchesStatus;
-        });
-    }, [searchQuery, statusFilter]);
+    const handleRefresh = () => { refetch(); toast.success('Reports updated'); };
+
+    const filteredItems = useMemo(() => items.filter(item => {
+        const reporterName = item.ticket?.user?.fullName || '';
+        return (
+            item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            reporterName.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }), [items, searchQuery]);
 
     const stats = useMemo(() => ({
-        total: DUMMY_LOST_ITEMS.length,
-        reported: DUMMY_LOST_ITEMS.filter(i => i.status === 'REPORTED').length,
-        found: DUMMY_LOST_ITEMS.filter(i => i.status === 'FOUND').length,
-        lost: DUMMY_LOST_ITEMS.filter(i => i.status === 'LOST').length,
-    }), []);
+        total: items.length,
+        reported: items.filter(i => i.status === LostItemStatus.REPORTED).length,
+        found: items.filter(i => i.status === LostItemStatus.VERIFIED || i.status === LostItemStatus.RETURNED).length,
+        lost: items.filter(i => i.status === LostItemStatus.CLOSED_LOST).length,
+    }), [items]);
+
+    const getStatusBadgeClass = (status: string) => {
+        const map: Record<string, string> = {
+            REPORTED:    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+            SEARCHING:   'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+            CLAIMED:     'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+            VERIFIED:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+            RETURNED:    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+            CLOSED_LOST: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
+            FOUND:       'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        };
+        return map[status] || map.REPORTED;
+    };
+
+    if (isLoading) return (
+        <div className="flex items-center justify-center h-64">
+            <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+    );
 
     return (
         <div className="space-y-6 animate-fade-in-up">
@@ -135,9 +91,7 @@ export const LostItemListPage = () => {
                     >
                         <RefreshCw className="w-5 h-5" />
                     </button>
-                    <button
-                        className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 transition-colors duration-150 shadow-sm"
-                    >
+                    <button className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 transition-colors duration-150 shadow-sm">
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">New Report</span>
                     </button>
@@ -157,26 +111,27 @@ export const LostItemListPage = () => {
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
                     <div className="relative w-full md:w-96">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input 
-                            type="text" 
-                            placeholder="Search by item name, reporter, or ID..." 
+                        <input
+                            type="text"
+                            placeholder="Search by item name, reporter, or ID..."
                             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500/20 transition-colors duration-150"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={e => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-3">
-                        <select 
-                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold outline-none"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="ALL">All Status</option>
-                            <option value="REPORTED">Reported</option>
-                            <option value="FOUND">Found</option>
-                            <option value="LOST">Lost</option>
-                        </select>
-                    </div>
+                    <select
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold outline-none"
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                    >
+                        <option value="ALL">All Status</option>
+                        <option value="REPORTED">Reported</option>
+                        <option value="SEARCHING">Searching</option>
+                        <option value="CLAIMED">Claimed</option>
+                        <option value="VERIFIED">Verified</option>
+                        <option value="RETURNED">Returned</option>
+                        <option value="CLOSED_LOST">Closed</option>
+                    </select>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -192,48 +147,53 @@ export const LostItemListPage = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                            {filteredItems.map((item) => (
-                                <tr 
-                                    key={item.id} 
-                                    onClick={() => setSelectedItem(item)}
-                                    className="hover:bg-rose-50/30 dark:hover:bg-rose-900/5 transition-colors cursor-pointer group"
-                                >
-                                    <td className="px-6 py-4 font-bold text-rose-600 dark:text-rose-400">{item.id}</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-800 dark:text-slate-200">{item.itemName}</span>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.itemType}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
-                                            <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                                            {item.locationLost}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <UserAvatar user={{ fullName: item.reporter.fullName }} size="sm" />
-                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{item.reporter.fullName}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <Badge className={cn(
-                                            "px-3 py-1 rounded-full text-[10px] font-extrabold uppercase",
-                                            item.status === 'REPORTED' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                                            item.status === 'FOUND' && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-                                            item.status === 'LOST' && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
-                                        )}>
-                                            {item.status}
-                                        </Badge>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-400 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-150 ml-auto">
-                                            <ArrowRight className="w-4 h-4" />
-                                        </div>
+                            {filteredItems.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
+                                        <PackageSearch className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                                        <p className="font-bold">No reports found</p>
                                     </td>
                                 </tr>
-                            ))}
+                            ) : filteredItems.map(item => {
+                                const reporterName = item.ticket?.user?.fullName || 'Unknown';
+                                return (
+                                    <tr
+                                        key={item.id}
+                                        onClick={() => setSelectedItem(item)}
+                                        className="hover:bg-rose-50/30 dark:hover:bg-rose-900/5 transition-colors cursor-pointer group"
+                                    >
+                                        <td className="px-6 py-4 font-bold text-rose-600 dark:text-rose-400">{item.id.slice(0, 8)}…</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">{item.itemName}</span>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.itemType}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                                                <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                                                {item.lastSeenLocation}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <UserAvatar user={{ fullName: reporterName }} size="sm" />
+                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{reporterName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <Badge className={cn('px-3 py-1 rounded-full text-[10px] font-extrabold uppercase', getStatusBadgeClass(item.status))}>
+                                                {item.status}
+                                            </Badge>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-400 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-150 ml-auto">
+                                                <ArrowRight className="w-4 h-4" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -243,14 +203,14 @@ export const LostItemListPage = () => {
             <AnimatePresence>
                 {selectedItem && (
                     <>
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
                             onClick={() => setSelectedItem(null)}
                         />
-                        <motion.div 
+                        <motion.div
                             initial={{ x: '100%' }}
                             animate={{ x: 0 }}
                             exit={{ x: '100%' }}
@@ -267,7 +227,7 @@ export const LostItemListPage = () => {
                                     </button>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-rose-500 mb-2">{selectedItem.id}</p>
+                                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-rose-500 mb-2">{selectedItem.id.slice(0, 8)}…</p>
                                     <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{selectedItem.itemName}</h2>
                                 </div>
                             </div>
@@ -276,10 +236,7 @@ export const LostItemListPage = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                                         <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Status</p>
-                                        <Badge className={cn(
-                                            "px-3 py-1 rounded-full text-[10px] font-extrabold",
-                                            selectedItem.status === 'REPORTED' ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                                        )}>
+                                        <Badge className={cn('px-3 py-1 rounded-full text-[10px] font-extrabold uppercase', getStatusBadgeClass(selectedItem.status))}>
                                             {selectedItem.status}
                                         </Badge>
                                     </div>
@@ -295,10 +252,10 @@ export const LostItemListPage = () => {
                                 <section>
                                     <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Reporter</h3>
                                     <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                                        <UserAvatar user={{ fullName: selectedItem.reporter.fullName }} size="lg" />
+                                        <UserAvatar user={{ fullName: selectedItem.ticket?.user?.fullName || 'Unknown' }} size="lg" />
                                         <div>
-                                            <p className="font-black text-slate-900 dark:text-white">{selectedItem.reporter.fullName}</p>
-                                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{selectedItem.reporter.email}</p>
+                                            <p className="font-black text-slate-900 dark:text-white">{selectedItem.ticket?.user?.fullName || 'Unknown'}</p>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{selectedItem.ticket?.user?.email || ''}</p>
                                         </div>
                                     </div>
                                 </section>
@@ -307,10 +264,21 @@ export const LostItemListPage = () => {
                                     <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Item Description</h3>
                                     <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                                         <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-medium italic">
-                                            "{selectedItem.description}"
+                                            "{selectedItem.circumstances}"
                                         </p>
                                     </div>
                                 </section>
+
+                                {selectedItem.photoUrls?.length > 0 && (
+                                    <section>
+                                        <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Photos</h3>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {selectedItem.photoUrls.map((url, idx) => (
+                                                <img key={idx} src={url} alt={`photo-${idx}`} className="w-full aspect-square object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
 
                                 <section>
                                     <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Location & Time</h3>
@@ -320,7 +288,7 @@ export const LostItemListPage = () => {
                                                 <MapPin className="w-5 h-5 text-rose-400" />
                                                 <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Location Lost</span>
                                             </div>
-                                            <span className="text-sm font-black text-slate-800 dark:text-slate-200">{selectedItem.locationLost}</span>
+                                            <span className="text-sm font-black text-slate-800 dark:text-slate-200">{selectedItem.lastSeenLocation}</span>
                                         </div>
                                         <div className="flex justify-between items-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                                             <div className="flex items-center gap-3">
@@ -331,13 +299,41 @@ export const LostItemListPage = () => {
                                         </div>
                                     </div>
                                 </section>
+
+                                {selectedItem.qrCodeUrl && (
+                                    <section>
+                                        <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">QR Code</h3>
+                                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-3">
+                                            <QRCodeSVG value={selectedItem.qrCodeUrl} size={120} />
+                                            <p className="text-xs text-slate-400 text-center">Finder scan untuk lapor temuan</p>
+                                        </div>
+                                    </section>
+                                )}
                             </div>
 
                             <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/50 flex gap-3">
-                                <button className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-[0.98] transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-lg shadow-rose-600/20">
-                                    MARK AS FOUND
+                                <button
+                                    onClick={() => {
+                                        updateStatus.mutate(
+                                            { id: selectedItem.id, status: LostItemStatus.VERIFIED },
+                                            { onSuccess: () => { setSelectedItem(null); toast.success('Marked as found'); refetch(); } }
+                                        );
+                                    }}
+                                    disabled={updateStatus.isPending}
+                                    className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-rose-600/20 disabled:opacity-50"
+                                >
+                                    {updateStatus.isPending ? 'UPDATING...' : 'MARK AS FOUND'}
                                 </button>
-                                <button className="px-6 py-4 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-2xl font-black text-sm hover:bg-slate-100 transition-colors duration-150">
+                                <button
+                                    onClick={() => {
+                                        updateStatus.mutate(
+                                            { id: selectedItem.id, status: LostItemStatus.CLOSED_LOST },
+                                            { onSuccess: () => { setSelectedItem(null); toast.success('Report closed'); refetch(); } }
+                                        );
+                                    }}
+                                    disabled={updateStatus.isPending}
+                                    className="px-6 py-4 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-2xl font-black text-sm hover:bg-slate-100 transition-colors duration-150 disabled:opacity-50"
+                                >
                                     CLOSE REPORT
                                 </button>
                             </div>
