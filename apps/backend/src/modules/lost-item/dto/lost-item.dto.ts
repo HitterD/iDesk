@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsDateString, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsDateString, Min, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateLostItemDto {
@@ -55,6 +55,11 @@ export class CreateLostItemDto {
     @IsOptional()
     @IsString()
     description?: string;
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    photoUrls?: string[];
 }
 
 export class UpdateLostItemStatusDto {
@@ -68,4 +73,8 @@ export class UpdateLostItemStatusDto {
     @IsOptional()
     @IsString()
     foundBy?: string;
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
 }
