@@ -12,7 +12,10 @@ import { Ticket } from '../../ticketing/entities/ticket.entity';
 export enum LostItemStatus {
     REPORTED = 'REPORTED',
     SEARCHING = 'SEARCHING',
-    FOUND = 'FOUND',
+    CLAIMED = 'CLAIMED',
+    VERIFIED = 'VERIFIED',
+    RETURNED = 'RETURNED',
+    FOUND = 'FOUND',         // legacy — keep for existing data
     CLOSED_LOST = 'CLOSED_LOST',
 }
 
@@ -67,11 +70,7 @@ export class LostItemReport {
     @Column({ default: false })
     finderRewardOffered: boolean;
 
-    @Column({
-        type: 'enum',
-        enum: LostItemStatus,
-        default: LostItemStatus.REPORTED,
-    })
+    @Column({ type: 'enum', enum: LostItemStatus, default: LostItemStatus.REPORTED })
     status: LostItemStatus;
 
     // Found information
@@ -83,6 +82,15 @@ export class LostItemReport {
 
     @Column({ type: 'varchar', nullable: true })
     foundBy: string | null;
+
+    @Column({ type: 'text', array: true, default: [] })
+    photoUrls: string[];
+
+    @Column({ type: 'varchar', nullable: true, unique: true })
+    qrCodeToken: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    qrCodeUrl: string | null;
 
     @CreateDateColumn()
     createdAt: Date;
