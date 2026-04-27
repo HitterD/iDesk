@@ -218,10 +218,15 @@ export const BentoTicketListPage: React.FC = () => {
         staleTime: 30000, // 30 seconds
     });
 
+    const isAdmin = user?.role === 'ADMIN';
     const { data: agents = [] } = useQuery<Agent[]>({
-        queryKey: ['agents'],
+        queryKey: ['agents', isAdmin ? 'all' : user?.siteId],
         queryFn: async () => {
-            const res = await api.get('/users/agents');
+            const params = new URLSearchParams();
+            if (!isAdmin && user?.siteId) {
+                params.set('siteId', user.siteId);
+            }
+            const res = await api.get(`/users/agents?${params.toString()}`);
             return res.data;
         },
     });

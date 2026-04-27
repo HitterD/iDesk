@@ -87,37 +87,38 @@ const DEFAULT_PERMISSION_VALUES = {
 const PermissionRow: React.FC<{
     resource: string;
     value: { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean };
-    onChange: (resource: string, field: string, val: boolean) => void;
+    onToggle: (resource: string, enabled: boolean) => void;
     disabled?: boolean;
     index?: number;
-}> = ({ resource, value, onChange, disabled, index = 0 }) => {
-    const actions = ['canView', 'canCreate', 'canEdit', 'canDelete'] as const;
-    const labels: Record<typeof actions[number], string> = {
-        canView: 'View', canCreate: 'Create', canEdit: 'Edit', canDelete: 'Delete'
-    };
+}> = ({ resource, value, onToggle, disabled, index = 0 }) => {
+    const isEnabled = value.canView === true;
 
     return (
         <div className={cn(
-            "flex items-center gap-3 py-2 px-1 border-b border-[hsl(var(--border))] last:border-0 rounded-sm",
+            "flex items-center justify-between py-2.5 px-3 border-b border-[hsl(var(--border))] last:border-0 rounded-sm",
             index % 2 === 1 && "bg-slate-50/50 dark:bg-slate-800/20"
         )}>
-            <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-300 capitalize px-2">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
                 {resource.replace(/_/g, ' ')}
             </span>
-            <div className="flex gap-3">
-                {actions.map(action => (
-                    <label key={action} className="flex flex-col items-center gap-1 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={value[action] ?? false}
-                            disabled={disabled}
-                            onChange={e => onChange(resource, action, e.target.checked)}
-                            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:cursor-not-allowed"
-                        />
-                        <span className="text-[10px] text-slate-400">{labels[action]}</span>
-                    </label>
-                ))}
-            </div>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={isEnabled}
+                disabled={disabled}
+                onClick={() => onToggle(resource, !isEnabled)}
+                className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                    isEnabled ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
+                )}
+            >
+                <span
+                    className={cn(
+                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out",
+                        isEnabled ? "translate-x-4" : "translate-x-0"
+                    )}
+                />
+            </button>
         </div>
     );
 };
@@ -162,15 +163,13 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
         setIsDirty(true);
     };
 
-    const updatePermission = (resource: string, field: string, val: boolean) => {
+    const togglePermission = (resource: string, enabled: boolean) => {
+        const allSet = { canView: enabled, canCreate: enabled, canEdit: enabled, canDelete: enabled };
         setDraft(prev => ({
             ...prev,
             permissions: {
                 ...prev.permissions,
-                [resource]: {
-                    ...(prev.permissions?.[resource] || { canView: false, canCreate: false, canEdit: false, canDelete: false }),
-                    [field]: val,
-                },
+                [resource]: allSet,
             },
         }));
         setIsDirty(true);
@@ -399,24 +398,24 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    {!isNew && selectedPreset && (
+                                        <button
+                                            onClick={() => cloneMutation.mutate(selectedPreset)}
+                                            disabled={cloneMutation.isPending}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                                        >
+                                            <Copy className="w-3.5 h-3.5" />
+                                            Clone
+                                        </button>
+                                    )}
                                     {!isNew && selectedPreset && !isSystem && (
-                                        <>
-                                            <button
-                                                onClick={() => cloneMutation.mutate(selectedPreset)}
-                                                disabled={cloneMutation.isPending}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-                                            >
-                                                <Copy className="w-3.5 h-3.5" />
-                                                Clone
-                                            </button>
-                                            <button
-                                                onClick={() => setDeletingId(selectedId)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                                Delete
-                                            </button>
-                                        </>
+                                        <button
+                                            onClick={() => setDeletingId(selectedId)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            Delete
+                                        </button>
                                     )}
                                     {!isSystem && (
                                         <button
@@ -492,7 +491,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                                     key={resource}
                                                     resource={resource}
                                                     value={draft.permissions?.[resource] || DEFAULT_PERMISSION_VALUES}
-                                                    onChange={updatePermission}
+                                                    onToggle={togglePermission}
                                                     disabled={isSystem}
                                                     index={idx}
                                                 />

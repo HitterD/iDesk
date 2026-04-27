@@ -558,7 +558,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     });
 
     return (
-        <div className="space-y-6 animate-fade-in-up">
+        <div className="space-y-6 animate-fade-in-up overflow-x-hidden">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
