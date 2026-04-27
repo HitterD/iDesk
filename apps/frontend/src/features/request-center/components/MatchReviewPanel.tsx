@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { X, CheckCircle2, XCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+import { id as localeId } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { FoundItemClaim, useMatchFoundClaim, useRejectFoundClaim } from '../api/found-claim.api';
+import { PhotoGrid } from './PhotoGrid';
+import { StatusBadge } from './StatusBadge';
 
 interface MatchReviewPanelProps {
     claim: FoundItemClaim;
@@ -16,8 +18,12 @@ export const MatchReviewPanel = ({ claim, onClose }: MatchReviewPanelProps) => {
     const [notes, setNotes] = useState('');
     const matchClaim = useMatchFoundClaim();
     const rejectClaim = useRejectFoundClaim();
-
     const report = claim.lostItemReport;
+
+    const serialMatch = !!(
+        report?.serialNumber &&
+        claim.description?.toLowerCase().includes(report.serialNumber.toLowerCase())
+    );
 
     const handleMatch = () => {
         matchClaim.mutate(
@@ -50,93 +56,128 @@ export const MatchReviewPanel = ({ claim, onClose }: MatchReviewPanelProps) => {
             <motion.div
                 initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed top-0 right-0 h-full w-full max-w-2xl bg-white dark:bg-slate-900 shadow-2xl z-[101] flex flex-col border-l border-slate-200 dark:border-slate-800"
+                className="fixed top-0 right-0 h-full w-full max-w-3xl bg-white dark:bg-slate-900 shadow-2xl z-[101] flex flex-col border-l border-slate-200 dark:border-slate-800"
             >
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
                     <div>
                         <h2 className="text-xl font-black text-slate-900 dark:text-white">Match Review</h2>
-                        <p className="text-sm text-slate-500">Claim ID: {claim.id.slice(0, 8)}…</p>
+                        <p className="text-sm text-slate-500">Claim #{claim.id.slice(0, 8)}… · <StatusBadge status={claim.status} /></p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                            <div className="text-xs font-black uppercase tracking-widest text-rose-500 flex items-center gap-1.5">
-                                <AlertCircle className="w-3.5 h-3.5" /> Laporan Hilang
+                {/* Body: Side-by-Side */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="grid grid-cols-[1fr_auto_1fr] gap-4 mb-6">
+                        {/* Left: Lost Item */}
+                        <div className="bg-red-50/50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl p-5">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider mb-3">
+                                Barang Hilang
                             </div>
-                            {report ? (
-                                <div className="bg-rose-50/50 dark:bg-rose-900/10 rounded-xl p-4 border border-rose-100 dark:border-rose-900/30 space-y-2">
-                                    <p className="font-black text-slate-900 dark:text-white">{report.itemName}</p>
-                                    <p className="text-sm text-slate-500">{report.itemType}</p>
-                                    {report.photoUrls?.length > 0 && (
-                                        <div className="grid grid-cols-2 gap-1.5 mt-2">
-                                            {report.photoUrls.slice(0, 4).map((url, i) => (
-                                                <img key={i} src={url} alt="" className="w-full aspect-square object-cover rounded-lg" />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 text-sm text-slate-400 italic">
-                                    Claim belum terhubung ke laporan — pilih laporan manual di bawah
-                                </div>
-                            )}
-                        </div>
+                            <h3 className="font-black text-slate-900 dark:text-white text-base mb-1">{report?.itemName || '—'}</h3>
+                            <p className="text-xs text-slate-500 mb-4">Reporter: {report?.reporter?.fullName || '—'}</p>
 
-                        <div className="space-y-3">
-                            <div className="text-xs font-black uppercase tracking-widest text-emerald-500 flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Laporan Temuan
-                            </div>
-                            <div className="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/30 space-y-2">
-                                <p className="font-black text-slate-900 dark:text-white">{claim.finder?.fullName}</p>
-                                <p className="text-sm text-slate-500">{claim.locationFound}</p>
-                                <p className="text-sm text-slate-500">{format(new Date(claim.foundAt), 'dd MMM yyyy HH:mm')}</p>
-                                <p className="text-xs text-slate-400 italic">"{claim.description}"</p>
-                                {claim.photoUrls?.length > 0 && (
-                                    <div className="grid grid-cols-2 gap-1.5 mt-2">
-                                        {claim.photoUrls.slice(0, 4).map((url, i) => (
-                                            <img key={i} src={url} alt="" className="w-full aspect-square object-cover rounded-lg" />
-                                        ))}
+                            <div className="space-y-2 mb-4">
+                                {report?.serialNumber && (
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-500 font-bold">Serial</span>
+                                        <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{report.serialNumber}</span>
+                                    </div>
+                                )}
+                                {report?.lastSeenLocation && (
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-500 font-bold">Lokasi</span>
+                                        <span className="font-black text-slate-800 dark:text-slate-200">{report.lastSeenLocation}</span>
+                                    </div>
+                                )}
+                                {report?.itemType && (
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-500 font-bold">Tipe</span>
+                                        <span className="font-black text-slate-800 dark:text-slate-200">{report.itemType}</span>
                                     </div>
                                 )}
                             </div>
+
+                            <PhotoGrid urls={report?.photoUrls || []} />
+                        </div>
+
+                        {/* VS Divider */}
+                        <div className="flex flex-col items-center justify-center gap-2 text-slate-300 dark:text-slate-600 font-black text-sm py-4">
+                            <div className="w-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                            VS
+                            <div className="w-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                        </div>
+
+                        {/* Right: Found Claim */}
+                        <div className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-5">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider mb-3">
+                                Barang Temuan
+                            </div>
+                            <h3 className="font-black text-slate-900 dark:text-white text-base mb-1">
+                                {claim.finder?.fullName || '—'}
+                                <span className="text-xs font-normal text-slate-500 ml-2">menemukan</span>
+                            </h3>
+                            <p className="text-xs text-slate-500 mb-4">
+                                {format(new Date(claim.foundAt || claim.createdAt), 'dd MMM yyyy, HH:mm', { locale: localeId })}
+                            </p>
+
+                            <div className="space-y-2 mb-4">
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-500 font-bold">Lokasi Temukan</span>
+                                    <span className="font-black text-slate-800 dark:text-slate-200">{claim.locationFound}</span>
+                                </div>
+                                {serialMatch && (
+                                    <div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 shrink-0" />
+                                        <span className="text-[11px] font-bold text-yellow-700 dark:text-yellow-400">Serial number cocok ✓</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {claim.description && (
+                                <p className="text-xs text-slate-600 dark:text-slate-400 italic mb-4 bg-white dark:bg-slate-800/50 p-3 rounded-xl">
+                                    "{claim.description}"
+                                </p>
+                            )}
+
+                            <PhotoGrid urls={claim.photoUrls || []} />
                         </div>
                     </div>
 
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 mb-1.5 block">
-                            Notes Manager <span className="text-red-400">(wajib jika REJECT)</span>
+                    {/* Notes */}
+                    <div className="mb-4">
+                        <label className="block text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                            Catatan Admin/Agent <span className="text-red-500">(wajib jika reject)</span>
                         </label>
                         <Textarea
                             value={notes}
                             onChange={e => setNotes(e.target.value)}
-                            placeholder="Tuliskan alasan atau catatan verifikasi…"
-                            className="resize-none min-h-[80px]"
+                            placeholder="Tulis catatan verifikasi..."
+                            className="resize-none"
+                            rows={3}
                         />
                     </div>
-                </div>
 
-                <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3">
-                    <button
-                        onClick={handleMatch}
-                        disabled={matchClaim.isPending}
-                        className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-                    >
-                        <CheckCircle2 className="w-4 h-4" />
-                        {matchClaim.isPending ? 'MATCHING…' : 'MATCH ✓'}
-                    </button>
-                    <button
-                        onClick={handleReject}
-                        disabled={rejectClaim.isPending}
-                        className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-sm hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
-                    >
-                        <XCircle className="w-4 h-4" />
-                        {rejectClaim.isPending ? 'REJECTING…' : 'REJECT ✗'}
-                    </button>
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleMatch}
+                            disabled={matchClaim.isPending || rejectClaim.isPending}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl font-black hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-lg shadow-emerald-600/20"
+                        >
+                            <CheckCircle2 className="w-4 h-4" /> MATCH — Konfirmasi Cocok
+                        </button>
+                        <button
+                            onClick={handleReject}
+                            disabled={matchClaim.isPending || rejectClaim.isPending}
+                            className="flex items-center justify-center gap-2 px-5 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl font-black hover:bg-red-100 transition-colors disabled:opacity-50"
+                        >
+                            <XCircle className="w-4 h-4" /> Reject
+                        </button>
+                    </div>
                 </div>
             </motion.div>
         </>

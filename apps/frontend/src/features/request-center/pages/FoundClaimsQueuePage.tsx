@@ -2,19 +2,29 @@ import React, { useState } from 'react';
 import { PackageCheck, RefreshCw, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { useFoundClaims, useConfirmReturn, FoundClaimStatus, FoundItemClaim } from '../api/found-claim.api';
 import { MatchReviewPanel } from '../components/MatchReviewPanel';
+import { StatusBadge } from '../components/StatusBadge';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-    PENDING:  { label: 'Pending',  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    MATCHED:  { label: 'Matched',  color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    RETURNED: { label: 'Returned', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-    REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+const STATUS_CONFIG: Record<string, { label: string }> = {
+    PENDING:  { label: 'Pending' },
+    MATCHED:  { label: 'Matched' },
+    RETURNED: { label: 'Returned' },
+    REJECTED: { label: 'Rejected' },
 };
+
+const SkeletonRow = () => (
+    <tr className="border-b border-slate-100 dark:border-slate-700/50">
+        {[1, 2, 3, 4, 5].map(i => (
+            <td key={i} className="px-6 py-4">
+                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" style={{ width: `${50 + (i * 11) % 40}%` }} />
+            </td>
+        ))}
+    </tr>
+);
 
 export const FoundClaimsQueuePage = () => {
     const [statusFilter, setStatusFilter] = useState<FoundClaimStatus | 'ALL'>('ALL');
@@ -35,11 +45,7 @@ export const FoundClaimsQueuePage = () => {
 
     const pendingCount = claims.filter(c => c.status === FoundClaimStatus.PENDING).length;
 
-    if (isLoading) return (
-        <div className="flex items-center justify-center h-64">
-            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-    );
+
 
     return (
         <div className="space-y-6 animate-fade-in-up">
@@ -49,11 +55,11 @@ export const FoundClaimsQueuePage = () => {
                         <PackageCheck className="w-6 h-6 text-emerald-500" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                            Found Claims
+                        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+                            Found Claims Queue
                             {pendingCount > 0 && (
-                                <span className="ml-3 inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500 text-white text-xs font-black">
-                                    {pendingCount}
+                                <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-sm font-extrabold rounded-full">
+                                    {pendingCount} pending
                                 </span>
                             )}
                         </h1>
@@ -69,7 +75,7 @@ export const FoundClaimsQueuePage = () => {
                 {(['ALL', 'PENDING', 'MATCHED', 'RETURNED', 'REJECTED'] as const).map(s => (
                     <button
                         key={s}
-                        onClick={() => setStatusFilter(s)}
+                        onClick={() => setStatusFilter(s as FoundClaimStatus | 'ALL')}
                         className={cn(
                             'px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors',
                             statusFilter === s
@@ -82,7 +88,7 @@ export const FoundClaimsQueuePage = () => {
                 ))}
             </div>
 
-            {claims.length === 0 ? (
+            {!isLoading && claims.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 text-slate-400">
                     <PackageCheck className="w-16 h-16 mb-4 opacity-30" />
                     <p className="font-bold text-lg">Tidak ada claims</p>
@@ -102,7 +108,9 @@ export const FoundClaimsQueuePage = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                                {claims.map(claim => (
+                                {isLoading ? (
+                                    [1, 2, 3].map(i => <SkeletonRow key={i} />)
+                                ) : claims.map(claim => (
                                     <tr key={claim.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
@@ -128,9 +136,7 @@ export const FoundClaimsQueuePage = () => {
                                         </td>
                                         <td className="px-6 py-4 text-slate-500 text-xs font-medium">{format(new Date(claim.createdAt), 'dd MMM, HH:mm')}</td>
                                         <td className="px-6 py-4">
-                                            <Badge className={cn('px-3 py-1 rounded-full text-[10px] font-extrabold uppercase', STATUS_CONFIG[claim.status]?.color)}>
-                                                {STATUS_CONFIG[claim.status]?.label}
-                                            </Badge>
+                                            <StatusBadge status={claim.status} />
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
