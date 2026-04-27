@@ -182,11 +182,11 @@ export class UsersController {
     @Get('import-template')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    @ApiOperation({ summary: 'Download import template CSV' })
-    @ApiResponse({ status: 200, description: 'Template CSV file.' })
-    getImportTemplate(@Res() res: Response) {
-        const template = this.usersService.generateImportTemplate();
-        res.setHeader('Content-Type', 'text/csv');
+    @ApiOperation({ summary: 'Download import template XLSX' })
+    @ApiResponse({ status: 200, description: 'Template XLSX file.' })
+    async getImportTemplate(@Res() res: Response) {
+        const template = await this.usersService.generateImportTemplate();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename=${template.filename}`);
         return res.send(template.data);
     }

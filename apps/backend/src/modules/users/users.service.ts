@@ -355,59 +355,63 @@ export class UsersService {
      * Includes all available site codes: SPJ, SMG, KRW, JTB
      * Roles: USER, AGENT, MANAGER, ADMIN
      */
-    generateImportTemplate(): { data: string; filename: string } {
-        // Headers match the importUsers processing (P4: Added presetName)
-        const headers = [
-            'email',
-            'fullName',
-            'role',
-            'siteCode',
-            'departmentCode',
-            'presetName', // P4: Permission preset name
-            'employeeId',
-            'jobTitle',
-            'phoneNumber',
-            'isActive'
+    async generateImportTemplate(): Promise<{ data: Buffer; filename: string }> {
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        
+        // Data Sheet
+        const dataSheet = workbook.addWorksheet('Users');
+        dataSheet.columns = [
+            { header: 'email', key: 'email', width: 25 },
+            { header: 'fullName', key: 'fullName', width: 25 },
+            { header: 'role', key: 'role', width: 15 },
+            { header: 'siteCode', key: 'siteCode', width: 15 },
+            { header: 'departmentCode', key: 'departmentCode', width: 15 },
+            { header: 'presetName', key: 'presetName', width: 15 },
+            { header: 'employeeId', key: 'employeeId', width: 15 },
+            { header: 'jobTitle', key: 'jobTitle', width: 20 },
+            { header: 'phoneNumber', key: 'phoneNumber', width: 20 },
+            { header: 'isActive', key: 'isActive', width: 15 }
         ];
 
-        // Example rows showing all 4 roles and 4 sites (P4: Added preset examples)
-        const exampleRows = [
-            // USER role examples - different sites
-            ['user1@example.com', 'John Doe', 'USER', 'SPJ', 'IT', 'User', 'EMP001', 'Staff', '+6281234567890', 'true'],
-            ['user2@example.com', 'Jane Smith', 'USER', 'SMG', 'HR', 'User', 'EMP002', 'Employee', '', 'true'],
-            ['user3@example.com', 'Bob Wilson', 'USER', 'KRW', 'FIN', 'User', 'EMP003', 'Clerk', '+6281122334455', 'true'],
-            ['user4@example.com', 'Alice Brown', 'USER', 'JTB', 'OPS', 'User', 'EMP004', 'Assistant', '', 'true'],
-            // AGENT role examples
-            ['agent1@example.com', 'Charlie Agent', 'AGENT', 'SPJ', 'IT', 'Agent', 'AGT001', 'Support Agent', '+6281234500001', 'true'],
-            ['agent2@example.com', 'Diana Support', 'AGENT', 'SMG', 'IT', 'Agent', 'AGT002', 'Helpdesk Agent', '+6281234500002', 'true'],
-            // MANAGER role
-            ['manager@example.com', 'Mike Manager', 'MANAGER', 'SPJ', 'IT', 'Manager', 'MGR001', 'IT Manager', '+6281234500003', 'true'],
-            // ADMIN role
-            ['admin@example.com', 'Admin User', 'ADMIN', 'SPJ', '', 'Admin', 'ADM001', 'System Admin', '+6287654321098', 'true'],
-        ];
+        // Format header
+        dataSheet.getRow(1).font = { bold: true };
+        dataSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
-        // Add comment row explaining available options
-        const commentRow = [
-            '# Valid roles: USER,AGENT,MANAGER,ADMIN',
-            '# Valid sites: SPJ,SMG,KRW,JTB',
-            '# Presets: User,Agent,Manager,Admin (or custom preset names)',
-            '# Departments: IT,HR,FIN,OPS,MKT,SALES',
-            '', '', '', '', '', '', ''
-        ];
+        // Instructions Sheet
+        const instSheet = workbook.addWorksheet('Instructions');
+        instSheet.getColumn('A').width = 20;
+        instSheet.getColumn('B').width = 40;
+        
+        instSheet.addRow(['Field', 'Valid Values']);
+        instSheet.getRow(1).font = { bold: true };
+        instSheet.addRow(['Role', 'USER, AGENT, MANAGER, ADMIN']);
+        instSheet.addRow(['Site Code', 'SPJ, SMG, KRW, JTB']);
+        instSheet.addRow(['Is Active', 'true, false']);
+        
+        // Add Data Validation (Dropdowns) for the first 100 rows
+        for (let i = 2; i <= 100; i++) {
+            dataSheet.getCell(`C${i}`).dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: ['"USER,AGENT,MANAGER,ADMIN"']
+            };
+            dataSheet.getCell(`D${i}`).dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: ['"SPJ,SMG,KRW,JTB"']
+            };
+            dataSheet.getCell(`J${i}`).dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: ['"true,false"']
+            };
+        }
 
-        const csvContent = [
-            '# Import Users Template - iDesk Helpdesk',
-            '# Available Site Codes: SPJ (Surabaya Pusat), SMG (Semarang), KRW (Karawang), JTB (Jakarta Barat)',
-            '# Available Roles: USER, AGENT, MANAGER, ADMIN',
-            '# Available Presets: User, Agent, Manager, Admin (or any custom preset name)',
-            '# Departments are optional - leave blank if not applicable',
-            headers.join(','),
-            ...exampleRows.map(row => row.map(cell => `"${cell}"`).join(',')),
-        ].join('\n');
-
+        const buffer = await workbook.xlsx.writeBuffer() as Buffer;
         return {
-            data: csvContent,
-            filename: 'import-users-template.csv',
+            data: buffer,
+            filename: 'import-users-template.xlsx',
         };
     }
 
