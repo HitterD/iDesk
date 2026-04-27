@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch, PackageCheck } from 'lucide-react';
+import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch, PackageCheck, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
@@ -38,6 +38,7 @@ interface ClientNavItem {
     label: string;
     icon: React.ElementType;
     pageKey?: string; // If set, item is filtered by pageAccess from preset
+    exact?: boolean; // If true, only match exact path (not sub-paths)
 }
 
 export const ClientLayout: React.FC = () => {
@@ -57,8 +58,8 @@ export const ClientLayout: React.FC = () => {
         { path: '/client/my-tickets', label: 'My Tickets', icon: Ticket },
         { path: '/client/hardware-requests', label: 'Hardware Requests', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
         { path: '/client/eform-access', label: 'E-Form Access', icon: FileText, pageKey: 'eform_access' },
-        { path: '/client/lost-items', label: 'Lost Items', icon: PackageSearch, pageKey: 'lost_items' },
-        { path: '/client/lost-items/my', label: 'Laporan Saya', icon: PackageSearch, pageKey: 'lost_items' },
+        { path: '/client/lost-items', label: 'Lost Items', icon: PackageSearch, pageKey: 'lost_items', exact: true },
+        { path: '/client/lost-items/my', label: 'Laporan Saya', icon: ClipboardList, pageKey: 'lost_items' },
         { path: '/client/found', label: 'Saya Temukan', icon: PackageCheck, pageKey: 'lost_items' },
         { path: '/client/zoom-calendar', label: 'Zoom Calendar', icon: Video, pageKey: 'zoom_calendar' },
         { path: '/client/kb', label: 'Help Center', icon: BookOpen, pageKey: 'knowledge_base' },
@@ -75,7 +76,10 @@ export const ClientLayout: React.FC = () => {
         return myPermissions.pageAccess[item.pageKey] === true;
     });
 
-    const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
+    const isActive = (item: ClientNavItem) =>
+        item.exact
+            ? location.pathname === item.path
+            : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
     return (
         <div className="min-h-screen app-background-blobs bg-slate-50 dark:bg-slate-900">
@@ -98,7 +102,7 @@ export const ClientLayout: React.FC = () => {
                                     <Link
                                         key={item.path}
                                         to={item.path}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${isActive(item.path)
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${isActive(item)
                                             ? 'bg-primary/10 text-primary'
                                             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                             }`}
@@ -158,7 +162,7 @@ export const ClientLayout: React.FC = () => {
                                         key={item.path}
                                         to={item.path}
                                         onClick={() => setMobileMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-150 ${isActive(item.path)
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-150 ${isActive(item)
                                             ? 'bg-primary/10 text-primary'
                                             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                             }`}
