@@ -26,7 +26,6 @@ import {
     MonitorSmartphone,
     FileText,
     PackageSearch,
-    PackageCheck,
     LucideIcon,
     Wrench
 } from 'lucide-react';
@@ -228,8 +227,6 @@ export const BentoSidebar = () => {
                 { key: 'hardware_requests', icon: MonitorSmartphone, label: 'Hardware Requests', path: '/hardware-requests' },
                 { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/eform-access' },
                 { key: 'lost_items', icon: Search, label: 'Lost Items', path: '/lost-items' },
-                { key: 'my_lost_reports', icon: PackageSearch, label: 'Laporan Saya', path: '/lost-items/my' },
-                { key: 'report_found', icon: PackageCheck, label: 'Saya Temukan', path: '/found' },
             ]
         },
 

@@ -1,9 +1,10 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch } from 'lucide-react';
+import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch, PackageCheck } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
+import { ActionCommandCenter } from '../notifications/ActionCommandCenter';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Logo } from '../ui/Logo';
 import { UserAvatar } from '../ui/UserAvatar';
@@ -57,6 +58,8 @@ export const ClientLayout: React.FC = () => {
         { path: '/client/hardware-requests', label: 'Hardware Requests', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
         { path: '/client/eform-access', label: 'E-Form Access', icon: FileText, pageKey: 'eform_access' },
         { path: '/client/lost-items', label: 'Lost Items', icon: PackageSearch, pageKey: 'lost_items' },
+        { path: '/client/lost-items/my', label: 'Laporan Saya', icon: PackageSearch, pageKey: 'lost_items' },
+        { path: '/client/found', label: 'Saya Temukan', icon: PackageCheck, pageKey: 'lost_items' },
         { path: '/client/zoom-calendar', label: 'Zoom Calendar', icon: Video, pageKey: 'zoom_calendar' },
         { path: '/client/kb', label: 'Help Center', icon: BookOpen, pageKey: 'knowledge_base' },
         { path: '/client/profile', label: 'Profile', icon: Settings },
@@ -110,6 +113,7 @@ export const ClientLayout: React.FC = () => {
                         {/* Right Side */}
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
+                            <ActionCommandCenter />
                             <NotificationPopover />
 
                             {/* User Menu */}
@@ -179,17 +183,7 @@ export const ClientLayout: React.FC = () => {
             {/* Main Content */}
             <main className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8">
                 <FeatureErrorBoundary featureName="Client Portal">
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={location.pathname}
-                            variants={pageVariants}
-                            initial="initial"
-                            animate="animate"
-                            exit="exit"
-                        >
-                            <Outlet />
-                        </motion.div>
-                    </AnimatePresence>
+                    <Outlet />
                 </FeatureErrorBoundary>
             </main>
 
