@@ -401,6 +401,27 @@ export class UsersService {
         dataSheet.getRow(1).font = { bold: true };
         dataSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
+        // Fetch existing users
+        const users = await this.userRepo.find({
+            relations: ['site', 'department', 'appliedPreset']
+        });
+
+        // Add users to sheet
+        users.forEach(user => {
+            dataSheet.addRow({
+                email: user.email,
+                fullName: user.fullName,
+                role: user.role,
+                siteCode: user.site?.code || '',
+                departmentCode: user.department?.code || '',
+                presetName: user.appliedPresetName || '',
+                employeeId: user.employeeId || '',
+                jobTitle: user.jobTitle || '',
+                phoneNumber: user.phoneNumber || '',
+                isActive: user.isActive ? 'true' : 'false'
+            });
+        });
+
         // Instructions Sheet
         const instSheet = workbook.addWorksheet('Instructions');
         instSheet.getColumn('A').width = 20;
@@ -412,8 +433,9 @@ export class UsersService {
         instSheet.addRow(['Site Code', 'SPJ, SMG, KRW, JTB']);
         instSheet.addRow(['Is Active', 'true, false']);
         
-        // Add Data Validation (Dropdowns) for the first 100 rows
-        for (let i = 2; i <= 100; i++) {
+        // Add Data Validation (Dropdowns) for existing rows + 100 extra rows
+        const maxRows = Math.max(100, users.length + 100);
+        for (let i = 2; i <= maxRows; i++) {
             dataSheet.getCell(`C${i}`).dataValidation = {
                 type: 'list',
                 allowBlank: true,
