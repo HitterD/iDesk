@@ -222,19 +222,46 @@ export class UsersService {
         const deptMap = new Map<string, Department>();
         departments.forEach(d => deptMap.set(d.code?.toUpperCase() || d.name.toUpperCase(), d));
 
-        const stream = Readable.from(file.buffer.toString());
+        try {
+            const ExcelJS = require('exceljs');
+            const workbook = new ExcelJS.Workbook();
+            
+            if (file.originalname.endsWith('.csv') || file.mimetype.includes('csv')) {
+                await workbook.csv.read(Readable.from(file.buffer.toString()));
+            } else {
+                await workbook.xlsx.load(file.buffer);
+            }
+            
+            const worksheet = workbook.worksheets[0];
+            if (!worksheet) {
+                throw new BadRequestException('No worksheet found in the file');
+            }
 
-        return new Promise((resolve, reject) => {
-            stream
-                .pipe(csv())
-                .on('data', (data) => {
-                    // Skip comment rows (starting with #)
-                    if (!data.email?.startsWith('#')) {
-                        results.push(data);
+            const headers: string[] = [];
+            worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell: any, colNumber: number) => {
+                headers[colNumber] = cell.value?.toString().trim() || '';
+            });
+
+            worksheet.eachRow((row: any, rowNumber: number) => {
+                if (rowNumber === 1) return; // Skip header
+                
+                const rowData: any = {};
+                row.eachCell({ includeEmpty: true }, (cell: any, colNumber: number) => {
+                    const header = headers[colNumber];
+                    if (header) {
+                        rowData[header] = cell.value?.toString().trim() || '';
                     }
-                })
-                .on('end', async () => {
-                    for (const row of results) {
+                });
+                
+                if (rowData.email && !rowData.email.toString().startsWith('#')) {
+                    results.push(rowData);
+                }
+            });
+        } catch (error) {
+            throw new BadRequestException(`Failed to parse file: ${error.message}`);
+        }
+
+        for (const row of results) {
                         try {
                             // Validation - required fields
                             if (!row.email || !row.fullName || !row.role) {
@@ -336,17 +363,13 @@ export class UsersService {
                             errors.push(`Row ${row.email || 'unknown'}: ${error.message}`);
                         }
                     }
-                    resolve({
-                        success: successCount,
-                        updated: updatedCount,
-                        failed: failedCount,
-                        errors,
-                    });
-                })
-                .on('error', (error) => {
-                    reject(error);
-                });
-        });
+
+        return {
+            success: successCount,
+            updated: updatedCount,
+            failed: failedCount,
+            errors,
+        };
     }
 
 

@@ -30,7 +30,13 @@ export const ALLOWED_MIME_TYPES = {
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'text/plain', 'text/csv',
     ],
-    CSV: ['text/csv', 'application/csv', 'text/plain'],
+    CSV: [
+        'text/csv', 
+        'application/csv', 
+        'text/plain',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ],
     CONTRACT: ['application/pdf'],
 } as const;
 
@@ -40,7 +46,7 @@ export const ALLOWED_EXTENSIONS = {
     DOCUMENT: ['.pdf', '.doc', '.docx'],
     AVATAR: ['.jpg', '.jpeg', '.png', '.webp'],
     ATTACHMENT: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'],
-    CSV: ['.csv'],
+    CSV: ['.csv', '.xlsx', '.xls'],
     CONTRACT: ['.pdf'],
 } as const;
 
