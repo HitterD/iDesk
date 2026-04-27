@@ -15,22 +15,22 @@ export class AddMissingIndexes1734768000000 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Ticket category index
         await queryRunner.query(`
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tickets_category 
+            CREATE INDEX IF NOT EXISTS idx_tickets_category
             ON tickets(category)
         `);
 
         // Notifications category + date composite index
         await queryRunner.query(`
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_category_date 
+            CREATE INDEX IF NOT EXISTS idx_notifications_category_date
             ON notifications(category, "createdAt" DESC)
         `);
 
         // Zoom bookings date + account composite index
         await queryRunner.query(`
-            DO $$ 
+            DO $$
             BEGIN
                 IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'zoom_bookings') THEN
-                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bookings_date_account 
+                    CREATE INDEX IF NOT EXISTS idx_bookings_date_account
                     ON zoom_bookings("bookingDate", "zoomAccountId");
                 END IF;
             END $$;
@@ -38,10 +38,10 @@ export class AddMissingIndexes1734768000000 implements MigrationInterface {
 
         // Audit logs action + date composite index
         await queryRunner.query(`
-            DO $$ 
+            DO $$
             BEGIN
                 IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'audit_logs') THEN
-                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_action_date 
+                    CREATE INDEX IF NOT EXISTS idx_audit_action_date
                     ON audit_logs(action, "createdAt" DESC);
                 END IF;
             END $$;
@@ -49,10 +49,10 @@ export class AddMissingIndexes1734768000000 implements MigrationInterface {
 
         // Renewal contracts vendor name index (for search)
         await queryRunner.query(`
-            DO $$ 
+            DO $$
             BEGIN
                 IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'renewal_contracts') THEN
-                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_contracts_vendor 
+                    CREATE INDEX IF NOT EXISTS idx_contracts_vendor
                     ON renewal_contracts("vendorName");
                 END IF;
             END $$;

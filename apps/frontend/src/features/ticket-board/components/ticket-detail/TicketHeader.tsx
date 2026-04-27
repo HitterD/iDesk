@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Save, CheckCircle2, XCircle, Clock, AlertTriangle, Pause, MessageSquare } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Clock, AlertTriangle, Pause, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { TicketDetail } from './types';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
@@ -13,9 +13,7 @@ interface TicketHeaderProps {
         firstResponseTarget?: string;
         isFirstResponseBreached?: boolean;
     };
-    onSave: () => void;
     onCancel?: () => void;
-    isSaving: boolean;
     isCancelling?: boolean;
 }
 
@@ -33,10 +31,8 @@ const formatTimeRemaining = (diffMs: number): string => {
 
 export const TicketHeader: React.FC<TicketHeaderProps> = ({
     ticket,
-    onSave,
     onCancel,
-    isSaving,
-    isCancelling = false
+    isCancelling = false,
 }) => {
     const navigate = useNavigate();
     const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
@@ -186,22 +182,13 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 <button
                                     onClick={handleCancelClick}
                                     disabled={isCancelling}
-                                    className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold"
                                     title="Cancel Ticket"
                                 >
                                     <XCircle className="w-4 h-4" />
+                                    Cancel Ticket
                                 </button>
                             )}
-
-                            {/* Save Button */}
-                            <button
-                                onClick={onSave}
-                                disabled={isSaving}
-                                className="px-5 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-bold rounded-xl hover:bg-[hsl(var(--primary))]/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm hover:shadow flex items-center gap-2 text-sm disabled:opacity-70"
-                            >
-                                <Save className="w-4 h-4" />
-                                {isSaving ? 'Saving...' : 'Save'}
-                            </button>
                         </>
                     )}
                 </div>

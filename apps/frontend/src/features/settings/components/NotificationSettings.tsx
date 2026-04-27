@@ -33,6 +33,7 @@ interface NotificationPreference {
     quietHoursStart: string | null;
     quietHoursEnd: string | null;
     timezone: string | null;
+    reminderIntensity: 'OFF' | 'GENTLE' | 'MODERATE' | 'ASSERTIVE';
     typeSettings: Record<string, Record<string, boolean>>;
 }
 
@@ -351,6 +352,52 @@ export const NotificationSettings: React.FC = () => {
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+            </div>
+
+            {/* Action Reminders */}
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+                <button
+                    onClick={() => toggleSection('reminders')}
+                    className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                            <AlertCircle className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="font-medium text-slate-800 dark:text-white">Action Reminders</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">How often to remind you about pending items</p>
+                        </div>
+                    </div>
+                    {expandedSection === 'reminders' ? (
+                        <ChevronUp className="w-5 h-5 text-slate-400" />
+                    ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                    )}
+                </button>
+
+                {expandedSection === 'reminders' && (
+                    <div className="p-4 pt-0">
+                        <div className="flex flex-wrap gap-3">
+                            {['OFF', 'GENTLE', 'MODERATE', 'ASSERTIVE'].map((intensity) => (
+                                <button
+                                    key={intensity}
+                                    onClick={() => updateMutation.mutate({ reminderIntensity: intensity as any })}
+                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                                        preferences.reminderIntensity === intensity 
+                                        ? 'bg-primary text-white shadow-md' 
+                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    {intensity === 'OFF' && 'Off'}
+                                    {intensity === 'GENTLE' && 'Gentle (1h)'}
+                                    {intensity === 'MODERATE' && 'Moderate (30m)'}
+                                    {intensity === 'ASSERTIVE' && 'Assertive (15m)'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

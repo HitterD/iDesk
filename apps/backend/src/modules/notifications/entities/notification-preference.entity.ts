@@ -14,6 +14,13 @@ export enum DigestFrequency {
     WEEKLY = 'WEEKLY',
 }
 
+export enum ReminderIntensity {
+    OFF = 'OFF',
+    GENTLE = 'GENTLE',
+    MODERATE = 'MODERATE',
+    ASSERTIVE = 'ASSERTIVE',
+}
+
 @Entity('notification_preferences')
 @Index(['userId'], { unique: true })
 export class NotificationPreference {
@@ -92,6 +99,17 @@ export class NotificationPreference {
 
     @Column({ nullable: true })
     timezone: string; // e.g., 'Asia/Jakarta'
+
+    // =====================
+    // Reminder Settings
+    // =====================
+
+    @Column({
+        type: 'enum',
+        enum: ReminderIntensity,
+        default: ReminderIntensity.MODERATE,
+    })
+    reminderIntensity: ReminderIntensity;
 
     // =====================
     // Timestamps

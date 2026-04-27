@@ -203,11 +203,13 @@ export class UsersService {
     /**
      * H1: Enhanced import with siteCode, jobTitle, phoneNumber fields
      * Format: email,fullName,role,siteCode,employeeId,jobTitle,phoneNumber,isActive
+     * @param upsert - If true, update existing users instead of throwing ConflictException
      */
-    async importUsers(file: Express.Multer.File): Promise<any> {
+    async importUsers(file: Express.Multer.File, upsert = false): Promise<any> {
         const results: any[] = [];
         const errors: string[] = [];
         let successCount = 0;
+        let updatedCount = 0;
         let failedCount = 0;
 
         // Pre-load sites for lookup
@@ -245,9 +247,10 @@ export class UsersService {
                                 throw new BadRequestException(`Invalid role: ${row.role}. Must be ADMIN, MANAGER, AGENT, or USER`);
                             }
 
-                            // Check duplicate
+                            // Check for existing user
                             const existingUser = await this.userRepo.findOne({ where: { email: row.email } });
-                            if (existingUser) {
+
+                            if (existingUser && !upsert) {
                                 throw new ConflictException(`Email ${row.email} already exists`);
                             }
 
@@ -273,46 +276,61 @@ export class UsersService {
                                 }
                             }
 
-                            // Generate Random Password
-                            const randomPassword = crypto.randomBytes(8).toString('hex') + 'A1!';
-                            const hashedPassword = await bcrypt.hash(randomPassword, BCRYPT_ROUNDS);
-
                             // Normalize isActive (default true)
                             const isActive = row.isActive?.toLowerCase() === 'false' || row.isActive === '0' ? false : true;
 
-                            const newUser = this.userRepo.create({
-                                email: row.email.trim(),
-                                fullName: row.fullName.trim(),
-                                role,
-                                employeeId: row.employeeId?.trim() || null,
-                                jobTitle: row.jobTitle?.trim() || null,
-                                phoneNumber: row.phoneNumber?.trim() || null,
-                                siteId,
-                                departmentId,
-                                isActive,
-                                password: hashedPassword,
-                            });
-
-                            await this.userRepo.save(newUser);
-
-                            // Send Welcome Email
-                            try {
-                                await this.mailerService.sendMail({
-                                    to: newUser.email,
-                                    subject: 'Welcome to iDesk Helpdesk',
-                                    template: 'welcome-user',
-                                    context: {
-                                        name: newUser.fullName,
-                                        email: newUser.email,
-                                        password: randomPassword,
-                                    },
+                            if (existingUser && upsert) {
+                                // ── UPSERT: update existing user ──
+                                await this.userRepo.update(existingUser.id, {
+                                    fullName: row.fullName.trim(),
+                                    role,
+                                    employeeId: row.employeeId?.trim() || existingUser.employeeId,
+                                    jobTitle: row.jobTitle?.trim() || existingUser.jobTitle,
+                                    phoneNumber: row.phoneNumber?.trim() || existingUser.phoneNumber,
+                                    ...(siteId ? { siteId } : {}),
+                                    ...(departmentId ? { departmentId } : {}),
+                                    isActive,
                                 });
-                            } catch (emailError) {
-                                this.logger.warn(`Failed to send email to ${newUser.email}: ${emailError.message}`);
-                                errors.push(`User created but email failed for ${newUser.email}`);
-                            }
+                                updatedCount++;
+                            } else {
+                                // ── CREATE: new user ──
+                                const randomPassword = crypto.randomBytes(8).toString('hex') + 'A1!';
+                                const hashedPassword = await bcrypt.hash(randomPassword, BCRYPT_ROUNDS);
 
-                            successCount++;
+                                const newUser = this.userRepo.create({
+                                    email: row.email.trim(),
+                                    fullName: row.fullName.trim(),
+                                    role,
+                                    employeeId: row.employeeId?.trim() || null,
+                                    jobTitle: row.jobTitle?.trim() || null,
+                                    phoneNumber: row.phoneNumber?.trim() || null,
+                                    siteId,
+                                    departmentId,
+                                    isActive,
+                                    password: hashedPassword,
+                                });
+
+                                await this.userRepo.save(newUser);
+
+                                // Send Welcome Email
+                                try {
+                                    await this.mailerService.sendMail({
+                                        to: newUser.email,
+                                        subject: 'Welcome to iDesk Helpdesk',
+                                        template: 'welcome-user',
+                                        context: {
+                                            name: newUser.fullName,
+                                            email: newUser.email,
+                                            password: randomPassword,
+                                        },
+                                    });
+                                } catch (emailError) {
+                                    this.logger.warn(`Failed to send email to ${newUser.email}: ${emailError.message}`);
+                                    errors.push(`User created but email failed for ${newUser.email}`);
+                                }
+
+                                successCount++;
+                            }
                         } catch (error) {
                             failedCount++;
                             errors.push(`Row ${row.email || 'unknown'}: ${error.message}`);
@@ -320,6 +338,7 @@ export class UsersService {
                     }
                     resolve({
                         success: successCount,
+                        updated: updatedCount,
                         failed: failedCount,
                         errors,
                     });
@@ -329,6 +348,7 @@ export class UsersService {
                 });
         });
     }
+
 
     /**
      * H3: Generate import template CSV
@@ -503,14 +523,26 @@ export class UsersService {
         return { success: true, message: 'Password reset successfully' };
     }
 
-    async getAgents(): Promise<User[]> {
-        return this.userRepo.find({
-            where: [
-                { role: UserRole.AGENT, isActive: true },
-                { role: UserRole.ADMIN, isActive: true }
-            ],
-            order: { fullName: 'ASC' },
-        });
+    async getAgents(siteId?: string): Promise<User[]> {
+        const qb = this.userRepo
+            .createQueryBuilder('user')
+            .leftJoinAndSelect('user.site', 'site')
+            .where('user.isActive = :isActive', { isActive: true })
+            .andWhere('user.role IN (:...roles)', {
+                roles: [UserRole.AGENT, UserRole.ADMIN],
+            })
+            .select([
+                'user.id', 'user.fullName', 'user.email', 'user.role',
+                'user.avatarUrl', 'user.siteId', 'user.appraisalPoints',
+                'site.id', 'site.code', 'site.name',
+            ])
+            .orderBy('user.fullName', 'ASC');
+
+        if (siteId) {
+            qb.andWhere('user.siteId = :siteId', { siteId });
+        }
+
+        return qb.getMany();
     }
 
     async getAllUsers(): Promise<User[]> {
@@ -520,15 +552,18 @@ export class UsersService {
         });
     }
 
-    async getApprovers(): Promise<User[]> {
-        return this.userRepo.find({
-            where: [
-                { role: UserRole.MANAGER, isActive: true },
-                { role: UserRole.ADMIN, isActive: true }
-            ],
-            order: { fullName: 'ASC' },
-            relations: ['department'],
-        });
+    async getApprovers(excludeId?: string): Promise<User[]> {
+        const qb = this.userRepo
+            .createQueryBuilder('user')
+            .leftJoinAndSelect('user.department', 'department')
+            .where('user.isActive = :active', { active: true })
+            .orderBy('user.fullName', 'ASC');
+
+        if (excludeId) {
+            qb.andWhere('user.id != :excludeId', { excludeId });
+        }
+
+        return qb.getMany();
     }
     // ... (keep createUser as is, I am not touching it, but I need to match the start line correctly) ...
     // Wait, replace_file_content targets a block. I will target deleteUser specifically first.
@@ -783,7 +818,7 @@ export class UsersService {
      * H2: Export users to CSV format - RE-IMPORTABLE format
      * Headers match import template for round-trip compatibility
      */
-    async exportUsers(): Promise<{ data: string; filename: string }> {
+    async exportUsers(fields: string[] = []): Promise<{ data: string; filename: string }> {
         const users = await this.userRepo.find({
             relations: ['department', 'site'],
             order: { fullName: 'ASC' },
@@ -792,18 +827,27 @@ export class UsersService {
             }
         });
 
-        // H2: Headers now match import format for re-importability
-        const headers = ['email', 'fullName', 'role', 'siteCode', 'employeeId', 'jobTitle', 'phoneNumber', 'isActive'];
-        const rows = users.map(user => [
-            user.email,
-            user.fullName,
-            user.role,
-            user.site?.code || '',
-            user.employeeId || '',
-            user.jobTitle || '',
-            user.phoneNumber || '',
-            user.isActive ? 'true' : 'false',
-        ]);
+        // Define all possible columns
+        const ALL_FIELDS: Record<string, (u: any) => string> = {
+            email: u => u.email,
+            fullName: u => u.fullName,
+            role: u => u.role,
+            siteCode: u => u.site?.code || '',
+            department: u => u.department?.name || '',
+            employeeId: u => u.employeeId || '',
+            jobTitle: u => u.jobTitle || '',
+            phoneNumber: u => u.phoneNumber || '',
+            isActive: u => u.isActive ? 'true' : 'false',
+            createdAt: u => u.createdAt?.toISOString().split('T')[0] || '',
+        };
+
+        // Use requested fields or all fields
+        const activeFields = fields.length > 0
+            ? fields.filter(f => ALL_FIELDS[f])
+            : Object.keys(ALL_FIELDS);
+
+        const headers = activeFields;
+        const rows = users.map(user => activeFields.map(f => ALL_FIELDS[f](user)));
 
         const csvContent = [
             headers.join(','),
@@ -819,7 +863,7 @@ export class UsersService {
     /**
      * Export users to XLSX format with separate sheets per site
      */
-    async exportUsersXlsx(siteFilter: string = 'ALL'): Promise<Buffer> {
+    async exportUsersXlsx(siteFilter: string = 'ALL', fields: string[] = []): Promise<Buffer> {
         const users = await this.userRepo.find({
             relations: ['department', 'site'],
             order: { fullName: 'ASC' },
@@ -828,12 +872,29 @@ export class UsersService {
             }
         });
 
+        // Define all possible columns with labels
+        const ALL_COLUMNS: Record<string, { label: string; getValue: (u: any) => any }> = {
+            email: { label: 'Email', getValue: u => u.email },
+            fullName: { label: 'Full Name', getValue: u => u.fullName },
+            role: { label: 'Role', getValue: u => u.role },
+            siteCode: { label: 'Site Code', getValue: u => u.site?.code || '' },
+            department: { label: 'Department', getValue: u => u.department?.name || '' },
+            employeeId: { label: 'Employee ID', getValue: u => u.employeeId || '' },
+            jobTitle: { label: 'Job Title', getValue: u => u.jobTitle || '' },
+            phoneNumber: { label: 'Phone Number', getValue: u => u.phoneNumber || '' },
+            isActive: { label: 'Active', getValue: u => u.isActive ? 'Yes' : 'No' },
+            createdAt: { label: 'Created At', getValue: u => u.createdAt?.toISOString().split('T')[0] || '' },
+        };
+
+        const activeKeys = fields.length > 0
+            ? fields.filter(f => ALL_COLUMNS[f])
+            : Object.keys(ALL_COLUMNS);
+
+        const headers = activeKeys.map(k => ALL_COLUMNS[k].label);
+
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'iDesk System';
         workbook.created = new Date();
-
-        const SITES = ['SPJ', 'SMG', 'KRW', 'JTB'];
-        const headers = ['Email', 'Full Name', 'Role', 'Department', 'Employee ID', 'Job Title', 'Phone Number', 'Active', 'Created At'];
 
         const headerStyle = {
             font: { bold: true, color: { argb: 'FFFFFFFF' } },
@@ -841,7 +902,9 @@ export class UsersService {
             alignment: { horizontal: 'center' as const },
         };
 
-        const sitesToExport = siteFilter === 'ALL' ? SITES : [siteFilter];
+        // Determine sites to export
+        const allSiteCodes = [...new Set(users.map(u => u.site?.code).filter(Boolean))] as string[];
+        const sitesToExport = siteFilter === 'ALL' ? allSiteCodes : [siteFilter];
 
         for (const siteCode of sitesToExport) {
             const siteUsers = users.filter(u => u.site?.code === siteCode);
@@ -855,19 +918,9 @@ export class UsersService {
                 cell.alignment = headerStyle.alignment;
             });
 
-            // Add data
+            // Add data rows
             for (const user of siteUsers) {
-                sheet.addRow([
-                    user.email,
-                    user.fullName,
-                    user.role,
-                    user.department?.name || '',
-                    user.employeeId || '',
-                    user.jobTitle || '',
-                    user.phoneNumber || '',
-                    user.isActive ? 'Yes' : 'No',
-                    user.createdAt.toISOString().split('T')[0],
-                ]);
+                sheet.addRow(activeKeys.map(k => ALL_COLUMNS[k].getValue(user)));
             }
 
             // Auto-fit columns
@@ -888,7 +941,7 @@ export class UsersService {
                 cell.alignment = headerStyle.alignment;
             });
 
-            for (const siteCode of SITES) {
+            for (const siteCode of allSiteCodes) {
                 const siteUsers = users.filter(u => u.site?.code === siteCode);
                 const admins = siteUsers.filter(u => u.role === UserRole.ADMIN).length;
                 const agents = siteUsers.filter(u => u.role === UserRole.AGENT).length;

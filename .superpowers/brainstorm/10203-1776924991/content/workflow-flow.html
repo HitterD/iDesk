@@ -1,0 +1,79 @@
+<h2>Approval Workflow Flow</h2>
+<p class="subtitle">Pilih model alur persetujuan yang sesuai</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:system-ui;font-size:10px;padding:12px">
+        <!-- Flow A -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+          <div style="background:#3b82f6;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">USER ISI FORM<br><span style="opacity:0.7;font-weight:400">+ ttd + pilih atasan</span></div>
+          <div style="color:#94a3b8;font-size:16px;line-height:1">↓</div>
+          <div style="background:#f59e0b;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">ATASAN TERIMA INBOX<br><span style="opacity:0.7;font-weight:400">notif + review form</span></div>
+          <div style="color:#94a3b8;font-size:16px;line-height:1">↓</div>
+          <div style="background:#8b5cf6;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">ATASAN TTD & SETUJU<br><span style="opacity:0.7;font-weight:400">atau tolak dengan alasan</span></div>
+          <div style="color:#94a3b8;font-size:16px;line-height:1">↓</div>
+          <div style="background:#10b981;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">ICT/ADMIN TERIMA<br><span style="opacity:0.7;font-weight:400">buatkan akses VPN/user</span></div>
+          <div style="color:#94a3b8;font-size:16px;line-height:1">↓</div>
+          <div style="background:#1e293b;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">SELESAI ✓<br><span style="opacity:0.7;font-weight:400">user terima kredensial</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Linear (Rekomendasi)</h3>
+      <p>User → Atasan → ICT. 1 level persetujuan, langsung ke ICT setelah approve. Paling sederhana.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:system-ui;font-size:10px;padding:12px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+          <div style="background:#3b82f6;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">USER ISI FORM<br><span style="opacity:0.7;font-weight:400">+ ttd + pilih atasan</span></div>
+          <div style="color:#94a3b8;font-size:16px;line-height:1">↓</div>
+          <div style="background:#f59e0b;color:#fff;border-radius:8px;padding:6px 12px;font-weight:800;font-size:9px;letter-spacing:1px;text-align:center;width:140px">ATASAN TTD & SETUJU</div>
+          <div style="color:#94a3b8;font-size:16px;line-height:1">↓</div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="color:#10b981;font-size:16px;line-height:1">✓</div>
+              <div style="background:#10b981;color:#fff;border-radius:8px;padding:6px 10px;font-weight:800;font-size:8px;text-align:center;width:110px">ICT EKSEKUSI<br><span style="opacity:0.7;font-weight:400">buat akses</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="color:#ef4444;font-size:16px;line-height:1">✗</div>
+              <div style="background:#ef4444;color:#fff;border-radius:8px;padding:6px 10px;font-weight:800;font-size:8px;text-align:center;width:110px">TOLAK<br><span style="opacity:0.7;font-weight:400">notif ke user</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:8px;color:#64748b;font-size:8px;font-style:italic">+ alur revisi jika ditolak</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Linear + Reject Flow</h3>
+      <p>Sama seperti A, plus user bisa revisi dan resubmit jika ditolak atasan. Lebih lengkap.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:20px">
+  <h3>Pertanyaan tambahan — bagaimana atasan melihat form untuk ditandatangani?</h3>
+  <div class="options" style="margin-top:12px">
+    <div class="option" data-choice="inbox-inline" onclick="toggleSelect(this)">
+      <div class="letter">X</div>
+      <div class="content">
+        <h3>Inline di notifikasi</h3>
+        <p>Atasan klik notif → form muncul langsung dalam modal/panel, tanpa pindah halaman</p>
+      </div>
+    </div>
+    <div class="option" data-choice="inbox-page" onclick="toggleSelect(this)">
+      <div class="letter">Y</div>
+      <div class="content">
+        <h3>Halaman detail tersendiri</h3>
+        <p>Atasan klik notif → diarahkan ke halaman detail form lengkap untuk review + TTD</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Pilih workflow (A/B) dan cara atasan lihat form (X/Y), lalu balas di terminal.</p>

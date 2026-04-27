@@ -1,11 +1,15 @@
-import { IsString, IsNotEmpty, IsUUID, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
-export class ApproveManager1Dto {
+export class ApproveManagerDto {
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   signatureData: string;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
-  nextApproverId?: string;
+  rejectionReason?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  action: 'APPROVE' | 'REJECT';
 }

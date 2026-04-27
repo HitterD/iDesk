@@ -1,0 +1,46 @@
+<h2>Site Isolation — Assigned To Dropdown</h2>
+<p class="subtitle">Agent SPJ hanya bisa assign tiket ke agent SPJ lain. Bagaimana cara terbaik menampilkan ini?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Silent Filter (Invisible)</h3>
+      <p>Dropdown langsung hanya tampil agent dari site yang sama. Tidak ada label, tidak ada penjelasan — list sudah otomatis ter-filter. Admin/Manager tetap lihat semua site dengan group header per site.</p>
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(148,163,184,0.1);border-radius:8px;font-size:13px;">
+        <strong>Dropdown agent SPJ melihat:</strong><br>
+        🔵 Budi Santoso &nbsp;&nbsp; 🔵 Rina Kusuma &nbsp;&nbsp; 🔵 Ahmad Fauzi<br>
+        <em style="color:#94a3b8;">(semua SPJ, tanpa label site)</em>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Labeled Filter (Explicit)</h3>
+      <p>Dropdown tampil dengan label "Site SPJ" di atas list. Agent tahu mereka hanya melihat sesama site. Ada badge site kecil di setiap nama agent.</p>
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border-radius:8px;font-size:13px;">
+        <strong>Dropdown agent SPJ melihat:</strong><br>
+        <span style="color:#818cf8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Site SPJ • 3 agents</span><br>
+        🔵 Budi Santoso <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">SPJ</span><br>
+        🔵 Rina Kusuma <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">SPJ</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Grouped by Site (Admin view only)</h3>
+      <p>Agent biasa: silent filter (opsi A). Admin/Manager: dropdown dikelompokkan per site dengan header "SPJ", "SMG", "KRW", "JTB" — bisa assign ke siapa saja lintas site.</p>
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(16,185,129,0.08);border-radius:8px;font-size:13px;">
+        <strong>Admin/Manager melihat:</strong><br>
+        <span style="color:#10b981;font-size:11px;font-weight:700;">── SPJ ──</span> Budi, Rina<br>
+        <span style="color:#10b981;font-size:11px;font-weight:700;">── SMG ──</span> Diana, Reza<br>
+        <span style="color:#10b981;font-size:11px;font-weight:700;">── KRW ──</span> Andi<br>
+        <em style="color:#94a3b8;font-size:12px;">Agent biasa: silent filter seperti opsi A</em>
+      </div>
+    </div>
+  </div>
+</div>

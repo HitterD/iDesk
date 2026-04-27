@@ -62,11 +62,13 @@ export class PortInstallationSchedule1776000200000 implements MigrationInterface
             `);
         } else {
             await q.query(`
-                CREATE TYPE IF NOT EXISTS install_status_enum AS ENUM
-                    ('PROPOSED','CONFIRMED','IN_PROGRESS','DONE','RESCHEDULED','CANCELLED');
+                DO $$ BEGIN
+                    CREATE TYPE install_status_enum AS ENUM
+                        ('PROPOSED','CONFIRMED','IN_PROGRESS','DONE','RESCHEDULED','CANCELLED');
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
             `);
             await q.query(`
-                CREATE TABLE installation_schedules (
+                CREATE TABLE IF NOT EXISTS installation_schedules (
                     id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
                     request_id      uuid NOT NULL UNIQUE REFERENCES hardware_requests(id) ON DELETE CASCADE,
                     technician_id   uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,

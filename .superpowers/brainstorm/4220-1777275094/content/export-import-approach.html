@@ -1,0 +1,54 @@
+<h2>Export / Import — Apa yang Perlu Disempurnakan?</h2>
+<p class="subtitle">Pilih semua yang ingin diperbaiki (multi-select)</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="export-format" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>Format Export Lebih Lengkap</h3>
+      <p>Tambah export JSON (untuk backup/restore preset), export PDF dengan layout yang lebih rapi, dan export per-site (bukan hanya semua site sekaligus).</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="export-field-select" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>Pilih Field saat Export</h3>
+      <p>Sebelum download, user bisa centang field mana yang mau di-export: nama, email, site, role, preset, status aktif, dll. Bukan dump semua field sekaligus.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="import-validation" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>Import Validation yang Lebih Jelas</h3>
+      <p>Preview tabel sebelum import dengan highlight error per baris (merah), warning (kuning), dan OK (hijau). Tombol "Fix errors" yang langsung fokus ke baris bermasalah.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="import-update" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>Import Mode: Create vs Update</h3>
+      <p>Toggle pilihan: "Hanya tambah user baru" vs "Update user yang sudah ada jika email sama". Saat ini hanya create, tidak bisa bulk-update via CSV.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="preset-export" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>Export/Import Preset Permission</h3>
+      <p>Export konfigurasi preset ke JSON, import di environment lain (staging → production). Berguna untuk backup dan replikasi konfigurasi permission.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="progress-feedback" onclick="toggleSelect(this)">
+    <div class="letter">6</div>
+    <div class="content">
+      <h3>Progress & Result Summary</h3>
+      <p>Setelah import selesai, tampil ringkasan: berhasil X, gagal Y, skip Z. Download report error. Saat ini hanya toast notification singkat.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Klik semua yang relevan, lalu kasih tahu di terminal.</p>

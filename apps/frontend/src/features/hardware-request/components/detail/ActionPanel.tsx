@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CheckCircle2, XCircle, Eye, ClipboardCheck, Ban, RefreshCw, CalendarClock } from 'lucide-react';
 import { SectionCard } from '../common/SectionCard';
 import { useHardwareMutations } from '../../hooks/useHardwareMutations';
 import { capsFor, canDecideProcurement, canSelectSlot } from '../../utils/permission.util';
@@ -22,17 +23,18 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
     const [proposeOpen, setProposeOpen] = useState(false);
     const [pickerSched, setPickerSched] = useState<InstallationSchedule | null>(null);
 
-    const primary = 'inline-flex items-center justify-center rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3 py-2 text-xs font-bold hover:opacity-90 disabled:opacity-40 transition-all duration-200 w-full shadow-sm';
-    const secondary = 'inline-flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-200 w-full shadow-sm';
-    const danger = 'inline-flex items-center justify-center rounded-xl bg-rose-600 text-white px-3 py-2 text-xs font-bold hover:bg-rose-700 transition-all duration-200 w-full shadow-sm';
+    // Button styles — larger, high-contrast CTA
+    const primary = 'inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 text-sm font-bold hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 w-full shadow-sm hover:shadow-md active:scale-[0.98]';
+    const secondary = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent px-4 py-2.5 text-[13px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 w-full';
+    const danger = 'inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 text-white px-4 py-3 text-sm font-bold hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 w-full shadow-sm hover:shadow-md active:scale-[0.98]';
 
     const actions: Array<[boolean, React.ReactNode]> = [
-        [caps.canSubmit, <button key="sub" className={primary} onClick={() => m.submitMut.mutate(r.id)}>Submit Request</button>],
-        [caps.canCancel, <button key="cancel" className={secondary} onClick={() => m.cancelMut.mutate(r.id)}>Batalkan Request</button>],
-        [caps.canReview, <button key="rev" className={primary} onClick={() => m.reviewMut.mutate(r.id)}>Mulai Review</button>],
-        [caps.canApprove, <button key="appr" className={primary} onClick={() => m.approveMut.mutate(r.id)}>Setujui Request</button>],
-        [caps.canReject, <button key="rej" className={danger} onClick={() => setRejectOpen(true)}>Tolak Request</button>],
-        [r.status === 'INSTALLATION' && role === 'ICT_STAFF', <button key="installC" className={primary} onClick={() => setWizardOpen(true)}>Selesaikan Instalasi</button>],
+        [caps.canSubmit,  <button key="sub"     className={primary}    onClick={() => m.submitMut.mutate(r.id)}><CheckCircle2 className="size-4" />Submit Request</button>],
+        [caps.canCancel,  <button key="cancel"  className={secondary}  onClick={() => m.cancelMut.mutate(r.id)}><Ban className="size-4" />Batalkan Request</button>],
+        [caps.canReview,  <button key="rev"     className={primary}    onClick={() => m.reviewMut.mutate(r.id)}><Eye className="size-4" />Mulai Review</button>],
+        [caps.canApprove, <button key="appr"    className={primary}    onClick={() => m.approveMut.mutate(r.id)}><CheckCircle2 className="size-4" />Setujui Request</button>],
+        [caps.canReject,  <button key="rej"     className={danger}     onClick={() => setRejectOpen(true)}><XCircle className="size-4" />Tolak Request</button>],
+        [r.status === 'INSTALLATION' && role === 'ICT_STAFF', <button key="installC" className={primary} onClick={() => setWizardOpen(true)}><ClipboardCheck className="size-4" />Selesaikan Instalasi</button>],
     ];
     const visible = actions.filter(([ok]) => ok);
 
@@ -43,9 +45,13 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
         <div className="space-y-6">
             <SectionCard title="Aksi Tersedia">
                 {visible.length === 0 ? (
-                    <div className="text-xs text-slate-500 dark:text-slate-500 py-2 italic text-center">Tidak ada aksi untuk role Anda saat ini.</div>
+                    <div className="flex flex-col items-center gap-1 py-4">
+                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 italic text-center">
+                            Tidak ada aksi tersedia untuk role Anda saat ini.
+                        </span>
+                    </div>
                 ) : (
-                    <div className="flex flex-col gap-2.5">{visible.map(([, el]) => el)}</div>
+                    <div className="flex flex-col gap-2">{visible.map(([, el]) => el)}</div>
                 )}
                 <RejectDialog
                     open={rejectOpen} onClose={() => setRejectOpen(false)}
@@ -77,10 +83,11 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
                     </p>
                     <button
                         type="button"
-                        className="mt-3 text-xs font-black text-primary hover:underline underline-offset-4"
+                        className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-4 py-3 text-sm font-bold hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
                         onClick={() => setPickerSched(awaitingUserSchedule)}
                     >
-                        PILIH SLOT JADWAL →
+                        <CalendarClock className="size-4" />
+                        Pilih Slot Jadwal
                     </button>
                 </div>
             )}

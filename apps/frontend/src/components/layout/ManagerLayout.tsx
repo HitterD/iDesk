@@ -96,18 +96,7 @@ export const ManagerLayout = () => {
                         id="main-content"
                         className="flex-1 overflow-y-auto p-4 lg:p-8 pt-2 pb-20 lg:pb-8 scroll-smooth scrollbar-custom"
                     >
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={location.pathname}
-                                variants={pageVariants}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                className="w-full"
-                            >
-                                <Outlet />
-                            </motion.div>
-                        </AnimatePresence>
+                        <Outlet />
                     </main>
                 </div>
 

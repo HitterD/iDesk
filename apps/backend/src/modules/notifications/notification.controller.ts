@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Post,
+    Put,
     Patch,
     Delete,
     Param,
@@ -11,6 +12,7 @@ import {
     Body,
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
+import { NotificationCenterService } from './notification-center.service';
 import { NotificationCategory } from './entities/notification.entity';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
@@ -22,7 +24,10 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 @UseGuards(JwtAuthGuard, PageAccessGuard)
 @PageAccess('notifications')
 export class NotificationController {
-    constructor(private readonly notificationService: NotificationService) { }
+    constructor(
+        private readonly notificationService: NotificationService,
+        private readonly notificationCenterService: NotificationCenterService
+    ) { }
 
     @Get()
     @ApiOperation({ summary: 'Get all notifications for current user' })
@@ -75,7 +80,51 @@ export class NotificationController {
         return this.notificationService.findUnreadForUser(req.user.userId);
     }
 
+    // === PREFERENCES ENDPOINTS ===
+
+    @Get('preferences')
+    @ApiOperation({ summary: 'Get notification preferences for current user' })
+    @ApiResponse({ status: 200, description: 'Return notification preferences.' })
+    async getPreferences(@Request() req: any) {
+        return this.notificationCenterService.getOrCreatePreferences(req.user.userId);
+    }
+
+    @Put('preferences')
+    @ApiOperation({ summary: 'Update notification preferences (full replace)' })
+    @ApiResponse({ status: 200, description: 'Preferences updated.' })
+    async replacePreferences(@Request() req: any, @Body() updates: Record<string, any>) {
+        return this.notificationCenterService.updatePreferences(req.user.userId, updates);
+    }
+
+    @Patch('preferences')
+    @ApiOperation({ summary: 'Partially update notification preferences' })
+    @ApiResponse({ status: 200, description: 'Preferences updated.' })
+    async updatePreferences(@Request() req: any, @Body() updates: Record<string, any>) {
+        return this.notificationCenterService.updatePreferences(req.user.userId, updates);
+    }
+
+    @Patch('preferences/type-settings')
+    @ApiOperation({ summary: 'Update per-type channel settings' })
+    @ApiResponse({ status: 200, description: 'Type settings updated.' })
+    async updateTypeSettings(
+        @Request() req: any,
+        @Body() body: { notificationType: string; channels: Record<string, boolean> }
+    ) {
+        return this.notificationCenterService.updateTypePreference(
+            req.user.userId,
+            body.notificationType as any,
+            body.channels
+        );
+    }
+
     // === CRITICAL NOTIFICATION ENDPOINTS ===
+
+    @Get('action-items')
+    @ApiOperation({ summary: 'Get current action items for the user based on their role' })
+    @ApiResponse({ status: 200, description: 'Return action items.' })
+    async getActionItems(@Request() req: any) {
+        return this.notificationCenterService.getActionItems(req.user.userId, req.user.role);
+    }
 
     @Get('critical/unacknowledged')
     @ApiOperation({ summary: 'Get unacknowledged critical notifications' })

@@ -1,0 +1,45 @@
+<h2>Preset Management — Pilih Pendekatan UI</h2>
+<p class="subtitle">Saat ini preset dikelola lewat modal dialog. Mana yang paling cocok untuk improve UX-nya?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Slide-over Panel (Drawer)</h3>
+      <p>Panel dari sisi kanan layar. List preset di kiri panel, detail/edit di kanan panel. Tidak menutup halaman agents — user masih bisa lihat konteks. Quick-create, quick-edit inline.</p>
+      <div style="margin-top:12px;padding:10px;background:rgba(99,102,241,0.08);border-radius:8px;font-size:13px;">
+        <strong>+ Cocok untuk:</strong> Edit sering, bandingkan preset, drag-reorder<br>
+        <strong>- Kurang cocok:</strong> Layar kecil, form permission yang panjang
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Dedicated Sub-page / Tab</h3>
+      <p>Tab "Presets" terpisah di halaman Agents. Full-page experience dengan list preset, editor permission yang lebar, preview live siapa yang pakai preset ini.</p>
+      <div style="margin-top:12px;padding:10px;background:rgba(16,185,129,0.08);border-radius:8px;font-size:13px;">
+        <strong>+ Cocok untuk:</strong> Banyak preset, permission editor yang kompleks, audit trail<br>
+        <strong>- Kurang cocok:</strong> Navigasi terasa berat untuk perubahan kecil
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Enhanced Modal + Quick Actions</h3>
+      <p>Modal yang lebih besar (wider, 2-column). List preset di kolom kiri, live editor di kolom kanan. Plus tombol quick-apply langsung dari user card tanpa buka modal.</p>
+      <div style="margin-top:12px;padding:10px;background:rgba(245,158,11,0.08);border-radius:8px;font-size:13px;">
+        <strong>+ Cocok untuk:</strong> Iterasi cepat, familiar (extend yang ada), mobile-friendly<br>
+        <strong>- Kurang cocok:</strong> Sudah ada masalah di modal saat ini, extend bisa warisi masalah
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px;padding:12px;background:rgba(148,163,184,0.08);border-radius:8px;">
+  <span class="label">Konteks saat ini</span>
+  <p style="font-size:13px;margin:4px 0 0;">Preset sekarang: modal list → klik edit → buka PagePresetEditor (modal lagi). Double-modal, kurang smooth. PresetDropdown di user card sudah ada tapi hanya apply, tidak manage.</p>
+</div>

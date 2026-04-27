@@ -1,0 +1,262 @@
+# Fix E-Form Access — Full Bug Review & Fix Plan (REVISI v2)
+
+> **Klarifikasi User**: E-Form Access **bukan role-based**. Siapa saja bisa request, siapa saja bisa jadi approver (atasan). Flow: User A request → User B (atasannya) approve. **Tidak terkunci pada role MANAGER.**
+
+---
+
+## Bug Summary
+
+### 🔴 CRITICAL — User-Reported
+
+| # | Bug | Root Cause | Impact |
+|---|-----|-----------|--------|
+| B1 | Logic flow setelah submit form tidak jalan | `navigate(-1)` setelah submit → kembali ke create page. Tidak ada redirect ke detail page | User bingung, tidak tahu request terkirim |
+| B2 | Detail page butuh refresh dulu baru muncul | `useEformDetail` cache stale. Tidak ada `refetchOnMount` | Data tidak real-time |
+| B3 | Atasan yang diminta approval tidak punya halaman | **2 masalah**: (1) Tab "Pending Approvals" hanya muncul untuk `role === 'MANAGER'`, padahal siapa saja bisa jadi approver. (2) `ManagerSidebar` tidak punya nav item `eform_access` | Atasan non-MANAGER tidak bisa lihat tab pending. Manager-role bisa lihat tab tapi sidebar kosong |
+
+### 🔴 CRITICAL — Ditemukan dari Code Audit
+
+| # | Bug | Root Cause | Impact |
+|---|-----|-----------|--------|
+| B4 | Credential encryption salah simpan | `encryptedPassword: encrypted.authTag` — harusnya ciphertext. Username+password digabung jadi 1 string tapi disimpan salah | Credential tidak bisa di-decrypt. *User konfirmasi: belum ada data production* |
+| B5 | ApproveManagerDto `signatureData` required saat REJECT | DTO `@IsNotEmpty()` untuk `signatureData` — saat reject, frontend tidak kirim signature → **400 error** | Manager/atasan tidak bisa reject request |
+| B6 | `rejectRequest` endpoint tanpa authorization check | Siapa saja bisa reject tanpa validasi | Security vulnerability |
+
+### 🟡 MAJOR — Ditemukan dari Code Audit
+
+| # | Bug | Root Cause | Impact |
+|---|-----|-----------|--------|
+| B7 | `ICT_ROLES` inkonsisten di frontend | `EformAccessListPage` line 32: `isIct = 'AGENT' || 'ADMIN'` — `AGENT` salah, harusnya semua agent roles. Tapi page access sudah dihandle oleh preset | AGENT bisa akses data all-requests padahal bukan ICT |
+| B8 | Stats card selalu dari `myRequests` | Stats card count selalu dari `myRequests`, bukan `activeList` yang sedang dilihat | Saat tab "Pending Approvals", stats tidak relevan |
+| B9 | `useGetCredentials` enabled logic salah | `enabled: status === 'CONFIRMED' && isRequester` — ICT yang baru provision tidak bisa verify | ICT tidak bisa lihat credentials setelah submit |
+| B10 | SignaturePad tidak lock setelah save | Canvas masih bisa digambar ulang setelah "Simpan & Kunci" tapi data yang dikirim tetap yang pertama | Misleading UX |
+
+---
+
+## Proposed Changes
+
+### Komponen 1: Tab Approval untuk Semua User (B3 — paling kritikal)
+
+#### [MODIFY] [EformAccessListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx)
+
+**Masalah utama**: Line 30 `isManager = user?.role === 'MANAGER'` → tab "Pending Approvals" hanya muncul untuk role MANAGER. Padahal siapa saja bisa jadi approver.
+
+**Fix**:
+```diff
+-    const isManager = user?.role === 'MANAGER';
+-    const [tab, setTab] = useState<TabView>(isManager ? 'pending-approvals' : 'my-requests');
++    const hasPendingApprovals = pendingApprovals.length > 0;
++    const [tab, setTab] = useState<TabView>('my-requests');
+```
+
+Tab "Pending Approvals" tampil jika `hasPendingApprovals || loadingPending`:
+```diff
+-            {isManager && (
++            {(hasPendingApprovals || loadingPending) && (
+                 <div className="flex gap-2 ...">
+```
+
+**Problem**: `pendingApprovals` belum ada saat `useState` init. Solusi: pakai `useEffect` untuk auto-switch tab ke pending jika ada data.
+
+---
+
+#### [MODIFY] [ManagerSidebar.tsx](file:///d:/iDesk-main/apps/frontend/src/components/layout/ManagerSidebar.tsx)
+
+Tambah nav items yang hilang:
+```diff
+ const ALL_NAV_ITEMS = [
+     { key: 'dashboard', ... },
+     ...
++    { key: 'hardware_requests', icon: Monitor, label: 'Hardware Request', path: '/manager/hardware-requests' },
++    { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/manager/eform-access' },
++    { key: 'lost_items', icon: SearchSlash, label: 'Lost Items', path: '/manager/lost-items' },
+     { key: 'notifications', ... },
+ ];
+```
+
+Import icons: `FileText`, `Monitor`, `SearchSlash` dari lucide-react.
+
+---
+
+### Komponen 2: Post-Submit Flow Fix (B1)
+
+#### [MODIFY] [EformAccessCreatePage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/EformAccessCreatePage.tsx)
+
+```diff
++  const location = useLocation();
++  const basePath = location.pathname.startsWith('/client') ? '/client'
++    : location.pathname.startsWith('/manager') ? '/manager' : '';
+
+   const handleSubmit = async () => {
+     try {
+-      await createMutation.mutateAsync({ ... });
++      const result = await createMutation.mutateAsync({ ... });
+       toast.success('Permintaan berhasil dikirim');
+-      navigate(-1);
++      navigate(`${basePath}/eform-access/${result.id}`);
+     } catch { ... }
+   };
+```
+
+---
+
+### Komponen 3: Detail Page Stale Data Fix (B2)
+
+#### [MODIFY] [eform-request.api.ts](file:///d:/iDesk-main/apps/frontend/src/features/request-center/api/eform-request.api.ts)
+
+```diff
+ export const useEformDetail = (id: string) => {
+   return useQuery<EFormRequest>({
+     queryKey: ['eform-request', id],
+     queryFn: async () => { ... },
+     enabled: !!id,
++    refetchOnMount: 'always',
++    staleTime: 0,
+   });
+ };
+```
+
+---
+
+### Komponen 4: Credential Encryption Fix (B4)
+
+#### [MODIFY] [eform-request.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/eform-request/eform-request.service.ts)
+
+Encrypt username dan password **terpisah**:
+```diff
+-    const encrypted = this.credentialService.encrypt(`${dto.username}:${dto.password}`);
+-    await this.eformCredentialRepository.save({
+-      encryptedUsername: encrypted.ciphertext,
+-      encryptedPassword: encrypted.authTag, // BUG: authTag bukan password
+-      iv: encrypted.iv,
+-      authTag: encrypted.authTag,
++    const encUser = this.credentialService.encrypt(dto.username);
++    const encPass = this.credentialService.encrypt(dto.password);
++    await this.eformCredentialRepository.save({
++      encryptedUsername: encUser.ciphertext,
++      encryptedPassword: encPass.ciphertext,
++      iv: encUser.iv,
++      authTag: encUser.authTag,
++      passwordIv: encPass.iv,
++      passwordAuthTag: encPass.authTag,
+```
+
+Update `getCredentials` decrypt:
+```diff
+-    const decrypted = this.credentialService.decrypt(credential.encryptedUsername, credential.iv, credential.authTag);
+-    const [username, password] = decrypted.split(':');
++    const username = this.credentialService.decrypt(credential.encryptedUsername, credential.iv, credential.authTag);
++    const password = this.credentialService.decrypt(credential.encryptedPassword, credential.passwordIv, credential.passwordAuthTag);
+```
+
+#### [MODIFY] [eform-credential.entity.ts](file:///d:/iDesk-main/apps/backend/src/modules/eform-request/entities/eform-credential.entity.ts)
+
+Tambah kolom `passwordIv` dan `passwordAuthTag`:
+```diff
++  @Column()
++  passwordIv: string;
++
++  @Column()
++  passwordAuthTag: string;
+```
+
+> [!NOTE]
+> Perlu TypeORM migration untuk menambah 2 kolom baru. User sudah konfirmasi belum ada data production, jadi aman.
+
+---
+
+### Komponen 5: DTO & Authorization Fix (B5, B6)
+
+#### [MODIFY] [approve-manager1.dto.ts](file:///d:/iDesk-main/apps/backend/src/modules/eform-request/dto/approve-manager1.dto.ts)
+
+```diff
+  @IsString()
+- @IsNotEmpty()
++ @IsOptional()
+  signatureData: string;
+```
+
+#### [MODIFY] [eform-request.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/eform-request/eform-request.service.ts)
+
+`rejectRequest()` — tambah authorization:
+```diff
+  async rejectRequest(requestId: string, userId: string, reason: string) {
+    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
++   
++   // Authorization: only the assigned approver or ICT roles can reject
++   const isApprover = request.currentApproverId === userId;
++   if (!isApprover) throw new ForbiddenException('Not authorized to reject this request');
+```
+
+---
+
+### Komponen 6: Frontend ICT Role Fix (B7)
+
+#### [MODIFY] [EformAccessListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx)
+
+```diff
+-    const isIct = user?.role === 'AGENT' || user?.role === 'ADMIN';
++    const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
++    const isIct = ICT_ROLES.includes(user?.role || '');
+```
+
+Ini align dengan backend `ICT_ROLES`. Page access tetap dihandle oleh preset permission system.
+
+---
+
+### Komponen 7: UX Fixes (B8, B9, B10)
+
+#### [MODIFY] [EformAccessListPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx)
+
+**B8 — Stats card**: Stats harusnya kontekstual berdasarkan tab aktif. Saat tab pending, tampilkan stats pending saja.
+
+#### [MODIFY] [EformCredentialPage.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/pages/EformCredentialPage.tsx)
+
+**B9 — Credentials enabled**:
+```diff
+-  const { data: credentials, ... } = useGetCredentials(id!, eform?.status === 'CONFIRMED' && isRequester);
++  const { data: credentials, ... } = useGetCredentials(id!, eform?.status === 'CONFIRMED' && (isRequester || isICT));
+```
+
+#### [MODIFY] [SignaturePad.tsx](file:///d:/iDesk-main/apps/frontend/src/features/request-center/components/eform/SignaturePad.tsx)
+
+**B10 — Lock setelah save**: Tambah `isLocked` state. Setelah "Simpan & Kunci" → disable canvas, ubah opacity, sembunyikan tombol save.
+
+---
+
+## File Change Summary
+
+| File | Bugs Fixed | Type |
+|------|-----------|------|
+| `EformAccessListPage.tsx` | B3, B7, B8 | Frontend |
+| `ManagerSidebar.tsx` | B3 | Frontend |
+| `EformAccessCreatePage.tsx` | B1 | Frontend |
+| `eform-request.api.ts` | B2 | Frontend |
+| `eform-request.service.ts` | B4, B6 | Backend |
+| `eform-credential.entity.ts` | B4 | Backend |
+| `approve-manager1.dto.ts` | B5 | Backend |
+| `EformCredentialPage.tsx` | B9 | Frontend |
+| `SignaturePad.tsx` | B10 | Frontend |
+
+**Total: 9 files, 10 bugs**
+
+---
+
+## Verification Plan
+
+### Build Check
+```bash
+cd d:/iDesk-main && npm run build --workspace=apps/frontend
+cd d:/iDesk-main && npm run build --workspace=apps/backend
+```
+
+### Manual Verification
+1. **B1**: Submit form → verify redirect ke detail page (bukan navigate back)
+2. **B2**: Klik detail → data langsung muncul tanpa refresh
+3. **B3**: Login sebagai user biasa yang punya pending approval → verify tab "Menunggu Approval" muncul otomatis. Login sebagai role MANAGER → verify sidebar punya E-Form Access link
+4. **B4**: ICT submit credentials → verify bisa di-decrypt dengan benar
+5. **B5**: Reject request → verify tidak error 400
+6. **B6**: Coba reject sebagai non-approver → verify 403
+7. **B9**: ICT provision credentials → verify bisa lihat kembali
+8. **B10**: Save signature → verify canvas terkunci

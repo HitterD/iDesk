@@ -1,0 +1,55 @@
+# Redesign Hardware Request Page
+
+## Goal Description
+Merevitalisasi UI/UX dari modul Hardware Request menjadi lebih modern, interaktif, dan premium sesuai dengan prinsip Anthropic Frontend Design (menghindari "AI slop"). 
+Perubahan utama adalah mengubah navigasi dari yang sebelumnya membuka halaman baru untuk melihat detail request, menjadi memunculkan **Side Panel / Drawer** (Sheet) dari sisi kanan layar, sehingga pengguna tidak kehilangan konteks dari daftar request (seperti inspirasi gambar 4 & 5).
+
+## BOLD Aesthetic Direction: **Refined Minimalist with Contextual Depth**
+- **Typography**: Menggunakan hierarki tipografi yang kuat. Header yang tebal dan jelas dipadukan dengan teks detail yang elegan.
+- **Color & Theme**: Bersih dengan banyak whitespace (atau dark mode yang dalam). Menggunakan aksen warna pada status badge (seperti warna emerald untuk selesai, amber untuk pending) tanpa membanjiri keseluruhan UI.
+- **Motion**: Memanfaatkan `framer-motion` untuk *staggered reveals* pada saat memuat tabel/kartu, serta transisi mulus saat membuka Side Panel.
+- **Spatial Composition**: Layout asimetris pada detail view di dalam panel, memisahkan informasi kritikal (status, action) dari timeline history.
+
+## User Review Required
+> [!WARNING]
+> **Perubahan Routing**: Saat ini `/hardware-requests/:id` adalah *sibling route* dari list page. Untuk membuat detail muncul sebagai panel di atas list page tanpa kehilangan status URL, saya akan menyarangkan (nesting) route `:id` di bawah list page, atau memodifikasi list page agar mendengarkan parameter URL (misalnya `?id=...`). 
+> **Pendekatan yang diusulkan**: Menggunakan nested routing (`<Outlet />` di dalam `HardwareRequestListPage`) sehingga URL `/hardware-requests/:id` tetap valid (bisa dishare) namun merender List Page sebagai background dan Detail Page di dalam `Sheet`. Apakah pendekatan ini disetujui?
+
+## Proposed Changes
+
+### Routes
+
+#### [MODIFY] `AppRoutes.tsx`
+- Memindahkan route `hardware-requests/:id` menjadi child dari `HardwareRequestListPage`. 
+- Menyesuaikan `HardwareRequestListPage` agar merender `<Outlet />` (sebagai anchor untuk Side Panel).
+
+### Hardware Request List
+
+#### [MODIFY] `HardwareRequestListPage.tsx`
+- Mendesain ulang header dengan estetik modern (menghilangkan border/card background yang terkesan kotak-kotak kaku, menjadi layout yang lebih menyatu dengan background).
+- Menambahkan `<Outlet />` di bagian bawah/atas tree untuk merender sub-route.
+- Menggunakan framer-motion untuk animasi in/out.
+
+#### [MODIFY] `RequestTable.tsx`
+- Menghapus tombol "Buka ->" yang berbentuk kotak. Menggantinya dengan entire row yang *clickable* (cursor-pointer) dengan hover state yang elegan (misalnya *subtle scale* atau *background highlight*).
+- Merapikan tipografi tabel (menyesuaikan padding, uppercase header yang lebih refined).
+
+### Hardware Request Detail
+
+#### [MODIFY] `HardwareRequestDetailPage.tsx`
+- Membungkus keseluruhan komponen dengan `Sheet` (`Sheet`, `SheetContent`, `SheetHeader`) dari `src/components/ui/sheet.tsx`.
+- Mengatur properti `open` berdasarkan ada/tidaknya param `:id`.
+- Saat `Sheet` ditutup (onOpenChange), memicu navigasi kembali ke `/hardware-requests`.
+- Menyesuaikan grid layout 2-kolom (`lg:grid-cols-[...]`) menjadi 1-kolom bersusun (stacked) agar muat secara sempurna di dalam lebar panel (misal `w-[500px]` atau `sm:max-w-xl`).
+- Menyederhanakan header detail, menghilangkan breadcrumb, karena konteks halaman list sudah ada di background.
+
+## Verification Plan
+
+### Automated/Local Tests
+- Memastikan navigasi ke `/hardware-requests` memunculkan list.
+- Mengklik salah satu baris merubah URL menjadi `/hardware-requests/:id` dan memunculkan Sheet panel dari kanan.
+- Menekan tombol tutup (X) pada panel mengembalikan URL ke `/hardware-requests` dan menutup panel dengan animasi mulus.
+
+### Manual Verification
+- Cek responsivitas di layar sempit (mobile) memastikan panel menggunakan 100% lebar layar.
+- Perhatikan transisi dan estetika (tidak ada padding yang tabrakan, scroll internal berfungsi untuk konten yang panjang).

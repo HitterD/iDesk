@@ -1,0 +1,78 @@
+<h2>Lost Items — Workflow End-to-End</h2>
+<p class="subtitle">3 pendekatan workflow. Pilih yang paling sesuai kebutuhan.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Simple 2-Actor</h3>
+      <p><strong>Employee → Manager</strong></p>
+      <ul style="margin:8px 0 0 16px;font-size:13px;line-height:1.8">
+        <li>Employee submit laporan hilang</li>
+        <li>Manager lihat list & update status</li>
+        <li>Status: <code>REPORTED → FOUND | LOST</code></li>
+        <li>Notifikasi ke reporter saat status berubah</li>
+      </ul>
+      <div style="margin-top:10px;padding:8px;background:#f0fdf4;border-radius:6px;font-size:12px;color:#166534">
+        ✓ Cepat diimplementasi &nbsp;·&nbsp; ✓ Sudah 80% ada di codebase
+      </div>
+      <div style="margin-top:6px;padding:8px;background:#fef2f2;border-radius:6px;font-size:12px;color:#991b1b">
+        ✗ Tidak ada alur "orang menemukan barang"
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>3-Actor + Found Claim</h3>
+      <p><strong>Employee → Manager + Finder</strong></p>
+      <ul style="margin:8px 0 0 16px;font-size:13px;line-height:1.8">
+        <li>Employee report barang hilang</li>
+        <li>Siapa saja bisa submit "Saya temukan barang ini"</li>
+        <li>Manager verifikasi & match report ↔ found claim</li>
+        <li>Status: <code>REPORTED → CLAIMED → VERIFIED → RETURNED</code></li>
+        <li>Notifikasi di setiap transisi</li>
+      </ul>
+      <div style="margin-top:10px;padding:8px;background:#f0fdf4;border-radius:6px;font-size:12px;color:#166534">
+        ✓ Alur lengkap &nbsp;·&nbsp; ✓ Transparansi tinggi
+      </div>
+      <div style="margin-top:6px;padding:8px;background:#fef2f2;border-radius:6px;font-size:12px;color:#991b1b">
+        ✗ Lebih kompleks &nbsp;·&nbsp; ✗ Perlu backend baru (found-claim entity)
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Full Smart Workflow</h3>
+      <p><strong>Employee + Finder + Manager + Notif + Photo</strong></p>
+      <ul style="margin:8px 0 0 16px;font-size:13px;line-height:1.8">
+        <li>Employee report + upload foto barang hilang</li>
+        <li>Siapa saja bisa "Saya temukan" + upload foto bukti</li>
+        <li>AI/Manager match: foto hilang ↔ foto temuan</li>
+        <li>Status timeline lengkap dengan audit log</li>
+        <li>Notifikasi real-time (WebSocket)</li>
+        <li>QR code pada barang kantor untuk quick-report</li>
+      </ul>
+      <div style="margin-top:10px;padding:8px;background:#f0fdf4;border-radius:6px;font-size:12px;color:#166534">
+        ✓ Paling powerful &nbsp;·&nbsp; ✓ Experience premium
+      </div>
+      <div style="margin-top:6px;padding:8px;background:#fef2f2;border-radius:6px;font-size:12px;color:#991b1b">
+        ✗ Scope besar &nbsp;·&nbsp; ✗ Perlu file upload + notif infra
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;padding:14px;background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe">
+  <strong style="font-size:13px;color:#1e40af">💡 Rekomendasi:</strong>
+  <p style="font-size:13px;color:#1e40af;margin:4px 0 0">
+    Mulai dari <strong>B (3-Actor)</strong> — cukup lengkap, tidak over-engineer.
+    Infrastruktur notifikasi sudah ada di project ini.
+    Foto upload bisa ditambahkan di sprint berikutnya.
+  </p>
+</div>

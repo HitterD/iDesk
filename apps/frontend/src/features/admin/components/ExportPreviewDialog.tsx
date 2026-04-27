@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Download, FileSpreadsheet, Eye, Filter, Users, Loader2, ChevronDown } from 'lucide-react';
+import { X, Download, FileSpreadsheet, Eye, Filter, Users, Loader2, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
@@ -30,19 +30,25 @@ interface ExportPreviewData {
     };
 }
 
-const SITE_COLORS: Record<string, string> = {
-    SPJ: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    JTB: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-};
+// ── Available export fields ──────────────────────────────────────────────────
+const EXPORT_FIELDS = [
+    { key: 'email', label: 'Email', required: true },
+    { key: 'fullName', label: 'Full Name', required: true },
+    { key: 'role', label: 'Role', required: false },
+    { key: 'siteCode', label: 'Site Code', required: false },
+    { key: 'department', label: 'Department', required: false },
+    { key: 'employeeId', label: 'Employee ID', required: false },
+    { key: 'jobTitle', label: 'Job Title', required: false },
+    { key: 'phoneNumber', label: 'Phone Number', required: false },
+    { key: 'isActive', label: 'Active Status', required: false },
+    { key: 'createdAt', label: 'Created At', required: false },
+] as const;
 
-const ROLE_COLORS: Record<string, string> = {
-    ADMIN: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    MANAGER: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    AGENT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    USER: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-};
+type FieldKey = typeof EXPORT_FIELDS[number]['key'];
+
+const DEFAULT_SELECTED: Set<FieldKey> = new Set([
+    'email', 'fullName', 'role', 'siteCode', 'isActive'
+]);
 
 export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
     isOpen,
@@ -52,6 +58,23 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
 }) => {
     const [format, setFormat] = useState<'csv' | 'xlsx'>('xlsx');
     const [isExporting, setIsExporting] = useState(false);
+    const [selectedFields, setSelectedFields] = useState<Set<FieldKey>>(new Set(DEFAULT_SELECTED));
+
+    const toggleField = (key: FieldKey, required: boolean) => {
+        if (required) return;
+        setSelectedFields(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    };
+
+    const selectAll = () => setSelectedFields(new Set(EXPORT_FIELDS.map(f => f.key)));
+    const selectRequired = () => setSelectedFields(new Set(EXPORT_FIELDS.filter(f => f.required).map(f => f.key)));
 
     // Fetch preview data
     const { data: previewData, isLoading, error } = useQuery<ExportPreviewData>({
@@ -85,9 +108,11 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
     const handleExport = async () => {
         setIsExporting(true);
         try {
-            const res = await api.get(`/users/export?format=${format}&site=${siteFilter}`, {
-                responseType: format === 'xlsx' ? 'blob' : 'json'
-            });
+            const fieldsParam = Array.from(selectedFields).join(',');
+            const res = await api.get(
+                `/users/export?format=${format}&site=${siteFilter}&fields=${fieldsParam}`,
+                { responseType: format === 'xlsx' ? 'blob' : 'json' }
+            );
 
             if (format === 'xlsx') {
                 const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -125,46 +150,43 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                     <div className="px-6 py-4 border-b border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between">
                         <Dialog.Title className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
                             <FileSpreadsheet className="w-5 h-5 text-slate-500" />
-                            Export Configuration Preview
+                            Export Configuration
                         </Dialog.Title>
                         <button
                             onClick={onClose}
-                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-white transition-colors rounded-lg"
+                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors rounded-lg"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     </div>
 
                     {/* Content */}
-                    <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-                        
-                        {/* Summary & Filters Row */}
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            {/* Record Count */}
-                            <div className="flex-1 flex items-center gap-4 p-5 bg-[hsl(var(--card))] border border-[hsl(var(--border))] border-t-2 border-t-primary rounded-xl shadow-sm">
-                                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                                    <Users className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                    <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+
+                        {/* Summary Row */}
+                        <div className="flex gap-4">
+                            <div className="flex-1 flex items-center gap-4 p-4 bg-[hsl(var(--card))] border border-[hsl(var(--border))] border-t-2 border-t-primary rounded-xl shadow-sm">
+                                <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                                    <Users className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                                        {isLoading ? <Loader2 className="w-6 h-6 animate-spin mt-1 text-slate-400" /> : previewData?.total || 0}
+                                <div>
+                                    <p className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin text-slate-400" /> : previewData?.total || 0}
                                     </p>
-                                    <p className="text-sm font-medium text-slate-500">Target Records for Export</p>
+                                    <p className="text-xs font-medium text-slate-500">Records to Export</p>
                                 </div>
                             </div>
-                            
-                            {/* Applied Filters Mini-panel */}
-                            <div className="flex-1 flex flex-col justify-center p-5 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl shadow-sm">
-                                <div className="flex items-center gap-2 text-sm text-slate-500 mb-2 font-medium">
-                                    <Filter className="w-4 h-4" />
-                                    Active Constraints
+                            <div className="flex-1 flex flex-col justify-center p-4 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl shadow-sm">
+                                <div className="flex items-center gap-2 text-xs text-slate-500 mb-2 font-medium">
+                                    <Filter className="w-3.5 h-3.5" />
+                                    Active Filters
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="px-2.5 py-1 rounded-md text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                    <span className="px-2 py-0.5 rounded text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                                         Site: {siteFilter}
                                     </span>
                                     {roleFilter && roleFilter !== 'ALL' && (
-                                        <span className="px-2.5 py-1 rounded-md text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                        <span className="px-2 py-0.5 rounded text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                                             Role: {roleFilter}
                                         </span>
                                     )}
@@ -172,17 +194,61 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                             </div>
                         </div>
 
-                        {/* Format Selection Row */}
+                        {/* ── Field Selector ──────────────────────────────────── */}
+                        <div className="bg-slate-50 dark:bg-slate-800/30 border border-[hsl(var(--border))] rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                    Columns to Include
+                                    <span className="ml-2 text-xs font-normal text-slate-400">({selectedFields.size}/{EXPORT_FIELDS.length} selected)</span>
+                                </span>
+                                <div className="flex gap-2">
+                                    <button onClick={selectAll} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">All</button>
+                                    <span className="text-slate-300">|</span>
+                                    <button onClick={selectRequired} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">Required only</button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {EXPORT_FIELDS.map(field => {
+                                    const checked = selectedFields.has(field.key);
+                                    return (
+                                        <button
+                                            key={field.key}
+                                            type="button"
+                                            onClick={() => toggleField(field.key, field.required)}
+                                            className={cn(
+                                                'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors text-left',
+                                                field.required
+                                                    ? 'cursor-default opacity-80 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                                                    : checked
+                                                        ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                                                        : 'border-[hsl(var(--border))] bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-700'
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                'w-4 h-4 rounded border flex items-center justify-center shrink-0',
+                                                checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'
+                                            )}>
+                                                {checked && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                                            </div>
+                                            {field.label}
+                                            {field.required && (
+                                                <span className="ml-auto text-[9px] font-bold text-blue-500 uppercase">req</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Format Selection */}
                         <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 border border-[hsl(var(--border))] rounded-xl">
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">File Output Format</span>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">File Format</span>
                             <div className="flex items-center gap-1.5 p-1 bg-slate-200 dark:bg-slate-800 rounded-lg">
                                 <button
                                     onClick={() => setFormat('csv')}
                                     className={cn(
                                         "px-4 py-1.5 rounded-md text-sm font-bold transition-colors duration-150",
-                                        format === 'csv'
-                                            ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white"
-                                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                                        format === 'csv' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                                     )}
                                 >
                                     CSV
@@ -191,9 +257,7 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                                     onClick={() => setFormat('xlsx')}
                                     className={cn(
                                         "px-4 py-1.5 rounded-md text-sm font-bold transition-colors duration-150",
-                                        format === 'xlsx'
-                                            ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white"
-                                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                                        format === 'xlsx' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                                     )}
                                 >
                                     Excel (XLSX)
@@ -206,11 +270,10 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
                                     <Eye className="w-4 h-4 text-slate-400" />
-                                    Data Snapshot Preview
+                                    Preview Snapshot
                                 </div>
                                 <span className="text-xs text-slate-400 font-medium tracking-wide">TOP 10 ROWS</span>
                             </div>
-                            
                             <div className="border border-[hsl(var(--border))] rounded-xl overflow-hidden shadow-sm">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-[hsl(var(--border))]">
@@ -221,34 +284,24 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                                     </thead>
                                     <tbody className="divide-y divide-[hsl(var(--border))] bg-[hsl(var(--card))]">
                                         {isLoading ? (
-                                            <tr>
-                                                <td colSpan={2} className="px-4 py-12 text-center">
-                                                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" />
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan={2} className="px-4 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" /></td></tr>
                                         ) : error ? (
-                                            <tr>
-                                                <td colSpan={2} className="px-4 py-8 text-center text-red-500 font-medium">
-                                                    Failed to load preview snapshot
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan={2} className="px-4 py-8 text-center text-red-500 font-medium">Failed to load preview</td></tr>
                                         ) : previewData?.preview.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={2} className="px-4 py-12 text-center text-slate-400 font-medium">
-                                                    No user records match these constraints
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan={2} className="px-4 py-12 text-center text-slate-400 font-medium">No records match these filters</td></tr>
                                         ) : (
                                             previewData?.preview.map((user, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-50 border-transparent dark:hover:bg-slate-800/50 transition-colors">
+                                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                                     <td className="px-4 py-3">
                                                         <div className="font-bold text-slate-900 dark:text-white">{user.fullName}</div>
                                                         <div className="text-xs text-slate-500">{user.email}</div>
                                                         <div className="flex gap-2 mt-1.5">
-                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                                                {user.role}
-                                                            </span>
-                                                            {user.siteCode && (
+                                                            {selectedFields.has('role') && (
+                                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                    {user.role}
+                                                                </span>
+                                                            )}
+                                                            {selectedFields.has('siteCode') && user.siteCode && (
                                                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                                     {user.siteCode}
                                                                 </span>
@@ -274,7 +327,7 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                         </div>
                     </div>
 
-                    {/* Footer / Actions */}
+                    {/* Footer */}
                     <div className="px-6 py-4 border-t border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between">
                         <button
                             onClick={onClose}
@@ -284,15 +337,11 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                         </button>
                         <button
                             onClick={handleExport}
-                            disabled={isExporting || isLoading || !previewData?.total}
+                            disabled={isExporting || isLoading || !previewData?.total || selectedFields.size === 0}
                             className="flex items-center gap-2 px-6 py-2 bg-slate-900 border border-slate-800 dark:bg-slate-100 dark:border-slate-200 text-white dark:text-slate-900 font-bold rounded-lg hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
-                            {isExporting ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <Download className="w-5 h-5" />
-                            )}
-                            Execute Export
+                            {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                            Export {selectedFields.size} Columns
                         </button>
                     </div>
                 </Dialog.Content>

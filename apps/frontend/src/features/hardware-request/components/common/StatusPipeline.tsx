@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { REQUEST_PIPELINE, type RequestStatus } from '../../types';
 import { STATUS_META, isTerminal } from '../../utils/status.util';
 
@@ -9,52 +9,100 @@ export function StatusPipeline({ current }: { current: RequestStatus }) {
 
     return (
         <div role="group" aria-label="Status progress" className="w-full">
-            {terminalBad && (
-                <div className="mb-3 text-xs font-medium" style={{ color: STATUS_META[current].hex }}>
-                    {STATUS_META[current].label}
-                </div>
-            )}
-            <ol className="flex items-center gap-0 overflow-x-auto">
+            {/* Segmented blocks */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1">
                 {REQUEST_PIPELINE.map((step, i) => {
-                    const done = !terminalBad && i <= idx;
+                    const done = !terminalBad && i < idx;
                     const active = i === idx && !isTerminal(current);
+                    const future = !done && !active;
                     const meta = STATUS_META[step];
+
                     return (
-                        <li key={step} className="flex items-center flex-1 min-w-[100px]">
-                            <motion.div
-                                className="flex flex-col items-center gap-1.5"
-                                initial={{ opacity: 0.4, y: 4 }}
-                                animate={{ opacity: done || active ? 1 : 0.45, y: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeOut', delay: i * 0.04 }}
-                            >
-                                <div
-                                    className={`size-8 rounded-full grid place-items-center ring-2 ${active ? 'ring-offset-2' : ''}`}
+                        <motion.div
+                            key={step}
+                            className="flex flex-col items-center gap-1.5 flex-1 min-w-[72px]"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: future && !terminalBad ? 0.4 : 1, y: 0 }}
+                            transition={{ duration: 0.3, ease: 'easeOut', delay: i * 0.05 }}
+                        >
+                            {/* Block bar */}
+                            <div className="relative w-full h-6 rounded-md overflow-hidden">
+                                {/* Background track */}
+                                <div className="absolute inset-0 bg-slate-100 dark:bg-slate-800" />
+
+                                {/* Filled portion */}
+                                <motion.div
+                                    className="absolute inset-0"
+                                    initial={{ scaleX: 0 }}
+                                    animate={{ scaleX: done || active ? 1 : 0 }}
                                     style={{
-                                        background: done ? meta.hex : 'transparent',
-                                        color: done ? '#fff' : meta.hex,
-                                        borderColor: meta.hex, borderWidth: done ? 0 : 2, borderStyle: 'solid',
+                                        originX: 0,
+                                        background: done
+                                            ? meta.hex
+                                            : active
+                                            ? `linear-gradient(90deg, ${meta.hex}, ${meta.hex}cc)`
+                                            : 'transparent',
                                     }}
-                                    aria-current={active ? 'step' : undefined}
-                                >
-                                    {done ? <Check className="size-4" /> : <span className="text-[11px] font-semibold">{i + 1}</span>}
-                                </div>
-                                <span className="text-[10px] font-medium tracking-tight text-slate-600">{meta.label}</span>
-                            </motion.div>
-                            {i < REQUEST_PIPELINE.length - 1 && (
-                                <div className="flex-1 h-0.5 mx-1 bg-slate-200 relative overflow-hidden" aria-hidden>
+                                    transition={{ duration: 0.4, delay: 0.1 + i * 0.05, ease: [0.23, 1, 0.32, 1] }}
+                                />
+
+                                {/* Active glow */}
+                                {active && (
                                     <motion.div
-                                        className="absolute inset-y-0 left-0"
-                                        style={{ background: meta.hex }}
-                                        initial={{ width: 0 }}
-                                        animate={{ width: done && i < idx ? '100%' : '0%' }}
-                                        transition={{ duration: 0.35, ease: 'easeOut', delay: 0.15 + i * 0.04 }}
+                                        className="absolute inset-0"
+                                        animate={{ opacity: [0.4, 0.8, 0.4] }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                                        style={{
+                                            background: `radial-gradient(ellipse at center, ${meta.hex}40 0%, transparent 80%)`,
+                                        }}
                                     />
+                                )}
+
+                                {/* Icon / number */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    {terminalBad && i === idx ? (
+                                        <X className="size-3 text-white" />
+                                    ) : done ? (
+                                        <Check className="size-3 text-white" />
+                                    ) : active ? (
+                                        <span className="text-[10px] font-black text-white">{i + 1}</span>
+                                    ) : (
+                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600">{i + 1}</span>
+                                    )}
                                 </div>
-                            )}
-                        </li>
+                            </div>
+
+                            {/* Label */}
+                            <span
+                                className="text-[9px] font-bold text-center leading-tight tracking-tight whitespace-nowrap"
+                                style={{ color: active ? meta.hex : done ? meta.hex : undefined }}
+                                aria-current={active ? 'step' : undefined}
+                            >
+                                <span className={active || done ? '' : 'text-slate-400 dark:text-slate-600'}>
+                                    {meta.label}
+                                </span>
+                            </span>
+                        </motion.div>
                     );
                 })}
-            </ol>
+            </div>
+
+            {/* Terminal status banner */}
+            {terminalBad && (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold"
+                    style={{
+                        backgroundColor: `${STATUS_META[current].hex}12`,
+                        borderColor: `${STATUS_META[current].hex}30`,
+                        color: STATUS_META[current].hex,
+                    }}
+                >
+                    <X className="size-3.5 shrink-0" />
+                    Request ini telah {STATUS_META[current].label.toLowerCase()}
+                </motion.div>
+            )}
         </div>
     );
 }

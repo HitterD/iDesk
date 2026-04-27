@@ -7,8 +7,8 @@ export function TopCategoriesBar({ data, loading }: { data?: Row[]; loading?: bo
   if (!data || data.length === 0) return null;
 
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900 mb-2">Top Categories</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[hsl(var(--card))] p-4 shadow-sm">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Top Categories</h3>
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} layout="vertical" margin={{ left: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />

@@ -17,6 +17,8 @@ import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
 import { User } from '../users/entities/user.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EntityManager } from 'typeorm';
+import { ActionItemDto, ActionItemUrgency, ActionItemEntityType } from './dto/action-item.dto';
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -46,6 +48,7 @@ export class NotificationCenterService implements OnModuleInit {
         private readonly telegramChannel: TelegramChannelService,
         private readonly inAppChannel: InAppChannelService,
         private readonly pushChannel: PushChannelService,
+        private readonly entityManager: EntityManager,
     ) { }
 
     onModuleInit() {
@@ -179,6 +182,122 @@ export class NotificationCenterService implements OnModuleInit {
             [notificationType]: channelSettings,
         };
         return this.preferenceRepo.save(prefs);
+    }
+
+    // =====================
+    // Action Items
+    // =====================
+
+    async getActionItems(userId: string, role: string): Promise<any> {
+        const items: ActionItemDto[] = [];
+        let critical = 0;
+        let high = 0;
+        let normal = 0;
+
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const next1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+        // 1. Tickets
+        // SLA breach (Agent/Admin)
+        if (role === 'AGENT' || role === 'ADMIN') {
+            const slaBreachedTickets = await this.entityManager.query(
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2`,
+                [userId, now]
+            );
+            for (const t of slaBreachedTickets) {
+                items.push({
+                    id: `tkt-sla-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `SLA Breached: ${t.ticketNumber}`,
+                    description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt
+                });
+                critical++;
+            }
+
+            // Unresponded
+            const unrespondedTickets = await this.entityManager.query(
+                `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2`,
+                [userId, oneHourAgo]
+            );
+            for (const t of unrespondedTickets) {
+                items.push({
+                    id: `tkt-unresp-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Unresponded: ${t.ticketNumber}`,
+                    description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt
+                });
+                high++;
+            }
+        }
+
+        if (role === 'USER') {
+            const resolvedTickets = await this.entityManager.query(
+                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED'`,
+                [userId]
+            );
+            for (const t of resolvedTickets) {
+                items.push({
+                    id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
+                    description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt
+                });
+                normal++;
+            }
+        }
+
+        if (role === 'ADMIN' || role === 'MANAGER') {
+            // Hardware
+            const pendingHw = await this.entityManager.query(
+                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')`
+            );
+            for (const hw of pendingHw) {
+                items.push({
+                    id: `hw-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Hardware Approval Pending`,
+                    description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt
+                });
+                high++;
+            }
+
+            // Eform
+            const pendingEform = await this.entityManager.query(
+                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')`,
+                [userId]
+            );
+            for (const ef of pendingEform) {
+                items.push({
+                    id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
+                    description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt
+                });
+                high++;
+            }
+
+            // Renewals
+            try {
+                const renewals = await this.entityManager.query(
+                    `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL`,
+                    [next7Days]
+                );
+                for (const r of renewals) {
+                    const isCritical = new Date(r.endDate) < next1Day;
+                    const label = r.vendorName || r.description || 'Unknown Contract';
+                    items.push({
+                        id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
+                        description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date()
+                    });
+                    if (isCritical) critical++; else high++;
+                }
+            } catch (e) {
+                this.logger.warn('Renewal query failed', e);
+            }
+        }
+
+        return {
+            items: items.sort((a, b) => {
+                const urgencyWeight: Record<string, number> = { 'CRITICAL': 3, 'HIGH': 2, 'NORMAL': 1 };
+                if (urgencyWeight[b.urgency] !== urgencyWeight[a.urgency]) {
+                    return urgencyWeight[b.urgency] - urgencyWeight[a.urgency];
+                }
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            }),
+            counts: { critical, high, normal, total: critical + high + normal }
+        };
     }
 
     // =====================

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -13,9 +13,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { PackageX, AlertTriangle, MapPin, Clock, DollarSign, Send } from 'lucide-react';
+import { AlertTriangle, MapPin, Clock, Send, PackageSearch, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { PhotoUploader } from '@/features/request-center/components/PhotoUploader';
+import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 
 const lostItemSchema = z.object({
     itemType: z.string().min(1, 'Item type is required'),
@@ -23,13 +24,12 @@ const lostItemSchema = z.object({
     serialNumber: z.string().optional(),
     assetTag: z.string().optional(),
     lastSeenLocation: z.string().min(3, 'Location must be at least 3 characters'),
-    lastSeenDatetime: z.string().min(1, 'Date/time is required'),
+    lastSeenDate: z.date({
+        required_error: 'Date is required',
+    }),
+    lastSeenTime: z.string().min(1, 'Time is required'),
     circumstances: z.string().min(10, 'Please describe how the item was lost'),
     witnessContact: z.string().optional(),
-    hasPoliceReport: z.boolean().optional().default(false),
-    policeReportNumber: z.string().optional(),
-    estimatedValue: z.coerce.number().optional(),
-    finderRewardOffered: z.boolean().optional().default(false),
 });
 
 type LostItemFormData = z.infer<typeof lostItemSchema>;
@@ -53,28 +53,42 @@ const ITEM_TYPES = [
 
 export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
     const [loading, setLoading] = useState(false);
+    const [files, setFiles] = useState<File[]>([]);
 
     const {
         register,
         handleSubmit,
         setValue,
-        watch,
+        control,
         formState: { errors },
-    }: any = useForm({
+    } = useForm<LostItemFormData>({
         resolver: zodResolver(lostItemSchema),
-        defaultValues: {
-            hasPoliceReport: false,
-            finderRewardOffered: false,
-        },
     });
 
-    const watchHasPoliceReport = watch('hasPoliceReport');
-    const watchFinderReward = watch('finderRewardOffered');
-
-    const onFormSubmit = async (data: any) => {
+    const onFormSubmit = async (data: LostItemFormData) => {
         setLoading(true);
         try {
-            await onSubmit(data);
+            const formData = new FormData();
+            
+            // Combine date and time
+            const dateStr = format(data.lastSeenDate, 'yyyy-MM-dd');
+            const datetimeStr = `${dateStr}T${data.lastSeenTime}`;
+            
+            const payload: any = { ...data, lastSeenDatetime: datetimeStr };
+            delete payload.lastSeenDate;
+            delete payload.lastSeenTime;
+
+            Object.keys(payload).forEach(key => {
+                if (payload[key] !== undefined && payload[key] !== null) {
+                    formData.append(key, String(payload[key]));
+                }
+            });
+            
+            files.forEach(file => {
+                formData.append('photos', file);
+            });
+            
+            await onSubmit(formData);
             toast.success('Lost item report submitted successfully');
         } catch (error) {
             toast.error('Failed to submit report');
@@ -84,214 +98,200 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
     };
 
     return (
-        <form onSubmit={handleSubmit(onFormSubmit)}>
-            {/* Warning Banner - Compact */}
-            <div className="flex items-center gap-2 p-2 mb-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Semakin cepat dilaporkan, semakin besar kemungkinan ditemukan.
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+            {/* Warning Banner */}
+            <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/50 dark:border-amber-800/50 text-amber-800 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                <p className="text-sm font-medium">
+                    Semakin cepat dilaporkan, semakin besar kemungkinan barang Anda ditemukan.
                 </p>
             </div>
 
-            {/* Main Form - 3 Column Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
-
-                {/* LEFT COLUMN - Item Details (5 cols) */}
-                <div className="lg:col-span-5 space-y-4">
-                    {/* Item Type & Name */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                                Jenis Barang *
-                            </label>
-                            <Select onValueChange={(val) => setValue('itemType', val)}>
-                                <SelectTrigger className="h-9 text-sm">
-                                    <SelectValue placeholder="Pilih jenis" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {ITEM_TYPES.map((type) => (
-                                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {errors.itemType && (
-                                <p className="text-[10px] text-red-500 mt-0.5">{errors.itemType.message}</p>
-                            )}
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                                Nama Barang *
-                            </label>
-                            <Input
-                                {...register('itemName')}
-                                placeholder="e.g., Laptop Dell"
-                                className="h-9 text-sm"
-                            />
-                            {errors.itemName && (
-                                <p className="text-[10px] text-red-500 mt-0.5">{errors.itemName.message}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Circumstances - Auto Expand */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* LEFT COLUMN - Item Info */}
+                <div className="space-y-5">
                     <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                            Kronologi Kehilangan *
-                        </label>
-                        <Textarea
-                            {...register('circumstances')}
-                            placeholder="Jelaskan bagaimana barang tersebut hilang..."
-                            className="min-h-[80px] text-sm resize-none"
-                            onInput={(e) => {
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = Math.max(80, target.scrollHeight) + 'px';
-                            }}
-                        />
-                        {errors.circumstances && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.circumstances.message}</p>
-                        )}
-                    </div>
+                        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                            <PackageSearch className="w-4 h-4 text-primary" />
+                            Detail Barang
+                        </h3>
+                        
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                        Jenis Barang <span className="text-red-500">*</span>
+                                    </label>
+                                    <Select onValueChange={(val) => setValue('itemType', val)}>
+                                        <SelectTrigger className="h-10 text-sm bg-white dark:bg-slate-900">
+                                            <SelectValue placeholder="Pilih jenis" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {ITEM_TYPES.map((type) => (
+                                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.itemType && (
+                                        <p className="text-[10px] text-red-500 mt-1">{errors.itemType.message}</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                        Nama Barang <span className="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        {...register('itemName')}
+                                        placeholder="e.g., Laptop Dell Latitude"
+                                        className="h-10 text-sm bg-white dark:bg-slate-900"
+                                    />
+                                    {errors.itemName && (
+                                        <p className="text-[10px] text-red-500 mt-1">{errors.itemName.message}</p>
+                                    )}
+                                </div>
+                            </div>
 
-                    {/* Serial & Asset Tag */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                                Serial Number
-                            </label>
-                            <Input
-                                {...register('serialNumber')}
-                                placeholder="S/N"
-                                className="h-9 text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                                Asset Tag
-                            </label>
-                            <Input
-                                {...register('assetTag')}
-                                placeholder="Kode inventaris"
-                                className="h-9 text-sm"
-                            />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                        Serial Number
+                                    </label>
+                                    <Input
+                                        {...register('serialNumber')}
+                                        placeholder="S/N (Opsional)"
+                                        className="h-10 text-sm bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                        Asset Tag
+                                    </label>
+                                    <Input
+                                        {...register('assetTag')}
+                                        placeholder="Kode inventaris (Opsional)"
+                                        className="h-10 text-sm bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                    Kronologi Kehilangan <span className="text-red-500">*</span>
+                                </label>
+                                <Textarea
+                                    {...register('circumstances')}
+                                    placeholder="Ceritakan dengan detail kapan dan bagaimana barang tersebut bisa hilang..."
+                                    className="min-h-[100px] text-sm resize-none bg-white dark:bg-slate-900"
+                                />
+                                {errors.circumstances && (
+                                    <p className="text-[10px] text-red-500 mt-1">{errors.circumstances.message}</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* CENTER COLUMN - Location & Time (3 cols) */}
-                <div className="lg:col-span-3 space-y-4">
-                    {/* Location */}
+                {/* RIGHT COLUMN - Time & Location */}
+                <div className="space-y-5">
                     <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5 text-red-500" />
-                            Lokasi Terakhir *
-                        </label>
-                        <Input
-                            {...register('lastSeenLocation')}
-                            placeholder="e.g., Ruang meeting Lt.2"
-                            className="h-9 text-sm"
-                        />
-                        {errors.lastSeenLocation && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.lastSeenLocation.message}</p>
-                        )}
-                    </div>
+                        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-red-500" />
+                            Lokasi & Waktu
+                        </h3>
 
-                    {/* DateTime */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5 text-blue-500" />
-                            Waktu Terakhir *
-                        </label>
-                        <Input
-                            type="datetime-local"
-                            {...register('lastSeenDatetime')}
-                            className="h-9 text-sm"
-                        />
-                        {errors.lastSeenDatetime && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.lastSeenDatetime.message}</p>
-                        )}
-                    </div>
-
-                    {/* Witness */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
-                            Kontak Saksi
-                        </label>
-                        <Input
-                            {...register('witnessContact')}
-                            placeholder="Nama & HP saksi"
-                            className="h-9 text-sm"
-                        />
-                    </div>
-                </div>
-
-                {/* RIGHT COLUMN - Value & Options & Submit (4 cols) */}
-                <div className="lg:col-span-4 space-y-4">
-                    {/* Estimated Value */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1">
-                            <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-                            Estimasi Nilai (Rp)
-                        </label>
-                        <Input
-                            type="number"
-                            {...register('estimatedValue')}
-                            placeholder="5000000"
-                            className="h-9 text-sm"
-                        />
-                    </div>
-
-                    {/* Options */}
-                    <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                        <div className="flex items-center gap-2">
-                            <Checkbox
-                                id="finderReward"
-                                checked={watchFinderReward}
-                                onCheckedChange={(checked) => setValue('finderRewardOffered', !!checked)}
-                            />
-                            <Label htmlFor="finderReward" className="text-xs cursor-pointer">
-                                Bersedia beri imbalan penemuan
-                            </Label>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Checkbox
-                                id="policeReport"
-                                checked={watchHasPoliceReport}
-                                onCheckedChange={(checked) => setValue('hasPoliceReport', !!checked)}
-                            />
-                            <Label htmlFor="policeReport" className="text-xs cursor-pointer">
-                                Sudah lapor polisi
-                            </Label>
-                        </div>
-
-                        {watchHasPoliceReport && (
-                            <div className="pt-2">
-                                <label className="text-xs text-slate-500 mb-1 block">No. Laporan Polisi</label>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                    Lokasi Terakhir Dilihat <span className="text-red-500">*</span>
+                                </label>
                                 <Input
-                                    {...register('policeReportNumber')}
-                                    placeholder="LP/xxx/xxx/xxx"
-                                    className="h-8 text-xs"
+                                    {...register('lastSeenLocation')}
+                                    placeholder="e.g., Pantry Lantai 3, Ruang Meeting A"
+                                    className="h-10 text-sm bg-white dark:bg-slate-900"
+                                />
+                                {errors.lastSeenLocation && (
+                                    <p className="text-[10px] text-red-500 mt-1">{errors.lastSeenLocation.message}</p>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                        Tanggal <span className="text-red-500">*</span>
+                                    </label>
+                                    <Controller
+                                        name="lastSeenDate"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <ModernDatePicker
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                                placeholder="Pilih tanggal"
+                                                maxDate={new Date()}
+                                                triggerClassName="h-10"
+                                            />
+                                        )}
+                                    />
+                                    {errors.lastSeenDate && (
+                                        <p className="text-[10px] text-red-500 mt-1">{errors.lastSeenDate?.message}</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                        Waktu (Perkiraan) <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <Input
+                                            type="time"
+                                            {...register('lastSeenTime')}
+                                            className="h-10 text-sm bg-white dark:bg-slate-900 pl-9"
+                                        />
+                                        <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                                    </div>
+                                    {errors.lastSeenTime && (
+                                        <p className="text-[10px] text-red-500 mt-1">{errors.lastSeenTime.message}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                                    Kontak Saksi (Bila Ada)
+                                </label>
+                                <Input
+                                    {...register('witnessContact')}
+                                    placeholder="Nama atau No. HP orang yang mungkin melihat"
+                                    className="h-10 text-sm bg-white dark:bg-slate-900"
                                 />
                             </div>
-                        )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-2">
-                        <Button type="button" variant="outline" onClick={onCancel} className="flex-1 h-9 text-sm">
-                            Batal
-                        </Button>
-                        <Button type="submit" disabled={loading} className="flex-1 h-9 text-sm bg-red-500 hover:bg-red-600">
-                            {loading ? 'Submitting...' : (
-                                <>
-                                    <PackageX className="w-3.5 h-3.5 mr-1" />
-                                    Report Lost
-                                </>
-                            )}
-                        </Button>
+                            
+                            <div className="pt-2">
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 block">
+                                    Foto Barang (Maks 5)
+                                </label>
+                                <PhotoUploader 
+                                    files={files} 
+                                    onChange={setFiles} 
+                                    maxFiles={5} 
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+                <Button type="button" variant="ghost" onClick={onCancel} className="px-6">
+                    Batal
+                </Button>
+                <Button type="submit" disabled={loading} className="px-6 bg-red-500 hover:bg-red-600 text-white shadow-md">
+                    {loading ? 'Submitting...' : (
+                        <>
+                            <Send className="w-4 h-4 mr-2" />
+                            Kirim Laporan
+                        </>
+                    )}
+                </Button>
             </div>
         </form>
     );

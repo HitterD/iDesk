@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     AlertTriangle,
@@ -11,6 +11,7 @@ import {
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -18,6 +19,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { AgentSelectList } from './AgentSelectList';
+import { useAuth } from '@/stores/useAuth';
 import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { formatSmartDate } from '@/lib/utils/dateFormat';
 
@@ -69,7 +72,10 @@ export interface TicketRowData {
 interface Agent {
     id: string;
     fullName: string;
+    email: string;
+    role: string;
     avatarUrl?: string;
+    site?: { code: string; name: string };
 }
 
 interface TicketListRowProps {
@@ -101,6 +107,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
     style,
 }) => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ADMIN';
+    const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
 
     const handleRowClick = () => {
@@ -231,33 +240,34 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
             {/* Assigned To Dropdown - Using StopPropagationWrapper */}
             <StopPropagationWrapper className="min-w-0">
                 {canEdit ? (
-                    <Select
-                        value={ticket.assignedTo?.id || "unassigned"}
-                        onValueChange={(value) => {
-                            if (value && value !== "unassigned") {
-                                onAssign(ticket.id, value);
-                            }
-                        }}
-                    >
-                        <SelectTrigger className="h-8 w-full min-w-[140px] text-sm border border-slate-200 bg-white dark:border-slate-700/60 dark:bg-slate-800/40 shadow-sm hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-1 focus:ring-primary/50 px-1 transition-all duration-200 ease-out rounded-md [&>svg]:hidden lg:group-hover:[&>svg]:block font-medium">
-                            {ticket.assignedTo ? (
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <UserAvatar user={ticket.assignedTo} size="xs" />
-                                    <span className="truncate">{ticket.assignedTo.fullName}</span>
-                                </div>
-                            ) : (
-                                <SelectValue placeholder="Unassigned" />
-                            )}
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>
-                                    {agent.fullName}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <button
+                                type="button"
+                                className="h-8 w-full min-w-[140px] flex items-center gap-2 px-2 text-sm border border-slate-200 bg-white dark:border-slate-700/60 dark:bg-slate-800/40 shadow-sm hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-1 focus:ring-primary/50 transition-all duration-200 ease-out rounded-md font-medium"
+                            >
+                                {ticket.assignedTo ? (
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <UserAvatar user={ticket.assignedTo} size="xs" />
+                                        <span className="truncate">{ticket.assignedTo.fullName}</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-slate-400 flex-1 text-left">Unassigned</span>
+                                )}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0 w-72" align="start">
+                            <AgentSelectList
+                                agents={agents}
+                                selectedId={ticket.assignedTo?.id}
+                                isAdmin={isAdmin}
+                                onSelect={(agentId) => {
+                                    onAssign(ticket.id, agentId);
+                                    setAssignPopoverOpen(false);
+                                }}
+                            />
+                        </PopoverContent>
+                    </Popover>
                 ) : (
                     <div className="flex items-center gap-2 min-w-0">
                         {ticket.assignedTo ? (

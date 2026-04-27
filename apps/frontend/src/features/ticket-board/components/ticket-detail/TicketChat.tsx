@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Wifi, Send, Paperclip, Lock, Globe, X, Image, Upload, FileText } from 'lucide-react';
+import { MessageSquare, Wifi, Send, Paperclip, Lock, Globe, X, Upload, FileText, Reply, Smile } from 'lucide-react';
 import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
 import { TicketDetail } from './types';
@@ -9,7 +9,7 @@ import { CannedResponsePicker } from '@/components/ui/CannedResponses';
 import { MessageReactions } from '@/components/ui/ChatReactions';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
-import { formatDateTime } from '@/lib/utils/dateFormat';
+import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 
 interface TicketChatProps {
@@ -20,15 +20,76 @@ interface TicketChatProps {
     typingUsers?: { [key: string]: string };
     onTypingStart?: () => void;
     onTypingStop?: () => void;
+    showCannedResponses?: boolean;
 }
 
-// Supported image and document formats
+interface ReplyTo {
+    id: string;
+    senderName: string;
+    content: string;
+}
+
 const ACCEPTED_FILE_TYPES = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml',
     'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain'
 ];
 const ACCEPTED_EXTENSIONS = '.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.txt';
+
+const STICKERS = [
+    '👍', '👎', '✅', '❌', '🔄', '⚠️', '🎉', '🙏',
+    '🤔', '💡', '🔧', '💻', '📋', '🚀', '⏳', '🛑',
+    '✔️', '📞', '🔍', '📌', '🔒', '🔓', '💬', '🏷️',
+    '👆', '👇', '👈', '👉',
+];
+
+const ReplyPreview: React.FC<{ replyTo: ReplyTo; onClose: () => void }> = ({ replyTo, onClose }) => (
+    <div className="mb-2 flex items-start gap-2 p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl border-l-4 border-primary animate-in slide-in-from-bottom-2 duration-200">
+        <Reply className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-primary">{replyTo.senderName}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{replyTo.content}</p>
+        </div>
+        <button
+            onClick={onClose}
+            className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors shrink-0"
+        >
+            <X className="w-3.5 h-3.5 text-slate-400" />
+        </button>
+    </div>
+);
+
+const StickerPicker: React.FC<{ onSelect: (sticker: string) => void; onClose: () => void }> = ({ onSelect, onClose }) => (
+    <div className="absolute bottom-full mb-2 left-0 w-[280px] sm:w-[320px] bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/60 p-3 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 origin-bottom-left">
+        <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
+            {STICKERS.map((sticker) => (
+                <button
+                    key={sticker}
+                    onClick={() => { onSelect(sticker); onClose(); }}
+                    className="w-8 h-8 flex items-center justify-center text-xl hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all duration-200 hover:scale-125 hover:-translate-y-1 active:scale-95 mx-auto"
+                    title={sticker}
+                >
+                    {sticker}
+                </button>
+            ))}
+        </div>
+    </div>
+);
+
+const QuoteBlock: React.FC<{ text: string }> = ({ text }) => {
+    const match = text.match(/^↩ (.+?): (.+?)\n\n([\s\S]*)$/);
+    if (!match) return <p className="text-sm whitespace-pre-wrap leading-relaxed">{text}</p>;
+    const [, sender, quote, rest] = match;
+    return (
+        <div>
+            <div className="mb-2 p-2 rounded-lg bg-black/10 dark:bg-white/10 border-l-4 border-current/30">
+                <p className="text-[11px] font-bold opacity-70">{sender}</p>
+                <p className="text-xs opacity-60 truncate">{quote}</p>
+            </div>
+            {rest && <p className="text-sm whitespace-pre-wrap leading-relaxed">{rest}</p>}
+        </div>
+    );
+};
 
 export const TicketChat: React.FC<TicketChatProps> = ({
     ticket,
@@ -37,7 +98,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     onImageClick,
     typingUsers = {},
     onTypingStart,
-    onTypingStop
+    onTypingStop,
+    showCannedResponses
 }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,81 +111,100 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const [filePreviews, setFilePreviews] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [messageLength, setMessageLength] = useState(0);
+    const [replyTo, setReplyTo] = useState<ReplyTo | null>(null);
+    const [showStickers, setShowStickers] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
 
-    // Character limit constant
     const MAX_MESSAGE_LENGTH = 5000;
-
-    // Create and cleanup ObjectURLs for file previews
-    useEffect(() => {
-        // Create new preview URLs
-        const urls = selectedFiles.map(file => URL.createObjectURL(file));
-        setFilePreviews(urls);
-
-        // Cleanup function to revoke URLs when files change or component unmounts
-        return () => {
-            urls.forEach(url => URL.revokeObjectURL(url));
-        };
-    }, [selectedFiles]);
-
-    // Only show internal note toggle for agents/admins
     const canAddInternalNote = user?.role === 'ADMIN' || user?.role === 'AGENT';
 
-    // Auto-scroll to bottom when new messages arrive
+    // ObjectURL cleanup for file previews
+    useEffect(() => {
+        const urls = selectedFiles.map(file => URL.createObjectURL(file));
+        setFilePreviews(urls);
+        return () => { urls.forEach(url => URL.revokeObjectURL(url)); };
+    }, [selectedFiles]);
+
+    // Auto-scroll on new messages
     useEffect(() => {
         if (ticket?.messages) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
     }, [ticket?.messages, typingUsers]);
 
-    // Convert File[] to FileList-like object for onSendMessage
+    // Close sticker picker on outside click
+    useEffect(() => {
+        if (!showStickers) return;
+        const handler = (e: MouseEvent) => {
+            const target = e.target as Element;
+            if (!target.closest('[data-sticker-area]')) setShowStickers(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showStickers]);
+
     const createFileList = (files: File[]): FileList => {
-        const dataTransfer = new DataTransfer();
-        files.forEach(file => dataTransfer.items.add(file));
-        return dataTransfer.files;
+        const dt = new DataTransfer();
+        files.forEach(f => dt.items.add(f));
+        return dt.files;
     };
 
     const handleSendMessage = async () => {
-        const content = messageInputRef.current?.value.trim();
+        const rawContent = messageInputRef.current?.value.trim();
+        if (!rawContent && selectedFiles.length === 0) return;
 
-        if (content || selectedFiles.length > 0) {
-            const fileList = selectedFiles.length > 0 ? createFileList(selectedFiles) : null;
-            await onSendMessage(content || '', fileList, isInternal);
-            if (messageInputRef.current) messageInputRef.current.value = '';
-            setSelectedFiles([]);
-
-            // Stop typing immediately after sending
-            if (onTypingStop) onTypingStop();
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-            // Show feedback for internal notes
-            if (isInternal) {
-                toast.success('Internal note added');
-            }
+        let content = rawContent || '';
+        if (replyTo && content) {
+            content = `↩ ${replyTo.senderName}: ${replyTo.content.slice(0, 80)}${replyTo.content.length > 80 ? '…' : ''}\n\n${content}`;
         }
+
+        const fileList = selectedFiles.length > 0 ? createFileList(selectedFiles) : null;
+        await onSendMessage(content, fileList, isInternal);
+
+        if (messageInputRef.current) messageInputRef.current.value = '';
+        setMessageLength(0);
+        setSelectedFiles([]);
+        setReplyTo(null);
+
+        if (onTypingStop) onTypingStop();
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+        if (isInternal) toast.success('Internal note added');
+    };
+
+    const handleSendSticker = async (sticker: string) => {
+        await onSendMessage(sticker, null, false);
     };
 
     const handleInputChange = () => {
         if (onTypingStart) onTypingStart();
-
-        // Track message length for character counter
         setMessageLength(messageInputRef.current?.value.length || 0);
-
-        // Debounce stop typing
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
             if (onTypingStop) onTypingStop();
         }, 2000);
     };
 
-    // Handle file selection
+    // Paste handler — captures screenshots from clipboard
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        const items = Array.from(e.clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        if (imageItems.length === 0) return;
+        e.preventDefault();
+        const files = imageItems
+            .map(item => item.getAsFile())
+            .filter((f): f is File => f !== null);
+        if (files.length > 0) {
+            setSelectedFiles(prev => [...prev, ...files]);
+            toast.success(`${files.length} screenshot${files.length > 1 ? 's' : ''} pasted`);
+        }
+    }, []);
+
     const handleFileSelect = (files: FileList | null) => {
         if (!files) return;
-
         const validFiles: File[] = [];
         const invalidFiles: string[] = [];
-
         Array.from(files).forEach(file => {
             if (ACCEPTED_FILE_TYPES.includes(file.type) || file.name.match(/\.(pdf|doc|docx|xls|xlsx|txt)$/i)) {
                 validFiles.push(file);
@@ -131,14 +212,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 invalidFiles.push(file.name);
             }
         });
-
         if (invalidFiles.length > 0) {
-            toast.error(`Invalid file type: ${invalidFiles.join(', ')}. Only images and documents are allowed.`);
+            toast.error(`Invalid file type: ${invalidFiles.join(', ')}`);
         }
-
         if (validFiles.length > 0) {
             setSelectedFiles(prev => [...prev, ...validFiles]);
-            toast.success(`${validFiles.length} file(s) added`);
         }
     };
 
@@ -146,31 +224,18 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    // Drag and drop handlers
     const handleDragEnter = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
+        e.preventDefault(); e.stopPropagation(); setIsDragging(true);
     }, []);
-
     const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Only set dragging false if leaving the drop zone entirely
-        if (!dropZoneRef.current?.contains(e.relatedTarget as Node)) {
-            setIsDragging(false);
-        }
+        e.preventDefault(); e.stopPropagation();
+        if (!dropZoneRef.current?.contains(e.relatedTarget as Node)) setIsDragging(false);
     }, []);
-
     const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
     }, []);
-
     const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
+        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
         handleFileSelect(e.dataTransfer.files);
     }, []);
 
@@ -178,7 +243,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Compact header */}
+            {/* Header */}
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800/60 flex items-center justify-between shrink-0 bg-transparent">
                 <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-primary" />
@@ -195,6 +260,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 </div>
             </div>
 
+            {/* Messages */}
             <div className="p-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
                 {ticket.messages
                     ?.filter(m => !m.isSystemMessage)
@@ -204,14 +270,13 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         const messageIsInternal = message.isInternal;
                         const isOwnMessage = message.sender?.id === user?.id;
 
-                        // Don't show internal notes to regular users
-                        if (messageIsInternal && !canAddInternalNote) {
-                            return null;
-                        }
+                        if (messageIsInternal && !canAddInternalNote) return null;
+
+                        const isSticker = STICKERS.includes(message.content?.trim() || '');
 
                         return (
                             <div key={message.id} className={`flex gap-3 group ${isRequester ? 'flex-row-reverse' : ''}`}>
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${isRequester
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${isRequester
                                     ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                                     : 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                                     }`}>
@@ -219,54 +284,60 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 </div>
                                 <div className={`max-w-[75%] ${isRequester ? 'text-right' : ''}`}>
                                     <div className="relative">
-                                        <div className={cn(
-                                            "rounded-2xl p-4 min-w-[120px] shadow-sm",
-                                            isRequester
-                                                ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-tr-sm'
-                                                : 'bg-white dark:bg-[hsl(var(--card))] text-slate-800 dark:text-slate-200 rounded-tl-sm border border-[hsl(var(--border))]',
-                                            // Internal note styling
-                                            messageIsInternal && 'bg-amber-50 dark:bg-amber-900/10 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-800/60 rounded-tl-sm rounded-tr-sm'
-                                        )}>
-                                            {/* Internal Note Badge */}
-                                            {messageIsInternal && (
-                                                <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mb-2 font-medium">
-                                                    <Lock className="w-3 h-3" />
-                                                    Internal Note
-                                                </div>
-                                            )}
-                                            {/* Hide [Photo] placeholder if attachments exist */}
-                                            {message.content && !message.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (
-                                                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                                            )}
-                                            {/* Attachment Preview */}
-                                            <MessageAttachments
-                                                attachments={message.attachments}
-                                                onImageClick={onImageClick}
-                                                onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
-                                                isRequester={isRequester}
-                                            />
-                                        </div>
-                                        {/* Message Action Menu */}
+                                        {isSticker ? (
+                                            /* Sticker — no bubble */
+                                            <div className={cn(
+                                                "text-4xl leading-none select-none p-1",
+                                                isRequester ? 'text-right' : 'text-left'
+                                            )}>
+                                                {message.content}
+                                            </div>
+                                        ) : (
+                                            <div className={cn(
+                                                "rounded-2xl p-3 min-w-[120px] shadow-sm",
+                                                isRequester
+                                                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-tr-sm'
+                                                    : 'bg-white dark:bg-[hsl(var(--card))] text-slate-800 dark:text-slate-200 rounded-tl-sm border border-[hsl(var(--border))]',
+                                                messageIsInternal && 'bg-amber-50 dark:bg-amber-900/10 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-800/60 rounded-tl-sm rounded-tr-sm'
+                                            )}>
+                                                {messageIsInternal && (
+                                                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mb-2 font-medium">
+                                                        <Lock className="w-3 h-3" />
+                                                        Internal Note
+                                                    </div>
+                                                )}
+                                                {message.content && !message.content.match(/^\[?(📷\s*)?\[?Photo\]?\]?$/i) && (
+                                                    <QuoteBlock text={message.content} />
+                                                )}
+                                                <MessageAttachments
+                                                    attachments={message.attachments}
+                                                    onImageClick={onImageClick}
+                                                    onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
+                                                    isRequester={isRequester}
+                                                />
+                                            </div>
+                                        )}
                                         <MessageActionMenu
                                             messageId={message.id}
                                             messageContent={message.content || ''}
                                             isOwn={isOwnMessage}
                                             isInternal={messageIsInternal || false}
                                             onReply={(content) => {
-                                                if (messageInputRef.current) {
-                                                    messageInputRef.current.value = `> ${content}\n\n`;
-                                                    messageInputRef.current.focus();
-                                                }
+                                                setReplyTo({
+                                                    id: message.id,
+                                                    senderName: message.sender?.fullName || 'Unknown',
+                                                    content,
+                                                });
+                                                messageInputRef.current?.focus();
                                             }}
-                                            className={cn("absolute top-2", isRequester ? 'left-2' : 'right-2')}
+                                            className={cn("absolute top-1", isRequester ? 'left-1' : 'right-1')}
                                         />
                                     </div>
-                                    <div className={`flex items-center gap-2 mt-1.5 text-xs text-slate-500 dark:text-slate-500 ${isRequester ? 'justify-end' : ''}`}>
-                                        <span className="font-medium text-slate-700 dark:text-slate-300">{message.sender?.fullName}</span>
-                                        <span className="text-slate-300 dark:text-slate-700">•</span>
-                                        <span>{formatDateTime(message.createdAt)}</span>
+                                    <div className={`flex items-center gap-1.5 mt-1 text-xs text-slate-500 dark:text-slate-500 ${isRequester ? 'justify-end' : ''}`}>
+                                        <span className="font-medium text-slate-700 dark:text-slate-300 text-[11px]">{message.sender?.fullName}</span>
+                                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                                        <span className="text-[11px]">{formatDateTimeID(message.createdAt)}</span>
                                     </div>
-                                    {/* Message Reactions */}
                                     <MessageReactions
                                         reactions={[]}
                                         onAddReaction={(emoji) => toast.info(`Reaction ${emoji} added`)}
@@ -277,6 +348,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                             </div>
                         );
                     })}
+
                 {(!ticket.messages?.some(m => !m.isSystemMessage)) && (
                     <div className="text-center py-16">
                         <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-200 dark:border-[hsl(var(--border))] bg-slate-50 dark:bg-[hsl(var(--card))] mx-auto mb-4 flex items-center justify-center">
@@ -287,7 +359,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     </div>
                 )}
 
-                {/* Typing Indicator */}
                 {typingUserNames.length > 0 && (
                     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 italic px-2">
                         <div className="flex gap-1">
@@ -298,11 +369,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         {typingUserNames.join(', ')} is typing...
                     </div>
                 )}
-
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Input - Sticky Bottom with Drop Zone */}
+            {/* Input Area */}
             <div
                 ref={dropZoneRef}
                 className={cn(
@@ -325,40 +395,31 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     </div>
                 )}
 
-                {/* Internal Note Toggle - Only for agents/admins */}
+                {/* Internal Note Toggle */}
                 {canAddInternalNote && (
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
                         <button
                             type="button"
                             onClick={() => setIsInternal(!isInternal)}
                             className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150",
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors duration-150",
                                 isInternal
                                     ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800"
                                     : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                             )}
                         >
-                            {isInternal ? (
-                                <>
-                                    <Lock className="w-3.5 h-3.5" />
-                                    Internal Note
-                                </>
-                            ) : (
-                                <>
-                                    <Globe className="w-3.5 h-3.5" />
-                                    Public Reply
-                                </>
-                            )}
+                            {isInternal ? <><Lock className="w-3.5 h-3.5" /> Internal Note</> : <><Globe className="w-3.5 h-3.5" /> Public Reply</>}
                         </button>
                         {isInternal && (
-                            <span className="text-xs text-amber-600 dark:text-amber-400">
-                                Only visible to agents & admins
-                            </span>
+                            <span className="text-xs text-amber-600 dark:text-amber-400">Only visible to agents & admins</span>
                         )}
                     </div>
                 )}
 
-                {/* Selected Files Preview */}
+                {/* Reply Preview */}
+                {replyTo && <ReplyPreview replyTo={replyTo} onClose={() => setReplyTo(null)} />}
+
+                {/* File Previews */}
                 {selectedFiles.length > 0 && (
                     <div className="mb-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl">
                         <div className="flex items-center gap-2 mb-2">
@@ -373,11 +434,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 return (
                                     <div key={index} className="relative group bg-white dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 w-16 h-16 flex items-center justify-center">
                                         {isImage ? (
-                                            <img
-                                                src={filePreviews[index] || ''}
-                                                alt={file.name}
-                                                className="w-full h-full object-cover rounded-lg"
-                                            />
+                                            <img src={filePreviews[index] || ''} alt={file.name} className="w-full h-full object-cover rounded-lg" />
                                         ) : (
                                             <FileText className="w-8 h-8 text-slate-400" />
                                         )}
@@ -388,9 +445,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                             <X className="w-3 h-3" />
                                         </button>
                                         <div className="absolute -bottom-5 left-0 w-16 text-center">
-                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 truncate w-full group-hover:bg-slate-800 group-hover:text-white transition-colors rounded">
-                                                {file.name}
-                                            </p>
+                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 truncate w-full">{file.name}</p>
                                         </div>
                                     </div>
                                 );
@@ -399,45 +454,54 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     </div>
                 )}
 
-                <div className="flex gap-3">
+                {/* Textarea + Send */}
+                <div className="flex gap-2 items-end">
                     <TextareaAutosize
                         ref={messageInputRef}
                         minRows={1}
                         maxRows={6}
-                        placeholder={isInternal ? "Add internal note..." : "Type a message..."}
+                        placeholder={isInternal ? "Add internal note… (Ctrl+V to paste screenshot)" : "Type a message… (Ctrl+V to paste screenshot)"}
                         className={cn(
-                            "flex-1 px-4 py-3 bg-white dark:bg-[hsl(var(--card))] text-sm text-slate-900 dark:text-slate-200 border rounded-xl outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600 transition-colors resize-none",
+                            "flex-1 px-3 py-2.5 bg-white dark:bg-[hsl(var(--card))] text-sm text-slate-900 dark:text-slate-200 border rounded-xl outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600 transition-colors resize-none",
                             isInternal
                                 ? "border-amber-300 dark:border-amber-800"
                                 : "border-[hsl(var(--border))] focus:border-primary dark:focus:border-primary/50"
                         )}
                         onChange={handleInputChange}
+                        onPaste={handlePaste}
                         onKeyDown={async (e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
                                 await handleSendMessage();
+                            }
+                            if (e.key === 'Escape' && replyTo) {
+                                setReplyTo(null);
                             }
                         }}
                     />
                     <button
                         onClick={handleSendMessage}
                         className={cn(
-                            "px-4 py-3 rounded-xl transition-colors text-white text-sm font-semibold self-end shadow-sm flex items-center justify-center",
+                            "px-3 py-2.5 rounded-xl transition-colors text-white text-sm font-semibold shadow-sm flex items-center justify-center shrink-0",
                             isInternal
                                 ? "bg-amber-600 hover:bg-amber-700"
                                 : "bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/90"
                         )}
                     >
-                        <Send className="w-5 h-5" />
+                        <Send className="w-4 h-4" />
                     </button>
                 </div>
-                <div className="flex items-center gap-3 mt-2 relative">
+
+                {/* Toolbar Row */}
+                <div className="flex items-center gap-2 mt-2 relative">
+                    {/* Attach */}
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="cursor-pointer flex items-center gap-1.5 text-xs text-slate-500 hover:text-primary transition-colors"
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-primary transition-colors"
+                        title="Attach files"
                     >
                         <Paperclip className="w-3.5 h-3.5" />
-                        Attach files
+                        Attach
                     </button>
                     <input
                         ref={fileInputRef}
@@ -447,10 +511,34 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         className="hidden"
                         onChange={(e) => handleFileSelect(e.target.files)}
                     />
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                        or drag & drop
-                    </span>
-                    {/* P4 LOW: Character limit indicator */}
+
+                    <span className="text-slate-300 dark:text-slate-700 text-xs">·</span>
+
+                    {/* Sticker Picker */}
+                    <div className="relative" data-sticker-area>
+                        <button
+                            onClick={() => setShowStickers(prev => !prev)}
+                            className={cn(
+                                "flex items-center gap-1 text-xs transition-colors",
+                                showStickers ? "text-primary" : "text-slate-500 hover:text-primary"
+                            )}
+                            title="Stickers"
+                        >
+                            <Smile className="w-3.5 h-3.5" />
+                            Sticker
+                        </button>
+                        {showStickers && (
+                            <StickerPicker
+                                onSelect={handleSendSticker}
+                                onClose={() => setShowStickers(false)}
+                            />
+                        )}
+                    </div>
+
+                    <span className="text-slate-300 dark:text-slate-700 text-xs">·</span>
+                    <span className="text-xs text-slate-400">drag & drop or Ctrl+V</span>
+
+                    {/* Character counter */}
                     <span className={cn(
                         "text-xs tabular-nums transition-colors",
                         messageLength > MAX_MESSAGE_LENGTH * 0.9
@@ -461,15 +549,19 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     )}>
                         {messageLength > 0 && `${messageLength.toLocaleString()}/${MAX_MESSAGE_LENGTH.toLocaleString()}`}
                     </span>
+
                     <div className="flex-1" />
-                    <CannedResponsePicker
-                        onSelect={(content) => {
-                            if (messageInputRef.current) {
-                                messageInputRef.current.value = content;
-                                messageInputRef.current.focus();
-                            }
-                        }}
-                    />
+                    {showCannedResponses !== false && (
+                        <CannedResponsePicker
+                            onSelect={(content) => {
+                                if (messageInputRef.current) {
+                                    messageInputRef.current.value = content;
+                                    setMessageLength(content.length);
+                                    messageInputRef.current.focus();
+                                }
+                            }}
+                        />
+                    )}
                 </div>
             </div>
 

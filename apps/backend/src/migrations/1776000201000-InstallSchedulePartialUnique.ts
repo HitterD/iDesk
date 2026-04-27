@@ -6,7 +6,7 @@ export class InstallSchedulePartialUnique1776000201000 implements MigrationInter
     async up(q: QueryRunner): Promise<void> {
         await q.query(`ALTER TABLE installation_schedules DROP CONSTRAINT IF EXISTS uq_installation_schedules_request`);
         await q.query(`
-            CREATE UNIQUE INDEX uq_install_sched_active
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_install_sched_active
             ON installation_schedules(request_id)
             WHERE status NOT IN ('RESCHEDULED','CANCELLED','DONE');
         `);

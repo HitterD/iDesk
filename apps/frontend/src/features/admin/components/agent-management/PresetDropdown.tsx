@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Sparkles, ChevronDown, CheckCircle, X } from 'lucide-react';
+import { Sparkles, ChevronDown, CheckCircle, X, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
 import { PermissionPreset } from './agent-types';
@@ -11,7 +11,8 @@ export const PresetDropdown: React.FC<{
     presets: PermissionPreset[];
     onApplyPreset: (userId: string, presetId: string, presetName: string) => void;
     isApplying?: boolean;
-}> = ({ user, presets, onApplyPreset, isApplying }) => {
+    onManagePresets?: () => void;
+}> = ({ user, presets, onApplyPreset, isApplying, onManagePresets }) => {
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
     const badgeRef = useRef<HTMLDivElement>(null);
@@ -74,13 +75,13 @@ export const PresetDropdown: React.FC<{
                         "ring-1",
                         currentColor
                             ? `${currentColor.bg} ${currentColor.text} ${currentColor.ring} hover:brightness-95`
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 ring-slate-200 dark:ring-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+                            : "bg-amber-50 text-amber-600 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:ring-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40"
                     )}
                     title={currentPresetName ? `Preset: ${currentPresetName}` : 'No preset assigned'}
                 >
                     {currentColor
                         ? <span className={cn("w-2 h-2 rounded-full flex-shrink-0", currentColor.dot)} />
-                        : <Sparkles className="w-3 h-3 flex-shrink-0 opacity-50" />
+                        : <Sparkles className="w-3 h-3 flex-shrink-0 opacity-50 text-amber-500" />
                     }
                     <span className="max-w-[100px] truncate leading-none">
                         {currentPresetName || 'No Preset'}
@@ -173,6 +174,21 @@ export const PresetDropdown: React.FC<{
                                 >
                                     <X className="w-3 h-3" />
                                     Remove preset
+                                </button>
+                            </div>
+                        )}
+
+                        {onManagePresets && (
+                            <div className="px-3.5 py-2 border-t border-white/10 dark:border-slate-700/60">
+                                <button
+                                    onClick={() => {
+                                        setOpen(false);
+                                        onManagePresets();
+                                    }}
+                                    className="w-full text-left text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center gap-1.5 py-0.5"
+                                >
+                                    <Settings className="w-3 h-3" />
+                                    Manage presets
                                 </button>
                             </div>
                         )}

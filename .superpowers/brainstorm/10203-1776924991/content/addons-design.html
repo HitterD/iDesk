@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E-Form — Addons Design</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
+  h1 { font-size: 12px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: #94a3b8; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .panel { background: #1e293b; border-radius: 16px; padding: 16px; border: 1px solid #334155; }
+  .panel-title { font-size: 9px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #3b82f6; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+  .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+  .field-label { font-size: 7px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #64748b; }
+  .field-input { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 5px 8px; font-size: 8px; color: #e2e8f0; font-weight: 600; }
+  .field-input.blue { border-color: #3b82f6; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sig-box { border: 1px dashed #334155; border-radius: 8px; height: 50px; display: flex; align-items: center; justify-content: center; background: #0f172a; position: relative; overflow: hidden; }
+  .sig-signed { border-color: #059669; }
+  .sig-watermark { position: absolute; font-size: 18px; font-family: cursive; color: rgba(96,165,250,0.3); transform: rotate(-15deg); font-style: italic; }
+  .sig-lock { position: absolute; bottom: 4px; right: 6px; font-size: 7px; color: #059669; font-weight: 800; }
+  .sig-name { position: absolute; bottom: 4px; left: 6px; font-size: 7px; color: #475569; }
+  .divider { border-top: 1px dashed #334155; margin: 8px 0; }
+  .note { font-size: 8px; color: #64748b; padding: 6px 8px; background: #0f172a; border-radius: 5px; border-left: 2px solid #3b82f6; margin-bottom: 5px; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 7px; font-weight: 800; }
+  .badge-green { background: #064e3b; color: #6ee7b7; }
+  .badge-blue { background: #1e3a8a; color: #93c5fd; }
+  .badge-purple { background: #3b0764; color: #e9d5ff; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+  .badge-gray { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+  .tag { font-size: 7px; color: #64748b; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
+  .card { background: #0f172a; border-radius: 10px; padding: 10px; border: 1px solid #334155; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .info-item { background: #1e293b; border-radius: 6px; padding: 5px 8px; margin-bottom: 5px; }
+  .info-label { font-size: 7px; font-weight: 800; letter-spacing: 1px; color: #475569; text-transform: uppercase; }
+  .info-value { font-size: 9px; font-weight: 700; color: #e2e8f0; margin-top: 2px; }
+  .access-row { display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #1e293b; border-radius: 6px; margin-bottom: 5px; }
+  .access-icon { font-size: 14px; }
+  .btn-primary { background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff; border-radius: 7px; padding: 7px 12px; font-size: 8px; font-weight: 900; letter-spacing: 1px; text-align: center; margin-top: 6px; }
+  .btn-success { background: linear-gradient(135deg, #059669, #10b981); color: #fff; border-radius: 7px; padding: 7px 12px; font-size: 8px; font-weight: 900; letter-spacing: 1px; text-align: center; }
+  .credential-box { background: #020617; border: 1px solid #1d4ed8; border-radius: 8px; padding: 10px; margin: 6px 0; }
+  .cred-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .cred-label { font-size: 7px; color: #475569; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .cred-val { font-size: 9px; font-weight: 900; color: #60a5fa; font-family: monospace; }
+  .cred-val.pw { color: #a78bfa; }
+  .access-gate { display: flex; gap: 6px; margin-top: 10px; flex-direction: column; }
+  .gate-row { display: flex; gap: 4px; align-items: center; }
+  .gate-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .gate-green { background: #059669; }
+  .gate-red { background: #ef4444; }
+  .gate-label { font-size: 7px; font-weight: 700; color: #94a3b8; }
+  .lock-banner { background: #7f1d1d; border-radius: 6px; padding: 5px 8px; font-size: 7px; font-weight: 800; color: #fca5a5; text-align: center; margin-top: 6px; letter-spacing: 1px; }
+  .unlock-banner { background: #064e3b; border-radius: 6px; padding: 5px 8px; font-size: 7px; font-weight: 800; color: #6ee7b7; text-align: center; margin-top: 6px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<h1>Addons — Tanda Tangan + Halaman Kredensial ICT</h1>
+
+<div class="grid">
+
+  <!-- PANEL 1: Updated Signature Block -->
+  <div class="panel">
+    <div class="panel-title">① Blok Tanda Tangan (Update)</div>
+    <div class="tag" style="margin-bottom:8px">Tampil di form user & halaman approval atasan</div>
+
+    <!-- Requester signature -->
+    <div style="background:#0f172a;border-radius:10px;padding:10px;margin-bottom:8px;border:1px solid #334155">
+      <div style="font-size:8px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">TANDA TANGAN PEMOHON</div>
+      <div class="sig-box sig-signed">
+        <div class="sig-watermark">Ahmad Surya</div>
+        <div class="sig-lock">🔒 Terkunci</div>
+      </div>
+      <div class="field-row" style="margin-top:8px">
+        <div class="field">
+          <div class="field-label">Nama Terang</div>
+          <div class="field-input blue">Ahmad Surya</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Tanggal TTD</div>
+          <div class="field-input blue">21 Apr 2026, 09:45</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manager signature -->
+    <div style="background:#0f172a;border-radius:10px;padding:10px;border:1px solid #334155">
+      <div style="font-size:8px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">TANDA TANGAN ATASAN</div>
+      <div class="sig-box" style="border-color:#475569">
+        <span style="color:#475569;font-size:8px">Menunggu tanda tangan atasan...</span>
+      </div>
+      <div class="field-row" style="margin-top:8px">
+        <div class="field">
+          <div class="field-label">Nama Terang</div>
+          <div class="field-input" style="color:#475569;font-style:italic">Auto-filled saat TTD</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Tanggal TTD</div>
+          <div class="field-input" style="color:#475569;font-style:italic">Auto-filled saat TTD</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:8px">Nama terang = fullName dari auth user (atau atasan).<br>Tanggal TTD = auto-timestamp saat signature di-save.<br>Setelah di-lock, field tidak bisa diubah.</div>
+  </div>
+
+  <!-- PANEL 2: ICT Credential Entry Page -->
+  <div class="panel">
+    <div class="panel-title">② Halaman ICT — Buat Akses</div>
+    <div class="tag" style="margin-bottom:8px">Hanya ICT (ADMIN / AGENT_ADMIN) yang bisa input</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div style="font-size:9px;font-weight:800;color:#e2e8f0">E-Form #VPN-2026-042</div>
+          <div style="font-size:7px;color:#64748b">Ahmad Surya • IT Development</div>
+        </div>
+        <div class="badge badge-purple">PENDING ICT</div>
+      </div>
+
+      <div class="info-item" style="margin-bottom:8px">
+        <div class="info-label">Kebutuhan Akses</div>
+        <div class="info-value" style="font-size:8px;color:#93c5fd">VPN — Remote PC Kantor</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="font-size:8px;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">⚙ Input Kredensial VPN</div>
+
+      <div class="field">
+        <div class="field-label">Username VPN *</div>
+        <div class="field-input blue" style="font-family:monospace">ahmad.surya@company.vpn</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Password Awal *</div>
+        <div class="field-input blue" style="font-family:monospace;display:flex;justify-content:space-between"><span>••••••••••</span><span style="color:#3b82f6;font-size:7px">👁 tampilkan</span></div>
+      </div>
+      <div class="field">
+        <div class="field-label">VPN Server / Host</div>
+        <div class="field-input blue" style="font-family:monospace">vpn.company.com:1194</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Catatan ICT (opsional)</div>
+        <div class="field-input" style="min-height:32px;color:#94a3b8;font-style:italic">Ganti password saat pertama login...</div>
+      </div>
+      <div class="btn-success">✓ SELESAI — KIRIM KREDENSIAL KE USER</div>
+    </div>
+
+    <div class="note" style="margin-top:8px">Setelah ICT klik selesai → status CONFIRMED → notifikasi otomatis ke requester berisi kredensial.</div>
+  </div>
+
+  <!-- PANEL 3: User View (Credential Result) + Access Control -->
+  <div class="panel">
+    <div class="panel-title">③ User View & Access Control</div>
+
+    <!-- User sees credentials after CONFIRMED -->
+    <div class="tag" style="margin-bottom:6px">Tampilan user setelah form CONFIRMED</div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-header">
+        <div>
+          <div style="font-size:9px;font-weight:800;color:#e2e8f0">E-Form #VPN-2026-042</div>
+          <div style="font-size:7px;color:#64748b">Akses siap digunakan</div>
+        </div>
+        <div class="badge badge-green">CONFIRMED ✓</div>
+      </div>
+      <div class="credential-box">
+        <div style="font-size:8px;font-weight:800;color:#60a5fa;margin-bottom:8px;letter-spacing:1px">🔑 KREDENSIAL VPN ANDA</div>
+        <div class="cred-row">
+          <div class="cred-label">Username</div>
+          <div class="cred-val">ahmad.surya@company.vpn</div>
+        </div>
+        <div class="cred-row">
+          <div class="cred-label">Password Awal</div>
+          <div class="cred-val pw">P@ssw0rd123! <span style="color:#475569;font-size:7px">👁</span></div>
+        </div>
+        <div class="cred-row">
+          <div class="cred-label">Server</div>
+          <div class="cred-val">vpn.company.com:1194</div>
+        </div>
+      </div>
+      <div style="font-size:7px;color:#f59e0b;margin-top:6px;padding:4px 6px;background:#1c1917;border-radius:4px">⚠ Segera ganti password setelah login pertama</div>
+    </div>
+
+    <!-- Access Control -->
+    <div class="tag" style="margin-bottom:6px">Kontrol Akses Halaman Kredensial</div>
+    <div style="background:#0f172a;border-radius:10px;padding:10px;border:1px solid #334155">
+      <div class="gate-row" style="margin-bottom:5px">
+        <div class="gate-dot gate-green"></div>
+        <div class="gate-label"><span style="color:#6ee7b7;font-weight:900">ICT (ADMIN / AGENT_ADMIN)</span> — bisa input + lihat</div>
+      </div>
+      <div class="gate-row" style="margin-bottom:5px">
+        <div class="gate-dot gate-green"></div>
+        <div class="gate-label"><span style="color:#6ee7b7;font-weight:900">Requester</span> — hanya lihat (read-only, setelah CONFIRMED)</div>
+      </div>
+      <div class="gate-row">
+        <div class="gate-dot gate-red"></div>
+        <div class="gate-label"><span style="color:#fca5a5;font-weight:900">Atasan (Manager)</span> — tidak dapat akses halaman ini</div>
+      </div>
+      <div class="lock-banner" style="margin-top:8px">🔒 MANAGER DIBLOKIR DARI HALAMAN KREDENSIAL</div>
+      <div style="font-size:7px;color:#64748b;margin-top:6px;line-height:1.5">Guard: cek <code style="color:#93c5fd">currentUser.role</code> + <code style="color:#93c5fd">requesterId === currentUser.id</code><br>Jika bukan ICT dan bukan requester → redirect 403</div>
+    </div>
+
+    <div class="note" style="margin-top:8px">Route: <code style="color:#93c5fd">/eform-requests/:id/credentials</code><br>Backend guard: <code style="color:#93c5fd">CredentialAccessGuard</code> — cek role + ownership</div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;background:#1e293b;border-radius:12px;padding:14px;border:1px solid #334155">
+  <div style="font-size:9px;font-weight:800;color:#3b82f6;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Ringkasan Tambahan ke Design</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+    <div class="note">✎ <strong>SignaturePad update:</strong> tambah field "Nama Terang" + "Tanggal TTD" (auto-timestamp). Tampil di form user & approval page atasan.</div>
+    <div class="note">+ <strong>Halaman baru:</strong> EformCredentialPage.tsx — route <code style="color:#93c5fd">/eform-requests/:id/credentials</code>. ICT input creds, user lihat read-only.</div>
+    <div class="note">+ <strong>Backend:</strong> entity EformCredential sudah ada. Tambah guard CredentialAccessGuard. ICT submit → status CONFIRMED → notif requester.</div>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:16px;font-size:9px;color:#475569;letter-spacing:2px;font-weight:700">
+  SETUJU? BALAS DI TERMINAL → TULIS SPEC & IMPLEMENTATION PLAN
+</div>
+
+</body>
+</html>

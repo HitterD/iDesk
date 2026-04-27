@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lost Items — Final Design</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 32px; min-height: 100vh; }
+
+h1 { font-size: 20px; font-weight: 900; color: #f8fafc; margin-bottom: 4px; }
+.sub { font-size: 12px; color: #475569; margin-bottom: 28px; }
+h2 { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: #64748b; margin: 24px 0 12px; }
+
+/* DECISION SUMMARY */
+.decisions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
+.dec { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 14px; font-size: 11px; }
+.dec strong { color: #f8fafc; display: block; margin-bottom: 2px; }
+.dec span { color: #64748b; }
+
+/* FLOW DIAGRAM */
+.flow { display: flex; align-items: flex-start; gap: 0; overflow-x: auto; padding-bottom: 8px; margin-bottom: 28px; }
+.flow-col { min-width: 160px; }
+.flow-actor { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; padding: 6px 12px; border-radius: 20px; margin-bottom: 8px; text-align: center; }
+.act-reporter { background: #1e3a5f; color: #60a5fa; }
+.act-finder { background: #14532d; color: #4ade80; }
+.act-manager { background: #4c1d95; color: #c084fc; }
+.act-system { background: #1f2937; color: #f59e0b; }
+.flow-steps { display: flex; flex-direction: column; gap: 6px; }
+.fstep { background: #1e293b; border-radius: 8px; padding: 8px 10px; font-size: 11px; border-left: 3px solid #334155; }
+.fstep.reporter { border-color: #3b82f6; }
+.fstep.finder { border-color: #22c55e; }
+.fstep.manager { border-color: #a855f7; }
+.fstep.system { border-color: #f59e0b; }
+.fstep-num { font-size: 9px; color: #475569; margin-bottom: 2px; font-weight: 700; }
+.fstep-title { color: #f1f5f9; font-weight: 700; line-height: 1.3; }
+.fstep-tag { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 10px; margin-top: 4px; font-weight: 700; }
+.t-form { background: #1e3a5f; color: #60a5fa; }
+.t-photo { background: #3b1f0d; color: #fb923c; }
+.t-notif { background: #1a2e1f; color: #4ade80; }
+.t-qr { background: #312e81; color: #a5b4fc; }
+.t-auto { background: #1f2937; color: #f59e0b; }
+.t-action { background: #2d1b4e; color: #c084fc; }
+
+.flow-arrow { display: flex; align-items: center; padding: 0 4px; margin-top: 60px; }
+.flow-arrow::after { content: '→'; font-size: 18px; color: #334155; }
+
+/* STATUS CHAIN */
+.schain { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 14px 18px; background: #1e293b; border-radius: 10px; border: 1px solid #334155; margin-bottom: 10px; }
+.sbadge { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+.s-rep { background: #fef3c7; color: #92400e; }
+.s-sea { background: #dbeafe; color: #1e40af; }
+.s-cla { background: #f3e8ff; color: #6b21a8; }
+.s-ver { background: #d1fae5; color: #065f46; }
+.s-ret { background: #dcfce7; color: #14532d; }
+.s-los { background: #f1f5f9; color: #475569; }
+.s-pen { background: #fef9c3; color: #713f12; }
+.s-mat { background: #d1fae5; color: #065f46; }
+.s-rej { background: #fee2e2; color: #991b1b; }
+.sarr { color: #475569; font-size: 14px; font-weight: 700; }
+.sor { font-size: 10px; color: #475569; padding: 0 2px; }
+.slabel { font-size: 10px; color: #64748b; font-weight: 700; margin-right: 8px; }
+
+/* ENTITY CARDS */
+.entity-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+.entity { background: #1e293b; border-radius: 10px; padding: 14px 16px; border: 1px solid #334155; }
+.ename { font-size: 13px; font-weight: 800; color: #f8fafc; margin-bottom: 10px; }
+.badge-ex { font-size: 9px; background: #065f46; color: #4ade80; padding: 1px 6px; border-radius: 10px; font-weight: 700; margin-left: 6px; }
+.badge-upd { font-size: 9px; background: #1e3a5f; color: #60a5fa; padding: 1px 6px; border-radius: 10px; font-weight: 700; margin-left: 6px; }
+.badge-new { font-size: 9px; background: #7c2d12; color: #fb923c; padding: 1px 6px; border-radius: 10px; font-weight: 700; margin-left: 6px; }
+.field { font-size: 11px; color: #64748b; padding: 2px 0; line-height: 1.5; }
+.fnew { color: #fb923c; }
+.fkey { color: #60a5fa; }
+
+/* PAGE LIST */
+.pages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px; }
+.page { background: #1e293b; border-radius: 10px; padding: 14px 16px; border: 1px solid #334155; }
+.prole { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
+.prole.client { color: #60a5fa; }
+.prole.manager { color: #c084fc; }
+.prole.shared { color: #f59e0b; }
+.pname { font-size: 13px; font-weight: 800; color: #f8fafc; margin-bottom: 4px; }
+.pdesc { font-size: 11px; color: #64748b; line-height: 1.4; }
+.badge-n { font-size: 9px; background: #dc2626; color: white; padding: 1px 6px; border-radius: 10px; font-weight: 700; margin-left: 4px; }
+.badge-e { font-size: 9px; background: #d97706; color: white; padding: 1px 6px; border-radius: 10px; font-weight: 700; margin-left: 4px; }
+
+/* API */
+.api-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px; }
+.api-card { background: #1e293b; border-radius: 10px; padding: 12px 14px; border: 1px solid #334155; font-family: monospace; }
+.api-title { font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .08em; font-family: 'Segoe UI', sans-serif; }
+.api-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px; }
+.method { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; min-width: 40px; text-align: center; }
+.m-get { background: #1a2e1f; color: #4ade80; }
+.m-post { background: #1e3a5f; color: #60a5fa; }
+.m-patch { background: #312e81; color: #a5b4fc; }
+.api-path { font-size: 11px; color: #e2e8f0; }
+.api-desc { font-size: 10px; color: #475569; margin-top: 1px; }
+
+/* QR SECTION */
+.qr-box { background: #1e293b; border-radius: 10px; padding: 16px 18px; border: 1px solid #f59e0b33; margin-bottom: 28px; }
+.qr-title { font-size: 12px; font-weight: 800; color: #f59e0b; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.qr-flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.qstep { background: #0f172a; border-radius: 8px; padding: 8px 12px; border: 1px solid #334155; }
+.qstep strong { display: block; color: #f8fafc; font-size: 11px; margin-bottom: 2px; }
+.qstep span { color: #64748b; font-size: 10px; }
+.qarr { color: #475569; font-size: 16px; }
+
+.divider { height: 1px; background: #1e293b; margin: 4px 0 20px; }
+</style>
+</head>
+<body>
+
+<h1>Lost Items — Final Design Spec</h1>
+<p class="sub">Workflow C · tanpa AI matching · Multer disk storage · QR per report · foto opsional max 5</p>
+
+<!-- DECISIONS -->
+<h2>Keputusan Design</h2>
+<div class="decisions">
+  <div class="dec"><strong>Storage</strong><span>Disk lokal ./uploads/<br>via Multer (existing infra)</span></div>
+  <div class="dec"><strong>Redis</strong><span>Cache only (TTL),<br>bukan file storage</span></div>
+  <div class="dec"><strong>Foto</strong><span>Opsional, max 5,<br>lost & found claim</span></div>
+  <div class="dec"><strong>Finder</strong><span>Semua user login<br>bisa lapor temuan</span></div>
+  <div class="dec"><strong>QR Code</strong><span>Per lost report,<br>scan → pre-fill found form</span></div>
+  <div class="dec"><strong>Match</strong><span>Manual oleh manager,<br>side-by-side foto + S/N hint</span></div>
+</div>
+
+<!-- FLOW DIAGRAM -->
+<h2>Alur End-to-End</h2>
+<div class="flow">
+  <div class="flow-col">
+    <div class="flow-actor act-reporter">Reporter</div>
+    <div class="flow-steps">
+      <div class="fstep reporter">
+        <div class="fstep-num">1</div>
+        <div class="fstep-title">Submit Lost Report</div>
+        <span class="fstep-tag t-form">Form</span>
+        <span class="fstep-tag t-photo">0–5 Foto</span>
+      </div>
+      <div class="fstep reporter">
+        <div class="fstep-num">2</div>
+        <div class="fstep-title">Terima ID + QR Code</div>
+        <span class="fstep-tag t-qr">QR Generated</span>
+        <span class="fstep-tag t-notif">Notif</span>
+      </div>
+      <div class="fstep reporter">
+        <div class="fstep-num">6</div>
+        <div class="fstep-title">Notif: Ada Found Claim</div>
+        <span class="fstep-tag t-notif">Notif</span>
+      </div>
+      <div class="fstep reporter">
+        <div class="fstep-num">9</div>
+        <div class="fstep-title">Ambil Barang</div>
+        <span class="fstep-tag t-action">Selesai</span>
+      </div>
+    </div>
+  </div>
+  <div class="flow-arrow"></div>
+  <div class="flow-col">
+    <div class="flow-actor act-system">System</div>
+    <div class="flow-steps">
+      <div class="fstep system">
+        <div class="fstep-num">2a</div>
+        <div class="fstep-title">Generate QR URL</div>
+        <span class="fstep-tag t-auto">/found?r=LST-xxx</span>
+      </div>
+      <div class="fstep system">
+        <div class="fstep-num">4a</div>
+        <div class="fstep-title">Auto-hint: S/N match?</div>
+        <span class="fstep-tag t-auto">Cek DB</span>
+      </div>
+      <div class="fstep system">
+        <div class="fstep-num">7a</div>
+        <div class="fstep-title">Status cascade update</div>
+        <span class="fstep-tag t-auto">Events</span>
+      </div>
+    </div>
+  </div>
+  <div class="flow-arrow"></div>
+  <div class="flow-col">
+    <div class="flow-actor act-finder">Finder</div>
+    <div class="flow-steps">
+      <div class="fstep finder">
+        <div class="fstep-num">3</div>
+        <div class="fstep-title">Scan QR / Manual Search</div>
+        <span class="fstep-tag t-qr">QR atau browse</span>
+      </div>
+      <div class="fstep finder">
+        <div class="fstep-num">4</div>
+        <div class="fstep-title">Submit Found Claim</div>
+        <span class="fstep-tag t-form">Form</span>
+        <span class="fstep-tag t-photo">0–5 Foto</span>
+      </div>
+      <div class="fstep finder">
+        <div class="fstep-num">5</div>
+        <div class="fstep-title">Tunggu Verifikasi</div>
+        <span class="fstep-tag t-notif">Notif result</span>
+      </div>
+      <div class="fstep finder">
+        <div class="fstep-num">8</div>
+        <div class="fstep-title">Serahkan ke Manager</div>
+        <span class="fstep-tag t-action">Handover</span>
+      </div>
+    </div>
+  </div>
+  <div class="flow-arrow"></div>
+  <div class="flow-col">
+    <div class="flow-actor act-manager">Manager</div>
+    <div class="flow-steps">
+      <div class="fstep manager">
+        <div class="fstep-num">M1</div>
+        <div class="fstep-title">Terima notif lost report</div>
+        <span class="fstep-tag t-notif">Dashboard</span>
+      </div>
+      <div class="fstep manager">
+        <div class="fstep-num">M2</div>
+        <div class="fstep-title">Terima notif found claim</div>
+        <span class="fstep-tag t-notif">Claims Queue</span>
+      </div>
+      <div class="fstep manager">
+        <div class="fstep-num">M3</div>
+        <div class="fstep-title">Review Match Panel</div>
+        <span class="fstep-tag t-action">Side-by-side</span>
+      </div>
+      <div class="fstep manager">
+        <div class="fstep-num">M4</div>
+        <div class="fstep-title">Confirm Return → CLOSED</div>
+        <span class="fstep-tag t-action">Close Report</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS CHAINS -->
+<h2>Status Chain</h2>
+<div class="schain">
+  <span class="slabel">LostItemReport:</span>
+  <span class="sbadge s-rep">REPORTED</span><span class="sarr">→</span>
+  <span class="sbadge s-sea">SEARCHING</span><span class="sarr">→</span>
+  <span class="sbadge s-cla">CLAIMED</span><span class="sarr">→</span>
+  <span class="sbadge s-ver">VERIFIED</span><span class="sarr">→</span>
+  <span class="sbadge s-ret">RETURNED</span>
+  <span class="sor" style="margin-left:8px">any →</span>
+  <span class="sbadge s-los">CLOSED_LOST</span>
+</div>
+<div class="schain" style="margin-top:6px">
+  <span class="slabel">FoundItemClaim:</span>
+  <span class="sbadge s-pen">PENDING</span><span class="sarr">→</span>
+  <span class="sbadge s-mat">MATCHED</span><span class="sarr">→</span>
+  <span class="sbadge s-ret">RETURNED</span>
+  <span class="sor">or</span>
+  <span class="sbadge s-rej">REJECTED</span>
+</div>
+
+<div class="divider"></div>
+
+<!-- QR FLOW -->
+<h2>QR Code Flow</h2>
+<div class="qr-box">
+  <div class="qr-title">⬡ QR per Lost Report</div>
+  <div class="qr-flow">
+    <div class="qstep"><strong>Reporter submit</strong><span>Report berhasil dibuat</span></div>
+    <span class="qarr">→</span>
+    <div class="qstep"><strong>System generate QR</strong><span>URL: /found?reportId=LST-xxxx</span></div>
+    <span class="qarr">→</span>
+    <div class="qstep"><strong>Reporter dapat QR</strong><span>Di detail report / notif email</span></div>
+    <span class="qarr">→</span>
+    <div class="qstep"><strong>Finder scan QR</strong><span>Browser buka found form</span></div>
+    <span class="qarr">→</span>
+    <div class="qstep"><strong>reportId pre-filled</strong><span>Langsung terhubung ke report</span></div>
+    <span class="qarr">→</span>
+    <div class="qstep"><strong>Submit claim</strong><span>Auto-linked</span></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- DB ENTITIES -->
+<h2>Data Entities</h2>
+<div class="entity-grid">
+  <div class="entity">
+    <div class="ename">LostItemReport <span class="badge-upd">UPDATE</span></div>
+    <div class="field fkey">id, ticketId, reporterId (via ticket)</div>
+    <div class="field">itemType, itemName, serialNumber, assetTag</div>
+    <div class="field">lastSeenLocation, lastSeenDatetime, circumstances</div>
+    <div class="field">witnessContact, hasPoliceReport, policeReportNumber</div>
+    <div class="field">policeReportFile, estimatedValue, finderRewardOffered</div>
+    <div class="field">status: REPORTED|SEARCHING|CLAIMED|VERIFIED|RETURNED|CLOSED_LOST</div>
+    <div class="field">foundAt, foundLocation, foundBy</div>
+    <div class="field fnew">+ photoUrls: text[] (max 5)</div>
+    <div class="field fnew">+ qrCodeToken: varchar (unique)</div>
+    <div class="field fnew">+ qrCodeUrl: varchar</div>
+  </div>
+  <div class="entity">
+    <div class="ename">FoundItemClaim <span class="badge-new">BARU</span></div>
+    <div class="field fkey">id (uuid)</div>
+    <div class="field">finderId → User</div>
+    <div class="field fnew">lostItemReportId? (nullable, via QR atau manual)</div>
+    <div class="field">locationFound: text</div>
+    <div class="field">foundAt: datetime</div>
+    <div class="field">description: text</div>
+    <div class="field">photoUrls: text[] (max 5)</div>
+    <div class="field">status: PENDING|MATCHED|RETURNED|REJECTED</div>
+    <div class="field">managerNotes: text?</div>
+    <div class="field">matchedById (manager) + matchedAt</div>
+    <div class="field">createdAt, updatedAt</div>
+  </div>
+  <div class="entity">
+    <div class="ename">LostItemStatusLog <span class="badge-new">BARU</span></div>
+    <div class="field fkey">id (uuid)</div>
+    <div class="field">lostItemReportId → LostItemReport</div>
+    <div class="field">fromStatus, toStatus</div>
+    <div class="field">changedById → User</div>
+    <div class="field">notes: text?</div>
+    <div class="field">timestamp: datetime</div>
+    <hr style="border-color:#1e293b;margin:8px 0">
+    <div class="field" style="color:#475569;font-size:10px">Audit trail untuk timeline di detail view</div>
+  </div>
+</div>
+
+<!-- PAGES -->
+<h2>Halaman Dibutuhkan</h2>
+<div class="pages">
+  <div class="page">
+    <div class="prole client">Client</div>
+    <div class="pname">Report Lost Item <span class="badge-e">ENHANCE</span></div>
+    <div class="pdesc">Form existing + foto upload (0–5), preview foto, validasi S/N, generate QR setelah submit</div>
+  </div>
+  <div class="page">
+    <div class="prole client">Client</div>
+    <div class="pname">My Lost Reports <span class="badge-n">BARU</span></div>
+    <div class="pdesc">List laporan saya, status badge, timeline, QR code per item, tombol cancel</div>
+  </div>
+  <div class="page">
+    <div class="prole shared">Semua User</div>
+    <div class="pname">Report Found Item <span class="badge-n">BARU</span></div>
+    <div class="pdesc">Form: foto (0–5), lokasi, waktu, deskripsi. Jika dari QR scan, reportId pre-filled. Jika manual, pilih dari dropdown lost reports atau biarkan unlinked.</div>
+  </div>
+  <div class="page">
+    <div class="prole manager">Manager</div>
+    <div class="pname">Lost Items Dashboard <span class="badge-e">ENHANCE</span></div>
+    <div class="pdesc">Ganti dummy data → real API. Stats card, filter status, detail drawer dengan timeline log, tombol Update Status.</div>
+  </div>
+  <div class="page">
+    <div class="prole manager">Manager</div>
+    <div class="pname">Found Claims Queue <span class="badge-n">BARU</span></div>
+    <div class="pdesc">List semua found claims PENDING. Badge auto-hint jika S/N match. Klik → buka Match Review.</div>
+  </div>
+  <div class="page">
+    <div class="prole manager">Manager</div>
+    <div class="pname">Match Review Panel <span class="badge-n">BARU</span></div>
+    <div class="pdesc">Side-by-side: foto lost vs foto found, S/N comparison, data reporter vs finder. Tombol: MATCH ✓ atau REJECT ✗ + wajib tulis notes.</div>
+  </div>
+</div>
+
+<!-- API ENDPOINTS -->
+<h2>API Endpoints (Backend)</h2>
+<div class="api-grid">
+  <div class="api-card">
+    <div class="api-title">Lost Item Report</div>
+    <div class="api-row"><span class="method m-get">GET</span><div><div class="api-path">/lost-item</div><div class="api-desc">List all (manager, filter status/site)</div></div></div>
+    <div class="api-row"><span class="method m-post">POST</span><div><div class="api-path">/lost-item</div><div class="api-desc">Create report + upload foto (multipart)</div></div></div>
+    <div class="api-row"><span class="method m-get">GET</span><div><div class="api-path">/lost-item/my</div><div class="api-desc">Reporter: laporan saya</div></div></div>
+    <div class="api-row"><span class="method m-get">GET</span><div><div class="api-path">/lost-item/:id</div><div class="api-desc">Detail + status log</div></div></div>
+    <div class="api-row"><span class="method m-patch">PATCH</span><div><div class="api-path">/lost-item/:id/status</div><div class="api-desc">Manager update status</div></div></div>
+    <div class="api-row"><span class="method m-get">GET</span><div><div class="api-path">/lost-item/qr/:token</div><div class="api-desc">Resolve QR token → reportId</div></div></div>
+  </div>
+  <div class="api-card">
+    <div class="api-title">Found Item Claim</div>
+    <div class="api-row"><span class="method m-get">GET</span><div><div class="api-path">/found-claim</div><div class="api-desc">Manager: list semua claims</div></div></div>
+    <div class="api-row"><span class="method m-post">POST</span><div><div class="api-path">/found-claim</div><div class="api-desc">Submit found claim + foto (multipart)</div></div></div>
+    <div class="api-row"><span class="method m-get">GET</span><div><div class="api-path">/found-claim/my</div><div class="api-desc">Finder: claim saya</div></div></div>
+    <div class="api-row"><span class="method m-patch">PATCH</span><div><div class="api-path">/found-claim/:id/match</div><div class="api-desc">Manager: match ke lost report</div></div></div>
+    <div class="api-row"><span class="method m-patch">PATCH</span><div><div class="api-path">/found-claim/:id/reject</div><div class="api-desc">Manager: reject + notes</div></div></div>
+    <div class="api-row"><span class="method m-patch">PATCH</span><div><div class="api-path">/found-claim/:id/returned</div><div class="api-desc">Manager: konfirmasi serah terima</div></div></div>
+  </div>
+</div>
+
+</body>
+</html>

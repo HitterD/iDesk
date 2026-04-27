@@ -27,6 +27,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
+import { AgentSelectList } from './AgentSelectList';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
 import {
@@ -95,6 +97,10 @@ interface Ticket {
 interface Agent {
     id: string;
     fullName: string;
+    email: string;
+    role: string;
+    avatarUrl?: string;
+    site?: { code: string; name: string };
 }
 
 // SLA warning threshold: 4 hours in milliseconds
@@ -442,6 +448,9 @@ const TicketPreviewPanel: React.FC<{
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const StatusIcon = statusConfig.icon;
     const PriorityIcon = priorityConfig.icon;
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ADMIN';
+    const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
 
     return (
         <div className="w-[380px] bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col shrink-0">
@@ -541,17 +550,31 @@ const TicketPreviewPanel: React.FC<{
                 {/* Assignee */}
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Assigned To</label>
-                    <Select value={ticket.assignedTo?.id || "unassigned"} onValueChange={(v) => v !== "unassigned" && onAssign(v)}>
-                        <SelectTrigger className="h-9 w-full text-sm">
-                            <SelectValue placeholder="Unassigned" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>{agent.fullName}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <button
+                                type="button"
+                                className="h-9 w-full flex items-center gap-2 px-3 text-sm border border-[hsl(var(--border))] rounded-md bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                {ticket.assignedTo ? (
+                                    <span className="flex-1 text-left font-medium">{ticket.assignedTo.fullName}</span>
+                                ) : (
+                                    <span className="flex-1 text-left text-slate-400">Unassigned</span>
+                                )}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0 w-72" align="start">
+                            <AgentSelectList
+                                agents={agents}
+                                selectedId={ticket.assignedTo?.id}
+                                isAdmin={isAdmin}
+                                onSelect={(agentId) => {
+                                    onAssign(agentId);
+                                    setAssignPopoverOpen(false);
+                                }}
+                            />
+                        </PopoverContent>
+                    </Popover>
                 </div>
 
                 {/* Info */}

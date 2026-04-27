@@ -14,6 +14,7 @@ interface ImportUsersDialogProps {
 
 interface ImportSummary {
     success: number;
+    updated?: number;
     failed: number;
     errors: string[];
 }
@@ -96,15 +97,15 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
     const [totalRows, setTotalRows] = useState(0);
     const [parseError, setParseError] = useState<string | null>(null);
     const [isParsing, setIsParsing] = useState(false);
+    const [upsertMode, setUpsertMode] = useState(false);
 
     const mutation = useMutation({
         mutationFn: async (file: File) => {
             const formData = new FormData();
             formData.append('file', file);
-            const response = await api.post('/users/import', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+            const url = `/users/import${upsertMode ? '?upsert=true' : ''}`;
+            const response = await api.post(url, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
             });
             return response.data;
         },
@@ -331,6 +332,29 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                         </>
                                     )}
                                 </div>
+
+                                {/* Upsert Mode Toggle */}
+                                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl">
+                                    <div>
+                                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Upsert Mode</p>
+                                        <p className="text-xs text-amber-600 dark:text-amber-400">Update existing users if email already exists</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={upsertMode}
+                                        onClick={() => setUpsertMode(v => !v)}
+                                        className={cn(
+                                            'relative inline-flex w-11 h-6 items-center rounded-full transition-colors duration-200 shrink-0',
+                                            upsertMode ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            'inline-block w-4 h-4 transform bg-white rounded-full shadow transition-transform duration-200',
+                                            upsertMode ? 'translate-x-6' : 'translate-x-1'
+                                        )} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="flex justify-end gap-3 pt-4">
@@ -514,11 +538,17 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className={cn('grid gap-4', summary.updated !== undefined ? 'grid-cols-3' : 'grid-cols-2')}>
                                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-500/20 p-4 rounded-xl text-center">
                                     <p className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.success}</p>
-                                    <p className="text-xs text-green-500 uppercase tracking-wider">Success</p>
+                                    <p className="text-xs text-green-500 uppercase tracking-wider">Created</p>
                                 </div>
+                                {summary.updated !== undefined && (
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/20 p-4 rounded-xl text-center">
+                                        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{summary.updated}</p>
+                                        <p className="text-xs text-amber-500 uppercase tracking-wider">Updated</p>
+                                    </div>
+                                )}
                                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/20 p-4 rounded-xl text-center">
                                     <p className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.failed}</p>
                                     <p className="text-xs text-red-500 uppercase tracking-wider">Failed</p>

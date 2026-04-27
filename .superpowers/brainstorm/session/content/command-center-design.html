@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center — Design Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #060c14;
+    color: #e2e8f0;
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 32px 24px 64px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 8px;
+  }
+  .header p {
+    font-size: 14px;
+    color: #64748b;
+  }
+
+  /* ======= TOPBAR MOCKUP ======= */
+  .topbar-mockup {
+    background: #0d1a2b;
+    border: 1px solid #1e3a5f;
+    border-radius: 14px;
+    padding: 0 20px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; color: white;
+  }
+  .logo-text { font-weight: 700; font-size: 16px; color: #f1f5f9; }
+  .logo-text span { color: #3b82f6; }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* === COMMAND CENTER BUTTON === */
+  .cmd-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #1e3a5f, #1a2d4a);
+    border: 1px solid #3b82f650;
+    border-radius: 10px;
+    padding: 7px 12px;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cmd-btn:hover { border-color: #3b82f6; background: #1e3a5f; }
+
+  .cmd-btn-icon {
+    width: 8px; height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    animation: pulse-red 1.5s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 #ef444450; }
+    50% { box-shadow: 0 0 0 5px #ef444410; }
+  }
+
+  .cmd-btn-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: .03em;
+  }
+  .cmd-badge {
+    background: #ef4444;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Bell (old notification, smaller) */
+  .bell-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: #0d1a2b;
+    border: 1px solid #1e3a5f;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    position: relative;
+    font-size: 14px;
+  }
+  .bell-badge {
+    position: absolute; top: 4px; right: 4px;
+    width: 8px; height: 8px;
+    background: #64748b;
+    border-radius: 50%;
+  }
+
+  .avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: white;
+  }
+
+  /* ======= DROPDOWN ======= */
+  .dropdown {
+    background: #0d1a2b;
+    border: 1px solid #1e3a5f;
+    border-radius: 16px;
+    width: 380px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+    margin: 0 auto 32px;
+    position: relative;
+  }
+
+  .dropdown-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid #1e3a5f;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .dropdown-title {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dropdown-title .dot {
+    width: 8px; height: 8px; background: #ef4444; border-radius: 50%;
+    animation: pulse-red 1.5s infinite;
+  }
+  .dropdown-title span {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: #94a3b8;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .dropdown-header-meta {
+    font-size: 11px; color: #3b82f6; font-weight: 600; cursor: pointer;
+  }
+  .dropdown-header-meta:hover { text-decoration: underline; }
+
+  .section-label {
+    padding: 8px 16px 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .section-label.critical { color: #ef4444; }
+  .section-label.high { color: #f59e0b; }
+  .section-label.normal { color: #3b82f6; }
+
+  .action-item {
+    padding: 10px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    transition: background .15s;
+    border-left: 3px solid transparent;
+  }
+  .action-item:hover { background: #0f2035; }
+  .action-item.critical { border-left-color: #ef4444; }
+  .action-item.high { border-left-color: #f59e0b; }
+  .action-item.normal { border-left-color: #3b82f6; }
+
+  .action-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .action-icon.critical { background: #ef444415; }
+  .action-icon.high { background: #f59e0b15; }
+  .action-icon.normal { background: #3b82f615; }
+
+  .action-body { flex: 1; min-width: 0; }
+  .action-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e2e8f0;
+    line-height: 1.3;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .action-meta {
+    font-size: 11px;
+    color: #64748b;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .action-time {
+    font-size: 10px;
+    color: #475569;
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .divider { height: 1px; background: #1e3a5f; margin: 4px 0; }
+
+  .dropdown-footer {
+    padding: 10px 16px;
+    border-top: 1px solid #1e3a5f;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-pref {
+    font-size: 11px; color: #475569; cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .footer-pref:hover { color: #94a3b8; }
+  .footer-mark-all {
+    font-size: 11px; color: #3b82f6; cursor: pointer; font-weight: 600;
+  }
+  .footer-mark-all:hover { text-decoration: underline; }
+
+  /* ======= SECTION LABEL ======= */
+  .section-block { margin-bottom: 32px; }
+  .section-block h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-block h2::after {
+    content: '';
+    flex: 1; height: 1px; background: #1e3a5f;
+  }
+
+  /* ======= REMINDER INTENSITY ======= */
+  .intensity-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .intensity-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid;
+    cursor: pointer;
+  }
+  .intensity-chip.off { border-color: #334155; color: #475569; background: #0d1a2b; }
+  .intensity-chip.gentle { border-color: #22c55e40; color: #22c55e; background: #0d1a2b; }
+  .intensity-chip.moderate { border-color: #f59e0b40; color: #f59e0b; background: #0d1a2b; }
+  .intensity-chip.assertive { border-color: #ef444440; color: #ef4444; background: #0d1a2b; }
+  .intensity-chip.active { filter: brightness(1.3); }
+  .intensity-chip.assertive.active { background: #ef444415; }
+
+  /* ======= TOAST PERSISTENT ======= */
+  .toast-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 340px;
+  }
+  .toast {
+    background: #0d1a2b;
+    border: 1px solid #1e3a5f;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .toast::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .toast.critical::before { background: #ef4444; }
+  .toast.high::before { background: #f59e0b; }
+  .toast.reminder::before { background: linear-gradient(90deg, #3b82f6, #6366f1); animation: shimmer 2s infinite; }
+  @keyframes shimmer {
+    0% { opacity: 1; } 50% { opacity: .5; } 100% { opacity: 1; }
+  }
+  .toast-icon { font-size: 18px; flex-shrink: 0; }
+  .toast-body { flex: 1; }
+  .toast-title { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
+  .toast-msg { font-size: 12px; color: #64748b; }
+  .toast-tag {
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  .toast-tag.critical { background: #ef444420; color: #ef4444; }
+  .toast-tag.reminder { background: #3b82f620; color: #3b82f6; }
+
+  .label-tag {
+    display: inline-block;
+    background: #1e3a5f;
+    color: #3b82f6;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+
+  /* Selection button */
+  .select-btn {
+    display: block;
+    margin: 32px auto 0;
+    padding: 12px 32px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: opacity .2s;
+    letter-spacing: .02em;
+  }
+  .select-btn:hover { opacity: .85; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎯 Design: iDesk Command Center</h1>
+  <p>Mockup interaktif — lihat bagaimana sistem notifikasi baru akan terasa</p>
+</div>
+
+<!-- SECTION 1: TOPBAR -->
+<div class="section-block">
+  <h2>1 · Topbar — Command Center Button</h2>
+  <div class="topbar-mockup">
+    <div class="topbar-left">
+      <div class="logo-mark">A</div>
+      <span class="logo-text">iDesk<span>.</span></span>
+    </div>
+    <div class="topbar-right">
+      <!-- NEW: Command Center Button -->
+      <div class="cmd-btn">
+        <div class="cmd-btn-icon"></div>
+        <span class="cmd-btn-text">ACTIONS</span>
+        <div class="cmd-badge">3</div>
+      </div>
+
+      <!-- OLD: Bell tetap ada, tapi lebih kecil / secondary -->
+      <div class="bell-btn">🔔<div class="bell-badge"></div></div>
+
+      <div class="avatar">IT</div>
+    </div>
+  </div>
+  <p style="font-size:12px;color:#475569;text-align:center">Button "ACTIONS" dengan pulse dot merah saat ada urgent item. Badge count total. Bell tetap untuk history.</p>
+</div>
+
+<!-- SECTION 2: DROPDOWN -->
+<div class="section-block">
+  <h2>2 · Command Center Dropdown</h2>
+  <div class="dropdown">
+    <div class="dropdown-header">
+      <div class="dropdown-title">
+        <div class="dot"></div>
+        <span>Action Required</span>
+      </div>
+      <div class="dropdown-header-meta">View history →</div>
+    </div>
+
+    <!-- CRITICAL tier -->
+    <div class="section-label critical">🔴 Critical — Perlu aksi sekarang</div>
+    <div class="action-item critical">
+      <div class="action-icon critical">⚠️</div>
+      <div class="action-body">
+        <div class="action-title">SLA Breach — TKT-2024</div>
+        <div class="action-meta">Printer Rusak · Sudah 4j tanpa respon</div>
+      </div>
+      <div class="action-time">4h lalu</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- HIGH tier -->
+    <div class="section-label high">🟡 High — Butuh perhatian hari ini</div>
+    <div class="action-item high">
+      <div class="action-icon high">📋</div>
+      <div class="action-body">
+        <div class="action-title">Approval Pending — HW-089</div>
+        <div class="action-meta">Laptop Dell XPS · Menunggu approval kamu</div>
+      </div>
+      <div class="action-time">2h lalu</div>
+    </div>
+    <div class="action-item high">
+      <div class="action-icon high">🔄</div>
+      <div class="action-body">
+        <div class="action-title">Renewal D-7 — Lisensi Adobe CC</div>
+        <div class="action-meta">Expired 30 Apr · Perlu perpanjangan</div>
+      </div>
+      <div class="action-time">Hari ini</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- NORMAL tier -->
+    <div class="section-label normal">🔵 Normal — Info & follow-up</div>
+    <div class="action-item normal">
+      <div class="action-icon normal">💬</div>
+      <div class="action-body">
+        <div class="action-title">Ticket kamu direspon</div>
+        <div class="action-meta">TKT-2021 — Masalah VPN · Oleh Rudi IT</div>
+      </div>
+      <div class="action-time">30m lalu</div>
+    </div>
+
+    <div class="dropdown-footer">
+      <div class="footer-pref">⚙️ Reminder settings</div>
+      <div class="footer-mark-all">Mark all done</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: TOAST -->
+<div class="section-block">
+  <h2>3 · Toast — Persistent Re-surface</h2>
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div>
+      <div class="label-tag">REAL-TIME (existing)</div>
+      <div class="toast-preview">
+        <div class="toast critical">
+          <div class="toast-icon">⚠️</div>
+          <div class="toast-body">
+            <div class="toast-title">SLA Breach Terdeteksi</div>
+            <div class="toast-msg">TKT-2024 sudah 4 jam tanpa respon</div>
+          </div>
+          <span class="toast-tag critical">URGENT</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="label-tag">RE-SURFACE (new — configurable)</div>
+      <div class="toast-preview">
+        <div class="toast reminder">
+          <div class="toast-icon">🔁</div>
+          <div class="toast-body">
+            <div class="toast-title">Masih ada 3 item perlu aksi</div>
+            <div class="toast-msg">TKT-2024, HW-089, dan 1 lainnya belum ditangani</div>
+          </div>
+          <span class="toast-tag reminder">REMINDER</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: SETTINGS -->
+<div class="section-block">
+  <h2>4 · Reminder Intensity (di Settings)</h2>
+  <div style="background:#0d1a2b;border:1px solid #1e3a5f;border-radius:12px;padding:16px;max-width:420px">
+    <div style="font-size:13px;color:#94a3b8;margin-bottom:12px;font-weight:500">Seberapa sering re-surface reminder muncul?</div>
+    <div class="intensity-row">
+      <div class="intensity-chip off">Off</div>
+      <div class="intensity-chip gentle">Gentle (1j)</div>
+      <div class="intensity-chip moderate">Moderate (30m)</div>
+      <div class="intensity-chip assertive active">Assertive (15m)</div>
+    </div>
+    <div style="font-size:11px;color:#475569;margin-top:4px">Hanya berlaku saat ada item Critical/High yang belum ditangani</div>
+  </div>
+</div>
+
+<button class="select-btn" onclick="window.postMessage({type:'brainstorm-feedback',value:'design-approved'},'*')">
+  ✅ Desain ini oke — lanjut ke spesifikasi teknis
+</button>
+
+<script>
+// Inject helper for feedback
+document.querySelector('.select-btn').addEventListener('click', () => {
+  document.querySelector('.select-btn').textContent = '✅ Feedback dikirim!';
+});
+</script>
+
+</body>
+</html>

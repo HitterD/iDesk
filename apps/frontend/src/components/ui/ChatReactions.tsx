@@ -94,9 +94,9 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
                             initial={{ opacity: 0, scale: 0.9, y: 4 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 4 }}
-                            className="absolute bottom-full mb-1 left-0 z-50 p-1.5 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700"
+                            className="absolute bottom-full mb-1 left-0 z-50 p-2 w-max max-w-[280px] sm:max-w-none bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/60 origin-bottom-left"
                         >
-                            <div className="flex gap-0.5">
+                            <div className="flex flex-wrap gap-1">
                                 {EMOJI_REACTIONS.map(({ emoji, label }) => (
                                     <button
                                         key={emoji}
@@ -104,7 +104,7 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
                                             onAddReaction(emoji);
                                             setShowPicker(false);
                                         }}
-                                        className="w-8 h-8 flex items-center justify-center text-lg hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                        className="w-8 h-8 flex items-center justify-center text-xl hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all duration-200 hover:scale-125 hover:-translate-y-1 active:scale-95"
                                         title={label}
                                     >
                                         {emoji}

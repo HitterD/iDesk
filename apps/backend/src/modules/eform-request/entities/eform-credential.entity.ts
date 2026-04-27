@@ -27,6 +27,18 @@ export class EFormCredential {
   authTag: string;
 
   @Column()
+  passwordIv: string;
+
+  @Column()
+  passwordAuthTag: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  vpnServer: string;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string;
+
+  @Column()
   provisionedById: string;
 
   @ManyToOne(() => User)

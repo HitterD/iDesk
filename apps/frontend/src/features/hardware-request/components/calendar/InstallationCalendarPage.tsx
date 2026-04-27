@@ -12,7 +12,6 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
 import { TechnicianFilter } from './TechnicianFilter';
 import { StatsStrip } from './StatsStrip';
-import { BadgePanelButton } from './BadgePanelButton';
 import { EventChipMedium } from './EventChipMedium';
 import { AgendaBottomDrawer } from './AgendaBottomDrawer';
 import { RescheduleConfirmModal } from './RescheduleConfirmModal';
@@ -107,7 +106,6 @@ export function InstallationCalendarPage() {
     };
   });
   const [technicianIds, setTechnicianIds] = useState<string[]>([]);
-  const [activeBadgePanel, setActiveBadgePanel] = useState<'today' | 'unscheduled' | null>(null);
   const [drawerOpen, setDrawerOpen]   = useState(false);
   const [drawerDate, setDrawerDate]   = useState<Date | null>(null);
   const [drawerEventId, setDrawerEventId] = useState<string | null>(null);
@@ -151,41 +149,39 @@ export function InstallationCalendarPage() {
 
   if (!isIctRole) return <UserInstallationCalendar />;
 
-  const toggleBadge = (panel: 'today' | 'unscheduled') =>
-    setActiveBadgePanel(p => p === panel ? null : panel);
-
   const openDrawer = (date: Date, eventId: string | null) => {
     setDrawerDate(date);
     setDrawerEventId(eventId);
     setDrawerOpen(true);
-    setActiveBadgePanel(null);
   };
 
   return (
     <FeatureErrorBoundary>
-      <div className="flex flex-col h-full bg-slate-50">
-        {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-4 pt-3 pb-2 space-y-2.5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-base font-bold text-slate-900">Installation Calendar</h1>
-              <p className="text-xs text-slate-500">Jadwal instalasi hardware · drag untuk reschedule</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <BadgePanelButton label="Today" count={stats.today} variant="green" open={activeBadgePanel === 'today'} onToggle={() => toggleBadge('today')}>
+      <div className="flex bg-slate-50 overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+        {/* Split Panel Layout: Left Sidebar */}
+        <div className="w-72 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-white">
+            <h1 className="text-base font-bold text-slate-900">Installation Calendar</h1>
+            <p className="text-xs text-slate-500">Jadwal instalasi hardware</p>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            <StatsStrip scheduled={stats.scheduled} today={stats.today} unscheduled={unscheduled.length} rescheduleRequested={stats.rescheduleRequested} />
+            <TechnicianFilter selectedIds={technicianIds} onChange={setTechnicianIds} />
+            
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                 <TodayPanelContent />
-              </BadgePanelButton>
-              <BadgePanelButton label="Unscheduled" count={unscheduled.length} variant="amber" open={activeBadgePanel === 'unscheduled'} onToggle={() => toggleBadge('unscheduled')}>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                 <UnscheduledPanelContent />
-              </BadgePanelButton>
+              </div>
             </div>
           </div>
-          <StatsStrip scheduled={stats.scheduled} today={stats.today} unscheduled={unscheduled.length} rescheduleRequested={stats.rescheduleRequested} />
-          <TechnicianFilter selectedIds={technicianIds} onChange={setTechnicianIds} />
         </div>
 
-        {/* Full-width calendar */}
-        <div className="flex-1 overflow-auto bg-white px-4 pt-3">
+        {/* Split Panel Layout: Right Calendar Content */}
+        <div className="flex-1 overflow-auto bg-white p-4">
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView="dayGridMonth"
@@ -206,7 +202,7 @@ export function InstallationCalendarPage() {
               });
             }}
             datesSet={info => setRange({ from: info.startStr, to: info.endStr })}
-            height="auto"
+            height="100%"
           />
         </div>
 

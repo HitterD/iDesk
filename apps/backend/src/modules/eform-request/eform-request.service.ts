@@ -1,14 +1,17 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EFormRequest, EFormStatus, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormCredentialService } from './eform-credential.service';
-import { CreateEFormRequestDto, ApproveManager1Dto } from './dto';
+import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto } from './dto';
 import { EFormPdfService } from './eform-pdf.service';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { UserRole } from '../users/enums/user-role.enum';
+
+const ICT_ROLES = [UserRole.ADMIN, UserRole.AGENT_ADMIN];
 
 @Injectable()
 export class EFormRequestService {
@@ -40,81 +43,137 @@ export class EFormRequestService {
     return this.settingsService.setSetting('eform.vpn.terms', terms, userId, 'VPN E-Form Terms & Conditions');
   }
 
-  async createRequest(userId: string, userName: string, dto: CreateEFormRequestDto) {
+  async createRequest(userId: string, userFullName: string, dto: CreateEFormRequestDto) {
+    const requesterName = dto.requesterName?.trim() || userFullName;
     const request = this.eformRequestRepository.create({
       formType: dto.formType,
-      status: EFormStatus.PENDING_MANAGER_1,
+      status: EFormStatus.PENDING_MANAGER,
       requesterId: userId,
-      requesterName: userName,
+      requesterName,
+      requesterDepartment: dto.requesterDepartment || '',
       formData: dto.formData,
+      requestedWebsites: dto.requestedWebsites,
+      networkPurpose: dto.networkPurpose,
       termsAccepted: dto.termsAccepted,
       currentApproverId: dto.managerId,
+      submittedAt: new Date(),
     });
 
     const savedRequest = await this.eformRequestRepository.save(request);
 
-    // Save Requester Signature
     await this.eformSignatureRepository.save({
       eformRequestId: savedRequest.id,
       signerId: userId,
-      signerName: userName,
+      signerName: requesterName,
       signatureData: dto.signatureData,
       signerRole: 'REQUESTER',
     });
 
-    // Create Approval Chain for Manager 1
     await this.eformApprovalRepository.save({
       eformRequestId: savedRequest.id,
       approverId: dto.managerId,
-      role: 'MANAGER_1',
+      role: 'MANAGER',
       action: 'PENDING',
       sequence: 2,
     });
 
-    // Emit event for Manager 1
     this.eventEmitter.emit('eform.submitted', { request: savedRequest, managerId: dto.managerId });
 
     return savedRequest;
   }
 
-  async approveManager1(requestId: string, managerId: string, managerName: string, dto: ApproveManager1Dto) {
+  async approveByManager(requestId: string, managerId: string, managerName: string, dto: ApproveManagerDto) {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
-    if (request.status !== EFormStatus.PENDING_MANAGER_1) throw new BadRequestException('Invalid state');
+    if (request.status !== EFormStatus.PENDING_MANAGER) throw new BadRequestException('Invalid state');
     if (request.currentApproverId !== managerId) throw new ForbiddenException('Not your approval');
 
-    // Save Manager 1 Signature
+    if (dto.action === 'REJECT') {
+      request.status = EFormStatus.REJECTED;
+      request.rejectionReason = dto.rejectionReason || '';
+      const saved = await this.eformRequestRepository.save(request);
+      await this.eformApprovalRepository.update(
+        { eformRequestId: requestId, approverId: managerId, role: 'MANAGER' },
+        { action: 'REJECTED', actionAt: new Date(), notes: dto.rejectionReason },
+      );
+      this.eventEmitter.emit('eform.rejected', { request: saved });
+      return saved;
+    }
+
     await this.eformSignatureRepository.save({
       eformRequestId: requestId,
       signerId: managerId,
       signerName: managerName,
       signatureData: dto.signatureData,
-      signerRole: 'MANAGER_1',
+      signerRole: 'MANAGER',
     });
 
-    // Update approval record
     await this.eformApprovalRepository.update(
-      { eformRequestId: requestId, approverId: managerId, role: 'MANAGER_1' },
-      { action: 'APPROVED', actionAt: new Date() }
+      { eformRequestId: requestId, approverId: managerId, role: 'MANAGER' },
+      { action: 'APPROVED', actionAt: new Date() },
     );
 
-    // Next step: Manager 2
-    request.status = EFormStatus.PENDING_MANAGER_2;
-    request.currentApproverId = dto.nextApproverId || null;
+    request.status = EFormStatus.PENDING_ICT;
+    request.currentApproverId = null;
     const savedRequest = await this.eformRequestRepository.save(request);
 
-    await this.eformApprovalRepository.save({
-      eformRequestId: requestId,
-      approverId: dto.nextApproverId,
-      role: 'MANAGER_2',
-      action: 'PENDING',
-      sequence: 3,
-    });
-
-    // Emit event for Manager 2
-    this.eventEmitter.emit('eform.manager1-approved', { request: savedRequest, managerId: dto.nextApproverId });
+    this.eventEmitter.emit('eform.manager-approved', { request: savedRequest });
 
     return savedRequest;
+  }
+
+  async submitCredentials(requestId: string, agentId: string, dto: SubmitCredentialDto) {
+    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.status !== EFormStatus.PENDING_ICT) throw new BadRequestException('Invalid state');
+
+    const encUser = this.credentialService.encrypt(dto.username);
+    const encPass = this.credentialService.encrypt(dto.password);
+
+    await this.eformCredentialRepository.save({
+      eformRequestId: requestId,
+      encryptedUsername: encUser.ciphertext,
+      encryptedPassword: encPass.ciphertext,
+      iv: encUser.iv,
+      authTag: encUser.authTag,
+      passwordIv: encPass.iv,
+      passwordAuthTag: encPass.authTag,
+      vpnServer: dto.vpnServer || '',
+      notes: dto.notes || '',
+      provisionedById: agentId,
+      accessCreatedAt: new Date(),
+    });
+
+    request.status = EFormStatus.CONFIRMED;
+    request.resolvedAt = new Date();
+    const savedRequest = await this.eformRequestRepository.save(request);
+
+    this.eventEmitter.emit('eform.ict-confirmed', { request: savedRequest });
+
+    return savedRequest;
+  }
+
+  async getCredentials(requestId: string, userId: string, userRole: UserRole) {
+    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
+
+    const isICT = ICT_ROLES.includes(userRole);
+    const isRequester = request.requesterId === userId;
+    if (!isICT && !isRequester) throw new ForbiddenException('Access denied');
+
+    const credential = await this.eformCredentialRepository.findOne({ where: { eformRequestId: requestId } });
+    if (!credential) throw new NotFoundException('Credentials not ready');
+
+    const username = this.credentialService.decrypt(credential.encryptedUsername, credential.iv, credential.authTag);
+    const password = this.credentialService.decrypt(credential.encryptedPassword, credential.passwordIv, credential.passwordAuthTag);
+
+    return {
+      username,
+      password,
+      vpnServer: credential.vpnServer,
+      notes: credential.notes,
+      provisionedAt: credential.provisionedAt,
+    };
   }
 
   async getMyRequests(userId: string) {
@@ -126,15 +185,13 @@ export class EFormRequestService {
 
   async getPendingApprovals(userId: string) {
     return this.eformRequestRepository.find({
-      where: { currentApproverId: userId },
+      where: { currentApproverId: userId, status: EFormStatus.PENDING_MANAGER },
       order: { createdAt: 'DESC' },
     });
   }
 
   async findAll() {
-    return this.eformRequestRepository.find({
-      order: { createdAt: 'DESC' },
-    });
+    return this.eformRequestRepository.find({ order: { createdAt: 'DESC' } });
   }
 
   async getDetails(id: string) {
@@ -146,97 +203,14 @@ export class EFormRequestService {
     return request;
   }
 
-  async approveManager2(requestId: string, managerId: string, managerName: string, signatureData: string) {
-    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
-    if (!request) throw new NotFoundException('Request not found');
-    if (request.status !== EFormStatus.PENDING_MANAGER_2) throw new BadRequestException('Invalid state');
-    if (request.currentApproverId !== managerId) throw new ForbiddenException('Not your approval');
-
-    // Save Manager 2 (GM) Signature
-    await this.eformSignatureRepository.save({
-      eformRequestId: requestId,
-      signerId: managerId,
-      signerName: managerName,
-      signatureData: signatureData,
-      signerRole: 'MANAGER_2',
-    });
-
-    // Update approval record
-    await this.eformApprovalRepository.update(
-      { eformRequestId: requestId, approverId: managerId, role: 'MANAGER_2' },
-      { action: 'APPROVED', actionAt: new Date() }
-    );
-
-    // Next step: ICT
-    request.status = EFormStatus.PENDING_ICT;
-    request.currentApproverId = null; // Broadcast to all ICT agents/admins
-    const savedRequest = await this.eformRequestRepository.save(request);
-
-    // Emit event for ICT
-    this.eventEmitter.emit('eform.manager2-approved', { request: savedRequest });
-
-    return savedRequest;
-  }
-
-  async confirmIct(requestId: string, agentId: string, agentName: string, username: string, password: string) {
-    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
-    if (!request) throw new NotFoundException('Request not found');
-    if (request.status !== EFormStatus.PENDING_ICT) throw new BadRequestException('Invalid state');
-
-    // Encrypt Credentials
-    const encrypted = this.credentialService.encrypt(`${username}:${password}`);
-
-    // Save Credential Record
-    await this.eformCredentialRepository.save({
-      eformRequestId: requestId,
-      encryptedUsername: encrypted.ciphertext,
-      encryptedPassword: encrypted.authTag, // Reusing authTag/iv for storage structure
-      iv: encrypted.iv,
-      authTag: encrypted.authTag,
-      provisionedById: agentId,
-    });
-
-    // Update Request Status
-    request.status = EFormStatus.CONFIRMED;
-    request.resolvedAt = new Date();
-    
-    // Store in formData for easy frontend display (plaintext display is handled via separate secure endpoint)
-    request.formData = { 
-      ...request.formData, 
-      generatedUsername: username, // For immediate feedback, but secure viewing uses getCredentials
-      provisionedAt: new Date()
-    };
-    
-    const savedRequest = await this.eformRequestRepository.save(request);
-
-    // Emit event for User
-    this.eventEmitter.emit('eform.ict-confirmed', { request: savedRequest });
-
-    return savedRequest;
-  }
-
-  async getCredentials(requestId: string, userId: string) {
-    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
-    if (!request) throw new NotFoundException('Request not found');
-    if (request.requesterId !== userId) throw new ForbiddenException('Access denied');
-
-    const credential = await this.eformCredentialRepository.findOne({ where: { eformRequestId: requestId } });
-    if (!credential) throw new NotFoundException('Credentials not ready');
-
-    const decrypted = this.credentialService.decrypt(
-      credential.encryptedUsername,
-      credential.iv,
-      credential.authTag
-    );
-
-    const [username, password] = decrypted.split(':');
-    return { username, password };
-  }
-
   async rejectRequest(requestId: string, userId: string, reason: string) {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
-    
+
+    // Authorization: only the assigned approver or ICT roles can reject
+    const isApprover = request.currentApproverId === userId;
+    if (!isApprover) throw new ForbiddenException('Not authorized to reject this request');
+
     request.status = EFormStatus.REJECTED;
     request.rejectionReason = reason;
     const savedRequest = await this.eformRequestRepository.save(request);
@@ -244,12 +218,12 @@ export class EFormRequestService {
     this.eventEmitter.emit('eform.rejected', { request: savedRequest, userId });
 
     this.auditService.logAsync({
-        userId,
-        action: AuditAction.EFORM_REJECT,
-        entityType: 'EFormRequest',
-        entityId: requestId,
-        description: `Rejected E-Form Request`,
-        newValue: { reason },
+      userId,
+      action: AuditAction.EFORM_REJECT,
+      entityType: 'EFormRequest',
+      entityId: requestId,
+      description: 'Rejected E-Form Request',
+      newValue: { reason },
     });
 
     return savedRequest;

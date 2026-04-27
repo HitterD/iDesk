@@ -5,7 +5,7 @@ export class AddHardwareAssets1776000200500 implements MigrationInterface {
 
     async up(q: QueryRunner): Promise<void> {
         await q.query(`
-            CREATE TABLE hardware_assets (
+            CREATE TABLE IF NOT EXISTS hardware_assets (
                 id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
                 item_id              uuid NOT NULL REFERENCES hardware_request_items(id) ON DELETE RESTRICT,
                 barcode              varchar(128) NOT NULL UNIQUE,
@@ -16,8 +16,8 @@ export class AddHardwareAssets1776000200500 implements MigrationInterface {
                 created_at           timestamptz NOT NULL DEFAULT now()
             );
         `);
-        await q.query(`CREATE INDEX idx_hardware_assets_assignee ON hardware_assets(assigned_to_user_id);`);
-        await q.query(`CREATE INDEX idx_hardware_assets_item ON hardware_assets(item_id);`);
+        await q.query(`CREATE INDEX IF NOT EXISTS idx_hardware_assets_assignee ON hardware_assets(assigned_to_user_id);`);
+        await q.query(`CREATE INDEX IF NOT EXISTS idx_hardware_assets_item ON hardware_assets(item_id);`);
     }
 
     async down(q: QueryRunner): Promise<void> {

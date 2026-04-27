@@ -5,7 +5,7 @@ export class AddHardwareRequestComments1776000100000 implements MigrationInterfa
 
     async up(q: QueryRunner): Promise<void> {
         await q.query(`
-            CREATE TABLE hardware_request_comments (
+            CREATE TABLE IF NOT EXISTS hardware_request_comments (
                 id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
                 request_id  uuid NOT NULL REFERENCES hardware_requests(id) ON DELETE CASCADE,
                 author_id   uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,

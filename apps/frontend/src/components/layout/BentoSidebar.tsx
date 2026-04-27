@@ -26,6 +26,7 @@ import {
     MonitorSmartphone,
     FileText,
     PackageSearch,
+    PackageCheck,
     LucideIcon,
     Wrench
 } from 'lucide-react';

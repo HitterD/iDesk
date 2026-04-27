@@ -1,0 +1,90 @@
+<h2>Layout Form E-Form Access</h2>
+<p class="subtitle">Pilih tampilan yang paling sesuai — seperti mengisi form PDF tapi digital</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:12px;padding:16px;font-family:system-ui;font-size:11px;border:1px solid #e2e8f0">
+        <div style="background:#1e293b;color:#fff;padding:8px 12px;border-radius:8px;font-weight:800;font-size:10px;letter-spacing:2px;margin-bottom:12px;text-align:center">E-FORM ACCESS REQUEST</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div style="border-bottom:1px solid #cbd5e1;padding-bottom:4px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">NAMA PEMOHON</div><div style="font-weight:600;color:#1e293b;margin-top:2px">Ahmad Surya</div></div>
+          <div style="border-bottom:1px solid #cbd5e1;padding-bottom:4px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">DEPARTEMEN</div><div style="font-weight:600;color:#1e293b;margin-top:2px">IT Development</div></div>
+        </div>
+        <div style="border-bottom:1px solid #cbd5e1;padding-bottom:4px;margin-bottom:8px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">JENIS AKSES</div><div style="display:flex;gap:4px;margin-top:4px"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700">VPN</span><span style="border:1px solid #cbd5e1;padding:2px 8px;border-radius:4px;font-size:9px;color:#64748b">WEBSITE</span><span style="border:1px solid #cbd5e1;padding:2px 8px;border-radius:4px;font-size:9px;color:#64748b">NETWORK</span></div></div>
+        <div style="border-bottom:1px solid #cbd5e1;padding-bottom:4px;margin-bottom:8px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">ALASAN PENGAJUAN</div><div style="background:#f1f5f9;border-radius:4px;padding:4px;color:#64748b;font-size:9px;margin-top:2px">Remote akses ke PC kantor untuk WFH...</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div style="border-bottom:1px solid #cbd5e1;padding-bottom:4px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">DARI TANGGAL</div><div style="font-size:9px;color:#1e293b;margin-top:2px">21 Apr 2026</div></div>
+          <div style="border-bottom:1px solid #cbd5e1;padding-bottom:4px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">SAMPAI TANGGAL</div><div style="font-size:9px;color:#1e293b;margin-top:2px">21 Mei 2026</div></div>
+        </div>
+        <div style="border-bottom:2px dashed #cbd5e1;padding-bottom:8px;margin-bottom:8px"><div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:1px">ATASAN PERSETUJUAN</div><div style="background:#f1f5f9;border-radius:4px;padding:4px 8px;color:#1e293b;font-size:9px;font-weight:600;margin-top:2px">▾ Pilih atasan dari daftar...</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="border:1px dashed #94a3b8;border-radius:6px;padding:8px;text-align:center"><div style="color:#94a3b8;font-size:8px;font-weight:700">TANDA TANGAN</div><div style="color:#cbd5e1;font-size:8px;margin-top:2px">Pemohon</div></div>
+          <div style="background:#3b82f6;border-radius:6px;padding:8px;text-align:center"><div style="color:#fff;font-size:9px;font-weight:800;letter-spacing:1px">KIRIM ↗</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — PDF Single Page</h3>
+      <p>Semua field dalam satu halaman mengalir dari atas ke bawah, seperti form PDF asli. Tanpa card terpisah, tanpa seksi.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:12px;padding:16px;font-family:system-ui;font-size:11px;border:1px solid #e2e8f0">
+        <div style="background:#1e293b;color:#fff;padding:8px 12px;border-radius:8px;font-weight:800;font-size:10px;letter-spacing:2px;margin-bottom:10px;text-align:center">E-FORM ACCESS REQUEST</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+          <div style="font-size:9px;font-weight:700;color:#94a3b8;letter-spacing:1px;margin-bottom:6px">IDENTITAS PEMOHON</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="background:#f1f5f9;border-radius:4px;padding:4px 6px"><div style="color:#94a3b8;font-size:8px">NAMA</div><div style="font-weight:600;font-size:9px">Ahmad Surya</div></div>
+            <div style="background:#f1f5f9;border-radius:4px;padding:4px 6px"><div style="color:#94a3b8;font-size:8px">DEPT</div><div style="font-weight:600;font-size:9px">IT Dev</div></div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+          <div style="font-size:9px;font-weight:700;color:#94a3b8;letter-spacing:1px;margin-bottom:6px">DETAIL AKSES</div>
+          <div style="display:flex;gap:4px;margin-bottom:6px"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:4px;font-size:8px;font-weight:700">VPN</span><span style="border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;font-size:8px;color:#94a3b8">WEBSITE</span><span style="border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;font-size:8px;color:#94a3b8">NETWORK</span></div>
+          <div style="background:#f1f5f9;border-radius:4px;padding:4px;color:#64748b;font-size:8px">Alasan: Remote ke PC kantor...</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+          <div style="font-size:9px;font-weight:700;color:#94a3b8;letter-spacing:1px;margin-bottom:6px">PERSETUJUAN & TTD</div>
+          <div style="background:#f1f5f9;border-radius:4px;padding:4px 8px;color:#64748b;font-size:8px;margin-bottom:6px">▾ Pilih atasan...</div>
+          <div style="border:1px dashed #94a3b8;border-radius:4px;padding:6px;text-align:center;color:#94a3b8;font-size:8px">Tanda Tangan</div>
+        </div>
+        <div style="background:#3b82f6;border-radius:6px;padding:6px;text-align:center"><div style="color:#fff;font-size:9px;font-weight:800;letter-spacing:1px">KIRIM PENGAJUAN ↗</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Card Grouped (Saat ini)</h3>
+      <p>Pertahankan card terpisah per kelompok field tapi hapus label "Section X:" — hanya label kelompok kecil di atas.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:12px;padding:16px;font-family:system-ui;font-size:11px;border:1px solid #e2e8f0">
+        <div style="background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:10px 12px;border-radius:10px;margin-bottom:12px">
+          <div style="font-weight:800;font-size:10px;letter-spacing:2px">E-FORM ACCESS REQUEST</div>
+          <div style="font-size:8px;opacity:0.6;margin-top:2px">Form Permintaan Akses Digital</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:#fff"><div style="color:#94a3b8;font-size:8px;font-weight:700">NAMA PEMOHON</div><div style="font-weight:700;font-size:9px;margin-top:2px">Ahmad Surya</div></div>
+          <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:#fff"><div style="color:#94a3b8;font-size:8px;font-weight:700">DEPARTEMEN</div><div style="font-weight:700;font-size:9px;margin-top:2px">IT Development</div></div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:#fff;margin-bottom:6px"><div style="color:#94a3b8;font-size:8px;font-weight:700;margin-bottom:4px">JENIS AKSES</div><div style="display:flex;gap:3px"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:4px;font-size:8px;font-weight:700">✓ VPN</span><span style="border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;font-size:8px;color:#94a3b8">Website</span><span style="border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;font-size:8px;color:#94a3b8">Network</span></div></div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:#fff;margin-bottom:6px"><div style="color:#94a3b8;font-size:8px;font-weight:700;margin-bottom:2px">ATASAN PERSETUJUAN</div><div style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 6px;color:#64748b;font-size:8px;display:flex;justify-content:space-between"><span>Pilih atasan...</span><span>▾</span></div></div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:#fff;margin-bottom:6px"><div style="color:#94a3b8;font-size:8px;font-weight:700;margin-bottom:4px">TANDA TANGAN DIGITAL</div><div style="border:1px dashed #94a3b8;border-radius:4px;height:32px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:8px">Tanda tangan di sini</div></div>
+        <div style="background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:8px;padding:8px;text-align:center"><div style="color:#fff;font-size:9px;font-weight:800;letter-spacing:1px">KIRIM PENGAJUAN ↗</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Modern Compact</h3>
+      <p>Satu card besar dengan semua field terlihat langsung. Gradient header, border tipis per field, langsung scroll ke tombol submit.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="subtitle">Klik pilihan di atas, lalu balas di terminal. Semua versi: nama &amp; dept bisa diedit, atasan dari dropdown semua user, satu level approval saja.</p>
+</div>

@@ -49,14 +49,14 @@ export class FeatureErrorBoundary extends Component<Props, State> {
 
             // Default error UI
             return (
-                <div className="flex flex-col items-center justify-center p-8 bg-navy-light/50 rounded-lg border border-white/10 text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 text-red-500 mb-4">
-                        <AlertTriangle className="w-6 h-6" />
+                <div className="flex flex-col items-center justify-center p-8 bg-destructive/5 rounded-2xl border-2 border-destructive/20 text-center mx-auto my-8 max-w-lg">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10 text-destructive mb-6">
+                        <AlertTriangle className="w-8 h-8" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                    <h3 className="text-xl font-black uppercase tracking-tighter text-destructive mb-2">
                         {this.props.featureName ? `${this.props.featureName} Error` : 'Something went wrong'}
                     </h3>
-                    <p className="text-sm text-slate-400 mb-4 max-w-md">
+                    <p className="text-sm font-medium text-destructive/70 mb-8 max-w-md">
                         This feature encountered an error. You can try refreshing or continue using other features.
                     </p>
                     <button

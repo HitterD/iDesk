@@ -1,5 +1,5 @@
-import React from 'react';
-import { UserCheck, Activity, AlertCircle, Hash, Monitor, Building, Calendar, Wrench } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UserCheck, Activity, AlertCircle, Hash, Monitor, Building, Calendar, Wrench, CheckCircle2, Loader2 } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -16,39 +16,99 @@ interface TicketSidebarProps {
     agents: Agent[];
     slaConfigs: { id: string; priority: string; resolutionTimeMinutes: number }[];
     attributes: { categories: { id: string; value: string }[]; devices: { id: string; value: string }[]; software: any[] };
-    assigneeId: string;
-    setAssigneeId: (id: string) => void;
-    status: string;
-    setStatus: (status: string) => void;
-    priority: string;
-    setPriority: (priority: string) => void;
-    category: string;
-    setCategory: (category: string) => void;
-    device: string;
-    setDevice: (device: string) => void;
+    onAssigneeChange: (value: string) => Promise<void>;
+    onStatusChange: (value: string) => Promise<void>;
+    onPriorityChange: (value: string) => Promise<void>;
+    onCategoryChange: (value: string) => Promise<void>;
+    onDeviceChange: (value: string) => Promise<void>;
 }
+
+type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
+
+const FieldRow: React.FC<{
+    icon: React.ElementType;
+    label: string;
+    saving: boolean;
+    saved: boolean;
+    children: React.ReactNode;
+}> = ({ icon: Icon, label, saving, saved, children }) => (
+    <div className="group/prop p-2 flex flex-col">
+        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
+            <Icon className="w-3 h-3" />
+            {label}
+            {saving && <Loader2 className="w-3 h-3 ml-auto animate-spin text-primary" />}
+            {!saving && saved && (
+                <CheckCircle2 className="w-3 h-3 ml-auto text-green-500 animate-in fade-in zoom-in duration-200" />
+            )}
+        </label>
+        {children}
+    </div>
+);
 
 export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     ticket,
     agents,
     slaConfigs,
     attributes,
-    assigneeId,
-    setAssigneeId,
-    status,
-    setStatus,
-    priority,
-    setPriority,
-    category,
-    setCategory,
-    device,
-    setDevice,
+    onAssigneeChange,
+    onStatusChange,
+    onPriorityChange,
+    onCategoryChange,
+    onDeviceChange,
 }) => {
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
 
+    // Local optimistic state per field
+    const [localAssigneeId, setLocalAssigneeId] = useState(ticket.assignedTo?.id || '');
+    const [localStatus, setLocalStatus] = useState(ticket.status);
+    const [localPriority, setLocalPriority] = useState(ticket.priority);
+    const [localCategory, setLocalCategory] = useState(ticket.category || 'GENERAL');
+    const [localDevice, setLocalDevice] = useState(ticket.device || '');
+
+    // Per-field saving/saved states
+    const [saving, setSaving] = useState<Record<FieldKey, boolean>>({
+        assignee: false, status: false, priority: false, category: false, device: false,
+    });
+    const [saved, setSaved] = useState<Record<FieldKey, boolean>>({
+        assignee: false, status: false, priority: false, category: false, device: false,
+    });
+
+    // Sync from server when ticket changes (after invalidation)
+    useEffect(() => { setLocalAssigneeId(ticket.assignedTo?.id || ''); }, [ticket.assignedTo?.id]);
+    useEffect(() => { setLocalStatus(ticket.status); }, [ticket.status]);
+    useEffect(() => { setLocalPriority(ticket.priority); }, [ticket.priority]);
+    useEffect(() => { setLocalCategory(ticket.category || 'GENERAL'); }, [ticket.category]);
+    useEffect(() => { setLocalDevice(ticket.device || ''); }, [ticket.device]);
+
+    const showSaved = (field: FieldKey) => {
+        setSaved(prev => ({ ...prev, [field]: true }));
+        setTimeout(() => setSaved(prev => ({ ...prev, [field]: false })), 1800);
+    };
+
+    const makeHandler = (
+        field: FieldKey,
+        setter: (v: string) => void,
+        handler: (v: string) => Promise<void>
+    ) => async (value: string) => {
+        setter(value);
+        setSaving(prev => ({ ...prev, [field]: true }));
+        try {
+            await handler(value);
+            showSaved(field);
+        } finally {
+            setSaving(prev => ({ ...prev, [field]: false }));
+        }
+    };
+
+    const handleAssigneeChange = makeHandler('assignee', setLocalAssigneeId, onAssigneeChange);
+    const handleStatusChange = makeHandler('status', setLocalStatus, onStatusChange);
+    const handlePriorityChange = makeHandler('priority', setLocalPriority, onPriorityChange);
+    const handleCategoryChange = makeHandler('category', setLocalCategory, onCategoryChange);
+    const handleDeviceChange = makeHandler('device', setLocalDevice, onDeviceChange);
+
     return (
         <div className="p-4 space-y-4">
-            {/* Requester - Compact Single Row */}
+            {/* Requester */}
             <div className="p-3 bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))]">
                 <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-white shrink-0">
@@ -68,12 +128,12 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             {/* Properties List */}
             <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] divide-y divide-slate-100 dark:divide-slate-800/60">
                 {/* Assigned To */}
-                <div className="group/prop p-2 flex flex-col">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
-                        <UserCheck className="w-3 h-3" /> Assigned To
-                    </label>
-                    <Select value={assigneeId} onValueChange={setAssigneeId} disabled={isClosed}>
-                        <SelectTrigger className="w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block">
+                <FieldRow icon={UserCheck} label="Assigned To" saving={saving.assignee} saved={saved.assignee}>
+                    <Select value={localAssigneeId} onValueChange={handleAssigneeChange} disabled={isClosed || saving.assignee}>
+                        <SelectTrigger className={cn(
+                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
+                            saving.assignee && "opacity-60"
+                        )}>
                             <SelectValue placeholder="Unassigned" />
                         </SelectTrigger>
                         <SelectContent>
@@ -82,15 +142,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
+                </FieldRow>
 
                 {/* Status */}
-                <div className="group/prop p-2 flex flex-col">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
-                        <Activity className="w-3 h-3" /> Status
-                    </label>
-                    <Select value={status} onValueChange={setStatus} disabled={isClosed}>
-                        <SelectTrigger className="w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block">
+                <FieldRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
+                    <Select value={localStatus} onValueChange={handleStatusChange} disabled={isClosed || saving.status}>
+                        <SelectTrigger className={cn(
+                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
+                            saving.status && "opacity-60"
+                        )}>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -101,20 +161,20 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
+                </FieldRow>
 
                 {/* Priority */}
-                <div className="group/prop p-2 flex flex-col">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
-                        <AlertCircle className="w-3 h-3" /> Priority
-                    </label>
+                <FieldRow icon={AlertCircle} label="Priority" saving={saving.priority} saved={saved.priority}>
                     {ticket.priority === 'HARDWARE_INSTALLATION' ? (
                         <div className="h-8 flex items-center px-2 bg-amber-900/10 dark:bg-amber-900/30 border border-transparent text-[11px] font-medium text-amber-600 dark:text-amber-400 rounded">
                             HW Install
                         </div>
                     ) : (
-                        <Select value={priority} onValueChange={setPriority} disabled={isClosed}>
-                            <SelectTrigger className="w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block">
+                        <Select value={localPriority} onValueChange={handlePriorityChange} disabled={isClosed || saving.priority}>
+                            <SelectTrigger className={cn(
+                                "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
+                                saving.priority && "opacity-60"
+                            )}>
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -126,15 +186,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             </SelectContent>
                         </Select>
                     )}
-                </div>
+                </FieldRow>
 
                 {/* Category */}
-                <div className="group/prop p-2 flex flex-col">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
-                        <Hash className="w-3 h-3" /> Category
-                    </label>
-                    <Select value={category} onValueChange={setCategory} disabled={isClosed}>
-                        <SelectTrigger className="w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block">
+                <FieldRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
+                    <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
+                        <SelectTrigger className={cn(
+                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
+                            saving.category && "opacity-60"
+                        )}>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -147,15 +207,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
+                </FieldRow>
 
                 {/* Device */}
-                <div className="group/prop p-2 flex flex-col">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
-                        <Monitor className="w-3 h-3" /> Device
-                    </label>
-                    <Select value={device} onValueChange={setDevice} disabled={isClosed}>
-                        <SelectTrigger className="w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block">
+                <FieldRow icon={Monitor} label="Device" saving={saving.device} saved={saved.device}>
+                    <Select value={localDevice} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
+                        <SelectTrigger className={cn(
+                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
+                            saving.device && "opacity-60"
+                        )}>
                             <SelectValue placeholder="-" />
                         </SelectTrigger>
                         <SelectContent>
@@ -164,10 +224,10 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
+                </FieldRow>
             </div>
 
-            {/* Hardware Installation Info - Only for hardware tickets */}
+            {/* Hardware Installation Info */}
             {ticket.isHardwareInstallation && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-200 dark:border-amber-900/40">
                     <div className="flex items-center gap-1.5 mb-2.5">

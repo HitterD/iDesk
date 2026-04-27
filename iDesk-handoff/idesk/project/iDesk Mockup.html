@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>iDesk — Enterprise IT Helpdesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── CSS Tokens (matches tokens.css exactly) ───────────────────────── */
+    :root {
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+      /* Light palette — Warm Ivory & Sapphire */
+      --bg:          hsl(40, 20%, 97%);
+      --bg-card:     hsl(40, 25%, 99%);
+      --bg-elevated: hsl(40, 25%, 99%);
+      --bg-muted:    hsl(40, 12%, 93%);
+      --bg-hover:    hsl(40, 15%, 92%);
+
+      --fg:          hsl(228, 12%, 18%);
+      --fg-muted:    hsl(228, 8%, 52%);
+      --fg-subtle:   hsl(228, 6%, 62%);
+
+      --primary:     hsl(224, 60%, 42%);
+      --primary-light: hsl(224, 60%, 52%);
+      --primary-bg:  hsl(224, 60%, 97%);
+      --primary-fg:  white;
+
+      --accent:      hsl(36, 85%, 58%);
+      --accent-bg:   hsl(36, 85%, 95%);
+
+      --success:     hsl(152, 56%, 38%);
+      --success-bg:  hsl(152, 56%, 95%);
+      --success-fg:  hsl(152, 56%, 28%);
+
+      --warning:     hsl(36, 85%, 48%);
+      --warning-bg:  hsl(36, 85%, 95%);
+      --warning-fg:  hsl(36, 85%, 30%);
+
+      --error:       hsl(0, 72%, 51%);
+      --error-bg:    hsl(0, 72%, 97%);
+      --error-fg:    hsl(0, 72%, 40%);
+
+      --border:       hsl(40, 10%, 88%);
+      --border-strong:hsl(40, 12%, 80%);
+
+      --radius-sm: 6px;  --radius-md: 8px;
+      --radius-lg: 12px; --radius-xl: 16px; --radius-full: 9999px;
+
+      --shadow-sm:  0 1px 2px rgba(40,45,51,0.04);
+      --shadow-md:  0 4px 8px -2px rgba(40,45,51,0.06), 0 2px 4px -1px rgba(40,45,51,0.03);
+      --shadow-lg:  0 8px 24px -4px rgba(40,45,51,0.09), 0 4px 8px rgba(40,45,51,0.03);
+      --shadow-xl:  0 16px 48px -8px rgba(40,45,51,0.12), 0 8px 16px rgba(40,45,51,0.04);
+
+      --sidebar-bg: rgba(254, 253, 251, 0.94);
+    }
+
+    .dark {
+      --bg:          hsl(225, 25%, 8%);
+      --bg-card:     hsl(225, 20%, 13%);
+      --bg-elevated: hsl(225, 20%, 16%);
+      --bg-muted:    hsl(225, 15%, 15%);
+      --bg-hover:    hsl(225, 18%, 18%);
+
+      --fg:          hsl(40, 15%, 90%);
+      --fg-muted:    hsl(228, 8%, 55%);
+      --fg-subtle:   hsl(228, 6%, 42%);
+
+      --primary:     hsl(224, 65%, 62%);
+      --primary-light: hsl(224, 65%, 70%);
+      --primary-bg:  hsl(224, 40%, 16%);
+
+      --accent:      hsl(36, 75%, 55%);
+      --accent-bg:   hsl(36, 40%, 14%);
+
+      --success:     hsl(152, 60%, 48%);
+      --success-bg:  hsl(152, 40%, 12%);
+
+      --warning:     hsl(36, 80%, 58%);
+      --warning-bg:  hsl(36, 40%, 12%);
+      --warning-fg:  hsl(36, 80%, 65%);
+
+      --error:       hsl(0, 65%, 58%);
+      --error-bg:    hsl(0, 40%, 13%);
+      --error-fg:    hsl(0, 65%, 68%);
+
+      --border:        hsl(225, 15%, 20%);
+      --border-strong: hsl(225, 15%, 28%);
+
+      --shadow-sm:  0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md:  0 4px 8px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2);
+      --shadow-lg:  0 8px 24px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.25);
+      --shadow-xl:  0 20px 60px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.3);
+
+      --sidebar-bg: rgba(22, 27, 38, 0.96);
+    }
+
+    /* ── Reset & Base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { height: 100%; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--fg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      height: 100%;
+      overflow: hidden;
+      text-rendering: optimizeLegibility;
+    }
+
+    #root { height: 100%; }
+
+    /* ── Scrollbar ─────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+
+    /* ── Animations ────────────────────────────────────────────────────── */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.9); }
+    }
+    @keyframes criticalPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(214,48,49,0.0); }
+      50%       { box-shadow: 0 0 0 3px rgba(214,48,49,0.12); }
+    }
+    @keyframes shimmer {
+      from { background-position: -200% 0; }
+      to   { background-position:  200% 0; }
+    }
+
+    /* ── Form inputs ───────────────────────────────────────────────────── */
+    input, select, textarea {
+      font-family: var(--font-sans);
+      color: var(--fg);
+    }
+    input::placeholder, textarea::placeholder { color: var(--fg-subtle); }
+    select option { background: var(--bg-card); color: var(--fg); }
+
+    /* ── Focus rings ───────────────────────────────────────────────────── */
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    /* ── Transitions ───────────────────────────────────────────────────── */
+    * { transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + ReactDOM + Babel (pinned + integrity) -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+          integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+          integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+          integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+          crossorigin="anonymous"></script>
+
+  <!-- Component files (order matters: icons → data → layout → pages → app) -->
+  <script type="text/babel" src="idesk-icons.jsx"></script>
+  <script type="text/babel" src="idesk-data.jsx"></script>
+  <script type="text/babel" src="idesk-layout.jsx"></script>
+  <script type="text/babel" src="idesk-dashboard.jsx"></script>
+  <script type="text/babel" src="idesk-tickets.jsx"></script>
+  <script type="text/babel" src="idesk-pages.jsx"></script>
+  <script type="text/babel" src="idesk-hardware.jsx"></script>
+  <script type="text/babel" src="idesk-zoom.jsx"></script>
+  <script type="text/babel" src="idesk-app.jsx"></script>
+
+  <template id="__bundler_thumbnail">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80">
+      <rect width="120" height="80" fill="hsl(40,20%,97%)"/>
+      <rect x="0" y="0" width="28" height="80" fill="hsl(224,60%,42%)"/>
+      <rect x="35" y="12" width="22" height="6" rx="3" fill="hsl(224,60%,42%)" opacity=".8"/>
+      <rect x="35" y="24" width="16" height="5" rx="2.5" fill="hsl(228,8%,52%)" opacity=".5"/>
+      <rect x="35" y="36" width="72" height="10" rx="5" fill="hsl(40,25%,99%)" stroke="hsl(40,10%,88%)" stroke-width="1"/>
+      <rect x="35" y="52" width="34" height="8" rx="4" fill="hsl(40,25%,99%)" stroke="hsl(40,10%,88%)" stroke-width="1"/>
+      <rect x="73" y="52" width="34" height="8" rx="4" fill="hsl(40,25%,99%)" stroke="hsl(40,10%,88%)" stroke-width="1"/>
+      <circle cx="14" cy="20" r="5" fill="white" opacity=".9"/>
+      <circle cx="14" cy="36" r="3.5" fill="white" opacity=".6"/>
+      <circle cx="14" cy="48" r="3.5" fill="white" opacity=".6"/>
+      <circle cx="14" cy="60" r="3.5" fill="white" opacity=".6"/>
+    </svg>
+  </template>
+</body>
+</html>

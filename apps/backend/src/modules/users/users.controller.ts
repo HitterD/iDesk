@@ -103,10 +103,11 @@ export class UsersController {
     @Get('agents')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
-    @ApiOperation({ summary: 'Get all agents' })
-    @ApiResponse({ status: 200, description: 'Return all agents.' })
-    async getAgents() {
-        return this.usersService.getAgents();
+    @ApiOperation({ summary: 'Get agents, optionally filtered by siteId' })
+    @ApiQuery({ name: 'siteId', required: false, description: 'Filter agents by site ID' })
+    @ApiResponse({ status: 200, description: 'Return agents.' })
+    async getAgents(@Query('siteId') siteId?: string) {
+        return this.usersService.getAgents(siteId);
     }
 
     @Get('agents/stats')
@@ -128,9 +129,10 @@ export class UsersController {
 
     @Get('approvers')
     @UseGuards(JwtAuthGuard)
-    @ApiOperation({ summary: 'Get all users available for approval roles' })
-    async getApprovers() {
-        return this.usersService.getApprovers();
+    @ApiOperation({ summary: 'Get all active users for approval selection, optionally excluding a user by ID' })
+    @ApiQuery({ name: 'exclude', required: false, description: 'User ID to exclude (e.g. current requester)' })
+    async getApprovers(@Query('exclude') excludeId?: string) {
+        return this.usersService.getApprovers(excludeId);
     }
 
     @Get()
@@ -138,7 +140,7 @@ export class UsersController {
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get all users with pagination' })
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 100)' })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 200)' })
     @ApiQuery({ name: 'search', required: false, description: 'Search by name or email' })
     @ApiQuery({ name: 'siteCode', required: false, description: 'Filter by site code (SPJ, SMG, KRW, JTB)' })
     @ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'AGENT', 'USER'], description: 'Filter by role' })
@@ -154,7 +156,7 @@ export class UsersController {
     @Roles(UserRole.ADMIN)
     @Throttle({ default: UPLOAD_RATE_LIMITS.import })
     @UseInterceptors(FileInterceptor('file', MULTER_OPTIONS.csv))
-    @ApiOperation({ summary: 'Import users from CSV' })
+    @ApiOperation({ summary: 'Import users from CSV. Pass ?upsert=true to update existing users.' })
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         schema: {
@@ -169,9 +171,13 @@ export class UsersController {
     })
     @ApiResponse({ status: 201, description: 'Users imported successfully.' })
     @ApiResponse({ status: 400, description: 'Invalid file type or size.' })
-    async importUsers(@UploadedFile() file: Express.Multer.File) {
-        return this.usersService.importUsers(file);
+    async importUsers(
+        @UploadedFile() file: Express.Multer.File,
+        @Query('upsert') upsert?: string,
+    ) {
+        return this.usersService.importUsers(file, upsert === 'true');
     }
+
 
     @Get('import-template')
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -193,15 +199,17 @@ export class UsersController {
     async exportUsers(
         @Query('format') format: 'csv' | 'xlsx' = 'csv',
         @Query('site') site: string = 'ALL',
+        @Query('fields') fields: string = '',
         @Res() res: Response,
     ) {
+        const fieldList = fields ? fields.split(',').map(f => f.trim()).filter(Boolean) : [];
         if (format === 'xlsx') {
-            const buffer = await this.usersService.exportUsersXlsx(site);
+            const buffer = await this.usersService.exportUsersXlsx(site, fieldList);
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename=users_${site}_${new Date().toISOString().split('T')[0]}.xlsx`);
             return res.send(buffer);
         }
-        return this.usersService.exportUsers();
+        return this.usersService.exportUsers(fieldList);
     }
 
     @Patch(':id')

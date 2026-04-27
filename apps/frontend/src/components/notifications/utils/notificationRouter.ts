@@ -58,7 +58,7 @@ export function getNotificationRedirectPath(
         }
 
         case NotificationCategory.CATEGORY_EFORM: {
-            const basePath = userRole === 'USER' ? '/client/eform-access' : '/eform-access';
+            const basePath = `${prefix}/eform-access`;
             return referenceId ? `${basePath}/${referenceId}` : basePath;
         }
 

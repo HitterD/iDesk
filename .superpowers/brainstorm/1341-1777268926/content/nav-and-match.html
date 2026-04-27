@@ -1,0 +1,125 @@
+<h2>LostItemsNav + MatchReviewPanel</h2>
+<p class="subtitle">Nav role-aware dan layout review klaim barang temuan</p>
+
+<style>
+.mock-tab-active { background:white; color:#0f172a; border-radius:8px; padding:7px 14px; font-size:12px; font-weight:800; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+.mock-tab-idle { color:#64748b; padding:7px 14px; font-size:12px; font-weight:700; }
+.mock-tab-new { color:#64748b; padding:7px 14px; font-size:12px; font-weight:700; position:relative; }
+.new-dot { width:7px;height:7px;background:#f43f5e;border-radius:50%;position:absolute;top:4px;right:6px; }
+.section-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:0.15em; color:#94a3b8; margin-bottom:6px; }
+.badge { padding:3px 8px; border-radius:20px; font-size:10px; font-weight:800; display:inline-block; }
+.match-col { flex:1; background:white; border-radius:12px; border:1px solid #e2e8f0; padding:14px; }
+.photo-thumb { width:56px; height:56px; background:#e2e8f0; border-radius:8px; }
+.match-btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:800; border:none; cursor:default; }
+</style>
+
+<!-- NAV SECTION -->
+<div class="section">
+  <h3>LostItemsNav — Role-Aware Tabs</h3>
+  <p style="font-size:13px;color:#64748b;margin-bottom:12px">Tab yang muncul berbeda tergantung role user yang login.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <!-- Client nav -->
+    <div>
+      <div class="section-title">Client / User biasa</div>
+      <div style="display:inline-flex;align-items:center;gap:4px;padding:6px;background:#f1f5f9;border-radius:10px">
+        <span class="mock-tab-active">📋 Semua Laporan</span>
+        <span class="mock-tab-idle">🗒 Laporan Saya</span>
+        <span class="mock-tab-idle">📦 Saya Temukan</span>
+      </div>
+      <p style="font-size:11px;color:#94a3b8;margin-top:6px">3 tab — tidak ada Claims Queue</p>
+    </div>
+
+    <!-- Admin/Agent nav -->
+    <div>
+      <div class="section-title">Admin / Agent</div>
+      <div style="display:inline-flex;align-items:center;gap:4px;padding:6px;background:#f1f5f9;border-radius:10px">
+        <span class="mock-tab-active">📋 Semua Laporan</span>
+        <span class="mock-tab-idle">🗒 Laporan Saya</span>
+        <span class="mock-tab-idle">📦 Saya Temukan</span>
+        <span class="mock-tab-new">🔍 Claims Queue<span class="new-dot"></span></span>
+      </div>
+      <p style="font-size:11px;color:#94a3b8;margin-top:6px">4 tab — Claims Queue hanya muncul untuk admin/agent, dengan badge merah jika ada klaim baru</p>
+    </div>
+  </div>
+</div>
+
+<!-- MATCH REVIEW PANEL -->
+<div class="section">
+  <h3>MatchReviewPanel — Side-by-Side Review</h3>
+  <p style="font-size:13px;color:#64748b;margin-bottom:12px">Admin/agent membandingkan laporan hilang (kiri) vs laporan temuan (kanan) sebelum match/reject.</p>
+
+  <div style="border:2px solid #e2e8f0;border-radius:14px;background:#f8fafc;padding:16px">
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div>
+        <div style="font-weight:900;font-size:14px;color:#0f172a">Review Klaim #FC-0045</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">Ditemukan oleh Andi Wijaya • 26 Apr 2026</div>
+      </div>
+      <span class="badge" style="background:#f3e8ff;color:#6b21a8">CLAIMED</span>
+    </div>
+
+    <!-- Side-by-side -->
+    <div style="display:flex;gap:12px;margin-bottom:14px">
+
+      <!-- Lost item (kiri) -->
+      <div class="match-col">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+          <span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">HILANG</span>
+          <span style="font-size:11px;color:#94a3b8">Dilaporkan oleh Bagastyo</span>
+        </div>
+        <div style="font-weight:900;font-size:13px;color:#0f172a;margin-bottom:8px">Laptop Dell XPS 15</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <div class="photo-thumb"></div>
+          <div class="photo-thumb"></div>
+        </div>
+        <div class="section-title">Data Identifikasi</div>
+        <div style="background:#f8fafc;border-radius:7px;padding:7px;font-size:11px;margin-bottom:4px">
+          <span style="color:#64748b">Serial:</span> <span style="font-weight:800;color:#0f172a">DL-XPS-9580</span>
+        </div>
+        <div style="background:#f8fafc;border-radius:7px;padding:7px;font-size:11px;">
+          <span style="color:#64748b">Lokasi hilang:</span> <span style="font-weight:800;color:#0f172a">Ruang Meeting Lt.3</span>
+        </div>
+      </div>
+
+      <!-- VS divider -->
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#94a3b8;font-weight:900;font-size:13px">
+        <div style="width:1px;flex:1;background:#e2e8f0"></div>
+        VS
+        <div style="width:1px;flex:1;background:#e2e8f0"></div>
+      </div>
+
+      <!-- Found item (kanan) -->
+      <div class="match-col">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+          <span style="background:#d1fae5;color:#065f46;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">TEMUAN</span>
+          <span style="font-size:11px;color:#94a3b8">Ditemukan oleh Andi</span>
+        </div>
+        <div style="font-weight:900;font-size:13px;color:#0f172a;margin-bottom:8px">Laptop hitam, ada stiker</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <div class="photo-thumb"></div>
+          <div class="photo-thumb" style="background:#cbd5e1"></div>
+        </div>
+        <div class="section-title">Data Identifikasi</div>
+        <div style="background:#fefce8;border:1px solid #fde047;border-radius:7px;padding:7px;font-size:11px;margin-bottom:4px">
+          <span style="color:#64748b">Serial:</span> <span style="font-weight:800;color:#854d0e">DL-XPS-9580 ✓ MATCH</span>
+        </div>
+        <div style="background:#f8fafc;border-radius:7px;padding:7px;font-size:11px;">
+          <span style="color:#64748b">Lokasi temukan:</span> <span style="font-weight:800;color:#0f172a">Lobby Lt.3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes + Actions -->
+    <div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:12px">
+      <div class="section-title">Catatan Admin/Agent (wajib jika reject)</div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:8px;font-size:12px;color:#94a3b8">Tulis catatan verifikasi...</div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="match-btn" style="flex:1;background:#16a34a;color:white">✓ MATCH — Konfirmasi Cocok</button>
+      <button class="match-btn" style="background:#fee2e2;color:#dc2626">✕ Reject</button>
+    </div>
+  </div>
+</div>

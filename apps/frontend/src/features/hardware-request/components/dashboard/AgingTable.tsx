@@ -20,7 +20,7 @@ export function AgingTable({ data, loading }: { data?: Row[]; loading?: boolean 
   if (!data) return null;
 
   return (
-    <div className="rounded-lg border bg-white p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[hsl(var(--card))] p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-900 mb-2">Aging</h3>
       <table className="w-full text-sm">
         <thead>
@@ -36,13 +36,13 @@ export function AgingTable({ data, loading }: { data?: Row[]; loading?: boolean 
               <td className="py-2 font-medium">{labels[row.bucket]}</td>
               <td>{row.count}</td>
               <td className="text-xs">
-                {row.requests.slice(0, 3).map((r) => (
+                {(row.requests || []).slice(0, 3).map((r) => (
                   <Link
                     key={r.id}
                     to={`${basePath}/${r.id}`}
-                    className="mr-2 text-indigo-600 hover:underline"
+                    className="mr-2 text-primary hover:underline font-mono"
                   >
-                    {r.requestNumber} ({r.ageDays}d)
+                    {r.requestNumber} <span className="text-slate-400">({r.ageDays}d)</span>
                   </Link>
                 ))}
               </td>

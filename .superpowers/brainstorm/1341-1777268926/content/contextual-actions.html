@@ -1,0 +1,136 @@
+<h2>ContextualActions — Logic per Status</h2>
+<p class="subtitle">Setiap status menampilkan action set yang berbeda. Manager dan Client punya akses berbeda.</p>
+
+<style>
+.flow-row { display:flex; align-items:stretch; gap:0; margin-bottom:16px; }
+.status-chip {
+  min-width:120px; padding:12px 16px; border-radius:10px 0 0 10px;
+  display:flex;flex-direction:column;justify-content:center;
+  font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;
+}
+.actions-box {
+  flex:1; padding:12px 16px; border-radius:0 10px 10px 0;
+  display:flex; flex-direction:column; gap:6px;
+  border-top:1px solid #e2e8f0; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0;
+}
+.role-label { font-size:10px; font-weight:700; text-transform:uppercase; color:#94a3b8; margin-bottom:4px; }
+.btn-row { display:flex; gap:6px; flex-wrap:wrap; }
+.btn-mgr { background:#f43f5e;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:default; }
+.btn-client { background:#e2e8f0;color:#475569;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:default; }
+.btn-danger { background:#fee2e2;color:#dc2626;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:default; }
+.btn-ghost { background:transparent;color:#94a3b8;border:1px solid #e2e8f0;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:default; }
+.arrow { color:#94a3b8; font-size:11px; font-weight:700; margin-left:4px; }
+</style>
+
+<div style="margin-bottom:24px">
+  <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center">
+    <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700"><span style="width:12px;height:12px;background:#f43f5e;border-radius:3px;display:inline-block"></span> Tombol merah = Manager only</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700"><span style="width:12px;height:12px;background:#e2e8f0;border-radius:3px;display:inline-block"></span> Abu = Client (pemilik laporan)</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700"><span style="width:12px;height:12px;background:#fee2e2;border-radius:3px;display:inline-block"></span> Merah muda = Destructive</span>
+  </div>
+</div>
+
+<!-- REPORTED -->
+<div class="flow-row">
+  <div class="status-chip" style="background:#fef3c7;color:#92400e">
+    REPORTED
+    <span style="font-size:10px;margin-top:4px;opacity:0.7">Baru dilaporkan</span>
+  </div>
+  <div class="actions-box">
+    <div class="role-label">Manager</div>
+    <div class="btn-row">
+      <button class="btn-mgr">▶ Start Searching<span class="arrow">→ SEARCHING</span></button>
+      <button class="btn-danger">✕ Close Report<span class="arrow">→ CLOSED_LOST</span></button>
+    </div>
+    <div class="role-label" style="margin-top:6px">Client (pemilik)</div>
+    <div class="btn-row">
+      <button class="btn-client">✕ Tutup Laporan<span class="arrow">→ CLOSED_LOST</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCHING -->
+<div class="flow-row">
+  <div class="status-chip" style="background:#dbeafe;color:#1e40af">
+    SEARCHING
+    <span style="font-size:10px;margin-top:4px;opacity:0.7">Sedang diinvestigasi</span>
+  </div>
+  <div class="actions-box">
+    <div class="role-label">Manager</div>
+    <div class="btn-row">
+      <button class="btn-danger">✕ Close Report<span class="arrow">→ CLOSED_LOST</span></button>
+    </div>
+    <div class="role-label" style="margin-top:6px">Client</div>
+    <div class="btn-row">
+      <button class="btn-ghost">— Menunggu tim mencari</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLAIMED -->
+<div class="flow-row">
+  <div class="status-chip" style="background:#f3e8ff;color:#6b21a8">
+    CLAIMED
+    <span style="font-size:10px;margin-top:4px;opacity:0.7">Ada yang lapor temukan</span>
+  </div>
+  <div class="actions-box">
+    <div class="role-label">Manager</div>
+    <div class="btn-row">
+      <button class="btn-mgr">🔍 Review Match<span class="arrow">→ Match Review Panel</span></button>
+    </div>
+    <div class="role-label" style="margin-top:6px">Client</div>
+    <div class="btn-row">
+      <button class="btn-ghost">— Menunggu verifikasi manager</button>
+    </div>
+  </div>
+</div>
+
+<!-- VERIFIED -->
+<div class="flow-row">
+  <div class="status-chip" style="background:#d1fae5;color:#065f46">
+    VERIFIED
+    <span style="font-size:10px;margin-top:4px;opacity:0.7">Match dikonfirmasi</span>
+  </div>
+  <div class="actions-box">
+    <div class="role-label">Manager</div>
+    <div class="btn-row">
+      <button class="btn-mgr">✓ Confirm Return<span class="arrow">→ RETURNED</span></button>
+    </div>
+    <div class="role-label" style="margin-top:6px">Client</div>
+    <div class="btn-row">
+      <button class="btn-ghost">— Barang siap diambil</button>
+    </div>
+  </div>
+</div>
+
+<!-- RETURNED -->
+<div class="flow-row">
+  <div class="status-chip" style="background:#bbf7d0;color:#14532d">
+    RETURNED
+    <span style="font-size:10px;margin-top:4px;opacity:0.7">Selesai ✓</span>
+  </div>
+  <div class="actions-box">
+    <div class="role-label">Semua role</div>
+    <div class="btn-row">
+      <button class="btn-ghost">— Laporan selesai. Hanya baca.</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLOSED_LOST -->
+<div class="flow-row">
+  <div class="status-chip" style="background:#f1f5f9;color:#475569">
+    CLOSED_LOST
+    <span style="font-size:10px;margin-top:4px;opacity:0.7">Tidak ditemukan</span>
+  </div>
+  <div class="actions-box">
+    <div class="role-label">Manager only (jika error)</div>
+    <div class="btn-row">
+      <button class="btn-mgr" style="background:#64748b">↩ Reopen → REPORTED</button>
+    </div>
+    <div class="role-label" style="margin-top:6px">Client</div>
+    <div class="btn-row">
+      <button class="btn-ghost">— Laporan ditutup.</button>
+    </div>
+  </div>
+</div>

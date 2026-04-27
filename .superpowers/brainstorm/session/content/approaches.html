@@ -1,0 +1,79 @@
+
+<h2>3 Pendekatan: Notification System Redesign</h2>
+<p class="subtitle">Pilih pendekatan yang paling cocok — gue akan rekomendasikan satu</p>
+
+<div class="options">
+
+  <!-- Approach A -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Enhance Existing Bell</h3>
+      <p style="margin-bottom:10px">Upgrade NotificationPopover yang ada → jadi Command Center. Tambah urgency tiers, persistent badge, re-surface toast. Tidak ada endpoint baru — pakai data notif yang sudah ada.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Minimal perubahan backend</li>
+          <li>Lebih cepat dikerjakan</li>
+          <li>Tidak break existing flow</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Notif bisa terlewat saat kirim (race condition)</li>
+          <li>Action items bergantung pada notif — kalau notif tidak terkirim, inbox kosong</li>
+          <li>Tidak reflect state aktual (ticket mungkin sudah selesai tapi notif masih ada)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach B -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Action Items API Baru (Entity-State Based)</h3>
+      <p style="margin-bottom:10px">Endpoint <code>/api/action-items</code> yang menghitung langsung dari state entity — ticket assigned+unresponded, approval pending, renewal D-7, dll. Bukan dari tabel notifikasi. Command Center baru di topbar ambil dari sini.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Selalu akurat — reflect state real DB</li>
+          <li>Tidak terpengaruh notif gagal kirim</li>
+          <li>Auto-resolve saat item selesai dikerjakan</li>
+          <li>Basis solid untuk reminder system</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Perlu endpoint baru per module</li>
+          <li>Lebih banyak pekerjaan backend</li>
+          <li>Query perlu dioptimalkan agar tidak lambat</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach C — RECOMMENDED -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:white">C ⭐</div>
+    <div class="content">
+      <h3>Hybrid: Command Center + Entity-State <span style="color:#3b82f6;font-size:12px;font-weight:normal;margin-left:6px">RECOMMENDED</span></h3>
+      <p style="margin-bottom:10px">Command Center baru di topbar yang menggabungkan 2 sumber: <strong>(1)</strong> Unread urgent notifications yang sudah ada + <strong>(2)</strong> Endpoint action-items ringan per kategori. Bell tetap ada untuk history. Reminder intensity di settings.</p>
+      <div style="background:#1e3a5f;border:1px solid #3b82f640;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#94a3b8">
+        <div style="color:#3b82f6;font-weight:bold;margin-bottom:4px">Arsitektur</div>
+        <code style="color:#7dd3fc">TopbarCommandCenter</code><br/>
+        &nbsp;├ <code style="color:#a5f3fc">useActionItems()</code> → /api/action-items (polling 60s + socket invalidate)<br/>
+        &nbsp;├ Urgency tiers: 🔴 Critical / 🟡 High / 🔵 Normal<br/>
+        &nbsp;├ Re-surface toast (configurable: off/15m/30m/1h)<br/>
+        &nbsp;└ <code style="color:#a5f3fc">NotificationPopover</code> (existing, tetap ada untuk history)
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Akurat (entity-state) + tidak kehilangan context (notif history)</li>
+          <li>Dapat dikerjakan inkremental per modul</li>
+          <li>Toast persisten yang bisa dikonfigurasi user</li>
+          <li>Tidak ada breaking change</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Lebih kompleks dari A</li>
+          <li>Butuh beberapa endpoint baru</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

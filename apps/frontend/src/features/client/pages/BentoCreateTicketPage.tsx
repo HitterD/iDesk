@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Send, Paperclip, AlertCircle, Clock, Tag, Monitor, Box, FileText, Save, Trash2, Calendar, CheckCircle2, Ticket, HardDrive, DollarSign, PackageX, Wifi } from 'lucide-react';
 import api from '@/lib/api';
@@ -62,10 +62,14 @@ type TicketType = 'none' | 'service' | 'hardware' | 'ict-budget' | 'lost-item' |
 
 export const BentoCreateTicketPage: React.FC = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const [ticketType, setTicketType] = useState<TicketType>('none');
+    
+    const initialType = (searchParams.get('type') as TicketType) || 'none';
+    const [ticketType, setTicketType] = useState<TicketType>(initialType);
+    
     const [attributes, setAttributes] = useState<TicketAttributes>({ categories: [], devices: [], software: [] });
     const [showAddModal, setShowAddModal] = useState<{ type: string; show: boolean }>({ type: '', show: false });
     const [newAttributeValue, setNewAttributeValue] = useState('');
@@ -383,7 +387,7 @@ export const BentoCreateTicketPage: React.FC = () => {
 
                     {/* Lost Item Card */}
                     <button
-                        onClick={() => navigate(`${getBasePath()}/lost-items`)}
+                        onClick={() => setTicketType('lost-item')}
                         className="group flex flex-col p-7 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-rose-500/50 hover:shadow-xl hover:-translate-y-1 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-left relative overflow-hidden"
                     >
                         <div className="w-14 h-14 rounded-xl bg-rose-500/10 flex items-center justify-center mb-5 group-hover:bg-rose-500/20 transition-colors relative z-10">

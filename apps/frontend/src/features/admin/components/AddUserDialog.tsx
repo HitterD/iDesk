@@ -145,44 +145,56 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
         }
     }, [isOpen, reset]);
 
+    // Auto-select preset matching selected role
+    const watchedRole = watch('role');
+    const watchedPresetId = watch('presetId');
+
+    useEffect(() => {
+        if (!watchedRole || !presets.length) return;
+        const match = presets.find((p: any) => p.targetRole === watchedRole);
+        if (match) {
+            setValue('presetId', match.id);
+        }
+    }, [watchedRole, presets, setValue]);
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="bg-navy-light border-white/10 text-white sm:max-w-[480px]">
+            <DialogContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white sm:max-w-[480px]">
                 <DialogHeader>
                     <DialogTitle>Add New User</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="fullName">Full Name</Label>
+                        <Label htmlFor="fullName" className="text-slate-700 dark:text-slate-300">Full Name</Label>
                         <Input
                             id="fullName"
                             placeholder="John Doe"
                             {...register('fullName')}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl"
                         />
                         {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName.message}</p>}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="email" className="text-slate-700 dark:text-slate-300">Email</Label>
                         <Input
                             id="email"
                             type="email"
                             placeholder="john@example.com"
                             {...register('email')}
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl"
                         />
                         {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
                     </div>
 
                     {/* P2-1: Stacked layout instead of cramped side-by-side */}
                     <div className="space-y-2">
-                        <Label>Role <span className="text-red-400">*</span></Label>
+                        <Label className="text-slate-700 dark:text-slate-300">Role <span className="text-red-400">*</span></Label>
                         <Select onValueChange={(val: any) => setValue('role', val)} defaultValue="AGENT">
-                            <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
                                 <SelectValue placeholder="Select role" />
                             </SelectTrigger>
-                            <SelectContent className="bg-navy-main border-white/10 text-white">
+                            <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
                                 <SelectItem value="ADMIN">Admin</SelectItem>
                                 <SelectItem value="MANAGER">Manager</SelectItem>
                                 <SelectItem value="AGENT">Agent</SelectItem>
@@ -197,12 +209,12 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
                     {/* P2: Permission Preset Dropdown */}
                     <div className="space-y-2">
-                        <Label>Permission Preset</Label>
-                        <Select onValueChange={(val) => setValue('presetId', val)}>
-                            <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <Label className="text-slate-700 dark:text-slate-300">Permission Preset</Label>
+                        <Select value={watchedPresetId || ''} onValueChange={(val) => setValue('presetId', val)}>
+                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
                                 <SelectValue placeholder="Select preset (optional)" />
                             </SelectTrigger>
-                            <SelectContent className="bg-navy-main border-white/10 text-white">
+                            <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
                                 {presets.map((preset: any) => (
                                     <SelectItem key={preset.id} value={preset.id}>
                                         {preset.name} ({preset.targetRole || 'Any'})
@@ -210,12 +222,12 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                                 ))}
                             </SelectContent>
                         </Select>
-                        <p className="text-xs text-slate-400">Determines which pages user can access</p>
+                        <p className="text-xs text-slate-500">Determines which pages user can access</p>
                     </div>
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <Label>Department</Label>
+                            <Label className="text-slate-700 dark:text-slate-300">Department</Label>
                             <button
                                 type="button"
                                 onClick={() => setIsAddingDept(!isAddingDept)}
@@ -225,19 +237,19 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                             </button>
                         </div>
                         {isAddingDept ? (
-                            <div className="space-y-2 p-3 bg-white/5 rounded-lg border border-white/10">
+                            <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-[hsl(var(--border))]">
                                 <Input
                                     placeholder="Department Name (e.g. IT Support)"
                                     value={newDeptName}
                                     onChange={(e) => setNewDeptName(e.target.value)}
-                                    className="bg-black/20 border-white/10"
+                                    className="bg-white dark:bg-slate-900 border-[hsl(var(--border))] rounded-lg"
                                 />
                                 <div className="flex gap-2">
                                     <Input
                                         placeholder="Code (e.g. IT)"
                                         value={newDeptCode}
                                         onChange={(e) => setNewDeptCode(e.target.value)}
-                                        className="bg-black/20 border-white/10"
+                                        className="bg-white dark:bg-slate-900 border-[hsl(var(--border))] rounded-lg"
                                     />
                                     <Button
                                         type="button"
@@ -252,10 +264,10 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                             </div>
                         ) : (
                             <Select onValueChange={(val) => setValue('departmentId', val)}>
-                                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                                <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
                                     <SelectValue placeholder="Select department" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-navy-main border-white/10 text-white">
+                                <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
                                     {departments.map((dept: any) => (
                                         <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
                                     ))}
@@ -266,12 +278,12 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
                     {/* Site Selector */}
                     <div className="space-y-2">
-                        <Label>Site</Label>
+                        <Label className="text-slate-700 dark:text-slate-300">Site</Label>
                         <Select onValueChange={(val) => setValue('siteId', val)}>
-                            <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
                                 <SelectValue placeholder="Select site" />
                             </SelectTrigger>
-                            <SelectContent className="bg-navy-main border-white/10 text-white">
+                            <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
                                 {sites.map((site: any) => (
                                     <SelectItem key={site.id} value={site.id}>{site.code} - {site.name}</SelectItem>
                                 ))}
@@ -279,26 +291,26 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                         </Select>
                     </div>
 
-                    <div className="space-y-4 border-t border-white/10 pt-4">
+                    <div className="space-y-4 border-t border-[hsl(var(--border))] pt-4">
                         <div className="flex items-center space-x-2">
                             <Checkbox
                                 id="autoGenerate"
                                 checked={autoGeneratePassword}
                                 onCheckedChange={(checked: boolean) => setValue('autoGeneratePassword', checked)}
                             />
-                            <Label htmlFor="autoGenerate" className="text-sm font-normal cursor-pointer">
+                            <Label htmlFor="autoGenerate" className="text-sm font-normal cursor-pointer text-slate-700 dark:text-slate-300">
                                 Auto-generate secure password
                             </Label>
                         </div>
 
                         {!autoGeneratePassword && (
                             <div className="space-y-2">
-                                <Label htmlFor="password">Password</Label>
+                                <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">Password</Label>
                                 <Input
                                     id="password"
                                     type="password"
                                     {...register('password')}
-                                    className="bg-white/5 border-white/10 text-white"
+                                    className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl"
                                 />
                                 {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
                             </div>
@@ -306,7 +318,7 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                     </div>
 
                     <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={onClose} className="text-slate-400 hover:text-white">
+                        <Button type="button" variant="ghost" onClick={onClose} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
                             Cancel
                         </Button>
                         <Button type="submit" className="bg-primary text-white hover:bg-primary/90" disabled={createUserMutation.isPending}>

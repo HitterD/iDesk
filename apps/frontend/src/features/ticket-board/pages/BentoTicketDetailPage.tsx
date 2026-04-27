@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useTicketSocket } from '@/hooks/useTicketSocket';
 import { usePresence } from '@/hooks/usePresence';
-import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
@@ -14,25 +13,18 @@ import { TicketInfoCard } from '../components/ticket-detail/TicketInfoCard';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
-import { UnsavedChangesDialog } from '@/components/ui/UnsavedChangesDialog';
 import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
-import { logger } from '@/lib/logger';
 import { useTicketShortcuts, TICKET_SHORTCUTS } from '@/hooks/useTicketShortcuts';
 import { Keyboard, X } from 'lucide-react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
-import { validateFiles, FILE_SIZE_LIMITS } from '@/lib/file-validation';
 import { TicketAttributes } from '../types';
+import { validateFiles, FILE_SIZE_LIMITS } from '@/lib/file-validation';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    const [assigneeId, setAssigneeId] = useState<string>('');
-    const [status, setStatus] = useState<string>('');
-    const [priority, setPriority] = useState<string>('');
-    const [category, setCategory] = useState<string>('');
-    const [device, setDevice] = useState<string>('');
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [showShortcutsModal, setShowShortcutsModal] = useState(false);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -104,83 +96,48 @@ export const BentoTicketDetailPage: React.FC = () => {
         onReply: () => chatInputRef.current?.focus(),
         onResolve: () => {
             if (ticket && ticket.status !== 'RESOLVED') {
-                setStatus('RESOLVED');
-                toast.info('Status set to Resolved. Click Save to apply.');
+                handleFieldChange('status', 'RESOLVED');
             }
         },
-        onEscape: () => {
-            setShowShortcutsModal(false);
-        },
+        onEscape: () => setShowShortcutsModal(false),
         onCopyTicketNumber: () => toast.success('Ticket number copied!'),
     }, { enabled: !!ticket, ticketNumber: ticket?.ticketNumber });
 
-    // Sync shortcuts hint modal with local state
     useEffect(() => {
         setShowShortcutsModal(showShortcutsHint);
     }, [showShortcutsHint]);
 
-    useEffect(() => {
-        if (ticket) {
-            if (ticket.assignedTo) setAssigneeId(ticket.assignedTo.id);
-            setStatus(ticket.status);
-            setPriority(ticket.priority);
-            setCategory(ticket.category || 'GENERAL');
-            setDevice(ticket.device || '');
-        }
-    }, [ticket]);
-
-    // Track if there are unsaved changes
-    const isDirty = useMemo(() => {
-        if (!ticket) return false;
-        const assigneeChanged = assigneeId !== (ticket.assignedTo?.id || '');
-        const statusChanged = status !== ticket.status;
-        const priorityChanged = priority !== ticket.priority;
-        const categoryChanged = category !== (ticket.category || 'GENERAL');
-        const deviceChanged = device !== (ticket.device || '');
-        return assigneeChanged || statusChanged || priorityChanged || categoryChanged || deviceChanged;
-    }, [ticket, assigneeId, status, priority, category, device]);
-
-    // Unsaved changes warning hook
-    const { isBlocked, confirmNavigation, cancelNavigation } = useUnsavedChanges({
-        isDirty,
-        message: 'You have unsaved changes. Are you sure you want to leave?',
-    });
-
-    const updateTicketMutation = useMutation({
-        mutationFn: async (data: { assigneeId?: string; status?: string; priority?: string; category?: string; device?: string }) => {
-            const promises = [];
-            if (data.assigneeId && data.assigneeId !== ticket?.assignedTo?.id) {
-                promises.push(api.patch(`/tickets/${id}/assign`, { assigneeId: data.assigneeId }));
-            }
-            if (data.status && data.status !== ticket?.status) {
-                promises.push(api.patch(`/tickets/${id}/status`, { status: data.status }));
-            }
-            if (data.priority && data.priority !== ticket?.priority) {
-                promises.push(api.patch(`/tickets/${id}/priority`, { priority: data.priority }));
-            }
-            if (data.category && data.category !== ticket?.category) {
-                promises.push(api.patch(`/tickets/${id}/category`, { category: data.category }));
-            }
-            if (data.device && data.device !== ticket?.device) {
-                promises.push(api.patch(`/tickets/${id}/device`, { device: data.device }));
-            }
-            await Promise.all(promises);
-        },
-        onSuccess: () => {
-            toast.success('Ticket updated successfully');
+    // Auto-save per-field handler
+    const handleFieldChange = useCallback(async (
+        field: 'assignee' | 'status' | 'priority' | 'category' | 'device',
+        value: string
+    ) => {
+        const endpointMap = {
+            assignee: `/tickets/${id}/assign`,
+            status: `/tickets/${id}/status`,
+            priority: `/tickets/${id}/priority`,
+            category: `/tickets/${id}/category`,
+            device: `/tickets/${id}/device`,
+        };
+        const bodyMap = {
+            assignee: { assigneeId: value },
+            status: { status: value },
+            priority: { priority: value },
+            category: { category: value },
+            device: { device: value },
+        };
+        try {
+            await api.patch(endpointMap[field], bodyMap[field]);
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-            navigate('/tickets/list');
-        },
-        onError: () => {
-            toast.error('Failed to update ticket');
-        },
-    });
-
-    const handleSave = () => {
-        updateTicketMutation.mutate({ assigneeId, status, priority, category, device });
-    };
+            if (field === 'status' || field === 'assignee') {
+                queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            }
+        } catch {
+            toast.error(`Failed to update ${field}`);
+            throw new Error(`Failed to update ${field}`);
+        }
+    }, [id, queryClient]);
 
     const cancelMutation = useMutation({
         mutationFn: async (reason?: string) => {
@@ -277,9 +234,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             {/* Compact Header with SLA + Cancel */}
             <TicketHeader
                 ticket={ticket}
-                onSave={handleSave}
                 onCancel={!isClosed ? handleCancelTicket : undefined}
-                isSaving={updateTicketMutation.isPending}
                 isCancelling={cancelMutation.isPending}
             />
 
@@ -291,16 +246,11 @@ export const BentoTicketDetailPage: React.FC = () => {
                         agents={agents}
                         slaConfigs={slaConfigs}
                         attributes={attributes}
-                        assigneeId={assigneeId}
-                        setAssigneeId={setAssigneeId}
-                        status={status}
-                        setStatus={setStatus}
-                        priority={priority}
-                        setPriority={setPriority}
-                        category={category}
-                        setCategory={setCategory}
-                        device={device}
-                        setDevice={setDevice}
+                        onAssigneeChange={(v) => handleFieldChange('assignee', v)}
+                        onStatusChange={(v) => handleFieldChange('status', v)}
+                        onPriorityChange={(v) => handleFieldChange('priority', v)}
+                        onCategoryChange={(v) => handleFieldChange('category', v)}
+                        onDeviceChange={(v) => handleFieldChange('device', v)}
                     />
                 </div>
 
@@ -393,12 +343,6 @@ export const BentoTicketDetailPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Unsaved Changes Warning Dialog */}
-            <UnsavedChangesDialog
-                isOpen={isBlocked}
-                onConfirm={confirmNavigation}
-                onCancel={cancelNavigation}
-            />
         </div>
     );
 };

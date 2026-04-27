@@ -105,26 +105,38 @@ export function ZoomDayView({
                                 {/* Time label */}
                                 <div
                                     className={cn(
-                                        "sticky left-0 z-10 flex items-center justify-end pr-2 text-[11px] border-r border-slate-200 dark:border-slate-700",
+                                        "sticky left-0 z-10 flex items-start justify-end pr-3 border-r border-slate-200 dark:border-slate-700",
                                         isHour
-                                            ? "bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-b-slate-300 dark:border-b-slate-600"
-                                            : "bg-slate-50 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700"
+                                            ? "text-xs font-bold text-slate-700 dark:text-slate-300 pt-1"
+                                            : "text-[10px] text-slate-400 dark:text-slate-500 pt-1"
                                     )}
                                     style={{ height: SLOT_HEIGHT }}
                                 >
-                                    {isHour ? time : <span className="opacity-70">{time}</span>}
+                                    {isHour ? time : <span className="opacity-75">{time}</span>}
                                 </div>
 
                                 {/* Slot cell */}
                                 <div
                                     className={cn(
-                                        "border-b border-slate-200 dark:border-slate-700",
+                                        "border-b border-slate-200 dark:border-slate-700 relative group",
                                         isHour && "border-b-slate-300 dark:border-b-slate-600",
-                                        slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : "bg-white dark:bg-slate-900"
+                                        slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : "bg-white dark:bg-slate-900",
+                                        (currentDate.getDay() === 0 || currentDate.getDay() === 6) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
                                     )}
                                     style={{ height: SLOT_HEIGHT }}
-                                    onClick={() => calDay && onSlotClick(calDay, timeIndex)}
-                                />
+                                    onClick={() => {
+                                        const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                                        if (calDay && !isWeekend) onSlotClick(calDay, timeIndex);
+                                    }}
+                                >
+                                    {slot?.status === 'available' && canBook && (
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-0.5 bg-blue-50/50 dark:bg-blue-950/30 z-10 pointer-events-none">
+                                            <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                                                <Video className="h-3 w-3" /> Book {time}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
@@ -165,10 +177,10 @@ export function ZoomDayView({
                                         <Clock className="h-3.5 w-3.5 shrink-0" />
                                         <span>{booking.startTime} – {booking.endTime} ({booking.durationMinutes} menit)</span>
                                     </div>
-                                    {booking.rowSpan >= 3 && (
+                                    {booking.rowSpan >= 2 && (
                                         <div className="flex items-center gap-1.5 text-xs opacity-80">
                                             <User className="h-3.5 w-3.5 shrink-0" />
-                                            <span>{booking.bookedBy}</span>
+                                            <span className="truncate">{booking.bookedBy}</span>
                                         </div>
                                     )}
                                     {booking.isMyBooking && booking.rowSpan >= 4 && (

@@ -3,6 +3,7 @@ import { Search, Ticket, FileText, Loader2, X, User, Clock, Tag } from 'lucide-r
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { NotificationPopover } from '../notifications/NotificationPopover';
+import { ActionCommandCenter } from '../notifications/ActionCommandCenter';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
@@ -286,6 +287,7 @@ export const BentoTopbar = () => {
 
             <div className="flex items-center gap-3 ml-4">
                 <ThemeToggle />
+                <ActionCommandCenter />
                 <NotificationPopover />
             </div>
         </header>

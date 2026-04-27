@@ -1,0 +1,69 @@
+
+<h2>🔔 iDesk — Audit Sistem Notifikasi</h2>
+<p class="subtitle">Gue sudah baca semua kode. Ini state saat ini vs gap yang perlu diperbaiki.</p>
+
+<div class="section">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
+    <div style="background:#0f172a;border:1px solid #1e3a2f;border-radius:12px;padding:16px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#22c55e;margin-bottom:8px;font-weight:700">✅ Sudah Ada</div>
+      <ul style="margin:0;padding-left:18px;color:#94a3b8;font-size:13px;line-height:2">
+        <li>Bell icon + badge unread di Topbar</li>
+        <li>Popover preview 10 notif terbaru</li>
+        <li>InAppToast real-time (hilang 5 detik)</li>
+        <li>CriticalBanner (SLA/renewal, marquee)</li>
+        <li>NotificationCenter full page + filter</li>
+        <li>Sound: MESSAGE / CRITICAL</li>
+        <li>Multi-channel: email, Telegram, push</li>
+        <li>requiresAcknowledge + API acknowledge</li>
+        <li>Category: tickets, renewals, hardware, zoom, eform</li>
+      </ul>
+    </div>
+    <div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:12px;padding:16px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#ef4444;margin-bottom:8px;font-weight:700">❌ Gap / Problem</div>
+      <ul style="margin:0;padding-left:18px;color:#94a3b8;font-size:13px;line-height:2">
+        <li>Toast 5 detik — terlewat kalau tidak lihat layar</li>
+        <li>Tidak ada "action inbox" — tugas pending tercecer</li>
+        <li>Semua notif terasa setara — tidak ada urgency visual</li>
+        <li>Tidak ada reminder re-surface notif unread lama</li>
+        <li>Sidebar tidak tunjukkan pending tasks</li>
+        <li>CriticalBanner bisa dismiss selamanya di session</li>
+        <li>Tidak ada "missed while away" summary</li>
+        <li>User/client tidak tahu ada respon tanpa buka app</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Siapa yang paling sering kelewat? (pilih semua yang tepat)</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="user" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>User / Client</h3>
+        <p>Tidak tahu ticket sudah direspon. Tidak ada reminder kalau belum ada update lama.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="agent" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Agent / IT Staff</h3>
+        <p>Ticket assigned tapi toast sudah hilang. Tidak ada queue view yang jelas mana yang urgent.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="admin" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Admin / Manager</h3>
+        <p>SLA breach atau renewal expiry tidak di-act cepat. Approval hardware/eform tertunda.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="all" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Semua Role</h3>
+        <p>Masalah merata — sistem notifikasi secara keseluruhan tidak asserted enough.</p>
+      </div>
+    </div>
+  </div>
+</div>

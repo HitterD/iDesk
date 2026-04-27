@@ -8,10 +8,18 @@ interface SignaturePadProps {
   signerName: string;
 }
 
+const applyCtxStyles = (ctx: CanvasRenderingContext2D) => {
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2D4A8C';
+};
+
 export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -20,27 +28,24 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas dimensions
     const resizeCanvas = () => {
       const parent = canvas.parentElement;
       if (parent) {
         canvas.width = parent.clientWidth;
         canvas.height = 200;
+        // Re-apply after resize — resizing clears canvas context state
+        applyCtxStyles(ctx);
       }
     };
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Initial styles
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#2D4A8C'; // Deep Sapphire
-
     return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isLocked) return;
     setIsDrawing(true);
     draw(e);
   };
@@ -79,7 +84,9 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
     const ctx = canvas?.getContext('2d');
     if (ctx && canvas) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      applyCtxStyles(ctx);
       setHasSignature(false);
+      setIsLocked(false); // Allow re-signing after clear
     }
   };
 
@@ -88,6 +95,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
     if (canvas && hasSignature) {
       const dataUrl = canvas.toDataURL('image/png');
       onSave(dataUrl);
+      setIsLocked(true);
     }
   };
 
@@ -105,7 +113,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
         </div>
       </div>
 
-      <div className="relative bg-white rounded-lg border border-border/50 h-[200px] cursor-crosshair touch-none">
+      <div className={`relative bg-white rounded-lg border border-border/50 h-[200px] cursor-crosshair touch-none ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}
@@ -131,14 +139,37 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
           <p>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         
-        <Button 
-          onClick={handleSave} 
-          disabled={!hasSignature}
-          className="rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-colors duration-150 h-9 px-4 text-xs font-bold"
-        >
-          <Check size={14} className="mr-2" /> Simpan & Kunci
-        </Button>
+        {!isLocked && (
+          <Button 
+            onClick={handleSave} 
+            disabled={!hasSignature}
+            className="rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-colors duration-150 h-9 px-4 text-xs font-bold"
+          >
+            <Check size={14} className="mr-2" /> Simpan & Kunci
+          </Button>
+        )}
       </div>
+
+      {hasSignature && (
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="space-y-1">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">
+              Nama Terang
+            </label>
+            <div className="h-10 rounded-xl bg-muted border border-border/30 px-3 flex items-center font-bold text-sm text-muted-foreground">
+              {signerName}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">
+              Tanggal TTD
+            </label>
+            <div className="h-10 rounded-xl bg-muted border border-border/30 px-3 flex items-center font-bold text-sm text-muted-foreground">
+              {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

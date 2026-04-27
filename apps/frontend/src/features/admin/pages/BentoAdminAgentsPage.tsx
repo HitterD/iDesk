@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BulkRoleChangeDialog } from '../components/BulkRoleChangeDialog';
 import { BulkPermissionDialog } from '../components/BulkPermissionDialog';
 
-import { PresetManagementDialog } from '../components/PresetManagementDialog';
+import { PresetDrawer } from '../components/PresetDrawer';
 import { ExportPreviewDialog } from '../components/ExportPreviewDialog';
 import { AgentComparisonDialog } from '../components/AgentComparisonDialog';
 import { BulkSiteChangeDialog } from '../components/BulkSiteChangeDialog';
@@ -38,6 +38,7 @@ import { Ticket } from '@/types/ticket.types';
 import { Site, User, AgentStats, PaginatedResponse } from '@/types/admin.types';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { usePermissionPresets } from '@/hooks/usePermissions';
+import { useAuth } from '@/stores/useAuth';
 
 import { TicketWithSite, SITE_COLORS, ROLE_CONFIG, getAvatarColor, highlightText, formatLastActive } from '../components/agent-management/agent-utils';
 import { AgentGridSkeleton, AgentTableSkeleton, ErrorState } from '../components/agent-management/AgentTableSkeletons';
@@ -60,6 +61,10 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [isEditUserOpen, setIsEditUserOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    // Site isolation: AGENT is locked to their own site
+    const { user: authUser } = useAuth();
+    const isAgentRole = authUser?.role === 'AGENT';
+
     const [selectedSite, setSelectedSite] = useState('ALL');
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -140,11 +145,21 @@ export const BentoAdminAgentsPage: React.FC = () => {
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     });
 
-    // Build sites array with "All Sites" prepended
+    // Build sites array with "All Sites" prepended (AGENT only sees their own site)
     const SITES = useMemo(() => [
         { code: 'ALL', name: 'All Sites', id: '' },
         ...sitesData.map(s => ({ ...s, code: s.code, name: s.name, id: s.id }))
     ], [sitesData]);
+
+    // Lock AGENT to their site tab on mount / when sites load
+    useEffect(() => {
+        if (isAgentRole && authUser?.siteId && sitesData.length > 0) {
+            const agentSite = sitesData.find(s => s.id === authUser.siteId);
+            if (agentSite) {
+                setSelectedSite(agentSite.code);
+            }
+        }
+    }, [isAgentRole, authUser?.siteId, sitesData]);
 
     // Fetch agent stats from backend API (pre-computed on server)
     // Backend returns { summary, agents } - we extract the agents array
@@ -637,7 +652,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Manage Presets Button */}
+                    {/* Manage Presets Button — opens PresetDrawer */}
                     <button
                         onClick={() => setIsPresetManageOpen(true)}
                         className="flex items-center gap-2 px-3 py-2 bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-slate-700 dark:text-slate-200 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-sm"
@@ -708,25 +723,33 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 {/* Filters row: Sites & Roles */}
                 <div className="flex flex-col lg:flex-row lg:items-center gap-4 pt-4 border-t border-[hsl(var(--border))]">
                     {/* Site Tabs */}
-                    <Tabs.Root value={selectedSite} onValueChange={handleSiteChange}>
+                    <Tabs.Root
+                        value={selectedSite}
+                        onValueChange={isAgentRole ? undefined : handleSiteChange}
+                    >
                         <Tabs.List className="flex flex-wrap gap-1 p-1 bg-slate-50 dark:bg-slate-800/50 border border-[hsl(var(--border))] rounded-lg w-fit">
-                            {SITES.map((site) => (
-                                <Tabs.Trigger
-                                    key={site.code}
-                                    value={site.code}
-                                    className={cn(
-                                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150",
-                                        "data-[state=active]:bg-[hsl(var(--card))] data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border-[hsl(var(--border))]",
-                                        "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-                                    )}
-                                >
-                                    <MapPin className="w-3.5 h-3.5" />
-                                    {site.code}
-                                    <span className="px-1.5 py-0.5 text-[10px] rounded-sm bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold">
-                                        {siteCounts[site.code] || 0}
-                                    </span>
-                                </Tabs.Trigger>
-                            ))}
+                            {SITES.map((site) => {
+                                const isLocked = isAgentRole && site.code !== selectedSite;
+                                return (
+                                    <Tabs.Trigger
+                                        key={site.code}
+                                        value={site.code}
+                                        disabled={isLocked}
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150",
+                                            "data-[state=active]:bg-[hsl(var(--card))] data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border-[hsl(var(--border))]",
+                                            "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white",
+                                            isLocked && "opacity-30 cursor-not-allowed pointer-events-none"
+                                        )}
+                                    >
+                                        <MapPin className="w-3.5 h-3.5" />
+                                        {site.code}
+                                        <span className="px-1.5 py-0.5 text-[10px] rounded-sm bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold">
+                                            {siteCounts[site.code] || 0}
+                                        </span>
+                                    </Tabs.Trigger>
+                                );
+                            })}
                         </Tabs.List>
                     </Tabs.Root>
 
@@ -1397,8 +1420,8 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 isLoading={bulkRoleChangeMutation.isPending}
             />
 
-            {/* Preset Management Dialog */}
-            <PresetManagementDialog
+            {/* Preset Drawer */}
+            <PresetDrawer
                 isOpen={isPresetManageOpen}
                 onClose={() => setIsPresetManageOpen(false)}
             />

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
-import { NotificationType, NotificationCategory } from '../../notifications/entities/notification.entity';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 import { EFormRequest } from '../entities/eform-request.entity';
 
 @Injectable()
@@ -16,43 +16,32 @@ export class EFormNotificationListener {
       await this.notificationCenter.send({
         userId: payload.managerId,
         type: NotificationType.EFORM_SUBMITTED,
-        title: 'Permintaan VPN Baru',
-        message: `${payload.request.requesterName} mengajukan akses VPN baru dan menunggu persetujuan Anda.`,
+        title: 'Permintaan Akses Baru',
+        message: `${payload.request.requesterName} mengajukan permintaan akses ${payload.request.formType} dan menunggu persetujuan Anda.`,
         referenceId: payload.request.id,
       });
-    } catch (error) {
-      this.logger.error(`Failed to send notification for eform.submitted: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to notify manager for eform.submitted: ${error.message}`);
     }
   }
 
-  @OnEvent('eform.manager1-approved')
-  async handleEFormManager1Approved(payload: { request: EFormRequest; managerId: string }) {
+  @OnEvent('eform.manager-approved')
+  async handleEFormManagerApproved(payload: { request: EFormRequest }) {
     try {
-      await this.notificationCenter.send({
-        userId: payload.managerId,
-        type: NotificationType.EFORM_MANAGER1_APPROVED,
-        title: 'Persetujuan Lanjutan VPN',
-        message: `Permintaan VPN dari ${payload.request.requesterName} menunggu persetujuan Anda.`,
-        referenceId: payload.request.id,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send notification for eform.manager1-approved: ${error.message}`);
-    }
-  }
-
-  @OnEvent('eform.manager2-approved')
-  async handleEFormManager2Approved(payload: { request: EFormRequest }) {
-    try {
-      // Notify All ICT Agents/Admins (simplified by sending to a specific role if your system supports it, 
-      // or fetching user IDs with ICT role)
-      await this.notificationCenter.sendToRole('AGENT', {
+      await this.notificationCenter.sendToRole('ADMIN', {
         type: NotificationType.EFORM_MANAGER2_APPROVED,
-        title: 'Provisioning VPN Diperlukan',
-        message: `Permintaan VPN dari ${payload.request.requesterName} telah disetujui GM dan siap diproses.`,
+        title: 'Provisioning Akses Diperlukan',
+        message: `Permintaan ${payload.request.formType} dari ${payload.request.requesterName} telah disetujui dan siap diproses.`,
         referenceId: payload.request.id,
       });
-    } catch (error) {
-      this.logger.error(`Failed to send notification for eform.manager2-approved: ${error.message}`);
+      await this.notificationCenter.sendToRole('AGENT_ADMIN', {
+        type: NotificationType.EFORM_MANAGER2_APPROVED,
+        title: 'Provisioning Akses Diperlukan',
+        message: `Permintaan ${payload.request.formType} dari ${payload.request.requesterName} telah disetujui dan siap diproses.`,
+        referenceId: payload.request.id,
+      });
+    } catch (error: any) {
+      this.logger.error(`Failed to notify ICT for eform.manager-approved: ${error.message}`);
     }
   }
 
@@ -62,12 +51,12 @@ export class EFormNotificationListener {
       await this.notificationCenter.send({
         userId: payload.request.requesterId,
         type: NotificationType.EFORM_CREDENTIALS_READY,
-        title: 'Akses VPN Aktif',
-        message: `Selamat! Akses VPN Anda telah aktif. Silakan buka aplikasi untuk melihat kredensial Anda.`,
+        title: `Akses ${payload.request.formType} Aktif`,
+        message: `Akses ${payload.request.formType} Anda telah aktif. Buka halaman detail untuk melihat kredensial.`,
         referenceId: payload.request.id,
       });
-    } catch (error) {
-      this.logger.error(`Failed to send notification for eform.ict-confirmed: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to notify requester for eform.ict-confirmed: ${error.message}`);
     }
   }
 
@@ -77,12 +66,12 @@ export class EFormNotificationListener {
       await this.notificationCenter.send({
         userId: payload.request.requesterId,
         type: NotificationType.EFORM_REJECTED,
-        title: 'Permintaan VPN Ditolak',
-        message: `Maaf, permintaan akses VPN Anda ditolak. Alasan: ${payload.request.rejectionReason}`,
+        title: 'Permintaan Akses Ditolak',
+        message: `Permintaan akses ${payload.request.formType} Anda ditolak. Alasan: ${payload.request.rejectionReason}`,
         referenceId: payload.request.id,
       });
-    } catch (error) {
-      this.logger.error(`Failed to send notification for eform.rejected: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to notify requester for eform.rejected: ${error.message}`);
     }
   }
 }

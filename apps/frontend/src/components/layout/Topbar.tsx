@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 import { NotificationPopover } from '../notifications/NotificationPopover';
+import { ActionCommandCenter } from '../notifications/ActionCommandCenter';
 import { useAuth } from '../../stores/useAuth';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -35,6 +36,7 @@ export const Topbar: React.FC = () => {
 
             {/* Right: Actions */}
             <div className="flex items-center gap-4">
+                <ActionCommandCenter />
                 <NotificationPopover />
 
                 <div className="flex items-center gap-3 pl-4 border-l border-white/10">

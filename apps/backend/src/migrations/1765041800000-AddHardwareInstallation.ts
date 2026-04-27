@@ -5,13 +5,13 @@ export class AddHardwareInstallation1765041800000 implements MigrationInterface 
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add hardware installation columns to tickets table
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "isHardwareInstallation" boolean NOT NULL DEFAULT false`);
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "scheduledDate" TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "scheduledTime" character varying`);
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "hardwareType" character varying`);
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "reminderD1Sent" boolean NOT NULL DEFAULT false`);
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "reminderD0Sent" boolean NOT NULL DEFAULT false`);
-        await queryRunner.query(`ALTER TABLE "tickets" ADD "userAcknowledged" boolean NOT NULL DEFAULT false`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "isHardwareInstallation" boolean NOT NULL DEFAULT false`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "scheduledDate" TIMESTAMP`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "scheduledTime" character varying`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "hardwareType" character varying`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "reminderD1Sent" boolean NOT NULL DEFAULT false`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "reminderD0Sent" boolean NOT NULL DEFAULT false`);
+        await queryRunner.query(`ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "userAcknowledged" boolean NOT NULL DEFAULT false`);
 
         // Add new enum values to notification_type
         await queryRunner.query(`ALTER TYPE "public"."notifications_type_enum" ADD VALUE IF NOT EXISTS 'HARDWARE_INSTALL_D1'`);

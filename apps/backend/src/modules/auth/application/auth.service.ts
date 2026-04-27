@@ -142,8 +142,8 @@ export class AuthService {
     }
 
     async login(user: any, request?: Request) {
-        const payload = { username: user.email, sub: user.id, role: user.role, type: 'access' };
-        const refreshPayload = { username: user.email, sub: user.id, role: user.role, type: 'refresh' };
+        const payload = { username: user.email, sub: user.id, role: user.role, type: 'access', fullName: user.fullName };
+        const refreshPayload = { username: user.email, sub: user.id, role: user.role, type: 'refresh', fullName: user.fullName };
         const expiresIn = this.getExpirationByRole(user.role);
         const refreshExpiresIn = '7d';
 

@@ -90,7 +90,7 @@ export function ZoomWeekView({
                                 "text-xs font-semibold capitalize",
                                 today ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"
                             )}>
-                                {format(day, 'EEE', { locale: idLocale })}
+                                {format(day, 'EEEE', { locale: idLocale })}
                             </span>
                             <span className={cn(
                                 "text-lg font-bold",
@@ -98,6 +98,14 @@ export function ZoomWeekView({
                             )}>
                                 {format(day, 'd')}
                             </span>
+                            {(() => {
+                                const meetingCount = calDay ? new Set(calDay.slots.filter(s => s.booking).map(s => s.booking!.id)).size : 0;
+                                return meetingCount > 0 && (
+                                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
+                                        {meetingCount} meetings
+                                    </span>
+                                );
+                            })()}
                             {calDay?.isBlocked && (
                                 <span className="text-[9px] text-red-500 font-medium bg-red-50 dark:bg-red-950/30 px-1 rounded">Blokir</span>
                             )}
@@ -118,14 +126,14 @@ export function ZoomWeekView({
                             {/* Time label */}
                             <div
                                 className={cn(
-                                    "sticky left-0 z-10 flex items-center justify-end pr-2 text-[11px] border-r border-slate-200 dark:border-slate-700",
+                                    "sticky left-0 z-10 flex items-start justify-end pr-3 border-r border-slate-200 dark:border-slate-700",
                                     isHour
-                                        ? "bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-b-slate-300 dark:border-b-slate-600"
-                                        : "bg-slate-50 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700"
+                                        ? "text-xs font-bold text-slate-700 dark:text-slate-300 pt-1"
+                                        : "text-[10px] text-slate-400 dark:text-slate-500 pt-1"
                                 )}
                                 style={{ height: SLOT_HEIGHT }}
                             >
-                                {isHour ? time : <span className="opacity-70">{time}</span>}
+                                {isHour ? time : <span className="opacity-75">{time}</span>}
                             </div>
 
                             {/* Day cells */}
@@ -139,14 +147,26 @@ export function ZoomWeekView({
                                     <div
                                         key={`${dateStr}-${time}`}
                                         className={cn(
-                                            "border-b border-r border-slate-200 dark:border-slate-700",
+                                            "border-b border-r border-slate-200 dark:border-slate-700 relative group",
                                             isHour && "border-b-slate-300 dark:border-b-slate-600",
                                             today && "bg-blue-50/30 dark:bg-blue-950/10",
-                                            slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : "bg-slate-50/50 dark:bg-slate-800/20"
+                                            slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : "bg-slate-50/50 dark:bg-slate-800/20",
+                                            (day.getDay() === 0 || day.getDay() === 6) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
                                         )}
                                         style={{ height: SLOT_HEIGHT }}
-                                        onClick={() => calDay && onSlotClick(calDay, timeIndex)}
-                                    />
+                                        onClick={() => {
+                                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                            if (calDay && !isWeekend) onSlotClick(calDay, timeIndex);
+                                        }}
+                                    >
+                                        {slot?.status === 'available' && canBook && (
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-0.5 bg-blue-50/50 dark:bg-blue-950/30 z-10 pointer-events-none">
+                                                <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                                                    <Video className="h-3 w-3" /> Book {time}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             })}
                         </div>
@@ -192,8 +212,13 @@ export function ZoomWeekView({
                                         <span className="truncate">{booking.title}</span>
                                     </div>
                                     {booking.rowSpan >= 2 && (
-                                        <div className="text-[11px] opacity-80 mt-0.5">
-                                            {booking.startTime} – {booking.endTime}
+                                        <div className="flex flex-col min-h-0 mt-0.5">
+                                            <div className="text-[11px] opacity-80 truncate">
+                                                {booking.startTime} – {booking.endTime}
+                                            </div>
+                                            <div className="text-[10px] opacity-70 truncate mt-0.5">
+                                                {booking.bookedBy}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E-Form Access — Full Design</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
+  h1 { font-size: 13px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: #94a3b8; margin-bottom: 24px; }
+  h2 { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #64748b; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .panel { background: #1e293b; border-radius: 16px; padding: 16px; border: 1px solid #334155; }
+  .panel-title { font-size: 9px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #3b82f6; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+
+  /* Form mockup */
+  .form-card { background: #1e293b; border-radius: 14px; overflow: hidden; border: 1px solid #334155; }
+  .form-header { background: linear-gradient(135deg, #1d4ed8, #4f46e5); padding: 14px 16px; }
+  .form-header-title { font-size: 11px; font-weight: 900; letter-spacing: 2px; color: #fff; }
+  .form-header-sub { font-size: 8px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+  .form-type-tabs { display: flex; gap: 4px; margin: 10px 16px; }
+  .tab-active { background: #3b82f6; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 8px; font-weight: 800; }
+  .tab { border: 1px solid #334155; color: #64748b; padding: 3px 10px; border-radius: 6px; font-size: 8px; }
+  .form-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field { display: flex; flex-direction: column; gap: 2px; }
+  .field-label { font-size: 7px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #64748b; }
+  .field-input { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 5px 8px; font-size: 8px; color: #e2e8f0; font-weight: 600; }
+  .field-input.editable { border-color: #3b82f6; }
+  .field-input.dropdown { display: flex; justify-content: space-between; align-items: center; }
+  .field-input.textarea { min-height: 40px; }
+  .divider { border-top: 1px dashed #334155; margin: 4px 0; }
+  .tc-row { display: flex; gap: 6px; align-items: flex-start; background: #0f172a; border-radius: 6px; padding: 6px; }
+  .tc-check { width: 12px; height: 12px; border: 1px solid #3b82f6; border-radius: 2px; background: #1d4ed8; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .tc-text { font-size: 7px; color: #94a3b8; line-height: 1.4; }
+  .sig-box { border: 1px dashed #334155; border-radius: 6px; height: 36px; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 7px; }
+  .submit-btn { background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff; border-radius: 8px; padding: 8px; text-align: center; font-size: 8px; font-weight: 900; letter-spacing: 1px; margin-top: 4px; }
+  .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 7px; font-weight: 800; }
+  .badge-blue { background: #1d4ed8; color: #93c5fd; }
+  .badge-yellow { background: #92400e; color: #fcd34d; }
+  .badge-green { background: #064e3b; color: #6ee7b7; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+
+  /* Workflow */
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .flow-node { border-radius: 8px; padding: 7px 14px; font-size: 8px; font-weight: 800; letter-spacing: 1px; text-align: center; min-width: 160px; }
+  .flow-arrow { color: #475569; font-size: 18px; line-height: 1.2; }
+  .flow-branch { display: flex; gap: 10px; align-items: flex-start; }
+  .flow-branch-item { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+  /* Approval page */
+  .approval-card { background: #1e293b; border-radius: 14px; overflow: hidden; border: 1px solid #334155; }
+  .approval-header { background: #0f172a; padding: 10px 14px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+  .approval-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .info-item { background: #0f172a; border-radius: 6px; padding: 6px 8px; }
+  .info-label { font-size: 7px; font-weight: 800; letter-spacing: 1px; color: #475569; text-transform: uppercase; }
+  .info-value { font-size: 9px; font-weight: 700; color: #e2e8f0; margin-top: 2px; }
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+  .btn-approve { background: linear-gradient(135deg, #059669, #10b981); color: #fff; border-radius: 7px; padding: 7px; text-align: center; font-size: 8px; font-weight: 900; }
+  .btn-reject { background: #1e293b; border: 1px solid #ef4444; color: #ef4444; border-radius: 7px; padding: 7px; text-align: center; font-size: 8px; font-weight: 800; }
+
+  /* Status pipeline */
+  .pipeline { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .pipe-step { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .pipe-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 900; }
+  .pipe-label { font-size: 6px; font-weight: 700; letter-spacing: 0.5px; text-align: center; max-width: 44px; }
+  .pipe-line { width: 20px; height: 2px; background: #334155; margin-top: -12px; }
+  .pipe-done { background: #059669; color: #fff; }
+  .pipe-active { background: #2563eb; color: #fff; }
+  .pipe-pending { background: #1e293b; color: #475569; border: 1px solid #334155; }
+
+  .tag { font-size: 7px; color: #64748b; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .note { font-size: 8px; color: #64748b; padding: 8px 10px; background: #0f172a; border-radius: 6px; border-left: 2px solid #3b82f6; }
+</style>
+</head>
+<body>
+
+<h1>E-Form Access Redesign — Full Design Proposal</h1>
+
+<!-- ROW 1: Form + Workflow + Manager Page -->
+<div class="grid">
+
+  <!-- FORM (User Side) -->
+  <div class="panel">
+    <div class="panel-title">① Form User — Modern Compact (C)</div>
+    <div class="form-card">
+      <div class="form-header">
+        <div class="form-header-title">E-FORM ACCESS REQUEST</div>
+        <div class="form-header-sub">Form Permintaan Akses Digital</div>
+      </div>
+      <div class="form-type-tabs">
+        <div class="tab-active">VPN</div>
+        <div class="tab">Website</div>
+        <div class="tab">Network</div>
+      </div>
+      <div class="form-body">
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Nama Pemohon *</div>
+            <div class="field-input editable">Ahmad Surya <span style="color:#3b82f6;font-size:6px">✎ edit</span></div>
+          </div>
+          <div class="field">
+            <div class="field-label">Departemen *</div>
+            <div class="field-input editable">IT Development <span style="color:#3b82f6;font-size:6px">✎ edit</span></div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Dari Tanggal</div>
+            <div class="field-input">21 Apr 2026</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Sampai Tanggal</div>
+            <div class="field-input">21 Mei 2026</div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Kebutuhan Akses VPN</div>
+          <div class="field-input">Remote PC Kantor</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Alasan Pengajuan *</div>
+          <div class="field-input textarea">WFH dan butuh akses ke sistem internal...</div>
+        </div>
+        <div class="divider"></div>
+        <div class="field">
+          <div class="field-label">Atasan Persetujuan *</div>
+          <div class="field-input dropdown"><span style="color:#e2e8f0">Budi Santoso • Manager IT</span><span style="color:#64748b">▾</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="tc-row">
+          <div class="tc-check"><span style="color:#fff;font-size:8px">✓</span></div>
+          <div class="tc-text">Saya menyatakan bahwa informasi yang diberikan adalah benar dan saya menyetujui <span style="color:#60a5fa">Syarat & Ketentuan</span> penggunaan akses.</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Tanda Tangan Pemohon</div>
+          <div class="sig-box">✍ Area tanda tangan digital</div>
+        </div>
+        <div class="submit-btn">KIRIM PENGAJUAN ↗</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WORKFLOW -->
+  <div class="panel">
+    <div class="panel-title">② Workflow Linear (A)</div>
+    <div class="flow" style="margin-top: 8px">
+      <div class="flow-node" style="background:#1d4ed8;color:#bfdbfe">👤 USER<br><span style="font-weight:400;opacity:0.8">Isi form + TTD + pilih atasan</span></div>
+      <div class="flow-arrow">↓</div>
+      <div style="font-size:7px;color:#475569;background:#0f172a;padding:3px 8px;border-radius:4px;margin:-4px 0;font-weight:700">SUBMIT → status: PENDING_MANAGER</div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-node" style="background:#92400e;color:#fcd34d">📬 ATASAN TERIMA INBOX<br><span style="font-weight:400;opacity:0.8">Notifikasi real-time masuk</span></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-node" style="background:#1e293b;color:#94a3b8;border:1px solid #334155">Atasan buka halaman detail<br><span style="font-weight:400;opacity:0.8;font-size:7px">Review form + TTD + Approve/Reject</span></div>
+      <div class="flow-arrow">↓</div>
+      <div style="display:flex;gap:12px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div style="color:#10b981;font-size:14px">✓</div>
+          <div class="flow-node" style="background:#064e3b;color:#6ee7b7;min-width:100px">SETUJU<br><span style="font-weight:400;font-size:7px">→ PENDING_ICT</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node" style="background:#3b0764;color:#e9d5ff;min-width:100px">🔧 ICT TERIMA<br><span style="font-weight:400;font-size:7px">Buat akses VPN/user</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node" style="background:#0f172a;color:#6ee7b7;border:1px solid #059669;min-width:100px">✅ SELESAI<br><span style="font-weight:400;font-size:7px">User dapat kredensial</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div style="color:#ef4444;font-size:14px">✗</div>
+          <div class="flow-node" style="background:#7f1d1d;color:#fca5a5;min-width:100px">TOLAK<br><span style="font-weight:400;font-size:7px">→ REJECTED</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;min-width:100px;font-size:7px">Notif ke user<br>alasan penolakan</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="note">Status enum baru:<br>DRAFT → PENDING_MANAGER → PENDING_ICT → CONFIRMED / REJECTED</div>
+      <div class="note" style="margin-top:6px">ICT notif = user role ADMIN + AGENT_ADMIN</div>
+    </div>
+  </div>
+
+  <!-- MANAGER APPROVAL PAGE -->
+  <div class="panel">
+    <div class="panel-title">③ Halaman Approval Atasan (Y)</div>
+    <div class="approval-card">
+      <div class="approval-header">
+        <div>
+          <div style="font-size:9px;font-weight:800;color:#e2e8f0">E-Form #VPN-2026-042</div>
+          <div style="font-size:7px;color:#64748b">Menunggu persetujuan Anda</div>
+        </div>
+        <div class="badge badge-yellow">PENDING</div>
+      </div>
+      <div class="approval-body">
+        <div class="info-row">
+          <div class="info-item">
+            <div class="info-label">Pemohon</div>
+            <div class="info-value">Ahmad Surya</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Departemen</div>
+            <div class="info-value">IT Development</div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-item">
+            <div class="info-label">Jenis Akses</div>
+            <div class="info-value"><span class="badge badge-blue">VPN</span></div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Periode</div>
+            <div class="info-value">21 Apr – Mei 2026</div>
+          </div>
+        </div>
+        <div class="info-item" style="background:#0f172a;border-radius:6px;padding:6px 8px">
+          <div class="info-label">Alasan Pengajuan</div>
+          <div class="info-value" style="font-size:8px;font-weight:400;color:#94a3b8;margin-top:3px;line-height:1.4">WFH dan butuh akses ke sistem internal perusahaan untuk keperluan remote work.</div>
+        </div>
+        <div class="divider"></div>
+        <div style="font-size:7px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:1px">Tanda tangan pemohon</div>
+        <div class="sig-box" style="height:28px"><span style="font-style:italic;color:#64748b">Ahmad Surya ✓ tersimpan</span></div>
+        <div class="divider"></div>
+        <div style="font-size:7px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:1px">Tanda tangan atasan (Anda)</div>
+        <div class="sig-box">✍ Area tanda tangan</div>
+        <div class="action-row" style="margin-top:8px">
+          <div class="btn-approve">✓ SETUJUI</div>
+          <div class="btn-reject">✗ TOLAK</div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:10px">Accessible via: notifikasi inbox → link ke /eform-requests/:id/approve</div>
+  </div>
+
+</div>
+
+<!-- ROW 2: Status Pipeline + Backend Changes + Frontend Changes -->
+<div class="grid-2">
+
+  <div class="panel">
+    <div class="panel-title">④ Status Pipeline Baru</div>
+    <div class="pipeline" style="padding: 8px 0">
+      <div class="pipe-step">
+        <div class="pipe-dot pipe-done">✓</div>
+        <div class="pipe-label" style="color:#6ee7b7">DRAFT</div>
+      </div>
+      <div class="pipe-line"></div>
+      <div class="pipe-step">
+        <div class="pipe-dot pipe-active">⏳</div>
+        <div class="pipe-label" style="color:#93c5fd">PENDING MANAGER</div>
+      </div>
+      <div class="pipe-line"></div>
+      <div class="pipe-step">
+        <div class="pipe-dot pipe-pending">⏳</div>
+        <div class="pipe-label" style="color:#475569">PENDING ICT</div>
+      </div>
+      <div class="pipe-line"></div>
+      <div class="pipe-step">
+        <div class="pipe-dot" style="background:#064e3b;color:#6ee7b7">✓</div>
+        <div class="pipe-label" style="color:#6ee7b7">CONFIRMED</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
+      <div class="note"><strong>HAPUS:</strong> PENDING_MANAGER_2 dari enum</div>
+      <div class="note"><strong>TETAP:</strong> PENDING_MANAGER_1 → rename PENDING_MANAGER</div>
+      <div class="note"><strong>PENDING_ICT:</strong> setelah manager approve → auto-notify ADMIN + AGENT_ADMIN</div>
+      <div class="note"><strong>Dropdown atasan:</strong> endpoint GET /users/all (semua user dari DB)</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">⑤ Perubahan Frontend & Backend</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div>
+        <div class="tag">Frontend — EformAccessCreatePage.tsx</div>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          <div class="note">✎ Nama & Dept: editable input (prefilled dari auth user)</div>
+          <div class="note">✎ Hapus "Section 1/2/3:" heading text</div>
+          <div class="note">✎ Layout: Modern Compact — satu area scroll</div>
+          <div class="note">✎ T&C: inline checkbox (bukan card terpisah)</div>
+          <div class="note">✎ ManagerSelector: fetch GET /users (all, bukan /approvers)</div>
+        </div>
+      </div>
+      <div>
+        <div class="tag">Frontend — Halaman baru</div>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          <div class="note">+ EformApprovalPage.tsx — halaman review + TTD atasan</div>
+          <div class="note">+ Route: /eform-requests/:id/approve</div>
+        </div>
+      </div>
+      <div>
+        <div class="tag">Backend — eform-request.service.ts</div>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          <div class="note">✎ Status: hapus PENDING_MANAGER_2</div>
+          <div class="note">✎ approveManager1() → after approve: status = PENDING_ICT, notify ADMIN+AGENT_ADMIN</div>
+          <div class="note">+ endpoint GET /users (all users untuk dropdown)</div>
+        </div>
+      </div>
+      <div>
+        <div class="tag">Backend — Notification</div>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          <div class="note">Submit form → notif ke managerId yang dipilih</div>
+          <div class="note">Manager approve → notif ke semua ADMIN + AGENT_ADMIN</div>
+          <div class="note">ICT selesai → notif ke requester (credentials)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="text-align:center;margin-top:16px;font-size:9px;color:#475569;letter-spacing:2px;font-weight:700">
+  SEMUA KEPUTUSAN TERKONFIRMASI — Balas di terminal untuk lanjut ke penulisan spec
+</div>
+
+</body>
+</html>

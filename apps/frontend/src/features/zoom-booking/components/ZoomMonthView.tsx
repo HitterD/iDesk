@@ -81,10 +81,15 @@ export function ZoomMonthView({
         <div className="flex flex-col h-full select-none">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700 shrink-0">
-                {DAY_NAMES.map((name) => (
+                {DAY_NAMES.map((name, idx) => (
                     <div
                         key={name}
-                        className="py-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400"
+                        className={cn(
+                            "py-2 text-center text-xs font-semibold",
+                            idx >= 5
+                                ? "text-slate-400/70 dark:text-slate-500/70"
+                                : "text-slate-500 dark:text-slate-400"
+                        )}
                     >
                         {name}
                     </div>
@@ -105,20 +110,24 @@ export function ZoomMonthView({
                     const visibleEvents = events.slice(0, 3);
                     const overflow = events.length - visibleEvents.length;
                     const isBlocked = calDay?.isBlocked ?? false;
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
 
                     return (
                         <div
                             key={dateStr}
                             className={cn(
                                 "min-h-[80px] p-1 border-b border-r border-slate-200 dark:border-slate-700",
-                                "cursor-pointer transition-colors duration-100 relative",
+                                "transition-colors duration-100 relative",
+                                !isWeekend && "cursor-pointer",
                                 inMonth
                                     ? "bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 hover:shadow-inner"
                                     : "bg-slate-50/40 dark:bg-slate-800/20",
                                 today && "bg-blue-50/60 dark:bg-blue-950/20",
-                                isBlocked && "bg-red-50/40 dark:bg-red-950/20"
+                                isBlocked && "bg-red-50/40 dark:bg-red-950/20",
+                                isWeekend && "bg-slate-100/80 dark:bg-slate-800/40 cursor-not-allowed opacity-60 hover:bg-slate-100/80 dark:hover:bg-slate-800/40"
                             )}
                             onClick={() => {
+                                if (isWeekend) return;
                                 if (calDay && calDay.slots.length > 0) {
                                     onSlotClick(calDay, calDay.slots[0]);
                                 }
@@ -127,16 +136,23 @@ export function ZoomMonthView({
                         >
                             {/* Day number */}
                             <div className="flex items-center justify-between mb-1 px-0.5">
-                                <span className={cn(
-                                    "text-xs font-semibold inline-flex items-center justify-center w-6 h-6 rounded-full",
-                                    today
-                                        ? "bg-blue-600 text-white"
-                                        : inMonth
-                                            ? "text-slate-800 dark:text-slate-200"
-                                            : "text-slate-400 dark:text-slate-600"
-                                )}>
-                                    {format(day, 'd')}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                    <span className={cn(
+                                        "text-xs font-semibold inline-flex items-center justify-center w-6 h-6 rounded-full",
+                                        today
+                                            ? "bg-blue-600 text-white"
+                                            : inMonth
+                                                ? "text-slate-800 dark:text-slate-200"
+                                                : "text-slate-400 dark:text-slate-600"
+                                    )}>
+                                        {format(day, 'd')}
+                                    </span>
+                                    {events.length > 0 && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
+                                            {events.length} meetings
+                                        </span>
+                                    )}
+                                </div>
                                 {isBlocked && (
                                     <span className="text-[9px] text-red-500 font-medium">Blokir</span>
                                 )}

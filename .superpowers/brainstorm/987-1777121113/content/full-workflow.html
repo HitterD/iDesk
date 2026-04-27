@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lost Items — Full Workflow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 32px; }
+
+  h1 { font-size: 22px; font-weight: 800; color: #f1f5f9; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+
+  /* LANE LAYOUT */
+  .lanes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  .lane { background: #1e293b; border-radius: 14px; padding: 18px; border: 1px solid #334155; }
+  .lane-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 14px; padding: 6px 10px; border-radius: 6px; display: inline-block; }
+  .lane-reporter .lane-title { background: #1e3a5f; color: #60a5fa; }
+  .lane-finder .lane-title { background: #14532d; color: #4ade80; }
+  .lane-manager .lane-title { background: #4c1d95; color: #c084fc; }
+
+  /* STEP BOXES */
+  .step { background: #0f172a; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; border: 1px solid #334155; position: relative; }
+  .step-num { font-size: 10px; font-weight: 800; color: #475569; margin-bottom: 4px; }
+  .step-title { font-size: 13px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .step-desc { font-size: 11px; color: #94a3b8; line-height: 1.5; }
+  .step-tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-top: 6px; }
+  .tag-form { background: #1e3a5f; color: #60a5fa; }
+  .tag-photo { background: #3b1f0d; color: #fb923c; }
+  .tag-notif { background: #1a2e1f; color: #4ade80; }
+  .tag-action { background: #2d1b4e; color: #c084fc; }
+  .tag-auto { background: #1f2937; color: #f59e0b; }
+
+  /* STATUS CHAIN */
+  .status-section { background: #1e293b; border-radius: 14px; padding: 18px 22px; margin-bottom: 28px; border: 1px solid #334155; }
+  .status-section h3 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #64748b; margin-bottom: 14px; }
+  .status-chain { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 800; }
+  .s-reported { background: #fef3c7; color: #92400e; }
+  .s-investigating { background: #dbeafe; color: #1e40af; }
+  .s-claimed { background: #f3e8ff; color: #6b21a8; }
+  .s-verified { background: #d1fae5; color: #065f46; }
+  .s-returned { background: #dcfce7; color: #14532d; }
+  .s-lost { background: #f1f5f9; color: #475569; }
+  .s-pending { background: #fef9c3; color: #713f12; }
+  .s-matched { background: #d1fae5; color: #065f46; }
+  .s-rejected { background: #fee2e2; color: #991b1b; }
+  .arrow { color: #475569; font-size: 16px; font-weight: 700; }
+  .or { font-size: 10px; color: #64748b; font-weight: 600; padding: 0 2px; }
+
+  /* NOTIFICATION TRIGGERS */
+  .notif-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 28px; }
+  .notif-card { background: #1e293b; border-radius: 10px; padding: 14px; border: 1px solid #1a2e1f; }
+  .notif-card .who { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+  .notif-card .who.reporter { color: #60a5fa; }
+  .notif-card .who.finder { color: #4ade80; }
+  .notif-card .who.manager { color: #c084fc; }
+  .notif-card ul { list-style: none; }
+  .notif-card ul li { font-size: 11px; color: #94a3b8; padding: 3px 0; padding-left: 14px; position: relative; line-height: 1.4; }
+  .notif-card ul li::before { content: '→'; position: absolute; left: 0; color: #475569; }
+
+  /* PAGES */
+  .pages-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  .page-card { background: #1e293b; border-radius: 10px; padding: 14px 16px; border: 1px solid #334155; }
+  .page-card .role { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 6px; }
+  .page-card .role.client { color: #60a5fa; }
+  .page-card .role.manager { color: #c084fc; }
+  .page-card .page-name { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .page-card .page-desc { font-size: 11px; color: #64748b; }
+  .badge-new { display: inline-block; font-size: 9px; font-weight: 800; background: #dc2626; color: white; padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+  .badge-enhance { display: inline-block; font-size: 9px; font-weight: 800; background: #d97706; color: white; padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+
+  /* ENTITIES */
+  .entity-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .entity-card { background: #1e293b; border-radius: 10px; padding: 14px; border: 1px solid #334155; }
+  .entity-name { font-size: 13px; font-weight: 800; color: #f1f5f9; margin-bottom: 8px; }
+  .badge-exist { font-size: 9px; background: #065f46; color: #4ade80; padding: 1px 7px; border-radius: 10px; font-weight: 700; margin-left: 6px; }
+  .badge-new-e { font-size: 9px; background: #7c2d12; color: #fb923c; padding: 1px 7px; border-radius: 10px; font-weight: 700; margin-left: 6px; }
+  .field { font-size: 11px; color: #94a3b8; padding: 2px 0; }
+  .field span { color: #60a5fa; }
+  .field .new-field { color: #fb923c; }
+
+  h2 { font-size: 15px; font-weight: 800; color: #94a3b8; margin-bottom: 14px; text-transform: uppercase; letter-spacing: .08em; }
+  .divider { height: 1px; background: #1e293b; margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<h1>Lost Items — Full Workflow (C, tanpa AI matching)</h1>
+<p class="sub">End-to-end: 3 aktor · photo upload · QR · real-time notif · audit timeline</p>
+
+<!-- ACTOR LANES -->
+<h2>Alur Per Aktor</h2>
+<div class="lanes">
+
+  <div class="lane lane-reporter">
+    <div class="lane-title">👤 Reporter (Employee)</div>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Submit Lost Report</div>
+      <div class="step-desc">Isi form: nama barang, jenis, lokasi terakhir, waktu, kronologi, S/N, asset tag</div>
+      <span class="step-tag tag-form">Form</span>
+      <span class="step-tag tag-photo">Upload Foto</span>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Terima Konfirmasi</div>
+      <div class="step-desc">Dapat ID laporan (LST-xxxx) + notifikasi email/in-app</div>
+      <span class="step-tag tag-notif">Notifikasi</span>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-title">Terima Update Found</div>
+      <div class="step-desc">Notif: "Ada yang menemukan barang Anda" + foto bukti penemu</div>
+      <span class="step-tag tag-notif">Notifikasi</span>
+    </div>
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-title">Ambil Barang</div>
+      <div class="step-desc">Datang ke lokasi pickup. Manager konfirmasi serah terima.</div>
+      <span class="step-tag tag-action">Selesai</span>
+    </div>
+  </div>
+
+  <div class="lane lane-finder">
+    <div class="lane-title">🔍 Finder (Siapa saja)</div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Submit Found Claim</div>
+      <div class="step-desc">Lapor barang temuan: deskripsi, lokasi ditemukan, waktu temuan</div>
+      <span class="step-tag tag-form">Form</span>
+      <span class="step-tag tag-photo">Upload Foto Bukti</span>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Claim Pending Review</div>
+      <div class="step-desc">Manager akan review dan match dengan laporan yang ada</div>
+      <span class="step-tag tag-auto">Auto: cek S/N match</span>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-title">Terima Hasil Verifikasi</div>
+      <div class="step-desc">Notif: matched ✓ atau rejected ✗ dengan alasan</div>
+      <span class="step-tag tag-notif">Notifikasi</span>
+    </div>
+    <div class="step">
+      <div class="step-num">8</div>
+      <div class="step-title">Serah Terima ke Manager</div>
+      <div class="step-desc">Antar barang ke manager/security. Dapat konfirmasi penyerahan.</div>
+      <span class="step-tag tag-action">Selesai</span>
+    </div>
+  </div>
+
+  <div class="lane lane-manager">
+    <div class="lane-title">🛡️ Manager / Admin</div>
+    <div class="step">
+      <div class="step-num">M1</div>
+      <div class="step-title">Terima Laporan Masuk</div>
+      <div class="step-desc">Dashboard menampilkan laporan baru. Notif real-time.</div>
+      <span class="step-tag tag-notif">Notifikasi</span>
+    </div>
+    <div class="step">
+      <div class="step-num">M2</div>
+      <div class="step-title">Review Found Claims</div>
+      <div class="step-desc">Lihat side-by-side: foto hilang vs foto temuan + data S/N</div>
+      <span class="step-tag tag-action">Manual Verify</span>
+    </div>
+    <div class="step">
+      <div class="step-num">M3</div>
+      <div class="step-title">Match / Reject Claim</div>
+      <div class="step-desc">Konfirmasi kecocokan → status berubah → notif ke semua pihak</div>
+      <span class="step-tag tag-action">Action</span>
+    </div>
+    <div class="step">
+      <div class="step-num">M4</div>
+      <div class="step-title">Konfirmasi Return</div>
+      <div class="step-desc">Setelah fisik diserahkan, klik "Mark Returned" → report closed</div>
+      <span class="step-tag tag-action">Close</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- STATUS CHAIN -->
+<h2>Status Chain</h2>
+<div class="status-section">
+  <h3>LostItemReport</h3>
+  <div class="status-chain">
+    <span class="status-badge s-reported">REPORTED</span>
+    <span class="arrow">→</span>
+    <span class="status-badge s-investigating">INVESTIGATING</span>
+    <span class="arrow">→</span>
+    <span class="status-badge s-claimed">CLAIMED</span>
+    <span class="arrow">→</span>
+    <span class="status-badge s-verified">VERIFIED</span>
+    <span class="arrow">→</span>
+    <span class="status-badge s-returned">RETURNED</span>
+    <br style="width:100%">
+    <div style="margin-top:8px;font-size:11px;color:#64748b">
+      REPORTED / INVESTIGATING / CLAIMED <span style="color:#475569">→</span>
+      <span class="status-badge s-lost" style="font-size:11px;padding:3px 10px">LOST (timeout / force-close)</span>
+    </div>
+  </div>
+</div>
+
+<div class="status-section" style="margin-top:12px">
+  <h3>FoundItemClaim</h3>
+  <div class="status-chain">
+    <span class="status-badge s-pending">PENDING</span>
+    <span class="arrow">→</span>
+    <span class="status-badge s-matched">MATCHED</span>
+    <span class="arrow">→</span>
+    <span class="status-badge s-returned">RETURNED</span>
+    <span class="or">or</span>
+    <span class="status-badge s-rejected">REJECTED</span>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- NOTIFICATION TRIGGERS -->
+<h2>Notification Triggers</h2>
+<div class="notif-grid">
+  <div class="notif-card">
+    <div class="who reporter">Reporter dapat notif saat:</div>
+    <ul>
+      <li>Laporan berhasil dikirim (konfirmasi)</li>
+      <li>Status berubah ke INVESTIGATING</li>
+      <li>Found claim masuk untuk laporannya</li>
+      <li>Claim di-verify → item MATCHED</li>
+      <li>Manager confirm RETURNED</li>
+      <li>Report di-close (LOST)</li>
+    </ul>
+  </div>
+  <div class="notif-card">
+    <div class="who finder">Finder dapat notif saat:</div>
+    <ul>
+      <li>Claim berhasil dikirim</li>
+      <li>Claim MATCHED ✓</li>
+      <li>Claim REJECTED ✗ + alasan</li>
+      <li>Serah terima dikonfirmasi</li>
+    </ul>
+  </div>
+  <div class="notif-card">
+    <div class="who manager">Manager dapat notif saat:</div>
+    <ul>
+      <li>Lost report baru masuk</li>
+      <li>Found claim baru masuk</li>
+      <li>Auto-detect: S/N match antara lost & found</li>
+      <li>Report mendekati timeout (7 hari)</li>
+    </ul>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- PAGES NEEDED -->
+<h2>Halaman yang Dibutuhkan</h2>
+<div class="pages-grid">
+  <div class="page-card">
+    <div class="role client">Client / Employee</div>
+    <div class="page-name">Report Lost Item <span class="badge-enhance">ENHANCE</span></div>
+    <div class="page-desc">Form existing + tambah foto upload, validasi S/N, preview sebelum submit</div>
+  </div>
+  <div class="page-card">
+    <div class="role client">Client / Employee</div>
+    <div class="page-name">My Lost Reports <span class="badge-new">BARU</span></div>
+    <div class="page-desc">List laporan milik saya, timeline status, tombol cancel</div>
+  </div>
+  <div class="page-card">
+    <div class="role client">Client / Employee</div>
+    <div class="page-name">Report Found Item <span class="badge-new">BARU</span></div>
+    <div class="page-desc">Siapa saja bisa lapor temuan: foto, lokasi, waktu, deskripsi</div>
+  </div>
+  <div class="page-card">
+    <div class="role manager">Manager</div>
+    <div class="page-name">Lost Items Dashboard <span class="badge-enhance">ENHANCE</span></div>
+    <div class="page-desc">List + filter real data (ganti dummy), stats card, detail drawer</div>
+  </div>
+  <div class="page-card">
+    <div class="role manager">Manager</div>
+    <div class="page-name">Found Claims Queue <span class="badge-new">BARU</span></div>
+    <div class="page-desc">List semua claim pending, foto bukti, tombol match/reject</div>
+  </div>
+  <div class="page-card">
+    <div class="role manager">Manager</div>
+    <div class="page-name">Match Review Panel <span class="badge-new">BARU</span></div>
+    <div class="page-desc">Side-by-side: foto lost vs foto found + data S/N + action buttons</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- DB ENTITIES -->
+<h2>Data Entities</h2>
+<div class="entity-grid">
+  <div class="entity-card">
+    <div class="entity-name">LostItemReport <span class="badge-exist">EXISTING</span></div>
+    <div class="field">id, reporterId, itemName, itemType</div>
+    <div class="field">locationLost, description, status</div>
+    <div class="field">serialNumber, assetTag</div>
+    <div class="field"><span class="new-field">+ photoUrls: string[]</span></div>
+    <div class="field"><span class="new-field">+ qrCodeId: string?</span></div>
+    <div class="field">createdAt, updatedAt</div>
+  </div>
+  <div class="entity-card">
+    <div class="entity-name">FoundItemClaim <span class="badge-new-e">BARU</span></div>
+    <div class="field"><span>id, finderId</span></div>
+    <div class="field">lostItemReportId? (nullable)</div>
+    <div class="field">locationFound, description</div>
+    <div class="field">photoUrls: string[]</div>
+    <div class="field">foundAt: datetime</div>
+    <div class="field">status: PENDING|MATCHED|RETURNED|REJECTED</div>
+    <div class="field">managerNotes, createdAt</div>
+  </div>
+  <div class="entity-card">
+    <div class="entity-name">LostItemStatusLog <span class="badge-new-e">BARU</span></div>
+    <div class="field"><span>id, lostItemReportId</span></div>
+    <div class="field">fromStatus, toStatus</div>
+    <div class="field">changedById (manager/system)</div>
+    <div class="field">notes, timestamp</div>
+    <div class="field" style="margin-top:6px;color:#475569;font-size:11px">→ untuk audit timeline</div>
+  </div>
+</div>
+
+</body>
+</html>

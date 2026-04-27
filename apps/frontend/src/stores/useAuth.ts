@@ -13,6 +13,7 @@ interface User {
     jobTitle?: string;
     phoneNumber?: string;
     departmentId?: string;
+    siteId?: string;
 }
 
 interface AuthState {

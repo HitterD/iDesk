@@ -6,6 +6,14 @@ export class CreateEFormRequestDto {
   @IsNotEmpty()
   formType: EFormType;
 
+  @IsString()
+  @IsOptional()
+  requesterName?: string;
+
+  @IsString()
+  @IsOptional()
+  requesterDepartment?: string;
+
   @IsObject()
   @IsNotEmpty()
   formData: any;

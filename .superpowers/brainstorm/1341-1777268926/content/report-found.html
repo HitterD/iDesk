@@ -1,0 +1,112 @@
+<h2>ReportFoundItemPage — QR Flow</h2>
+<p class="subtitle">Dua state: masuk via QR scan (pre-filled) vs manual browse</p>
+
+<style>
+.page-mock { background:#f8fafc; border:2px solid #e2e8f0; border-radius:14px; overflow:hidden; font-size:12px; }
+.page-header { padding:14px 16px; background:white; border-bottom:1px solid #e2e8f0; }
+.page-body { padding:14px 16px; }
+.field-label { font-size:10px; font-weight:800; text-transform:uppercase; color:#64748b; letter-spacing:0.08em; margin-bottom:4px; }
+.field-input { background:white; border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:12px; color:#0f172a; width:100%; box-sizing:border-box; }
+.field-locked { background:#f1f5f9; border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:12px; color:#475569; width:100%; box-sizing:border-box; }
+.field-group { margin-bottom:10px; }
+.qr-banner { background:linear-gradient(135deg,#f0fdf4,#dcfce7); border:1.5px solid #86efac; border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.search-banner { background:linear-gradient(135deg,#eff6ff,#dbeafe); border:1.5px solid #93c5fd; border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+.photo-slot { width:44px; height:44px; background:#e2e8f0; border-radius:8px; border:1.5px dashed #94a3b8; display:flex; align-items:center; justify-content:center; font-size:16px; }
+.submit-btn { width:100%; padding:10px; background:#f43f5e; color:white; border:none; border-radius:10px; font-weight:800; font-size:13px; cursor:default; margin-top:10px; }
+.search-result { background:white; border:1.5px solid #e2e8f0; border-radius:9px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; cursor:default; }
+</style>
+
+<div class="split">
+
+  <!-- State A: Via QR Scan -->
+  <div class="mockup">
+    <div class="mockup-header">State A — Masuk via QR Scan <code style="font-size:10px">?r=TOKEN123</code></div>
+    <div class="mockup-body" style="padding:0">
+      <div class="page-mock">
+        <div class="page-header">
+          <div style="font-weight:900;font-size:14px;color:#0f172a">Lapor Barang Temuan</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Terima kasih sudah melaporkan!</div>
+        </div>
+        <div class="page-body">
+          <div class="qr-banner">
+            <div style="font-size:20px">✅</div>
+            <div>
+              <div style="font-weight:800;color:#15803d;font-size:12px">Barang teridentifikasi dari QR</div>
+              <div style="font-size:11px;color:#166534">Laptop Dell XPS 15 · Pemilik: Bagastyo</div>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Laporan Hilang (otomatis)</div>
+            <div class="field-locked">LI-00123 — Laptop Dell XPS 15 🔒</div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Deskripsi temuan kamu</div>
+            <div class="field-input" style="color:#94a3b8">Ceritakan kondisi barang saat ditemukan...</div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Lokasi kamu temukan</div>
+            <div class="field-input" style="color:#94a3b8">Contoh: Lobby lantai 2...</div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Foto bukti (maks. 5)</div>
+            <div style="display:flex;gap:6px">
+              <div class="photo-slot">+</div>
+              <div class="photo-slot">+</div>
+              <div class="photo-slot">+</div>
+            </div>
+          </div>
+          <button class="submit-btn">Kirim Laporan Temuan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State B: Manual Browse -->
+  <div class="mockup">
+    <div class="mockup-header">State B — Manual (tanpa QR)</div>
+    <div class="mockup-body" style="padding:0">
+      <div class="page-mock">
+        <div class="page-header">
+          <div style="font-weight:900;font-size:14px;color:#0f172a">Lapor Barang Temuan</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Cari laporan hilang yang cocok</div>
+        </div>
+        <div class="page-body">
+          <div class="search-banner">
+            <div style="font-weight:800;color:#1d4ed8;font-size:12px;margin-bottom:4px">🔍 Cari laporan hilang</div>
+            <div style="background:white;border:1.5px solid #bfdbfe;border-radius:7px;padding:6px 10px;font-size:12px;color:#94a3b8">
+              Cari nama barang atau tipe...
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div class="search-result">
+              <div>
+                <div style="font-weight:800;color:#0f172a;font-size:12px">Laptop Dell XPS 15</div>
+                <div style="font-size:10px;color:#94a3b8">Laptop · Lt.3 · 25 Apr</div>
+              </div>
+              <div style="background:#f43f5e;color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:5px">Pilih</div>
+            </div>
+            <div class="search-result">
+              <div>
+                <div style="font-weight:800;color:#0f172a;font-size:12px">ID Card Karyawan</div>
+                <div style="font-size:10px;color:#94a3b8">ID Card · Kantin · 24 Apr</div>
+              </div>
+              <div style="background:#f43f5e;color:white;font-size:10px;font-weight:800;padding:3px 8px;border-radius:5px">Pilih</div>
+            </div>
+          </div>
+          <div style="opacity:0.4">
+            <div class="field-group">
+              <div class="field-label">Deskripsi temuan (pilih laporan dulu)</div>
+              <div class="field-input" style="color:#94a3b8;background:#f8fafc">Pilih laporan di atas...</div>
+            </div>
+            <button class="submit-btn" style="background:#94a3b8">Kirim Laporan Temuan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;padding:12px 16px;background:#fef9c3;border:1.5px solid #fde047;border-radius:10px;font-size:13px;color:#713f12">
+  <strong>Logic:</strong> Jika URL punya <code>?r=TOKEN</code> → resolve token → pre-fill laporan + lock field. Jika tidak ada token → tampilkan search bar untuk cari laporan manual. Form fields (deskripsi, lokasi, foto) tetap sama di kedua state.
+</div>

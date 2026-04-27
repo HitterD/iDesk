@@ -22,7 +22,7 @@ export const isHourStart = (time: string): boolean => {
 };
 
 export const SLOT_BG = {
-    available: 'bg-transparent cursor-pointer transition-colors duration-150 hover:bg-emerald-500/20 hover:ring-1 hover:ring-inset hover:ring-emerald-400/40',
+    available: 'bg-transparent cursor-pointer transition-colors duration-150 hover:bg-blue-500/10 hover:ring-1 hover:ring-inset hover:ring-blue-400/40',
     booked: 'bg-amber-400/15 border-l-2 border-amber-400 cursor-pointer transition-colors duration-150 hover:bg-amber-400/25',
     my_booking: 'bg-blue-400/15 border-l-2 border-blue-400 cursor-pointer transition-colors duration-150 hover:bg-blue-400/25',
     blocked: 'bg-gray-500/10 cursor-not-allowed opacity-60',
@@ -209,7 +209,9 @@ export function ZoomCalendarGrid({
 
                 {/* Header Row - Day columns (Sticky vertically) */}
                 {calendar.map((day) => {
-                    const dayIsToday = isToday(new Date(day.date));
+                    const dayDate = new Date(day.date);
+                    const dayIsToday = isToday(dayDate);
+                    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
                     return (
                         <div
                             key={day.date}
@@ -218,7 +220,8 @@ export function ZoomCalendarGrid({
                                 dayIsToday
                                     ? 'bg-blue-50 dark:bg-blue-950/30 border-b-2 border-b-primary'
                                     : 'bg-slate-50 dark:bg-slate-800/90',
-                                !day.isWorkingDay && 'opacity-70'
+                                !day.isWorkingDay && 'opacity-70',
+                                isWeekend && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60'
                             )}
                         >
                             <div className={cn(
@@ -243,6 +246,14 @@ export function ZoomCalendarGrid({
                                     </span>
                                 )}
                             </div>
+                            {(() => {
+                                const meetingCount = new Set(day.slots.filter(s => s.booking).map(s => s.booking!.id)).size;
+                                return meetingCount > 0 && (
+                                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
+                                        {meetingCount} meetings
+                                    </span>
+                                );
+                            })()}
                             {day.isBlocked && (
                                 <span className="text-[10px] text-red-500 font-medium bg-red-500/10 px-2 py-0.5 rounded-full mt-1 inline-block">
                                     Blocked
@@ -261,10 +272,10 @@ export function ZoomCalendarGrid({
                             {/* Time Label (Sticky horizontally) */}
                             <div
                                 className={cn(
-                                    'p-1.5 grid-separator-v text-center flex items-center justify-center sticky left-0 z-10 transition-colors',
+                                    'pr-3 flex items-start justify-end sticky left-0 z-10 transition-colors border-r border-slate-200 dark:border-slate-700',
                                     hourStart
-                                        ? 'bg-slate-100 dark:bg-slate-800 grid-separator-h-strong text-xs font-semibold text-foreground'
-                                        : 'bg-slate-50 dark:bg-slate-800/95 grid-separator-h text-[11px] text-muted-foreground'
+                                        ? 'text-xs font-bold text-slate-700 dark:text-slate-300 pt-1'
+                                        : 'text-[10px] text-slate-400 dark:text-slate-500 pt-1'
                                 )}
                             >
                                 {isHour ? displayTime : <span className="opacity-75">{displayTime}</span>}
@@ -285,9 +296,12 @@ export function ZoomCalendarGrid({
                                             dayIsToday && 'bg-primary/5',
                                             slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : 'bg-gray-500/5',
                                             focusedCell?.dayIndex === dayIndex && focusedCell?.timeIndex === timeIndex &&
-                                            'ring-2 ring-inset ring-blue-500 z-10'
+                                            'ring-2 ring-inset ring-blue-500 z-10',                                            (new Date(day.date).getDay() === 0 || new Date(day.date).getDay() === 6) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
                                         )}
-                                        onClick={() => onSlotClick(day, timeIndex)}
+                                        onClick={() => {
+                                            const isWeekend = new Date(day.date).getDay() === 0 || new Date(day.date).getDay() === 6;
+                                            if (!isWeekend) onSlotClick(day, timeIndex);
+                                        }}
                                         title={
                                             slot?.status === 'available'
                                                 ? canBook
@@ -296,14 +310,16 @@ export function ZoomCalendarGrid({
                                                 : undefined
                                         }
                                         style={{
-                                            cursor: slot?.status === 'available' && !canBook ? 'not-allowed' : undefined
+                                            cursor: (new Date(day.date).getDay() === 0 || new Date(day.date).getDay() === 6) || (slot?.status === 'available' && !canBook) ? 'not-allowed' : undefined
                                         }}
                                         role="gridcell"
                                         aria-selected={focusedCell?.dayIndex === dayIndex && focusedCell?.timeIndex === timeIndex}
                                     >
                                         {slot?.status === 'available' && canBook && (
-                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Plus className="h-4 w-4 text-emerald-500/60" />
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-0.5 bg-blue-50/50 dark:bg-blue-950/30">
+                                                <span className="text-xs font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                                                    <Plus className="h-3 w-3" /> Book {time}
+                                                </span>
                                             </div>
                                         )}
                                         {slot?.status === 'available' && !canBook && (
@@ -365,14 +381,13 @@ export function ZoomCalendarGrid({
                                     <span className="truncate">{booking.title}</span>
                                 </div>
                                 {booking.rowSpan >= 2 && (
-                                    <div className="text-[11px] font-medium opacity-90 truncate">
-                                        {booking.startTime} - {booking.endTime}
-                                    </div>
-                                )}
-                                {booking.rowSpan >= 3 && (
-                                    <div className="text-[11px] mt-auto flex items-center gap-1 opacity-80 pt-1">
-                                        <User className="h-2.5 w-2.5 shrink-0" />
-                                        <span className="truncate">Booked by: {booking.bookedBy}</span>
+                                    <div className="flex flex-col min-h-0 mt-0.5">
+                                        <div className="text-[11px] font-medium opacity-90 truncate">
+                                            {booking.startTime} - {booking.endTime}
+                                        </div>
+                                        <div className="text-[10px] opacity-75 truncate">
+                                            {booking.bookedBy}
+                                        </div>
                                     </div>
                                 )}
                             </div>
