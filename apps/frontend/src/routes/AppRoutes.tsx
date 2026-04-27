@@ -70,7 +70,12 @@ const CatalogAdminPage = lazy(() => import('../features/hardware-request/compone
 const EformAccessListPage = lazy(() => import('../features/request-center/pages/EformAccessListPage').then(m => ({ default: m.EformAccessListPage })));
 const EformAccessCreatePage = lazy(() => import('../features/request-center/pages/EformAccessCreatePage').then(m => ({ default: m.EformAccessCreatePage })));
 const EformAccessDetailPage = lazy(() => import('../features/request-center/pages/EformAccessDetailPage').then(m => ({ default: m.EformAccessDetailPage })));
+const EformApprovalPage = lazy(() => import('../features/request-center/pages/EformApprovalPage').then(m => ({ default: m.EformApprovalPage })));
+const EformCredentialPage = lazy(() => import('../features/request-center/pages/EformCredentialPage').then(m => ({ default: m.EformCredentialPage })));
 const LostItemListPage = lazy(() => import('../features/request-center/pages/LostItemListPage').then(m => ({ default: m.LostItemListPage })));
+const MyLostReportsPage = lazy(() => import('../features/request-center/pages/MyLostReportsPage').then(m => ({ default: m.MyLostReportsPage })));
+const ReportFoundItemPage = lazy(() => import('../features/request-center/pages/ReportFoundItemPage').then(m => ({ default: m.ReportFoundItemPage })));
+const FoundClaimsQueuePage = lazy(() => import('../features/request-center/pages/FoundClaimsQueuePage').then(m => ({ default: m.FoundClaimsQueuePage })));
 
 // VPN Access and Google Sync are now integrated into RenewalHubPage
 
@@ -188,14 +193,17 @@ export default function AppRoutes() {
                     <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
                     <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
                     <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
+                    <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
                 </Route>
-                <Route path="hardware-requests/catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
                 <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
                 <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
                 <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
+                <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
+                <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
+                <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
 
                 {/* Admin-only Feature Pages */}
                 <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN']} />} />
@@ -233,14 +241,17 @@ export default function AppRoutes() {
                     <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
                     <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
                     <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
+                    <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
                 </Route>
-                <Route path="hardware-requests/catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
                 <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
                 <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
                 <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
+                <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
+                <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
+                <Route path="lost-items/claims" element={<LazyRoute component={FoundClaimsQueuePage} featureName="Found Claims Queue" requiredPageAccess="lost_items" />} />
 
                 <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                 <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
@@ -270,15 +281,19 @@ export default function AppRoutes() {
                     <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
                     <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
                     <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
+                    <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
                 </Route>
-                <Route path="hardware-requests/catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
                 <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
                 <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
 
                 <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
+                <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
+                <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
+                <Route path="lost-items/my" element={<LazyRoute component={MyLostReportsPage} featureName="My Lost Reports" requiredPageAccess="lost_items" />} />
+                <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
 
                 <Route path="profile" element={<LazyRoute component={ClientProfilePage} featureName="Profile" />} />
                 <Route index element={<Navigate to="/client/my-tickets" replace />} />
