@@ -4,6 +4,7 @@ import { X, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Download
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
+import { read, utils } from 'xlsx';
 import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
 
@@ -127,8 +128,8 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
         setPreviewData([]);
 
         // Validate file type
-        if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-            setParseError('Invalid file type. Please upload a CSV file.');
+        if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+            setParseError('Invalid file type. Please upload a CSV or XLSX file.');
             return;
         }
 
@@ -141,34 +142,36 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
         setSelectedFile(file);
         setIsParsing(true);
 
-        // Parse CSV client-side for preview
-        Papa.parse<ParsedRow>(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
-                setIsParsing(false);
-                setTotalRows(results.data.length);
-
-                if (results.errors.length > 0) {
-                    setParseError(`CSV parsing error: ${results.errors[0].message}`);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = utils.sheet_to_json<ParsedRow>(worksheet, { defval: '' });
+                
+                if (json.length === 0) {
+                    setParseError('File is empty or has no valid data rows.');
+                    setIsParsing(false);
                     return;
                 }
 
-                if (results.data.length === 0) {
-                    setParseError('CSV file is empty or has no valid data rows.');
-                    return;
-                }
-
-                // Validate all rows and store for preview
-                const validatedRows = results.data.map((row, idx) => validateRow(row, idx));
+                setTotalRows(json.length);
+                const validatedRows = json.map((row, idx) => validateRow(row, idx));
                 setPreviewData(validatedRows);
                 setStep('preview');
-            },
-            error: (error) => {
                 setIsParsing(false);
+            } catch (error: any) {
                 setParseError(`Failed to parse file: ${error.message}`);
+                setIsParsing(false);
             }
-        });
+        };
+        reader.onerror = () => {
+            setParseError('Failed to read file');
+            setIsParsing(false);
+        };
+        reader.readAsArrayBuffer(file);
     }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,7 +220,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', 'import-users-template.csv');
+            link.setAttribute('download', 'import-users-template.xlsx');
             document.body.appendChild(link);
             link.click();
             link.remove();
@@ -280,7 +283,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                     >
                                         <Download className="w-3 h-3" />
-                                        Download CSV
+                                        Download Template
                                     </button>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -292,7 +295,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                             </div>
 
                             <div className="space-y-2">
-                                <h3 className="text-sm font-medium text-slate-800 dark:text-white">2. Upload CSV File</h3>
+                                <h3 className="text-sm font-medium text-slate-800 dark:text-white">2. Upload Excel/CSV File</h3>
                                 <div
                                     className={cn(
                                         "border-2 border-dashed rounded-xl p-8 text-center transition-colors duration-150 cursor-pointer",
@@ -308,13 +311,13 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                         type="file"
                                         ref={fileInputRef}
                                         className="hidden"
-                                        accept=".csv"
+                                        accept=".csv,.xlsx"
                                         onChange={handleFileChange}
                                     />
                                     {isParsing ? (
                                         <div className="flex flex-col items-center gap-3">
                                             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-                                            <p className="text-sm text-slate-500">Parsing CSV file...</p>
+                                            <p className="text-sm text-slate-500">Parsing file...</p>
                                         </div>
                                     ) : parseError ? (
                                         <div className="flex flex-col items-center gap-3">
@@ -326,7 +329,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                         <>
                                             <FileSpreadsheet className="w-10 h-10 text-slate-400 mx-auto mb-3" />
                                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                                Click to select or drag and drop CSV file
+                                                Click to select or drag and drop Excel/CSV file
                                             </p>
                                             <p className="text-xs text-slate-400 mt-1">Maximum file size: 5MB</p>
                                         </>
