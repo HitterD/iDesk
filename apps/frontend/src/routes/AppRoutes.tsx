@@ -203,7 +203,6 @@ export default function AppRoutes() {
                 <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
-                <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
 
                 {/* Admin-only Feature Pages */}
                 <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN']} />} />
