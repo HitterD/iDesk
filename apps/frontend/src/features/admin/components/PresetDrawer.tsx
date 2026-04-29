@@ -64,7 +64,7 @@ const EMPTY_PRESET: Omit<PermissionPreset, 'id' | 'createdAt'> = {
 
 const DEFAULT_PERMISSION_RESOURCES = [
     'tickets',
-    'users', 
+    'users',
     'knowledge_base',
     'reports',
     'hardware_requests',
@@ -73,6 +73,15 @@ const DEFAULT_PERMISSION_RESOURCES = [
     'departments',
     'sites',
     'automation',
+    'zoom_calendar',
+    'renewal',
+    'dashboard',
+    'settings',
+    'workloads',
+    'system_health',
+    'audit_logs',
+    'ict_budget',
+    'notifications',
 ] as const;
 
 const DEFAULT_PERMISSION_VALUES = {
@@ -167,6 +176,10 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
         const allSet = { canView: enabled, canCreate: enabled, canEdit: enabled, canDelete: enabled };
         setDraft(prev => ({
             ...prev,
+            pageAccess: {
+                ...prev.pageAccess,
+                [resource]: enabled,
+            },
             permissions: {
                 ...prev.permissions,
                 [resource]: allSet,
@@ -181,7 +194,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
             if (selectedId === '__new__') {
                 return api.post('/permissions/presets', draft);
             }
-            return api.patch(`/permissions/presets/${selectedId}`, draft);
+            return api.put(`/permissions/presets/${selectedId}`, draft);
         },
         onSuccess: (res) => {
             toast.success('Preset saved');
@@ -251,10 +264,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
     const selectedPreset = presets.find(p => p.id === selectedId);
     const isNew = selectedId === '__new__';
     const isSystem = selectedPreset?.isSystem && !isNew;
-    const permissionResources = [...new Set([
-        ...DEFAULT_PERMISSION_RESOURCES,
-        ...Object.keys(draft.permissions || {}),
-    ])];
+    const permissionResources = [...DEFAULT_PERMISSION_RESOURCES];
 
     return (
         <>
@@ -490,7 +500,12 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                                 <PermissionRow
                                                     key={resource}
                                                     resource={resource}
-                                                    value={draft.permissions?.[resource] || DEFAULT_PERMISSION_VALUES}
+                                                    value={{
+                                                        canView: draft.pageAccess?.[resource] ?? draft.permissions?.[resource]?.canView ?? false,
+                                                        canCreate: draft.permissions?.[resource]?.canCreate ?? false,
+                                                        canEdit: draft.permissions?.[resource]?.canEdit ?? false,
+                                                        canDelete: draft.permissions?.[resource]?.canDelete ?? false,
+                                                    }}
                                                     onToggle={togglePermission}
                                                     disabled={isSystem}
                                                     index={idx}

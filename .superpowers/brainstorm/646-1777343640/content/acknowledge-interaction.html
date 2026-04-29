@@ -1,0 +1,98 @@
+<h2>Bagaimana cara user Acknowledge / Confirm sebuah Action Item?</h2>
+<p class="subtitle">Pilih pola interaksi yang paling sesuai untuk workflow agent/admin iDesk</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;border-radius:8px;font-family:sans-serif">
+      <div style="background:#1e293b;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="color:#f1f5f9;font-size:13px;font-weight:500">Ticket #1234 belum dibalas 2 jam</div>
+          <div style="color:#64748b;font-size:11px">SLA Warning · Customer: PT Maju</div>
+        </div>
+        <button style="background:#22c55e;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">✓ Done</button>
+      </div>
+      <div style="background:#1e293b;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="color:#f1f5f9;font-size:13px;font-weight:500">Hardware Request menunggu approval</div>
+          <div style="color:#64748b;font-size:11px">HIGH · Submitted 3 jam lalu</div>
+        </div>
+        <button style="background:#22c55e;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">✓ Done</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Tombol "Done" inline per item</h3>
+      <p>Setiap action item punya tombol ✓ Done di kanan. Klik = konfirmasi manual bahwa sudah ditangani. Item langsung hilang dari list.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pro</h4><ul><li>Eksplisit & jelas</li><li>Kontrol penuh user</li></ul></div>
+        <div class="cons"><h4>Kontra</h4><ul><li>Perlu klik ekstra</li><li>Bisa lupa klik</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;border-radius:8px;font-family:sans-serif">
+      <div style="background:#1e293b;border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="color:#94a3b8;font-size:10px;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Auto-resolved saat ticket dibalas</div>
+        <div style="display:flex;align-items:center;gap:10px;opacity:0.4">
+          <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+          <div style="flex:1">
+            <div style="color:#f1f5f9;font-size:13px;font-weight:500;text-decoration:line-through">Ticket #1234 belum dibalas</div>
+            <div style="color:#22c55e;font-size:11px">✓ Resolved otomatis — balas dikirim 14:32</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#1e293b;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="color:#f1f5f9;font-size:13px;font-weight:500">Hardware Request menunggu approval</div>
+          <div style="color:#64748b;font-size:11px">HIGH · Submitted 3 jam lalu</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Auto-resolve berbasis status entity</h3>
+      <p>Tidak ada tombol manual. Item hilang otomatis saat status entity berubah (ticket dibalas → resolved, hardware approved → resolved). Polling/socket driven.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pro</h4><ul><li>Zero friction</li><li>Selalu akurat</li></ul></div>
+        <div class="cons"><h4>Kontra</h4><ul><li>Tidak ada kontrol user</li><li>Butuh mapping status lengkap</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;border-radius:8px;font-family:sans-serif">
+      <div style="background:#1e293b;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="color:#f1f5f9;font-size:13px;font-weight:500">Ticket #1234 belum dibalas 2 jam</div>
+          <div style="color:#64748b;font-size:11px">SLA Warning · Customer: PT Maju</div>
+        </div>
+      </div>
+      <div style="background:#0ea5e9;border-radius:6px;padding:8px 12px;margin-top:4px;color:white;font-size:11px;font-weight:500">
+        ⚡ Klik item → buka ticket → balas → item <b>auto-hilang</b> karena status berubah
+      </div>
+      <div style="background:#1e293b;border-radius:8px;padding:12px;margin-top:8px;display:flex;align-items:center;gap:10px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="color:#f1f5f9;font-size:13px;font-weight:500">Hardware Request menunggu approval</div>
+          <div style="color:#64748b;font-size:11px">HIGH · Submitted 3 jam lalu</div>
+        </div>
+        <button style="background:#475569;color:#cbd5e1;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Snooze</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Hybrid: Auto-resolve + Snooze manual</h3>
+      <p>Item hilang otomatis saat entitas di-handle. Tidak ada tombol "Done" — tapi ada <b>Snooze</b> untuk menunda reminder. Flow: klik → handle di halaman entity → kembali otomatis clear.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pro</h4><ul><li>Natural workflow</li><li>Auto-resolve akurat</li><li>Snooze untuk edge case</li></ul></div>
+        <div class="cons"><h4>Kontra</h4><ul><li>Lebih kompleks implementasi</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Klik kartu untuk pilih, atau ketik preferensi di terminal</p>

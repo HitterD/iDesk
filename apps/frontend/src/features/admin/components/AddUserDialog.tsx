@@ -165,33 +165,33 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="fullName" className="text-slate-700 dark:text-slate-300">Full Name</Label>
+                        <Label htmlFor="fullName" className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Full Name</Label>
                         <Input
                             id="fullName"
                             placeholder="John Doe"
                             {...register('fullName')}
-                            className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl"
+                            className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
                         />
                         {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName.message}</p>}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="email" className="text-slate-700 dark:text-slate-300">Email</Label>
+                        <Label htmlFor="email" className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</Label>
                         <Input
                             id="email"
                             type="email"
                             placeholder="john@example.com"
                             {...register('email')}
-                            className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl"
+                            className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
                         />
                         {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
                     </div>
 
                     {/* P2-1: Stacked layout instead of cramped side-by-side */}
                     <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Role <span className="text-red-400">*</span></Label>
+                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Role <span className="text-red-400">*</span></Label>
                         <Select onValueChange={(val: any) => setValue('role', val)} defaultValue="AGENT">
-                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
+                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/50 outline-none">
                                 <SelectValue placeholder="Select role" />
                             </SelectTrigger>
                             <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
@@ -209,9 +209,9 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
                     {/* P2: Permission Preset Dropdown */}
                     <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Permission Preset</Label>
+                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Permission Preset</Label>
                         <Select value={watchedPresetId || ''} onValueChange={(val) => setValue('presetId', val)}>
-                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
+                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/50 outline-none">
                                 <SelectValue placeholder="Select preset (optional)" />
                             </SelectTrigger>
                             <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
@@ -227,7 +227,7 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <Label className="text-slate-700 dark:text-slate-300">Department</Label>
+                            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Department</Label>
                             <button
                                 type="button"
                                 onClick={() => setIsAddingDept(!isAddingDept)}
@@ -264,7 +264,7 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                             </div>
                         ) : (
                             <Select onValueChange={(val) => setValue('departmentId', val)}>
-                                <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
+                                <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/50 outline-none">
                                     <SelectValue placeholder="Select department" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
@@ -278,9 +278,9 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
                     {/* Site Selector */}
                     <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Site</Label>
+                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Site</Label>
                         <Select onValueChange={(val) => setValue('siteId', val)}>
-                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl">
+                            <SelectTrigger className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/50 outline-none">
                                 <SelectValue placeholder="Select site" />
                             </SelectTrigger>
                             <SelectContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] text-slate-800 dark:text-white">
@@ -305,12 +305,12 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
                         {!autoGeneratePassword && (
                             <div className="space-y-2">
-                                <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">Password</Label>
+                                <Label htmlFor="password" className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Password</Label>
                                 <Input
                                     id="password"
                                     type="password"
                                     {...register('password')}
-                                    className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl"
+                                    className="bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))] text-slate-800 dark:text-white placeholder:text-slate-400 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
                                 />
                                 {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
                             </div>

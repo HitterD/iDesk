@@ -38,7 +38,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
 
     return (
         <div className={cn(
-            "p-5 rounded-xl border transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:shadow-md hover:-translate-y-0.5 cursor-pointer group",
+            "p-5 rounded-2xl border transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:shadow-md hover:scale-[1.01] hover:-translate-y-0.5 cursor-pointer group",
             "bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]",
             isSelected && "ring-2 ring-primary border-primary"
         )}>
