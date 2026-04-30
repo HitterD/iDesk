@@ -740,7 +740,9 @@ export class NotificationCenterService implements OnModuleInit {
                 });
 
                 await this.logRepo.update(log.id, {
-                    status: result.success ? DeliveryStatus.SENT : DeliveryStatus.FAILED,
+                    status: result.success 
+                        ? DeliveryStatus.SENT 
+                        : (log.retryCount >= 2 ? DeliveryStatus.PERMANENTLY_FAILED : DeliveryStatus.FAILED),
                     retryCount: log.retryCount + 1,
                     externalMessageId: result.messageId,
                     errorMessage: result.error,
@@ -748,6 +750,7 @@ export class NotificationCenterService implements OnModuleInit {
                 });
             } catch (error) {
                 await this.logRepo.update(log.id, {
+                    status: log.retryCount >= 2 ? DeliveryStatus.PERMANENTLY_FAILED : DeliveryStatus.FAILED,
                     retryCount: log.retryCount + 1,
                     errorMessage: error instanceof Error ? error.message : 'Retry failed',
                 });

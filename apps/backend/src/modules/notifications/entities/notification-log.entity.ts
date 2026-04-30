@@ -23,6 +23,7 @@ export enum DeliveryStatus {
     DELIVERED = 'DELIVERED',
     FAILED = 'FAILED',
     BOUNCED = 'BOUNCED',
+    PERMANENTLY_FAILED = 'PERMANENTLY_FAILED',
 }
 
 @Entity('notification_logs')
