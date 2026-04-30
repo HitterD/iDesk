@@ -82,6 +82,14 @@ export interface NotificationCountByCategory {
     [NotificationCategory.CATEGORY_EFORM]: number;
 }
 
+export interface CategorySettings {
+    TICKET: boolean;
+    HARDWARE_REQUEST: boolean;
+    EFORM: boolean;
+    RENEWAL: boolean;
+    ZOOM: boolean;
+}
+
 export interface PaginatedResponse<T> {
     data: T[];
     total: number;

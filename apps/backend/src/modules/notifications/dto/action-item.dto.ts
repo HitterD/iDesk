@@ -37,6 +37,12 @@ export class ActionItemDto {
 
     @ApiProperty()
     createdAt: Date;
+
+    @ApiProperty()
+    isSnoozed: boolean;
+
+    @ApiProperty({ required: false })
+    snoozeUntil?: string;
 }
 
 export class ActionItemsResponseDto {

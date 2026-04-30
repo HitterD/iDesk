@@ -14,6 +14,7 @@ import {
 import { NotificationService } from './notification.service';
 import { NotificationCenterService } from './notification-center.service';
 import { NotificationCategory } from './entities/notification.entity';
+import { SnoozeActionItemDto, UnsnoozeActionItemDto } from './dto/snooze-action-item.dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
 import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
@@ -124,6 +125,42 @@ export class NotificationController {
     @ApiResponse({ status: 200, description: 'Return action items.' })
     async getActionItems(@Request() req: any) {
         return this.notificationCenterService.getActionItems(req.user.userId, req.user.role);
+    }
+
+    @Post('action-items/snooze')
+    @ApiOperation({ summary: 'Snooze an action item' })
+    @ApiResponse({ status: 200, description: 'Action item snoozed.' })
+    async snoozeActionItem(@Request() req: any, @Body() body: SnoozeActionItemDto) {
+        return this.notificationCenterService.snoozeActionItem(
+            req.user.userId,
+            body.entityType,
+            body.entityId,
+            body.duration,
+        );
+    }
+
+    @Delete('action-items/snooze')
+    @ApiOperation({ summary: 'Unsnooze an action item' })
+    @ApiResponse({ status: 200, description: 'Action item unsnoozed.' })
+    async unsnoozeActionItem(@Request() req: any, @Body() body: UnsnoozeActionItemDto) {
+        await this.notificationCenterService.unsnoozeActionItem(
+            req.user.userId,
+            body.entityType,
+            body.entityId,
+        );
+        return { success: true };
+    }
+
+    @Get('preferences/categories')
+    @ApiOperation({ summary: 'Get action item category settings' })
+    async getCategorySettings(@Request() req: any) {
+        return this.notificationCenterService.getCategorySettings(req.user.userId);
+    }
+
+    @Patch('preferences/categories')
+    @ApiOperation({ summary: 'Update action item category settings' })
+    async updateCategorySettings(@Request() req: any, @Body() updates: Record<string, boolean>) {
+        return this.notificationCenterService.updateCategorySettings(req.user.userId, updates);
     }
 
     @Get('critical/unacknowledged')

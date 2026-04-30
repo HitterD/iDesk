@@ -10,6 +10,8 @@ export interface ActionItem {
     entityId: string;
     link: string;
     createdAt: string;
+    isSnoozed?: boolean;
+    snoozeUntil?: string | null;
 }
 
 export interface ActionItemsResponse {

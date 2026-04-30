@@ -112,6 +112,20 @@ export class NotificationPreference {
     reminderIntensity: ReminderIntensity;
 
     // =====================
+    // Action Item Category Settings
+    // =====================
+    // Controls which entity categories appear in Action Command Center
+    // Default: all true (if null, all categories are enabled)
+    @Column('jsonb', { nullable: true })
+    categorySettings?: {
+        TICKET: boolean;
+        HARDWARE_REQUEST: boolean;
+        EFORM: boolean;
+        RENEWAL: boolean;
+        ZOOM: boolean;
+    };
+
+    // =====================
     // Timestamps
     // =====================
 

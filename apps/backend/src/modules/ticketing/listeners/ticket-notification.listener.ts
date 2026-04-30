@@ -8,6 +8,7 @@ import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
 import { NotificationService } from '../../notifications/notification.service';
+import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailerService } from '@nestjs-modules/mailer';
 import { TelegramService } from '../../telegram/telegram.service';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -22,6 +23,7 @@ export class TicketNotificationListener {
 
     constructor(
         private readonly notificationService: NotificationService,
+        private readonly notificationCenterService: NotificationCenterService,
         private readonly mailerService: MailerService,
         private readonly telegramService: TelegramService,
         private readonly telegramChatBridge: TelegramChatBridgeService,
@@ -84,6 +86,14 @@ export class TicketNotificationListener {
                         ticket.id,
                         ticketNumber,
                     );
+
+                    // Auto-resolve: emit refresh ke semua pihak yang terlibat
+                    if (ticket.user?.id) {
+                        this.notificationCenterService.emitActionItemsRefresh(ticket.user.id, 'TICKET', ticket.id);
+                    }
+                    if (ticket.assignedToId) {
+                        this.notificationCenterService.emitActionItemsRefresh(ticket.assignedToId, 'TICKET', ticket.id);
+                    }
                 } else {
                     await this.notificationService.notifyTicketUpdated(
                         ticket.user.id,
@@ -230,6 +240,18 @@ export class TicketNotificationListener {
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,
+                );
+            }
+
+            // Emit action-items refresh bagi assignee dan requester agar item hilang otomatis
+            if (event.ticketAssignedToId) {
+                this.notificationCenterService.emitActionItemsRefresh(
+                    event.ticketAssignedToId, 'TICKET', event.ticketId
+                );
+            }
+            if (event.ticketOwnerId) {
+                this.notificationCenterService.emitActionItemsRefresh(
+                    event.ticketOwnerId, 'TICKET', event.ticketId
                 );
             }
         } catch (error) {

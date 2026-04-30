@@ -55,6 +55,9 @@ export class EFormNotificationListener {
         message: `Akses ${payload.request.formType} Anda telah aktif. Buka halaman detail untuk melihat kredensial.`,
         referenceId: payload.request.id,
       });
+      this.notificationCenter.emitActionItemsRefresh(
+        payload.request.requesterId, 'EFORM', payload.request.id
+      );
     } catch (error: any) {
       this.logger.error(`Failed to notify requester for eform.ict-confirmed: ${error.message}`);
     }
@@ -70,6 +73,9 @@ export class EFormNotificationListener {
         message: `Permintaan akses ${payload.request.formType} Anda ditolak. Alasan: ${payload.request.rejectionReason}`,
         referenceId: payload.request.id,
       });
+      this.notificationCenter.emitActionItemsRefresh(
+        payload.request.requesterId, 'EFORM', payload.request.id
+      );
     } catch (error: any) {
       this.logger.error(`Failed to notify requester for eform.rejected: ${error.message}`);
     }

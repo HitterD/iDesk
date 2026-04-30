@@ -1,0 +1,161 @@
+<h2>Audit Perbaikan UI — Action Command Center</h2>
+<p class="subtitle">Pilih pendekatan perbaikan untuk setiap masalah UI/UX yang ditemukan</p>
+
+<div class="section">
+  <div class="label">MASALAH 1 — Snooze Menu (tidak ada close saat klik luar)</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">❌ Kondisi Saat Ini</div>
+      <div class="mockup-body" style="padding:12px;font-size:13px;">
+        <div style="background:#fee2e2;border-radius:8px;padding:10px;border-left:3px solid #ef4444;margin-bottom:8px;">
+          <strong>SLA Breached: TKT-001</strong>
+          <div style="font-size:11px;color:#6b7280;">Printer tidak bisa print</div>
+        </div>
+        <div style="position:relative;display:inline-block;margin-top:8px;">
+          <div style="background:#f59e0b;color:white;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;">⏰ Tunda ▾</div>
+          <div style="position:absolute;top:28px;left:0;background:white;border:1px solid #e5e7eb;border-radius:8px;padding:4px;width:120px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10;">
+            <div style="padding:6px 10px;font-size:12px;cursor:pointer;border-radius:4px;background:#f3f4f6;">30 menit</div>
+            <div style="padding:6px 10px;font-size:12px;cursor:pointer;border-radius:4px;">2 jam</div>
+            <div style="padding:6px 10px;font-size:12px;cursor:pointer;border-radius:4px;">Besok pagi</div>
+          </div>
+        </div>
+        <div style="margin-top:48px;color:#ef4444;font-size:11px;padding:8px;background:#fee2e2;border-radius:6px;">
+          ⚠️ Klik di mana saja di luar → menu TETAP terbuka (tidak ada handler close)
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">✅ Setelah Perbaikan</div>
+      <div class="mockup-body" style="padding:12px;font-size:13px;">
+        <div style="background:#fee2e2;border-radius:8px;padding:10px;border-left:3px solid #ef4444;margin-bottom:8px;">
+          <strong>SLA Breached: TKT-001</strong>
+          <div style="font-size:11px;color:#6b7280;">Printer tidak bisa print</div>
+        </div>
+        <div style="margin-top:8px;background:#e0f2fe;border-radius:6px;padding:8px;font-size:11px;color:#0369a1;">
+          ✓ <code>useEffect</code> dengan <code>mousedown</code> handler<br/>
+          ✓ Klik luar → menu langsung tutup<br/>
+          ✓ Pakai <code>useRef</code> untuk deteksi elemen
+        </div>
+        <div style="margin-top:8px;background:#f0fdf4;border-radius:6px;padding:8px;font-size:11px;color:#16a34a;">
+          ✓ Behaviour konsisten dengan komponen lain di codebase (misal: TicketChat sticker picker)
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">MASALAH 2 — Performance: grouped & isRefreshing</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">❌ Saat Ini — Redundant State & Re-render</div>
+      <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;border-radius:4px;">
+        <span style="color:#9cdcfe;">// Re-hitung setiap render</span><br/>
+        <span style="color:#4ec9b0;">const</span> grouped = &#123;<br/>
+        &nbsp; CRITICAL: items.filter(i =&gt; ...),<br/>
+        &nbsp; HIGH: items.filter(i =&gt; ...),<br/>
+        &nbsp; NORMAL: items.filter(i =&gt; ...),<br/>
+        &#125;;<br/><br/>
+        <span style="color:#9cdcfe;">// State terpisah, padahal react-query punya isFetching</span><br/>
+        <span style="color:#4ec9b0;">const</span> [isRefreshing, setIsRefreshing] = useState(<span style="color:#569cd6;">false</span>);<br/>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">✅ Setelah Perbaikan — useMemo + isFetching</div>
+      <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;border-radius:4px;">
+        <span style="color:#9cdcfe;">// Memoized, hanya re-compute saat items berubah</span><br/>
+        <span style="color:#4ec9b0;">const</span> grouped = useMemo(() =&gt; (&#123;<br/>
+        &nbsp; CRITICAL: items.filter(i =&gt; ...),<br/>
+        &nbsp; HIGH: items.filter(i =&gt; ...),<br/>
+        &nbsp; NORMAL: items.filter(i =&gt; ...),<br/>
+        &#125;), [items]);<br/><br/>
+        <span style="color:#9cdcfe;">// Gunakan isFetching dari react-query langsung</span><br/>
+        <span style="color:#4ec9b0;">const</span> &#123; isFetching &#125; = useActionItems();<br/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">MASALAH 3 — ReminderSettingsPanel: Memory Leak (no AbortController)</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">❌ Saat Ini</div>
+      <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;">
+        useEffect(() =&gt; &#123;<br/>
+        &nbsp; <span style="color:#4ec9b0;">api.get</span>('/notifications/preferences')<br/>
+        &nbsp; &nbsp; .then(r =&gt; setCurrent(r.data.reminderIntensity));<br/>
+        &nbsp; <span style="color:#9cdcfe;">// No cleanup! setState setelah unmount</span><br/>
+        &#125;, []);
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">✅ Setelah Perbaikan</div>
+      <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;">
+        useEffect(() =&gt; &#123;<br/>
+        &nbsp; <span style="color:#4ec9b0;">const</span> ctrl = <span style="color:#4ec9b0;">new</span> AbortController();<br/>
+        &nbsp; api.get('/notifications/preferences', &#123; signal: ctrl.signal &#125;)<br/>
+        &nbsp; &nbsp; .then(r =&gt; setCurrent(r.data?.reminderIntensity));<br/>
+        &nbsp; <span style="color:#4ec9b0;">return</span> () =&gt; ctrl.abort();<br/>
+        &#125;, []);
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">MASALAH 4 — useActionItems: staleTime hilang</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">❌ Saat Ini</div>
+      <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;">
+        useQuery(&#123;<br/>
+        &nbsp; queryKey: ['action-items'],<br/>
+        &nbsp; queryFn: () =&gt; api.get(...),<br/>
+        &nbsp; refetchInterval: 60000,<br/>
+        &nbsp; <span style="color:#ef4444;">// staleTime tidak ada</span><br/>
+        &nbsp; <span style="color:#ef4444;">// → fresh fetch tiap mount komponen</span><br/>
+        &#125;);
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">✅ Setelah Perbaikan</div>
+      <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;">
+        useQuery(&#123;<br/>
+        &nbsp; queryKey: ['action-items'],<br/>
+        &nbsp; queryFn: () =&gt; api.get(...),<br/>
+        &nbsp; refetchInterval: 60000,<br/>
+        &nbsp; <span style="color:#6a9955;">staleTime: 30_000,</span> <span style="color:#9cdcfe;">// 30s</span><br/>
+        &nbsp; <span style="color:#6a9955;">gcTime: 120_000,</span> <span style="color:#9cdcfe;">// 2m</span><br/>
+        &#125;);
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Pilih Pendekatan Implementasi</div>
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Fix Bertahap (Recommended)</h3>
+        <p>P0/P1 backend dulu → P1 frontend → P2 performance. Setiap fix di-commit terpisah. Lebih aman, mudah review.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Fix Semua Sekaligus</h3>
+        <p>Satu commit besar mencakup semua perbaikan backend + frontend. Lebih cepat tapi harder to review/rollback.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Backend Only Dulu</h3>
+        <p>Fokus ke backend fixes (SQL N+1, dead code, type safety) dahulu. Frontend di iterasi berikutnya.</p>
+      </div>
+    </div>
+  </div>
+</div>

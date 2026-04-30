@@ -195,7 +195,11 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     emitActionItemsRefresh(userId: string, entityType: string, entityId: string): void {
-        this.eventsGateway.server.emit(`action-items:refresh:${userId}`, { entityType, entityId });
+        try {
+            this.eventsGateway.server.emit(`action-items:refresh:${userId}`, { entityType, entityId });
+        } catch (error) {
+            this.logger.warn(`Failed to emit action-items refresh for user ${userId}:`, error);
+        }
     }
 
     async snoozeActionItem(userId: string, entityType: string, entityId: string, duration: '30m' | '2h' | 'tomorrow'): Promise<{ snoozeUntil: string }> {

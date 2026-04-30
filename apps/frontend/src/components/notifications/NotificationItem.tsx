@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Trash2, ChevronRight } from 'lucide-react';
+import { Check, Trash2, ChevronRight, CheckCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Notification } from './types/notification.types';
 import { NOTIFICATION_ICONS } from './constants/notification.constants';
@@ -13,6 +13,8 @@ interface NotificationItemProps {
     onDelete: (id: string, e: React.MouseEvent) => void;
     onMarkRead: (id: string, e: React.MouseEvent) => void;
     onViewDetails: (notification: Notification) => void;
+    onAcknowledge?: (id: string) => void;
+    isAcknowledgePending?: boolean;
 }
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({
@@ -22,7 +24,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     onSelect,
     onDelete,
     onMarkRead,
-    onViewDetails
+    onViewDetails,
+    onAcknowledge,
+    isAcknowledgePending
 }) => {
     const Icon = NOTIFICATION_ICONS[notification.type] || NOTIFICATION_ICONS.SYSTEM;
     const isCritical = notification.requiresAcknowledge;
@@ -42,7 +46,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 "group relative flex items-start gap-4 p-4 rounded-xl transition-[opacity,transform,colors] duration-200 ease-out cursor-pointer border border-transparent",
                 notification.isRead ? "opacity-75" : "bg-white dark:bg-slate-800/50 shadow-sm border-slate-100 dark:border-slate-700/50",
                 isSelected && "bg-primary/5 border-primary/20",
-                "hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                "hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
+                isCritical && !notification.acknowledgedAt && 'border-l-2 border-red-500'
             )}
         >
             {/* Selection Checkbox */}
@@ -90,6 +95,25 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 )}>
                     {notification.message}
                 </p>
+                {isCritical && !notification.acknowledgedAt && onAcknowledge && (
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2 flex justify-start"
+                    >
+                        <button
+                            onClick={() => onAcknowledge(notification.id)}
+                            disabled={isAcknowledgePending}
+                            className="text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-2.5 py-1 rounded-md transition-colors flex items-center gap-1"
+                        >
+                            {isAcknowledgePending ? (
+                                <span className="inline-block w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <CheckCheck className="w-3 h-3" />
+                            )}
+                            Acknowledge
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Actions */}

@@ -1,0 +1,138 @@
+<h2>Design: Perbaikan Bertahap — iDesk Notification Command Center</h2>
+<p class="subtitle">3 Fase commit terpisah · Backend → Frontend → Polish</p>
+
+<div class="section">
+  <div class="label">FASE 1 — Backend P0/P1 (Critical)</div>
+  <div class="mockup">
+    <div class="mockup-header">notification-center.service.ts · notification.controller.ts</div>
+    <div class="mockup-body" style="padding:16px;">
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">🗑 1. Hapus dead code: <code>notificationQueue</code></div>
+        <div style="font-size:11px;color:#7f1d1d;">Array dideklarasi tapi tidak pernah digunakan — baris 31–36. Hapus field dan semua referensinya.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">🔒 2. Fix mutasi entity: <code>Object.assign → spread</code></div>
+        <div style="font-size:11px;color:#7f1d1d;font-family:monospace;">
+          ❌ Object.assign(prefs, updates)<br/>
+          ✅ return this.preferenceRepo.save({ ...prefs, ...updates })
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">📌 3. Fix return type: <code>Promise&lt;any&gt; → Promise&lt;ActionItemsResponseDto&gt;</code></div>
+        <div style="font-size:11px;color:#7f1d1d;">getActionItems (baris 245) return any — ubah ke typed DTO yang sudah ada.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">⚠️ 4. Fix error handling: <code>new Error() → NotFoundException</code></div>
+        <div style="font-size:11px;color:#7f1d1d;">updateCategorySettings (baris 235) throw raw Error → throw new NotFoundException() dari @nestjs/common.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">🔧 5. Hapus dead counter variables di <code>getActionItems</code></div>
+        <div style="font-size:11px;color:#7f1d1d;">critical/high/normal counter (baris 247–249) dihitung ulang di akhir fungsi — counter pertama tidak dipakai. Hapus dan langsung annotate dari activeItems.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">🔐 6. Fix unsafe cast di controller: <code>as any → as NotificationType</code></div>
+        <div style="font-size:11px;color:#7f1d1d;">body.notificationType as any → cast ke enum NotificationType yang sudah ada.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#fef2f2;border-left:3px solid #ef4444;">
+        <div style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:6px;">♾️ 7. Fix retry loop permanen di <code>retryFailedDeliveries</code></div>
+        <div style="font-size:11px;color:#7f1d1d;">Jika channelService tidak ada (isAvailable = false), retryCount tidak diincrement → item stuck selamanya. Tambah increment meski skip.</div>
+      </div>
+
+      <div style="padding:10px;border-radius:8px;background:#fef9c3;border-left:3px solid #ca8a04;">
+        <div style="font-size:12px;font-weight:600;color:#713f12;margin-bottom:6px;">💾 8. Batasi ukuran <code>digestBuffer</code> (max 100 notif/user)</div>
+        <div style="font-size:11px;color:#713f12;">digestBuffer tidak dibatasi — tambah guard: jika buffer &gt; 100, trim oldest entries.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">FASE 2 — Frontend P1/P2 (Performance & UX)</div>
+  <div class="mockup">
+    <div class="mockup-header">ActionCommandCenter.tsx · useActionItems.ts · ReminderSettingsPanel</div>
+    <div class="mockup-body" style="padding:16px;">
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#eff6ff;border-left:3px solid #3b82f6;">
+        <div style="font-size:12px;font-weight:600;color:#1e3a8a;margin-bottom:6px;">🖱 1. Snooze menu: tambah close-on-outside-click</div>
+        <div style="font-size:11px;color:#1e40af;font-family:monospace;">
+          const menuRef = useRef&lt;HTMLDivElement&gt;(null);<br/>
+          useEffect(() =&gt; &#123;<br/>
+          &nbsp; if (!showSnoozeMenu) return;<br/>
+          &nbsp; const h = (e: MouseEvent) =&gt; &#123;<br/>
+          &nbsp; &nbsp; if (!menuRef.current?.contains(e.target as Node))<br/>
+          &nbsp; &nbsp; &nbsp; setShowSnoozeMenu(false);<br/>
+          &nbsp; &#125;;<br/>
+          &nbsp; document.addEventListener('mousedown', h);<br/>
+          &nbsp; return () =&gt; document.removeEventListener('mousedown', h);<br/>
+          &#125;, [showSnoozeMenu]);
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#eff6ff;border-left:3px solid #3b82f6;">
+        <div style="font-size:12px;font-weight:600;color:#1e3a8a;margin-bottom:6px;">⚡ 2. Memoize <code>grouped</code> computation</div>
+        <div style="font-size:11px;color:#1e40af;">Bungkus dengan useMemo([items]) — tidak re-filter setiap render.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#eff6ff;border-left:3px solid #3b82f6;">
+        <div style="font-size:12px;font-weight:600;color:#1e3a8a;margin-bottom:6px;">♻️ 3. Ganti <code>isRefreshing</code> state → <code>isFetching</code> dari react-query</div>
+        <div style="font-size:11px;color:#1e40af;">Hapus local state + handleRefresh async wrapper. Expose isFetching dari useActionItems hook langsung.</div>
+      </div>
+
+      <div style="margin-bottom:14px;padding:10px;border-radius:8px;background:#eff6ff;border-left:3px solid #3b82f6;">
+        <div style="font-size:12px;font-weight:600;color:#1e3a8a;margin-bottom:6px;">🛑 4. Fix memory leak <code>ReminderSettingsPanel</code></div>
+        <div style="font-size:11px;color:#1e40af;">Tambah AbortController di useEffect — abort saat unmount.</div>
+      </div>
+
+      <div style="padding:10px;border-radius:8px;background:#eff6ff;border-left:3px solid #3b82f6;">
+        <div style="font-size:12px;font-weight:600;color:#1e3a8a;margin-bottom:6px;">⏱ 5. Tambah <code>staleTime: 30_000</code> + <code>gcTime: 120_000</code> ke useActionItems</div>
+        <div style="font-size:11px;color:#1e40af;">Mencegah fresh fetch setiap kali komponen mount dalam 30 detik sejak fetch terakhir.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">FASE 3 — Polish (P3)</div>
+  <div class="mockup">
+    <div class="mockup-header">sendDigest · notification.controller.ts</div>
+    <div class="mockup-body" style="padding:16px;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;padding:10px;border-radius:8px;background:#f0fdf4;border-left:3px solid #22c55e;">
+          <div style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:4px;">🔑 1. Fix fake notificationId di sendDigest</div>
+          <div style="font-size:11px;color:#166534;">digest-$&#123;Date.now()&#125; → generateUUID() atau crypto.randomUUID()</div>
+        </div>
+        <div style="flex:1;min-width:200px;padding:10px;border-radius:8px;background:#f0fdf4;border-left:3px solid #22c55e;">
+          <div style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:4px;">📋 2. Ganti <code>Record&lt;string, any&gt;</code> → proper DTO</div>
+          <div style="font-size:11px;color:#166534;">Controller endpoints /preferences dan /type-settings pakai untyped body — buat UpdatePreferencesDto.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Konfirmasi Design</div>
+  <div class="options">
+    <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+      <div class="letter">✓</div>
+      <div class="content">
+        <h3>Design ini sudah sesuai — lanjut implementasi</h3>
+        <p>3 fase, commit terpisah, tidak ada perubahan arsitektur besar.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="revise" onclick="toggleSelect(this)">
+      <div class="letter">✎</div>
+      <div class="content">
+        <h3>Ada yang perlu direvisi</h3>
+        <p>Beri tahu di terminal perubahan apa yang diinginkan.</p>
+      </div>
+    </div>
+  </div>
+</div>

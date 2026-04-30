@@ -13,9 +13,11 @@ import {
     ChevronDown,
     ChevronUp,
     AlertCircle,
+    Filter,
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePushNotifications } from '../../../hooks/usePushNotifications';
+import { useCategorySettings, CategorySettings } from '../../../features/notifications/hooks/useCategorySettings';
 
 interface NotificationPreference {
     id: string;
@@ -83,6 +85,7 @@ const getTypeSetting = (
 export const NotificationSettings: React.FC = () => {
     const queryClient = useQueryClient();
     const [expandedSection, setExpandedSection] = useState<string | null>('channels');
+    const { settings: categorySettings, isLoading: catLoading, update: updateCategory } = useCategorySettings();
 
     // Push notification hook
     const {
@@ -398,6 +401,54 @@ export const NotificationSettings: React.FC = () => {
                                 </button>
                             ))}
                         </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Category Settings */}
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
+                    <Filter className="w-4 h-4 text-slate-500" />
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        Kategori Action Items
+                    </h3>
+                </div>
+                <p className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50">
+                    Kategori yang dinonaktifkan tidak akan muncul di Action Command Center
+                </p>
+                {catLoading ? (
+                    <div className="px-4 py-3 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                        <span className="text-sm text-slate-400">Memuat...</span>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                        {([
+                            { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas' },
+                            { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Approval, schedule, procurement' },
+                            { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses menunggu proses' },
+                            { key: 'RENEWAL', label: 'Renewal', desc: 'Kontrak mendekati expired' },
+                            { key: 'ZOOM', label: 'Zoom', desc: 'Booking dan jadwal meeting' },
+                        ] as { key: keyof CategorySettings; label: string; desc: string }[]).map(({ key, label, desc }) => (
+                            <div key={key} className="flex items-center justify-between px-4 py-3">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{desc}</p>
+                                </div>
+                                <button
+                                    onClick={() => updateCategory({ [key]: !categorySettings[key] })}
+                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                                        categorySettings[key]
+                                            ? 'bg-primary'
+                                            : 'bg-slate-300 dark:bg-slate-600'
+                                    }`}
+                                >
+                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        categorySettings[key] ? 'translate-x-4' : 'translate-x-0.5'
+                                    }`} />
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

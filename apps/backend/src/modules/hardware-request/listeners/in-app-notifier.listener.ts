@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationService } from '../../notifications/notification.service';
+import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { PermissionsService } from '../../permissions/permissions.service';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
@@ -16,6 +17,7 @@ const link = (id: string) => `/hardware-requests/${id}`;
 export class InAppNotifierListener {
     constructor(
         private readonly notif: NotificationService,
+        private readonly notificationCenterService: NotificationCenterService,
         private readonly perm: PermissionsService,
         private readonly q: HardwareRequestQueryService,
     ) {}
@@ -54,6 +56,7 @@ export class InAppNotifierListener {
             type: NotificationType.HARDWARE_REQUEST_APPROVED_PROC,
             link: link(r.id),
         })));
+        this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
     }
 
     @OnEvent(HR_EVT.REJECTED)
@@ -67,6 +70,7 @@ export class InAppNotifierListener {
             link: link(r.id),
             requiresAcknowledge: true,
         });
+        this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
     }
 
     @OnEvent(HR_EVT.CANCELLED)
@@ -160,6 +164,7 @@ export class InAppNotifierListener {
             type: NotificationType.HARDWARE_REQUEST_COMPLETED_LEAD,
             link: link(r.id),
         })));
+        this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
     }
 
     @OnEvent(HR_EVT.COMMENTED)

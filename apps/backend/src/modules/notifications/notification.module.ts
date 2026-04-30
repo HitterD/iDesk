@@ -6,6 +6,7 @@ import { Notification } from './entities/notification.entity';
 import { NotificationPreference } from './entities/notification-preference.entity';
 import { NotificationLog } from './entities/notification-log.entity';
 import { PushSubscription } from './entities/push-subscription.entity';
+import { ActionItemSnooze } from './entities/action-item-snooze.entity';
 import { User } from '../users/entities/user.entity';
 
 // Services
@@ -38,6 +39,7 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
             NotificationLog,
             PushSubscription,
             User,
+            ActionItemSnooze,
         ]),
         forwardRef(() => TicketingModule),
         forwardRef(() => TelegramModule),

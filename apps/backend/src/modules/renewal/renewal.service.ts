@@ -7,8 +7,9 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { AuditService } from '../audit/audit.service';
+import { NotificationCenterService } from '../notifications/notification-center.service';
 
 @Injectable()
 export class RenewalService {
@@ -20,6 +21,7 @@ export class RenewalService {
         private readonly contractRepo: Repository<RenewalContract>,
         private readonly pdfExtractionService: PdfExtractionService,
         private readonly dataSource: DataSource,
+        private readonly notificationCenterService: NotificationCenterService,
     ) { }
 
     // === DUPLICATE CHECK ===
@@ -265,7 +267,9 @@ export class RenewalService {
             }
         }
 
-        return this.contractRepo.save(contract);
+        const saved = await this.contractRepo.save(contract);
+        await this.emitRenewalRefresh(saved.id);
+        return saved;
     }
 
     async delete(id: string, userId?: string): Promise<void> {
@@ -330,6 +334,9 @@ export class RenewalService {
         await this.contractRepo.save(previousContract);
 
         this.logger.log(`Contract ${id} renewed to ${saved.id}`);
+
+        await this.emitRenewalRefresh(saved.id);
+        await this.emitRenewalRefresh(id);
 
         return saved;
     }
@@ -480,5 +487,16 @@ export class RenewalService {
         }
 
         return updated;
+    }
+
+    private async emitRenewalRefresh(id: string) {
+        try {
+            const admins = await this.dataSource.query(`SELECT id FROM users WHERE role IN ('ADMIN', 'MANAGER')`);
+            for (const admin of admins) {
+                this.notificationCenterService.emitActionItemsRefresh(admin.id, 'RENEWAL', id);
+            }
+        } catch (e) {
+            this.logger.warn('Failed to emit renewal refresh', e);
+        }
     }
 }

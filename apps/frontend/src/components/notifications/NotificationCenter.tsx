@@ -13,6 +13,29 @@ import { NotificationSkeleton } from './NotificationSkeleton';
 import { NotificationStatCard } from './NotificationStatCard';
 import { groupNotificationsByDate } from './utils/notification.utils';
 
+const CriticalBanner: React.FC<{
+    count: number;
+    onViewClick: () => void;
+}> = ({ count, onViewClick }) => {
+    if (count === 0) return null;
+    return (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl shrink-0">
+            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-white">{count > 9 ? '9+' : count}</span>
+            </div>
+            <p className="flex-1 text-[12px] font-medium text-red-700 dark:text-red-300">
+                {count} notifikasi kritis perlu konfirmasi
+            </p>
+            <button
+                onClick={onViewClick}
+                className="text-[11px] font-semibold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors"
+            >
+                Lihat
+            </button>
+        </div>
+    );
+};
+
 export const NotificationCenter: React.FC = () => {
     const {
         // State
@@ -43,6 +66,9 @@ export const NotificationCenter: React.FC = () => {
         handleDelete,
         toggleSound,
         handleViewDetails,
+        unacknowledgedCriticalCount,
+        handleAcknowledge,
+        isAcknowledgePending,
     } = useNotificationCenter();
 
     const groupedNotifications = useMemo(() => groupNotificationsByDate(notifications), [notifications]);
@@ -146,6 +172,14 @@ export const NotificationCenter: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            <CriticalBanner
+                count={unacknowledgedCriticalCount}
+                onViewClick={() => {
+                    setReadFilter('all');
+                    setActiveTab('all');
+                }}
+            />
 
             {/* Stats / Tabs Section */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 shrink-0">
@@ -337,6 +371,8 @@ export const NotificationCenter: React.FC = () => {
                                                     onDelete={handleDelete}
                                                     onMarkRead={handleMarkAsRead}
                                                     onViewDetails={handleViewDetails}
+                                                    onAcknowledge={handleAcknowledge}
+                                                    isAcknowledgePending={isAcknowledgePending}
                                                 />
                                             ))}
                                         </div>

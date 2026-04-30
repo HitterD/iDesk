@@ -1,5 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { Notification, NotificationCategory } from '../../../components/notifications/types/notification.types';
 import { getNotificationRedirectPath, UserRole } from '../../../components/notifications/utils/notificationRouter';
@@ -12,6 +15,7 @@ export type FilterValue = 'all' | 'unread' | 'read';
 
 export const useNotificationCenter = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { user } = useAuth();
     const { socket } = useSocket();
     const { playSound, enabled: soundEnabled, toggleSound } = useSoundNotification();
@@ -55,6 +59,30 @@ export const useNotificationCenter = () => {
         limit: pageSize
     });
 
+    const { data: criticalCountData, refetch: refetchCriticalCount } = useQuery<{ count: number }>({
+        queryKey: ['critical-unacknowledged-count'],
+        queryFn: async () => {
+            const res = await api.get('/notifications/critical/count');
+            return res.data;
+        },
+        enabled: !!user,
+        refetchInterval: 30000,
+    });
+
+    const acknowledgeMutation = useMutation({
+        mutationFn: async (notificationId: string) => {
+            const res = await api.post(`/notifications/${notificationId}/acknowledge`);
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['critical-unacknowledged-count'] });
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        },
+        onError: () => {
+            toast.error('Gagal mengkonfirmasi notifikasi. Coba lagi.');
+        },
+    });
+
     // Real-time updates via socket
     useEffect(() => {
         if (!socket || !user) return;
@@ -68,11 +96,18 @@ export const useNotificationCenter = () => {
             }
         };
 
+        const handleAcknowledged = () => {
+            queryClient.invalidateQueries({ queryKey: ['critical-unacknowledged-count'] });
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        };
+
         socket.on(`notification:${user.id}`, handleNewNotification);
+        socket.on(`notification:acknowledged:${user.id}`, handleAcknowledged);
         return () => {
             socket.off(`notification:${user.id}`, handleNewNotification);
+            socket.off(`notification:acknowledged:${user.id}`, handleAcknowledged);
         };
-    }, [socket, user, playSound]);
+    }, [socket, user, playSound, queryClient]);
 
     const filteredNotifications = useMemo(() => {
         if (!searchQuery.trim()) return notifications;
@@ -162,6 +197,9 @@ export const useNotificationCenter = () => {
         deleteNotificationMutation,
         bulkDeleteMutation,
         bulkMarkAsReadMutation,
+        unacknowledgedCriticalCount: criticalCountData?.count || 0,
+        handleAcknowledge: acknowledgeMutation.mutate,
+        isAcknowledgePending: acknowledgeMutation.isPending,
 
         // Actions
         handleToggleSelect,
