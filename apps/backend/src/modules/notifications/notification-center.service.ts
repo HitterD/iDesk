@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, LessThan, MoreThan } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
@@ -20,7 +20,7 @@ import { PushChannelService } from './channels/push-channel.service';
 import { User } from '../users/entities/user.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EntityManager } from 'typeorm';
-import { ActionItemDto, ActionItemUrgency, ActionItemEntityType } from './dto/action-item.dto';
+import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -166,8 +166,7 @@ export class NotificationCenterService implements OnModuleInit {
         updates: Partial<NotificationPreference>
     ): Promise<NotificationPreference> {
         const prefs = await this.getOrCreatePreferences(userId);
-        Object.assign(prefs, updates);
-        return this.preferenceRepo.save(prefs);
+        return this.preferenceRepo.save({ ...prefs, ...updates });
     }
 
     async updateTypePreference(
