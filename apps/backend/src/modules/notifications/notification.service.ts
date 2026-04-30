@@ -55,7 +55,7 @@ export class NotificationService {
             : `notification:${data.userId}`;
 
         // Emit real-time notification via WebSocket
-        this.eventsGateway.server.emit(eventType, {
+        try { this.eventsGateway.server.emit(eventType, {
             id: saved.id,
             type: saved.type,
             category: saved.category,
@@ -68,13 +68,13 @@ export class NotificationService {
             requiresAcknowledge: saved.requiresAcknowledge,
             createdAt: saved.createdAt,
             userId: data.userId,
-        });
+        }); } catch (e) { console.warn('Socket emit failed', e); }
 
         // Also emit to general notification channel
-        this.eventsGateway.server.emit('notification:new', {
+        try { this.eventsGateway.server.emit('notification:new', {
             userId: data.userId,
             notification: saved,
-        });
+        }); } catch (e) { console.warn('Socket emit failed', e); }
 
         return saved;
     }
@@ -256,10 +256,10 @@ export class NotificationService {
         const saved = await this.notificationRepo.save(notification);
 
         // Emit acknowledgment event
-        this.eventsGateway.server.emit(`notification:acknowledged:${userId}`, {
+        try { this.eventsGateway.server.emit(`notification:acknowledged:${userId}`, {
             notificationId: saved.id,
             acknowledgedAt: saved.acknowledgedAt,
-        });
+        }); } catch (e) { console.warn('Socket emit failed', e); }
 
         return saved;
     }
@@ -412,7 +412,7 @@ export class NotificationService {
 
         // Emit real-time notifications
         for (const notification of savedNotifications) {
-            this.eventsGateway.server.emit(`notification:${notification.userId}`, {
+            try { this.eventsGateway.server.emit(`notification:${notification.userId}`, {
                 id: notification.id,
                 type: notification.type,
                 category: notification.category,
@@ -422,7 +422,7 @@ export class NotificationService {
                 link: notification.link,
                 isRead: notification.isRead,
                 createdAt: notification.createdAt,
-            });
+            }); } catch (e) { console.warn('Socket emit failed', e); }
         }
 
         return savedNotifications;
