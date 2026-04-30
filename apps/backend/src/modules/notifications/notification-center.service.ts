@@ -1,12 +1,14 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, forwardRef, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, LessThan } from 'typeorm';
+import { Repository, In, LessThan, MoreThan } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
+import { ActionItemSnooze } from './entities/action-item-snooze.entity';
+import { addMinutes, addHours, addDays, startOfDay, setHours } from 'date-fns';
+import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { NotificationPreference, DigestFrequency } from './entities/notification-preference.entity';
 import { NotificationLog, DeliveryChannel, DeliveryStatus } from './entities/notification-log.entity';
 import {
     NotificationPayload,
-    NotificationPriority,
     ChannelDeliveryPayload,
     DeliveryResult,
     INotificationChannel,
@@ -25,17 +27,14 @@ export class NotificationCenterService implements OnModuleInit {
     private readonly logger = new Logger(NotificationCenterService.name);
     private channels: Map<DeliveryChannel, INotificationChannel> = new Map();
 
-    // In-memory queue for notifications (use Bull/Redis in production)
-    private notificationQueue: Array<{
-        payload: NotificationPayload;
-        channels: DeliveryChannel[];
-        createdAt: Date;
-    }> = [];
-
     // Digest buffer - collects notifications for digest delivery
     private digestBuffer: Map<string, Notification[]> = new Map();
 
     constructor(
+        @InjectRepository(ActionItemSnooze)
+        private readonly snoozeRepo: Repository<ActionItemSnooze>,
+        @Inject(forwardRef(() => EventsGateway))
+        private readonly eventsGateway: EventsGateway,
         @InjectRepository(Notification)
         private readonly notificationRepo: Repository<Notification>,
         @InjectRepository(NotificationPreference)
@@ -188,6 +187,53 @@ export class NotificationCenterService implements OnModuleInit {
     // Action Items
     // =====================
 
+    private resolveSnoozedUntil(duration: '30m' | '2h' | 'tomorrow'): Date {
+        const now = new Date();
+        if (duration === '30m') return addMinutes(now, 30);
+        if (duration === '2h') return addHours(now, 2);
+        const tomorrow = startOfDay(addDays(now, 1));
+        return setHours(tomorrow, 8);
+    }
+
+    emitActionItemsRefresh(userId: string, entityType: string, entityId: string): void {
+        this.eventsGateway.server.emit(`action-items:refresh:${userId}`, { entityType, entityId });
+    }
+
+    async snoozeActionItem(userId: string, entityType: string, entityId: string, duration: '30m' | '2h' | 'tomorrow'): Promise<{ snoozeUntil: string }> {
+        const snoozedUntil = this.resolveSnoozedUntil(duration);
+        await this.snoozeRepo.upsert(
+            { userId, entityType, entityId, snoozedUntil },
+            { conflictPaths: ['userId', 'entityType', 'entityId'] }
+        );
+        this.emitActionItemsRefresh(userId, entityType, entityId);
+        return { snoozeUntil: snoozedUntil.toISOString() };
+    }
+
+    async unsnoozeActionItem(userId: string, entityType: string, entityId: string): Promise<void> {
+        await this.snoozeRepo.delete({ userId, entityType, entityId });
+        this.emitActionItemsRefresh(userId, entityType, entityId);
+    }
+
+    async getCategorySettings(userId: string): Promise<Record<string, boolean>> {
+        const pref = await this.preferenceRepo.findOne({ where: { userId } });
+        const defaults = { TICKET: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
+        if (!pref?.categorySettings) return defaults;
+        return { ...defaults, ...pref.categorySettings };
+    }
+
+    async updateCategorySettings(userId: string, updates: Partial<Record<string, boolean>>): Promise<Record<string, boolean>> {
+        const pref = await this.preferenceRepo.findOne({ where: { userId } });
+        if (!pref) {
+            throw new Error('Notification preferences not found');
+        }
+        const current = pref.categorySettings || {};
+        const updated = { ...current, ...updates };
+        await this.preferenceRepo.update({ userId }, { categorySettings: updated as any });
+        this.emitActionItemsRefresh(userId, 'SETTINGS', 'categories');
+        const defaults = { TICKET: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
+        return { ...defaults, ...updated };
+    }
+
     async getActionItems(userId: string, role: string): Promise<any> {
         const items: ActionItemDto[] = [];
         let critical = 0;
@@ -209,7 +255,7 @@ export class NotificationCenterService implements OnModuleInit {
             for (const t of slaBreachedTickets) {
                 items.push({
                     id: `tkt-sla-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `SLA Breached: ${t.ticketNumber}`,
-                    description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt
+                    description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
                 });
                 critical++;
             }
@@ -222,7 +268,7 @@ export class NotificationCenterService implements OnModuleInit {
             for (const t of unrespondedTickets) {
                 items.push({
                     id: `tkt-unresp-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Unresponded: ${t.ticketNumber}`,
-                    description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt
+                    description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt, isSnoozed: false
                 });
                 high++;
             }
@@ -236,7 +282,7 @@ export class NotificationCenterService implements OnModuleInit {
             for (const t of resolvedTickets) {
                 items.push({
                     id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
-                    description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt
+                    description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
                 });
                 normal++;
             }
@@ -250,7 +296,7 @@ export class NotificationCenterService implements OnModuleInit {
             for (const hw of pendingHw) {
                 items.push({
                     id: `hw-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Hardware Approval Pending`,
-                    description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt
+                    description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
                 });
                 high++;
             }
@@ -263,7 +309,7 @@ export class NotificationCenterService implements OnModuleInit {
             for (const ef of pendingEform) {
                 items.push({
                     id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
-                    description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt
+                    description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
                 });
                 high++;
             }
@@ -279,7 +325,7 @@ export class NotificationCenterService implements OnModuleInit {
                     const label = r.vendorName || r.description || 'Unknown Contract';
                     items.push({
                         id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
-                        description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date()
+                        description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date(), isSnoozed: false
                     });
                     if (isCritical) critical++; else high++;
                 }
@@ -288,15 +334,51 @@ export class NotificationCenterService implements OnModuleInit {
             }
         }
 
+        // Load active snoozes
+        const activeSnoozes = await this.snoozeRepo.find({
+            where: { userId, snoozedUntil: MoreThan(now) },
+        });
+        const snoozeMap = new Map(
+            activeSnoozes.map(s => [`${s.entityType}:${s.entityId}`, s.snoozedUntil])
+        );
+
+        // Load category settings
+        const categorySettings = await this.getCategorySettings(userId);
+
+        // Annotate items dengan snooze info + filter disabled categories
+        const annotatedItems = items
+            .filter(item => {
+                const catKey = item.entityType as string;
+                return categorySettings[catKey] !== false;
+            })
+            .map(item => {
+                const key = `${item.entityType}:${item.entityId}`;
+                const snoozeUntil = snoozeMap.get(key);
+                return {
+                    ...item,
+                    isSnoozed: !!snoozeUntil,
+                    snoozeUntil: snoozeUntil?.toISOString(),
+                };
+            });
+
+        // Recalculate counts (exclude snoozed items)
+        const activeItems = annotatedItems.filter(i => !i.isSnoozed);
+        const finalCounts = {
+            critical: activeItems.filter(i => i.urgency === ActionItemUrgency.CRITICAL).length,
+            high: activeItems.filter(i => i.urgency === ActionItemUrgency.HIGH).length,
+            normal: activeItems.filter(i => i.urgency === ActionItemUrgency.NORMAL).length,
+            total: activeItems.length,
+        };
+
         return {
-            items: items.sort((a, b) => {
+            items: annotatedItems.sort((a, b) => {
                 const urgencyWeight: Record<string, number> = { 'CRITICAL': 3, 'HIGH': 2, 'NORMAL': 1 };
                 if (urgencyWeight[b.urgency] !== urgencyWeight[a.urgency]) {
                     return urgencyWeight[b.urgency] - urgencyWeight[a.urgency];
                 }
                 return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
             }),
-            counts: { critical, high, normal, total: critical + high + normal }
+            counts: finalCounts
         };
     }
 
