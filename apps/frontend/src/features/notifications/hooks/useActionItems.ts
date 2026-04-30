@@ -10,13 +10,14 @@ export const useActionItems = () => {
     const { socket } = useSocket();
     const queryClient = useQueryClient();
 
-    const { data, isLoading, error, refetch } = useQuery<ActionItemsResponse>({
+    const { data, isLoading, isFetching, error, refetch } = useQuery<ActionItemsResponse>({
         queryKey: ['action-items'],
         queryFn: async () => {
             const res = await api.get('/notifications/action-items');
             return res.data;
         },
         enabled: !!user,
+        staleTime: 5 * 60 * 1000,
         refetchInterval: 60000, // Poll every 60s as per spec
     });
 
@@ -24,22 +25,27 @@ export const useActionItems = () => {
     useEffect(() => {
         if (!socket || !user) return;
 
-        const handleSocketEvent = () => {
+        const handleRefresh = () => {
             queryClient.invalidateQueries({ queryKey: ['action-items'] });
         };
 
-        socket.on(`notification:${user.id}`, handleSocketEvent);
-        socket.on(`notification:acknowledged:${user.id}`, handleSocketEvent);
-        // Assuming other entity updates might trigger these or similar events
+        socket.on(`notification:${user.id}`, handleRefresh);
+        socket.on(`notification:acknowledged:${user.id}`, handleRefresh);
+        socket.on(`action-items:refresh:${user.id}`, handleRefresh);
 
         return () => {
-            socket.off(`notification:${user.id}`, handleSocketEvent);
-            socket.off(`notification:acknowledged:${user.id}`, handleSocketEvent);
+            socket.off(`notification:${user.id}`, handleRefresh);
+            socket.off(`notification:acknowledged:${user.id}`, handleRefresh);
+            socket.off(`action-items:refresh:${user.id}`, handleRefresh);
         };
     }, [socket, user, queryClient]);
 
+    const allItems = data?.items || [];
+    const activeItems = allItems.filter(i => !i.isSnoozed);
+
     return {
-        items: data?.items || [],
+        items: allItems,
+        activeItems,
         counts: data?.counts || { critical: 0, high: 0, normal: 0, total: 0 },
         isLoading,
         error,

@@ -11,7 +11,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useActionItems } from '../../features/notifications/hooks/useActionItems';
 import { useReminderEngine } from '../../features/notifications/hooks/useReminderEngine';
-import { ActionItem, ActionItemEntityType, ActionItemUrgency } from './types/action-item.types';
+import { ActionItem, ActionItemEntityType, ActionItemUrgency, SnoozeDuration } from './types/action-item.types';
+import { useSnoozeActionItem } from '../../features/notifications/hooks/useSnoozeActionItem';
 import api from '@/lib/api';
 
 // ─── Entity type icons ─────────────────────────────────────────────────────────
@@ -93,17 +94,41 @@ const SectionLabel = ({ urgency, count }: { urgency: ActionItemUrgency; count: n
     );
 };
 
+const SNOOZE_OPTIONS: { label: string; value: SnoozeDuration }[] = [
+    { label: '30 menit', value: '30m' },
+    { label: '2 jam', value: '2h' },
+    { label: 'Besok pagi', value: 'tomorrow' },
+];
+
 const ActionRow = ({
     item, onClick, index,
 }: { item: ActionItem; onClick: () => void; index: number }) => {
+    const { snooze, unsnooze, isSnoozePending } = useSnoozeActionItem();
+    const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+    
     const cfg = URGENCY_CONFIG[item.urgency];
+    
+    const handleSnooze = (duration: SnoozeDuration) => {
+        snooze({ entityType: item.entityType, entityId: item.entityId, duration });
+        setShowSnoozeMenu(false);
+    };
+
+    const handleUnsnooze = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        unsnooze({ entityType: item.entityType, entityId: item.entityId });
+    };
+
+    const snoozeLabel = item.snoozeUntil
+        ? `Snoozed · sampai ${new Date(item.snoozeUntil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+        : null;
+
     return (
         <motion.button
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.04, duration: 0.2 }}
             onClick={onClick}
-            className={`w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group ${cfg.rowLeft}`}
+            className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group ${cfg.rowLeft} ${item.isSnoozed ? 'opacity-50' : ''}`}
         >
             <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${cfg.sectionBg} ${cfg.sectionText}`}>
                 {ENTITY_ICONS[item.entityType]}
@@ -115,9 +140,42 @@ const ActionRow = ({
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                     {item.description}
                 </p>
+                {item.isSnoozed && snoozeLabel && (
+                    <button
+                        onClick={handleUnsnooze}
+                        className="mt-1 text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 rounded px-1.5 py-0.5 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                    >
+                        {snoozeLabel} · batalkan
+                    </button>
+                )}
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">{timeAgo(item.createdAt)}</span>
+            <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                {!item.isSnoozed && (
+                    <div className="relative">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(v => !v); }}
+                            disabled={isSnoozePending}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                            title="Tunda reminder"
+                        >
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        </button>
+                        {showSnoozeMenu && (
+                            <div className="absolute right-0 top-7 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 w-32">
+                                {SNOOZE_OPTIONS.map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={(e) => { e.stopPropagation(); handleSnooze(opt.value); }}
+                                        className="w-full text-left px-3 py-1.5 text-[12px] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden group-hover:hidden sm:block">{timeAgo(item.createdAt)}</span>
                 <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
         </motion.button>
@@ -198,7 +256,7 @@ export const ActionCommandCenter = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const { items, counts, isLoading, refetch } = useActionItems();
+    const { items, activeItems, counts, isLoading, isFetching, refetch } = useActionItems();
     useReminderEngine();
     const navigate = useNavigate();
 
@@ -225,8 +283,11 @@ export const ActionCommandCenter = () => {
         NORMAL: items.filter(i => i.urgency === 'NORMAL'),
     };
 
-    const hasCritical = counts.critical > 0;
-    const hasHigh = counts.high > 0;
+    const activeCritical = activeItems.filter(i => i.urgency === 'CRITICAL').length;
+    const activeHigh = activeItems.filter(i => i.urgency === 'HIGH').length;
+    const hasCritical = activeCritical > 0;
+    const hasHigh = activeHigh > 0;
+    const activeTotal = activeItems.length;
 
     return (
         <div className="relative">
@@ -239,11 +300,11 @@ export const ActionCommandCenter = () => {
                 <ListChecks className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors" />
 
                 {/* Badge */}
-                {counts.total > 0 && (
+                {activeTotal > 0 && (
                     <span className={`absolute top-1.5 right-1.5 min-w-[16px] h-4 px-0.5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 text-[10px] font-bold text-white ${
                         hasCritical ? 'bg-red-500' : hasHigh ? 'bg-amber-500' : 'bg-primary'
                     }`}>
-                        {counts.total > 9 ? '9+' : counts.total}
+                        {activeTotal > 9 ? '9+' : activeTotal}
                     </span>
                 )}
 
