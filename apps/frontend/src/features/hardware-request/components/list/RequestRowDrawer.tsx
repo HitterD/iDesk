@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
     ExternalLink, Info, MessageSquare, Activity,
-    User, MapPin, Calendar, Layers, ChevronRight,
+    User, MapPin, Calendar, Layers, ChevronRight, AlertCircle,
 } from 'lucide-react';
 import { StatusPipeline } from '../common/StatusPipeline';
 import { CommentThread } from '../detail/CommentThread';
@@ -11,6 +11,7 @@ import { ActivityTimeline } from '../detail/ActivityTimeline';
 import { fmtDateTime } from '../../utils/format.util';
 import { getStatusMeta } from '../../utils/status.util';
 import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
+import { useHardwareRole } from '../../hooks/usePermissions';
 import type { HardwareRequest } from '../../types';
 
 type DrawerTab = 'detail' | 'comments' | 'activity';
@@ -30,6 +31,8 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
     const [tab, setTab] = useState<DrawerTab>('detail');
     const basePath = useHardwareBasePath();
     const meta = getStatusMeta(r.status);
+    const { userId } = useHardwareRole();
+    const needsConfirmation = r.status === 'AWAITING_USER_CONFIRMATION' && r.requesterId === userId;
 
     return (
         <tr>
@@ -52,6 +55,24 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
                     >
                         {/* Top accent bar */}
                         <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${meta.hex}, ${meta.hex}40)` }} />
+
+                        {needsConfirmation && (
+                            <div className="flex items-center justify-between gap-3 px-4 py-2 bg-cyan-50 dark:bg-cyan-900/20 border-b border-cyan-200 dark:border-cyan-800">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
+                                    <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                                        Konfirmasi instalasi diperlukan
+                                    </span>
+                                </div>
+                                <Link
+                                    to={`${basePath}/${r.id}`}
+                                    className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300 hover:underline underline-offset-2 shrink-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    Buka detail →
+                                </Link>
+                            </div>
+                        )}
 
                         {/* Pipeline strip */}
                         <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
