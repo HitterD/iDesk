@@ -91,21 +91,14 @@ export class FoundClaimService {
         const report = await this.reportRepo.findOne({ where: { id: reportId } });
         if (!report) throw new NotFoundException('Lost item report not found');
 
-        const prevReportStatus = report.status;
-
         claim.status = FoundClaimStatus.MATCHED;
         claim.lostItemReportId = reportId;
         claim.matchedById = managerId;
         claim.matchedAt = new Date();
         claim.managerNotes = dto.notes ?? null;
 
-        report.status = LostItemStatus.VERIFIED;
-        report.foundAt = new Date();
-
-        await this.reportRepo.save(report);
         const saved = await this.claimRepo.save(claim);
 
-        await this.logReportStatus(reportId, prevReportStatus, LostItemStatus.VERIFIED, managerId, dto.notes);
         this.eventEmitter.emit('found-claim.matched', { claim: saved, report });
         return saved;
     }
@@ -128,8 +121,8 @@ export class FoundClaimService {
 
     async confirmReturn(id: string, managerId: string): Promise<FoundItemClaim> {
         const claim = await this.findOne(id);
-        if (claim.status !== FoundClaimStatus.MATCHED) {
-            throw new BadRequestException('Claim must be MATCHED before confirming return');
+        if (claim.status !== FoundClaimStatus.MATCHED && claim.status !== FoundClaimStatus.PENDING) {
+            throw new BadRequestException('Claim must be MATCHED or PENDING before confirming return');
         }
 
         claim.status = FoundClaimStatus.RETURNED;
