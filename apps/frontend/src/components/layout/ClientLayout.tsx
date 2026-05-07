@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch, PackageCheck, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
@@ -43,14 +43,13 @@ interface ClientNavItem {
 
 export const ClientLayout: React.FC = () => {
     const location = useLocation();
-    const navigate = useNavigate();
     const { user } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
     const { data: myPermissions } = useMyPermissions();
 
     const handleLogout = async () => {
         await performLogout();
-        navigate('/login');
+        window.location.href = '/login';
     };
 
     // All possible nav items — items with pageKey are filtered by preset pageAccess

@@ -227,6 +227,7 @@ export function ZoomCalendarPage() {
                 <ZoomMonthView
                     currentDate={currentDate}
                     calendar={safeCalendar}
+                    canBook={canBook}
                     onSlotClick={(day, slot) => handleSlotClick(day, slot)}
                     onDateDoubleClick={handleDateDoubleClick}
                     onBookingClick={handleMonthBookingClick}

@@ -75,6 +75,15 @@ export class HardwareRequest {
     @Column({ type: 'timestamptz', nullable: true })
     installedAt: Date | null;
 
+    @Column({ name: 'install_marked_done_at', type: 'timestamptz', nullable: true })
+    installMarkedDoneAt: Date | null;
+
+    @Column({ name: 'user_confirmed_at', type: 'timestamptz', nullable: true })
+    userConfirmedAt: Date | null;
+
+    @Column({ name: 'user_confirmation_kind', type: 'varchar', length: 16, nullable: true })
+    userConfirmationKind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE' | null;
+
     @Column({ type: 'timestamptz', nullable: true })
     completedAt: Date | null;
 

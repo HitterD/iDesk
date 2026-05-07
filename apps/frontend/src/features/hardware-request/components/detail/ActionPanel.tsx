@@ -5,6 +5,7 @@ import { useHardwareMutations } from '../../hooks/useHardwareMutations';
 import { capsFor, canDecideProcurement, canSelectSlot } from '../../utils/permission.util';
 import { useHardwareRole } from '../../hooks/usePermissions';
 import { RejectDialog } from './RejectDialog';
+import { ReportIssueDialog } from './ReportIssueDialog';
 import { ProcurementPanel } from '../procurement/ProcurementPanel';
 import { DeliveryBoard } from '../delivery/DeliveryBoard';
 import { ScheduleProposeModal } from '../scheduling/ScheduleProposeModal';
@@ -17,7 +18,7 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
     const caps = capsFor(user, r);
     const m = useHardwareMutations(r.id);
     const [rejectOpen, setRejectOpen] = useState(false);
-    const [wizardOpen, setWizardOpen] = useState(false);
+    const [issueOpen, setIssueOpen] = useState(false);
 
     // V2 Workflow Modals
     const [proposeOpen, setProposeOpen] = useState(false);
@@ -34,7 +35,9 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
         [caps.canReview,  <button key="rev"     className={primary}    onClick={() => m.reviewMut.mutate(r.id)}><Eye className="size-4" />Mulai Review</button>],
         [caps.canApprove, <button key="appr"    className={primary}    onClick={() => m.approveMut.mutate(r.id)}><CheckCircle2 className="size-4" />Setujui Request</button>],
         [caps.canReject,  <button key="rej"     className={danger}     onClick={() => setRejectOpen(true)}><XCircle className="size-4" />Tolak Request</button>],
-        [r.status === 'INSTALLATION' && role === 'ICT_STAFF', <button key="installC" className={primary} onClick={() => setWizardOpen(true)}><ClipboardCheck className="size-4" />Selesaikan Instalasi</button>],
+        [r.status === 'INSTALLATION' && role === 'ICT_STAFF', <button key="installC" className={primary} onClick={() => window.confirm('Tandai instalasi sebagai selesai (menunggu konfirmasi user)?') && m.completeInstallMut.mutate(r.id)}><ClipboardCheck className="size-4" />Selesaikan Instalasi</button>],
+        [r.status === 'AWAITING_USER_CONFIRMATION' && role === 'USER', <button key="confY" className={primary} onClick={() => window.confirm('Apakah instalasi sudah sesuai?') && m.confirmInstallMut.mutate({ id: r.id, payload: { kind: 'ACCEPT_AS_IS' } })}><CheckCircle2 className="size-4" />Instalasi Sesuai & Selesai</button>],
+        [r.status === 'AWAITING_USER_CONFIRMATION' && role === 'USER', <button key="confN" className={danger} onClick={() => setIssueOpen(true)}><XCircle className="size-4" />Laporkan Masalah</button>],
     ];
     const visible = actions.filter(([ok]) => ok);
 
@@ -56,6 +59,9 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
                 <RejectDialog
                     open={rejectOpen} onClose={() => setRejectOpen(false)}
                     onConfirm={(reason) => m.rejectMut.mutate({ id: r.id, reason })} />
+                <ReportIssueDialog
+                    open={issueOpen} onClose={() => setIssueOpen(false)}
+                    onConfirm={(comments) => m.confirmInstallMut.mutate({ id: r.id, payload: { kind: 'REPORT_ISSUE', comments } })} />
             </SectionCard>
 
             {canDecideProcurement(user, r) && (

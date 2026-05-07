@@ -25,7 +25,7 @@ export class InstallationSchedule {
     @Column({ type: 'timestamptz', nullable: true }) scheduledStart: Date | null;
     @Column({ type: 'timestamptz', nullable: true }) scheduledEnd: Date | null;
 
-    @Column({ type: 'enum', enum: InstallStatus, default: InstallStatus.PROPOSED })
+    @Column({ type: 'enum', enum: InstallStatus, enumName: 'install_status_enum', default: InstallStatus.PROPOSED })
     status: InstallStatus;
 
     @Column({ type: 'uuid' }) proposedBy: string;

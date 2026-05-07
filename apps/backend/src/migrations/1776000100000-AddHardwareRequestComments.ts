@@ -15,9 +15,14 @@ export class AddHardwareRequestComments1776000100000 implements MigrationInterfa
                 edited_at   timestamptz NULL,
                 deleted_at  timestamptz NULL
             );
-            CREATE INDEX idx_hardware_request_comments_request_created
-                ON hardware_request_comments (request_id, created_at);
         `);
+        const hrcCols = await q.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name='hardware_request_comments'`
+        );
+        const hrcColNames: string[] = hrcCols.map((r: any) => r.column_name);
+        const hrcRequestId = hrcColNames.includes('request_id') ? 'request_id' : '"requestId"';
+        const hrcCreatedAt = hrcColNames.includes('created_at') ? 'created_at' : '"createdAt"';
+        await q.query(`CREATE INDEX idx_hardware_request_comments_request_created ON hardware_request_comments (${hrcRequestId}, ${hrcCreatedAt});`);
     }
     async down(q: QueryRunner): Promise<void> {
         await q.query(`DROP TABLE IF EXISTS hardware_request_comments;`);

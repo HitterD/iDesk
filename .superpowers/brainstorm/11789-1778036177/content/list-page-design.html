@@ -1,0 +1,134 @@
+<h2>Design: Lost Items List Page</h2>
+<p class="subtitle">Mockup layout baru — klik untuk pilih versi yang lebih cocok</p>
+
+<div class="cards">
+  <div class="card" data-choice="list-v1" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc; padding:16px; min-height:220px; border-radius:8px 8px 0 0; border-bottom:1px solid #e2e8f0;">
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:13px; font-weight:700; color:#0f172a;">Barang Hilang</div>
+          <div style="font-size:10px; color:#94a3b8;">Kelola laporan barang hilang</div>
+        </div>
+        <div style="background:#0f172a; color:white; font-size:9px; padding:4px 10px; border-radius:6px;">+ Laporkan Kehilangan</div>
+      </div>
+      <!-- Stats -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:10px;">
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; text-align:center;">
+          <div style="font-size:14px; font-weight:700; color:#0f172a;">12</div>
+          <div style="font-size:8px; color:#94a3b8;">Total</div>
+        </div>
+        <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:6px; padding:6px 8px; text-align:center;">
+          <div style="font-size:14px; font-weight:700; color:#d97706;">4</div>
+          <div style="font-size:8px; color:#92400e;">Reported</div>
+        </div>
+        <div style="background:#dbeafe; border:1px solid #bfdbfe; border-radius:6px; padding:6px 8px; text-align:center;">
+          <div style="font-size:14px; font-weight:700; color:#2563eb;">3</div>
+          <div style="font-size:8px; color:#1e40af;">Searching</div>
+        </div>
+        <div style="background:#dcfce7; border:1px solid #bbf7d0; border-radius:6px; padding:6px 8px; text-align:center;">
+          <div style="font-size:14px; font-weight:700; color:#16a34a;">5</div>
+          <div style="font-size:8px; color:#14532d;">Returned</div>
+        </div>
+      </div>
+      <!-- Filter tabs -->
+      <div style="display:flex; gap:4px; margin-bottom:8px; overflow:hidden;">
+        <div style="background:#0f172a; color:white; font-size:8px; padding:3px 8px; border-radius:20px;">Semua</div>
+        <div style="background:white; border:1px solid #e2e8f0; color:#64748b; font-size:8px; padding:3px 8px; border-radius:20px;">Reported</div>
+        <div style="background:white; border:1px solid #e2e8f0; color:#64748b; font-size:8px; padding:3px 8px; border-radius:20px;">Searching</div>
+        <div style="background:white; border:1px solid #e2e8f0; color:#64748b; font-size:8px; padding:3px 8px; border-radius:20px;">Claimed</div>
+      </div>
+      <!-- Table rows -->
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr; font-size:8px; color:#94a3b8; padding:0 8px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">
+          <span>Item</span><span>Lokasi</span><span>Reporter</span><span>Status</span>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:7px 8px; display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr; align-items:center;">
+          <div>
+            <div style="font-size:9px; font-weight:600; color:#1e293b;">Laptop Dell XPS 13</div>
+            <div style="font-size:8px; color:#94a3b8;">2 jam lalu</div>
+          </div>
+          <div style="font-size:8px; color:#64748b;">Ruang Server Lt.2</div>
+          <div style="font-size:8px; color:#64748b;">Budi S.</div>
+          <span style="background:#fef3c7; color:#d97706; font-size:7px; padding:2px 5px; border-radius:4px; display:inline-block;">REPORTED</span>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:7px 8px; display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr; align-items:center;">
+          <div>
+            <div style="font-size:9px; font-weight:600; color:#1e293b;">ID Card Pegawai</div>
+            <div style="font-size:8px; color:#94a3b8;">1 hari lalu</div>
+          </div>
+          <div style="font-size:8px; color:#64748b;">Lobby Utama</div>
+          <div style="font-size:8px; color:#64748b;">Ani R.</div>
+          <span style="background:#dbeafe; color:#1d4ed8; font-size:7px; padding:2px 5px; border-radius:4px; display:inline-block;">SEARCHING</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Tabel + Stats Cards</h3>
+      <p>Table view dengan stat cards di atas, filter tab, search. Familiar, cocok untuk ICT yang manage banyak item.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="list-v2" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc; padding:16px; min-height:220px; border-radius:8px 8px 0 0; border-bottom:1px solid #e2e8f0;">
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div style="font-size:13px; font-weight:700; color:#0f172a;">Barang Hilang</div>
+        <div style="background:#0f172a; color:white; font-size:9px; padding:4px 10px; border-radius:6px;">+ Laporkan</div>
+      </div>
+      <!-- Card grid -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:10px; box-shadow:0 1px 3px rgba(0,0,0,.06);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+            <span style="background:#fef3c7; color:#d97706; font-size:7px; padding:2px 5px; border-radius:4px;">REPORTED</span>
+            <span style="font-size:8px; color:#94a3b8;">2j lalu</span>
+          </div>
+          <div style="font-size:10px; font-weight:700; color:#1e293b; margin-bottom:2px;">Laptop Dell XPS</div>
+          <div style="font-size:8px; color:#64748b; margin-bottom:8px;">Ruang Server Lt.2</div>
+          <div style="height:36px; background:#f1f5f9; border-radius:4px; display:flex; align-items:center; justify-content:center;">
+            <span style="font-size:8px; color:#94a3b8;">📷 3 foto</span>
+          </div>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:10px; box-shadow:0 1px 3px rgba(0,0,0,.06);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+            <span style="background:#dbeafe; color:#1d4ed8; font-size:7px; padding:2px 5px; border-radius:4px;">SEARCHING</span>
+            <span style="font-size:8px; color:#94a3b8;">1h lalu</span>
+          </div>
+          <div style="font-size:10px; font-weight:700; color:#1e293b; margin-bottom:2px;">ID Card Pegawai</div>
+          <div style="font-size:8px; color:#64748b; margin-bottom:8px;">Lobby Utama</div>
+          <div style="height:36px; background:#f1f5f9; border-radius:4px; display:flex; align-items:center; justify-content:center;">
+            <span style="font-size:8px; color:#94a3b8;">📷 1 foto</span>
+          </div>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:10px; box-shadow:0 1px 3px rgba(0,0,0,.06);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+            <span style="background:#ede9fe; color:#7c3aed; font-size:7px; padding:2px 5px; border-radius:4px;">CLAIMED</span>
+            <span style="font-size:8px; color:#94a3b8;">3h lalu</span>
+          </div>
+          <div style="font-size:10px; font-weight:700; color:#1e293b; margin-bottom:2px;">Kunci Mobil</div>
+          <div style="font-size:8px; color:#64748b; margin-bottom:8px;">Area Parkir B2</div>
+          <div style="height:36px; background:#f0fdf4; border:1px dashed #86efac; border-radius:4px; display:flex; align-items:center; justify-content:center;">
+            <span style="font-size:8px; color:#16a34a;">1 found claim</span>
+          </div>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:10px; box-shadow:0 1px 3px rgba(0,0,0,.06); opacity:0.5;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+            <span style="background:#f1f5f9; color:#475569; font-size:7px; padding:2px 5px; border-radius:4px;">RETURNED</span>
+            <span style="font-size:8px; color:#94a3b8;">2h lalu</span>
+          </div>
+          <div style="font-size:10px; font-weight:700; color:#1e293b; margin-bottom:2px;">Charger Laptop</div>
+          <div style="font-size:8px; color:#64748b; margin-bottom:8px;">Cafeteria</div>
+          <div style="height:36px; background:#f1f5f9; border-radius:4px; display:flex; align-items:center; justify-content:center;">
+            <span style="font-size:8px; color:#94a3b8;">✓ Selesai</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Card Grid</h3>
+      <p>Grid kartu dengan foto preview. Lebih visual, cocok untuk employee yang mau lihat item mereka sekilas.</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:12px; font-size:12px; color:#6b7280;">Pilih layout list yang lebih cocok, atau ketik di terminal kalau ada kombinasi yang diinginkan.</p>

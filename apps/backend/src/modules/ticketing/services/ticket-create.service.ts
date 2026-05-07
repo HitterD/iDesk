@@ -107,7 +107,7 @@ export class TicketCreateService {
             }
 
             // Wrap in transaction (M7: multiple-write ops)
-            return await this.ticketRepo.manager.transaction(async (manager) => {
+            const finalTicket = await this.ticketRepo.manager.transaction(async (manager) => {
                 // Generate Custom Ticket Number safely within transaction
                 const todayStart = new Date(date);
                 todayStart.setHours(0, 0, 0, 0);
@@ -132,37 +132,6 @@ export class TicketCreateService {
                 ticket.ticketNumber = `${dateStr}-${division}-${numberStr}`;
 
                 const savedTicket = await manager.save(ticket);
-
-            // === Auto-Assignment: Assign to agent with lowest workload ===
-            // Only auto-assign if:
-            // 1. No manual assignee specified
-            // 2. Ticket has a site assigned
-            // 3. User creating ticket is not an AGENT (agents pick their own tickets)
-            // 4. Ticket is NOT an ORACLE request
-            if (!(createTicketDto as any).assignedToId && ticket.siteId && user.role !== 'AGENT' && user.role !== 'AGENT_OPERATIONAL_SUPPORT') {
-                const isOracleTicket = createTicketDto.category === 'ORACLE_REQUEST' || (createTicketDto as any).ticketType === 'ORACLE_REQUEST';
-
-                if (!isOracleTicket) {
-                    try {
-                        const assignedTicket = await this.workloadService.autoAssignTicket(ticket.id);
-                        if (assignedTicket.assignedTo) {
-                            this.logger.log(
-                                `✅ Ticket ${ticket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
-                            );
-                            // Update local ticket reference with assignment
-                            ticket.assignedToId = assignedTicket.assignedToId;
-                            ticket.assignedTo = assignedTicket.assignedTo;
-                        }
-                    } catch (autoAssignError) {
-                        // Don't fail ticket creation if auto-assign fails
-                        this.logger.warn(
-                            `⚠️ Auto-assign failed for ticket ${ticket.ticketNumber}: ${autoAssignError.message}`
-                        );
-                    }
-                } else {
-                    this.logger.log(`⏳ Ticket ${ticket.ticketNumber} bypassed auto-assign (Oracle Request)`);
-                }
-            }
 
             // Invalidate caches using centralized service
             await this.cacheInvalidationService.onTicketChange(ticket.id);
@@ -222,6 +191,34 @@ export class TicketCreateService {
 
                 return savedTicket;
             }); // End of transaction
+
+            // === Auto-Assignment: Assign to agent with lowest workload ===
+            if (!(createTicketDto as any).assignedToId && finalTicket.siteId && user.role !== 'AGENT' && user.role !== 'AGENT_OPERATIONAL_SUPPORT') {
+                const isOracleTicket = createTicketDto.category === 'ORACLE_REQUEST' || (createTicketDto as any).ticketType === 'ORACLE_REQUEST';
+
+                if (!isOracleTicket) {
+                    try {
+                        const assignedTicket = await this.workloadService.autoAssignTicket(finalTicket.id);
+                        if (assignedTicket.assignedTo) {
+                            this.logger.log(
+                                `✅ Ticket ${finalTicket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
+                            );
+                            // Update local ticket reference with assignment
+                            finalTicket.assignedToId = assignedTicket.assignedToId;
+                            finalTicket.assignedTo = assignedTicket.assignedTo;
+                        }
+                    } catch (autoAssignError) {
+                        // Don't fail ticket creation if auto-assign fails
+                        this.logger.warn(
+                            `⚠️ Auto-assign failed for ticket ${finalTicket.ticketNumber}: ${autoAssignError.message}`
+                        );
+                    }
+                } else {
+                    this.logger.log(`⏳ Ticket ${finalTicket.ticketNumber} bypassed auto-assign (Oracle Request)`);
+                }
+            }
+
+            return finalTicket;
         } catch (error) {
             this.logger.error(`Error creating ticket: ${error.message}`, error.stack);
             throw error;

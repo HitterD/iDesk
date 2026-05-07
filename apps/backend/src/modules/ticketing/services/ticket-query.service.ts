@@ -6,6 +6,21 @@ import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
 
+const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
+const ORACLE_FILTER_PARAMS = { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' } as const;
+
+export function isNonOracleAgent(role: UserRole): boolean {
+    return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
+}
+
+export function applyOracleFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, role: UserRole): void {
+    if (isNonOracleAgent(role)) {
+        qb.andWhere('(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', ORACLE_FILTER_PARAMS);
+    } else if (role === UserRole.AGENT_ORACLE) {
+        qb.andWhere('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
+    }
+}
+
 @Injectable()
 export class TicketQueryService {
     constructor(
@@ -16,6 +31,18 @@ export class TicketQueryService {
         private readonly cacheService: CacheService,
     ) { }
 
+    private createFilteredTicketQb(role: UserRole, excludeCategory?: string): import('typeorm').SelectQueryBuilder<Ticket> {
+        const qb = this.ticketRepo.createQueryBuilder('ticket');
+        applyOracleFilter(qb, role);
+        if (excludeCategory) {
+            const excludedCategories = excludeCategory.split(',').map((cat) => cat.trim());
+            if (excludedCategories.length > 0) {
+                qb.andWhere('ticket.category NOT IN (:...excludedCategories)', { excludedCategories });
+            }
+        }
+        return qb;
+    }
+
     async findAll(userId: string, role: UserRole): Promise<Ticket[]> {
         const query = this.ticketRepo.createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
@@ -24,18 +51,19 @@ export class TicketQueryService {
             .where('ticket.ticketType NOT IN (:...excludedTypes)', { 
                 excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION'] 
             })
-            .orderBy('ticket.createdAt', 'DESC');
+            .orderBy('ticket.createdAt', 'DESC')
+            .take(500); // Safety limit to prevent full table dumps
 
         if (role === UserRole.ADMIN) {
             // Admin sees all
             return query.getMany();
         } else if (role === UserRole.AGENT_ORACLE) {
             // Oracle agent sees only Oracle requests
-            query.andWhere('ticket.ticketType = :type OR ticket.category = :category', { type: 'ORACLE_REQUEST', category: 'ORACLE_REQUEST' });
+            applyOracleFilter(query, role);
             return query.getMany();
-        } else if (role === UserRole.AGENT_OPERATIONAL_SUPPORT || role === UserRole.AGENT || role === UserRole.AGENT_ADMIN) {
+        } else if (isNonOracleAgent(role)) {
             // Normal agents see everything EXCEPT Oracle requests
-            query.andWhere('ticket.ticketType != :type AND ticket.category != :category', { type: 'ORACLE_REQUEST', category: 'ORACLE_REQUEST' });
+            applyOracleFilter(query, role);
             return query.getMany();
         } else {
             // Normal user sees only their own tickets
@@ -106,10 +134,10 @@ export class TicketQueryService {
                 });
             }
         } else if (role === UserRole.AGENT_ORACLE) {            // Oracle agent strictly sees only oracle requests
-            qb.andWhere('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        } else if (role === UserRole.AGENT_OPERATIONAL_SUPPORT || role === UserRole.AGENT_ADMIN || role === UserRole.AGENT) {
+            applyOracleFilter(qb, role);
+        } else if (isNonOracleAgent(role)) {
             // Normal agents strictly DO NOT see oracle requests
-            qb.andWhere('(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
+            applyOracleFilter(qb, role);
         }
 
         // Site isolation filtering
@@ -277,8 +305,11 @@ export class TicketQueryService {
     }
 
     async getDashboardStats(userId: string, role: UserRole, excludeCategory?: string, days: number = 7) {
-        // Always compute fresh stats (cache disabled for real-time accuracy)
-        return this.computeDashboardStats(role, excludeCategory, days);
+        // Cache stats for 15 seconds to balance real-time accuracy and DB load
+        const cacheKey = `dashboard:stats:${role}:${excludeCategory || 'none'}:${days}`;
+        return this.cacheService.getOrSet(cacheKey, async () => {
+            return this.computeDashboardStats(role, excludeCategory, days);
+        }, 15);
     }
 
     private async computeDashboardStats(role: UserRole, excludeCategory?: string, chartDays: number = 7) {
@@ -291,23 +322,7 @@ export class TicketQueryService {
         lastDaysStart.setDate(today.getDate() - (chartDays - 1));
 
         // Use QueryBuilder for efficient aggregations
-        const qb = this.ticketRepo.createQueryBuilder('ticket');
-
-        // Exclude Oracle tickets for specific roles
-        if (role === UserRole.AGENT_OPERATIONAL_SUPPORT || role === UserRole.AGENT || role === UserRole.AGENT_ADMIN) {
-            qb.where('ticket.ticketType != :oracleType AND ticket.category != :oracleCategory', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        } else if (role === UserRole.AGENT_ORACLE) {
-            qb.where('ticket.ticketType = :oracleType OR ticket.category = :oracleCategory', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        }
-
-        // Apply string exclusion
-        if (excludeCategory) {
-            const excludedCategories = excludeCategory.split(',').map((cat) => cat.trim());
-            if (excludedCategories.length > 0) {
-                // If it already has conditions, use andWhere
-                qb.andWhere('ticket.category NOT IN (:...excludedCategories)', { excludedCategories });
-            }
-        }
+        const qb = this.createFilteredTicketQb(role, excludeCategory);
 
         // 1. Status counts - single query with CASE statements
         const statusCounts = await qb
@@ -328,13 +343,7 @@ export class TicketQueryService {
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
         // 2. Priority counts - single query
-        const priorityQb = this.ticketRepo.createQueryBuilder('ticket');
-
-        if (role === UserRole.AGENT_OPERATIONAL_SUPPORT || role === UserRole.AGENT || role === UserRole.AGENT_ADMIN) {
-            priorityQb.where('ticket.ticketType != :oracleType AND ticket.category != :oracleCategory', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        } else if (role === UserRole.AGENT_ORACLE) {
-            priorityQb.where('ticket.ticketType = :oracleType OR ticket.category = :oracleCategory', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        }
+        const priorityQb = this.createFilteredTicketQb(role);
 
         const priorityCounts = await priorityQb
             .select('ticket.priority', 'priority')
@@ -352,13 +361,7 @@ export class TicketQueryService {
         });
 
         // 3. Category counts - single query
-        const categoryQb = this.ticketRepo.createQueryBuilder('ticket');
-
-        if (role === UserRole.AGENT_OPERATIONAL_SUPPORT || role === UserRole.AGENT || role === UserRole.AGENT_ADMIN) {
-            categoryQb.where('ticket.ticketType != :oracleType AND ticket.category != :oracleCategory', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        } else if (role === UserRole.AGENT_ORACLE) {
-            categoryQb.where('ticket.ticketType = :oracleType OR ticket.category = :oracleCategory', { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' });
-        }
+        const categoryQb = this.createFilteredTicketQb(role);
 
         const categoryCounts = await categoryQb
             .select(`COALESCE(ticket.category, 'GENERAL')`, 'category')

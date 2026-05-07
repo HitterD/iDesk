@@ -32,8 +32,8 @@ export const useAuth = create<AuthState>()(
             isAuthenticated: false,
             login: (user) => set({ user, isAuthenticated: true }),
             logout: () => {
-                disconnectSocket();
                 set({ user: null, isAuthenticated: false });
+                disconnectSocket();
             },
             updateUser: (updates) => set((state) => ({
                 user: state.user ? { ...state.user, ...updates } : null,

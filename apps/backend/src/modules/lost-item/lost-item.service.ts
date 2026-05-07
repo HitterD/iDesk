@@ -147,14 +147,34 @@ export class LostItemService {
         return this.lostItemRepo.findOne({ where: { ticketId }, relations: ['ticket'] });
     }
 
-    async findByQrToken(token: string): Promise<{ reportId: string; itemName: string; itemType: string; photoUrls: string[] }> {
-        const report = await this.lostItemRepo.findOne({ where: { qrCodeToken: token } });
+    async findByQrToken(token: string): Promise<{
+        reportId: string;
+        itemName: string;
+        itemType: string;
+        circumstances: string;
+        lastSeenLocation: string;
+        lastSeenDatetime: Date;
+        photoUrls: string[];
+        status: LostItemStatus;
+        reporter: { name: string; email: string } | null;
+    }> {
+        const report = await this.lostItemRepo.findOne({
+            where: { qrCodeToken: token },
+            relations: ['ticket', 'ticket.user'],
+        });
         if (!report) throw new NotFoundException('QR code not found or expired');
+
+        const user = report.ticket?.user;
         return {
             reportId: report.id,
             itemName: report.itemName,
             itemType: report.itemType,
+            circumstances: report.circumstances,
+            lastSeenLocation: report.lastSeenLocation,
+            lastSeenDatetime: report.lastSeenDatetime,
             photoUrls: report.photoUrls,
+            status: report.status,
+            reporter: user ? { name: user.fullName || user.email, email: user.email } : null,
         };
     }
 
@@ -165,12 +185,11 @@ export class LostItemService {
         const prevStatus = lostItem.status;
         lostItem.status = dto.status as LostItemStatus;
 
-        if (dto.status === LostItemStatus.VERIFIED || dto.status === LostItemStatus.FOUND) {
+        if (dto.status === LostItemStatus.RETURNED) {
             lostItem.foundAt = new Date();
             lostItem.foundLocation = dto.foundLocation || null;
             lostItem.foundBy = dto.foundBy || null;
-        }
-        if (dto.status === LostItemStatus.RETURNED) {
+
             await this.ticketRepo.update(lostItem.ticketId, {
                 status: TicketStatus.RESOLVED,
                 resolvedAt: new Date(),

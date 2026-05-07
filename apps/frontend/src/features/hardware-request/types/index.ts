@@ -1,10 +1,10 @@
 export type RequestStatus =
     | 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED'
-    | 'PROCUREMENT' | 'AWAITING_DELIVERY' | 'INSTALLATION' | 'COMPLETED'
+    | 'PROCUREMENT' | 'AWAITING_DELIVERY' | 'INSTALLATION' | 'AWAITING_USER_CONFIRMATION' | 'COMPLETED'
     | 'REJECTED' | 'CANCELLED';
 
 export const REQUEST_PIPELINE: RequestStatus[] = [
-    'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'PROCUREMENT', 'AWAITING_DELIVERY', 'INSTALLATION', 'COMPLETED',
+    'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'PROCUREMENT', 'AWAITING_DELIVERY', 'INSTALLATION', 'AWAITING_USER_CONFIRMATION', 'COMPLETED',
 ];
 
 export type InstallStatus =
@@ -86,7 +86,10 @@ export interface HardwareRequest {
     justification: string;
     status: RequestStatus;
     submittedAt?: string | null; reviewedAt?: string | null; approvedAt?: string | null;
-    procuredAt?: string | null; installedAt?: string | null; completedAt?: string | null;
+    procuredAt?: string | null; installedAt?: string | null; 
+    installMarkedDoneAt?: string | null; userConfirmedAt?: string | null;
+    userConfirmationKind?: 'ACCEPT_AS_IS' | 'REPORT_ISSUE' | null;
+    completedAt?: string | null;
     reviewedBy?: string | null; approvedBy?: string | null; procuredBy?: string | null;
     rejectReason?: string | null;
     version: number;

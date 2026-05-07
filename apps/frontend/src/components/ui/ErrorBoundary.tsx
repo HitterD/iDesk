@@ -25,13 +25,13 @@ export class ErrorBoundary extends Component<Props, State> {
     public render() {
         if (this.state.hasError) {
             return (
-                <div className="min-h-screen flex items-center justify-center bg-navy-main text-white p-4">
+                <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-4">
                     <div className="text-center max-w-md">
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 text-red-500 mb-6">
                             <AlertTriangle className="w-8 h-8" />
                         </div>
                         <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
-                        <p className="text-slate-400 mb-6">
+                        <p className="text-muted-foreground mb-6">
                             We encountered an unexpected error. Please try refreshing the page.
                         </p>
                         <button

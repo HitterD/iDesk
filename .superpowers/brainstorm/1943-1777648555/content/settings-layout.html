@@ -1,0 +1,122 @@
+<h2>Layout Navigation Settings — Pilih Gaya</h2>
+<p class="subtitle">Saat ini pakai Left Sidebar. Mau tetap atau ganti? Pilih salah satu.</p>
+
+<div class="cards">
+
+  <!-- Option A: Enhanced Left Sidebar -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;border-radius:8px;display:flex;gap:10px;height:200px;">
+      <!-- Sidebar -->
+      <div style="width:52px;background:#1e293b;border-radius:8px;padding:8px 6px;display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:28px;height:28px;background:#3b82f6;border-radius:6px;opacity:0.9;"></div>
+        <div style="width:28px;height:28px;background:#334155;border-radius:6px;"></div>
+        <div style="width:28px;height:28px;background:#334155;border-radius:6px;"></div>
+        <div style="width:28px;height:28px;background:#334155;border-radius:6px;"></div>
+        <div style="height:1px;background:#334155;width:100%;margin:4px 0;"></div>
+        <div style="width:28px;height:28px;background:#334155;border-radius:6px;"></div>
+        <div style="width:28px;height:28px;background:#334155;border-radius:6px;"></div>
+        <div style="width:28px;height:28px;background:#334155;border-radius:6px;"></div>
+      </div>
+      <!-- Content -->
+      <div style="flex:1;background:#1e293b;border-radius:8px;padding:10px;">
+        <div style="width:60%;height:10px;background:#3b82f6;border-radius:4px;margin-bottom:8px;opacity:0.8;"></div>
+        <div style="width:80%;height:7px;background:#334155;border-radius:4px;margin-bottom:12px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="height:50px;background:#0f172a;border-radius:6px;border:1px solid #1e3a5f;"></div>
+          <div style="height:50px;background:#0f172a;border-radius:6px;border:1px solid #334155;"></div>
+        </div>
+        <div style="width:100%;height:30px;background:#0f172a;border-radius:6px;margin-top:6px;border:1px solid #334155;"></div>
+        <div style="width:60%;height:28px;background:#3b82f6;border-radius:6px;margin-top:8px;opacity:0.8;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Icon Sidebar + Tooltip</h3>
+      <p>Sidebar kiri <strong>collapsed</strong> (icon only). Hover → tooltip label muncul. Klik → expand ke sidebar lebar. Hemat ruang, modern seperti VS Code / Linear.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Wide Left Sidebar (Current Enhanced) -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;border-radius:8px;display:flex;gap:10px;height:200px;">
+      <!-- Sidebar lebar -->
+      <div style="width:110px;background:#1e293b;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px;">
+        <div style="font-size:8px;color:#64748b;padding:2px 6px;letter-spacing:1px;font-weight:700;">PERSONAL</div>
+        <div style="background:#3b82f6;border-radius:6px;padding:4px 6px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:white;border-radius:50%;opacity:0.9;"></div>
+          <div style="width:50px;height:7px;background:rgba(255,255,255,0.8);border-radius:3px;"></div>
+        </div>
+        <div style="border-radius:6px;padding:4px 6px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:40px;height:7px;background:#334155;border-radius:3px;"></div>
+        </div>
+        <div style="border-radius:6px;padding:4px 6px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:55px;height:7px;background:#334155;border-radius:3px;"></div>
+        </div>
+        <div style="font-size:8px;color:#64748b;padding:6px 6px 2px;letter-spacing:1px;font-weight:700;margin-top:4px;">ADMIN</div>
+        <div style="border-radius:6px;padding:4px 6px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:35px;height:7px;background:#334155;border-radius:3px;"></div>
+        </div>
+        <div style="border-radius:6px;padding:4px 6px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:45px;height:7px;background:#334155;border-radius:3px;"></div>
+        </div>
+      </div>
+      <!-- Content -->
+      <div style="flex:1;background:#1e293b;border-radius:8px;padding:10px;">
+        <div style="width:55%;height:10px;background:#3b82f6;border-radius:4px;margin-bottom:6px;opacity:0.8;"></div>
+        <div style="width:75%;height:7px;background:#334155;border-radius:4px;margin-bottom:10px;"></div>
+        <div style="width:100%;height:30px;background:#0f172a;border-radius:6px;margin-bottom:6px;border:1px solid #334155;"></div>
+        <div style="width:100%;height:30px;background:#0f172a;border-radius:6px;margin-bottom:6px;border:1px solid #334155;"></div>
+        <div style="width:55%;height:28px;background:#3b82f6;border-radius:6px;margin-top:6px;opacity:0.8;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Left Sidebar Lebar (Enhanced Current)</h3>
+      <p>Pertahankan layout sekarang (sidebar 72px lebar, label terlihat). Perbaiki section grouping, tambah animasi smooth, polish warna & spacing. Familiar, zero learning curve.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Top Tabs (Segmented) -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;border-radius:8px;display:flex;flex-direction:column;gap:8px;height:200px;">
+      <!-- Top tabs -->
+      <div style="display:flex;gap:4px;background:#1e293b;border-radius:8px;padding:6px;">
+        <div style="background:#3b82f6;border-radius:6px;padding:4px 10px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:rgba(255,255,255,0.9);border-radius:50%;"></div>
+          <div style="width:35px;height:6px;background:rgba(255,255,255,0.8);border-radius:3px;"></div>
+        </div>
+        <div style="padding:4px 10px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:30px;height:6px;background:#334155;border-radius:3px;"></div>
+        </div>
+        <div style="padding:4px 10px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:45px;height:6px;background:#334155;border-radius:3px;"></div>
+        </div>
+        <div style="padding:4px 10px;display:flex;align-items:center;gap:4px;">
+          <div style="width:8px;height:8px;background:#64748b;border-radius:50%;"></div>
+          <div style="width:38px;height:6px;background:#334155;border-radius:3px;"></div>
+        </div>
+      </div>
+      <!-- Content -->
+      <div style="flex:1;background:#1e293b;border-radius:8px;padding:10px;">
+        <div style="width:50%;height:10px;background:#3b82f6;border-radius:4px;margin-bottom:6px;opacity:0.8;"></div>
+        <div style="width:70%;height:7px;background:#334155;border-radius:4px;margin-bottom:10px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="height:45px;background:#0f172a;border-radius:6px;border:1px solid #1e3a5f;"></div>
+          <div style="height:45px;background:#0f172a;border-radius:6px;border:1px solid #334155;"></div>
+        </div>
+        <div style="width:50%;height:28px;background:#3b82f6;border-radius:6px;margin-top:8px;opacity:0.8;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Top Horizontal Tabs</h3>
+      <p>Navigasi horizontal di atas konten. Lebih simpel, cocok untuk tab ≤6. Kurang ideal kalau tab banyak (Admin punya 5 tab extra). Risk: tab overflow di layar kecil.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px;">Klik pilihan di atas, lalu konfirmasi di terminal.</p>

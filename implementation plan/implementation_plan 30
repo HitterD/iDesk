@@ -1,0 +1,304 @@
+# iDesk Code Quality Audit — Konsistensi, Maintainability, Type Safety
+
+> Tanggal: 2026-04-30 | Scope: Backend + Frontend | Max 15 temuan
+> Skip: performa, simplifikasi, bug (sudah di-audit terpisah)
+
+---
+
+## Konsistensi (5 temuan)
+
+### K1. `@Req()` vs `@Request()` — Campur aduk di seluruh controller
+
+**Evidence:**
+- `@Req() req: any` → 50+ usage (vpn-access, users, sites, sla-config, renewal, reports, search, push-subscription)
+- `@Request() req: any` → 40+ usage (ticketing, sound, settings, notifications, knowledge-base)
+
+Keduanya identik secara fungsional (NestJS alias). Tapi inkonsisten bikin grep/refactor susah.
+
+**Rule:** Pilih satu. `@Req()` lebih pendek, `@Request()` lebih eksplisit. Pilih salah satu, find-and-replace sisanya. **Effort: <30 menit.**
+
+---
+
+### K2. User ID access — 4 pola berbeda untuk hal yang sama
+
+| Pola | Contoh File |
+|------|-------------|
+| `req.user.id` | [push-subscription.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/push-subscription.controller.ts), [workflow-rule.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/automation/controllers/workflow-rule.controller.ts) |
+| `req.user?.id` | [ip-whitelist.controller.ts:31](file:///d:/iDesk-main/apps/backend/src/modules/ip-whitelist/ip-whitelist.controller.ts#L31), [knowledge-base.controller.ts:101](file:///d:/iDesk-main/apps/backend/src/modules/knowledge-base/knowledge-base.controller.ts#L101) |
+| `req.user?.id \|\| req.user?.userId` | [sites.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/sites/sites.controller.ts), [reports.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/reports/reports.controller.ts), [sla-config.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/sla-config/sla-config.controller.ts) (20+ lokasi) |
+| `req.user?.userId \|\| req.user?.id` | [google-sync.controller.ts:142](file:///d:/iDesk-main/apps/backend/src/modules/google-sync/google-sync.controller.ts#L142) |
+| `req.user?.userId` saja | [vpn-access.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/vpn-access/vpn-access.controller.ts), [ticket-attributes.controller.ts:29](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/presentation/ticket-attributes.controller.ts#L29) |
+
+> [!IMPORTANT]
+> Fallback `id || userId` menunjukkan JWT payload shape tidak konsisten. Root cause: entah JWT strategy set `id`, `userId`, atau keduanya. Ini bukan masalah kosmetik — ini **data correctness risk**.
+
+**Fix:** Cek JWT strategy → standardize payload ke satu field (`id` atau `userId`). Hapus semua fallback. **Effort: 1-2 jam.**
+
+---
+
+### K3. Inline `@Body()` types vs DTO classes
+
+~14 endpoint pakai inline type literal:
+```typescript
+// Inline — TIDAK divalidasi oleh ValidationPipe
+@Body() body: { name: string; code: string }
+@Body() body: { currentPassword: string; newPassword: string }
+@Body() body: { ids: string[] }
+@Body() body: { resolutionTimeMinutes: number }
+@Body() body: { date: string }
+@Body() body: { newEndDate: string; newStartDate?: string; ... }
+```
+
+File: [departments.controller.ts:31](file:///d:/iDesk-main/apps/backend/src/modules/users/departments.controller.ts#L31), [users.controller.ts:64](file:///d:/iDesk-main/apps/backend/src/modules/users/users.controller.ts#L64), [sla-config.controller.ts (ticketing):26](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/presentation/sla-config.controller.ts#L26), [renewal.controller.ts:216](file:///d:/iDesk-main/apps/backend/src/modules/renewal/renewal.controller.ts#L216), [zoom-admin.controller.ts:86](file:///d:/iDesk-main/apps/backend/src/modules/zoom-booking/controllers/zoom-admin.controller.ts#L86)
+
+Sementara 80%+ endpoint lain pakai DTO class dengan `class-validator` decorators.
+
+**Rule:** Selalu pakai DTO class. Inline types bypass `ValidationPipe` — lihat section T3.
+
+---
+
+### K4. Module folder structure — 3 arsitektur berbeda
+
+| Pattern | Module | Struktur |
+|---------|--------|----------|
+| **Flat** | `users/`, `lost-item/`, `vpn-access/` | `*.service.ts` + `*.controller.ts` + `*.module.ts` di root |
+| **Semi-layered** | `ticketing/`, `notifications/` | `presentation/` + `services/` tapi ada service di root juga (`sla-checker.service.ts`, `surveys.service.ts`) |
+| **DDD** | `hardware-request/` | `domain/` + `presentation/` + `services/` + `guards/` + `listeners/` |
+
+> [!NOTE]
+> Ini natural evolution — `hardware-request` paling mature, modul lama masih flat. Tidak perlu refactor semua sekarang. Tapi untuk **modul baru**, follow DDD pattern dari `hardware-request`.
+
+---
+
+### K5. SLA Config — Duplikasi route collision
+
+Dua controller berbeda register di route **`sla-config`** yang sama:
+
+| File | Route | Role Guard |
+|------|-------|------------|
+| [ticketing/presentation/sla-config.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/ticketing/presentation/sla-config.controller.ts) | `@Controller('sla-config')` | `@Roles(UserRole.ADMIN)` class-level |
+| [sla-config/sla-config.controller.ts](file:///d:/iDesk-main/apps/backend/src/modules/sla-config/sla-config.controller.ts) | `@Controller('sla-config')` | `@Roles()` per-method (ADMIN + MANAGER) |
+
+Method `update()` punya signature berbeda:
+- Ticketing: `update(id, { resolutionTimeMinutes?, responseTimeMinutes? })`
+- SLA-Config: `update(id, { resolutionTimeMinutes }, req.user)`
+
+> [!WARNING]
+> NestJS akan register keduanya. Request matching tergantung load order — **unpredictable behavior**. Salah satu harus dihapus atau digabung.
+
+**Fix:** Hapus ticketing version (lebih sederhana, kurang lengkap). Pertahankan `sla-config` module version. **Effort: 30 menit.**
+
+---
+
+## Maintainability (3 temuan)
+
+### M1. `users.service.ts` — God Service (927 LOC)
+
+[users.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/users/users.service.ts) — 927 baris, flat structure, 7+ catch blocks.
+
+Bandingkan: `ticketing` sudah split jadi `ticket-create.service.ts`, `ticket-update.service.ts`, `ticket-query.service.ts`, `ticket-notification.service.ts`.
+
+**Tanggung jawab tercampur:**
+- User CRUD
+- Department management
+- Role management
+- Pagination + search
+- Import/export (xlsx)
+- Site assignment
+- Password management
+
+**Cost jika tidak di-refactor:** Setiap perubahan user-related butuh navigasi 900+ baris. Merge conflict risk tinggi (5 commits = file paling sering diubah ke-2).
+
+**Saran split:**
+| Service Baru | Responsibility |
+|-------------|----------------|
+| `user-crud.service.ts` | Create, update, delete, findOne, findAll |
+| `user-import.service.ts` | Import/export xlsx |
+| `user-password.service.ts` | Password reset, change, hashing |
+
+**Effort: 3-4 jam. Benefit: high** — file ini sering berubah.
+
+---
+
+### M2. `ticketing/` — Service leaking di luar `services/` folder
+
+Ticketing module punya `services/` folder, tapi 5 service file leak di root:
+
+```
+ticketing/
+├── services/
+│   ├── ticket-create.service.ts
+│   ├── ticket-update.service.ts
+│   ├── ticket-query.service.ts
+│   ├── ticket-notification.service.ts
+│   └── sla-monitor/
+├── saved-replies.service.ts      ← root leak
+├── sla-checker.service.ts        ← root leak
+├── sla-config.service.ts         ← root leak (+ duplikasi K5)
+├── surveys.service.ts            ← root leak
+└── ticket-attributes.service.ts  ← root leak
+```
+
+6 bulan dari sekarang, developer baru akan bingung: "kenapa sebagian service di `services/`, sebagian di root?"
+
+**Fix:** Pindah 5 file ke `services/`. Update imports. **Effort: 1 jam.**
+
+---
+
+### M3. `notification-center.service.ts` — 31KB monolith, most-changed file
+
+[notification-center.service.ts](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification-center.service.ts) — 31,914 bytes (~800+ LOC). File paling sering diubah (6 commits).
+
+**Why this matters:** Frekuensi change tinggi + ukuran besar = merge pain + regression risk. Setiap fitur notifikasi baru harus masuk ke satu file ini.
+
+**Saran:** Sudah ada `channels/` folder. Extract dispatch logic ke channel-specific handlers jika belum. Tapi verifikasi dulu seberapa tightly coupled internal logic-nya sebelum split.
+
+**Effort: 2-3 jam investigasi + split. Benefit: medium** — tergantung seberapa sering fitur notifikasi berubah ke depan.
+
+---
+
+## Type Safety / Validasi (5 temuan)
+
+### T1. `@Req() req: any` — 90+ untyped request objects
+
+Semua controller pakai `req: any`. Artinya `req.user`, `req.cookies`, `req.headers` semua tanpa type checking.
+
+**Fix konkret:** Buat interface:
+```typescript
+// shared/core/interfaces/authenticated-request.interface.ts
+import { Request } from 'express';
+
+interface JwtPayload {
+  id: string;        // ← standardize dari K2
+  email: string;
+  role: UserRole;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user: JwtPayload;
+}
+```
+
+Replace semua `req: any` → `req: AuthenticatedRequest`. Ini juga **fix K2** sekaligus — begitu tipe jelas, fallback `id || userId` jadi compile error.
+
+**Effort: 2 jam. Benefit: HIGH** — fix K2 + T1 sekaligus, prevent future bugs.
+
+---
+
+### T2. `catch (error: any)` — 16 occurrences
+
+File: `zoom-booking.service.ts` (4×), `zoom-api.adapter.ts` (3×), `zoom-booking.controller.ts`, `webapp.service.ts`, `telegram.module.ts`, `pdf-ocr.service.ts`, `push-channel.service.ts`, `eform-notification.listener.ts` (4×).
+
+TypeScript 4.4+ default `catch` variable = `unknown`. `error: any` explicitly opt-out type safety.
+
+**Fix:** Ganti `catch (error: any)` → `catch (error)` atau `catch (error: unknown)`, lalu narrow:
+```typescript
+catch (error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  this.logger.error(message);
+}
+```
+
+**Effort: 1 jam.** Mostly mechanical.
+
+---
+
+### T3. Inline `@Body()` bypass `ValidationPipe`
+
+NestJS `ValidationPipe` dengan `whitelist: true` + `transform: true` hanya bekerja pada **class instances** dengan `class-validator` decorators. Inline type literals = **no runtime validation**.
+
+Artinya endpoint ini terima data apa pun dari client:
+```typescript
+// departments.controller.ts:31 — client bisa kirim { name: 123, code: null, extraField: "injection" }
+@Body() body: { name: string; code: string }
+```
+
+TypeScript type hanya compile-time. Runtime = JavaScript = no check.
+
+**Impact:** 14 endpoint tanpa input validation. Termasuk password change (`users.controller.ts:64`).
+
+**Fix:** Buat DTO class per endpoint:
+```typescript
+export class CreateDepartmentDto {
+  @IsString() @IsNotEmpty() name: string;
+  @IsString() @IsNotEmpty() code: string;
+}
+```
+
+**Effort: 2-3 jam untuk 14 DTO. Benefit: HIGH** — ini security boundary.
+
+---
+
+### T4. `Record<string, any>` di 40+ entity/DTO columns
+
+Dipakai untuk JSONB columns: audit logs, preferences, form data, meeting settings, custom fields.
+
+**Contoh paling berisiko:**
+| File | Field | Risk |
+|------|-------|------|
+| [notification.controller.ts:96](file:///d:/iDesk-main/apps/backend/src/modules/notifications/notification.controller.ts#L96) | `@Body() updates: Record<string, any>` | Client kirim apapun langsung ke DB |
+| [access-request.entity.ts:50](file:///d:/iDesk-main/apps/backend/src/modules/access-request/entities/access-request.entity.ts#L50) | `customFormData: Record<string, any>` | Unvalidated user input stored |
+| [zoom-meeting.entity.ts:36](file:///d:/iDesk-main/apps/backend/src/modules/zoom-booking/entities/zoom-meeting.entity.ts#L36) | `meetingSettings: Record<string, any>` | External API response stored raw |
+
+**Fix pragmatis:** Untuk **entity columns** yang store external data (audit, API response) → `Record<string, any>` acceptable. Untuk **`@Body()` parameters** → wajib ganti ke typed DTO. Prioritas: `notification.controller.ts` lines 96 + 103.
+
+---
+
+### T5. `@Body() body: any` — Webhook tanpa validasi
+
+[zoom-webhook.controller.ts:35](file:///d:/iDesk-main/apps/backend/src/modules/zoom-booking/controllers/zoom-webhook.controller.ts#L35):
+```typescript
+@Body() body: any
+```
+
+Webhook endpoint menerima payload dari Zoom tanpa type checking. Ini public endpoint (webhooks biasanya tidak di-guard JWT).
+
+**Fix:** Buat `ZoomWebhookPayloadDto` dengan minimal structure validation. Zoom webhook payloads punya [documented schema](https://developers.zoom.us/docs/api/rest/webhook-reference/).
+
+**Effort: 1 jam.**
+
+---
+
+## Yang JANGAN Dilakukan
+
+### ❌ J1. Jangan refactor semua module ke DDD pattern
+
+Tergoda normalize semua 29 module ke `domain/` + `presentation/` + `services/` seperti `hardware-request`. **Don't.**
+
+**Alasan:**
+- Solo developer. Refactor 29 module = minggu-an kerja.
+- Flat structure untuk module kecil (`sound/`, `health/`, `audit/`) itu fine. Overhead DDD > benefit untuk module <200 LOC.
+- Rule: DDD hanya untuk module baru atau module yang sudah terbukti complex (>500 LOC service).
+
+---
+
+### ❌ J2. Jangan tambah JSDoc ke semua 20 hooks
+
+Hook names sudah descriptive: `useDebounce`, `useMediaQuery`, `useConfirm`, `useFocusTrap`. TypeScript types sudah serve sebagai documentation.
+
+**Dokumentasi hanya worth untuk:**
+- `useOptimisticMutation` (10KB, complex retry/rollback logic)
+- `useTicketSocket` (7.8KB, real-time event handling, non-obvious reconnect behavior)
+
+Sisanya — leave as is.
+
+---
+
+## Ringkasan Prioritas
+
+| # | Temuan | Priority | Effort | Benefit |
+|---|--------|----------|--------|---------|
+| **T1+K2** | Typed request + standardize user ID | P1 | 2 jam | Prevent bugs + fix inconsistency |
+| **T3** | DTO untuk 14 inline Body types | P1 | 2-3 jam | Security — input validation |
+| **K5** | Hapus duplikat SLA controller | P1 | 30 min | Fix route collision |
+| **T2** | `catch (error: any)` → `unknown` | P2 | 1 jam | Type safety |
+| **M1** | Split `users.service.ts` | P2 | 3-4 jam | Maintainability |
+| **T5** | Type webhook payload | P2 | 1 jam | Security boundary |
+| **K1** | Standardize `@Req`/`@Request` | P3 | 30 min | Consistency |
+| **K3** | (Covered by T3) | — | — | — |
+| **M2** | Move leaked services to `services/` | P3 | 1 jam | Discoverability |
+| **K4** | Document module pattern rule | P3 | 15 min | Future consistency |
+| **M3** | Investigate notification-center split | P3 | 2-3 jam | Conditional |
+| **T4** | Type critical `Record<string, any>` Body params | P2 | 1 jam | Partial fix |
+
+**Total effort: ~15-18 jam** jika semua dikerjakan. Rekomendasi: kerjakan P1 dulu (~5 jam), P2 berikutnya.

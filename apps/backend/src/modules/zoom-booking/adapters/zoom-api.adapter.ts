@@ -183,7 +183,8 @@ export class ZoomApiAdapter implements OnModuleInit {
             return response.data;
         } catch (error: any) {
             const status = error.response?.status;
-            const errorMessage = error.response?.data?.message || error.message;
+            const errorData = error.response?.data;
+            const errorMessage = errorData ? (typeof errorData === 'object' ? JSON.stringify(errorData) : errorData) : error.message;
 
             // Retry on rate limit (429) or server errors (5xx)
             if ((status === 429 || (status >= 500 && status < 600)) && retries > 0) {
@@ -290,8 +291,8 @@ export class ZoomApiAdapter implements OnModuleInit {
     /**
      * List meetings for a user
      */
-    async listMeetings(hostEmail: string, type: 'scheduled' | 'upcoming' = 'upcoming'): Promise<ZoomMeetingListResponse> {
-        return this.request<ZoomMeetingListResponse>('GET', `/users/${hostEmail}/meetings?type=${type}&page_size=100`);
+    async listMeetings(hostEmail: string, type: 'scheduled' | 'upcoming' | 'upcoming_meetings' = 'scheduled'): Promise<ZoomMeetingListResponse> {
+        return this.request<ZoomMeetingListResponse>('GET', `/users/${encodeURIComponent(hostEmail)}/meetings?type=${type}&page_size=100`);
     }
 
     /**

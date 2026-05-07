@@ -14,9 +14,18 @@ interface SecurityFormValues {
     confirmPassword: string;
 }
 
+const getPasswordStrength = (pwd: string): { level: number; label: string; colorBar: string; colorText: string } => {
+    if (!pwd) return { level: 0, label: '', colorBar: '', colorText: '' };
+    const hasNumberOrSymbol = /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd);
+    if (pwd.length < 8) return { level: 1, label: 'Lemah', colorBar: 'bg-red-500', colorText: 'text-red-500' };
+    if (!hasNumberOrSymbol) return { level: 2, label: 'Sedang', colorBar: 'bg-yellow-500', colorText: 'text-yellow-500' };
+    return { level: 3, label: 'Kuat', colorBar: 'bg-green-500', colorText: 'text-green-500' };
+};
+
 export const SecuritySettingsForm: React.FC = () => {
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<SecurityFormValues>();
     const newPassword = watch('newPassword');
+    const passwordStrength = getPasswordStrength(newPassword || '');
 
     const mutation = useMutation({
         mutationFn: async (data: SecurityFormValues) => {
@@ -79,6 +88,25 @@ export const SecuritySettingsForm: React.FC = () => {
                         />
                         {errors.newPassword && (
                             <p className="text-red-500 text-[11px] font-medium mt-1">{errors.newPassword.message as string}</p>
+                        )}
+                        {newPassword && (
+                            <div className="space-y-1.5 mt-2">
+                                <div className="flex gap-1">
+                                    {[1, 2, 3].map((i) => (
+                                        <div
+                                            key={i}
+                                            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+                                                i <= passwordStrength.level
+                                                    ? passwordStrength.colorBar
+                                                    : 'bg-slate-200 dark:bg-slate-700'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                                <p className={`text-[11px] font-medium ${passwordStrength.colorText}`}>
+                                    Kekuatan kata sandi: {passwordStrength.label}
+                                </p>
+                            </div>
                         )}
                     </div>
 

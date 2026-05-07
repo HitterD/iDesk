@@ -164,4 +164,15 @@ export class HardwareRequestController {
         const data = await this.procurementService.completeProcurement(id, dto, req.user.userId);
         return { success: true, data };
     }
+
+    @Post(':id/confirm-installation')
+    @HttpCode(200)
+    async confirmInstallation(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string },
+        @Req() req: any,
+    ) {
+        const data = await this.commands.confirmInstallation(id, req.user.userId, dto);
+        return { success: true, data };
+    }
 }

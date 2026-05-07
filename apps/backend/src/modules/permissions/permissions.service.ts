@@ -380,12 +380,13 @@ export class PermissionsService implements OnModuleInit {
     }
 
     private async seedDefaultFeatures() {
-        for (const feature of DEFAULT_FEATURES) {
-            const exists = await this.featureRepo.findOne({ where: { key: feature.key } });
-            if (!exists) {
-                await this.featureRepo.save(this.featureRepo.create(feature));
-                this.logger.log(`Seeded feature: ${feature.key}`);
-            }
+        const existingKeys = new Set(
+            (await this.featureRepo.find({ select: ['key'] })).map(f => f.key)
+        );
+        const missing = DEFAULT_FEATURES.filter(f => f.key && !existingKeys.has(f.key!));
+        if (missing.length > 0) {
+            await this.featureRepo.save(missing.map(f => this.featureRepo.create(f)));
+            this.logger.log(`Seeded ${missing.length} features`);
         }
     }
 

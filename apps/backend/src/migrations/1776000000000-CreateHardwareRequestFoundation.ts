@@ -104,7 +104,12 @@ export class CreateHardwareRequestFoundation1776000000000
                 notes             text NULL
             )
         `);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_hardware_request_items_request ON hardware_request_items (request_id)`);
+        const hriCols = await queryRunner.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name='hardware_request_items'`
+        );
+        const hriColNames: string[] = hriCols.map((r: any) => r.column_name);
+        const hriRequestId = hriColNames.includes('request_id') ? 'request_id' : '"requestId"';
+        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_hardware_request_items_request ON hardware_request_items (${hriRequestId})`);
 
         await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS hardware_request_activities (
@@ -118,7 +123,13 @@ export class CreateHardwareRequestFoundation1776000000000
                 created_at   timestamptz NOT NULL DEFAULT now()
             )
         `);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_hardware_request_activities_request_created ON hardware_request_activities (request_id, created_at)`);
+        const hraCols = await queryRunner.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name='hardware_request_activities'`
+        );
+        const hraColNames: string[] = hraCols.map((r: any) => r.column_name);
+        const hraRequestId = hraColNames.includes('request_id') ? 'request_id' : '"requestId"';
+        const hraCreatedAt = hraColNames.includes('created_at') ? 'created_at' : '"createdAt"';
+        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_hardware_request_activities_request_created ON hardware_request_activities (${hraRequestId}, ${hraCreatedAt})`);
     }
 
     async down(queryRunner: QueryRunner): Promise<void> {

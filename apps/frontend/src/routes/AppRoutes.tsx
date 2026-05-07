@@ -74,6 +74,8 @@ const EformApprovalPage = lazy(() => import('../features/request-center/pages/Ef
 const EformCredentialPage = lazy(() => import('../features/request-center/pages/EformCredentialPage').then(m => ({ default: m.EformCredentialPage })));
 const LostItemListPage = lazy(() => import('../features/request-center/pages/LostItemListPage').then(m => ({ default: m.LostItemListPage })));
 const MyLostReportsPage = lazy(() => import('../features/request-center/pages/MyLostReportsPage').then(m => ({ default: m.MyLostReportsPage })));
+const LostItemDetailPage = lazy(() => import('../features/request-center/pages/LostItemDetailPage').then(m => ({ default: m.LostItemDetailPage })));
+const QrLandingPage = lazy(() => import('../features/request-center/pages/QrLandingPage').then(m => ({ default: m.QrLandingPage })));
 const ReportFoundItemPage = lazy(() => import('../features/request-center/pages/ReportFoundItemPage').then(m => ({ default: m.ReportFoundItemPage })));
 const FoundClaimsQueuePage = lazy(() => import('../features/request-center/pages/FoundClaimsQueuePage').then(m => ({ default: m.FoundClaimsQueuePage })));
 
@@ -203,6 +205,7 @@ export default function AppRoutes() {
                 <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
+                <Route path="lost-items/:id" element={<LazyRoute component={LostItemDetailPage} featureName="Lost Items Detail" requiredPageAccess="lost_items" />} />
                 <Route path="lost-items/my" element={<LazyRoute component={MyLostReportsPage} featureName="My Lost Reports" requiredPageAccess="lost_items" />} />
                 <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
 
@@ -252,6 +255,7 @@ export default function AppRoutes() {
                 <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
+                <Route path="lost-items/:id" element={<LazyRoute component={LostItemDetailPage} featureName="Lost Items Detail" requiredPageAccess="lost_items" />} />
                 <Route path="lost-items/my" element={<LazyRoute component={MyLostReportsPage} featureName="My Lost Reports" requiredPageAccess="lost_items" />} />
                 <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
                 <Route path="lost-items/claims" element={<LazyRoute component={FoundClaimsQueuePage} featureName="Found Claims Queue" requiredPageAccess="lost_items" />} />
@@ -295,6 +299,7 @@ export default function AppRoutes() {
                 <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
                 <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
                 <Route path="lost-items" element={<LazyRoute component={LostItemListPage} featureName="Lost Items" requiredPageAccess="lost_items" />} />
+                <Route path="lost-items/:id" element={<LazyRoute component={LostItemDetailPage} featureName="Lost Items Detail" requiredPageAccess="lost_items" />} />
                 <Route path="lost-items/my" element={<LazyRoute component={MyLostReportsPage} featureName="My Lost Reports" requiredPageAccess="lost_items" />} />
                 <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
 

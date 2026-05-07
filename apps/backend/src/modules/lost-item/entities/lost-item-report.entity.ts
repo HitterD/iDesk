@@ -13,7 +13,7 @@ export enum LostItemStatus {
     REPORTED = 'REPORTED',
     SEARCHING = 'SEARCHING',
     CLAIMED = 'CLAIMED',
-    VERIFIED = 'VERIFIED',
+    VERIFIED = 'VERIFIED',   // legacy — do not use in new code
     RETURNED = 'RETURNED',
     FOUND = 'FOUND',         // legacy — keep for existing data
     CLOSED_LOST = 'CLOSED_LOST',

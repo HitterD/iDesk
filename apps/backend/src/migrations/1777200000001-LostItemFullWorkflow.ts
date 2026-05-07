@@ -10,9 +10,9 @@ export class LostItemFullWorkflow1777200000001 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "lost_item_reports" ADD COLUMN IF NOT EXISTS "qr_code_url" varchar`);
 
         // Add new enum values to lost_item_status
-        await queryRunner.query(`ALTER TYPE "lost_item_status_enum" ADD VALUE IF NOT EXISTS 'CLAIMED'`);
-        await queryRunner.query(`ALTER TYPE "lost_item_status_enum" ADD VALUE IF NOT EXISTS 'VERIFIED'`);
-        await queryRunner.query(`ALTER TYPE "lost_item_status_enum" ADD VALUE IF NOT EXISTS 'RETURNED'`);
+        await queryRunner.query(`ALTER TYPE "lost_item_reports_status_enum" ADD VALUE IF NOT EXISTS 'CLAIMED'`);
+        await queryRunner.query(`ALTER TYPE "lost_item_reports_status_enum" ADD VALUE IF NOT EXISTS 'VERIFIED'`);
+        await queryRunner.query(`ALTER TYPE "lost_item_reports_status_enum" ADD VALUE IF NOT EXISTS 'RETURNED'`);
 
         // Create found_item_claims table
         await queryRunner.query(`

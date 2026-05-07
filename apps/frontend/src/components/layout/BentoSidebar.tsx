@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
     Ticket,
@@ -195,7 +195,6 @@ const NavGroupComponent: React.FC<{
 
 export const BentoSidebar = () => {
     const { user } = useAuth();
-    const navigate = useNavigate();
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -379,7 +378,7 @@ export const BentoSidebar = () => {
 
     const handleLogout = async () => {
         await performLogout();
-        navigate('/login');
+        window.location.href = '/login';
     };
 
     const toggleGroup = (groupId: string) => {

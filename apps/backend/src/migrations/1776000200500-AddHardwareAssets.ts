@@ -16,8 +16,14 @@ export class AddHardwareAssets1776000200500 implements MigrationInterface {
                 created_at           timestamptz NOT NULL DEFAULT now()
             );
         `);
-        await q.query(`CREATE INDEX IF NOT EXISTS idx_hardware_assets_assignee ON hardware_assets(assigned_to_user_id);`);
-        await q.query(`CREATE INDEX IF NOT EXISTS idx_hardware_assets_item ON hardware_assets(item_id);`);
+        const haCols = await q.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name='hardware_assets'`
+        );
+        const haNames = haCols.map((r: any) => r.column_name);
+        const assignedCol = haNames.includes('assigned_to_user_id') ? 'assigned_to_user_id' : '"assignedToUserId"';
+        const itemCol = haNames.includes('item_id') ? 'item_id' : '"itemId"';
+        await q.query(`CREATE INDEX IF NOT EXISTS idx_hardware_assets_assignee ON hardware_assets(${assignedCol});`);
+        await q.query(`CREATE INDEX IF NOT EXISTS idx_hardware_assets_item ON hardware_assets(${itemCol});`);
     }
 
     async down(q: QueryRunner): Promise<void> {

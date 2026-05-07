@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
     Kanban,
@@ -23,12 +23,11 @@ import { CreateTicketDialog } from '../../features/ticket-board/components/Creat
 
 export const AppSidebar: React.FC = () => {
     const { user } = useAuth();
-    const navigate = useNavigate();
     const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
 
     const handleLogout = async () => {
         await performLogout();
-        navigate('/login');
+        window.location.href = '/login';
     };
 
     const adminLinks = [

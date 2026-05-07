@@ -115,3 +115,23 @@ export const useUpdateLostItemStatus = () => {
         },
     });
 };
+
+export const getByQrToken = async (token: string) => {
+    const res = await api.get(`/lost-item/qr/${token}`);
+    return res.data;
+};
+
+export const useUploadPoliceReport = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, formData }: { id: string; formData: FormData }) => {
+            const res = await api.post(`/lost-item/${id}/police-report`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return res.data;
+        },
+        onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: ['lost-item', id] });
+        },
+    });
+};

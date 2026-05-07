@@ -238,115 +238,106 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     async getActionItems(userId: string, role: string): Promise<any> {
-        const items: ActionItemDto[] = [];
-        let critical = 0;
-        let high = 0;
-        let normal = 0;
-
         const now = new Date();
+        
+        // Fetch all required data in parallel
+        const [data, activeSnoozes, categorySettings] = await Promise.all([
+            this.fetchActionItemData(userId, role, now),
+            this.snoozeRepo.find({
+                where: { userId, snoozedUntil: MoreThan(now) },
+            }),
+            this.getCategorySettings(userId)
+        ]);
+
+        // Map raw data to DTOs
+        const rawItems = this.mapQueriesToActionItems(data, now);
+
+        // Filter and calculate final responses
+        return this.processAndFilterActionItems(rawItems, activeSnoozes, categorySettings);
+    }
+
+    private async fetchActionItemData(userId: string, role: string, now: Date) {
         const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
         const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const next1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-        // 1. Tickets
-        // SLA breach (Agent/Admin)
-        if (role === 'AGENT' || role === 'ADMIN') {
-            const slaBreachedTickets = await this.entityManager.query(
+        const isAgentOrAdmin = role === 'AGENT' || role === 'ADMIN';
+        const isManagerOrAdmin = role === 'ADMIN' || role === 'MANAGER';
+        const isUser = role === 'USER';
+
+        const [slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals] = await Promise.all([
+            isAgentOrAdmin ? this.entityManager.query(
                 `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2`,
                 [userId, now]
-            );
-            for (const t of slaBreachedTickets) {
-                items.push({
-                    id: `tkt-sla-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `SLA Breached: ${t.ticketNumber}`,
-                    description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
-                });
-                critical++;
-            }
-
-            // Unresponded
-            const unrespondedTickets = await this.entityManager.query(
+            ) : Promise.resolve([]),
+            isAgentOrAdmin ? this.entityManager.query(
                 `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2`,
                 [userId, oneHourAgo]
-            );
-            for (const t of unrespondedTickets) {
-                items.push({
-                    id: `tkt-unresp-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Unresponded: ${t.ticketNumber}`,
-                    description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt, isSnoozed: false
-                });
-                high++;
-            }
-        }
-
-        if (role === 'USER') {
-            const resolvedTickets = await this.entityManager.query(
+            ) : Promise.resolve([]),
+            isUser ? this.entityManager.query(
                 `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED'`,
                 [userId]
-            );
-            for (const t of resolvedTickets) {
-                items.push({
-                    id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
-                    description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
-                });
-                normal++;
-            }
-        }
-
-        if (role === 'ADMIN' || role === 'MANAGER') {
-            // Hardware
-            const pendingHw = await this.entityManager.query(
+            ) : Promise.resolve([]),
+            isManagerOrAdmin ? this.entityManager.query(
                 `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')`
-            );
-            for (const hw of pendingHw) {
-                items.push({
-                    id: `hw-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Hardware Approval Pending`,
-                    description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
-                });
-                high++;
-            }
-
-            // Eform
-            const pendingEform = await this.entityManager.query(
+            ) : Promise.resolve([]),
+            isManagerOrAdmin ? this.entityManager.query(
                 `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')`,
                 [userId]
-            );
-            for (const ef of pendingEform) {
-                items.push({
-                    id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
-                    description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
-                });
-                high++;
-            }
+            ) : Promise.resolve([]),
+            isManagerOrAdmin ? this.entityManager.query(
+                `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL`,
+                [next7Days]
+            ).catch(() => []) : Promise.resolve([]),
+        ]);
 
-            // Renewals
-            try {
-                const renewals = await this.entityManager.query(
-                    `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL`,
-                    [next7Days]
-                );
-                for (const r of renewals) {
-                    const isCritical = new Date(r.endDate) < next1Day;
-                    const label = r.vendorName || r.description || 'Unknown Contract';
-                    items.push({
-                        id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
-                        description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date(), isSnoozed: false
-                    });
-                    if (isCritical) critical++; else high++;
-                }
-            } catch (e) {
-                this.logger.warn('Renewal query failed', e);
-            }
-        }
+        return { slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals };
+    }
 
-        // Load active snoozes
-        const activeSnoozes = await this.snoozeRepo.find({
-            where: { userId, snoozedUntil: MoreThan(now) },
+    private mapQueriesToActionItems(data: any, now: Date): ActionItemDto[] {
+        const items: ActionItemDto[] = [];
+        const next1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+        data.slaBreachedTickets.forEach((t: any) => items.push({
+            id: `tkt-sla-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `SLA Breached: ${t.ticketNumber}`,
+            description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
+        }));
+
+        data.unrespondedTickets.forEach((t: any) => items.push({
+            id: `tkt-unresp-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Unresponded: ${t.ticketNumber}`,
+            description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt, isSnoozed: false
+        }));
+
+        data.resolvedTickets.forEach((t: any) => items.push({
+            id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
+            description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
+        }));
+
+        data.pendingHw.forEach((hw: any) => items.push({
+            id: `hw-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Hardware Approval Pending`,
+            description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
+        }));
+
+        data.pendingEform.forEach((ef: any) => items.push({
+            id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
+            description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
+        }));
+
+        data.renewals.forEach((r: any) => {
+            const isCritical = new Date(r.endDate) < next1Day;
+            const label = r.vendorName || r.description || 'Unknown Contract';
+            items.push({
+                id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
+                description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date(), isSnoozed: false
+            });
         });
+
+        return items;
+    }
+
+    private processAndFilterActionItems(items: ActionItemDto[], activeSnoozes: any[], categorySettings: Record<string, boolean>) {
         const snoozeMap = new Map(
             activeSnoozes.map(s => [`${s.entityType}:${s.entityId}`, s.snoozedUntil])
         );
-
-        // Load category settings
-        const categorySettings = await this.getCategorySettings(userId);
 
         // Annotate items dengan snooze info + filter disabled categories
         const annotatedItems = items
@@ -366,23 +357,22 @@ export class NotificationCenterService implements OnModuleInit {
 
         // Recalculate counts (exclude snoozed items)
         const activeItems = annotatedItems.filter(i => !i.isSnoozed);
-        const finalCounts = {
+        const counts = {
             critical: activeItems.filter(i => i.urgency === ActionItemUrgency.CRITICAL).length,
             high: activeItems.filter(i => i.urgency === ActionItemUrgency.HIGH).length,
             normal: activeItems.filter(i => i.urgency === ActionItemUrgency.NORMAL).length,
             total: activeItems.length,
         };
 
-        return {
-            items: annotatedItems.sort((a, b) => {
-                const urgencyWeight: Record<string, number> = { 'CRITICAL': 3, 'HIGH': 2, 'NORMAL': 1 };
-                if (urgencyWeight[b.urgency] !== urgencyWeight[a.urgency]) {
-                    return urgencyWeight[b.urgency] - urgencyWeight[a.urgency];
-                }
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-            }),
-            counts: finalCounts
-        };
+        const sortedItems = annotatedItems.sort((a, b) => {
+            const urgencyWeight: Record<string, number> = { 'CRITICAL': 3, 'HIGH': 2, 'NORMAL': 1 };
+            if (urgencyWeight[b.urgency] !== urgencyWeight[a.urgency]) {
+                return urgencyWeight[b.urgency] - urgencyWeight[a.urgency];
+            }
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        return { items: sortedItems, counts };
     }
 
     // =====================
@@ -576,6 +566,14 @@ export class NotificationCenterService implements OnModuleInit {
 
     private async addToDigestBuffer(userId: string, notification: Notification): Promise<void> {
         const buffer = this.digestBuffer.get(userId) || [];
+        
+        // Cap buffer to prevent OOM
+        const MAX_BUFFER_PER_USER = 200;
+        if (buffer.length >= MAX_BUFFER_PER_USER) {
+            this.logger.warn(`Digest buffer overflow for user ${userId}. Dropping oldest notifications.`);
+            buffer.splice(0, buffer.length - MAX_BUFFER_PER_USER + 1);
+        }
+
         buffer.push(notification);
         this.digestBuffer.set(userId, buffer);
     }

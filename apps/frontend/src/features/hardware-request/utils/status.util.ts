@@ -10,6 +10,7 @@ export const STATUS_META: Record<RequestStatus, { label: string; tone: string; h
     PROCUREMENT:  { label: 'Procurement',  tone: 'bg-violet-100 text-violet-800 ring-violet-200',    hex: '#6d28d9' },
     AWAITING_DELIVERY: { label: 'Awaiting Delivery', tone: 'bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-200', hex: '#a21caf' },
     INSTALLATION: { label: 'Installation', tone: 'bg-indigo-100 text-indigo-800 ring-indigo-200',    hex: '#4338ca' },
+    AWAITING_USER_CONFIRMATION: { label: 'Awaiting User Confirmation', tone: 'bg-cyan-100 text-cyan-800 ring-cyan-200', hex: '#0891b2' },
     COMPLETED:    { label: 'Completed',    tone: 'bg-green-600 text-white ring-green-700',          hex: '#16a34a' },
     REJECTED:     { label: 'Rejected',     tone: 'bg-rose-100 text-rose-800 ring-rose-200',         hex: '#be123c' },
     CANCELLED:    { label: 'Cancelled',    tone: 'bg-zinc-200 text-zinc-700 ring-zinc-300',         hex: '#52525b' },

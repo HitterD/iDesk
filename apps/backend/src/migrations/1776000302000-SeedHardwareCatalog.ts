@@ -17,11 +17,19 @@ export class SeedHardwareCatalog1776000302000 implements MigrationInterface {
             ['SW_LICENSE_GEN', 'Software License (Generic)', 'SOFTWARE'],
         ];
 
+        const hcCols = await q.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name='hardware_catalog'`
+        );
+        const hcNames = hcCols.map((r: any) => r.column_name);
+        const dOrderCol = hcNames.includes('display_order') ? 'display_order' : '"displayOrder"';
+        const createdCol = hcNames.includes('created_at') ? 'created_at' : '"createdAt"';
+        const updatedCol = hcNames.includes('updated_at') ? 'updated_at' : '"updatedAt"';
+
         let order = 10;
         for (const [code, name, category] of items) {
             await q.query(
-                `INSERT INTO hardware_catalogs (code, name, category, display_order, active, created_at, updated_at)
-                 VALUES ($1, $2, $3::item_category_enum, $4, TRUE, NOW(), NOW())
+                `INSERT INTO hardware_catalog (code, name, category, ${dOrderCol}, active, ${createdCol}, ${updatedCol})
+                 VALUES ($1, $2, $3::hardware_catalog_category_enum, $4, TRUE, NOW(), NOW())
                  ON CONFLICT (code) DO NOTHING`,
                 [code, name, category, order],
             );
@@ -31,7 +39,7 @@ export class SeedHardwareCatalog1776000302000 implements MigrationInterface {
 
     async down(q: QueryRunner): Promise<void> {
         await q.query(`
-            DELETE FROM hardware_catalogs WHERE code IN (
+            DELETE FROM hardware_catalog WHERE code IN (
                 'LAPTOP_STD', 'LAPTOP_DESIGN', 'MONITOR_24', 'MONITOR_27',
                 'MOUSE_STD', 'KEYBOARD_STD', 'HEADSET_STD',
                 'NET_CABLE', 'NET_AP', 'SW_LICENSE_GEN'

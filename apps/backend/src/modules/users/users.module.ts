@@ -1,6 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
+import { UserCrudService } from './user-crud.service';
+import { UserImportService } from './user-import.service';
+import { UserPasswordService } from './user-password.service';
 import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
 import { CustomerSession } from './entities/customer-session.entity';
@@ -16,7 +19,17 @@ import { PermissionsModule } from '../permissions/permissions.module';
         forwardRef(() => PermissionsModule)
     ],
     controllers: [UsersController, DepartmentsController],
-    providers: [UsersService],
-    exports: [UsersService],
+    providers: [
+        UsersService,
+        UserCrudService,
+        UserImportService,
+        UserPasswordService,
+    ],
+    exports: [
+        UsersService,
+        UserCrudService,
+        UserImportService,
+        UserPasswordService,
+    ],
 })
 export class UsersModule { }

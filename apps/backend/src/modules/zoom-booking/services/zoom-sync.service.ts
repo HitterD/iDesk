@@ -58,7 +58,7 @@ export class ZoomSyncService {
 
         try {
             // Pull upcoming scheduled meetings
-            const response = await this.zoomApi.listMeetings(account.email, 'upcoming');
+            const response = await this.zoomApi.listMeetings(account.email, 'scheduled');
             const externalMeetingIds: string[] = [];
 
             for (const meeting of response.meetings) {

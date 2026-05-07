@@ -173,12 +173,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
     const { data: ticket, isLoading: ticketLoading } = useQuery({
         queryKey: ['ticket', ticketId],
         queryFn: async () => {
-            const res = await api.get(`/tickets`); // Ideally should be /tickets/:id, but using list for now and filtering or assuming context
-            // For now, let's assume we need a specific endpoint or filter from list
-            // Since we don't have getOne endpoint in controller shown, we might need to add it or use list.
-            // Let's assume we add getOne or just mock for now to proceed with UI structure.
-            // Actually, let's use the list and find.
-            return res.data.find((t: any) => t.id === ticketId);
+            const res = await api.get(`/tickets/${ticketId}`);
+            return res.data;
         },
         enabled: !!ticketId,
     });
@@ -191,7 +187,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
             return res.data;
         },
         enabled: !!ticketId,
-        refetchInterval: 5000, // Fallback polling every 5 seconds
+        refetchOnWindowFocus: true, // Fallback safety for real-time when returning to tab
     });
 
     // Scroll to bottom when messages update

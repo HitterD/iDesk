@@ -1,0 +1,64 @@
+<h2>Lost Items — Apa yang perlu diperbaiki?</h2>
+<p class="subtitle">Pilih satu atau lebih area yang mau difokuskan</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Current Workflow (sekarang)</div>
+    <div class="mockup-body" style="padding:16px; font-family:monospace; font-size:13px; line-height:2">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="background:#fef3c7;border:1px solid #f59e0b;padding:4px 10px;border-radius:6px;color:#92400e">REPORTED</span>
+        <span style="color:#6b7280">→</span>
+        <span style="background:#dbeafe;border:1px solid #3b82f6;padding:4px 10px;border-radius:6px;color:#1e40af">SEARCHING</span>
+        <span style="color:#6b7280">→</span>
+        <span style="background:#ede9fe;border:1px solid #8b5cf6;padding:4px 10px;border-radius:6px;color:#5b21b6">CLAIMED</span>
+        <span style="color:#6b7280">→</span>
+        <span style="background:#d1fae5;border:1px solid #10b981;padding:4px 10px;border-radius:6px;color:#065f46">VERIFIED</span>
+        <span style="color:#6b7280">→</span>
+        <span style="background:#dcfce7;border:1px solid #16a34a;padding:4px 10px;border-radius:6px;color:#14532d">RETURNED</span>
+      </div>
+      <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+        <span style="color:#6b7280; font-size:11px">atau</span>
+        <span style="background:#f1f5f9;border:1px solid #94a3b8;padding:4px 10px;border-radius:6px;color:#475569">CLOSED_LOST</span>
+      </div>
+      <div style="margin-top:12px; font-size:11px; color:#9ca3af;">
+        ⚠ Police report upload ada di backend tapi tidak di UI<br>
+        ⚠ QR code dibuat tapi tidak tampil ke user<br>
+        ⚠ Found claims terpisah dari main workflow<br>
+        ⚠ Tidak ada comment/komunikasi system
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="workflow-logic" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Workflow Logic & State Machine</h3>
+      <p>Perbaiki transisi status, tambah konfirmasi user, improve manager actions (match/reject found claims)</p>
+    </div>
+  </div>
+  <div class="option" data-choice="found-claims" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Found Claims Integration</h3>
+      <p>Tampilkan found claims inline di detail item, bukan halaman terpisah. Manager bisa match langsung dari detail</p>
+    </div>
+  </div>
+  <div class="option" data-choice="missing-features" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Missing Features (Police Report + QR)</h3>
+      <p>Tampilkan QR code ke user, bisa upload police report dari frontend, validasi field yang selama ini tidak ada</p>
+    </div>
+  </div>
+  <div class="option" data-choice="ux-redesign" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>Full UI/UX Redesign</h3>
+      <p>Redesign halaman list + detail drawer jadi lebih modern, clear visual hierarchy, better empty states</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:16px; font-size:13px; color:#6b7280;">Multi-select OK. Pilih semua yang relevan, atau ketik di terminal kalau ada yang lain.</p>

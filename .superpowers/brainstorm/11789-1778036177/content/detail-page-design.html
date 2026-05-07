@@ -1,0 +1,132 @@
+<h2>Design: Lost Item Detail Page</h2>
+<p class="subtitle">Full page (bukan drawer). Klik pilihan layout yang lebih cocok.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="detail-v1" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc; padding:14px; min-height:260px; border-radius:8px 8px 0 0; border-bottom:1px solid #e2e8f0; overflow:hidden;">
+      <!-- Breadcrumb + Header -->
+      <div style="font-size:8px; color:#94a3b8; margin-bottom:6px;">Barang Hilang / <span style="color:#0f172a">Laptop Dell XPS 13</span></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px; font-weight:700; color:#0f172a;">Laptop Dell XPS 13</div>
+          <div style="display:flex; gap:6px; align-items:center; margin-top:2px;">
+            <span style="background:#ede9fe; color:#7c3aed; font-size:8px; padding:2px 6px; border-radius:4px;">CLAIMED</span>
+            <span style="font-size:8px; color:#94a3b8;">#LI-2024-001</span>
+          </div>
+        </div>
+        <!-- Action button -->
+        <div style="background:#16a34a; color:white; font-size:8px; padding:5px 10px; border-radius:6px;">✓ Konfirmasi Dikembalikan</div>
+      </div>
+      <!-- 2-col layout -->
+      <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
+        <!-- Left: Item info + photos -->
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:8px;">
+            <div style="font-size:8px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:5px;">Info Barang</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:3px;">
+              <div><span style="font-size:7px; color:#94a3b8;">Tipe:</span><div style="font-size:8px; color:#1e293b;">Laptop</div></div>
+              <div><span style="font-size:7px; color:#94a3b8;">S/N:</span><div style="font-size:8px; color:#1e293b;">DL-4521</div></div>
+              <div><span style="font-size:7px; color:#94a3b8;">Lokasi:</span><div style="font-size:8px; color:#1e293b;">Ruang Server</div></div>
+              <div><span style="font-size:7px; color:#94a3b8;">Reporter:</span><div style="font-size:8px; color:#1e293b;">Budi S.</div></div>
+            </div>
+          </div>
+          <!-- Found Claim card (highlighted) -->
+          <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:8px;">
+            <div style="font-size:8px; font-weight:600; color:#16a34a; margin-bottom:4px;">📦 Found Claim — Pending Review</div>
+            <div style="font-size:7px; color:#64748b;">Ditemukan oleh: Andi P.</div>
+            <div style="font-size:7px; color:#64748b;">Lokasi: Toilet Lt. 2 · 3 jam lalu</div>
+            <div style="display:flex; gap:4px; margin-top:6px;">
+              <div style="background:#16a34a; color:white; font-size:7px; padding:2px 6px; border-radius:4px;">Konfirmasi</div>
+              <div style="background:white; border:1px solid #e2e8f0; color:#64748b; font-size:7px; padding:2px 6px; border-radius:4px;">Tolak</div>
+            </div>
+          </div>
+        </div>
+        <!-- Right: Timeline -->
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:8px;">
+          <div style="font-size:8px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Timeline</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; gap:6px; align-items:flex-start;">
+              <div style="width:6px; height:6px; background:#7c3aed; border-radius:50%; margin-top:2px; flex-shrink:0;"></div>
+              <div><div style="font-size:8px; color:#1e293b; font-weight:500;">Claimed</div><div style="font-size:7px; color:#94a3b8;">Andi P. lapor nemu · 3j lalu</div></div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:flex-start;">
+              <div style="width:6px; height:6px; background:#3b82f6; border-radius:50%; margin-top:2px; flex-shrink:0;"></div>
+              <div><div style="font-size:8px; color:#1e293b; font-weight:500;">Searching</div><div style="font-size:7px; color:#94a3b8;">ICT mulai pencarian · 1h lalu</div></div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:flex-start;">
+              <div style="width:6px; height:6px; background:#f59e0b; border-radius:50%; margin-top:2px; flex-shrink:0;"></div>
+              <div><div style="font-size:8px; color:#1e293b; font-weight:500;">Reported</div><div style="font-size:7px; color:#94a3b8;">Budi S. lapor · 2h lalu</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Inline Found Claim + Timeline</h3>
+      <p>Found claim muncul di kiri (highlighted), timeline di kanan. Action button ICT di atas kanan. Dense tapi organized.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="detail-v2" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc; padding:14px; min-height:260px; border-radius:8px 8px 0 0; border-bottom:1px solid #e2e8f0; overflow:hidden;">
+      <!-- Header + status stepper -->
+      <div style="font-size:8px; color:#94a3b8; margin-bottom:4px;">← Kembali ke daftar</div>
+      <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:8px;">Laptop Dell XPS 13</div>
+      <!-- Status stepper -->
+      <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:8px; margin-bottom:8px;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="text-align:center; flex:1;">
+            <div style="width:16px; height:16px; background:#f59e0b; border-radius:50%; margin:0 auto 2px; display:flex; align-items:center; justify-content:center;"><span style="color:white; font-size:8px;">✓</span></div>
+            <div style="font-size:7px; color:#92400e; font-weight:600;">Reported</div>
+          </div>
+          <div style="flex:0.5; height:1px; background:#e2e8f0;"></div>
+          <div style="text-align:center; flex:1;">
+            <div style="width:16px; height:16px; background:#3b82f6; border-radius:50%; margin:0 auto 2px; display:flex; align-items:center; justify-content:center;"><span style="color:white; font-size:8px;">✓</span></div>
+            <div style="font-size:7px; color:#1d4ed8; font-weight:600;">Searching</div>
+          </div>
+          <div style="flex:0.5; height:1px; background:#e2e8f0;"></div>
+          <div style="text-align:center; flex:1;">
+            <div style="width:16px; height:16px; background:#7c3aed; border-radius:50%; margin:0 auto 2px; box-shadow:0 0 0 2px #c4b5fd; display:flex; align-items:center; justify-content:center;"><span style="color:white; font-size:8px;">•</span></div>
+            <div style="font-size:7px; color:#6d28d9; font-weight:700;">Claimed</div>
+          </div>
+          <div style="flex:0.5; height:1px; background:#e2e8f0;"></div>
+          <div style="text-align:center; flex:1;">
+            <div style="width:16px; height:16px; background:#e2e8f0; border-radius:50%; margin:0 auto 2px;"></div>
+            <div style="font-size:7px; color:#94a3b8;">Returned</div>
+          </div>
+        </div>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex; gap:0; border-bottom:1px solid #e2e8f0; margin-bottom:8px;">
+        <div style="font-size:8px; padding:4px 10px; border-bottom:2px solid #0f172a; color:#0f172a; font-weight:600;">Detail</div>
+        <div style="font-size:8px; padding:4px 10px; color:#94a3b8; position:relative;">Found Claims <span style="background:#7c3aed; color:white; font-size:7px; padding:1px 4px; border-radius:8px; margin-left:2px;">1</span></div>
+        <div style="font-size:8px; padding:4px 10px; color:#94a3b8;">Timeline</div>
+      </div>
+      <!-- Tab content -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:7px;">
+          <div style="font-size:7px; color:#94a3b8; margin-bottom:3px;">TIPE</div>
+          <div style="font-size:9px; color:#1e293b;">Laptop</div>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:7px;">
+          <div style="font-size:7px; color:#94a3b8; margin-bottom:3px;">SERIAL</div>
+          <div style="font-size:9px; color:#1e293b;">DL-4521</div>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:6px; padding:7px; grid-column:1/-1;">
+          <div style="font-size:7px; color:#94a3b8; margin-bottom:3px;">ACTION</div>
+          <div style="display:flex; gap:4px;">
+            <div style="background:#16a34a; color:white; font-size:7px; padding:3px 8px; border-radius:4px;">✓ Konfirmasi Returned</div>
+            <div style="background:white; border:1px solid #e2e8f0; color:#64748b; font-size:7px; padding:3px 8px; border-radius:4px;">Tutup</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Status Stepper + Tabs</h3>
+      <p>Progress stepper visual di atas, lalu tabs: Detail / Found Claims / Timeline. Lebih clean, tapi butuh klik untuk lihat semua info.</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:12px; font-size:12px; color:#6b7280;">Pilih layout detail yang lebih cocok.</p>

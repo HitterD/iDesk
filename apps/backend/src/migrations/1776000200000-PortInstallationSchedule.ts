@@ -42,29 +42,28 @@ export class PortInstallationSchedule1776000200000 implements MigrationInterface
                 DO $$ BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='install_status_enum') THEN
                         CREATE TYPE install_status_enum AS ENUM
-                            ('PROPOSED','CONFIRMED','IN_PROGRESS','DONE','RESCHEDULED','CANCELLED');
+                            ('PROPOSED', 'PROPOSED_AWAITING_USER', 'CONFIRMED','IN_PROGRESS','DONE','RESCHEDULED','CANCELLED');
                     END IF;
                 END $$;
             `);
             await q.query(`
                 ALTER TABLE installation_schedules
-                ALTER COLUMN status TYPE install_status_enum USING status::install_status_enum;
+                ALTER COLUMN status DROP DEFAULT,
+                ALTER COLUMN status TYPE install_status_enum USING status::text::install_status_enum,
+                ALTER COLUMN status SET DEFAULT 'PROPOSED';
             `);
 
+            const reqIdCol = names.includes('request_id') ? 'request_id' : '"requestId"';
             await q.query(`
                 ALTER TABLE installation_schedules
                 ADD CONSTRAINT fk_installation_schedules_request
-                FOREIGN KEY (request_id) REFERENCES hardware_requests(id) ON DELETE CASCADE;
-            `);
-            await q.query(`
-                ALTER TABLE installation_schedules
-                ADD CONSTRAINT uq_installation_schedules_request UNIQUE (request_id);
+                FOREIGN KEY (${reqIdCol}) REFERENCES hardware_requests(id) ON DELETE CASCADE;
             `);
         } else {
             await q.query(`
                 DO $$ BEGIN
                     CREATE TYPE install_status_enum AS ENUM
-                        ('PROPOSED','CONFIRMED','IN_PROGRESS','DONE','RESCHEDULED','CANCELLED');
+                        ('PROPOSED', 'PROPOSED_AWAITING_USER', 'CONFIRMED','IN_PROGRESS','DONE','RESCHEDULED','CANCELLED');
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
             `);
             await q.query(`
@@ -87,13 +86,20 @@ export class PortInstallationSchedule1776000200000 implements MigrationInterface
             `);
         }
 
+        const finalCols = await q.query(`
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name='installation_schedules'
+        `);
+        const finalNames = finalCols.map((r: any) => r.column_name);
+        const techIdCol = finalNames.includes('technician_id') ? 'technician_id' : '"technicianId"';
+        const startCol = finalNames.includes('scheduled_start') ? 'scheduled_start' : '"scheduledStart"';
         await q.query(`
             CREATE INDEX IF NOT EXISTS idx_install_sched_tech_start
-                ON installation_schedules(technician_id, scheduled_start);
+                ON installation_schedules(${techIdCol}, ${startCol});
         `);
         await q.query(`
             CREATE INDEX IF NOT EXISTS idx_install_sched_status_start
-                ON installation_schedules(status, scheduled_start);
+                ON installation_schedules(status, ${startCol});
         `);
     }
 

@@ -17,7 +17,7 @@ export class AddActionItemSnooze1777400000000 implements MigrationInterface {
         `);
         await queryRunner.query(`
             CREATE INDEX IF NOT EXISTS "idx_snooze_user_expiry"
-            ON "action_item_snooze" ("user_id", "snoozed_until")
+            ON "action_item_snooze" ("userId", "snoozedUntil")
         `);
         await queryRunner.query(`
             ALTER TABLE "notification_preferences"

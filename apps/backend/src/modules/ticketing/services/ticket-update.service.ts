@@ -62,109 +62,109 @@ export class TicketUpdateService {
         const oldStatus = ticket.status;
 
         if (updateData.status && updateData.status !== ticket.status) {
-            changes.push(`Status changed from ${ticket.status} to ${updateData.status}`);
-
-            // === NEW: SLA Starts when status changes to IN_PROGRESS ===
-            if (updateData.status === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
-                const now = new Date();
-                ticket.slaStartedAt = now;
-
-                // Calculate SLA Target from NOW (not from createdAt)
-                const slaConfig = await this.slaConfigRepo.findOne({
-                    where: { priority: ticket.priority }
-                });
-
-                if (slaConfig) {
-                    // Use business hours for SLA calculation if available
-                    if (this.businessHoursService) {
-                        ticket.slaTarget = await this.businessHoursService.calculateSlaTarget(
-                            now,
-                            slaConfig.resolutionTimeMinutes
-                        );
-                        changes.push(`SLA Timer started (business hours). Target: ${ticket.slaTarget.toISOString()}`);
-                    } else {
-                        // Fallback: simple calendar time calculation
-                        ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
-                        changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
-                    }
-                }
-            }
-
-            // === WAITING_VENDOR Handling - Enhanced ===
-            if (updateData.status === TicketStatus.WAITING_VENDOR) {
-                ticket.lastPausedAt = new Date();
-                ticket.waitingVendorAt = new Date();
-
-                // Send special notification and add system note
-                await this.handleWaitingVendorStatus(ticket, user);
-            } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
-                // Resume from WAITING_VENDOR
-                if (ticket.lastPausedAt) {
-                    const now = new Date();
-                    const diffMs = now.getTime() - new Date(ticket.lastPausedAt).getTime();
-                    const diffMinutes = Math.floor(diffMs / 60000);
-
-                    ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + diffMinutes;
-                    ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + diffMinutes;
-
-                    // Adjust SLA Target
-                    if (ticket.slaTarget) {
-                        ticket.slaTarget = new Date(ticket.slaTarget.getTime() + diffMs);
-                        changes.push(`SLA Target adjusted by ${diffMinutes} minutes (Waiting Vendor Duration)`);
-                    }
-
-                    // Adjust First Response Target if not responded yet
-                    if (ticket.firstResponseTarget && !ticket.firstResponseAt) {
-                        ticket.firstResponseTarget = new Date(ticket.firstResponseTarget.getTime() + diffMs);
-                    }
-
-                    ticket.lastPausedAt = null;
-                    ticket.waitingVendorAt = null;
-                }
-            }
-
-            // === RESOLVED Handling ===
-            if (updateData.status === TicketStatus.RESOLVED) {
-                ticket.resolvedAt = new Date();
-            }
+            await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user);
         }
 
         if (updateData.priority && updateData.priority !== ticket.priority) {
-            // === HARDWARE_INSTALLATION Priority Protection ===
-            // Block manual changes TO HARDWARE_INSTALLATION
-            if (updateData.priority === 'HARDWARE_INSTALLATION') {
-                throw new BadRequestException('Cannot manually set priority to HARDWARE_INSTALLATION. This priority is system-assigned for hardware installation tickets.');
-            }
-            // Block manual changes FROM HARDWARE_INSTALLATION
-            if (ticket.priority === 'HARDWARE_INSTALLATION') {
-                throw new BadRequestException('Cannot change priority of hardware installation tickets. Priority HARDWARE_INSTALLATION is locked by the system.');
-            }
-
-            changes.push(`Priority changed from ${ticket.priority} to ${updateData.priority}`);
-
-            // Recalculate SLA Target based on new priority (only if SLA has started)
-            if (ticket.slaStartedAt) {
-                const newSlaConfig = await this.slaConfigRepo.findOne({ where: { priority: updateData.priority as string } });
-                if (newSlaConfig) {
-                    const slaStartedAt = new Date(ticket.slaStartedAt);
-                    const pausedMinutes = ticket.totalPausedMinutes || 0;
-                    const newSlaTarget = new Date(slaStartedAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
-                    ticket.slaTarget = newSlaTarget;
-                    changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${updateData.priority})`);
-                }
-            }
+            await this.applyPriorityChange(ticket, updateData.priority, changes);
         }
 
         // Apply updates
         Object.assign(ticket, updateData);
         const savedTicket = await this.ticketRepo.save(ticket);
+        await this.postUpdateActions(savedTicket, user, changes, oldStatus, ticketId, userId);
+        return savedTicket;
+    }
 
-        // Invalidate caches using centralized service
+    private async applyStatusTransition(
+        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User
+    ): Promise<void> {
+        changes.push(`Status changed from ${oldStatus} to ${newStatus}`);
+
+        if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
+            await this.startSlaClock(ticket, changes);
+        }
+
+        if (newStatus === TicketStatus.WAITING_VENDOR) {
+            this.pauseForVendor(ticket);
+            await this.handleWaitingVendorStatus(ticket, user);
+        } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
+            this.resumeFromVendor(ticket, changes);
+        }
+
+        if (newStatus === TicketStatus.RESOLVED) {
+            ticket.resolvedAt = new Date();
+        }
+    }
+
+    private async startSlaClock(ticket: Ticket, changes: string[]): Promise<void> {
+        const now = new Date();
+        ticket.slaStartedAt = now;
+        const slaConfig = await this.slaConfigRepo.findOne({ where: { priority: ticket.priority } });
+        if (!slaConfig) return;
+
+        if (this.businessHoursService) {
+            ticket.slaTarget = await this.businessHoursService.calculateSlaTarget(now, slaConfig.resolutionTimeMinutes);
+            changes.push(`SLA Timer started (business hours). Target: ${ticket.slaTarget.toISOString()}`);
+        } else {
+            ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+            changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
+        }
+    }
+
+    private pauseForVendor(ticket: Ticket): void {
+        ticket.lastPausedAt = new Date();
+        ticket.waitingVendorAt = new Date();
+    }
+
+    private resumeFromVendor(ticket: Ticket, changes: string[]): void {
+        if (!ticket.lastPausedAt) return;
+        const diffMs = Date.now() - new Date(ticket.lastPausedAt).getTime();
+        const diffMinutes = Math.floor(diffMs / 60000);
+
+        ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + diffMinutes;
+        ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + diffMinutes;
+
+        if (ticket.slaTarget) {
+            ticket.slaTarget = new Date(ticket.slaTarget.getTime() + diffMs);
+            changes.push(`SLA Target adjusted by ${diffMinutes} minutes (Waiting Vendor Duration)`);
+        }
+        if (ticket.firstResponseTarget && !ticket.firstResponseAt) {
+            ticket.firstResponseTarget = new Date(ticket.firstResponseTarget.getTime() + diffMs);
+        }
+        ticket.lastPausedAt = null;
+        ticket.waitingVendorAt = null;
+    }
+
+    private async applyPriorityChange(ticket: Ticket, newPriority: string | any, changes: string[]): Promise<void> {
+        if (newPriority === 'HARDWARE_INSTALLATION') {
+            throw new BadRequestException('Cannot manually set priority to HARDWARE_INSTALLATION. This priority is system-assigned for hardware installation tickets.');
+        }
+        if (ticket.priority === 'HARDWARE_INSTALLATION') {
+            throw new BadRequestException('Cannot change priority of hardware installation tickets. Priority HARDWARE_INSTALLATION is locked by the system.');
+        }
+
+        changes.push(`Priority changed from ${ticket.priority} to ${newPriority}`);
+
+        if (ticket.slaStartedAt) {
+            const newSlaConfig = await this.slaConfigRepo.findOne({ where: { priority: newPriority as string } });
+            if (newSlaConfig) {
+                const slaStartedAt = new Date(ticket.slaStartedAt);
+                const pausedMinutes = ticket.totalPausedMinutes || 0;
+                const newSlaTarget = new Date(slaStartedAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
+                ticket.slaTarget = newSlaTarget;
+                changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${newPriority})`);
+            }
+        }
+    }
+
+    private async postUpdateActions(
+        savedTicket: Ticket, user: User, changes: string[], oldStatus: TicketStatus, ticketId: string, userId: string
+    ): Promise<void> {
         await this.cacheInvalidationService.onTicketChange(savedTicket.id);
         this.eventsGateway.notifyDashboardStatsUpdate();
         this.eventsGateway.notifyTicketListUpdate();
 
-        // Log changes as system messages
         if (changes.length > 0) {
             const systemMessageContent = `System: ${changes.join(', ')} by ${user.fullName}`;
             const systemMessage = this.messageRepo.create({
@@ -177,19 +177,17 @@ export class TicketUpdateService {
 
             this.eventsGateway.server.emit('ticket:updated', { ticketId });
 
-            // Emit Domain Event
             this.eventEmitter.emit(
                 'ticket.updated',
                 new TicketUpdatedEvent(
-                    ticket.id,
-                    ticket.ticketNumber || ticket.id.split('-')[0],
+                    savedTicket.id,
+                    savedTicket.ticketNumber || savedTicket.id.split('-')[0],
                     user.id,
                     changes,
-                    ticket,
+                    savedTicket,
                 ),
             );
 
-            // Audit log for ticket update
             this.auditService.logAsync({
                 userId,
                 action: AuditAction.UPDATE_TICKET,
@@ -197,27 +195,13 @@ export class TicketUpdateService {
                 entityId: ticketId,
                 oldValue: { status: oldStatus },
                 newValue: { status: savedTicket.status, priority: savedTicket.priority },
-                description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} updated: ${changes.join(', ')}`,
+                description: `Ticket #${savedTicket.ticketNumber || ticketId.slice(0, 8)} updated: ${changes.join(', ')}`,
             });
 
-            // Trigger Survey if Resolved
-            if (ticket.status === TicketStatus.RESOLVED) {
-                const survey = await this.surveysService.createSurvey(ticket);
-                // Send survey link via Telegram (This part is specific to survey, maybe keep it or move to listener?
-                // For now, let's keep it here or move to listener.
-                // The listener handles 'ticket.updated' and checks for RESOLVED status.
-                // But the survey creation returns a token needed for the link.
-                // If we move this to listener, we need to create survey in listener.
-                // Let's leave survey logic here for now as it's a bit complex to move without refactoring SurveyService.
-                // But we can emit a 'ticket.resolved' event?
-                // Actually, let's just keep the survey creation here but maybe the notification part can be cleaner.
-                // The original code sent telegram notification with survey link.
-                // I'll leave this specific part here for now to minimize risk, or move it if I'm confident.
-                // The listener has access to TelegramService.
-                // Let's just leave it for now.
+            if (savedTicket.status === TicketStatus.RESOLVED) {
+                await this.surveysService.createSurvey(savedTicket);
             }
         }
-        return savedTicket;
     }
 
     async assignTicket(ticketId: string, assigneeId: string, userId: string): Promise<Ticket> {

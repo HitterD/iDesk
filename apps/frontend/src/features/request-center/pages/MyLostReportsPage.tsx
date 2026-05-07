@@ -1,48 +1,29 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PackageSearch, Plus } from 'lucide-react';
+import { PackageSearch, Plus, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { format } from 'date-fns';
-import { id as localeId } from 'date-fns/locale';
-import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
-import { useMyLostReports, useUpdateLostItemStatus, LostItemStatus, LostItemReport } from '../api/lost-item.api';
+import { useMyLostReports } from '../api/lost-item.api';
 import { LostItemsNav } from '../components/LostItemsNav';
-import { StatusBadge } from '../components/StatusBadge';
-import { PhotoGrid } from '../components/PhotoGrid';
-import { ItemDetailDrawer } from '../components/ItemDetailDrawer';
+import { LostItemCard } from '../components/LostItemCard';
+import { StatsCard } from '@/features/ticket-board/components/StatsCard';
 
 const SkeletonCard = () => (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-3 animate-pulse">
-        <div className="flex gap-3">
-            <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
-            <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+    <div className="bg-white border border-slate-200 rounded-xl p-4 h-48 flex flex-col">
+        <div className="flex justify-between mb-4">
+            <div className="w-10 h-10 bg-slate-100 rounded-lg animate-pulse" />
+            <div className="w-20 h-6 bg-slate-100 rounded-full animate-pulse" />
         </div>
-        <div className="h-5 w-48 bg-slate-200 dark:bg-slate-700 rounded" />
-        <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
+        <div className="w-3/4 h-5 bg-slate-100 rounded animate-pulse mb-2" />
+        <div className="w-1/2 h-4 bg-slate-100 rounded animate-pulse mb-auto" />
+        <div className="w-1/3 h-3 bg-slate-100 rounded animate-pulse" />
     </div>
 );
 
 export const MyLostReportsPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { data: reports = [], isLoading, refetch } = useMyLostReports();
-    const updateStatus = useUpdateLostItemStatus();
-    const [selectedItem, setSelectedItem] = useState<LostItemReport | null>(null);
-
-    const handleStatusChange = (id: string, status: LostItemStatus, notes?: string) => {
-        updateStatus.mutate(
-            { id, status, notes },
-            {
-                onSuccess: () => {
-                    toast.success('Status diperbarui');
-                    setSelectedItem(null);
-                    refetch();
-                },
-                onError: () => toast.error('Gagal memperbarui status'),
-            }
-        );
-    };
+    const { data: reports = [], isLoading } = useMyLostReports();
 
     return (
         <div className="space-y-6 animate-fade-in-up">
@@ -66,56 +47,39 @@ export const MyLostReportsPage = () => {
 
             <LostItemsNav />
 
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <StatsCard icon={TrendingUp} label="Total Laporan" value={reports.length} color="text-slate-500" bgColor="bg-slate-500/10" animationIndex={0} />
+            </div>
+
+            {/* Grid */}
             {isLoading ? (
-                <div className="space-y-3">{[1, 2, 3].map(i => <SkeletonCard key={i} />)}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
+                </div>
             ) : reports.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-                    <PackageSearch className="w-16 h-16 mb-4 opacity-30" />
-                    <p className="font-bold text-lg">Belum ada laporan</p>
-                    <p className="text-sm mt-1">Klik "Laporan Baru" untuk melaporkan barang hilang</p>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-24 text-center">
+                    <PackageSearch className="w-16 h-16 mx-auto mb-4 opacity-30 text-slate-400" />
+                    <p className="font-bold text-lg text-slate-900 dark:text-white">Belum ada laporan</p>
+                    <p className="text-sm mt-1 text-slate-500">Klik "Laporan Baru" untuk melaporkan barang hilang</p>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {reports.map((report, idx) => (
                         <motion.div
                             key={report.id}
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.05 }}
-                            onClick={() => setSelectedItem(report)}
-                            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md hover:border-rose-200 dark:hover:border-rose-800 transition-all cursor-pointer"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.2, delay: idx * 0.05 }}
                         >
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <span className="text-xs font-extrabold text-rose-500 uppercase tracking-widest font-mono">{report.id.slice(0, 8)}…</span>
-                                        <StatusBadge status={report.status} />
-                                    </div>
-                                    <h3 className="font-black text-slate-900 dark:text-white text-lg">{report.itemName}</h3>
-                                    <p className="text-sm text-slate-500 mt-0.5">{report.itemType} · {report.lastSeenLocation}</p>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Dilaporkan {format(new Date(report.createdAt), 'dd MMM yyyy, HH:mm', { locale: localeId })}
-                                    </p>
-                                </div>
-                            </div>
-                            {report.photoUrls?.length > 0 && (
-                                <div className="mt-3" onClick={e => e.stopPropagation()}>
-                                    <PhotoGrid urls={report.photoUrls.slice(0, 4)} />
-                                </div>
-                            )}
+                            <LostItemCard 
+                                item={report} 
+                                onClick={() => navigate(`/lost-items/${report.id}`)} 
+                            />
                         </motion.div>
                     ))}
                 </div>
             )}
-
-            <ItemDetailDrawer
-                item={selectedItem}
-                userRole={user?.role || 'USER'}
-                currentUserId={user?.id}
-                isPending={updateStatus.isPending}
-                onClose={() => setSelectedItem(null)}
-                onStatusChange={handleStatusChange}
-            />
         </div>
     );
 };

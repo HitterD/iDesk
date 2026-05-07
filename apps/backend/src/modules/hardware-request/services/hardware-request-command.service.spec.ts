@@ -92,7 +92,12 @@ describe('HardwareRequestCommandService', () => {
             items: expect.arrayContaining([
                 expect.objectContaining({
                     catalogId: 'cat-1',
-                    quantity: 2,
+                    quantity: 1,
+                    categorySnapshot: expect.objectContaining({ code: 'LAPTOP_STD' }),
+                }),
+                expect.objectContaining({
+                    catalogId: 'cat-1',
+                    quantity: 1,
                     categorySnapshot: expect.objectContaining({ code: 'LAPTOP_STD' }),
                 }),
             ]),
@@ -336,14 +341,14 @@ describe('HardwareRequestCommandService', () => {
     });
 
     describe('completeInstallation (request transition)', () => {
-        it('INSTALLATION → COMPLETED when schedule DONE', async () => {
+        it('INSTALLATION → AWAITING_USER_CONFIRMATION when schedule DONE', async () => {
             reqRepo.findOne.mockResolvedValue({
                 id: 'r1', status: RequestStatus.INSTALLATION, items: [{ id: 'i1', quantity: 1 }],
             });
             scheduleRepo.findOne.mockResolvedValue({ status: InstallStatus.DONE });
 
             const res = await service.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' });
-            expect(res.status).toBe(RequestStatus.COMPLETED);
+            expect(res.status).toBe(RequestStatus.AWAITING_USER_CONFIRMATION);
             expect(emitter.emit).toHaveBeenCalled();
         });
 

@@ -36,6 +36,16 @@ export const useFoundClaims = (filters?: { status?: FoundClaimStatus }) =>
         },
     });
 
+export const useFoundClaimsForReport = (lostItemReportId: string) =>
+    useQuery<FoundItemClaim[]>({
+        queryKey: ['found-claims', { lostItemReportId }],
+        queryFn: async () => {
+            const res = await api.get(`/found-claim?lostItemReportId=${lostItemReportId}`);
+            return res.data;
+        },
+        enabled: !!lostItemReportId,
+    });
+
 export const useMyFoundClaims = () =>
     useQuery<FoundItemClaim[]>({
         queryKey: ['found-claims', 'my'],

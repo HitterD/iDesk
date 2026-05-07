@@ -19,7 +19,8 @@ export function useHardwareMutations(requestId?: string) {
         reviewMut: useMutation({ mutationFn: (id: string) => handle(HardwareRequestApi.review(id), 'Review dimulai') }),
         approveMut: useMutation({ mutationFn: (id: string) => handle(HardwareRequestApi.approve(id), 'Request disetujui') }),
         rejectMut: useMutation({ mutationFn: ({ id, reason }: { id: string; reason: string }) => handle(HardwareRequestApi.reject(id, reason), 'Request ditolak') }),
-        completeInstallMut: useMutation({ mutationFn: (id: string) => handle(HardwareRequestApi.completeInstallation(id), 'Instalasi Selesai') }),
+        completeInstallMut: useMutation({ mutationFn: (id: string) => handle(HardwareRequestApi.completeInstallation(id), 'Instalasi Selesai, menunggu konfirmasi') }),
+        confirmInstallMut: useMutation({ mutationFn: ({ id, payload }: { id: string; payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string } }) => handle(HardwareRequestApi.confirmInstallation(id, payload), 'Konfirmasi berhasil dikirim') }),
         completeProcMut: useMutation({ mutationFn: (id: string) => handle(completeProcurement(id, {}), 'Procurement selesai') }),
         updateItemMut: useMutation({
             mutationFn: ({ itemId, payload }: { itemId: string; payload: Parameters<typeof HardwareRequestApi.updateItem>[2] }) =>

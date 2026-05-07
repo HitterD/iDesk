@@ -39,11 +39,8 @@ class IsValidPageAccessConstraint implements ValidatorConstraintInterface {
         if (pageAccess === null || pageAccess === undefined) return true;
         if (typeof pageAccess !== 'object') return false;
 
-        // Check all keys are valid page keys and values are booleans
+        // Check all values are booleans
         for (const [key, value] of Object.entries(pageAccess as Record<string, unknown>)) {
-            if (!VALID_PAGE_KEYS.includes(key as any)) {
-                return false;
-            }
             if (typeof value !== 'boolean') {
                 return false;
             }
@@ -52,7 +49,7 @@ class IsValidPageAccessConstraint implements ValidatorConstraintInterface {
     }
 
     defaultMessage(args: ValidationArguments): string {
-        return `pageAccess must only contain valid page keys (${VALID_PAGE_KEYS.join(', ')}) with boolean values`;
+        return `pageAccess must only contain boolean values`;
     }
 }
 

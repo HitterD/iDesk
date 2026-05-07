@@ -28,7 +28,8 @@ export const HardwareRequestApi = {
     async updateItem(id: string, itemId: string, payload: Partial<{ actualCost: number; vendor: string; invoiceNumber: string; invoiceDate: string; notes: string }>) {
         return unwrap((await hrHttp.patch<ApiEnvelope<unknown>>(`/${id}/items/${itemId}`, payload)).data);
     },
-    async completeInstallation(id: string) { return unwrap((await hrHttp.post<ApiEnvelope<HardwareRequest>>(`/${id}/installation/complete`)).data); },
+    async completeInstallation(id: string) { return unwrap((await hrHttp.post<ApiEnvelope<HardwareRequest>>(`/${id}/install/complete`)).data); },
+    async confirmInstallation(id: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }) { return unwrap((await hrHttp.post<ApiEnvelope<HardwareRequest>>(`/${id}/confirm-installation`, payload)).data); },
 };
 
 export async function decideProcurementItems(

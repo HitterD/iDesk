@@ -9,6 +9,7 @@ import { CreateLostItemDto, UpdateLostItemStatusDto } from './dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
+import { Public } from '../../shared/core/decorators/public.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { FILE_SIZE_LIMITS } from '../../shared/core/config/upload.config';
 import { ConfigService } from '@nestjs/config';
@@ -34,6 +35,7 @@ export class LostItemController {
         return this.lostItemService.findMy(req.user.userId);
     }
 
+    @Public()
     @Get('qr/:token')
     @ApiOperation({ summary: 'Resolve QR token to report info' })
     findByQrToken(@Param('token') token: string) {

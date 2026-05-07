@@ -1,0 +1,162 @@
+<h2>Pilih Pendekatan Visual Settings</h2>
+<p class="subtitle">Tiga arah desain — masing-masing punya karakter berbeda. Klik pilihanmu.</p>
+
+<div class="cards">
+
+  <!-- Approach A: Incremental Polish -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:14px;border-radius:8px;height:210px;display:flex;gap:10px;">
+      <!-- Sidebar -->
+      <div style="width:100px;background:#1e293b;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:3px;">
+        <div style="font-size:7px;color:#475569;letter-spacing:2px;font-weight:700;padding:2px 4px;margin-bottom:4px;">PERSONAL</div>
+        <div style="background:linear-gradient(90deg,#3b82f6,#6366f1);border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(99,102,241,0.3);">
+          <div style="width:8px;height:8px;background:rgba(255,255,255,0.9);border-radius:4px;"></div>
+          <span style="color:white;font-size:10px;font-weight:600;">Profile</span>
+        </div>
+        <div style="border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:8px;height:8px;background:#334155;border-radius:4px;"></div>
+          <span style="color:#64748b;font-size:10px;">Security</span>
+        </div>
+        <div style="border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:8px;height:8px;background:#334155;border-radius:4px;"></div>
+          <span style="color:#64748b;font-size:10px;">Notifications</span>
+        </div>
+        <div style="height:1px;background:#1e293b;margin:4px 0;border-top:1px solid #334155;"></div>
+        <div style="font-size:7px;color:#475569;letter-spacing:2px;font-weight:700;padding:2px 4px;margin-bottom:2px;">ADMIN</div>
+        <div style="border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:8px;height:8px;background:#334155;border-radius:4px;"></div>
+          <span style="color:#64748b;font-size:10px;">SLA</span>
+        </div>
+      </div>
+      <!-- Content -->
+      <div style="flex:1;background:#1e293b;border-radius:8px;padding:10px;">
+        <div style="width:55%;height:9px;background:linear-gradient(90deg,#3b82f6,#6366f1);border-radius:4px;margin-bottom:5px;opacity:0.9;"></div>
+        <div style="width:70%;height:6px;background:#334155;border-radius:3px;margin-bottom:10px;"></div>
+        <div style="background:#0f172a;border-radius:8px;padding:8px;display:flex;align-items:center;gap:8px;border:1px solid #334155;margin-bottom:5px;">
+          <div style="width:32px;height:32px;background:#334155;border-radius:50%;"></div>
+          <div><div style="width:60px;height:7px;background:#3b82f6;border-radius:3px;margin-bottom:4px;opacity:0.7;"></div><div style="width:80px;height:5px;background:#334155;border-radius:3px;"></div></div>
+        </div>
+        <div style="width:100%;height:24px;background:#0f172a;border-radius:6px;margin-bottom:5px;border:1px solid #334155;"></div>
+        <div style="width:100%;height:24px;background:#0f172a;border-radius:6px;margin-bottom:8px;border:1px solid #334155;"></div>
+        <div style="width:90px;height:26px;background:linear-gradient(90deg,#3b82f6,#6366f1);border-radius:6px;box-shadow:0 2px 8px rgba(99,102,241,0.3);"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Incremental Polish ⚡ Cepat</h3>
+      <p>Pertahankan kode yang ada, hanya tambah/hapus tab + perbaiki animasi & spacing. Waktu implementasi <strong>paling singkat</strong>. Risiko minimal, tidak ada refactor besar.</p>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <span style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Cepat</span>
+        <span style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Aman</span>
+        <span style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Visual terbatas</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach B: Full Redesign Glassmorphism -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="border:2px solid rgba(99,102,241,0.4);">
+    <div style="position:absolute;top:12px;right:12px;background:linear-gradient(90deg,#3b82f6,#6366f1);color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;">RECOMMENDED</div>
+    <div class="card-image" style="background:#0f172a;padding:14px;border-radius:8px;height:210px;display:flex;gap:10px;position:relative;overflow:hidden;">
+      <!-- Glow effect -->
+      <div style="position:absolute;top:-20px;left:20px;width:80px;height:80px;background:#3b82f6;border-radius:50%;opacity:0.08;filter:blur(20px);"></div>
+      <!-- Sidebar glass -->
+      <div style="width:100px;background:rgba(30,41,59,0.8);backdrop-filter:blur(10px);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:3px;border:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:7px;color:#475569;letter-spacing:2px;font-weight:700;padding:2px 4px;margin-bottom:4px;">PERSONAL</div>
+        <div style="background:rgba(59,130,246,0.15);border:1px solid rgba(99,102,241,0.4);border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:6px;box-shadow:0 0 12px rgba(99,102,241,0.2);">
+          <div style="width:14px;height:14px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:4px;display:flex;align-items:center;justify-content:center;">
+            <div style="width:6px;height:6px;background:white;border-radius:50%;"></div>
+          </div>
+          <span style="color:#93c5fd;font-size:10px;font-weight:600;">Profile</span>
+          <div style="margin-left:auto;width:3px;height:14px;background:linear-gradient(180deg,#3b82f6,#6366f1);border-radius:2px;"></div>
+        </div>
+        <div style="border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:14px;height:14px;background:#1e293b;border:1px solid #334155;border-radius:4px;"></div>
+          <span style="color:#64748b;font-size:10px;">Security</span>
+        </div>
+        <div style="border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:14px;height:14px;background:#1e293b;border:1px solid #334155;border-radius:4px;"></div>
+          <span style="color:#64748b;font-size:10px;">Notifs</span>
+        </div>
+        <div style="height:1px;background:rgba(255,255,255,0.05);margin:4px 0;"></div>
+        <div style="font-size:7px;color:#475569;letter-spacing:2px;font-weight:700;padding:2px 4px;margin-bottom:2px;">ADMIN</div>
+        <div style="border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:14px;height:14px;background:#1e293b;border:1px solid #334155;border-radius:4px;"></div>
+          <span style="color:#64748b;font-size:10px;">SLA</span>
+        </div>
+      </div>
+      <!-- Content glass -->
+      <div style="flex:1;background:rgba(30,41,59,0.6);backdrop-filter:blur(10px);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,0.06);">
+        <div style="width:55%;height:9px;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px;margin-bottom:5px;"></div>
+        <div style="width:70%;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;margin-bottom:10px;"></div>
+        <div style="background:rgba(15,23,42,0.6);border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.06);margin-bottom:5px;">
+          <div style="width:34px;height:34px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:50%;opacity:0.8;"></div>
+          <div><div style="width:60px;height:7px;background:#3b82f6;border-radius:3px;margin-bottom:4px;opacity:0.7;"></div><div style="width:80px;height:5px;background:#334155;border-radius:3px;"></div></div>
+          <div style="margin-left:auto;width:22px;height:22px;background:rgba(99,102,241,0.2);border-radius:6px;border:1px solid rgba(99,102,241,0.3);"></div>
+        </div>
+        <div style="width:100%;height:24px;background:rgba(15,23,42,0.6);border-radius:8px;margin-bottom:5px;border:1px solid rgba(255,255,255,0.06);"></div>
+        <div style="width:100%;height:24px;background:rgba(15,23,42,0.6);border-radius:8px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.06);"></div>
+        <div style="width:90px;height:28px;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:8px;box-shadow:0 4px 12px rgba(99,102,241,0.4);"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Full Redesign Glassmorphism ✨ Recommended</h3>
+      <p>Rebuild <code>BentoSettingsPage</code> dengan glassmorphism panel, gradient active indicator, icon square di sidebar, micro-animations, staggered entrance. Visual premium, konsisten dengan arah desain Bento.</p>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <span style="background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Premium visual</span>
+        <span style="background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Konsisten</span>
+        <span style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Lebih banyak perubahan</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach C: Card-Based Clean -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:14px;border-radius:8px;height:210px;display:flex;gap:10px;">
+      <!-- Sidebar clean -->
+      <div style="width:100px;background:white;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:3px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <div style="font-size:7px;color:#94a3b8;letter-spacing:2px;font-weight:700;padding:2px 4px;margin-bottom:4px;">PERSONAL</div>
+        <div style="background:#eff6ff;border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid #3b82f6;">
+          <div style="width:12px;height:12px;background:#3b82f6;border-radius:3px;"></div>
+          <span style="color:#1d4ed8;font-size:10px;font-weight:600;">Profile</span>
+        </div>
+        <div style="border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:12px;height:12px;background:#e2e8f0;border-radius:3px;"></div>
+          <span style="color:#64748b;font-size:10px;">Security</span>
+        </div>
+        <div style="border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:12px;height:12px;background:#e2e8f0;border-radius:3px;"></div>
+          <span style="color:#64748b;font-size:10px;">Notifications</span>
+        </div>
+        <div style="height:1px;background:#e2e8f0;margin:4px 0;"></div>
+        <div style="font-size:7px;color:#94a3b8;letter-spacing:2px;font-weight:700;padding:2px 4px;margin-bottom:2px;">ADMIN</div>
+        <div style="border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;">
+          <div style="width:12px;height:12px;background:#e2e8f0;border-radius:3px;"></div>
+          <span style="color:#64748b;font-size:10px;">SLA</span>
+        </div>
+      </div>
+      <!-- Content clean -->
+      <div style="flex:1;background:white;border-radius:8px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <div style="width:50%;height:9px;background:#1e40af;border-radius:4px;margin-bottom:5px;opacity:0.8;"></div>
+        <div style="width:70%;height:6px;background:#e2e8f0;border-radius:3px;margin-bottom:10px;"></div>
+        <div style="background:#f8fafc;border-radius:8px;padding:8px;display:flex;align-items:center;gap:8px;border:1px solid #e2e8f0;margin-bottom:5px;">
+          <div style="width:32px;height:32px;background:#dbeafe;border-radius:50%;"></div>
+          <div><div style="width:60px;height:7px;background:#3b82f6;border-radius:3px;margin-bottom:4px;opacity:0.7;"></div><div style="width:80px;height:5px;background:#e2e8f0;border-radius:3px;"></div></div>
+        </div>
+        <div style="width:100%;height:24px;background:#f8fafc;border-radius:6px;margin-bottom:5px;border:1px solid #e2e8f0;"></div>
+        <div style="width:100%;height:24px;background:#f8fafc;border-radius:6px;margin-bottom:8px;border:1px solid #e2e8f0;"></div>
+        <div style="width:90px;height:26px;background:#3b82f6;border-radius:6px;box-shadow:0 2px 6px rgba(59,130,246,0.3);"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Clean Card Light/Dark</h3>
+      <p>Desain clean card-based, bekerja baik di light & dark mode. Left border accent untuk active item. Lebih enterprise/professional, kurang "glossy". Cocok jika audience lebih formal.</p>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <span style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Clean</span>
+        <span style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Enterprise</span>
+        <span style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:12px;font-size:11px;">Kurang modern</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:20px;">Saya rekomendasikan <strong>B</strong> — paling konsisten dengan arah desain Bento yang sudah ada. Klik pilihanmu di atas, konfirmasi di terminal.</p>

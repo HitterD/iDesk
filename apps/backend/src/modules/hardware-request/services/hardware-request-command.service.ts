@@ -442,32 +442,82 @@ export class HardwareRequestCommandService {
 
     async completeInstallation(requestId: string, actor: ActingUser): Promise<HardwareRequest> {
         const req = await this.requestRepo.findOne({
-            where: { id: requestId }, relations: ['items'],
+            where: { id: requestId },
         });
         if (!req) throw new NotFoundException('request');
-        if (req.status !== RequestStatus.INSTALLATION) throw new ConflictException('HR_INVALID_TRANSITION');
-        if (actor.role !== 'ICT_STAFF') throw new ForbiddenException('HR_PERMISSION_DENIED');
+
+        if (req.status !== RequestStatus.INSTALLATION) {
+            throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
+        }
 
         const sched = await this.scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
-        if (!sched) throw new ConflictException('schedule not done');
+        if (!sched) {
+            throw new BadRequestException('Cannot complete installation: schedule not done');
+        }
 
-        req.status = RequestStatus.COMPLETED;
-        req.completedAt = new Date();
-        req.version += 1;
+        req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
+        req.installMarkedDoneAt = new Date();
         const saved = await this.requestRepo.save(req);
 
         await this.activityRepo.save(this.activityRepo.create({
-            requestId: saved.id, actorId: actor.id, action: ActivityAction.INSTALL_COMPLETED,
-            metadata: { scheduleId: sched.id },
-            fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.COMPLETED,
+            requestId: req.id, actorId: actor.id, action: ActivityAction.INSTALL_COMPLETED,
+            metadata: { scheduleId: sched?.id ?? null },
+            fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
         }));
         
         this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
             requestId,
             actorId: actor.id,
             occurredAt: new Date(),
-            requesterId: saved.requesterId,
+            requesterId: req.requesterId,
         });
+
+        return saved;
+    }
+
+    async confirmInstallation(requestId: string, userId: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }): Promise<HardwareRequest> {
+        const req = await this.requestRepo.findOne({
+            where: { id: requestId },
+        });
+        if (!req) throw new HardwareRequestNotFoundError(requestId);
+
+        if (req.requesterId !== userId) {
+            throw new PermissionDeniedError('confirm installation for this request');
+        }
+
+        if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
+            throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
+        }
+
+        req.userConfirmedAt = new Date();
+        req.userConfirmationKind = payload.kind;
+
+        const fromStatus = req.status;
+        let toStatus: RequestStatus;
+
+        if (payload.kind === 'ACCEPT_AS_IS') {
+            toStatus = RequestStatus.COMPLETED;
+            req.completedAt = new Date();
+        } else {
+            toStatus = RequestStatus.INSTALLATION;
+        }
+
+        req.status = toStatus;
+        const saved = await this.requestRepo.save(req);
+
+        await this.activityRepo.save(this.activityRepo.create({
+            requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
+            metadata: { kind: payload.kind, comments: payload.comments },
+            fromStatus: fromStatus, toStatus: toStatus,
+        }));
+
+        if (payload.comments) {
+            await this.activityRepo.save(this.activityRepo.create({
+                requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
+                metadata: { text: payload.comments },
+                fromStatus: toStatus, toStatus: toStatus,
+            }));
+        }
 
         return saved;
     }

@@ -4,6 +4,7 @@ import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { CalendarDay, CalendarSlot } from '../types';
 import { ZoomMonthDayPopover } from './ZoomMonthDayPopover';
+import { Video } from 'lucide-react';
 
 const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
@@ -21,6 +22,7 @@ interface ZoomMonthViewProps {
     onSlotClick: (day: CalendarDay, slot: CalendarSlot) => void;
     onDateDoubleClick: (date: Date) => void;
     onBookingClick: (bookingId: string, day: CalendarDay) => void;
+    canBook?: boolean;
 }
 
 function getDaysGrid(currentDate: Date): Date[] {
@@ -65,6 +67,7 @@ export function ZoomMonthView({
     onSlotClick,
     onDateDoubleClick,
     onBookingClick,
+    canBook = true,
 }: ZoomMonthViewProps) {
     const [popoverDate, setPopoverDate] = useState<string | null>(null);
     const days = useMemo(() => getDaysGrid(currentDate), [currentDate]);
@@ -117,7 +120,7 @@ export function ZoomMonthView({
                             key={dateStr}
                             className={cn(
                                 "min-h-[80px] p-1 border-b border-r border-slate-200 dark:border-slate-700",
-                                "transition-colors duration-100 relative",
+                                "transition-colors duration-100 relative group",
                                 !isWeekend && "cursor-pointer",
                                 inMonth
                                     ? "bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 hover:shadow-inner"
@@ -159,7 +162,7 @@ export function ZoomMonthView({
                             </div>
 
                             {/* Events */}
-                            <div className="space-y-0.5 px-0.5">
+                            <div className="space-y-0.5 px-0.5 relative z-10">
                                 {visibleEvents.map((event, idx) => (
                                     <div
                                         key={`${event.bookingId ?? idx}`}
@@ -209,6 +212,15 @@ export function ZoomMonthView({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Book Hover Overlay */}
+                            {canBook && !isWeekend && !isBlocked && (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-1 bg-blue-50/50 dark:bg-blue-950/30 pointer-events-none z-0">
+                                    <span className="text-xs font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                                        <Video className="h-3 w-3" /> Book Zoom
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     );
                 })}

@@ -176,26 +176,12 @@ export class InstallationScheduleService {
             sched = await this.repo.save(sched);
         }
 
-        if (actor.role !== 'ICT_STAFF') throw new ForbiddenException('HR_PERMISSION_DENIED');
-
+        // actor role is verified by the controller guard
         sched.status = InstallStatus.DONE;
         sched.completedAt = new Date();
         sched.technicianId = actor.id;
         const saved = await this.repo.save(sched);
         await this.activity.log(requestId, actor.id, 'INSTALL_SCHEDULE_DONE', { scheduleId: saved.id });
-
-        const req = await this.reqRepo.findOne({ where: { id: requestId }, relations: ['items', 'schedules'] });
-        if (req) {
-            const allItemsArrived = req.items.every(
-                (i: any) => i.deliveryStatus === 'ARRIVED' || i.deliveryStatus === 'NOT_PROCURED',
-            );
-            const allSchedulesDone = req.schedules.every(
-                (s: any) => s.status === InstallStatus.DONE || s.status === InstallStatus.CANCELLED,
-            );
-            if (allItemsArrived && allSchedulesDone && req.status === RequestStatus.INSTALLATION) {
-                await this.reqRepo.save({ ...req, status: RequestStatus.COMPLETED } as any);
-            }
-        }
 
         return saved;
     }

@@ -257,8 +257,9 @@ export class UsersController {
     async resetUserPassword(
         @Param('id') userId: string,
         @Body() body: { newPassword: string },
+        @Req() req: any,
     ) {
-        return this.usersService.resetPassword(userId, body.newPassword);
+        return this.usersService.resetPassword(userId, body.newPassword, req.user.userId, req.user.role);
     }
 
     @Delete(':id')
