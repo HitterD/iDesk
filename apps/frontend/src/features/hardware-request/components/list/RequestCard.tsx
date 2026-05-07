@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { AlertCircle } from 'lucide-react';
 import { StatusBadge } from '../common/StatusBadge';
 import { getStatusMeta, STATUS_META } from '../../utils/status.util';
 import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
+import { useHardwareRole } from '../../hooks/usePermissions';
 import { REQUEST_PIPELINE, type HardwareRequest, type RequestStatus } from '../../types';
 
 function MiniPipeline({ current }: { current: RequestStatus }) {
@@ -53,6 +55,8 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
     const basePath = useHardwareBasePath();
     const meta = getStatusMeta(r.status);
     const [hovered, setHovered] = useState(false);
+    const { userId } = useHardwareRole();
+    const needsConfirmation = r.status === 'AWAITING_USER_CONFIRMATION' && r.requesterId === userId;
 
     const itemCount = r.items?.length ?? 0;
     const mainItem = r.items?.[0];
@@ -142,6 +146,14 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
                 {/* Spacer to push pipeline to bottom if card height varies */}
                 <div className="flex-1" />
 
+                {needsConfirmation && (
+                    <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
+                        <AlertCircle className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                        <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                            Konfirmasi instalasi diperlukan
+                        </span>
+                    </div>
+                )}
                 <MiniPipeline current={r.status} />
             </Link>
 
