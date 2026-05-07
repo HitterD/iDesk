@@ -9,19 +9,32 @@ import { REQUEST_PIPELINE, type HardwareRequest, type RequestStatus } from '../.
 function MiniPipeline({ current }: { current: RequestStatus }) {
     const terminalBad = current === 'REJECTED' || current === 'CANCELLED';
     const idx = REQUEST_PIPELINE.indexOf(current);
-    
+    const isAwaitingConfirm = current === 'AWAITING_USER_CONFIRMATION';
+
     return (
         <div className="flex flex-col gap-1.5 mt-4">
             <div className="flex items-center gap-1 w-full">
                 {REQUEST_PIPELINE.map((step, i) => {
-                    const done = !terminalBad && i <= idx;
+                    const done = !terminalBad && i < idx;
+                    const pending = !terminalBad && i === idx && isAwaitingConfirm;
+                    const active = !terminalBad && i === idx && !isAwaitingConfirm;
                     const meta = STATUS_META[step];
+
+                    if (pending) {
+                        return (
+                            <div
+                                key={step}
+                                className="h-[3px] flex-1 rounded-full animate-pulse"
+                                style={{ backgroundColor: meta.hex, opacity: 0.7 }}
+                            />
+                        );
+                    }
                     return (
                         <div
                             key={step}
-                            className={`h-[3px] flex-1 rounded-full ${done ? '' : 'bg-slate-100 dark:bg-slate-800'}`}
-                            style={{ 
-                                backgroundColor: done ? meta.hex : undefined,
+                            className={`h-[3px] flex-1 rounded-full ${done || active ? '' : 'bg-slate-100 dark:bg-slate-800'}`}
+                            style={{
+                                backgroundColor: (done || active) ? meta.hex : undefined,
                             }}
                         />
                     );
