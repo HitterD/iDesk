@@ -148,7 +148,7 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
 
                 {needsConfirmation && (
                     <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
-                        <AlertCircle className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                        <AlertCircle className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
                         <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
                             Konfirmasi instalasi diperlukan
                         </span>
