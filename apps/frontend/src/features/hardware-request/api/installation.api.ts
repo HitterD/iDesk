@@ -20,6 +20,7 @@ export type CalendarEventResponse = {
   recipientName?: string | null;
   division?: string | null;
   status: InstallStatus;
+  requestStatus?: string | null;
   scheduledAt: string;
   endsAt?: string | null;
 };

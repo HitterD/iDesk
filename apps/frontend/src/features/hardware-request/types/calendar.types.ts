@@ -7,6 +7,7 @@ export type CalendarEventData = {
   recipientName?: string | null;
   division?: string | null;
   status: string;
+  requestStatus?: string | null;
   scheduledAt: string;
   endsAt?: string | null;
 };

@@ -40,7 +40,7 @@ export function CompleteInstallWizard({ open, requestId, items, onClose }: Props
       });
       await qc.invalidateQueries({ queryKey: ['hardware-requests', 'detail', requestId] });
       await qc.invalidateQueries({ queryKey: ['hardware-requests', 'list'] });
-      toast.success('Installation completed.');
+      toast.success('Instalasi selesai. Menunggu konfirmasi user.');
       onClose();
     } catch (err) {
       toast.error('Gagal menyelesaikan install: ' + (err as Error).message);

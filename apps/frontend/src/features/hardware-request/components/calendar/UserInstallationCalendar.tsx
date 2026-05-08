@@ -5,11 +5,9 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { format, parseISO, isAfter } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { Calendar, Info, CalendarX2 } from 'lucide-react';
+import { Calendar, Info, CalendarX2, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { fetchMyTodaySchedules } from '../../api/installation.api';
-import { INSTALL_STATUS_CHIP, type InstallStatus, getStatusMeta } from '../../utils/status.util';
+import { INSTALL_STATUS_CHIP, type InstallStatus } from '../../utils/status.util';
 import { FeatureErrorBoundary } from '../common/FeatureErrorBoundary';
 import { EventChipMedium } from './EventChipMedium';
 import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
@@ -49,6 +47,24 @@ export function UserInstallationCalendar() {
       .slice(0, 5);
   }, [events]);
 
+  const actionRequiredEvents = useMemo(
+    () =>
+      events.filter(
+        (e) =>
+          e.status === 'PROPOSED_AWAITING_USER' ||
+          (e.status === 'DONE' && e.requestStatus === 'AWAITING_USER_CONFIRMATION'),
+      ),
+    [events],
+  );
+
+  const userVisibleStatuses: { key: InstallStatus | 'AWAITING_CONFIRM'; label: string }[] = [
+    { key: 'PROPOSED_AWAITING_USER', label: 'Pilih Slot' },
+    { key: 'CONFIRMED', label: 'Terjadwal' },
+    { key: 'IN_PROGRESS', label: 'Sedang Instalasi' },
+    { key: 'AWAITING_CONFIRM', label: 'Konfirmasi Anda' },
+    { key: 'DONE', label: 'Selesai' },
+  ];
+
   return (
     <FeatureErrorBoundary>
       <div className="flex flex-col gap-4 p-4 bg-slate-50 min-h-screen">
@@ -59,6 +75,38 @@ export function UserInstallationCalendar() {
             <p className="text-xs text-blue-600">Jadwal instalasi Anda ditampilkan di kalender ini. Klik event untuk melihat detail.</p>
           </div>
         </div>
+
+        {actionRequiredEvents.length > 0 && (
+          <div className="bg-cyan-50 border border-cyan-300 rounded-lg p-3 flex items-start gap-3 text-cyan-900">
+            <AlertCircle className="size-5 flex-shrink-0 text-cyan-600 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm">Aksi Diperlukan</h3>
+              <p className="text-xs text-cyan-700 mb-2">
+                {actionRequiredEvents.length} jadwal membutuhkan tindakan dari Anda.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {actionRequiredEvents.slice(0, 3).map((e) => {
+                  const isConfirm =
+                    e.status === 'DONE' && e.requestStatus === 'AWAITING_USER_CONFIRMATION';
+                  return (
+                    <Link
+                      key={e.scheduleId}
+                      to={`${basePath}/${e.requestId}`}
+                      className="flex items-center justify-between gap-2 rounded-md bg-white border border-cyan-200 px-2.5 py-1.5 text-xs hover:bg-cyan-50 transition-colors"
+                    >
+                      <span className="font-semibold text-cyan-900 truncate">
+                        {e.requestNumber} · {e.siteName}
+                      </span>
+                      <span className="text-[10px] font-bold text-cyan-700 shrink-0">
+                        {isConfirm ? 'Konfirmasi instalasi →' : 'Pilih slot →'}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <div className="lg:col-span-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -102,12 +150,21 @@ export function UserInstallationCalendar() {
             <div className="mt-4 border-t border-slate-100 pt-3">
               <p className="mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Keterangan Warna</p>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(INSTALL_STATUS_CHIP).map(([key, chip]) => (
-                  <div key={key} className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${chip.bg} ${chip.border} ${chip.text}`}>
-                    <span className={`size-1.5 rounded-full ${chip.dot}`} />
-                    {key.replace(/_/g, ' ')}
-                  </div>
-                ))}
+                {userVisibleStatuses.map(({ key, label }) => {
+                  const chip =
+                    key === 'AWAITING_CONFIRM'
+                      ? { bg: 'bg-cyan-50', border: 'border-cyan-300', dot: 'bg-cyan-500', text: 'text-cyan-900' }
+                      : INSTALL_STATUS_CHIP[key];
+                  return (
+                    <div
+                      key={key}
+                      className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${chip.bg} ${chip.border} ${chip.text}`}
+                    >
+                      <span className={`size-1.5 rounded-full ${chip.dot}`} />
+                      {label}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -118,13 +175,16 @@ export function UserInstallationCalendar() {
               <div className="flex flex-col gap-2.5">
                 {upcomingEvents.length > 0 ? (
                   upcomingEvents.map((e) => {
-                    const chip = INSTALL_STATUS_CHIP[e.status as InstallStatus] ?? INSTALL_STATUS_CHIP.CANCELLED;
+                    const isAwaitingConfirm =
+                      e.status === 'DONE' && e.requestStatus === 'AWAITING_USER_CONFIRMATION';
+                    const chip = isAwaitingConfirm
+                      ? { bg: 'bg-cyan-50', border: 'border-cyan-300', dot: 'bg-cyan-500', text: 'text-cyan-900', badge: 'KONFIRMASI' }
+                      : INSTALL_STATUS_CHIP[e.status as InstallStatus] ?? INSTALL_STATUS_CHIP.CANCELLED;
                     return (
                       <Link
                         to={`${basePath}/${e.requestId}`}
                         key={e.scheduleId}
                         className={`block rounded-lg border-y border-r border-l-4 p-2.5 bg-white shadow-sm hover:bg-slate-50 transition-colors ${chip.border.replace('border-', 'border-l-')} border-y-slate-100 border-r-slate-100`}
-                        style={{ borderLeftColor: chip.dot.replace('bg-', '') }}
                       >
                         <div className="mb-1 flex items-center justify-between">
                           <span className={`text-[10px] font-bold ${chip.text}`}>{e.requestNumber}</span>
