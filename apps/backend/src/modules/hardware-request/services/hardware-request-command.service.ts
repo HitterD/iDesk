@@ -441,38 +441,82 @@ export class HardwareRequestCommandService {
     }
 
     async completeInstallation(requestId: string, actor: ActingUser): Promise<HardwareRequest> {
-        const req = await this.requestRepo.findOne({
-            where: { id: requestId },
+        return this.dataSource.transaction(async (mgr) => {
+            const requestRepo = mgr.getRepository(HardwareRequest);
+            const activityRepo = mgr.getRepository(HardwareRequestActivity);
+            const scheduleRepo = mgr.getRepository(InstallationSchedule);
+
+            const req = await requestRepo.findOne({ where: { id: requestId } });
+            if (!req) throw new NotFoundException('request');
+
+            if (req.status !== RequestStatus.INSTALLATION) {
+                throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
+            }
+
+            const sched = await scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
+            if (!sched) {
+                throw new BadRequestException('Cannot complete installation: schedule not done');
+            }
+
+            req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
+            req.installMarkedDoneAt = new Date();
+            const saved = await requestRepo.save(req);
+
+            await activityRepo.save(activityRepo.create({
+                requestId: req.id, actorId: actor.id, action: ActivityAction.INSTALL_COMPLETED,
+                metadata: { scheduleId: sched.id },
+                fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
+            }));
+
+            this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+                requestId,
+                actorId: actor.id,
+                occurredAt: new Date(),
+                requesterId: req.requesterId,
+            });
+
+            return saved;
         });
-        if (!req) throw new NotFoundException('request');
+    }
 
-        if (req.status !== RequestStatus.INSTALLATION) {
-            throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
-        }
+    async autoConfirmInstallation(requestId: string, systemActorId: string): Promise<HardwareRequest> {
+        return this.dataSource.transaction(async (mgr) => {
+            const requestRepo = mgr.getRepository(HardwareRequest);
+            const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
-        const sched = await this.scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
-        if (!sched) {
-            throw new BadRequestException('Cannot complete installation: schedule not done');
-        }
+            const req = await requestRepo.findOne({ where: { id: requestId } });
+            if (!req) throw new HardwareRequestNotFoundError(requestId);
 
-        req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
-        req.installMarkedDoneAt = new Date();
-        const saved = await this.requestRepo.save(req);
+            if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
+                throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
+            }
 
-        await this.activityRepo.save(this.activityRepo.create({
-            requestId: req.id, actorId: actor.id, action: ActivityAction.INSTALL_COMPLETED,
-            metadata: { scheduleId: sched?.id ?? null },
-            fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
-        }));
-        
-        this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
-            requestId,
-            actorId: actor.id,
-            occurredAt: new Date(),
-            requesterId: req.requesterId,
+            const fromStatus = req.status;
+            req.status = RequestStatus.COMPLETED;
+            req.userConfirmedAt = new Date();
+            req.userConfirmationKind = 'ACCEPT_AS_IS';
+            req.completedAt = new Date();
+            const saved = await requestRepo.save(req);
+
+            await activityRepo.save(activityRepo.create({
+                requestId: req.id,
+                actorId: systemActorId,
+                action: ActivityAction.USER_CONFIRMED,
+                metadata: { kind: 'AUTO', reason: 'TTL_EXCEEDED_24H' },
+                fromStatus,
+                toStatus: RequestStatus.COMPLETED,
+            }));
+
+            this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+                requestId: req.id,
+                actorId: systemActorId,
+                occurredAt: new Date(),
+                requesterId: req.requesterId,
+                auto: true,
+            });
+
+            return saved;
         });
-
-        return saved;
     }
 
     async confirmInstallation(requestId: string, userId: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }): Promise<HardwareRequest> {

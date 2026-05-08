@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HR_EVT } from '../domain/events/hardware-request.events';
 import { InstallationSchedule } from '../domain/entities/installation-schedule.entity';
@@ -21,6 +21,7 @@ export class InstallationScheduleService {
         @InjectRepository(HardwareRequest) private readonly reqRepo: Repository<HardwareRequest>,
         private readonly activity: HardwareActivityService,
         private readonly emitter: EventEmitter2,
+        private readonly dataSource: DataSource,
     ) {}
 
     async propose(requestId: string, dto: ScheduleInstallDto, actor: ActingUser): Promise<InstallationSchedule> {
@@ -96,7 +97,6 @@ export class InstallationScheduleService {
         const end = new Date(dto.scheduledEnd);
         if (end <= start) throw new BadRequestException('end must be after start');
 
-        const old = await this.repo.findOne({ where: { requestId, status: InstallStatus.PROPOSED } }); // Or confirmed, wait, finding by ID logic is better.
         const scheds = await this.repo.createQueryBuilder('s')
             .where('s.requestId = :requestId', { requestId })
             .orderBy('s.createdAt', 'DESC')
@@ -156,34 +156,37 @@ export class InstallationScheduleService {
     }
 
     async completeInstallation(requestId: string, actor: ActingUser): Promise<InstallationSchedule> {
-        let sched = await this.repo.findOne({ 
-            where: { requestId },
-            order: { createdAt: 'DESC' }
-        });
+        return this.dataSource.transaction(async (mgr) => {
+            const repo = mgr.getRepository(InstallationSchedule);
 
-        if (!sched || INSTALL_TERMINAL.has(sched.status)) {
-            sched = this.repo.create({
-                requestId, technicianId: actor.id,
-                scheduledStart: new Date(), scheduledEnd: new Date(),
-                status: InstallStatus.IN_PROGRESS,
-                proposedBy: actor.id, confirmedBy: actor.id,
-                startedAt: new Date(),
+            let sched = await repo.findOne({
+                where: { requestId },
+                order: { createdAt: 'DESC' },
             });
-            sched = await this.repo.save(sched);
-        } else if (sched.status !== InstallStatus.IN_PROGRESS) {
-            sched.status = InstallStatus.IN_PROGRESS;
-            sched.startedAt = new Date();
-            sched = await this.repo.save(sched);
-        }
 
-        // actor role is verified by the controller guard
-        sched.status = InstallStatus.DONE;
-        sched.completedAt = new Date();
-        sched.technicianId = actor.id;
-        const saved = await this.repo.save(sched);
-        await this.activity.log(requestId, actor.id, 'INSTALL_SCHEDULE_DONE', { scheduleId: saved.id });
+            if (!sched || INSTALL_TERMINAL.has(sched.status)) {
+                sched = repo.create({
+                    requestId, technicianId: actor.id,
+                    scheduledStart: new Date(), scheduledEnd: new Date(),
+                    status: InstallStatus.IN_PROGRESS,
+                    proposedBy: actor.id, confirmedBy: actor.id,
+                    startedAt: new Date(),
+                });
+                sched = await repo.save(sched);
+            } else if (sched.status !== InstallStatus.IN_PROGRESS) {
+                sched.status = InstallStatus.IN_PROGRESS;
+                sched.startedAt = new Date();
+                sched = await repo.save(sched);
+            }
 
-        return saved;
+            sched.status = InstallStatus.DONE;
+            sched.completedAt = new Date();
+            sched.technicianId = actor.id;
+            const saved = await repo.save(sched);
+            await this.activity.log(requestId, actor.id, 'INSTALL_SCHEDULE_DONE', { scheduleId: saved.id });
+
+            return saved;
+        });
     }
 
     async calendar(q: CalendarQueryDto): Promise<any[]> {
@@ -207,6 +210,7 @@ export class InstallationScheduleService {
             recipientName: s.request?.recipientName,
             division: s.request?.division,
             status: s.status,
+            requestStatus: s.request?.status,
             scheduledAt: s.scheduledStart?.toISOString(),
             endsAt: s.scheduledEnd?.toISOString(),
         }));
@@ -216,8 +220,8 @@ export class InstallationScheduleService {
         const qb = this.reqRepo.createQueryBuilder('hr')
             .leftJoin('hr.site', 'site')
             .leftJoin(InstallationSchedule, 'sch',
-                "sch.\"requestId\" = hr.id AND sch.status IN ('PROPOSED','CONFIRMED','IN_PROGRESS')")
-            .where('hr.status = :st', { st: 'INSTALLATION' })
+                `sch."requestId" = hr.id AND sch.status IN ('${InstallStatus.PROPOSED}','${InstallStatus.CONFIRMED}','${InstallStatus.IN_PROGRESS}')`)
+            .where('hr.status = :st', { st: RequestStatus.INSTALLATION })
             .andWhere('sch.id IS NULL')
             .select(['hr.id AS id', 'hr.\"requestNumber\" AS "requestNumber"', 'site.name AS "siteName"']);
         return qb.getRawMany();
@@ -233,7 +237,7 @@ export class InstallationScheduleService {
             .leftJoin('hr.site', 'site')
             .where('sch.\"technicianId\" = :uid', { uid: userId })
             .andWhere('sch.\"scheduledStart\" BETWEEN :s AND :e', { s: start, e: end })
-            .andWhere("sch.status IN ('PROPOSED','CONFIRMED','IN_PROGRESS')")
+            .andWhere(`sch.status IN ('${InstallStatus.PROPOSED}','${InstallStatus.CONFIRMED}','${InstallStatus.IN_PROGRESS}')`)
             .select([
                 'sch.id AS id',
                 'hr.id AS "requestId"',

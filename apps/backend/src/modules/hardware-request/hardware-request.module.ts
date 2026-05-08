@@ -35,6 +35,7 @@ import { IctBudgetRedirectController } from './presentation/ict-budget-redirect.
 import { InAppNotifierListener } from './listeners/in-app-notifier.listener';
 import { EmailNotifierListener } from './listeners/email-notifier.listener';
 import { AgingReminderCron } from './listeners/aging-reminder.cron';
+import { InstallAutoConfirmCron } from './listeners/install-auto-confirm.cron';
 import { HardwareRequestGateway } from './realtime/hardware-request.gateway';
 import { WsAuthGuard } from './realtime/ws-auth.guard';
 
@@ -80,6 +81,7 @@ import { WsAuthGuard } from './realtime/ws-auth.guard';
         InAppNotifierListener,
         EmailNotifierListener,
         AgingReminderCron,
+        InstallAutoConfirmCron,
         HardwareRequestGateway,
         WsAuthGuard,
         HardwareDashboardService,
