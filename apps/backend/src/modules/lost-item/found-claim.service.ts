@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { FoundItemClaim, FoundClaimStatus } from './entities/found-item-claim.entity';
 import { LostItemReport, LostItemStatus } from './entities/lost-item-report.entity';
 import { LostItemStatusLog } from './entities/lost-item-status-log.entity';
@@ -17,6 +17,7 @@ export class FoundClaimService {
         @InjectRepository(LostItemStatusLog)
         private readonly statusLogRepo: Repository<LostItemStatusLog>,
         private readonly eventEmitter: EventEmitter2,
+        private readonly dataSource: DataSource,
     ) {}
 
     private async logReportStatus(reportId: string, from: string, to: string, managerId: string, notes?: string): Promise<void> {
@@ -27,26 +28,34 @@ export class FoundClaimService {
     async create(finderId: string, dto: CreateFoundClaimDto): Promise<FoundItemClaim> {
         const lostItemReportId = dto.lostItemReportId ?? null;
 
-        const claim = this.claimRepo.create({
-            finderId,
-            lostItemReportId,
-            locationFound: dto.locationFound,
-            foundAt: new Date(dto.foundAt),
-            description: dto.description,
-            photoUrls: dto.photoUrls || [],
-            status: FoundClaimStatus.PENDING,
-        } as Partial<FoundItemClaim>);
-        const saved = await this.claimRepo.save(claim);
+        const saved = await this.dataSource.transaction(async (mgr) => {
+            const claimRepo = mgr.getRepository(FoundItemClaim);
+            const reportRepo = mgr.getRepository(LostItemReport);
+            const logRepo = mgr.getRepository(LostItemStatusLog);
 
-        if (lostItemReportId) {
-            const report = await this.reportRepo.findOne({ where: { id: lostItemReportId } });
-            if (report && (report.status === LostItemStatus.REPORTED || report.status === LostItemStatus.SEARCHING)) {
-                const prevStatus = report.status;
-                report.status = LostItemStatus.CLAIMED;
-                await this.reportRepo.save(report);
-                await this.logReportStatus(lostItemReportId, prevStatus, LostItemStatus.CLAIMED, finderId, 'Found claim submitted');
+            const claim = claimRepo.create({
+                finderId,
+                lostItemReportId,
+                locationFound: dto.locationFound,
+                foundAt: new Date(dto.foundAt),
+                description: dto.description,
+                photoUrls: dto.photoUrls || [],
+                status: FoundClaimStatus.PENDING,
+            } as Partial<FoundItemClaim>);
+            const result = await claimRepo.save(claim);
+
+            if (lostItemReportId) {
+                const report = await reportRepo.findOne({ where: { id: lostItemReportId } });
+                if (report && (report.status === LostItemStatus.REPORTED || report.status === LostItemStatus.SEARCHING)) {
+                    const prevStatus = report.status;
+                    report.status = LostItemStatus.CLAIMED;
+                    await reportRepo.save(report);
+                    await logRepo.save(logRepo.create({ lostItemReportId, fromStatus: prevStatus, toStatus: LostItemStatus.CLAIMED, changedById: finderId, notes: 'Found claim submitted' }));
+                }
             }
-        }
+
+            return result;
+        });
 
         this.eventEmitter.emit('found-claim.created', { claim: saved });
         return saved;
@@ -125,18 +134,26 @@ export class FoundClaimService {
             throw new BadRequestException('Claim must be MATCHED or PENDING before confirming return');
         }
 
-        claim.status = FoundClaimStatus.RETURNED;
-        const saved = await this.claimRepo.save(claim);
+        const saved = await this.dataSource.transaction(async (mgr) => {
+            const claimRepo = mgr.getRepository(FoundItemClaim);
+            const reportRepo = mgr.getRepository(LostItemReport);
+            const logRepo = mgr.getRepository(LostItemStatusLog);
 
-        if (claim.lostItemReportId) {
-            const report = await this.reportRepo.findOne({ where: { id: claim.lostItemReportId } });
-            if (report) {
-                const prevStatus = report.status;
-                report.status = LostItemStatus.RETURNED;
-                await this.reportRepo.save(report);
-                await this.logReportStatus(claim.lostItemReportId, prevStatus, LostItemStatus.RETURNED, managerId, 'Item physically returned');
+            claim.status = FoundClaimStatus.RETURNED;
+            const result = await claimRepo.save(claim);
+
+            if (claim.lostItemReportId) {
+                const report = await reportRepo.findOne({ where: { id: claim.lostItemReportId } });
+                if (report) {
+                    const prevStatus = report.status;
+                    report.status = LostItemStatus.RETURNED;
+                    await reportRepo.save(report);
+                    await logRepo.save(logRepo.create({ lostItemReportId: claim.lostItemReportId, fromStatus: prevStatus, toStatus: LostItemStatus.RETURNED, changedById: managerId, notes: 'Item physically returned' }));
+                }
             }
-        }
+
+            return result;
+        });
 
         this.eventEmitter.emit('found-claim.returned', { claim: saved });
         return saved;

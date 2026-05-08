@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { LostItemReport, LostItemStatus } from './entities/lost-item-report.entity';
 import { LostItemStatusLog } from './entities/lost-item-status-log.entity';
@@ -26,6 +26,7 @@ export class LostItemService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly eventEmitter: EventEmitter2,
+        private readonly dataSource: DataSource,
     ) {}
 
     private generateQrToken(): string {
@@ -58,43 +59,57 @@ export class LostItemService {
         const user = await this.userRepo.findOne({ where: { id: userId } });
         if (!user) throw new NotFoundException('User not found');
 
-        const ticket = this.ticketRepo.create({
-            title: dto.title || `Lost Item Report: ${dto.itemName}`,
-            description: dto.description || `${dto.itemType} hilang di ${dto.lastSeenLocation}`,
-            ticketType: TicketType.LOST_ITEM,
-            status: TicketStatus.TODO,
-            priority: 'HIGH',
-            category: 'LOST_ITEM',
-            userId,
-            siteId: user.siteId,
-        } as Partial<Ticket>);
-        const savedTicket = await this.ticketRepo.save(ticket);
-
         const qrCodeToken = this.generateQrToken();
         const qrCodeUrl = this.buildQrUrl(qrCodeToken);
 
-        const lostItem = this.lostItemRepo.create({
-            ticketId: savedTicket.id,
-            itemType: dto.itemType,
-            itemName: dto.itemName,
-            serialNumber: dto.serialNumber,
-            assetTag: dto.assetTag,
-            lastSeenLocation: dto.lastSeenLocation,
-            lastSeenDatetime: new Date(dto.lastSeenDatetime),
-            circumstances: dto.circumstances,
-            witnessContact: dto.witnessContact,
-            hasPoliceReport: dto.hasPoliceReport || false,
-            policeReportNumber: dto.policeReportNumber,
-            estimatedValue: dto.estimatedValue,
-            finderRewardOffered: dto.finderRewardOffered || false,
-            photoUrls: dto.photoUrls || [],
-            qrCodeToken,
-            qrCodeUrl,
-            status: LostItemStatus.REPORTED,
-        } as Partial<LostItemReport>);
-        const saved = await this.lostItemRepo.save(lostItem);
+        const { saved, savedTicket } = await this.dataSource.transaction(async (mgr) => {
+            const ticketRepo = mgr.getRepository(Ticket);
+            const lostItemRepo = mgr.getRepository(LostItemReport);
+            const statusLogRepo = mgr.getRepository(LostItemStatusLog);
 
-        await this.logStatusChange(saved.id, null, LostItemStatus.REPORTED, userId, 'Report created');
+            const ticket = ticketRepo.create({
+                title: dto.title || `Lost Item Report: ${dto.itemName}`,
+                description: dto.description || `${dto.itemType} hilang di ${dto.lastSeenLocation}`,
+                ticketType: TicketType.LOST_ITEM,
+                status: TicketStatus.TODO,
+                priority: 'HIGH',
+                category: 'LOST_ITEM',
+                userId,
+                siteId: user.siteId,
+            } as Partial<Ticket>);
+            const savedTicket = await ticketRepo.save(ticket);
+
+            const lostItem = lostItemRepo.create({
+                ticketId: savedTicket.id,
+                itemType: dto.itemType,
+                itemName: dto.itemName,
+                serialNumber: dto.serialNumber,
+                assetTag: dto.assetTag,
+                lastSeenLocation: dto.lastSeenLocation,
+                lastSeenDatetime: new Date(dto.lastSeenDatetime),
+                circumstances: dto.circumstances,
+                witnessContact: dto.witnessContact,
+                hasPoliceReport: dto.hasPoliceReport || false,
+                policeReportNumber: dto.policeReportNumber,
+                estimatedValue: dto.estimatedValue,
+                finderRewardOffered: dto.finderRewardOffered || false,
+                photoUrls: dto.photoUrls || [],
+                qrCodeToken,
+                qrCodeUrl,
+                status: LostItemStatus.REPORTED,
+            } as Partial<LostItemReport>);
+            const saved = await lostItemRepo.save(lostItem);
+
+            await statusLogRepo.save(statusLogRepo.create({
+                lostItemReportId: saved.id,
+                fromStatus: null,
+                toStatus: LostItemStatus.REPORTED,
+                changedById: userId,
+                notes: 'Report created',
+            }));
+
+            return { saved, savedTicket };
+        });
 
         this.eventEmitter.emit('lost-item.created', { lostItem: saved, ticket: savedTicket, user });
         this.auditService.logAsync({
@@ -183,24 +198,35 @@ export class LostItemService {
         if (!lostItem) throw new NotFoundException('Lost Item report not found');
 
         const prevStatus = lostItem.status;
-        lostItem.status = dto.status as LostItemStatus;
 
-        if (dto.status === LostItemStatus.RETURNED) {
-            lostItem.foundAt = new Date();
-            lostItem.foundLocation = dto.foundLocation || null;
-            lostItem.foundBy = dto.foundBy || null;
+        const saved = await this.dataSource.transaction(async (mgr) => {
+            const lostItemRepo = mgr.getRepository(LostItemReport);
+            const ticketRepo = mgr.getRepository(Ticket);
+            const statusLogRepo = mgr.getRepository(LostItemStatusLog);
 
-            await this.ticketRepo.update(lostItem.ticketId, {
-                status: TicketStatus.RESOLVED,
-                resolvedAt: new Date(),
-            });
-        }
-        if (dto.status === LostItemStatus.CLOSED_LOST) {
-            await this.ticketRepo.update(lostItem.ticketId, { status: TicketStatus.CANCELLED });
-        }
+            lostItem.status = dto.status as LostItemStatus;
 
-        const saved = await this.lostItemRepo.save(lostItem);
-        await this.logStatusChange(id, prevStatus, dto.status, userId, dto.notes);
+            if (dto.status === LostItemStatus.RETURNED) {
+                lostItem.foundAt = new Date();
+                lostItem.foundLocation = dto.foundLocation || null;
+                lostItem.foundBy = dto.foundBy || null;
+                await ticketRepo.update(lostItem.ticketId, { status: TicketStatus.RESOLVED, resolvedAt: new Date() });
+            }
+            if (dto.status === LostItemStatus.CLOSED_LOST) {
+                await ticketRepo.update(lostItem.ticketId, { status: TicketStatus.CANCELLED });
+            }
+
+            const result = await lostItemRepo.save(lostItem);
+            await statusLogRepo.save(statusLogRepo.create({
+                lostItemReportId: id,
+                fromStatus: prevStatus,
+                toStatus: dto.status,
+                changedById: userId ?? null,
+                notes: dto.notes ?? null,
+            }));
+            return result;
+        });
+
         this.eventEmitter.emit('lost-item.status-updated', { lostItem: saved, newStatus: dto.status });
         return saved;
     }
