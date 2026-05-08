@@ -18,7 +18,7 @@ const STATUS_CONFIG: Record<string, { label: string }> = {
 
 const SkeletonRow = () => (
     <tr className="border-b border-slate-100 dark:border-slate-700/50">
-        {[1, 2, 3, 4, 5].map(i => (
+        {[1, 2, 3, 4, 5, 6].map(i => (
             <td key={i} className="px-6 py-4">
                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" style={{ width: `${50 + (i * 11) % 40}%` }} />
             </td>

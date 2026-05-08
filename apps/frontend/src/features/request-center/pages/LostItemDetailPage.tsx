@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Calendar, Info, Clock, Download, Share2, FileText, Upload, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
 import { useLostItemReport, useUpdateLostItemStatus, useUploadPoliceReport, LostItemStatus } from '../api/lost-item.api';
-import { useFoundClaimsForReport, useUpdateFoundClaimStatus, FoundClaimStatus } from '../api/found-claim.api';
+import { useFoundClaimsForReport, useMatchFoundClaim, useRejectFoundClaim, FoundClaimStatus } from '../api/found-claim.api';
 import { StatusBadge } from '../components/StatusBadge';
 import { StatusTimeline } from '../components/StatusTimeline';
 import { PhotoGrid } from '../components/PhotoGrid';
@@ -295,10 +295,6 @@ export const LostItemDetailPage = () => {
                     </div>
                 </div>
             )}
-        </div>
-    );
-};
-           )}
         </div>
     );
 };

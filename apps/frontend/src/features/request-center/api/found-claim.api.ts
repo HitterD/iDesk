@@ -13,7 +13,7 @@ export interface FoundItemClaim {
     finderId: string;
     finder?: { fullName: string; email: string };
     lostItemReportId?: string;
-    lostItemReport?: { id: string; itemName: string; itemType: string; photoUrls: string[] };
+    lostItemReport?: { id: string; itemName: string; itemType: string; photoUrls: string[]; serialNumber?: string; lastSeenLocation?: string; reporter?: { fullName: string } };
     locationFound: string;
     foundAt: string;
     description: string;

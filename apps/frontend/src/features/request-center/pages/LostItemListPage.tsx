@@ -20,14 +20,14 @@ const STATUS_PILLS: { label: string; value: string }[] = [
 ];
 
 const SkeletonCard = () => (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 h-48 flex flex-col">
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 h-48 flex flex-col">
         <div className="flex justify-between mb-4">
-            <div className="w-10 h-10 bg-slate-100 rounded-lg animate-pulse" />
-            <div className="w-20 h-6 bg-slate-100 rounded-full animate-pulse" />
+            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg animate-pulse" />
+            <div className="w-20 h-6 bg-slate-100 dark:bg-slate-700 rounded-full animate-pulse" />
         </div>
-        <div className="w-3/4 h-5 bg-slate-100 rounded animate-pulse mb-2" />
-        <div className="w-1/2 h-4 bg-slate-100 rounded animate-pulse mb-auto" />
-        <div className="w-1/3 h-3 bg-slate-100 rounded animate-pulse" />
+        <div className="w-3/4 h-5 bg-slate-100 dark:bg-slate-700 rounded animate-pulse mb-2" />
+        <div className="w-1/2 h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse mb-auto" />
+        <div className="w-1/3 h-3 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
     </div>
 );
 
