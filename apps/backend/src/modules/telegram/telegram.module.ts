@@ -56,9 +56,12 @@ import { AppCacheModule } from '../../shared/core/cache';
                 const webhookPath = configService.get<string>('TELEGRAM_WEBHOOK_PATH', '/telegram/webhook');
                 const logger = new Logger('TelegramModule');
 
-                if (!token) {
-                    logger.warn('TELEGRAM_BOT_TOKEN not set. Bot will not start.');
-                    return { token: 'dummy-token-bot-disabled' };
+                if (!token || token === 'your-telegram-bot-token-from-botfather') {
+                    logger.warn('TELEGRAM_BOT_TOKEN not set or is placeholder. Bot will not start.');
+                    return { 
+                        token: 'dummy-token-bot-disabled',
+                        launchOptions: false 
+                    };
                 }
 
                 logger.log(`Telegram Bot Token: ${token.substring(0, 10)}...`);
@@ -146,6 +149,10 @@ export class TelegramModule implements OnModuleInit {
 
     async onModuleInit() {
         try {
+            if (this.bot.telegram.token === 'dummy-token-bot-disabled') {
+                this.logger.warn('Telegram Bot is disabled (no token provided). Skipping initialization.');
+                return;
+            }
             const me = await this.bot.telegram.getMe();
             const useWebhook = this.configService.get<string>('TELEGRAM_USE_WEBHOOK') === 'true';
             this.logger.log(`✅ Bot ready: @${me.username} (${useWebhook ? 'Webhook' : 'Polling'} mode)`);

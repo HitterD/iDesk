@@ -133,7 +133,7 @@ export async function runSeed(dataSource: DataSource): Promise<void> {
     // 6. DEFAULT USERS
     // ============================================
     const userRepo = dataSource.getRepository(User);
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcrypt.hash('Admin123', 10);
 
     const users = [
         {
@@ -186,6 +186,10 @@ export async function runSeed(dataSource: DataSource): Promise<void> {
             user = userRepo.create(userData);
             await userRepo.save(user);
             console.log(`✅ Created user: ${user.email} (${user.role})`);
+        } else {
+            user.password = userData.password;
+            await userRepo.save(user);
+            console.log(`✅ Updated password for user: ${user.email}`);
         }
     }
 
