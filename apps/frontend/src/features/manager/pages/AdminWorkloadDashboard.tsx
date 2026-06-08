@@ -11,7 +11,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { HardDrive, RefreshCw, Users, Activity, Star, AlertCircle, RefreshCcw } from 'lucide-react';
-import { SiteSelector } from '@/components/site/SiteSelector';
+import { SiteTabs } from '@/components/site/SiteTabs';
 import { workloadApi, AgentWorkloadDto } from '@/lib/api/workload.api';
 import { toast } from 'sonner';
 import { PriorityWeightsDialog } from '../components/PriorityWeightsDialog';
@@ -21,16 +21,11 @@ export const AdminWorkloadDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [recalculating, setRecalculating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [selectedSites, setSelectedSites] = useState<string[]>([]);
-    // Default to a specific site for testing if multiple select isn't available
-    const activeSiteId = selectedSites.length > 0 ? selectedSites[0] : '';
+    const [activeSiteId, setActiveSiteId] = useState<string>('');
 
     useEffect(() => {
         if (activeSiteId) {
             fetchWorkloads();
-        } else {
-            setAgents([]);
-            setLoading(false);
         }
     }, [activeSiteId]);
 
@@ -95,7 +90,7 @@ export const AdminWorkloadDashboard = () => {
     return (
         <div className="space-y-6 animate-fade-in-up">
             {/* Header Area */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
                         Pusat Komando Beban Kerja
@@ -105,13 +100,10 @@ export const AdminWorkloadDashboard = () => {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                    <div className="w-[280px]">
-                        <SiteSelector
-                            selectedSiteIds={selectedSites}
-                            onSelectionChange={setSelectedSites}
-                            mode="single"
-                        />
-                    </div>
+                    <SiteTabs
+                        selectedSiteId={activeSiteId}
+                        onSelectionChange={setActiveSiteId}
+                    />
                     <PriorityWeightsDialog />
                     <Button
                         variant="outline"
@@ -125,18 +117,7 @@ export const AdminWorkloadDashboard = () => {
                 </div>
             </div>
 
-            {!activeSiteId ? (
-                <div className="bg-[hsl(var(--card))] border border-dashed border-[hsl(var(--border))] p-16 rounded-xl text-center flex flex-col items-center justify-center">
-                    <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900/50 rounded-lg flex items-center justify-center mb-4 border border-[hsl(var(--border))]">
-                        <HardDrive className="w-6 h-6 text-slate-400" />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Belum Ada Site Terpilih</h3>
-                    <p className="text-sm text-slate-500 max-w-md">
-                        Pilih satu lokasi operasional (Site) di sudut kanan atas untuk mulai menganalisis metrik beban kerja agen secara mendalam.
-                    </p>
-                </div>
-            ) : (
-                <div className="space-y-6">
+            <div className="space-y-6">
                     {/* Executive Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-5 flex flex-col justify-between">
@@ -317,7 +298,7 @@ export const AdminWorkloadDashboard = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 };
