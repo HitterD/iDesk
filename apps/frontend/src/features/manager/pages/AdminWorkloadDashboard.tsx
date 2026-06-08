@@ -298,7 +298,6 @@ export const AdminWorkloadDashboard = () => {
                         </div>
                     </div>
                 </div>
-            </div>
         </div>
     );
 };
