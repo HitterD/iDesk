@@ -6,4 +6,5 @@ export { AgentPaginationBar } from './AgentPaginationBar';
 export { KeyboardShortcutsHelpDialog } from './KeyboardShortcutsHelpDialog';
 export { AgentStatsDashboard } from './AgentStatsDashboard';
 export { AgentManagementHeader } from './AgentManagementHeader';
+export { AgentFiltersToolbar } from './AgentFiltersToolbar';
 export * from './agent-types';
