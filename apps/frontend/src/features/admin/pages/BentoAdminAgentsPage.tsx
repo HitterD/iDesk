@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useDeferredValue, useEffect, useRef } from 'react';
-import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, CheckCircle, BarChart3, Ticket as TicketIcon, Eye, Search, Download, Edit2, CheckSquare, Square, ChevronDown, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, LayoutGrid, List, Settings, FileText, HelpCircle, X, Sparkles } from 'lucide-react';
+import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, BarChart3, Ticket as TicketIcon, Eye, Search, Download, Edit2, CheckSquare, Square, ChevronDown, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, LayoutGrid, List, Settings, FileText, HelpCircle, X, Sparkles } from 'lucide-react';
 import { ImportUsersDialog } from '../components/ImportUsersDialog';
 import { AddUserDialog } from '../components/AddUserDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
@@ -24,6 +24,7 @@ import {
     StatCard,
     AgentPaginationBar,
     KeyboardShortcutsHelpDialog,
+    AgentStatsDashboard,
     SITE_COLORS as AGENT_SITE_COLORS,
     ROLE_CONFIG as AGENT_ROLE_CONFIG,
     getAvatarColor as agentGetAvatarColor,
@@ -44,7 +45,6 @@ import { useAuth } from '@/stores/useAuth';
 
 import { TicketWithSite, SITE_COLORS, ROLE_CONFIG, getAvatarColor, highlightText, formatLastActive } from '../components/agent-management/agent-utils';
 import { AgentGridSkeleton, AgentTableSkeleton, ErrorState } from '../components/agent-management/AgentTableSkeletons';
-import { TopPerformerCard } from '../components/agent-management/AgentTopPerformerCard';
 import { PresetDropdown } from '../components/agent-management/PresetDropdown';
 import { RoleSection } from '../components/agent-management/RoleSection';
 import { UnifiedUserTable } from '../components/agent-management/UnifiedUserTable';
@@ -807,59 +807,12 @@ export const BentoAdminAgentsPage: React.FC = () => {
             </div>
 
             {/* Stats Dashboard */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard
-                    title="Total Users"
-                    value={paginationMeta?.total ?? dashboardStats.totalAgents}
-                    icon={Users}
-                    variant="blue"
-                    onClick={() => setStatsFilter('all')}
-                    isActive={statsFilter === 'all'}
-                />
-                <StatCard
-                    title="Active (In Progress)"
-                    value={dashboardStats.totalActive}
-                    subtitle="Click to filter"
-                    icon={BarChart3}
-                    variant="purple"
-                    onClick={() => setStatsFilter(statsFilter === 'active' ? 'all' : 'active')}
-                    isActive={statsFilter === 'active'}
-                />
-                <StatCard
-                    title="Resolved (Month)"
-                    value={dashboardStats.totalResolved}
-                    subtitle="Click to filter"
-                    icon={CheckCircle}
-                    variant="green"
-                    onClick={() => setStatsFilter(statsFilter === 'resolved' ? 'all' : 'resolved')}
-                    isActive={statsFilter === 'resolved'}
-                />
-                <div
-                    onClick={() => setStatsFilter(statsFilter === 'top' ? 'all' : 'top')}
-                    className={cn("cursor-pointer transition-[opacity,transform,colors] duration-200 ease-out", statsFilter === 'top' && "ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900 rounded-2xl")}
-                >
-                    <TopPerformerCard
-                        name={dashboardStats.topPerformer}
-                        tickets={dashboardStats.topPerformerTickets}
-                    />
-                </div>
-            </div>
-
-            {/* P2-3: Active filter indicator */}
-            {statsFilter !== 'all' && (
-                <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-500 dark:text-slate-400">Filtering by:</span>
-                    <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium capitalize">
-                        {statsFilter === 'top' ? 'Top Performer' : statsFilter}
-                    </span>
-                    <button
-                        onClick={() => setStatsFilter('all')}
-                        className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline"
-                    >
-                        Clear filter
-                    </button>
-                </div>
-            )}
+            <AgentStatsDashboard
+                total={paginationMeta?.total}
+                dashboardStats={dashboardStats}
+                statsFilter={statsFilter}
+                onStatsFilterChange={setStatsFilter}
+            />
 
             {/* P1-1 + P3-1: Agent Performance - Conditional Grid/Table View */}
             {displayedAgentStats.length > 0 && (
