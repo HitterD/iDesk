@@ -8,4 +8,5 @@ export { AgentStatsDashboard } from './AgentStatsDashboard';
 export { AgentManagementHeader } from './AgentManagementHeader';
 export { AgentFiltersToolbar } from './AgentFiltersToolbar';
 export { UsersByRoleSection } from './UsersByRoleSection';
+export { AgentPerformancePanel } from './AgentPerformancePanel';
 export * from './agent-types';

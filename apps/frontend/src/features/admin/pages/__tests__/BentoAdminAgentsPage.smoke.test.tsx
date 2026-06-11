@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
+import api from '@/lib/api';
 import { BentoAdminAgentsPage } from '../BentoAdminAgentsPage';
 
 vi.mock('@/lib/api', () => ({
@@ -54,5 +55,18 @@ describe('BentoAdminAgentsPage (characterization)', () => {
     it('renders empty state when no users', async () => {
         renderPage();
         expect(await screen.findByText('No Users Found')).toBeInTheDocument();
+    });
+
+    it('renders performance panel when agents exist', async () => {
+        (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+            if (url.startsWith('/users/agents/stats')) return Promise.resolve({ data: { summary: {}, agents: [{ id: 'a1', fullName: 'Budi', email: 'b@x.com', role: 'AGENT', site: { code: 'JKT', name: 'Jakarta', id: 's1' }, openTickets: 1, inProgressTickets: 0, resolvedThisWeek: 0, resolvedThisMonth: 2, slaCompliance: 95, appraisalPoints: 0, activeWorkloadPoints: 0 }] } });
+            if (url.startsWith('/sites/active')) return Promise.resolve({ data: [{ code: 'JKT', name: 'Jakarta', id: 's1' }] });
+            if (url.startsWith('/departments')) return Promise.resolve({ data: [] });
+            if (url.startsWith('/permissions')) return Promise.resolve({ data: [] });
+            if (url.startsWith('/users')) return Promise.resolve({ data: { data: [], meta: { total: 0, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPrevPage: false } } });
+            return Promise.resolve({ data: {} });
+        });
+        renderPage();
+        expect(await screen.findByText('Agent Cards')).toBeInTheDocument();
     });
 });
