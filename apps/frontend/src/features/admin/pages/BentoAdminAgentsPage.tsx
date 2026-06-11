@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useDeferredValue, useEffect, useRef } from 'react';
-import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, BarChart3, Ticket as TicketIcon, Eye, Search, Download, Edit2, CheckSquare, Square, ChevronDown, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, LayoutGrid, List, Settings, FileText, HelpCircle, X, Sparkles } from 'lucide-react';
+import { Users, Plus, Mail, Shield, Building, Key, Trash2, Award, BarChart3, Ticket as TicketIcon, Eye, Search, Edit2, Square, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, List, FileText, HelpCircle, X, Sparkles } from 'lucide-react';
 import { ImportUsersDialog } from '../components/ImportUsersDialog';
 import { AddUserDialog } from '../components/AddUserDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
@@ -25,6 +25,7 @@ import {
     AgentPaginationBar,
     KeyboardShortcutsHelpDialog,
     AgentStatsDashboard,
+    AgentManagementHeader,
     SITE_COLORS as AGENT_SITE_COLORS,
     ROLE_CONFIG as AGENT_ROLE_CONFIG,
     getAvatarColor as agentGetAvatarColor,
@@ -36,7 +37,6 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Collapsible from '@radix-ui/react-collapsible';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Ticket } from '@/types/ticket.types';
 import { Site, User, AgentStats, PaginatedResponse } from '@/types/admin.types';
 import * as Tooltip from '@radix-ui/react-tooltip';
@@ -562,119 +562,19 @@ export const BentoAdminAgentsPage: React.FC = () => {
     return (
         <div className="space-y-6 animate-fade-in-up overflow-x-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Agent Management</h1>
-                    <p className="text-slate-500 dark:text-slate-400">Manage your support team by site and role</p>
-                </div>
-                <div className="flex gap-3">
-                    {/* Bulk Actions - show when users selected */}
-                    {selectedUserIds.size > 0 && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors duration-150"
-                                >
-                                    <CheckSquare className="w-4 h-4" />
-                                    {selectedUserIds.size} Selected
-                                    <ChevronDown className="w-4 h-4" />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setIsBulkRoleChangeOpen(true)}>
-                                    <Shield className="w-4 h-4" />
-                                    Change Role
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setIsBulkSiteChangeOpen(true)}>
-                                    <MapPin className="w-4 h-4" />
-                                    Change Site
-                                </DropdownMenuItem>
-                                {selectedUserIds.size === 2 && (
-                                    <DropdownMenuItem onClick={() => setIsComparisonOpen(true)}>
-                                        <BarChart3 className="w-4 h-4" />
-                                        Compare Agents
-                                    </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                    onClick={() => setIsBulkDeleteOpen(true)}
-                                    className="text-red-600 focus:text-red-600"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete Selected
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-
-                    {/* P1-4: View Mode Toggle */}
-                    <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                        <button
-                            onClick={() => setViewMode('grid')}
-                            className={cn(
-                                "p-2 rounded-lg transition-[opacity,transform,colors] duration-200 ease-out",
-                                viewMode === 'grid'
-                                    ? "bg-white dark:bg-slate-700 shadow-sm text-primary"
-                                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                            )}
-                            title="Grid View"
-                            aria-label="Grid View"
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('table')}
-                            className={cn(
-                                "p-2 rounded-lg transition-[opacity,transform,colors] duration-200 ease-out",
-                                viewMode === 'table'
-                                    ? "bg-white dark:bg-slate-700 shadow-sm text-primary"
-                                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                            )}
-                            title="Table View"
-                            aria-label="Table View"
-                        >
-                            <List className="w-4 h-4" />
-                        </button>
-                    </div>
-
-                    {/* P3-3: Secondary Actions Group */}
-                    <div className="flex items-center gap-2 pr-3 border-r border-slate-200 dark:border-slate-700">
-                        <button
-                            onClick={() => setIsExportPreviewOpen(true)}
-                            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors duration-150 text-sm"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span className="hidden sm:inline">Export</span>
-                        </button>
-                        <button
-                            onClick={() => setIsImportModalOpen(true)}
-                            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors duration-150 text-sm"
-                        >
-                            <Upload className="w-4 h-4" />
-                            <span className="hidden sm:inline">Import</span>
-                        </button>
-                    </div>
-
-                    {/* Manage Presets Button — opens PresetDrawer */}
-                    <button
-                        onClick={() => setIsPresetManageOpen(true)}
-                        className="flex items-center gap-2 px-3 py-2 bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-slate-700 dark:text-slate-200 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-sm"
-                        title="Manage Permission Presets"
-                        aria-label="Manage Permission Presets"
-                    >
-                        <Settings className="w-4 h-4" />
-                        <span className="hidden sm:inline">Manage Presets</span>
-                    </button>
-
-                    {/* P3-3: Primary Action */}
-                    <button
-                        onClick={() => setIsAddUserModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Add User
-                    </button>
-                </div>
-            </div>
+            <AgentManagementHeader
+                selectedCount={selectedUserIds.size}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                onBulkRoleChange={() => setIsBulkRoleChangeOpen(true)}
+                onBulkSiteChange={() => setIsBulkSiteChangeOpen(true)}
+                onCompare={() => setIsComparisonOpen(true)}
+                onBulkDelete={() => setIsBulkDeleteOpen(true)}
+                onExport={() => setIsExportPreviewOpen(true)}
+                onImport={() => setIsImportModalOpen(true)}
+                onManagePresets={() => setIsPresetManageOpen(true)}
+                onAddUser={() => setIsAddUserModalOpen(true)}
+            />
 
             {/* Unified Filters Toolbar */}
             <div className="flex flex-col gap-4 p-4 bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))]">

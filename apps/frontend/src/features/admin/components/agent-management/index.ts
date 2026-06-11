@@ -5,4 +5,5 @@ export { AgentCardErrorBoundary } from './AgentCardErrorBoundary';
 export { AgentPaginationBar } from './AgentPaginationBar';
 export { KeyboardShortcutsHelpDialog } from './KeyboardShortcutsHelpDialog';
 export { AgentStatsDashboard } from './AgentStatsDashboard';
+export { AgentManagementHeader } from './AgentManagementHeader';
 export * from './agent-types';
