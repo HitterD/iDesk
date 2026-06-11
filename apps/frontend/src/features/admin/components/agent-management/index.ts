@@ -7,4 +7,5 @@ export { KeyboardShortcutsHelpDialog } from './KeyboardShortcutsHelpDialog';
 export { AgentStatsDashboard } from './AgentStatsDashboard';
 export { AgentManagementHeader } from './AgentManagementHeader';
 export { AgentFiltersToolbar } from './AgentFiltersToolbar';
+export { UsersByRoleSection } from './UsersByRoleSection';
 export * from './agent-types';

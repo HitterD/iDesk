@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useDeferredValue, useEffect, useRef } from 'react';
-import { Users, Plus, Mail, Building, Key, Award, BarChart3, Ticket as TicketIcon, Eye, Search, Edit2, Square, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, List, FileText, HelpCircle, Sparkles } from 'lucide-react';
+import { Users, Mail, Building, Key, Award, BarChart3, Ticket as TicketIcon, Eye, Search, Edit2, Square, FileSpreadsheet, AlertCircle, Crown, Info, List, FileText, HelpCircle, Sparkles } from 'lucide-react';
 import { ImportUsersDialog } from '../components/ImportUsersDialog';
 import { AddUserDialog } from '../components/AddUserDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
@@ -27,6 +27,7 @@ import {
     AgentStatsDashboard,
     AgentManagementHeader,
     AgentFiltersToolbar,
+    UsersByRoleSection,
     SITE_COLORS as AGENT_SITE_COLORS,
     ROLE_CONFIG as AGENT_ROLE_CONFIG,
     getAvatarColor as agentGetAvatarColor,
@@ -44,10 +45,7 @@ import { usePermissionPresets } from '@/hooks/usePermissions';
 import { useAuth } from '@/stores/useAuth';
 
 import { TicketWithSite, SITE_COLORS, ROLE_CONFIG, getAvatarColor, highlightText, formatLastActive } from '../components/agent-management/agent-utils';
-import { AgentGridSkeleton, AgentTableSkeleton, ErrorState } from '../components/agent-management/AgentTableSkeletons';
 import { PresetDropdown } from '../components/agent-management/PresetDropdown';
-import { RoleSection } from '../components/agent-management/RoleSection';
-import { UnifiedUserTable } from '../components/agent-management/UnifiedUserTable';
 import { PermissionPreset } from '../components/agent-management/agent-types';
 
 
@@ -910,125 +908,34 @@ export const BentoAdminAgentsPage: React.FC = () => {
             )}
 
             {/* Users by Role - Collapsible Sections (shows all users from paginated API) */}
-            {isLoading ? (
-                <AgentTableSkeleton />
-            ) : isError ? (
-                <ErrorState
-                    message={(error as Error)?.message || 'Failed to load users. Please try again.'}
-                    onRetry={() => refetch()}
-                />
-            ) : filteredUsers.length === 0 ? (
-                <div className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-12 text-center">
-                    <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                        <Users className="w-10 h-10 text-slate-400" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">No Users Found</h3>
-                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed mb-6">
-                        {searchQuery
-                            ? `No users match "${searchQuery}". Try a different search term.`
-                            : selectedSite !== 'ALL'
-                                ? `No users assigned to ${selectedSite}. Try a different site or add a new user.`
-                                : selectedRole !== 'ALL'
-                                    ? `No ${selectedRole.toLowerCase()}s found. Try a different role filter.`
-                                    : 'Get started by adding a new user or importing from a CSV file.'}
-                    </p>
-                    <div className="flex items-center justify-center gap-3">
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                            >
-                                <RefreshCw className="w-4 h-4" />
-                                Clear Search
-                            </button>
-                        )}
-                        <button
-                            onClick={() => setIsAddUserModalOpen(true)}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add User
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <>
-                    {displayMode === 'unified' ? (
-                        <UnifiedUserTable
-                            users={filteredUsers}
-                            searchQuery={deferredSearchQuery}
-                            onEdit={handleEditUser}
-                            onDelete={handleDeleteUser}
-                            onResetPassword={handleResetPassword}
-                            selectedIds={selectedUserIds}
-                            onToggleSelection={toggleUserSelection}
-                            onSelectAll={() => {
-                                const allIds = filteredUsers.map(u => u.id);
-                                const allSelected = filteredUsers.every(u => selectedUserIds.has(u.id));
-                                if (allSelected) {
-                                    setSelectedUserIds(new Set());
-                                } else {
-                                    setSelectedUserIds(new Set(allIds));
-                                }
-                            }}
-                            presets={presets}
-                            onApplyPreset={handleApplyPreset}
-                            applyingPresetUserId={applyingPresetUserId}
-                        />
-                    ) : (
-                        <div className="space-y-2">
-                            <RoleSection
-                                role="ADMIN"
-                                users={usersByRole.ADMIN}
-                                onEdit={handleEditUser}
-                                onDelete={handleDeleteUser}
-                                onResetPassword={handleResetPassword}
-                                selectedIds={selectedUserIds}
-                                onToggleSelection={toggleUserSelection}
-                                presets={presets}
-                                onApplyPreset={handleApplyPreset}
-                                applyingPresetUserId={applyingPresetUserId}
-                            />
-                            <RoleSection
-                                role="MANAGER"
-                                users={usersByRole.MANAGER}
-                                onEdit={handleEditUser}
-                                onDelete={handleDeleteUser}
-                                onResetPassword={handleResetPassword}
-                                selectedIds={selectedUserIds}
-                                onToggleSelection={toggleUserSelection}
-                                presets={presets}
-                                onApplyPreset={handleApplyPreset}
-                                applyingPresetUserId={applyingPresetUserId}
-                            />
-                            <RoleSection
-                                role="AGENT"
-                                users={usersByRole.AGENT}
-                                onEdit={handleEditUser}
-                                onDelete={handleDeleteUser}
-                                onResetPassword={handleResetPassword}
-                                selectedIds={selectedUserIds}
-                                onToggleSelection={toggleUserSelection}
-                                presets={presets}
-                                onApplyPreset={handleApplyPreset}
-                                applyingPresetUserId={applyingPresetUserId}
-                            />
-                            <RoleSection
-                                role="USER"
-                                users={usersByRole.USER}
-                                onEdit={handleEditUser}
-                                onDelete={handleDeleteUser}
-                                onResetPassword={handleResetPassword}
-                                selectedIds={selectedUserIds}
-                                onToggleSelection={toggleUserSelection}
-                                presets={presets}
-                                onApplyPreset={handleApplyPreset}
-                                applyingPresetUserId={applyingPresetUserId}
-                            />
-                        </div>
-                    )}
-                </>
-            )}
+            <UsersByRoleSection
+                isLoading={isLoading}
+                isError={isError}
+                error={error}
+                onRetry={() => refetch()}
+                filteredUsers={filteredUsers}
+                usersByRole={usersByRole}
+                displayMode={displayMode}
+                searchQuery={searchQuery}
+                deferredSearchQuery={deferredSearchQuery}
+                selectedSite={selectedSite}
+                selectedRole={selectedRole}
+                selectedUserIds={selectedUserIds}
+                onClearSearch={() => setSearchQuery('')}
+                onAddUser={() => setIsAddUserModalOpen(true)}
+                onEdit={handleEditUser}
+                onDelete={handleDeleteUser}
+                onResetPassword={handleResetPassword}
+                onToggleSelection={toggleUserSelection}
+                onSelectAll={() => {
+                    const allIds = filteredUsers.map(u => u.id);
+                    const allSelected = filteredUsers.every(u => selectedUserIds.has(u.id));
+                    setSelectedUserIds(allSelected ? new Set() : new Set(allIds));
+                }}
+                presets={presets}
+                onApplyPreset={handleApplyPreset}
+                applyingPresetUserId={applyingPresetUserId}
+            />
 
             {/* P1-2 + P1-3: Sticky Pagination with Page Size Selector */}
             {paginationMeta && (
