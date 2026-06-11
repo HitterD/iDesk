@@ -2,4 +2,5 @@
 export { AgentCard } from './AgentCard';
 export { StatCard } from './StatCard';
 export { AgentCardErrorBoundary } from './AgentCardErrorBoundary';
+export { AgentPaginationBar } from './AgentPaginationBar';
 export * from './agent-types';

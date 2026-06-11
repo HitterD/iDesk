@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useDeferredValue, useEffect, useRef } from 'react';
-import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, CheckCircle, BarChart3, Ticket as TicketIcon, Eye, Search, Download, Edit2, CheckSquare, Square, ChevronDown, ChevronRight, ChevronLeft, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, LayoutGrid, List, Settings, Keyboard, FileText, HelpCircle, X, Sparkles } from 'lucide-react';
+import { Users, Upload, Plus, Mail, Shield, Building, Key, Trash2, Award, CheckCircle, BarChart3, Ticket as TicketIcon, Eye, Search, Download, Edit2, CheckSquare, Square, ChevronDown, MapPin, FileSpreadsheet, AlertCircle, RefreshCw, Crown, Info, LayoutGrid, List, Settings, Keyboard, FileText, HelpCircle, X, Sparkles } from 'lucide-react';
 import { ImportUsersDialog } from '../components/ImportUsersDialog';
 import { AddUserDialog } from '../components/AddUserDialog';
 import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
@@ -22,6 +22,7 @@ import {
     AgentCardErrorBoundary,
     AgentCard,
     StatCard,
+    AgentPaginationBar,
     SITE_COLORS as AGENT_SITE_COLORS,
     ROLE_CONFIG as AGENT_ROLE_CONFIG,
     getAvatarColor as agentGetAvatarColor,
@@ -1288,53 +1289,15 @@ export const BentoAdminAgentsPage: React.FC = () => {
             )}
 
             {/* P1-2 + P1-3: Sticky Pagination with Page Size Selector */}
-            {paginationMeta && paginationMeta.totalPages > 1 && (
-                <div className="sticky bottom-4 z-10 flex items-center justify-between bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl px-4 py-3 shadow-lg">
-                    <div className="text-sm text-slate-500 dark:text-slate-400">
-                        Showing {((paginationMeta.page - 1) * paginationMeta.limit) + 1} - {Math.min(paginationMeta.page * paginationMeta.limit, paginationMeta.total)} of {paginationMeta.total}
-                    </div>
-                    <div className="flex items-center gap-4">
-                        {/* P1-2: Page Size Selector */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-500 dark:text-slate-400">Show:</span>
-                            <select
-                                value={pageSize}
-                                onChange={(e) => {
-                                    setPageSize(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
-                                className="px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-colors duration-150"
-                            >
-                                {PAGE_SIZE_OPTIONS.map(size => (
-                                    <option key={size} value={size}>{size}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="w-px h-6 bg-slate-200 dark:bg-slate-600" />
-                        {/* Page Navigation */}
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={!paginationMeta.hasPrevPage}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                                Previous
-                            </button>
-                            <span className="px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg">
-                                Page {paginationMeta.page} of {paginationMeta.totalPages}
-                            </span>
-                            <button
-                                onClick={() => setCurrentPage(p => p + 1)}
-                                disabled={!paginationMeta.hasNextPage}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                Next
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {paginationMeta && (
+                <AgentPaginationBar
+                    meta={paginationMeta}
+                    pageSize={pageSize}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
+                    onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+                    onPrev={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onNext={() => setCurrentPage(p => p + 1)}
+                />
             )}
 
             <ImportUsersDialog
