@@ -66,16 +66,34 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
-    const copyToClipboard = (text: string, label: string) => {
-        navigator.clipboard.writeText(text);
-        toast.success(`${label} disalin ke clipboard!`);
+    const copyToClipboard = async (text: string, label: string) => {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (!successful) throw new Error('Copy command failed');
+            }
+            toast.success(`${label} disalin ke clipboard!`);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            toast.error('Gagal menyalin text. Clipboard tidak didukung.');
+        }
     };
 
     const copyFullInvitation = () => {
         if (!booking) return;
         const invitation = generateInvitationText(booking);
-        navigator.clipboard.writeText(invitation);
-        toast.success('Undangan disalin ke clipboard!');
+        copyToClipboard(invitation, 'Undangan');
     };
 
     if (isLoading) {

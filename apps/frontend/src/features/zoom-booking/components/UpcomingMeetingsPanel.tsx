@@ -80,8 +80,27 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5, compact = false
     };
 
     const copyToClipboard = async (text: string, label: string) => {
-        await navigator.clipboard.writeText(text);
-        toast.success(`${label} copied to clipboard`);
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (!successful) throw new Error('Copy command failed');
+            }
+            toast.success(`${label} disalin ke clipboard!`);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            toast.error('Gagal menyalin text. Clipboard tidak didukung.');
+        }
     };
 
     const formatDateLabel = (dateStr: string) => {
@@ -316,7 +335,7 @@ function UpcomingMeetingItem({
                                 size="sm"
                                 variant="ghost"
                                 className="h-5 w-5 p-0"
-                                onClick={() => navigator.clipboard.writeText(booking.meeting!.password!)}
+                                onClick={() => copyToClipboard(booking.meeting!.password!, 'Passcode')}
                                 title="Copy passcode"
                             >
                                 <Copy className="h-3 w-3" />

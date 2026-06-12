@@ -47,9 +47,28 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
-    const copyToClipboard = (text: string, label: string) => {
-        navigator.clipboard.writeText(text);
-        toast.success(`${label} disalin ke clipboard!`);
+    const copyToClipboard = async (text: string, label: string) => {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (!successful) throw new Error('Copy command failed');
+            }
+            toast.success(`${label} disalin ke clipboard!`);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            toast.error('Gagal menyalin text. Clipboard tidak didukung.');
+        }
     };
 
     if (isLoading) {
@@ -221,7 +240,7 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
                             )}
                         </div>
                         <Button variant="outline" className="w-full text-xs h-9 rounded-lg"
-                            onClick={() => { navigator.clipboard.writeText(generateInvitationText(booking)); toast.success('Undangan disalin!'); }}>
+                            onClick={() => copyToClipboard(generateInvitationText(booking), 'Full Invitation')}>
                             <FileText className="h-3.5 w-3.5 mr-1.5" />
                             Salin Full Invitation
                         </Button>
