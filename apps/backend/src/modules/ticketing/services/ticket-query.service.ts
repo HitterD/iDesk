@@ -276,6 +276,110 @@ export class TicketQueryService {
         };
     }
 
+    async findAllPaginatedOracle(
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null,
+        options: {
+            page?: number;
+            limit?: number;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+            status?: string;
+            priority?: string;
+            search?: string;
+            siteId?: string;
+            siteIds?: string[];
+            startDate?: string;
+            endDate?: string;
+        } = {},
+    ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
+        const {
+            page = 1,
+            limit = 20,
+            sortBy = 'createdAt',
+            sortOrder = 'DESC',
+            status,
+            priority,
+            search,
+            siteId,
+            siteIds,
+            startDate,
+            endDate,
+        } = options;
+
+        const qb = this.ticketRepo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('user.department', 'department')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('ticket.site', 'site')
+            // Strict Oracle/K2 filter — same as the ORACLE_FILTER_PARAMS pattern
+            .where('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
+
+        // Site isolation (matches findAllPaginated behaviour for ADMIN/AGENT)
+        if (role === UserRole.ADMIN) {
+            if (siteIds && siteIds.length > 0) {
+                qb.andWhere('ticket.siteId IN (:...siteIds)', { siteIds });
+            } else if (siteId) {
+                qb.andWhere('ticket.siteId = :siteId', { siteId });
+            }
+        } else if (userSiteId) {
+            qb.andWhere('ticket.siteId = :userSiteId', { userSiteId });
+        }
+
+        if (status) {
+            qb.andWhere('ticket.status = :status', { status });
+        }
+        if (priority) {
+            qb.andWhere('ticket.priority = :priority', { priority });
+        }
+        if (search) {
+            const searchTerm = search.trim();
+            if (searchTerm.length <= 3 || /^\d{6}-/.test(searchTerm)) {
+                qb.andWhere(
+                    '(ticket.title ILIKE :search OR ticket.description ILIKE :search OR ticket."ticketNumber" ILIKE :search)',
+                    { search: `%${searchTerm}%` },
+                );
+            } else {
+                qb.andWhere(
+                    `(to_tsvector('indonesian', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ plainto_tsquery('indonesian', :search) OR ticket."ticketNumber" ILIKE :ticketSearch)`,
+                    { search: searchTerm, ticketSearch: `%${searchTerm}%` },
+                );
+            }
+        }
+        if (startDate) {
+            qb.andWhere('ticket.createdAt >= :startDate', { startDate });
+        }
+        if (endDate) {
+            qb.andWhere('ticket.createdAt <= :endDate', { endDate });
+        }
+
+        // Whitelisted sort fields (matches existing service)
+        const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
+        const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+        qb.orderBy(`ticket.${safeSortBy}`, safeSortOrder)
+          .skip((page - 1) * limit)
+          .take(limit);
+
+        const [data, total] = await qb.getManyAndCount();
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            },
+        };
+    }
+
     async findOne(id: string): Promise<any> {
         const ticket = await this.ticketRepo.findOne({
             where: { id },
