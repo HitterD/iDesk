@@ -305,8 +305,17 @@ export const BentoCreateTicketPage: React.FC = () => {
 
             toast.success(ticketType === 'hardware' ? 'Hardware Installation scheduled!' : 'Ticket created successfully!');
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-            if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
+
+            // Oracle/K2 requests: agent_oracle/admin go to the dedicated queue, USER/others go to my-tickets
+            if (ticketType === 'oracle-request') {
+                if (user?.role === 'AGENT_ORACLE' || user?.role === 'ADMIN') {
+                    navigate('/tickets/oracle-k2');
+                } else {
+                    navigate('/client/my-tickets');
+                }
+            } else if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
                 navigate('/tickets/list');
             } else {
                 navigate('/client/my-tickets');
@@ -1163,34 +1172,59 @@ export const BentoCreateTicketPage: React.FC = () => {
                             </label>
                             
                             <div className="bg-slate-100 dark:bg-slate-900 rounded-xl p-1.5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1.5 shadow-inner">
-                                {slaConfigs.map((sla) => {
-                                    const colors = PRIORITY_COLORS[sla.priority] || PRIORITY_COLORS.LOW;
-                                    const isSelected = formData.priority === sla.priority;
-                                    return (
-                                        <button
-                                            key={sla.id}
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, priority: sla.priority })}
-                                            className={`px-4 py-3 rounded-lg border flex items-center justify-between transition-colors duration-150 ${isSelected
-                                                ? `${colors.bg} border-current ${colors.text} shadow-sm ring-1 ring-current`
-                                                : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <span className={`w-2.5 h-2.5 rounded-full ${colors.dot} ${isSelected ? 'animate-pulse' : ''}`}></span>
-                                                <span className={`font-bold text-xs uppercase tracking-wider ${isSelected ? colors.text : 'text-slate-600 dark:text-slate-400'}`}>
-                                                    {sla.priority}
-                                                </span>
-                                            </div>
-                                            {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                                <div className={`flex items-center gap-1.5 text-[10px] font-bold ${isSelected ? colors.text + ' opacity-80' : 'text-slate-400'}`}>
-                                                    <Clock className="w-3 h-3" />
-                                                    {formatDuration(sla.resolutionTimeMinutes)}
+                                {slaConfigs.length > 0 ? (
+                                    slaConfigs.map((sla) => {
+                                        const colors = PRIORITY_COLORS[sla.priority] || PRIORITY_COLORS.LOW;
+                                        const isSelected = formData.priority === sla.priority;
+                                        return (
+                                            <button
+                                                key={sla.id}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, priority: sla.priority })}
+                                                className={`px-4 py-3 rounded-lg border flex items-center justify-between transition-colors duration-150 ${isSelected
+                                                    ? `${colors.bg} border-current ${colors.text} shadow-sm ring-1 ring-current`
+                                                    : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-2.5">
+                                                    <span className={`w-2.5 h-2.5 rounded-full ${colors.dot} ${isSelected ? 'animate-pulse' : ''}`}></span>
+                                                    <span className={`font-bold text-xs uppercase tracking-wider ${isSelected ? colors.text : 'text-slate-600 dark:text-slate-400'}`}>
+                                                        {sla.priority}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
+                                                {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
+                                                    <div className={`flex items-center gap-1.5 text-[10px] font-bold ${isSelected ? colors.text + ' opacity-80' : 'text-slate-400'}`}>
+                                                        <Clock className="w-3 h-3" />
+                                                        {formatDuration(sla.resolutionTimeMinutes)}
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })
+                                ) : (
+                                    ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((p) => {
+                                        const colors = PRIORITY_COLORS[p] || PRIORITY_COLORS.LOW;
+                                        const isSelected = formData.priority === p;
+                                        return (
+                                            <button
+                                                key={p}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, priority: p })}
+                                                className={`px-4 py-3 rounded-lg border flex items-center justify-between transition-colors duration-150 ${isSelected
+                                                    ? `${colors.bg} border-current ${colors.text} shadow-sm ring-1 ring-current`
+                                                    : 'bg-white dark:bg-slate-800 border-transparent hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-2.5">
+                                                    <span className={`w-2.5 h-2.5 rounded-full ${colors.dot} ${isSelected ? 'animate-pulse' : ''}`}></span>
+                                                    <span className={`font-bold text-xs uppercase tracking-wider ${isSelected ? colors.text : 'text-slate-600 dark:text-slate-400'}`}>
+                                                        {p}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })
+                                )}
                             </div>
                         </div>
 
