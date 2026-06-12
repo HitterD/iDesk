@@ -16,6 +16,7 @@ interface BulkAssignDialogProps {
     selectedCount: number;
     agents: AgentUser[];
     onAssign: (assigneeId: string) => Promise<void>;
+    restrictRoles?: string[];
 }
 
 export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
@@ -24,9 +25,14 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
     selectedCount,
     agents,
     onAssign,
+    restrictRoles,
 }) => {
     const [selectedAgentId, setSelectedAgentId] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
+
+    const filteredAgents = restrictRoles && restrictRoles.length > 0
+        ? agents.filter((a) => restrictRoles.includes(a.role as string))
+        : agents;
 
     if (!isOpen) return null;
 
@@ -98,16 +104,20 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
                                 <SelectValue placeholder="Choose an agent to assign..." />
                             </SelectTrigger>
                             <SelectContent>
-                                {agents.map((agent) => (
-                                    <SelectItem key={agent.id} value={agent.id}>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-slate-900">
-                                                {agent.fullName.charAt(0)}
+                                {filteredAgents.length === 0 ? (
+                                    <div className="px-3 py-2 text-sm text-slate-500">No agents available for this role.</div>
+                                ) : (
+                                    filteredAgents.map((agent) => (
+                                        <SelectItem key={agent.id} value={agent.id}>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-slate-900">
+                                                    {agent.fullName.charAt(0)}
+                                                </div>
+                                                {agent.fullName}
                                             </div>
-                                            {agent.fullName}
-                                        </div>
-                                    </SelectItem>
-                                ))}
+                                        </SelectItem>
+                                    ))
+                                )}
                             </SelectContent>
                         </Select>
                     </div>

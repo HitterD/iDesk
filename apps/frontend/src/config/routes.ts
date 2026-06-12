@@ -30,6 +30,7 @@ export const ROUTES = {
         DETAIL: (id: string) => `/tickets/${id}`,
         CREATE: '/tickets/create',
         KANBAN: '/kanban',
+        ORACLE_K2: '/tickets/oracle-k2',
     },
 
     // Knowledge Base
@@ -135,6 +136,7 @@ export const ROUTE_NAMES: Record<string, string> = {
     '/dashboard': 'Dashboard',
     '/tickets/list': 'Tickets',
     '/tickets/create': 'Create Ticket',
+    '/tickets/oracle-k2': 'Oracle K2 Request',
     '/kanban': 'Kanban Board',
     '/kb': 'Knowledge Base',
     '/kb/manage': 'Manage Articles',

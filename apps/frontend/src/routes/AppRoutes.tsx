@@ -24,6 +24,7 @@ const BentoDashboardPage = lazy(() => import('../features/dashboard/pages/BentoD
 // Lazy loaded pages (code splitting for all feature modules)
 const BentoTicketKanban = lazy(() => import('../features/ticket-board/components/BentoTicketKanban').then(m => ({ default: m.BentoTicketKanban })));
 const BentoTicketListPage = lazy(() => import('../features/ticket-board/pages/BentoTicketListPage').then(m => ({ default: m.BentoTicketListPage })));
+const BentoOracleK2TicketsPage = lazy(() => import('../features/ticket-board/pages/BentoOracleK2TicketsPage').then(m => ({ default: m.BentoOracleK2TicketsPage })));
 const BentoTicketDetailPage = lazy(() => import('../features/ticket-board/pages/BentoTicketDetailPage').then(m => ({ default: m.BentoTicketDetailPage })));
 const BentoSettingsPage = lazy(() => import('../features/settings/pages/BentoSettingsPage').then(m => ({ default: m.BentoSettingsPage })));
 const BentoAdminAgentsPage = lazy(() => import('../features/admin/pages/BentoAdminAgentsPage').then(m => ({ default: m.BentoAdminAgentsPage })));
@@ -174,6 +175,7 @@ export default function AppRoutes() {
 
                 <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" />} />
                 <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" />} />
+                <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'ADMIN']} />} />
                 <Route path="tickets/:id" element={<LazyRoute component={BentoTicketDetailPage} featureName="Ticket Detail" />} />
                 <Route path="tickets/create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
                 <Route path="settings" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" requiredPageAccess="settings" />} />

@@ -27,6 +27,7 @@ import {
     FileText,
     PackageSearch,
     PackageCheck,
+    Database,
     LucideIcon,
     Wrench
 } from 'lucide-react';
@@ -224,6 +225,7 @@ export const BentoSidebar = () => {
             icon: PackageSearch,
             items: [
                 { key: 'tickets', icon: Ticket, label: 'Tickets', path: '/tickets/list' },
+                { key: 'oracle_k2_tickets', icon: Database, label: 'Oracle K2 Request', path: '/tickets/oracle-k2' },
                 { key: 'hardware_requests', icon: MonitorSmartphone, label: 'Hardware Requests', path: '/hardware-requests' },
                 { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/eform-access' },
                 { key: 'lost_items', icon: Search, label: 'Lost Items', path: '/lost-items' },
@@ -290,7 +292,9 @@ export const BentoSidebar = () => {
         const roleDefaults: Record<string, string[]> = {
             USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
             AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_ORACLE: ['dashboard', 'tickets', 'oracle_k2_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],
         };
 
         const userRole = (user?.role || 'USER') as string;
