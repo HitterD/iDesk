@@ -110,6 +110,21 @@ export class TicketsController {
         return this.ticketQueryService.findAllPaginated(req.user.userId, req.user.role, userSiteId, pagination);
     }
 
+    @Get('paginated/oracle')
+    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE)
+    @ApiOperation({ summary: 'Get paginated Oracle/K2 tickets (Oracle agent queue)' })
+    @ApiResponse({ status: 200, description: 'Return paginated Oracle/K2 tickets.' })
+    @ApiResponse({ status: 403, description: 'Forbidden — AGENT_ORACLE or ADMIN role required.' })
+    async findAllPaginatedOracle(@Request() req: any, @Query() pagination: PaginationDto) {
+        const userSiteId = req.user.siteId || null;
+        return this.ticketQueryService.findAllPaginatedOracle(
+            req.user.userId,
+            req.user.role,
+            userSiteId,
+            pagination,
+        );
+    }
+
     @Get('dashboard/stats')
     @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ADMIN, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Get dashboard statistics' })
