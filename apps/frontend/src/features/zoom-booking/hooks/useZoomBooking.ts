@@ -356,7 +356,7 @@ export function useRescheduleBooking() {
     return useMutation({
         mutationFn: async ({ bookingId, data }: {
             bookingId: string;
-            data: { bookingDate: string; startTime: string; durationMinutes?: number }
+            data: { bookingDate: string; startTime: string; durationMinutes?: number; scope?: 'this' | 'following' | 'all' }
         }) => {
             const response = await api.post(`/admin/zoom/bookings/${bookingId}/reschedule`, data);
             return response.data;
@@ -379,7 +379,7 @@ export function useRescheduleOwnBooking() {
     return useMutation({
         mutationFn: async ({ bookingId, data }: {
             bookingId: string;
-            data: { bookingDate: string; startTime: string; durationMinutes?: number }
+            data: { bookingDate: string; startTime: string; durationMinutes?: number; scope?: 'this' | 'following' | 'all' }
         }) => {
             const response = await api.post(`/zoom-booking/${bookingId}/reschedule`, data);
             return response.data;

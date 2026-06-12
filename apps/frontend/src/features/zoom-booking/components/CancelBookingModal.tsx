@@ -14,6 +14,13 @@ import {
 import { useCancelBooking, useCancelOwnBooking } from '../hooks';
 import type { ZoomBooking } from '../types';
 import { toast } from 'sonner';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 interface CancelBookingModalProps {
     isOpen: boolean;
@@ -31,6 +38,7 @@ export function CancelBookingModal({
     isOwner = false,
 }: CancelBookingModalProps) {
     const [reason, setReason] = useState('');
+    const [scope, setScope] = useState<'this' | 'following' | 'all'>('this');
     const cancelBookingAdmin = useCancelBooking();
     const cancelBookingOwner = useCancelOwnBooking();
 
@@ -53,7 +61,10 @@ export function CancelBookingModal({
         try {
             await cancelBooking.mutateAsync({
                 bookingId: booking.id,
-                dto: { cancellationReason: reason.trim() },
+                dto: { 
+                    cancellationReason: reason.trim(),
+                    scope: booking.seriesId ? scope : undefined 
+                },
             });
             toast.success('Booking berhasil dibatalkan');
             setReason('');
@@ -114,6 +125,23 @@ export function CancelBookingModal({
                         Alasan ini akan dikirim ke peserta meeting
                     </p>
                 </div>
+
+                {/* Scope Selection for Recurring */}
+                {booking.seriesId && (
+                    <div className="space-y-3 pt-2 border-t">
+                        <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200">Batalkan Untuk:</Label>
+                        <Select value={scope} onValueChange={(val: any) => setScope(val)}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Pilih jadwal yang dibatalkan" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="this">Hanya jadwal ini</SelectItem>
+                                <SelectItem value="following">Jadwal ini dan selanjutnya</SelectItem>
+                                <SelectItem value="all">Semua jadwal dalam seri</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 <DialogFooter className="gap-2">
                     <Button variant="outline" onClick={onClose}>

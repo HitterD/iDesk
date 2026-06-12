@@ -18,6 +18,8 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
+import { RRuleUtil } from '../utils/rrule.util';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface CalendarSlot {
     date: string;
@@ -323,45 +325,141 @@ export class ZoomBookingService {
         dto: CreateBookingDto,
         user: { userId: string; username?: string; role?: string },
         ipAddress?: string,
+    ): Promise<ZoomBooking | ZoomBooking[]> {
+        const settings = await this.getSettings();
+        let datesToBook: string[] = [dto.bookingDate];
+        let seriesId: string | undefined = undefined;
+
+        if (dto.recurrencePattern) {
+            datesToBook = RRuleUtil.generateDates(dto.recurrencePattern, dto.bookingDate);
+            if (datesToBook.length === 0) {
+                throw new BadRequestException('Pola berulang tidak menghasilkan tanggal yang valid.');
+            }
+            if (datesToBook.length > 50) {
+                throw new BadRequestException('Maksimal 50 jadwal berulang dalam satu pembuatan.');
+            }
+            seriesId = uuidv4();
+        }
+
+        const allAccounts = await this.accountRepo.find({ where: { isActive: true } });
+        if (!allAccounts.length) {
+            throw new NotFoundException('Tidak ada akun Zoom yang aktif.');
+        }
+
+        const results: ZoomBooking[] = [];
+        const errors: string[] = [];
+
+        for (const dateStr of datesToBook) {
+            const bookingDate = new Date(dateStr);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (bookingDate < today) {
+                errors.push(`Tanggal ${dateStr} sudah lewat.`);
+                continue;
+            }
+
+            const maxDate = new Date(today);
+            maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
+            if (bookingDate > maxDate) {
+                errors.push(`Tanggal ${dateStr} melebihi batas maksimal ${settings.advanceBookingDays} hari.`);
+                continue;
+            }
+
+            const dayOfWeek = bookingDate.getDay();
+            if (!settings.workingDays.includes(dayOfWeek)) {
+                errors.push(`Tanggal ${dateStr} bukan hari kerja.`);
+                continue;
+            }
+
+            if (settings.blockedDates.includes(dateStr)) {
+                errors.push(`Tanggal ${dateStr} diblokir.`);
+                continue;
+            }
+
+            const [startHour, startMin] = dto.startTime.split(':').map(Number);
+            const totalMinutes = startHour * 60 + startMin + dto.durationMinutes;
+            const endTime = `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`;
+
+            let selectedAccountId: string | null = null;
+            let accountFound = false;
+
+            const accountsToTry = dto.zoomAccountId
+                ? [
+                    allAccounts.find(a => a.id === dto.zoomAccountId),
+                    ...allAccounts.filter(a => a.id !== dto.zoomAccountId)
+                ].filter(Boolean) as ZoomAccount[]
+                : allAccounts;
+
+            for (const account of accountsToTry) {
+                const conflict = await this.bookingRepo
+                    .createQueryBuilder('booking')
+                    .where('booking.zoomAccountId = :accountId', { accountId: account.id })
+                    .andWhere('booking.bookingDate = :date', { date: dateStr })
+                    .andWhere('booking.status IN (:...statuses)', { statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED] })
+                    .andWhere(
+                        '(booking.startTime < :endTime AND booking.endTime > :startTime)',
+                        { startTime: dto.startTime, endTime }
+                    )
+                    .getOne();
+
+                if (!conflict) {
+                    selectedAccountId = account.id;
+                    accountFound = true;
+                    break;
+                }
+            }
+
+            if (!accountFound) {
+                errors.push(`Semua akun penuh pada ${dateStr}`);
+                continue;
+            }
+
+            try {
+                const booking = await this._createSingleBooking(
+                    dto,
+                    dateStr,
+                    selectedAccountId!,
+                    user,
+                    ipAddress,
+                    seriesId,
+                    dto.recurrencePattern
+                );
+                results.push(booking);
+            } catch (err: any) {
+                errors.push(`Gagal pada ${dateStr}: ${err.message}`);
+            }
+        }
+
+        if (results.length === 0) {
+            throw new BadRequestException('Gagal membuat jadwal: ' + errors.join(', '));
+        }
+
+        return dto.recurrencePattern ? results : results[0];
+    }
+
+    /**
+     * Internal single booking creator
+     */
+    async _createSingleBooking(
+        dto: CreateBookingDto,
+        dateStr: string,
+        accountId: string,
+        user: { userId: string; username?: string; role?: string },
+        ipAddress?: string,
+        seriesId?: string,
+        recurrencePattern?: string,
     ): Promise<ZoomBooking> {
         const settings = await this.getSettings();
-        const account = await this.accountRepo.findOne({ where: { id: dto.zoomAccountId, isActive: true } });
+        const account = await this.accountRepo.findOne({ where: { id: accountId, isActive: true } });
 
         if (!account) {
             throw new NotFoundException('Zoom account not found or inactive');
         }
 
-        // Validate booking date
-        const bookingDate = new Date(dto.bookingDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (bookingDate < today) {
-            throw new BadRequestException('Cannot book in the past');
-        }
-
-        const maxDate = new Date(today);
-        maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
-
-        if (bookingDate > maxDate) {
-            throw new BadRequestException(`Cannot book more than ${settings.advanceBookingDays} days in advance`);
-        }
-
-        // Check working day
-        const dayOfWeek = bookingDate.getDay();
-        if (!settings.workingDays.includes(dayOfWeek)) {
-            throw new BadRequestException('Cannot book on non-working days');
-        }
-
-        // Check blocked dates
-        if (settings.blockedDates.includes(dto.bookingDate)) {
-            throw new BadRequestException('This date is blocked');
-        }
-
         // Validate duration - ensure type consistency for comparison
         const durationNum = Number(dto.durationMinutes);
         const allowedDurationsNum = settings.allowedDurations.map(d => Number(d));
-        this.logger.log(`Duration validation: dto.durationMinutes=${dto.durationMinutes} (type: ${typeof dto.durationMinutes}), allowedDurations=${JSON.stringify(settings.allowedDurations)}`);
 
         if (!allowedDurationsNum.includes(durationNum)) {
             throw new BadRequestException(`Duration must be one of: ${settings.allowedDurations.join(', ')} minutes`);
@@ -380,28 +478,11 @@ export class ZoomBookingService {
         await queryRunner.startTransaction();
 
         try {
-            // Check for conflicts (overlapping bookings) inside transaction with lock
-            const conflictingBooking = await queryRunner.manager
-                .createQueryBuilder(ZoomBooking, 'booking')
-                .setLock('pessimistic_write')
-                .where('booking.zoomAccountId = :accountId', { accountId: dto.zoomAccountId })
-                .andWhere('booking.bookingDate = :date', { date: dto.bookingDate })
-                .andWhere('booking.status IN (:...statuses)', { statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED] })
-                .andWhere(
-                    '(booking.startTime < :endTime AND booking.endTime > :startTime)',
-                    { startTime: dto.startTime, endTime }
-                )
-                .getOne();
-
-            if (conflictingBooking) {
-                throw new ConflictException('This time slot is already booked');
-            }
-
             // Check user's daily booking limit inside transaction to prevent race conditions too
             const userDailyBookings = await queryRunner.manager.count(ZoomBooking, {
                 where: {
                     bookedByUserId: user.userId,
-                    bookingDate: new Date(dto.bookingDate),
+                    bookingDate: new Date(dateStr),
                     status: BookingStatus.CONFIRMED,
                 },
             });
@@ -409,18 +490,19 @@ export class ZoomBookingService {
             if (userDailyBookings >= settings.maxBookingPerUserPerDay) {
                 throw new BadRequestException(`You can only have ${settings.maxBookingPerUserPerDay} bookings per day`);
             }
-            this.logger.log(`Creating booking: accountId=${dto.zoomAccountId}, userId=${user.userId}, date=${dto.bookingDate}, startTime=${dto.startTime}, endTime=${endTime}, duration=${dto.durationMinutes}`);
 
             const booking = queryRunner.manager.create(ZoomBooking, {
-                zoomAccountId: dto.zoomAccountId,
+                zoomAccountId: accountId,
                 bookedByUserId: user.userId,
                 title: dto.title,
                 description: dto.description,
-                bookingDate: new Date(dto.bookingDate),
+                bookingDate: new Date(dateStr),
                 startTime: dto.startTime,
                 endTime,
                 durationMinutes: dto.durationMinutes,
                 status: BookingStatus.PENDING,
+                seriesId,
+                recurrencePattern
             });
 
             const savedBooking = await queryRunner.manager.save(booking);
@@ -444,11 +526,7 @@ export class ZoomBookingService {
             }
 
             // Format date properly for Zoom API
-            const bookingDateZoom = new Date(savedBooking.bookingDate);
-            const dateStr = this.formatLocalDate(bookingDateZoom);
             const startDateTime = new Date(`${dateStr}T${savedBooking.startTime}:00+07:00`);
-
-            this.logger.log(`Creating Zoom meeting: date=${dateStr}, time=${savedBooking.startTime}, startDateTime=${startDateTime.toISOString()}`);
 
             const zoomMeeting = await this.zoomApi.createMeeting(
                 account.email,
@@ -481,7 +559,7 @@ export class ZoomBookingService {
                 action: 'CREATED',
                 newValues: {
                     title: dto.title,
-                    date: dto.bookingDate,
+                    date: dateStr,
                     time: dto.startTime,
                 },
                 ipAddress,
@@ -489,8 +567,6 @@ export class ZoomBookingService {
             await queryRunner.manager.save(auditLog);
 
             await queryRunner.commitTransaction();
-
-            this.logger.log(`Zoom meeting created: ${zoomMeeting.id} for booking ${savedBooking.id}`);
 
             // Emit events
             this.eventEmitter.emit('zoom.booking.created', { booking: savedBooking, user });
@@ -502,7 +578,7 @@ export class ZoomBookingService {
                 entityType: 'ZoomBooking',
                 entityId: savedBooking.id,
                 description: `Created Zoom Booking: ${savedBooking.title}`,
-                newValue: { date: dto.bookingDate, time: dto.startTime, duration: dto.durationMinutes },
+                newValue: { date: dateStr, time: dto.startTime, duration: dto.durationMinutes },
             });
 
             // Re-fetch to get updated status with full relations
@@ -515,10 +591,7 @@ export class ZoomBookingService {
 
         } catch (error: any) {
             await queryRunner.rollbackTransaction();
-
-            this.logger.error(`Failed to create Zoom meeting, transaction rolled back: ${error.message}`);
-
-            // Re-throw with user-friendly message if it's not already an HTTP Exception
+            
             if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ConflictException) {
                 throw error;
             }
@@ -638,12 +711,12 @@ export class ZoomBookingService {
         ipAddress: string | undefined,
         mode: 'admin' | 'owner',
     ): Promise<{ success: boolean; message: string }> {
-        const booking = await this.bookingRepo.findOne({
+        const primaryBooking = await this.bookingRepo.findOne({
             where: { id: bookingId },
             relations: ['bookedByUser', 'meeting', 'zoomAccount'],
         });
 
-        if (!booking) {
+        if (!primaryBooking) {
             throw new NotFoundException('Booking not found');
         }
 
@@ -651,34 +724,32 @@ export class ZoomBookingService {
             throw new ForbiddenException('Only administrators can cancel bookings');
         }
         
-        if (mode === 'owner' && booking.bookedByUserId !== user.userId) {
+        if (mode === 'owner' && primaryBooking.bookedByUserId !== user.userId) {
             throw new ForbiddenException('You can only cancel your own bookings');
         }
 
-        if (booking.status === BookingStatus.CANCELLED) {
+        if (primaryBooking.status === BookingStatus.CANCELLED) {
             throw new BadRequestException('Booking is already cancelled');
         }
 
-        // Store booking details for audit log before deletion
-        const bookingDetails = {
-            id: booking.id,
-            title: booking.title,
-            description: booking.description,
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            durationMinutes: booking.durationMinutes,
-            status: booking.status,
-            bookedByUserId: booking.bookedByUserId,
-            bookedByUserName: booking.bookedByUser?.fullName || 'Unknown',
-            zoomAccountId: booking.zoomAccountId,
-            zoomAccountName: booking.zoomAccount?.name || 'Unknown',
-            zoomMeetingId: booking.meeting?.zoomMeetingId,
-            joinUrl: booking.meeting?.joinUrl,
-        };
+        let bookingsToCancel = [primaryBooking];
 
-        // Extract meeting ID before deletion
-        const zoomMeetingId = booking.meeting?.zoomMeetingId;
+        if (primaryBooking.seriesId && dto.scope && dto.scope !== 'this') {
+            const query = this.bookingRepo.createQueryBuilder('booking')
+                .leftJoinAndSelect('booking.meeting', 'meeting')
+                .leftJoinAndSelect('booking.zoomAccount', 'zoomAccount')
+                .leftJoinAndSelect('booking.bookedByUser', 'bookedByUser')
+                .where('booking.seriesId = :seriesId', { seriesId: primaryBooking.seriesId })
+                .andWhere('booking.id != :id', { id: bookingId }) // primary already in array
+                .andWhere('booking.status != :status', { status: BookingStatus.CANCELLED });
+            
+            if (dto.scope === 'following') {
+                query.andWhere('booking.bookingDate >= :date', { date: primaryBooking.bookingDate });
+            }
+
+            const relatedBookings = await query.getMany();
+            bookingsToCancel = [primaryBooking, ...relatedBookings];
+        }
 
         // Use transaction for database operations
         const queryRunner = this.dataSource.createQueryRunner();
@@ -686,70 +757,86 @@ export class ZoomBookingService {
         await queryRunner.startTransaction();
 
         const auditAction = mode === 'admin' ? 'CANCELLED' : 'CANCELLED_BY_OWNER';
+        const deletedMeetingIds: string[] = [];
 
         try {
-            // First, nullify any existing audit log references to this booking (to avoid FK constraint)
-            await queryRunner.manager.update(ZoomAuditLog,
-                { zoomBookingId: bookingId },
-                { zoomBookingId: null }
-            );
+            for (const booking of bookingsToCancel) {
+                const bookingDetails = {
+                    id: booking.id,
+                    title: booking.title,
+                    description: booking.description,
+                    bookingDate: booking.bookingDate,
+                    startTime: booking.startTime,
+                    endTime: booking.endTime,
+                    durationMinutes: booking.durationMinutes,
+                    status: booking.status,
+                    bookedByUserId: booking.bookedByUserId,
+                    bookedByUserName: booking.bookedByUser?.fullName || 'Unknown',
+                    zoomAccountId: booking.zoomAccountId,
+                    zoomAccountName: booking.zoomAccount?.name || 'Unknown',
+                    zoomMeetingId: booking.meeting?.zoomMeetingId,
+                    joinUrl: booking.meeting?.joinUrl,
+                };
 
-            // Create audit log WITHOUT booking FK (booking will be deleted, store ID in oldValues)
-            const auditLog = queryRunner.manager.create(ZoomAuditLog, {
-                zoomBookingId: null,  // Don't reference the booking that's about to be deleted
-                userId: user.userId,
-                action: auditAction,
-                oldValues: bookingDetails,  // Contains booking.id for reference
-                newValues: {
-                    reason: dto.cancellationReason,
-                    deletedAt: new Date().toISOString(),
-                },
-                ipAddress,
-            });
-            await queryRunner.manager.save(auditLog);
+                if (booking.meeting?.zoomMeetingId) {
+                    deletedMeetingIds.push(booking.meeting.zoomMeetingId);
+                }
 
-            // Delete meeting record first (foreign key constraint)
-            if (booking.meeting) {
-                await queryRunner.manager.delete(ZoomMeeting, { id: booking.meeting.id });
+                await queryRunner.manager.update(ZoomAuditLog,
+                    { zoomBookingId: booking.id },
+                    { zoomBookingId: null }
+                );
+
+                const auditLog = queryRunner.manager.create(ZoomAuditLog, {
+                    zoomBookingId: null,
+                    userId: user.userId,
+                    action: auditAction,
+                    oldValues: bookingDetails,
+                    newValues: {
+                        reason: dto.cancellationReason,
+                        deletedAt: new Date().toISOString(),
+                    },
+                    ipAddress,
+                });
+                await queryRunner.manager.save(auditLog);
+
+                if (booking.meeting) {
+                    await queryRunner.manager.delete(ZoomMeeting, { id: booking.meeting.id });
+                }
+
+                await queryRunner.manager.delete(ZoomParticipant, { zoomBookingId: booking.id });
+                await queryRunner.manager.delete(ZoomBooking, { id: booking.id });
             }
 
-            // Delete participants
-            await queryRunner.manager.delete(ZoomParticipant, { zoomBookingId: bookingId });
-
-            // DELETE booking from database (hard delete)
-            await queryRunner.manager.delete(ZoomBooking, { id: bookingId });
-
-            // Commit transaction
             await queryRunner.commitTransaction();
-            this.logger.log(`Booking ${bookingId} cancelled by ${user.userId}. Reason: ${dto.cancellationReason}`);
+            this.logger.log(`Cancelled ${bookingsToCancel.length} bookings starting from ${bookingId} by ${user.userId}`);
         } catch (error: any) {
-            // Rollback on any failure
             await queryRunner.rollbackTransaction();
-            this.logger.error(`Failed to cancel booking ${bookingId}: ${error.message}`);
-            throw new BadRequestException(`Failed to cancel booking: ${error.message}`);
+            this.logger.error(`Failed to cancel bookings: ${error.message}`);
+            throw new BadRequestException(`Failed to cancel bookings: ${error.message}`);
         } finally {
             await queryRunner.release();
         }
 
-        // Delete Zoom meeting if exists (AFTER successful transaction)
-        if (zoomMeetingId) {
+        // Delete Zoom meetings
+        for (const zoomMeetingId of deletedMeetingIds) {
             try {
                 await this.zoomApi.deleteMeeting(zoomMeetingId);
                 this.logger.log(`Deleted Zoom meeting: ${zoomMeetingId}`);
             } catch (error) {
-                this.logger.warn(`Failed to delete Zoom meeting ${zoomMeetingId}. Manual cleanup may be needed. Error: ${error}`);
+                this.logger.warn(`Failed to delete Zoom meeting ${zoomMeetingId}`);
             }
         }
 
-        // Emit event for notifications (after successful transaction)
+        // Emit event for the primary booking
         this.eventEmitter.emit('zoom.booking.cancelled', {
-            bookingDetails,
+            bookingDetails: { id: primaryBooking.id, title: primaryBooking.title },
             cancelledBy: user,
             reason: dto.cancellationReason,
             ...(mode === 'owner' ? { cancelledByOwner: true } : {})
         });
 
-        return { success: true, message: 'Booking cancelled and removed successfully' };
+        return { success: true, message: `${bookingsToCancel.length} bookings cancelled and removed successfully` };
     }
 
     /**
@@ -810,148 +897,132 @@ export class ZoomBookingService {
      */
     async rescheduleBooking(
         bookingId: string,
-        dto: { bookingDate: string; startTime: string; durationMinutes?: number },
+        dto: { bookingDate: string; startTime: string; durationMinutes?: number; scope?: 'this' | 'following' | 'all' },
         user: { userId: string; role?: string },
         ipAddress?: string,
     ): Promise<ZoomBooking> {
-        const booking = await this.bookingRepo.findOne({
+        const primaryBooking = await this.bookingRepo.findOne({
             where: { id: bookingId },
             relations: ['bookedByUser', 'zoomAccount', 'meeting'],
         });
 
-        if (!booking) {
+        if (!primaryBooking) {
             throw new NotFoundException('Booking not found');
         }
 
-        // Check permission - owner or admin
-        if (booking.bookedByUserId !== user.userId && user.role !== UserRole.ADMIN) {
+        if (primaryBooking.bookedByUserId !== user.userId && user.role !== UserRole.ADMIN) {
             throw new ForbiddenException('You can only reschedule your own bookings');
         }
 
-        // Cannot reschedule cancelled bookings
-        if (booking.status === BookingStatus.CANCELLED) {
+        if (primaryBooking.status === BookingStatus.CANCELLED) {
             throw new BadRequestException('Cannot reschedule a cancelled booking');
         }
 
-        // Store old values for audit
-        const oldValues = {
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            durationMinutes: booking.durationMinutes,
-        };
+        let bookingsToUpdate = [primaryBooking];
 
-        // Calculate new values
-        const newDuration = dto.durationMinutes || booking.durationMinutes;
+        if (primaryBooking.seriesId && dto.scope && dto.scope !== 'this') {
+            const query = this.bookingRepo.createQueryBuilder('booking')
+                .leftJoinAndSelect('booking.meeting', 'meeting')
+                .leftJoinAndSelect('booking.zoomAccount', 'zoomAccount')
+                .where('booking.seriesId = :seriesId', { seriesId: primaryBooking.seriesId })
+                .andWhere('booking.id != :id', { id: bookingId })
+                .andWhere('booking.status != :status', { status: BookingStatus.CANCELLED });
+            
+            if (dto.scope === 'following') {
+                query.andWhere('booking.bookingDate >= :date', { date: primaryBooking.bookingDate });
+            }
+
+            const relatedBookings = await query.getMany();
+            bookingsToUpdate = [primaryBooking, ...relatedBookings];
+        }
+
+        const newDuration = dto.durationMinutes || primaryBooking.durationMinutes;
         const [hours, minutes] = dto.startTime.split(':').map(Number);
         const endMinutes = hours * 60 + minutes + newDuration;
         const endHours = Math.floor(endMinutes / 60);
         const endMins = endMinutes % 60;
         const newEndTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
 
-        // Check for conflicts with other bookings (same account, same date, overlapping time)
-        const conflictingBookings = await this.bookingRepo.find({
-            where: {
-                zoomAccountId: booking.zoomAccountId,
-                bookingDate: new Date(dto.bookingDate),
-                status: In([BookingStatus.PENDING, BookingStatus.CONFIRMED]),
-            },
-        });
+        // Check for conflicts for ALL affected bookings
+        for (const booking of bookingsToUpdate) {
+            const targetDate = booking.id === bookingId || dto.scope === 'this' ? dto.bookingDate : this.formatLocalDate(booking.bookingDate);
+            
+            const conflictingBookings = await this.bookingRepo.find({
+                where: {
+                    zoomAccountId: booking.zoomAccountId,
+                    bookingDate: new Date(targetDate),
+                    status: In([BookingStatus.PENDING, BookingStatus.CONFIRMED]),
+                },
+            });
 
-        for (const existingBooking of conflictingBookings) {
-            // Skip self
-            if (existingBooking.id === bookingId) continue;
+            for (const existingBooking of conflictingBookings) {
+                if (bookingsToUpdate.some(b => b.id === existingBooking.id)) continue;
 
-            const existingStart = existingBooking.startTime;
-            const existingEnd = existingBooking.endTime;
-            const newStart = dto.startTime;
-            const newEnd = newEndTime;
+                const existingStart = existingBooking.startTime;
+                const existingEnd = existingBooking.endTime;
 
-            // Check overlap: (start1 < end2) AND (start2 < end1)
-            if (newStart < existingEnd && existingStart < newEnd) {
-                throw new ConflictException(
-                    `Waktu bertabrakan dengan booking "${existingBooking.title}" ` +
-                    `(${existingStart} - ${existingEnd}). Silakan pilih waktu lain.`
-                );
+                if (dto.startTime < existingEnd && existingStart < newEndTime) {
+                    throw new ConflictException(
+                        `Waktu bertabrakan dengan booking "${existingBooking.title}" pada ${targetDate} ` +
+                        `(${existingStart} - ${existingEnd}). Silakan pilih waktu lain.`
+                    );
+                }
             }
         }
 
-        // Use transaction for database operations
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
 
         try {
-            // Update database first (inside transaction)
-            await queryRunner.manager.update(ZoomBooking, bookingId, {
-                bookingDate: new Date(dto.bookingDate),
-                startTime: dto.startTime,
-                endTime: newEndTime,
-                durationMinutes: newDuration,
-            });
+            for (const booking of bookingsToUpdate) {
+                const targetDateStr = booking.id === bookingId || dto.scope === 'this' ? dto.bookingDate : this.formatLocalDate(booking.bookingDate);
+                const targetDate = new Date(targetDateStr);
 
-            // Update Zoom meeting if exists
-            if (booking.meeting?.zoomMeetingId) {
-                try {
-                    // Format date for Zoom API (local Jakarta time, no Z suffix)
-                    const formattedStartTime = `${this.formatLocalDate(new Date(dto.bookingDate))}T${dto.startTime}:00`;
+                await queryRunner.manager.update(ZoomBooking, booking.id, {
+                    bookingDate: targetDate,
+                    startTime: dto.startTime,
+                    endTime: newEndTime,
+                    durationMinutes: newDuration,
+                });
 
-                    await this.zoomApi.updateMeeting(booking.meeting.zoomMeetingId, {
-                        start_time: formattedStartTime,
-                        duration: newDuration,
-                        timezone: 'Asia/Jakarta',
-                    });
-
-                    this.logger.log(`Updated Zoom meeting ${booking.meeting.zoomMeetingId} to ${formattedStartTime}`);
-                } catch (error: any) {
-                    if (this.zoomApi.isScopeError(error)) {
-                        // Fallback: delete old meeting and create new one
-                        this.logger.warn(`Zoom updateMeeting scope error. Using delete+recreate fallback.`);
-                        try {
-                            // Delete old meeting
-                            await this.zoomApi.deleteMeeting(booking.meeting.zoomMeetingId);
-
-                            // Create new meeting with updated time
-                            const account = booking.zoomAccount;
-                            if (!account) throw new Error('Zoom account not found for meeting recreation');
-                            
-                            const dateStr = this.formatLocalDate(new Date(dto.bookingDate));
-                            const startDateTime = new Date(`${dateStr}T${dto.startTime}:00+07:00`);
-
-                            const newZoomMeeting = await this.zoomApi.createMeeting(
-                                account.email,
-                                booking.title,
-                                startDateTime,
-                                newDuration,
-                                booking.description,
-                            );
-
-                            // Update meeting record in database
-                            await queryRunner.manager.update(ZoomMeeting,
-                                { zoomBookingId: booking.id },
-                                {
-                                    zoomMeetingId: newZoomMeeting.id.toString(),
-                                    joinUrl: newZoomMeeting.join_url,
-                                    startUrl: newZoomMeeting.start_url,
-                                    password: newZoomMeeting.password,
-                                    hostEmail: newZoomMeeting.host_email,
-                                }
-                            );
-
-                            this.logger.log(`Recreated Zoom meeting: old=${booking.meeting.zoomMeetingId} → new=${newZoomMeeting.id}`);
-                        } catch (recreateError: any) {
-                            this.logger.error(`Failed to recreate Zoom meeting: ${recreateError.message}`);
-                            throw new BadRequestException(
-                                `Gagal mengubah jadwal: Terjadi kesalahan saat membuat meeting baru di Zoom.`
-                            );
+                if (booking.meeting?.zoomMeetingId) {
+                    try {
+                        const formattedStartTime = `${targetDateStr}T${dto.startTime}:00`;
+                        await this.zoomApi.updateMeeting(booking.meeting.zoomMeetingId, {
+                            start_time: formattedStartTime,
+                            duration: newDuration,
+                            timezone: 'Asia/Jakarta',
+                        });
+                    } catch (error: any) {
+                        if (this.zoomApi.isScopeError(error)) {
+                            throw new ConflictException('Gagal mengubah jadwal Zoom (Zoom Meeting API Scope Error). Silakan hubungi administrator.');
                         }
-                    } else {
-                        this.logger.error(`Failed to update Zoom meeting: ${error.message}`);
-                        throw new BadRequestException(
-                            `Gagal update Zoom meeting: ${error.response?.data?.message || error.message}`
-                        );
+                        this.logger.error(`Failed to update Zoom meeting: ${error.message}`, error.stack);
+                        throw new BadRequestException(`Gagal update Zoom meeting: ${error.response?.data?.message || error.message}`);
                     }
                 }
+
+                // Audit log
+                const auditLog = queryRunner.manager.create(ZoomAuditLog, {
+                    zoomBookingId: booking.id,
+                    userId: user.userId,
+                    action: 'RESCHEDULED',
+                    oldValues: {
+                        bookingDate: booking.bookingDate,
+                        startTime: booking.startTime,
+                        endTime: booking.endTime,
+                        durationMinutes: booking.durationMinutes,
+                    },
+                    newValues: {
+                        bookingDate: targetDate,
+                        startTime: dto.startTime,
+                        endTime: newEndTime,
+                        durationMinutes: newDuration,
+                    },
+                    ipAddress,
+                });
+                await queryRunner.manager.save(auditLog);
             }
 
             await queryRunner.commitTransaction();
@@ -962,23 +1033,11 @@ export class ZoomBookingService {
             await queryRunner.release();
         }
 
-        // Create audit log
-        await this.createAuditLog(bookingId, user.userId, 'RESCHEDULED', oldValues, {
-            bookingDate: dto.bookingDate,
-            startTime: dto.startTime,
-            endTime: newEndTime,
-            durationMinutes: newDuration,
-        }, ipAddress);
-
-        // Emit event
         this.eventEmitter.emit('zoom.booking.rescheduled', {
             bookingId,
-            oldValues,
-            newValues: { bookingDate: dto.bookingDate, startTime: dto.startTime },
             user,
         });
 
-        // Re-fetch with relations
         const updatedBooking = await this.bookingRepo.findOne({
             where: { id: bookingId },
             relations: ['bookedByUser', 'zoomAccount', 'meeting'],

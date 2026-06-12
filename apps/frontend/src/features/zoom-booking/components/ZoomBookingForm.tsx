@@ -21,6 +21,7 @@ import {
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { useCreateBooking, usePublicZoomSettings, useZoomCalendar } from '../hooks';
 import type { ZoomAccount, CreateBookingDto } from '../types';
+import { ZoomRecurringOptions } from './ZoomRecurringOptions';
 
 const generateTimeOptions = (
     startTime = '08:00',
@@ -73,6 +74,12 @@ export function ZoomBookingForm({
     const [duration, setDuration] = useState<number>(60);
     const [participantEmails, setParticipantEmails] = useState('');
     const [successJoinUrl, setSuccessJoinUrl] = useState<string | null>(null);
+
+    // Recurring state
+    const [isRecurring, setIsRecurring] = useState(false);
+    const [freq, setFreq] = useState('WEEKLY');
+    const [interval, setIntervalVal] = useState(1);
+    const [until, setUntil] = useState('');
 
     const { data: settings } = usePublicZoomSettings();
     const createBooking = useCreateBooking();
@@ -167,7 +174,15 @@ export function ZoomBookingForm({
 
         if (!title.trim()) { toast.error('Judul meeting wajib diisi'); return; }
         if (!bookingDate) { toast.error('Tanggal wajib dipilih'); return; }
-        if (!startTime) { toast.error('Waktu mulai wajib dipilih'); return; }
+        let recurrencePattern: string | undefined;
+        if (isRecurring) {
+            recurrencePattern = `FREQ=${freq};INTERVAL=${interval}`;
+            if (until) {
+                // Ensure UNTIL is in UTC format (YYYYMMDDTHHMMSSZ) for the end of that day
+                const untilDateStr = until.replace(/-/g, '');
+                recurrencePattern += `;UNTIL=${untilDateStr}T235959Z`;
+            }
+        }
 
         const dto: CreateBookingDto = {
             zoomAccountId: selectedAccountId,
@@ -180,6 +195,7 @@ export function ZoomBookingForm({
                 .split(',')
                 .map((e) => e.trim())
                 .filter((e) => e.includes('@')),
+            recurrencePattern
         };
 
         try {
@@ -381,6 +397,20 @@ export function ZoomBookingForm({
                     />
                     <p className="text-xs text-muted-foreground">Pisahkan dengan koma untuk multiple email</p>
                 </div>
+
+                {/* Recurring Options */}
+                <ZoomRecurringOptions
+                    isRecurring={isRecurring}
+                    setIsRecurring={setIsRecurring}
+                    freq={freq}
+                    setFreq={setFreq}
+                    interval={interval}
+                    setInterval={setIntervalVal}
+                    until={until}
+                    setUntil={setUntil}
+                    minDate={new Date()}
+                    maxDate={addDays(new Date(), 365)} // allow up to 1 year for recurring
+                />
             </div>
 
             {/* Sticky action bar */}

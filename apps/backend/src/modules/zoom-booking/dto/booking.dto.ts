@@ -64,6 +64,11 @@ export class CreateBookingDto {
     @IsEmail({}, { each: true })
     @IsOptional()
     participantEmails?: string[];
+
+    @ApiPropertyOptional({ description: 'Recurrence RRule string' })
+    @IsString()
+    @IsOptional()
+    recurrencePattern?: string;
 }
 
 export class CancelBookingDto {
@@ -73,6 +78,11 @@ export class CancelBookingDto {
     @MinLength(10)
     @MaxLength(500)
     cancellationReason: string;
+
+    @ApiPropertyOptional({ description: 'Edit scope for series (this, following, all)' })
+    @IsString()
+    @IsOptional()
+    scope?: 'this' | 'following' | 'all';
 }
 
 export class GetCalendarDto {
@@ -113,4 +123,9 @@ export class RescheduleBookingDto {
     @Max(240)
     @IsOptional()
     durationMinutes?: number;
+
+    @ApiPropertyOptional({ description: 'Edit scope for series (this, following, all)' })
+    @IsString()
+    @IsOptional()
+    scope?: 'this' | 'following' | 'all';
 }

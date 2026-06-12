@@ -30,6 +30,7 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
     const [selectedDate, setSelectedDate] = useState<Date>(new Date(booking.bookingDate));
     const [selectedTime, setSelectedTime] = useState<string>(booking.startTime.substring(0, 5));
     const [selectedDuration, setSelectedDuration] = useState<number>(booking.durationMinutes);
+    const [scope, setScope] = useState<'this' | 'following' | 'all'>('this');
 
     const reschedule = useRescheduleOwnBooking();
     const { data: settings } = usePublicZoomSettings();
@@ -101,6 +102,7 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
                     bookingDate: format(selectedDate, 'yyyy-MM-dd'),
                     startTime: selectedTime,
                     durationMinutes: selectedDuration,
+                    scope: booking.seriesId ? scope : undefined,
                 },
             });
             toast.success('Booking berhasil dijadwalkan ulang');
@@ -184,6 +186,31 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
                     </SelectContent>
                 </Select>
             </div>
+
+            {/* Warning block */}
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 rounded-lg text-xs mt-4">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <p>
+                    Waktu yang tersedia disesuaikan dengan ketersediaan akun Zoom saat ini untuk memastikan <b>Link Zoom tidak berubah</b>.
+                </p>
+            </div>
+
+            {/* Scope Selection for Recurring */}
+            {booking.seriesId && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">Terapkan Perubahan Untuk:</Label>
+                    <Select value={scope} onValueChange={(val: any) => setScope(val)}>
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Pilih jadwal yang diubah" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="this">Hanya jadwal ini</SelectItem>
+                            <SelectItem value="following">Jadwal ini dan selanjutnya</SelectItem>
+                            <SelectItem value="all">Semua jadwal dalam seri</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
 
             {/* Conflict warning */}
             {hasConflict && (

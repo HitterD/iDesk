@@ -292,6 +292,19 @@ export function ZoomCalendarPage() {
                             onToday={navigateToToday}
                             onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
                             onNavigateToDate={navigateToDate}
+                            canBook={canBook}
+                            onBookMeeting={() => {
+                                if (!selectedAccountId && safeAccounts.length === 0) return;
+                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId 
+                                    ? safeAccounts[0]?.id 
+                                    : selectedAccountId;
+                                
+                                panel.openBooking({
+                                    date: format(currentDate, 'yyyy-MM-dd'),
+                                    time: format(new Date(), 'HH:00'),
+                                    zoomAccountId: accountIdToUse,
+                                });
+                            }}
                         />
                     }
                     isPanelOpen={panel.isOpen}

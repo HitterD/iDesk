@@ -42,6 +42,8 @@ export interface ZoomBooking {
     };
     isExternal?: boolean;
     externalZoomMeetingId?: string;
+    seriesId?: string;
+    recurrencePattern?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -115,8 +117,10 @@ export interface CreateBookingDto {
     startTime: string;
     durationMinutes: number;
     participantEmails?: string[];
+    recurrencePattern?: string;
 }
 
 export interface CancelBookingDto {
     cancellationReason: string;
+    scope?: 'this' | 'following' | 'all';
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, startOfWeek, endOfWeek, setMonth, setYear, getYear } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, ListTodo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ListTodo, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ZoomViewSwitcher } from './ZoomViewSwitcher';
@@ -22,6 +22,8 @@ interface ZoomCalendarHeaderProps {
     onToday: () => void;
     onAccountChange: (accountId: string) => void;
     onNavigateToDate: (date: Date) => void;
+    canBook?: boolean;
+    onBookMeeting?: () => void;
     className?: string;
 }
 
@@ -53,12 +55,14 @@ export function ZoomCalendarHeader({
     currentDate,
     selectedAccountId,
     accounts,
+    canBook,
     onViewChange,
     onPrev,
     onNext,
     onToday,
     onAccountChange,
     onNavigateToDate,
+    onBookMeeting,
     className,
 }: ZoomCalendarHeaderProps) {
     const title = getHeaderTitle(view, currentDate);
@@ -231,6 +235,14 @@ export function ZoomCalendarHeader({
                 )}
 
                 <ZoomViewSwitcher view={view} onViewChange={onViewChange} />
+                
+                {canBook && onBookMeeting && (
+                    <Button onClick={onBookMeeting} size="sm" className="h-8 gap-1.5 font-medium ml-2 shadow-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
+                        <Plus className="h-4 w-4" />
+                        <span className="hidden sm:inline">Book Meeting</span>
+                        <span className="inline sm:hidden">Book</span>
+                    </Button>
+                )}
             </div>
         </div>
     );

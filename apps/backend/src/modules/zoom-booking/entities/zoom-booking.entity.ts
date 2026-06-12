@@ -25,6 +25,13 @@ export class ZoomBooking {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
+    @Column({ type: 'uuid', nullable: true })
+    @Index()
+    seriesId: string;
+
+    @Column({ type: 'text', nullable: true })
+    recurrencePattern: string;
+
     @Column()
     zoomAccountId: string;
 
