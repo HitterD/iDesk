@@ -89,43 +89,65 @@ export class FoundClaimService {
     }
 
     async match(id: string, dto: MatchFoundClaimDto, managerId: string): Promise<FoundItemClaim> {
-        const claim = await this.findOne(id);
-        if (claim.status !== FoundClaimStatus.PENDING) {
-            throw new BadRequestException('Claim is not in PENDING status');
-        }
-
-        const reportId = dto.lostItemReportId ?? claim.lostItemReportId;
+        // P0 fix: was findOne → check status → save (TOCTOU race between
+        // check and save). Two concurrent matches could both pass the check
+        // and double-save. Now atomic conditional UPDATE — the DB enforces
+        // the precondition, so exactly one wins.
+        const reportId = dto.lostItemReportId ?? null;
         if (!reportId) throw new BadRequestException('lostItemReportId required for unlinked claims');
 
-        const report = await this.reportRepo.findOne({ where: { id: reportId } });
-        if (!report) throw new NotFoundException('Lost item report not found');
+        return this.dataSource.transaction(async (mgr) => {
+            const claimRepo = mgr.getRepository(FoundItemClaim);
+            const reportRepo = mgr.getRepository(LostItemReport);
 
-        claim.status = FoundClaimStatus.MATCHED;
-        claim.lostItemReportId = reportId;
-        claim.matchedById = managerId;
-        claim.matchedAt = new Date();
-        claim.managerNotes = dto.notes ?? null;
+            // Atomic status guard
+            const result = await claimRepo.update(
+                { id, status: FoundClaimStatus.PENDING },
+                {
+                    status: FoundClaimStatus.MATCHED,
+                    lostItemReportId: reportId,
+                    matchedById: managerId,
+                    matchedAt: new Date(),
+                    managerNotes: dto.notes ?? null,
+                },
+            );
+            if (!result.affected) {
+                throw new BadRequestException('Claim is not in PENDING status');
+            }
 
-        const saved = await this.claimRepo.save(claim);
+            // Reload the saved claim with the relations the caller expects
+            const saved = await claimRepo.findOne({ where: { id } });
+            if (!saved) throw new NotFoundException('Found claim not found after update');
 
-        this.eventEmitter.emit('found-claim.matched', { claim: saved, report });
-        return saved;
+            const report = await reportRepo.findOne({ where: { id: reportId } });
+            this.eventEmitter.emit('found-claim.matched', { claim: saved, report });
+            return saved;
+        });
     }
 
     async reject(id: string, dto: RejectFoundClaimDto, managerId: string): Promise<FoundItemClaim> {
-        const claim = await this.findOne(id);
-        if (claim.status !== FoundClaimStatus.PENDING) {
-            throw new BadRequestException('Claim is not in PENDING status');
-        }
+        // Same TOCTOU fix as match(): atomic conditional UPDATE.
+        return this.dataSource.transaction(async (mgr) => {
+            const claimRepo = mgr.getRepository(FoundItemClaim);
 
-        claim.status = FoundClaimStatus.REJECTED;
-        claim.matchedById = managerId;
-        claim.matchedAt = new Date();
-        claim.managerNotes = dto.notes;
+            const result = await claimRepo.update(
+                { id, status: FoundClaimStatus.PENDING },
+                {
+                    status: FoundClaimStatus.REJECTED,
+                    matchedById: managerId,
+                    matchedAt: new Date(),
+                    managerNotes: dto.notes,
+                },
+            );
+            if (!result.affected) {
+                throw new BadRequestException('Claim is not in PENDING status');
+            }
 
-        const saved = await this.claimRepo.save(claim);
-        this.eventEmitter.emit('found-claim.rejected', { claim: saved });
-        return saved;
+            const saved = await claimRepo.findOne({ where: { id } });
+            if (!saved) throw new NotFoundException('Found claim not found after update');
+            this.eventEmitter.emit('found-claim.rejected', { claim: saved });
+            return saved;
+        });
     }
 
     async confirmReturn(id: string, managerId: string): Promise<FoundItemClaim> {
