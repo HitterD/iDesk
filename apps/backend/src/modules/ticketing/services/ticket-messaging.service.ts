@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
@@ -23,6 +23,7 @@ export class TicketMessagingService {
         private readonly userRepo: Repository<User>,
         @InjectRepository(SlaConfig)
         private readonly slaConfigRepo: Repository<SlaConfig>,
+        private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly eventEmitter: EventEmitter2,
     ) { }
@@ -98,69 +99,81 @@ export class TicketMessagingService {
         mentionedUserIds: string[] = [],
         isInternal: boolean = false,
     ) {
-        const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user', 'assignedTo'] });
-        if (!ticket) {
-            throw new NotFoundException('Ticket not found');
-        }
-
-        const user = await this.userRepo.findOne({ where: { id: userId } });
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
-
-        // Create Message
-        const message = this.messageRepo.create({
-            ticketId,
-            senderId: userId,
-            content,
-            attachments: files,
-            isInternal,  // Mark as internal note if specified
-        });
-
-        const savedMessage = await this.messageRepo.save(message);
-
-        // === Track First Response Time ===
-        const isAgentOrAdmin = user.role === UserRole.AGENT || user.role === UserRole.ADMIN;
-        const isFirstAgentReply = !ticket.firstResponseAt && isAgentOrAdmin;
-
-        if (isFirstAgentReply) {
-            ticket.firstResponseAt = new Date();
-
-            // Check if first response SLA was breached
-            if (ticket.firstResponseTarget && ticket.firstResponseAt > new Date(ticket.firstResponseTarget)) {
-                ticket.isFirstResponseBreached = true;
-                this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber}`);
-            } else {
-                this.logger.log(`First Response recorded for ticket #${ticket.ticketNumber} - within SLA`);
+        // P1 fix: message insert + ticket status/SLA update were two separate
+        // saves outside any transaction. A crash between them left the ticket
+        // without its SLA timer started (or its firstResponseAt set). Now atomic
+        // via dataSource.transaction. Event emit / WS push moved outside the
+        // transaction so listeners only fire on commit.
+        const { savedMessage, ticket, user } = await this.dataSource.transaction(async (manager) => {
+            const ticket = await manager.findOne(Ticket, {
+                where: { id: ticketId },
+                relations: ['user', 'assignedTo'],
+            });
+            if (!ticket) {
+                throw new NotFoundException('Ticket not found');
             }
-        }
 
-        // Update Ticket Status if Agent/Admin replies and ticket is still TODO
-        if (isAgentOrAdmin && ticket.status === TicketStatus.TODO) {
-            ticket.status = TicketStatus.IN_PROGRESS;
+            const user = await manager.findOne(User, { where: { id: userId } });
+            if (!user) {
+                throw new NotFoundException('User not found');
+            }
 
-            // Also start SLA timer if not started
-            if (!ticket.slaStartedAt) {
-                const now = new Date();
-                ticket.slaStartedAt = now;
+            // Create Message
+            const message = manager.create(TicketMessage, {
+                ticketId,
+                senderId: userId,
+                content,
+                attachments: files,
+                isInternal,  // Mark as internal note if specified
+            });
 
-                const slaConfig = await this.slaConfigRepo.findOne({
-                    where: { priority: ticket.priority }
-                });
+            const savedMessage = await manager.save(TicketMessage, message);
 
-                if (slaConfig) {
-                    ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
-                    this.logger.log(`SLA Timer started for ticket #${ticket.ticketNumber}. Target: ${ticket.slaTarget}`);
+            // === Track First Response Time ===
+            const isAgentOrAdmin = user.role === UserRole.AGENT || user.role === UserRole.ADMIN;
+            const isFirstAgentReply = !ticket.firstResponseAt && isAgentOrAdmin;
+
+            if (isFirstAgentReply) {
+                ticket.firstResponseAt = new Date();
+
+                // Check if first response SLA was breached
+                if (ticket.firstResponseTarget && ticket.firstResponseAt > new Date(ticket.firstResponseTarget)) {
+                    ticket.isFirstResponseBreached = true;
+                    this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber}`);
+                } else {
+                    this.logger.log(`First Response recorded for ticket #${ticket.ticketNumber} - within SLA`);
                 }
             }
-        }
 
-        // Save ticket changes if any
-        if (isFirstAgentReply || (isAgentOrAdmin && ticket.status === TicketStatus.IN_PROGRESS)) {
-            await this.ticketRepo.save(ticket);
-        }
+            // Update Ticket Status if Agent/Admin replies and ticket is still TODO
+            if (isAgentOrAdmin && ticket.status === TicketStatus.TODO) {
+                ticket.status = TicketStatus.IN_PROGRESS;
 
-        // Notify frontend via WebSocket with full message data
+                // Also start SLA timer if not started
+                if (!ticket.slaStartedAt) {
+                    const now = new Date();
+                    ticket.slaStartedAt = now;
+
+                    const slaConfig = await manager.findOne(SlaConfig, {
+                        where: { priority: ticket.priority },
+                    });
+
+                    if (slaConfig) {
+                        ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
+                        this.logger.log(`SLA Timer started for ticket #${ticket.ticketNumber}. Target: ${ticket.slaTarget}`);
+                    }
+                }
+            }
+
+            // Save ticket changes if any
+            if (isFirstAgentReply || (isAgentOrAdmin && ticket.status === TicketStatus.IN_PROGRESS)) {
+                await manager.save(Ticket, ticket);
+            }
+
+            return { savedMessage, ticket, user };
+        });
+
+        // Notify frontend via WebSocket with full message data (post-commit)
         const messageWithSender = {
             ...savedMessage,
             sender: {
@@ -192,6 +205,6 @@ export class TicketMessagingService {
             ),
         );
 
-        return message;
+        return savedMessage;
     }
 }
