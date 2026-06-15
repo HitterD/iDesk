@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { SystemSettings } from './entities/system-settings.entity';
 import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
 import { SchedulingConfig } from './dto/scheduling-config.dto';
@@ -57,6 +57,8 @@ export class SettingsService {
     constructor(
         @InjectRepository(SystemSettings)
         private readonly settingsRepo: Repository<SystemSettings>,
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
         private readonly auditService: AuditService,
     ) { }
 
@@ -69,21 +71,27 @@ export class SettingsService {
     }
 
     async setSetting(key: string, value: any, userId?: string, description?: string): Promise<SystemSettings> {
-        let setting = await this.settingsRepo.findOne({ where: { key } });
+        // P1 fix: was find-then-save (read-modify-write) with no transaction.
+        // A concurrent writer could clobber the value between read and save.
+        // Now the read + conditional update + insert-on-miss happen in a
+        // single transaction. For higher-throughput callers, follow-up plans
+        // can introduce an upsert helper that uses a single SQL statement.
+        return this.dataSource.transaction(async (manager) => {
+            const setting = await manager.findOne(SystemSettings, { where: { key } });
 
-        if (setting) {
-            setting.value = value;
-            setting.updatedBy = userId || "system";
-        } else {
-            setting = this.settingsRepo.create({
+            if (setting) {
+                setting.value = value;
+                setting.updatedBy = userId || 'system';
+                return manager.save(SystemSettings, setting);
+            }
+            const created = manager.create(SystemSettings, {
                 key,
                 value,
                 description,
                 updatedBy: userId,
             });
-        }
-
-        return this.settingsRepo.save(setting);
+            return manager.save(SystemSettings, created);
+        });
     }
 
     async deleteSetting(key: string): Promise<boolean> {
