@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
@@ -16,6 +16,8 @@ export class TicketMergeService {
         private readonly messageRepo: Repository<TicketMessage>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly auditService: AuditService,
     ) {}
@@ -30,82 +32,100 @@ export class TicketMergeService {
             throw new BadRequestException('Primary ticket cannot be in the list of secondary tickets');
         }
 
-        const primaryTicket = await this.ticketRepo.findOne({
-            where: { id: primaryTicketId },
-            relations: ['user', 'assignedTo', 'messages'],
-        });
-
-        if (!primaryTicket) {
-            throw new NotFoundException('Primary ticket not found');
-        }
-
-        const secondaryTickets = await this.ticketRepo.find({
-            where: { id: In(secondaryTicketIds) },
-            relations: ['user', 'messages'],
-        });
-
-        if (secondaryTickets.length !== secondaryTicketIds.length) {
-            throw new NotFoundException('One or more secondary tickets not found');
-        }
-
-        const user = await this.userRepo.findOne({ where: { id: userId } });
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
-
-        for (const secondaryTicket of secondaryTickets) {
-            if (secondaryTicket.status === TicketStatus.RESOLVED || secondaryTicket.status === TicketStatus.CANCELLED) {
-                throw new BadRequestException(`Cannot merge resolved or cancelled ticket: ${secondaryTicket.ticketNumber}`);
-            }
-        }
-
-        for (const secondaryTicket of secondaryTickets) {
-            const messages = await this.messageRepo.find({
-                where: { ticketId: secondaryTicket.id },
-                order: { createdAt: 'ASC' },
+        // P1 fix: source ticket status update + new message insert + target
+        // ticket update were three separate awaits (per secondary ticket
+        // that's 4+ writes). A crash left messages orphaned on a cancelled
+        // ticket, or the cancel-status without the merge message. Now atomic
+        // via dataSource.transaction.
+        const secondaryTicketNumbers = await this.dataSource.transaction(async (manager) => {
+            const primaryTicket = await manager.findOne(Ticket, {
+                where: { id: primaryTicketId },
+                relations: ['user', 'assignedTo'],
             });
+            if (!primaryTicket) {
+                throw new NotFoundException('Primary ticket not found');
+            }
 
-            for (const message of messages) {
-                const mergedMessage = this.messageRepo.create({
-                    ticketId: primaryTicketId,
-                    senderId: message.senderId,
-                    content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
-                    attachments: message.attachments,
-                    isSystemMessage: message.isSystemMessage,
-                    createdAt: message.createdAt,
+            const secondaryTickets = await manager.find(Ticket, {
+                where: { id: In(secondaryTicketIds) },
+                relations: ['user'],
+            });
+            if (secondaryTickets.length !== secondaryTicketIds.length) {
+                throw new NotFoundException('One or more secondary tickets not found');
+            }
+
+            const user = await manager.findOne(User, { where: { id: userId } });
+            if (!user) {
+                throw new NotFoundException('User not found');
+            }
+
+            // Pre-validate status before any writes
+            for (const secondaryTicket of secondaryTickets) {
+                if (secondaryTicket.status === TicketStatus.RESOLVED || secondaryTicket.status === TicketStatus.CANCELLED) {
+                    throw new BadRequestException(`Cannot merge resolved or cancelled ticket: ${secondaryTicket.ticketNumber}`);
+                }
+            }
+
+            const ticketNumbers: string[] = [];
+            for (const secondaryTicket of secondaryTickets) {
+                ticketNumbers.push(secondaryTicket.ticketNumber);
+
+                // Move all source messages to the primary ticket in one bulk save
+                const messages = await manager.find(TicketMessage, {
+                    where: { ticketId: secondaryTicket.id },
+                    order: { createdAt: 'ASC' },
                 });
-                await this.messageRepo.save(mergedMessage);
+
+                const movedMessages = messages.map((message) =>
+                    manager.create(TicketMessage, {
+                        ticketId: primaryTicketId,
+                        senderId: message.senderId,
+                        content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
+                        attachments: message.attachments,
+                        isSystemMessage: message.isSystemMessage,
+                        createdAt: message.createdAt,
+                    }),
+                );
+                if (movedMessages.length > 0) {
+                    await manager.save(TicketMessage, movedMessages);
+                }
+
+                // System note on the primary ticket
+                const systemMessage = manager.create(TicketMessage, {
+                    ticketId: primaryTicketId,
+                    senderId: userId,
+                    content: `System: Ticket #${secondaryTicket.ticketNumber} was merged into this ticket by ${user.fullName}${reason ? `. Reason: ${reason}` : ''}`,
+                    isSystemMessage: true,
+                });
+                await manager.save(TicketMessage, systemMessage);
+
+                // Mark secondary as cancelled (with a final system message)
+                secondaryTicket.status = TicketStatus.CANCELLED;
+                secondaryTicket.description = `[MERGED INTO #${primaryTicket.ticketNumber}] ${secondaryTicket.description}`;
+                await manager.save(Ticket, secondaryTicket);
+
+                const cancelMessage = manager.create(TicketMessage, {
+                    ticketId: secondaryTicket.id,
+                    senderId: userId,
+                    content: `System: This ticket was merged into #${primaryTicket.ticketNumber} by ${user.fullName}`,
+                    isSystemMessage: true,
+                });
+                await manager.save(TicketMessage, cancelMessage);
             }
 
-            const systemMessage = this.messageRepo.create({
-                ticketId: primaryTicketId,
-                senderId: userId,
-                content: `System: Ticket #${secondaryTicket.ticketNumber} was merged into this ticket by ${user.fullName}${reason ? `. Reason: ${reason}` : ''}`,
-                isSystemMessage: true,
-            });
-            await this.messageRepo.save(systemMessage);
+            return ticketNumbers;
+        });
 
-            secondaryTicket.status = TicketStatus.CANCELLED;
-            secondaryTicket.description = `[MERGED INTO #${primaryTicket.ticketNumber}] ${secondaryTicket.description}`;
-            await this.ticketRepo.save(secondaryTicket);
-
-            const cancelMessage = this.messageRepo.create({
-                ticketId: secondaryTicket.id,
-                senderId: userId,
-                content: `System: This ticket was merged into #${primaryTicket.ticketNumber} by ${user.fullName}`,
-                isSystemMessage: true,
-            });
-            await this.messageRepo.save(cancelMessage);
-        }
-
+        // Post-commit side effects (audit + WS push) — these should fire only
+        // if the transaction succeeded.
         await this.auditService.log({
             userId,
             action: AuditAction.TICKET_MERGE,
             entityType: 'Ticket',
             entityId: primaryTicketId,
             oldValue: { secondaryTicketIds },
-            newValue: { mergedInto: primaryTicketId },
-            description: `Merged ${secondaryTicketIds.length} tickets into #${primaryTicket.ticketNumber}`,
+            newValue: { mergedInto: primaryTicketId, secondaryTicketNumbers },
+            description: `Merged ${secondaryTicketIds.length} tickets into primary`,
         });
 
         this.eventsGateway.server.emit('ticket:updated', { ticketId: primaryTicketId });
