@@ -47,6 +47,7 @@ import { RenewalContract } from './modules/renewal/entities/renewal-contract.ent
 import { AppCacheModule } from './shared/core/cache';
 import { QueueModule } from './shared/queue';
 import { UploadModule } from './shared/upload';
+import { EncryptionModule } from './shared/core/encryption/encryption.module';
 import { AuditModule } from './modules/audit';
 import { BusinessHours } from './modules/sla-config/entities/business-hours.entity';
 import { AutomationModule } from './modules/automation/automation.module';
@@ -219,6 +220,7 @@ import { HardwareRequestModule } from './modules/hardware-request/hardware-reque
         EFormRequestModule, // E-Form Access (VPN MVP)
         SharedGuardsModule, // Provides PageAccessGuard and FeatureAccessGuard with dependencies
         HardwareRequestModule,
+        EncryptionModule, // Provides CredentialCipherService (AES-256-GCM) for at-rest credential protection
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 60, // 60 requests per minute (P0: lowered from 100 to leave headroom for per-endpoint overrides)

@@ -9,6 +9,7 @@ import { CreateAccessRequestDto, VerifyAccessRequestDto, CreateAccessCredentials
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { CredentialCipherService } from '../../shared/core/encryption/credential-cipher.service';
 
 @Injectable()
 export class AccessRequestService {
@@ -23,6 +24,7 @@ export class AccessRequestService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly eventEmitter: EventEmitter2,
+        private readonly cipher: CredentialCipherService,
     ) { }
 
     async create(userId: string, dto: CreateAccessRequestDto): Promise<AccessRequest> {
@@ -99,14 +101,21 @@ export class AccessRequestService {
         if (!accessRequest) {
             throw new NotFoundException('Access Request not found');
         }
+        // Decrypt credentials on read so callers always receive plaintext.
+        // `decrypt()` is backward-compatible with legacy plaintext rows.
+        accessRequest.accessCredentials = this.cipher.decrypt(accessRequest.accessCredentials);
         return accessRequest;
     }
 
     async findByTicketId(ticketId: string): Promise<AccessRequest | null> {
-        return this.accessRequestRepo.findOne({
+        const found = await this.accessRequestRepo.findOne({
             where: { ticketId },
             relations: ['ticket', 'accessType'],
         });
+        if (found?.accessCredentials) {
+            found.accessCredentials = this.cipher.decrypt(found.accessCredentials);
+        }
+        return found;
     }
 
     async markFormDownloaded(id: string): Promise<AccessRequest> {
@@ -163,7 +172,9 @@ export class AccessRequestService {
 
         accessRequest.status = AccessRequestStatus.ACCESS_CREATED;
         accessRequest.accessCreatedAt = new Date();
-        accessRequest.accessCredentials = dto.accessCredentials; // Should be encrypted in production
+        // P0 fix: credentials are encrypted at rest with AES-256-GCM (CredentialCipherService).
+        // Legacy plaintext rows remain readable thanks to isEncrypted() detection in the cipher.
+        accessRequest.accessCredentials = this.cipher.encrypt(dto.accessCredentials);
 
         // Resolve ticket
         await this.ticketRepo.update(accessRequest.ticketId, {
