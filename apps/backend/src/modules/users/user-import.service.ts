@@ -316,13 +316,27 @@ export class UserImportService {
     }
 
     async exportUsers(fields: string[] = []): Promise<{ data: string; filename: string }> {
-        const users = await this.userRepo.find({
-            relations: ['department', 'site'],
-            order: { fullName: 'ASC' },
-            where: {
-                email: require('typeorm').Not(require('typeorm').Like('deleted_%'))
-            }
-        });
+        // P1 perf: original loaded every user (with department + site joins)
+        // into memory in one shot. For 50K+ user tables this OOM'd the worker.
+        // Now we page at 500 rows and accumulate.
+        const PAGE = 500;
+        const users: User[] = [];
+        let skip = 0;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const typeorm = require('typeorm');
+        for (;;) {
+            const page = await this.userRepo.find({
+                relations: ['department', 'site'],
+                order: { fullName: 'ASC' },
+                where: { email: typeorm.Not(typeorm.Like('deleted_%')) },
+                take: PAGE,
+                skip,
+            });
+            if (page.length === 0) break;
+            users.push(...page);
+            if (page.length < PAGE) break;
+            skip += PAGE;
+        }
 
         const activeFields = fields.length > 0
             ? fields.filter(f => USER_EXPORT_FIELDS[f])
@@ -343,13 +357,27 @@ export class UserImportService {
     }
 
     async exportUsersXlsx(siteFilter: string = 'ALL', fields: string[] = []): Promise<Buffer> {
-        const users = await this.userRepo.find({
-            relations: ['department', 'site'],
-            order: { fullName: 'ASC' },
-            where: {
-                email: require('typeorm').Not(require('typeorm').Like('deleted_%'))
-            }
-        });
+        // P1 perf: same fix as exportUsers — page at 500 rows to avoid the
+        // 50K+ user OOM. Per-site grouping in the workbook still works on
+        // the accumulated array.
+        const PAGE = 500;
+        const users: User[] = [];
+        let skip = 0;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const typeorm = require('typeorm');
+        for (;;) {
+            const page = await this.userRepo.find({
+                relations: ['department', 'site'],
+                order: { fullName: 'ASC' },
+                where: { email: typeorm.Not(typeorm.Like('deleted_%')) },
+                take: PAGE,
+                skip,
+            });
+            if (page.length === 0) break;
+            users.push(...page);
+            if (page.length < PAGE) break;
+            skip += PAGE;
+        }
 
         const activeKeys = fields.length > 0
             ? fields.filter(f => USER_EXPORT_FIELDS[f])
