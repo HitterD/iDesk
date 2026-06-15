@@ -5,10 +5,7 @@ import { Eye, EyeOff, ArrowRight, AlertTriangle, WifiOff, Lock, Info, Terminal }
 import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
 import { Logo } from '../../../components/ui/Logo';
-import { getErrorFromResponse, type LoginError } from '../utils/loginErrorMapping';
-
-const MAX_LOGIN_ATTEMPTS = 5;
-const RATE_LIMIT_WINDOW_SECONDS = 60;
+import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS, RATE_LIMIT_WINDOW_SECONDS } from '../utils/loginErrorMapping';
 
 export const BentoLoginPage = () => {
     const [email, setEmail] = useState('');
@@ -176,8 +173,8 @@ export const BentoLoginPage = () => {
                         {failedAttempts >= 3 && !loginError && (
                             <div className="flex items-center gap-2 text-warning-500 text-xs font-mono mb-2">
                                 <AlertTriangle className="w-3.5 h-3.5" />
-                                {5 - failedAttempts > 0
-                                    ? `WARNING: ${5 - failedAttempts} ATTEMPT(S) REMAINING`
+                                {MAX_LOGIN_ATTEMPTS - failedAttempts > 0
+                                    ? `WARNING: ${MAX_LOGIN_ATTEMPTS - failedAttempts} ATTEMPT(S) REMAINING`
                                     : 'CRITICAL: LOGIN SYSTEM LOCKOUT IMMINENT'}
                             </div>
                         )}

@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { getErrorFromResponse } from '../loginErrorMapping';
 
-const makeAxiosErr = (status: number | undefined, data: any = {}) => ({
+type LoginErrorBody = { message?: string | string[]; errorCode?: string };
+
+const makeAxiosErr = (status: number | undefined, data: LoginErrorBody = {}) => ({
   isAxiosError: true,
   response: status ? { status, data } : undefined,
   message: 'mocked',
@@ -16,14 +18,22 @@ describe('getErrorFromResponse', () => {
 
   it('maps USER_NOT_FOUND errorCode', () => {
     const result = getErrorFromResponse(makeAxiosErr(401, { errorCode: 'USER_NOT_FOUND' }), 0);
-    expect(result.message).toBe('Account not found');
-    expect(result.errorCode).toBe('USER_NOT_FOUND');
+    expect(result).toEqual({
+      type: 'error',
+      message: 'Account not found',
+      details: 'No account exists with this email address.',
+      errorCode: 'USER_NOT_FOUND',
+    });
   });
 
   it('maps WRONG_PASSWORD with attempts remaining', () => {
     const result = getErrorFromResponse(makeAxiosErr(401, { errorCode: 'WRONG_PASSWORD' }), 2);
-    expect(result.message).toBe('Incorrect password');
-    expect(result.details).toContain('2 attempt');
+    expect(result).toEqual({
+      type: 'error',
+      message: 'Incorrect password',
+      details: '2 attempts remaining.',
+      errorCode: 'WRONG_PASSWORD',
+    });
   });
 
   it('maps WRONG_PASSWORD last attempt', () => {
@@ -38,12 +48,20 @@ describe('getErrorFromResponse', () => {
 
   it('maps 423 status', () => {
     const result = getErrorFromResponse(makeAxiosErr(423, { message: 'Locked' }), 0);
-    expect(result.message).toBe('Security lock active');
+    expect(result).toEqual({
+      type: 'warning',
+      message: 'Security lock active',
+      details: 'Too many attempts. Wait 15 minutes.',
+    });
   });
 
   it('maps 429 status', () => {
     const result = getErrorFromResponse(makeAxiosErr(429, {}), 0);
-    expect(result.message).toBe('Rate limit exceeded');
+    expect(result).toEqual({
+      type: 'warning',
+      message: 'Rate limit exceeded',
+      details: 'Wait 60 seconds.',
+    });
   });
 
   it('maps 500 status', () => {
@@ -78,7 +96,11 @@ describe('getErrorFromResponse', () => {
 
   it('falls back to "Authentication Error" for non-AxiosError', () => {
     const result = getErrorFromResponse(new Error('boom'), 0);
-    expect(result.message).toBe('Authentication Error');
+    expect(result).toEqual({
+      type: 'error',
+      message: 'Authentication Error',
+      details: 'System malfunction. Please retry.',
+    });
   });
 
   it('falls back to default for unknown status', () => {

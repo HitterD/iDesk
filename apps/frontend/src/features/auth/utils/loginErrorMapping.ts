@@ -1,5 +1,14 @@
 import axios from 'axios';
 
+type LoginErrorBody = { message?: string | string[]; errorCode?: string };
+
+const asLoginErrorBody = (value: unknown): LoginErrorBody => {
+  if (typeof value === 'object' && value !== null) {
+    return value as LoginErrorBody;
+  }
+  return {};
+};
+
 export interface LoginError {
   type: 'error' | 'warning' | 'info';
   message: string;
@@ -7,15 +16,15 @@ export interface LoginError {
   errorCode?: string;
 }
 
-const MAX_LOGIN_ATTEMPTS = 5;
-const RATE_LIMIT_WINDOW_SECONDS = 60;
+export const MAX_LOGIN_ATTEMPTS = 5;
+export const RATE_LIMIT_WINDOW_SECONDS = 60;
 
 export const getErrorFromResponse = (err: unknown, currentAttempts: number): LoginError => {
   if (axios.isAxiosError(err)) {
     const status = err.response?.status;
-    const data = err.response?.data;
-    const message = data?.message;
-    const errorCode = data?.errorCode;
+    const data = asLoginErrorBody(err.response?.data);
+    const message = data.message;
+    const errorCode = data.errorCode;
 
     if (!err.response) {
       return { type: 'error', message: 'Unable to connect to server', details: 'Please check your internet connection and try again.' };
@@ -45,7 +54,7 @@ export const getErrorFromResponse = (err: unknown, currentAttempts: number): Log
       case 400:
         return { type: 'error', message: 'Invalid request', details: Array.isArray(message) ? message.join(', ') : message };
       case 401:
-        return { type: 'error', message: message || 'Authentication failed', details: 'Check your credentials.' };
+        return { type: 'error', message: (message as string) || 'Authentication failed', details: 'Check your credentials.' };
       case 403:
         return { type: 'error', message: 'Access denied', details: 'Clearance required.' };
       case 423:
@@ -55,7 +64,7 @@ export const getErrorFromResponse = (err: unknown, currentAttempts: number): Log
       case 500: case 502: case 503:
         return { type: 'error', message: 'Server unavailable', details: 'System offline. Try again later.' };
       default:
-        return { type: 'error', message: message || 'Login failed', details: 'An unexpected error occurred.' };
+        return { type: 'error', message: (message as string) || 'Login failed', details: 'An unexpected error occurred.' };
     }
   }
   return { type: 'error', message: 'Authentication Error', details: 'System malfunction. Please retry.' };
