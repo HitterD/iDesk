@@ -48,46 +48,58 @@ export class TicketUpdateService {
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
-        const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user'] });
-        if (!ticket) {
-            throw new NotFoundException('Ticket not found');
-        }
+        // P1 fix: status transition, priority change, slaTarget recompute, and
+        // ticket save were separate awaits. A crash mid-sequence left the
+        // ticket in a half-mutated state. Now atomic via dataSource.transaction.
+        // postUpdateActions (events, audit) stays outside so listeners fire on
+        // commit, not before.
+        const { savedTicket, user, changes, oldStatus } = await this.dataSource.transaction(async (manager) => {
+            const ticket = await manager.findOne(Ticket, {
+                where: { id: ticketId },
+                relations: ['user'],
+            });
+            if (!ticket) {
+                throw new NotFoundException('Ticket not found');
+            }
 
-        const user = await this.userRepo.findOne({ where: { id: userId } });
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
+            const user = await manager.findOne(User, { where: { id: userId } });
+            if (!user) {
+                throw new NotFoundException('User not found');
+            }
 
-        const changes: string[] = [];
-        const oldStatus = ticket.status;
+            const changes: string[] = [];
+            const oldStatus = ticket.status;
 
-        if (updateData.status && updateData.status !== ticket.status) {
-            await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user);
-        }
+            if (updateData.status && updateData.status !== ticket.status) {
+                await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager);
+            }
 
-        if (updateData.priority && updateData.priority !== ticket.priority) {
-            await this.applyPriorityChange(ticket, updateData.priority, changes);
-        }
+            if (updateData.priority && updateData.priority !== ticket.priority) {
+                await this.applyPriorityChange(ticket, updateData.priority, changes, manager);
+            }
 
-        // Apply updates
-        Object.assign(ticket, updateData);
-        const savedTicket = await this.ticketRepo.save(ticket);
+            // Apply updates
+            Object.assign(ticket, updateData);
+            const savedTicket = await manager.save(Ticket, ticket);
+            return { savedTicket, user, changes, oldStatus };
+        });
+
         await this.postUpdateActions(savedTicket, user, changes, oldStatus, ticketId, userId);
         return savedTicket;
     }
 
     private async applyStatusTransition(
-        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User
+        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User, manager?: any
     ): Promise<void> {
         changes.push(`Status changed from ${oldStatus} to ${newStatus}`);
 
         if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
-            await this.startSlaClock(ticket, changes);
+            await this.startSlaClock(ticket, changes, manager);
         }
 
         if (newStatus === TicketStatus.WAITING_VENDOR) {
             this.pauseForVendor(ticket);
-            await this.handleWaitingVendorStatus(ticket, user);
+            await this.handleWaitingVendorStatus(ticket, user, manager);
         } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
             this.resumeFromVendor(ticket, changes);
         }
@@ -97,10 +109,10 @@ export class TicketUpdateService {
         }
     }
 
-    private async startSlaClock(ticket: Ticket, changes: string[]): Promise<void> {
+    private async startSlaClock(ticket: Ticket, changes: string[], manager?: any): Promise<void> {
         const now = new Date();
         ticket.slaStartedAt = now;
-        const slaConfig = await this.slaConfigRepo.findOne({ where: { priority: ticket.priority } });
+        const slaConfig = await (manager ?? this.ticketRepo.manager).findOne(SlaConfig, { where: { priority: ticket.priority } });
         if (!slaConfig) return;
 
         if (this.businessHoursService) {
@@ -136,7 +148,7 @@ export class TicketUpdateService {
         ticket.waitingVendorAt = null;
     }
 
-    private async applyPriorityChange(ticket: Ticket, newPriority: string | any, changes: string[]): Promise<void> {
+    private async applyPriorityChange(ticket: Ticket, newPriority: string | any, changes: string[], _manager?: any): Promise<void> {
         if (newPriority === 'HARDWARE_INSTALLATION') {
             throw new BadRequestException('Cannot manually set priority to HARDWARE_INSTALLATION. This priority is system-assigned for hardware installation tickets.');
         }
@@ -162,6 +174,16 @@ export class TicketUpdateService {
         savedTicket: Ticket, user: User, changes: string[], oldStatus: TicketStatus, ticketId: string, userId: string
     ): Promise<void> {
         await this.cacheInvalidationService.onTicketChange(savedTicket.id);
+
+        // Ensure workload is recalculated if ticket is assigned
+        if (savedTicket.assignedToId && savedTicket.siteId) {
+            try {
+                await this.workloadService.recalculateAgentWorkload(savedTicket.assignedToId, savedTicket.siteId);
+            } catch (error) {
+                this.logger.error(`Failed to recalculate workload for ticket ${savedTicket.ticketNumber}: ${error.message}`);
+            }
+        }
+
         this.eventsGateway.notifyDashboardStatsUpdate();
         this.eventsGateway.notifyTicketListUpdate();
 
@@ -224,6 +246,12 @@ export class TicketUpdateService {
             throw new BadRequestException('Assignee must be an operational support agent, oracle agent, or admin');
         }
 
+        // Oracle/K2 tickets can only be assigned to AGENT_ORACLE or ADMIN
+        const isOracleTicket = ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST';
+        if (isOracleTicket && assignee.role !== UserRole.AGENT_ORACLE && assignee.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can be assigned to Oracle/K2 tickets');
+        }
+
         const assigner = await this.userRepo.findOne({ where: { id: userId } });
         if (!assigner) {
             throw new NotFoundException('Assigner not found');
@@ -247,8 +275,6 @@ export class TicketUpdateService {
 
         this.eventsGateway.server.emit('ticket:updated', { ticketId });
         this.eventsGateway.server.emit('NEW_MESSAGE', systemMessage);
-        this.eventsGateway.notifyDashboardStatsUpdate();
-        this.eventsGateway.notifyTicketListUpdate();
 
         // -------------------------------------------------------------
         // Workload Recalculation (Manual Assignment Handling)
@@ -265,6 +291,9 @@ export class TicketUpdateService {
                 this.logger.error(`Failed to recalculate workload points during manual assignment for ticket ${savedTicket.ticketNumber}: ${err.message}`);
             }
         }
+
+        this.eventsGateway.notifyDashboardStatsUpdate();
+        this.eventsGateway.notifyTicketListUpdate();
 
         // Emit Domain Event
         this.eventEmitter.emit(
@@ -333,6 +362,16 @@ export class TicketUpdateService {
 
         // Emit WebSocket events
         this.eventsGateway.notifyStatusChange(ticketId, TicketStatus.CANCELLED, user.fullName);
+        
+        // Recalculate workload points
+        if (savedTicket.assignedToId && savedTicket.siteId) {
+            try {
+                await this.workloadService.recalculateAgentWorkload(savedTicket.assignedToId, savedTicket.siteId);
+            } catch (error) {
+                this.logger.error(`Failed to recalculate workload upon cancellation for ticket ${savedTicket.ticketNumber}: ${error.message}`);
+            }
+        }
+
         this.eventsGateway.notifyTicketListUpdate();
         this.eventsGateway.notifyDashboardStatsUpdate();
 
@@ -466,6 +505,27 @@ export class TicketUpdateService {
         }
 
         if (updated.length > 0) {
+            // Recalculate workloads for affected agents
+            const affectedAgentsMap = new Map<string, string>(); // Map agentId -> siteId
+            for (const ticket of tickets) {
+                if (updated.includes(ticket.id)) {
+                    if (ticket.assignedToId && ticket.siteId) {
+                        affectedAgentsMap.set(ticket.assignedToId, ticket.siteId);
+                    }
+                    if (updateData.assigneeId && ticket.siteId) {
+                        affectedAgentsMap.set(updateData.assigneeId, ticket.siteId);
+                    }
+                }
+            }
+
+            for (const [agentId, siteId] of affectedAgentsMap.entries()) {
+                try {
+                    await this.workloadService.recalculateAgentWorkload(agentId, siteId);
+                } catch (error) {
+                    this.logger.error(`Failed to recalculate workload for agent ${agentId} after bulk update: ${error.message}`);
+                }
+            }
+
             await this.cacheInvalidationService.onTicketChange('bulk');
             this.eventsGateway.notifyDashboardStatsUpdate();
             this.eventsGateway.notifyTicketListUpdate();
@@ -479,7 +539,7 @@ export class TicketUpdateService {
      * - Send Telegram notification with vendor schedule info
      * - Add system message to ticket notes/discussion
      */
-    private async handleWaitingVendorStatus(ticket: Ticket, changedBy: User): Promise<void> {
+    private async handleWaitingVendorStatus(ticket: Ticket, changedBy: User, _manager?: any): Promise<void> {
         const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
 
         // Calculate next Thursday (vendor visit day)
