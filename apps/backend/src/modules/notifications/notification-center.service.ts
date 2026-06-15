@@ -21,6 +21,7 @@ import { User } from '../users/entities/user.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EntityManager } from 'typeorm';
 import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
+import { CacheService } from '../../shared/core/cache/cache.service';
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -48,6 +49,7 @@ export class NotificationCenterService implements OnModuleInit {
         private readonly inAppChannel: InAppChannelService,
         private readonly pushChannel: PushChannelService,
         private readonly entityManager: EntityManager,
+        private readonly cacheService: CacheService,
     ) { }
 
     onModuleInit() {
@@ -238,22 +240,27 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     async getActionItems(userId: string, role: string): Promise<any> {
-        const now = new Date();
-        
-        // Fetch all required data in parallel
-        const [data, activeSnoozes, categorySettings] = await Promise.all([
-            this.fetchActionItemData(userId, role, now),
-            this.snoozeRepo.find({
-                where: { userId, snoozedUntil: MoreThan(now) },
-            }),
-            this.getCategorySettings(userId)
-        ]);
-
-        // Map raw data to DTOs
-        const rawItems = this.mapQueriesToActionItems(data, now);
-
-        // Filter and calculate final responses
-        return this.processAndFilterActionItems(rawItems, activeSnoozes, categorySettings);
+        // P0 perf: 30s cache per (user, role) to stop the manager+admin poll
+        // from full-table-scanning tickets/renewals/eform/hardware on every
+        // request. Cache is invalidated by snooze toggle / category settings
+        // mutations via the action-items:refresh event emitted elsewhere.
+        const cacheKey = `action-items:${userId}:${role}`;
+        return this.cacheService.getOrSet(
+            cacheKey,
+            async () => {
+                const now = new Date();
+                const [data, activeSnoozes, categorySettings] = await Promise.all([
+                    this.fetchActionItemData(userId, role, now),
+                    this.snoozeRepo.find({
+                        where: { userId, snoozedUntil: MoreThan(now) },
+                    }),
+                    this.getCategorySettings(userId),
+                ]);
+                const rawItems = this.mapQueriesToActionItems(data, now);
+                return this.processAndFilterActionItems(rawItems, activeSnoozes, categorySettings);
+            },
+            30,
+        );
     }
 
     private async fetchActionItemData(userId: string, role: string, now: Date) {
@@ -266,26 +273,26 @@ export class NotificationCenterService implements OnModuleInit {
 
         const [slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2`,
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2 ORDER BY "slaTarget" ASC LIMIT 50`,
                 [userId, now]
             ) : Promise.resolve([]),
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2`,
+                `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2 ORDER BY "createdAt" ASC LIMIT 50`,
                 [userId, oneHourAgo]
             ) : Promise.resolve([]),
             isUser ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED'`,
+                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' ORDER BY "updatedAt" DESC LIMIT 50`,
                 [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')`
+                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW') ORDER BY "createdAt" DESC LIMIT 50`
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')`,
+                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT') ORDER BY "createdAt" DESC LIMIT 50`,
                 [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL`,
+                `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL ORDER BY "endDate" ASC LIMIT 50`,
                 [next7Days]
             ).catch(() => []) : Promise.resolve([]),
         ]);
