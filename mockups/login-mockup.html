@@ -1,0 +1,815 @@
+<!--
+  iDesk Login — Visual Companion Mockup
+  Direction: Editorial Restraint (Vercel-style) — dark primary
+  Purpose: brainstorming artifact. NOT a final implementation.
+  After approval, the design will be ported into React + Tailwind 4
+  using the existing iDesk design system tokens.
+
+  Animations included:
+    - Page reveal (staggered: topbar → form-head → fields → button → footer)
+    - Live UTC clock (1Hz)
+    - Status dot pulse (slow)
+    - Hairline divider draw-in
+    - Input focus ring (smooth 200ms)
+    - Error state: shake + destructive color
+    - Loading state: spinner replaces label
+    - Success state: morph to checkmark + green
+    - Hover micro-interactions (lift, color, underline)
+    - Theme toggle (dark ↔ light)
+    - prefers-reduced-motion respected
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iDesk — Sign in (Mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ===== Tokens (mirror iDesk design system HSL philosophy) ===== */
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+    --accent-h: 220;
+    --accent-s: 90%;
+  }
+  [data-theme="dark"] {
+    --bg: #0a0a0b;
+    --fg: #fafafa;
+    --muted: #8a8a92;
+    --muted-strong: #c8c8d0;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --surface: #111114;
+    --surface-2: #18181c;
+    --accent: hsl(220, 90%, 64%);
+    --accent-soft: hsla(220, 90%, 64%, 0.18);
+    --destructive: hsl(0, 75%, 65%);
+    --destructive-soft: hsla(0, 75%, 60%, 0.10);
+    --success: hsl(150, 65%, 50%);
+    --grid-line: rgba(255, 255, 255, 0.025);
+    --grid-size: 40px;
+    --glow-1: hsla(220, 90%, 60%, 0.10);
+    --glow-2: hsla(280, 80%, 60%, 0.05);
+    --vignette: rgba(0, 0, 0, 0.35);
+  }
+  [data-theme="light"] {
+    --bg: #fafafa;
+    --fg: #0a0a0b;
+    --muted: #6b6b73;
+    --muted-strong: #2a2a32;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.18);
+    --surface: #ffffff;
+    --surface-2: #f3f3f5;
+    --accent: hsl(220, 90%, 52%);
+    --accent-soft: hsla(220, 90%, 52%, 0.12);
+    --destructive: hsl(0, 75%, 50%);
+    --destructive-soft: hsla(0, 75%, 50%, 0.08);
+    --success: hsl(150, 65%, 42%);
+    --grid-line: rgba(0, 0, 0, 0.045);
+    --grid-size: 40px;
+    --glow-1: hsla(220, 90%, 50%, 0.08);
+    --glow-2: hsla(280, 80%, 50%, 0.04);
+    --vignette: rgba(0, 0, 0, 0.04);
+  }
+
+  /* ===== Reset ===== */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--fg);
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(ellipse 80% 70% at 50% 50%, transparent 35%, var(--vignette) 100%),
+      radial-gradient(ellipse 70% 55% at 88% -8%, var(--glow-1) 0%, transparent 60%),
+      radial-gradient(ellipse 55% 45% at 12% 108%, var(--glow-2) 0%, transparent 60%),
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, var(--grid-size) var(--grid-size), var(--grid-size) var(--grid-size);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.4s var(--ease-out), color 0.4s var(--ease-out);
+  }
+  button, input { font: inherit; color: inherit; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ===== Layout ===== */
+  .app {
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  /* ===== Topbar ===== */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 36px;
+    animation: fade-down 0.5s var(--ease-out) both;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .brand-mark {
+    width: 24px; height: 24px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, hsl(220, 90%, 64%) 0%, hsl(280, 80%, 64%) 100%);
+    position: relative;
+    box-shadow: 0 4px 16px -4px var(--accent-soft);
+  }
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border-radius: 3px;
+    background: var(--bg);
+    transition: background 0.4s var(--ease-out);
+  }
+  .topbar-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .live-clock { letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted-strong);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: border-color 0.2s var(--ease-out), color 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+  }
+  .theme-toggle:hover { border-color: var(--border-strong); color: var(--fg); transform: rotate(15deg); }
+
+  /* ===== Stage ===== */
+  .stage {
+    display: grid;
+    place-items: center;
+    padding: 24px 32px 48px;
+  }
+  .form {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ===== Card ===== */
+  .card {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 30px 22px;
+    isolation: isolate;
+    box-shadow: 0 1px 0 hsla(220, 90%, 60%, 0.05) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.45);
+    animation: card-rise 0.7s var(--ease-out) both;
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 20px; right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsla(220, 90%, 60%, 0.55), transparent);
+    border-radius: 0 0 4px 4px;
+  }
+  @keyframes card-rise {
+    from { opacity: 0; transform: translateY(12px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .corner {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-color: var(--accent);
+    border-style: solid;
+    border-width: 0;
+    transform: scale(0);
+    opacity: 0;
+    animation: corner-pop 0.5s var(--ease-spring) forwards;
+  }
+  .corner-tl { top: -1px; left: -1px; border-top-width: 1.5px; border-left-width: 1.5px; animation-delay: 0.1s; }
+  .corner-tr { top: -1px; right: -1px; border-top-width: 1.5px; border-right-width: 1.5px; animation-delay: 0.16s; }
+  .corner-bl { bottom: -1px; left: -1px; border-bottom-width: 1.5px; border-left-width: 1.5px; animation-delay: 0.22s; }
+  .corner-br { bottom: -1px; right: -1px; border-bottom-width: 1.5px; border-right-width: 1.5px; animation-delay: 0.28s; }
+  @keyframes corner-pop {
+    from { transform: scale(0); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 22px;
+    animation: rise 0.55s var(--ease-out) 0.08s both;
+  }
+  .card-header-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2.4s var(--ease-out) infinite;
+  }
+  .card-divider {
+    border: 0;
+    height: 1px;
+    background: var(--border);
+    margin: 0 0 22px;
+    transform-origin: left center;
+    animation: hairline 0.7s var(--ease-out) 0.28s both;
+  }
+  .card-footer {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.04em;
+    animation: rise 0.55s var(--ease-out) 0.66s both;
+  }
+  .card-footer kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    margin-right: 5px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted-strong);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .card-footer .sep { color: var(--border-strong); }
+
+  .form-head h1 {
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    margin: 0 0 6px;
+    line-height: 1.15;
+    animation: rise 0.55s var(--ease-out) 0.16s both;
+  }
+  .form-head p {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0;
+    animation: rise 0.55s var(--ease-out) 0.22s both;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field:nth-of-type(1) { animation: rise 0.55s var(--ease-out) 0.26s both; }
+  .field:nth-of-type(2) { animation: rise 0.55s var(--ease-out) 0.34s both; }
+  .row-extra { animation: rise 0.55s var(--ease-out) 0.42s both; }
+  .form > .submit { animation: rise 0.55s var(--ease-out) 0.5s both; }
+  .form > .alt { animation: rise 0.55s var(--ease-out) 0.58s both; }
+
+  .field label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-strong);
+  }
+
+  .input-wrap { position: relative; }
+  .input-field {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font-size: 14px;
+    transition: border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out), background 0.3s var(--ease-out);
+  }
+  .input-field::placeholder { color: var(--muted); }
+  .input-field:hover:not(:focus) { border-color: var(--border-strong); }
+  .input-field:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .form.has-error .input-field { border-color: var(--destructive); }
+  .form.has-error .input-field:focus { box-shadow: 0 0 0 3px var(--destructive-soft); }
+  .input-wrap .input-field { padding-right: 42px; }
+  .reveal {
+    position: absolute;
+    right: 6px; top: 50%;
+    transform: translateY(-50%);
+    width: 32px; height: 32px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    transition: color 200ms var(--ease-out), background 200ms var(--ease-out);
+  }
+  .reveal:hover { color: var(--fg); background: var(--surface-2); }
+
+  .row-extra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+  }
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted-strong);
+    cursor: pointer;
+    user-select: none;
+    transition: color 200ms var(--ease-out);
+  }
+  .check:hover { color: var(--fg); }
+  .check input {
+    width: 14px; height: 14px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .forgot {
+    color: var(--muted-strong);
+    position: relative;
+    transition: color 200ms var(--ease-out);
+  }
+  .forgot::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -2px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 250ms var(--ease-out);
+  }
+  .forgot:hover { color: var(--fg); }
+  .forgot:hover::after { transform: scaleX(1); }
+
+  .error-msg {
+    font-size: 12.5px;
+    color: var(--destructive);
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: var(--destructive-soft);
+    border: 1px solid hsla(0, 75%, 60%, 0.22);
+    animation: rise 0.3s var(--ease-out) both;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .error-msg[hidden] { display: none; }
+  .error-msg svg { flex-shrink: 0; }
+
+  .submit {
+    position: relative;
+    height: 46px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.005em;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 1px 0 hsla(220, 90%, 90%, 0.2) inset, 0 4px 14px -4px var(--accent-soft);
+    transition: transform 0.2s var(--ease-out), background 0.25s var(--ease-out), opacity 0.2s var(--ease-out), color 0.2s var(--ease-out), box-shadow 0.25s var(--ease-out);
+  }
+  .submit:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 hsla(220, 90%, 90%, 0.22) inset, 0 10px 24px -6px var(--accent-soft);
+  }
+  .submit:active:not(:disabled) { transform: translateY(0) scale(0.99); }
+  .submit:disabled { cursor: not-allowed; }
+  .submit .layer {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    transition: opacity 0.22s var(--ease-out), transform 0.32s var(--ease-out);
+  }
+  .submit .layer-spinner,
+  .submit .layer-check { opacity: 0; transform: scale(0.7); }
+  .submit.loading .layer-label { opacity: 0; transform: scale(0.92); }
+  .submit.loading .layer-spinner { opacity: 1; transform: scale(1); }
+  .submit.loading { opacity: 0.85; }
+  .submit.success { background: var(--success); color: white; }
+  .submit.success .layer-label { opacity: 0; transform: scale(0.92); }
+  .submit.success .layer-check { opacity: 1; transform: scale(1); }
+  .spinner {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: spin 0.7s linear infinite;
+  }
+
+  .alt {
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .alt a {
+    color: var(--muted-strong);
+    border-bottom: 1px dashed var(--border-strong);
+    padding-bottom: 1px;
+    transition: color 200ms var(--ease-out), border-color 200ms var(--ease-out);
+  }
+  .alt a:hover { color: var(--fg); border-color: var(--fg); }
+
+  /* ===== Bottombar ===== */
+  .bottombar {
+    padding: 0 36px 26px;
+    animation: fade-up 0.5s var(--ease-out) 0.7s both;
+  }
+  .hairline {
+    border: 0;
+    height: 1px;
+    background: var(--border);
+    margin: 0 0 14px;
+    transform-origin: left center;
+    animation: hairline 0.9s var(--ease-out) 0.85s both;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  .status .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 0 var(--success);
+    animation: pulse 2.4s var(--ease-out) infinite;
+  }
+  .status .sep { color: var(--border-strong); }
+  .status a { transition: color 200ms var(--ease-out); }
+  .status a:hover { color: var(--fg); }
+
+  /* ===== Dev panel (mockup only — removed in production) ===== */
+  .dev-panel {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+    z-index: 50;
+    animation: rise 0.4s var(--ease-out) 1s both;
+  }
+  .dev-panel strong {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 6px 0 2px;
+  }
+  .dev-panel button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted-strong);
+    padding: 4px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.2s var(--ease-out);
+  }
+  .dev-panel button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .dev-panel button.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  /* ===== Keyframes ===== */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-down {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  .shake { animation: shake 0.42s var(--ease-spring) !important; }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 hsla(150, 65%, 50%, 0.55); }
+    70%  { box-shadow: 0 0 0 9px hsla(150, 65%, 50%, 0); }
+    100% { box-shadow: 0 0 0 0 hsla(150, 65%, 50%, 0); }
+  }
+  @keyframes hairline {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes check-draw {
+    from { stroke-dashoffset: 24; }
+    to   { stroke-dashoffset: 0; }
+  }
+
+  /* ===== Reduced motion ===== */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.15s !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <span>iDesk</span>
+    </div>
+    <div class="topbar-meta">
+      <span class="live-clock" id="clock">--:--:-- UTC</span>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+        <svg id="themeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="card">
+      <span class="corner corner-tl"></span>
+      <span class="corner corner-tr"></span>
+      <span class="corner corner-bl"></span>
+      <span class="corner corner-br"></span>
+
+      <div class="card-header">
+        <span class="card-header-dot"></span>
+        <span>iDesk · Operations</span>
+      </div>
+
+      <div class="form-head">
+        <h1>Sign in</h1>
+        <p>Enter your credentials to continue.</p>
+      </div>
+
+      <hr class="card-divider" />
+
+      <form class="form" id="form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" class="input-field" type="email" autocomplete="email" placeholder="you@company.com" />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input id="password" class="input-field" type="password" autocomplete="current-password" placeholder="••••••••" />
+            <button type="button" class="reveal" id="revealBtn" aria-label="Toggle password visibility">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row-extra">
+          <label class="check">
+            <input type="checkbox" id="remember" />
+            <span>Keep me signed in</span>
+          </label>
+          <a class="forgot" href="#">Forgot password?</a>
+        </div>
+
+        <div class="error-msg" id="errorMsg" hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span id="errorText">Invalid credentials. Please try again.</span>
+        </div>
+
+        <button type="submit" class="submit" id="submit">
+          <span class="layer layer-label">Continue</span>
+          <span class="layer layer-spinner"><span class="spinner"></span></span>
+          <span class="layer layer-check">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray: 24;">
+              <polyline points="20 6 9 17 4 12" id="checkPath"/>
+            </svg>
+          </span>
+        </button>
+
+        <div class="alt">
+          <a href="#">Use single sign-on (SSO)</a>
+        </div>
+      </form>
+
+      <div class="card-footer">
+        <span><kbd>↵</kbd>Enter to continue</span>
+        <span class="sep">·</span>
+        <span><kbd>Esc</kbd>Clear</span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottombar">
+    <hr class="hairline" />
+    <div class="status">
+      <span class="dot"></span>
+      <span>v3.18.2</span>
+      <span class="sep">·</span>
+      <span>All systems normal</span>
+      <span class="sep">·</span>
+      <span>© 2026 iDesk</span>
+      <span class="sep">·</span>
+      <a href="#">Help</a>
+    </div>
+  </footer>
+</div>
+
+<div class="dev-panel" role="region" aria-label="Mockup controls">
+  <strong>Mockup</strong>
+  <button data-state="idle" class="active">Idle</button>
+  <button data-state="loading">Loading</button>
+  <button data-state="error">Error</button>
+  <button data-state="success">Success</button>
+</div>
+
+<script>
+  // ===== Live UTC clock =====
+  const clock = document.getElementById('clock');
+  function tick() {
+    const d = new Date();
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    const ss = String(d.getUTCSeconds()).padStart(2, '0');
+    clock.textContent = `${hh}:${mm}:${ss} UTC`;
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ===== Theme toggle =====
+  const html = document.documentElement;
+  const themeBtn = document.getElementById('themeToggle');
+  const themeIcon = document.getElementById('themeIcon');
+  function setTheme(t) {
+    html.setAttribute('data-theme', t);
+    if (t === 'dark') {
+      themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    } else {
+      themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    }
+  }
+  themeBtn.addEventListener('click', () => {
+    const cur = html.getAttribute('data-theme');
+    setTheme(cur === 'dark' ? 'light' : 'dark');
+  });
+
+  // ===== Password reveal =====
+  const pwd = document.getElementById('password');
+  const revealBtn = document.getElementById('revealBtn');
+  revealBtn.addEventListener('click', () => {
+    pwd.type = pwd.type === 'password' ? 'text' : 'password';
+  });
+
+  // ===== State machine =====
+  const form = document.getElementById('form');
+  const submit = document.getElementById('submit');
+  const errorMsg = document.getElementById('errorMsg');
+  const errorText = document.getElementById('errorText');
+  const checkPath = document.getElementById('checkPath');
+  const devPanel = document.querySelector('.dev-panel');
+
+  function resetState() {
+    form.classList.remove('shake', 'has-error');
+    submit.classList.remove('loading', 'success');
+    submit.disabled = false;
+    errorMsg.hidden = true;
+    errorText.textContent = '';
+    // reset check animation
+    if (checkPath) {
+      checkPath.style.animation = 'none';
+      checkPath.getBoundingClientRect();
+    }
+  }
+
+  function setState(state) {
+    resetState();
+    devPanel.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.state === state);
+    });
+
+    switch (state) {
+      case 'loading':
+        submit.classList.add('loading');
+        submit.disabled = true;
+        break;
+      case 'error':
+        form.classList.add('has-error');
+        errorMsg.hidden = false;
+        errorText.textContent = 'Invalid credentials. Please try again.';
+        requestAnimationFrame(() => form.classList.add('shake'));
+        break;
+      case 'success':
+        submit.classList.add('success');
+        submit.disabled = true;
+        if (checkPath) {
+          checkPath.style.animation = 'check-draw 0.45s var(--ease-out) 0.08s forwards';
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  devPanel.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => setState(btn.dataset.state));
+  });
+
+  // ===== Form submit (real flow) =====
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = pwd.value;
+
+    if (!email || !password) {
+      setState('error');
+      errorText.textContent = !email
+        ? 'Email is required.'
+        : 'Password is required.';
+      return;
+    }
+
+    // Simulate network call
+    setState('loading');
+    setTimeout(() => {
+      // For mockup: always succeed when fields are filled
+      setState('success');
+    }, 1400);
+  });
+</script>
+</body>
+</html>
