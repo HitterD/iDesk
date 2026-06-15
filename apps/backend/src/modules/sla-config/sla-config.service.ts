@@ -5,13 +5,18 @@ import { SlaConfig } from '../../modules/ticketing/entities/sla-config.entity';
 import { TicketPriority } from '../../modules/ticketing/entities/ticket.entity';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { CacheService } from '../../shared/core/cache/cache.service';
 
 @Injectable()
 export class SlaConfigService implements OnModuleInit {
+    private static readonly CACHE_KEY = 'sla-config:all';
+    private static readonly CACHE_TTL = 60; // 1 min — SLA is hot, but rarely changes
+
     constructor(
         private readonly auditService: AuditService,
         @InjectRepository(SlaConfig)
         private slaConfigRepo: Repository<SlaConfig>,
+        private readonly cacheService: CacheService,
     ) { }
 
     async onModuleInit() {
@@ -27,16 +32,20 @@ export class SlaConfigService implements OnModuleInit {
     }
 
     findAll() {
-        return this.slaConfigRepo.find({
-            order: {
-                resolutionTimeMinutes: 'DESC',
-            },
-        });
+        // P1 perf: SLA config is referenced by every ticket-create (startSlaClock)
+        // and the SLA monitor cron. 60s cache drops a hot DB read.
+        return this.cacheService.getOrSet(
+            SlaConfigService.CACHE_KEY,
+            () => this.slaConfigRepo.find({
+                order: { resolutionTimeMinutes: 'DESC' },
+            }),
+            SlaConfigService.CACHE_TTL,
+        );
     }
 
     async update(id: string, resolutionTimeMinutes: number, userId?: string) {
         await this.slaConfigRepo.update(id, { resolutionTimeMinutes });
-        
+
         if (userId) {
             this.auditService.logAsync({
                 userId,
@@ -48,6 +57,7 @@ export class SlaConfigService implements OnModuleInit {
             });
         }
 
+        await this.cacheService.delAsync(SlaConfigService.CACHE_KEY).catch(() => undefined);
         return this.slaConfigRepo.findOne({ where: { id } });
     }
 
@@ -69,5 +79,7 @@ export class SlaConfigService implements OnModuleInit {
                 description: `Reset SLA configs to defaults`,
             });
         }
+
+        await this.cacheService.delAsync(SlaConfigService.CACHE_KEY).catch(() => undefined);
     }
 }
