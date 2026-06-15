@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { Between, DataSource, In, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { HardwareRequestItem } from '../domain/entities/hardware-request-item.entity';
@@ -72,6 +72,29 @@ export class MutualSchedulingService {
         const end = new Date(slot.end);
         if (start <= now) throw new BadRequestException('slot start in past');
         if (end <= start) throw new BadRequestException('slot end must be after start');
+      }
+
+      // P1 fix: pre-load the technician's busy slots once for the entire
+      // candidate window, then filter in memory. Was an N×M per-candidate
+      // findOne loop inside a separate validation step. Now one query.
+      const earliest = new Date(Math.min(...dto.slots.map(s => new Date(s.start).getTime())));
+      const latest = new Date(Math.max(...dto.slots.map(s => new Date(s.end).getTime())));
+      const busy = await schedRepo.find({
+        where: {
+          technicianId: dto.technicianId,
+          status: In([InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.CONFIRMED, InstallStatus.INSTALLING]),
+          scheduledStart: Between(earliest, latest),
+        },
+        select: ['scheduledStart', 'scheduledEnd'],
+      });
+      const hasConflict = (start: Date, end: Date) =>
+        busy.some(b => !(end <= b.scheduledStart! || start >= b.scheduledEnd!));
+      for (const slot of dto.slots) {
+        const start = new Date(slot.start);
+        const end = new Date(slot.end);
+        if (hasConflict(start, end)) {
+          throw new BadRequestException(`technician has a conflicting slot for ${start.toISOString()}`);
+        }
       }
 
       const schedule = schedRepo.create({
