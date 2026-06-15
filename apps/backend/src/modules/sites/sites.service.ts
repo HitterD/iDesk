@@ -5,13 +5,24 @@ import { Site } from './entities/site.entity';
 import { CreateSiteDto, UpdateSiteDto } from './dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { CacheService } from '../../shared/core/cache/cache.service';
+import { User } from '../users/entities/user.entity';
+import { Ticket } from '../ticketing/entities/ticket.entity';
 
 @Injectable()
 export class SitesService {
+    private static readonly CACHE_KEY_ACTIVE = 'sites:active';
+    private static readonly CACHE_TTL_ACTIVE = 300; // 5 min — sites change rarely
+
     constructor(
         private readonly auditService: AuditService,
         @InjectRepository(Site)
         private readonly siteRepo: Repository<Site>,
+        @InjectRepository(User)
+        private readonly userRepo: Repository<User>,
+        @InjectRepository(Ticket)
+        private readonly ticketRepo: Repository<Ticket>,
+        private readonly cacheService: CacheService,
     ) { }
 
     async findAll(): Promise<Site[]> {
@@ -21,10 +32,23 @@ export class SitesService {
     }
 
     async findActive(): Promise<Site[]> {
-        return this.siteRepo.find({
-            where: { isActive: true },
-            order: { code: 'ASC' },
-        });
+        // P1 perf: hot lookup referenced by many modules. 5min cache
+        // because site list changes rarely (admin adds site maybe
+        // once a month). Mutations invalidate the key below.
+        return this.cacheService.getOrSet(
+            SitesService.CACHE_KEY_ACTIVE,
+            () => this.siteRepo.find({
+                where: { isActive: true },
+                order: { code: 'ASC' },
+            }),
+            SitesService.CACHE_TTL_ACTIVE,
+        );
+    }
+
+    private async invalidateActiveCache(): Promise<void> {
+        await this.cacheService
+            .delAsync(SitesService.CACHE_KEY_ACTIVE)
+            .catch(() => undefined);
     }
 
     async findOne(id: string): Promise<Site> {
@@ -53,7 +77,9 @@ export class SitesService {
         }
 
         const site = this.siteRepo.create(createSiteDto);
-        return this.siteRepo.save(site);
+        const saved = await this.siteRepo.save(site);
+        await this.invalidateActiveCache();
+        return saved;
     }
 
     async update(id: string, updateSiteDto: UpdateSiteDto, userId?: string): Promise<Site> {
@@ -85,6 +111,7 @@ export class SitesService {
             });
         }
 
+        await this.invalidateActiveCache();
         return saved;
     }
 
@@ -97,6 +124,7 @@ export class SitesService {
         }
 
         await this.siteRepo.remove(site);
+        await this.invalidateActiveCache();
     }
 
     async getServerHostSite(): Promise<Site | null> {
@@ -104,13 +132,23 @@ export class SitesService {
     }
 
     async getSiteStats(): Promise<{ code: string; name: string; userCount: number; ticketCount: number }[]> {
-        // This will be enhanced later to include actual counts
+        // P1 fix: was returning hardcoded 0 for userCount/ticketCount. Now
+        // real COUNT queries per site, run in parallel where possible.
         const sites = await this.findActive();
-        return sites.map(site => ({
-            code: site.code,
-            name: site.name,
-            userCount: 0, // TODO: Implement actual counts
-            ticketCount: 0,
-        }));
+        const stats = await Promise.all(
+            sites.map(async (site) => {
+                const [userCount, ticketCount] = await Promise.all([
+                    this.userRepo.count({ where: { siteId: site.id, isActive: true } }),
+                    this.ticketRepo.count({ where: { siteId: site.id } }),
+                ]);
+                return {
+                    code: site.code,
+                    name: site.name,
+                    userCount,
+                    ticketCount,
+                };
+            }),
+        );
+        return stats;
     }
 }

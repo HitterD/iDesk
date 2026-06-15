@@ -9,4 +9,5 @@ export { AgentManagementHeader } from './AgentManagementHeader';
 export { AgentFiltersToolbar } from './AgentFiltersToolbar';
 export { UsersByRoleSection } from './UsersByRoleSection';
 export { AgentPerformancePanel } from './AgentPerformancePanel';
+export { AgentManagementDialogs } from './AgentManagementDialogs';
 export * from './agent-types';

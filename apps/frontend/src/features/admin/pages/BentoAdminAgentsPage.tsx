@@ -1,20 +1,5 @@
 import React, { useState, useMemo, useDeferredValue, useEffect, useRef } from 'react';
-import { Users, Mail, Building, Key, Award, Ticket as TicketIcon, Search, Edit2, Square, FileSpreadsheet, AlertCircle, Crown, List, FileText, HelpCircle, Sparkles } from 'lucide-react';
-import { ImportUsersDialog } from '../components/ImportUsersDialog';
-import { AddUserDialog } from '../components/AddUserDialog';
-import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
-import { EditUserDialog } from '../components/EditUserDialog';
-import { AgentDetailModal } from '../components/AgentDetailModal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { BulkRoleChangeDialog } from '../components/BulkRoleChangeDialog';
-import { BulkPermissionDialog } from '../components/BulkPermissionDialog';
-
-import { PresetDrawer } from '../components/PresetDrawer';
-import { ExportPreviewDialog } from '../components/ExportPreviewDialog';
-import { AgentComparisonDialog } from '../components/AgentComparisonDialog';
-import { BulkSiteChangeDialog } from '../components/BulkSiteChangeDialog';
-import { OnboardingTutorial, shouldShowOnboarding } from '../components/OnboardingTutorial';
-import { ExportPdfDialog } from '../components/ExportPdfDialog';
+import { shouldShowOnboarding } from '../components/OnboardingTutorial';
 // C1+C2: Import extracted components to eliminate duplicates
 import {
     AgentPaginationBar,
@@ -24,6 +9,7 @@ import {
     AgentFiltersToolbar,
     UsersByRoleSection,
     AgentPerformancePanel,
+    AgentManagementDialogs,
 } from '../components/agent-management';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -653,108 +639,59 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 />
             )}
 
-            <ImportUsersDialog
-                isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-            />
-            <AddUserDialog
-                isOpen={isAddUserModalOpen}
-                onClose={() => setIsAddUserModalOpen(false)}
-            />
-            <ResetPasswordDialog
-                isOpen={isResetPasswordOpen}
-                onClose={() => {
+            <AgentManagementDialogs
+                importOpen={isImportModalOpen}
+                onImportClose={() => setIsImportModalOpen(false)}
+                addUserOpen={isAddUserModalOpen}
+                onAddUserClose={() => setIsAddUserModalOpen(false)}
+                resetPasswordOpen={isResetPasswordOpen}
+                onResetPasswordClose={() => {
                     setIsResetPasswordOpen(false);
                     setSelectedUser(null);
                 }}
-                user={selectedUser}
-            />
-            <EditUserDialog
-                isOpen={isEditUserOpen}
-                onClose={() => {
+                selectedUser={selectedUser}
+                editUserOpen={isEditUserOpen}
+                onEditUserClose={() => {
                     setIsEditUserOpen(false);
                     setEditingUser(null);
                 }}
-                user={editingUser}
-            />
-            <AgentDetailModal
-                isOpen={!!selectedAgentDetail}
-                onClose={() => setSelectedAgentDetail(null)}
-                agent={selectedAgentDetail ? (() => {
-                    // Compute once — avoids 5 separate .find() calls per render
-                    const stat = agentStats.find(a => a.id === selectedAgentDetail.id);
-                    return {
-                        id: selectedAgentDetail.id,
-                        fullName: selectedAgentDetail.fullName,
-                        email: selectedAgentDetail.email,
-                        role: selectedAgentDetail.role,
-                        department: selectedAgentDetail.department,
-                        isActive: selectedAgentDetail.isActive,
-                        openTickets: stat?.openTickets,
-                        inProgressTickets: stat?.inProgressTickets,
-                        resolvedThisWeek: stat?.resolvedThisWeek,
-                        resolvedThisMonth: stat?.resolvedThisMonth,
-                        slaCompliance: stat?.slaCompliance,
-                    };
-                })() : null}
-            />
-            <ConfirmDialog
-                isOpen={isConfirmDeleteOpen}
-                onClose={() => {
+                editingUser={editingUser}
+                selectedAgentDetail={selectedAgentDetail}
+                onAgentDetailClose={() => setSelectedAgentDetail(null)}
+                agentStats={agentStats}
+                confirmDeleteOpen={isConfirmDeleteOpen}
+                onConfirmDeleteClose={() => {
                     setIsConfirmDeleteOpen(false);
                     setUserToDelete(null);
                 }}
-                onConfirm={() => {
+                onConfirmDelete={() => {
                     if (userToDelete && !deleteMutation.isPending) {
                         deleteMutation.mutate(userToDelete.id);
                     }
                 }}
-                title="Delete User"
-                message={`Are you sure you want to delete ${userToDelete?.fullName}? This action cannot be undone.`}
-                confirmText="Delete"
-                variant="danger"
-                isLoading={deleteMutation.isPending}
-            />
-            <ConfirmDialog
-                isOpen={isBulkDeleteOpen}
-                onClose={() => setIsBulkDeleteOpen(false)}
-                onConfirm={() => bulkDeleteMutation.mutate(Array.from(selectedUserIds))}
-                title="Delete Selected Users"
-                message={`Are you sure you want to delete ${selectedUserIds.size} users? This action cannot be undone.`}
-                confirmText="Delete All"
-                variant="danger"
-                isLoading={bulkDeleteMutation.isPending}
-            />
-            <BulkRoleChangeDialog
-                isOpen={isBulkRoleChangeOpen}
-                onClose={() => setIsBulkRoleChangeOpen(false)}
-                onConfirm={(role) => bulkRoleChangeMutation.mutate({
+                userToDelete={userToDelete}
+                isDeleting={deleteMutation.isPending}
+                bulkDeleteOpen={isBulkDeleteOpen}
+                onBulkDeleteClose={() => setIsBulkDeleteOpen(false)}
+                onConfirmBulkDelete={() => bulkDeleteMutation.mutate(Array.from(selectedUserIds))}
+                selectedCount={selectedUserIds.size}
+                isBulkDeleting={bulkDeleteMutation.isPending}
+                bulkRoleOpen={isBulkRoleChangeOpen}
+                onBulkRoleClose={() => setIsBulkRoleChangeOpen(false)}
+                onConfirmBulkRole={(role) => bulkRoleChangeMutation.mutate({
                     userIds: Array.from(selectedUserIds),
                     role
                 })}
-                selectedCount={selectedUserIds.size}
-                isLoading={bulkRoleChangeMutation.isPending}
-            />
-
-            {/* Preset Drawer */}
-            <PresetDrawer
-                isOpen={isPresetManageOpen}
-                onClose={() => setIsPresetManageOpen(false)}
-            />
-
-            {/* Export Preview Dialog */}
-            <ExportPreviewDialog
-                isOpen={isExportPreviewOpen}
-                onClose={() => setIsExportPreviewOpen(false)}
-                siteFilter={selectedSite}
-                roleFilter={selectedRole}
-            />
-
-            {/* Agent Comparison Dialog */}
-            <AgentComparisonDialog
-                isOpen={isComparisonOpen}
-                onClose={() => setIsComparisonOpen(false)}
-                agents={Array.from(selectedUserIds).slice(0, 2).map(id => {
+                isBulkRolePending={bulkRoleChangeMutation.isPending}
+                presetManageOpen={isPresetManageOpen}
+                onPresetManageClose={() => setIsPresetManageOpen(false)}
+                exportPreviewOpen={isExportPreviewOpen}
+                onExportPreviewClose={() => setIsExportPreviewOpen(false)}
+                selectedSite={selectedSite}
+                selectedRole={selectedRole}
+                comparisonOpen={isComparisonOpen}
+                onComparisonClose={() => setIsComparisonOpen(false)}
+                comparisonAgents={Array.from(selectedUserIds).slice(0, 2).map(id => {
                     const user = users.find(u => u.id === id);
                     const stats = agentStats?.find((s: any) => s.id === id);
                     return {
@@ -771,31 +708,18 @@ export const BentoAdminAgentsPage: React.FC = () => {
                         slaCompliance: stats?.slaCompliance || 100
                     };
                 })}
-            />
-
-            {/* Bulk Site Change Dialog */}
-            <BulkSiteChangeDialog
-                isOpen={isBulkSiteChangeOpen}
-                onClose={() => setIsBulkSiteChangeOpen(false)}
-                selectedCount={selectedUserIds.size}
-                selectedUserIds={Array.from(selectedUserIds)}
+                bulkSiteOpen={isBulkSiteChangeOpen}
+                onBulkSiteClose={() => setIsBulkSiteChangeOpen(false)}
+                selectedUserIds={selectedUserIds}
+                pdfExportOpen={isPdfExportOpen}
+                onPdfExportClose={() => setIsPdfExportOpen(false)}
+                totalUsers={users.length}
+                showOnboarding={showOnboarding}
+                onOnboardingComplete={() => setShowOnboarding(false)}
             />
 
             {/* Keyboard Shortcuts Help */}
             <KeyboardShortcutsHelpDialog open={showKeyboardHelp} onClose={() => setShowKeyboardHelp(false)} />
-
-            {/* PDF Export Dialog */}
-            <ExportPdfDialog
-                isOpen={isPdfExportOpen}
-                onClose={() => setIsPdfExportOpen(false)}
-                siteFilter={selectedSite}
-                totalUsers={users.length}
-            />
-
-            {/* Onboarding Tutorial */}
-            {showOnboarding && (
-                <OnboardingTutorial onComplete={() => setShowOnboarding(false)} />
-            )}
         </div>
     );
 };
