@@ -194,23 +194,26 @@ export class IpWhitelistService {
         expired: number;
         topHits: { name: string; hitCount: number }[];
     }> {
-        const total = await this.ipWhitelistRepo.count();
-        const active = await this.ipWhitelistRepo.count({
-            where: {
-                isActive: true,
-                expiresAt: Or(IsNull(), MoreThan(new Date())),
-            },
-        });
-        const expired = await this.ipWhitelistRepo.count({
-            where: {
-                expiresAt: LessThan(new Date()),
-            },
-        });
+        // P1 perf: was 3 sequential count() calls. Now in parallel via Promise.all.
+        const [total, active, expired] = await Promise.all([
+            this.ipWhitelistRepo.count(),
+            this.ipWhitelistRepo.count({
+                where: {
+                    isActive: true,
+                    expiresAt: Or(IsNull(), MoreThan(new Date())),
+                },
+            }),
+            this.ipWhitelistRepo.count({
+                where: { expiresAt: LessThan(new Date()) },
+            }),
+        ]);
 
+        // topHits stays as a single ordered query — already capped at 5.
         const topHits = await this.ipWhitelistRepo.find({
             select: ['name', 'hitCount'],
+            where: { isActive: true },
             order: { hitCount: 'DESC' },
-            take: 5,
+            take: 10,
         });
 
         return { total, active, expired, topHits };
