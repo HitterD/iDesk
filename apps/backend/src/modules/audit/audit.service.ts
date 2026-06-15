@@ -159,37 +159,27 @@ export class AuditService {
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-        // Total logs count
-        const totalLogs = await this.auditRepo.count();
-
-        // Logins today
-        const loginsToday = await this.auditRepo.count({
-            where: {
-                action: AuditAction.USER_LOGIN,
-                createdAt: MoreThanOrEqual(todayStart),
-            },
-        });
-
-        // Changes in last 24 hours (excluding login/logout)
-        const changesLast24h = await this.auditRepo
-            .createQueryBuilder('audit')
-            .where('audit.createdAt >= :yesterday', { yesterday })
-            .andWhere('audit.action NOT IN (:...excludeActions)', {
-                excludeActions: [AuditAction.USER_LOGIN, AuditAction.USER_LOGOUT],
-            })
-            .getCount();
-
-        // Failed auth attempts (last 24h)
-        const failedAuthAttempts = await this.auditRepo.count({
-            where: {
-                action: AuditAction.LOGIN_FAILED,
-                createdAt: MoreThanOrEqual(yesterday),
-            },
-        });
-
-        // Top actions (last 7 days)
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        // P1 perf: was 4 sequential count() queries. Now a single grouped
+        // SELECT with COUNT(*) FILTER (WHERE ...) for each metric — 1
+        // round-trip instead of 4. Top actions stays as a separate query
+        // because the row shape is different.
+        const row = await this.auditRepo.createQueryBuilder('a')
+            .select('COUNT(*)', 'totalLogs')
+            .addSelect(`COUNT(*) FILTER (WHERE a.action = :login AND a."createdAt" >= :todayStart)`, 'loginsToday')
+            .addSelect(`COUNT(*) FILTER (WHERE a."createdAt" >= :yesterday AND a.action NOT IN (:...excludeActions))`, 'changesLast24h')
+            .addSelect(`COUNT(*) FILTER (WHERE a.action = :failedAuth AND a."createdAt" >= :yesterday)`, 'failedAuthAttempts')
+            .setParameters({
+                login: AuditAction.USER_LOGIN,
+                todayStart,
+                yesterday,
+                excludeActions: [AuditAction.USER_LOGIN, AuditAction.USER_LOGOUT],
+                failedAuth: AuditAction.LOGIN_FAILED,
+            })
+            .getRawOne();
+
+        // Top actions kept separate (different grouping key + LIMIT)
         const topActionsRaw = await this.auditRepo
             .createQueryBuilder('audit')
             .select('audit.action', 'action')
@@ -200,17 +190,12 @@ export class AuditService {
             .limit(5)
             .getRawMany();
 
-        const topActions = topActionsRaw.map(row => ({
-            action: row.action,
-            count: parseInt(row.count),
-        }));
-
         return {
-            totalLogs,
-            loginsToday,
-            changesLast24h,
-            failedAuthAttempts,
-            topActions,
+            totalLogs: parseInt(row.totalLogs, 10),
+            loginsToday: parseInt(row.loginsToday, 10),
+            changesLast24h: parseInt(row.changesLast24h, 10),
+            failedAuthAttempts: parseInt(row.failedAuthAttempts, 10),
+            topActions: topActionsRaw.map(r => ({ action: r.action, count: parseInt(r.count, 10) })),
         };
     }
 
