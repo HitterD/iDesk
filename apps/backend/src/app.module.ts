@@ -221,7 +221,7 @@ import { HardwareRequestModule } from './modules/hardware-request/hardware-reque
         HardwareRequestModule,
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
-            limit: 100, // 100 requests per minute
+            limit: 60, // 60 requests per minute (P0: lowered from 100 to leave headroom for per-endpoint overrides)
         }]),
     ],
     providers: [
