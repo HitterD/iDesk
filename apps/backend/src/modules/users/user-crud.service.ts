@@ -109,19 +109,16 @@ export class UserCrudService {
         qb.andWhere("user.email NOT LIKE :deletedPrefix", { deletedPrefix: 'deleted_%' });
 
 
-        // Get total count before pagination
-        const total = await qb.getCount();
-
-        // Sorting
+        // P1 perf: getCount() + getMany() → getManyAndCount() — single round-trip.
+        // Trim relations to id-only lookup so the count doesn't drag in joins.
         const validSortFields = ['fullName', 'email', 'createdAt', 'role'];
         const actualSortBy = validSortFields.includes(sortBy) ? sortBy : 'fullName';
         qb.orderBy(`user.${actualSortBy}`, sortOrder);
 
-        // Pagination
         const skip = (page - 1) * limit;
         qb.skip(skip).take(limit);
 
-        const data = await qb.getMany();
+        const [data, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
 
         return {
@@ -535,30 +532,30 @@ export class UserCrudService {
             // Fetch users all at once to fix N+1 querying
             const users = await this.userRepo.find({ where: { id: In(idsToDelete) } });
             const userMap = new Map(users.map(u => [u.id, u]));
+            const existingIds = users.map(u => u.id);
+
+            if (existingIds.length > 0) {
+                // P1 perf: was a per-id delete loop. Single DELETE ... WHERE id IN (...)
+                // is 1 round-trip and lets PG plan a fast index scan.
+                const { affected } = await this.userRepo.delete({ id: In(existingIds) });
+                deleted = affected ?? 0;
+
+                // Audit log per user (still per-user, but DB write is single-shot now)
+                for (const user of users) {
+                    this.auditService.logAsync({
+                        userId: adminId,
+                        action: AuditAction.USER_DELETE,
+                        entityType: 'user',
+                        entityId: user.id,
+                        oldValue: { email: user.email, fullName: user.fullName, role: user.role },
+                        description: `User ${user.fullName} permanently bulk deleted`,
+                    });
+                }
+            }
 
             for (const userId of idsToDelete) {
-                try {
-                    const user = userMap.get(userId);
-                    if (user) {
-                        // HARD DELETE
-                        await this.userRepo.delete(userId);
-
-                        // Audit log per user
-                        this.auditService.logAsync({
-                            userId: adminId,
-                            action: AuditAction.USER_DELETE,
-                            entityType: 'user',
-                            entityId: userId,
-                            oldValue: { email: user.email, fullName: user.fullName, role: user.role },
-                            description: `User ${user.fullName} permanently bulk deleted`,
-                        });
-
-                        deleted++;
-                    } else {
-                        errors.push(`User ${userId} not found`);
-                    }
-                } catch (error) {
-                    errors.push(`Failed to delete user ${userId}: ${error.message}`);
+                if (!userMap.has(userId)) {
+                    errors.push(`User ${userId} not found`);
                 }
             }
         }
