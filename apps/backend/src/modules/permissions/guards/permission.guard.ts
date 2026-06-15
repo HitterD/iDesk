@@ -48,8 +48,10 @@ export class PermissionGuard implements CanActivate {
             }
         }
 
-        // Check user's specific permission
-        const hasPermission = await this.permissionsService.hasPermission(
+        // P1 perf: use cached permission lookup (60s TTL) instead of hitting
+        // the DB on every protected request. Mutations call
+        // `invalidatePermissionCache` to flush early.
+        const hasPermission = await this.permissionsService.hasPermissionCached(
             user.id,
             requiredPermission.feature,
             requiredPermission.action,

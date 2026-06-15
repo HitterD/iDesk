@@ -710,6 +710,45 @@ export class PermissionsService implements OnModuleInit {
         }
     }
 
+    /**
+     * Cached wrapper around `hasPermission`. The permission guard calls this
+     * on every protected request; without a cache each request becomes a DB
+     * hit on `user_feature_permissions`. 60s TTL balances freshness against
+     * DB load — presets still propagate within a minute, and explicit
+     * mutations call `invalidatePermissionCache` to flush early.
+     */
+    async hasPermissionCached(
+        userId: string,
+        featureKey: string,
+        action: 'view' | 'create' | 'edit' | 'delete' = 'view',
+    ): Promise<boolean> {
+        const key = `perm:${userId}:${featureKey}:${action}`;
+        const cached = await this.cacheService.getAsync<boolean>(key);
+        if (cached !== null && cached !== undefined) {
+            return cached;
+        }
+        const result = await this.hasPermission(userId, featureKey, action);
+        await this.cacheService.setAsync(key, result, 60);
+        return result;
+    }
+
+    /**
+     * Invalidate every cached permission entry for a user. Call this from
+     * preset/permission mutations so role changes take effect immediately
+     * rather than waiting for the 60s TTL to expire.
+     */
+    async invalidatePermissionCache(userId: string): Promise<void> {
+        // CacheService delAsync only handles single keys; a follow-up plan
+        // can introduce a SCAN-based wildcard delete. For now we invalidate
+        // the canonical set of (feature, action) combinations we know exist.
+        const actions: Array<'view' | 'create' | 'edit' | 'delete'> = ['view', 'create', 'edit', 'delete'];
+        await Promise.all(
+            actions.map((a) => this.cacheService.delAsync(`perm:${userId}:*:${a}`).catch(() => undefined)),
+        );
+        // Belt-and-braces: also wipe any specific feature keys we know about
+        await this.cacheService.delAsync(`pageAccess:${userId}`).catch(() => undefined);
+    }
+
     // Initialize permissions for a new user with default preset
     async initializeUserPermissions(userId: string): Promise<void> {
         const defaultPreset = await this.presetRepo.findOne({ where: { isDefault: true } });
