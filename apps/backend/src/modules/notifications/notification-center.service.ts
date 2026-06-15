@@ -111,21 +111,44 @@ export class NotificationCenterService implements OnModuleInit {
      * Send notification to multiple users
      */
     async sendBulk(userIds: string[], payload: Omit<NotificationPayload, 'userId'>): Promise<void> {
-        const promises = userIds.map(userId =>
-            this.send({ ...payload, userId }).catch(err => {
-                this.logger.error(`Failed to send notification to user ${userId}:`, err);
-            })
-        );
-        await Promise.all(promises);
+        // P1 perf: original used Promise.all over every recipient — for a
+        // 500-recipient bulk send this fired 500 concurrent mailer/DB/push
+        // calls and overwhelmed the connection pool. Chunk to 20 at a time
+        // for predictable load.
+        const CONCURRENCY = 20;
+        for (let i = 0; i < userIds.length; i += CONCURRENCY) {
+            const chunk = userIds.slice(i, i + CONCURRENCY);
+            await Promise.all(
+                chunk.map(userId =>
+                    this.send({ ...payload, userId }).catch(err => {
+                        this.logger.error(`Failed to send notification to user ${userId}:`, err);
+                    }),
+                ),
+            );
+        }
     }
 
     /**
      * Send notification to all users with a specific role
      */
     async sendToRole(role: string, payload: Omit<NotificationPayload, 'userId'>): Promise<void> {
-        const users = await this.userRepo.find({ where: { role: role as any } });
-        const userIds = users.map(u => u.id);
-        await this.sendBulk(userIds, payload);
+        // P1 perf: original loaded every user with the role in a single
+        // unbounded query. For a large USER/AGENT role that meant thousands
+        // of entities in memory. Now we page 200 at a time and stream.
+        const PAGE = 200;
+        let skip = 0;
+        while (true) {
+            const users = await this.userRepo.find({
+                where: { role: role as any },
+                take: PAGE,
+                skip,
+                select: ['id'],
+            });
+            if (users.length === 0) break;
+            await this.sendBulk(users.map(u => u.id), payload);
+            if (users.length < PAGE) break;
+            skip += PAGE;
+        }
     }
 
     // =====================
