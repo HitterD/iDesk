@@ -147,8 +147,15 @@ export class SettingsService {
     // =====================
 
     async getSchedulingConfig(): Promise<SchedulingConfig> {
-        const config = await this.getSetting<SchedulingConfig>('scheduling.config');
-        return config || DEFAULT_SCHEDULING_CONFIG;
+        // P1 perf: called by every ticket-form render. Cache 60s.
+        return this.cacheService.getOrSet(
+            'settings:scheduling',
+            async () => {
+                const config = await this.getSetting<SchedulingConfig>('scheduling.config');
+                return config || DEFAULT_SCHEDULING_CONFIG;
+            },
+            60,
+        );
     }
 
     async getTimeSlots(): Promise<string[]> {
@@ -175,6 +182,9 @@ export class SettingsService {
             newValue: { timeSlots },
             description: `Scheduling time slots updated`,
         });
+
+        // Invalidate scheduling cache so the next read picks up the change
+        await this.cacheService.delAsync('settings:scheduling').catch(() => undefined);
 
         return updated;
     }
@@ -203,6 +213,9 @@ export class SettingsService {
             newValue: { hardwareTypes },
             description: `Scheduling hardware types updated`,
         });
+
+        // Invalidate scheduling cache
+        await this.cacheService.delAsync('settings:scheduling').catch(() => undefined);
 
         return updated;
     }
