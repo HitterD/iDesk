@@ -472,21 +472,31 @@ export class RenewalService {
 
     // === NIGHTLY STATUS UPDATE ===
     async updateAllStatuses(): Promise<number> {
+        // P1 fix: was per-contract find + save loop (N round-trips).
+        // For 1000+ contracts this hammered the DB. Now we compute the
+        // new status in JS, group by target status, and issue one bulk
+        // UPDATE per target status. 4 round-trips max instead of N.
         const contracts = await this.contractRepo.find({
             where: { endDate: Not(IsNull()) },
+            select: ['id', 'endDate', 'status'],
         });
 
-        let updated = 0;
-        for (const contract of contracts) {
-            const newStatus = this.calculateStatus(contract.endDate!);
-            if (newStatus !== contract.status) {
-                contract.status = newStatus;
-                await this.contractRepo.save(contract);
-                updated++;
+        // Group IDs by new status
+        const byStatus = new Map<ContractStatus, string[]>();
+        for (const c of contracts) {
+            const newStatus = this.calculateStatus(c.endDate!);
+            if (newStatus !== c.status) {
+                if (!byStatus.has(newStatus)) byStatus.set(newStatus, []);
+                byStatus.get(newStatus)!.push(c.id);
             }
         }
 
-        return updated;
+        let total = 0;
+        for (const [status, ids] of byStatus) {
+            const result = await this.contractRepo.update({ id: In(ids) }, { status });
+            total += result.affected ?? 0;
+        }
+        return total;
     }
 
     private async emitRenewalRefresh(id: string) {
