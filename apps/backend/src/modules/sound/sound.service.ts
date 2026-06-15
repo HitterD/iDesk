@@ -3,9 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationSound, NotificationEventType } from './entities/notification-sound.entity';
 import { CreateSoundDto, UpdateSoundDto } from './dto';
+import { CacheService } from '../../shared/core/cache/cache.service';
 
 @Injectable()
 export class SoundService {
+    private static readonly CACHE_KEY_ALL = 'sounds:all';
+    private static readonly CACHE_TTL = 60; // 1 min
+
     // Default sounds (built-in) - use enum values from entity
     private readonly DEFAULT_SOUNDS: { eventType: NotificationEventType; url: string }[] = [
         { eventType: NotificationEventType.NEW_TICKET, url: '/sounds/new-ticket.mp3' },
@@ -20,35 +24,51 @@ export class SoundService {
     constructor(
         @InjectRepository(NotificationSound)
         private readonly soundRepo: Repository<NotificationSound>,
+        private readonly cacheService: CacheService,
     ) { }
 
     async findAll(): Promise<NotificationSound[]> {
-        return this.soundRepo.find({
-            order: { eventType: 'ASC', isDefault: 'DESC' },
-        });
+        // P1 perf: settings reference data, hit by every notification center render.
+        return this.cacheService.getOrSet(
+            SoundService.CACHE_KEY_ALL,
+            () => this.soundRepo.find({
+                order: { eventType: 'ASC', isDefault: 'DESC' },
+            }),
+            SoundService.CACHE_TTL,
+        );
     }
 
     async findByEventType(eventType: NotificationEventType): Promise<NotificationSound[]> {
-        return this.soundRepo.find({
-            where: { eventType },
-            order: { isDefault: 'DESC', createdAt: 'ASC' },
-        });
+        return this.cacheService.getOrSet(
+            `sounds:event:${eventType}`,
+            () => this.soundRepo.find({
+                where: { eventType },
+                order: { isDefault: 'DESC', createdAt: 'ASC' },
+            }),
+            SoundService.CACHE_TTL,
+        );
     }
 
     async getActiveSound(eventType: NotificationEventType): Promise<NotificationSound | null> {
-        // First try to find active custom sound
-        let sound = await this.soundRepo.findOne({
-            where: { eventType, isActive: true },
-        });
+        return this.cacheService.getOrSet(
+            `sounds:active:${eventType}`,
+            async () => {
+                // First try to find active custom sound
+                let sound = await this.soundRepo.findOne({
+                    where: { eventType, isActive: true },
+                });
 
-        // If no active sound, get the default
-        if (!sound) {
-            sound = await this.soundRepo.findOne({
-                where: { eventType, isDefault: true },
-            });
-        }
+                // If no active sound, get the default
+                if (!sound) {
+                    sound = await this.soundRepo.findOne({
+                        where: { eventType, isDefault: true },
+                    });
+                }
 
-        return sound;
+                return sound;
+            },
+            SoundService.CACHE_TTL,
+        );
     }
 
     async getActiveSoundUrl(eventType: NotificationEventType): Promise<string> {
@@ -61,6 +81,18 @@ export class SoundService {
         // Fallback to built-in default
         const defaultSound = this.DEFAULT_SOUNDS.find(s => s.eventType === eventType);
         return defaultSound?.url || '/sounds/default.mp3';
+    }
+
+    private async invalidateAllSoundCaches(): Promise<void> {
+        // Invalidate all + per-event + per-active-event caches
+        const keys = [
+            SoundService.CACHE_KEY_ALL,
+            ...Object.values(NotificationEventType).map(et => `sounds:event:${et}`),
+            ...Object.values(NotificationEventType).map(et => `sounds:active:${et}`),
+        ];
+        await Promise.all(
+            keys.map(k => this.cacheService.delAsync(k).catch(() => undefined)),
+        );
     }
 
     async findOne(id: string): Promise<NotificationSound> {
@@ -90,7 +122,9 @@ export class SoundService {
             isActive: dto.isActive ?? false,
         });
 
-        return this.soundRepo.save(sound);
+        const saved = await this.soundRepo.save(sound);
+        await this.invalidateAllSoundCaches();
+        return saved;
     }
 
     async update(id: string, dto: UpdateSoundDto): Promise<NotificationSound> {
@@ -102,7 +136,9 @@ export class SoundService {
         }
 
         Object.assign(sound, dto);
-        return this.soundRepo.save(sound);
+        const saved = await this.soundRepo.save(sound);
+        await this.invalidateAllSoundCaches();
+        return saved;
     }
 
     async setActiveSound(eventType: NotificationEventType, soundId: string): Promise<NotificationSound> {
@@ -120,7 +156,9 @@ export class SoundService {
 
         // Activate the selected sound
         sound.isActive = true;
-        return this.soundRepo.save(sound);
+        const saved = await this.soundRepo.save(sound);
+        await this.invalidateAllSoundCaches();
+        return saved;
     }
 
     async delete(id: string): Promise<void> {
@@ -131,6 +169,7 @@ export class SoundService {
         }
 
         await this.soundRepo.remove(sound);
+        await this.invalidateAllSoundCaches();
     }
 
     async getAllEventTypes(): Promise<{ eventType: NotificationEventType; activeSound: NotificationSound | null }[]> {
