@@ -223,19 +223,16 @@ export class TicketQueryService {
             qb.andWhere('ticket.createdAt <= :endDate', { endDate });
         }
 
-        // Get total count (before pagination)
-        const total = await qb.getCount();
-
-        // Apply sorting
+        // P1 perf: getCount() + getMany() replaced with getManyAndCount() — single
+        // round-trip instead of two. Paginator/sort still applied to the same builder.
         const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
         const actualSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
         qb.orderBy(`ticket.${actualSortBy}`, sortOrder);
 
-        // Apply pagination
         const skip = (page - 1) * limit;
         qb.skip(skip).take(limit);
 
-        const data = await qb.getMany();
+        const [data, total] = await qb.getManyAndCount();
 
         const totalPages = Math.ceil(total / limit);
 
@@ -447,7 +444,7 @@ export class TicketQueryService {
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
         // 2. Priority counts - single query
-        const priorityQb = this.createFilteredTicketQb(role);
+        const priorityQb = this.createFilteredTicketQb(role, excludeCategory);
 
         const priorityCounts = await priorityQb
             .select('ticket.priority', 'priority')
@@ -465,7 +462,7 @@ export class TicketQueryService {
         });
 
         // 3. Category counts - single query
-        const categoryQb = this.createFilteredTicketQb(role);
+        const categoryQb = this.createFilteredTicketQb(role, excludeCategory);
 
         const categoryCounts = await categoryQb
             .select(`COALESCE(ticket.category, 'GENERAL')`, 'category')
@@ -479,8 +476,7 @@ export class TicketQueryService {
         });
 
         // 4. Time-based counts - single query
-        const timeCounts = await this.ticketRepo
-            .createQueryBuilder('ticket')
+        const timeCounts = await this.createFilteredTicketQb(role, excludeCategory)
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
@@ -496,12 +492,11 @@ export class TicketQueryService {
         const resolvedThisWeek = parseInt(timeCounts.resolvedThisWeek) || 0;
 
         // 5. Last N days - single query with date grouping
-        const dailyStats = await this.ticketRepo
-            .createQueryBuilder('ticket')
+        const dailyStats = await this.createFilteredTicketQb(role, excludeCategory)
             .select(`DATE(ticket."createdAt")`, 'date')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
-            .where(`ticket."createdAt" >= :start`, { start: lastDaysStart })
+            .andWhere(`ticket."createdAt" >= :start`, { start: lastDaysStart })
             .groupBy(`DATE(ticket."createdAt")`)
             .orderBy(`DATE(ticket."createdAt")`, 'ASC')
             .getRawMany();
@@ -531,8 +526,7 @@ export class TicketQueryService {
         }
 
         // 6. Recent tickets - limited query with joins
-        const recentTickets = await this.ticketRepo
-            .createQueryBuilder('ticket')
+        const recentTickets = await this.createFilteredTicketQb(role, excludeCategory)
             .leftJoin('ticket.user', 'user')
             .leftJoin('ticket.assignedTo', 'assignedTo')
             .select([
@@ -557,8 +551,7 @@ export class TicketQueryService {
         }));
 
         // 7. Top agents - SQL aggregation
-        const agentStats = await this.ticketRepo
-            .createQueryBuilder('ticket')
+        const agentStats = await this.createFilteredTicketQb(role, excludeCategory)
             .innerJoin('ticket.assignedTo', 'agent')
             .select('agent.id', 'agentId')
             .addSelect('agent.fullName', 'name')
@@ -577,10 +570,9 @@ export class TicketQueryService {
         }));
 
         // 8. Average resolution time - SQL calculation
-        const avgTimeResult = await this.ticketRepo
-            .createQueryBuilder('ticket')
+        const avgTimeResult = await this.createFilteredTicketQb(role, excludeCategory)
             .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
-            .where(`ticket.status = 'RESOLVED'`)
+            .andWhere(`ticket.status = 'RESOLVED'`)
             .getRawOne();
 
         const avgResolutionMinutes = Math.round(parseFloat(avgTimeResult?.avgMinutes) || 0);
