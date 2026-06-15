@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, In } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, IsNull, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus } from '../../entities/ticket.entity';
 import { EventsGateway } from '../../presentation/gateways/events.gateway';
 import { TicketUpdateService } from '../ticket-update.service';
@@ -14,6 +14,8 @@ export class SlaMonitorService {
     constructor(
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly ticketUpdateService: TicketUpdateService,
         private readonly workloadService: WorkloadService,
@@ -53,9 +55,14 @@ export class SlaMonitorService {
             if (workingHoursPassed >= 6 && workingHoursPassed < 8 && !ticket.slaWarningSent) {
                 this.logger.warn(`Ticket ${ticket.ticketNumber} is approaching SLA breach (6 hours passed). Sending warning to ${ticket.assignedTo.fullName}`);
 
-                // Set flag
-                ticket.slaWarningSent = true;
-                await this.ticketRepo.save(ticket);
+                // P1 fix: was per-ticket repo.save(). Now uses a single
+                // conditional UPDATE so a cron-rescheduled overlap can never
+                // double-fire the warning.
+                const result = await this.ticketRepo.update(
+                    { id: ticket.id, slaWarningSent: false },
+                    { slaWarningSent: true },
+                );
+                if (result.affected === 0) continue; // Lost the race
 
                 // Send In-App Notification (WebSocket)
                 this.eventsGateway.server.to(`user_${ticket.assignedToId}`).emit('notification', {
@@ -72,15 +79,20 @@ export class SlaMonitorService {
 
                 const oldAgent = ticket.assignedTo;
 
-                // Reset states
-                ticket.assignedToId = null;
-                ticket.assignedTo = null;
-                ticket.slaWarningSent = false;
-                ticket.autoReassignedAt = now;
-                ticket.status = TicketStatus.TODO; // Reset back to TODO so SLA timer logic works cleanly
-                ticket.slaStartedAt = null; // Will restart when new agent picks it up
-
-                await this.ticketRepo.save(ticket);
+                // P1 fix: was per-ticket repo.save(). Now uses a single
+                // conditional UPDATE WHERE autoReassignedAt IS NULL so two
+                // cron runs cannot double-reassign the same ticket.
+                const result = await this.ticketRepo.update(
+                    { id: ticket.id, autoReassignedAt: IsNull() },
+                    {
+                        assignedToId: null,
+                        slaWarningSent: false,
+                        autoReassignedAt: now,
+                        status: TicketStatus.TODO,
+                        slaStartedAt: null,
+                    },
+                );
+                if (result.affected === 0) continue; // Already reassigned by another worker
 
                 // Note: oldAgent is NOT blacklisted, they simply lost the ticket.
                 // Call auto-assign to find the next best agent
