@@ -24,11 +24,8 @@ import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import {
     UpdateTicketStatusDto,
@@ -42,6 +39,7 @@ import { BulkUpdateTicketsDto } from '../dto/bulk-update.dto';
 import { MergeTicketsDto } from '../dto/ticket-merge.dto';
 import { TicketMergeService } from '../services/ticket-merge.service';
 import { TicketStatsService } from '../services/ticket-stats.service';
+import { AttachmentMultiInterceptor } from './interceptors/attachment-upload.interceptor';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -59,15 +57,7 @@ export class TicketsController {
     @Post()
     @ApiOperation({ summary: 'Create a new ticket' })
     @ApiResponse({ status: 201, description: 'Ticket created successfully.' })
-    @UseInterceptors(FilesInterceptor('files', 5, {
-        storage: diskStorage({
-            destination: './uploads',
-            filename: (req, file, cb) => {
-                const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
-                cb(null, `${randomName}${extname(file.originalname)}`);
-            },
-        }),
-    }))
+    @UseInterceptors(AttachmentMultiInterceptor())
     async createTicket(
         @Request() req: any,
         @Body() createTicketDto: CreateTicketDto,
@@ -176,15 +166,7 @@ export class TicketsController {
 
     @Post(':id/reply')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 5, {
-        storage: diskStorage({
-            destination: './uploads',
-            filename: (req, file, cb) => {
-                const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
-                cb(null, `${randomName}${extname(file.originalname)}`);
-            },
-        }),
-    }))
+    @UseInterceptors(AttachmentMultiInterceptor())
     async replyToTicket(
         @Param('id') id: string,
         @Req() req: any,
