@@ -14,6 +14,7 @@ import { CorrelationMiddleware } from './shared/core/middleware/correlation.midd
 // import { CsrfMiddleware } from './shared/core/middleware/csrf.middleware'; // Disabled - SameSite cookies provide CSRF protection
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import express from 'express';
 
 // Environment validation - fail fast if critical vars are missing
 function validateEnvironment() {
@@ -64,6 +65,38 @@ async function bootstrap() {
         credentials: true,
     });
 
+    // Security Headers - Must be early in the middleware chain to cover all paths
+    // (P0 fix: was registered after CorrelationMiddleware/LoggingInterceptor/deprecation shim,
+    // meaning 404s and any early-terminated requests leaked without helmet headers)
+    app.use(helmet({
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+        crossOriginEmbedderPolicy: false,
+        contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+                styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+                fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+                imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+                connectSrc: ["'self'", 'ws:', 'wss:', 'http://localhost:*', 'https://*.sentry.io'],
+                frameSrc: ["'none'"],
+                objectSrc: ["'none'"],
+            },
+        } : false,
+        hsts: process.env.NODE_ENV === 'production' ? {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true,
+        } : false,
+        noSniff: true,
+        xssFilter: true,
+        referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }));
+
+    // Body size limits - DoS protection (P0: defaults allow 100KB JSON, unlimited urlencoded)
+    app.use(express.json({ limit: '2mb' }));
+    app.use(express.urlencoded({ limit: '1mb', extended: true }));
+
     // Cookie parser for HttpOnly cookie auth
     app.use(cookieParser());
 
@@ -106,6 +139,7 @@ async function bootstrap() {
 
     app.useGlobalPipes(new ValidationPipe({
         whitelist: true,
+        forbidNonWhitelisted: true,
         transform: true,
     }));
 
@@ -132,31 +166,9 @@ async function bootstrap() {
         next();
     });
 
-    // Security Headers - Enhanced Configuration (Section 5.5.B)
-    app.use(helmet({
-        crossOriginResourcePolicy: { policy: 'cross-origin' },
-        crossOriginEmbedderPolicy: false,
-        contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
-            directives: {
-                defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-                styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-                fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-                imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-                connectSrc: ["'self'", 'ws:', 'wss:', 'http://localhost:*', 'https://*.sentry.io'],
-                frameSrc: ["'none'"],
-                objectSrc: ["'none'"],
-            },
-        } : false,
-        hsts: process.env.NODE_ENV === 'production' ? {
-            maxAge: 31536000,
-            includeSubDomains: true,
-            preload: true,
-        } : false,
-        noSniff: true,
-        xssFilter: true,
-        referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    }));
+    // Security Headers - Configuration moved to top of bootstrap (see above)
+    // (P0 fix: helmet must run before correlation/logging/deprecation shim middleware
+    // so headers cover all response paths including 404s)
 
     // Enable Gzip compression with optimized settings
     app.use(compression({
