@@ -11,9 +11,13 @@ import {
 } from '../interfaces/notification-channel.interface';
 import { DeliveryChannel } from '../entities/notification-log.entity';
 import { PushSubscription } from '../entities/push-subscription.entity';
+import { CacheService } from '../../../shared/core/cache/cache.service';
 
 // Maximum failed attempts before auto-unsubscribe
 const MAX_FAILED_ATTEMPTS = 3;
+// P1: cap the number of pushes a single user can receive per minute to
+// avoid notification storms (e.g. a misbehaving upstream emitter).
+const PUSH_LIMIT_PER_MIN = 10;
 
 @Injectable()
 export class PushChannelService implements INotificationChannel {
@@ -25,6 +29,7 @@ export class PushChannelService implements INotificationChannel {
         @InjectRepository(PushSubscription)
         private readonly pushSubscriptionRepo: Repository<PushSubscription>,
         private readonly configService: ConfigService,
+        private readonly cacheService: CacheService,
     ) {
         this.initializeVapid();
     }
@@ -58,6 +63,34 @@ export class PushChannelService implements INotificationChannel {
                 timestamp,
             };
         }
+
+        // P1 perf: 60s dedup. Identical notificationId to the same user
+        // within 60s is a no-op (returns success silently so the caller
+        // doesn't see a failure and re-try).
+        const dedupKey = `push:dedup:${payload.recipient}:${payload.notificationId}`;
+        const alreadySent = await this.cacheService.getAsync<string>(dedupKey);
+        if (alreadySent) {
+            return {
+                success: true,
+                channel: this.channelType,
+                messageId: 'dedup',
+                timestamp,
+            };
+        }
+
+        // P1 perf: per-user throttle (10/min). Bucket key includes the
+        // current minute so the counter auto-resets every 60s.
+        const throttleKey = `push:throttle:${payload.recipient}:${Math.floor(Date.now() / 60_000)}`;
+        const priorCount = (await this.cacheService.getAsync<number>(throttleKey)) || 0;
+        if (priorCount >= PUSH_LIMIT_PER_MIN) {
+            return {
+                success: false,
+                channel: this.channelType,
+                error: `Push throttled: ${PUSH_LIMIT_PER_MIN} per minute limit reached`,
+                timestamp,
+            };
+        }
+        await this.cacheService.setAsync(throttleKey, priorCount + 1, 65);
 
         try {
             // Get all active subscriptions for user
@@ -146,6 +179,9 @@ export class PushChannelService implements INotificationChannel {
             );
 
             this.logger.log(`Push delivery: ${successCount}/${subscriptions.length} successful for user ${payload.recipient}`);
+
+            // Mark as sent (60s dedup) so a retry within the window is a no-op.
+            await this.cacheService.setAsync(dedupKey, '1', 60).catch(() => undefined);
 
             return {
                 success: successCount > 0,
