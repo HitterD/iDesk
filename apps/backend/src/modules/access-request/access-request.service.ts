@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { AccessRequest, AccessRequestStatus } from './entities/access-request.entity';
 import { AccessType } from './entities/access-type.entity';
 import { Ticket, TicketType, TicketStatus, TicketPriority } from '../ticketing/entities/ticket.entity';
@@ -25,6 +25,8 @@ export class AccessRequestService {
         private readonly userRepo: Repository<User>,
         private readonly eventEmitter: EventEmitter2,
         private readonly cipher: CredentialCipherService,
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
     ) { }
 
     async create(userId: string, dto: CreateAccessRequestDto): Promise<AccessRequest> {
@@ -164,28 +166,32 @@ export class AccessRequestService {
     }
 
     async createAccess(id: string, agentId: string, dto: CreateAccessCredentialsDto): Promise<AccessRequest> {
-        const accessRequest = await this.findOne(id);
+        // P1 fix: accessRequest save + ticket status update were two
+        // separate awaits. A crash between them left access granted but
+        // the ticket still in IN_PROGRESS, blocking SLA breaches.
+        const saved = await this.dataSource.transaction(async (manager) => {
+            const accessRequest = await manager.findOne(AccessRequest, { where: { id } });
+            if (!accessRequest) {
+                throw new NotFoundException('Access request not found');
+            }
+            if (accessRequest.status !== AccessRequestStatus.VERIFIED) {
+                throw new BadRequestException('Request must be verified first');
+            }
 
-        if (accessRequest.status !== AccessRequestStatus.VERIFIED) {
-            throw new BadRequestException('Request must be verified first');
-        }
+            accessRequest.status = AccessRequestStatus.ACCESS_CREATED;
+            accessRequest.accessCreatedAt = new Date();
+            // P0 fix: credentials are encrypted at rest with AES-256-GCM
+            accessRequest.accessCredentials = this.cipher.encrypt(dto.accessCredentials);
 
-        accessRequest.status = AccessRequestStatus.ACCESS_CREATED;
-        accessRequest.accessCreatedAt = new Date();
-        // P0 fix: credentials are encrypted at rest with AES-256-GCM (CredentialCipherService).
-        // Legacy plaintext rows remain readable thanks to isEncrypted() detection in the cipher.
-        accessRequest.accessCredentials = this.cipher.encrypt(dto.accessCredentials);
+            await manager.update(Ticket, accessRequest.ticketId, {
+                status: TicketStatus.RESOLVED,
+                resolvedAt: new Date(),
+            });
 
-        // Resolve ticket
-        await this.ticketRepo.update(accessRequest.ticketId, {
-            status: TicketStatus.RESOLVED,
-            resolvedAt: new Date(),
+            return manager.save(AccessRequest, accessRequest);
         });
 
-        const saved = await this.accessRequestRepo.save(accessRequest);
-
         this.eventEmitter.emit('access-request.completed', { accessRequest: saved });
-
         return saved;
     }
 
