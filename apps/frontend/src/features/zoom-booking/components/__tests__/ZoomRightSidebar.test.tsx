@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ZoomRightSidebar } from '../ZoomRightSidebar';
-import type { AccountLoad } from '../utils/autoPickAccount';
+import type { AccountLoad } from '../../utils/autoPickAccount';
 import type { ZoomBooking } from '../../types';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -47,9 +48,22 @@ describe('ZoomRightSidebar', () => {
         expect(onBook1Hour).toHaveBeenCalledOnce();
     });
 
-    it('renders empty state for accounts when none', () => {
+    it('shows empty state for accounts when none', () => {
         render(<ZoomRightSidebar {...baseProps} />, { wrapper });
         expect(screen.getByText(/no accounts/i)).toBeInTheDocument();
+    });
+
+    it('shows empty state for tasks when none', () => {
+        render(<ZoomRightSidebar {...baseProps} />, { wrapper });
+        expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
+    });
+
+    it('adds a task via input + Enter', async () => {
+        const user = userEvent.setup();
+        render(<ZoomRightSidebar {...baseProps} />, { wrapper });
+        const input = screen.getByLabelText('New task text');
+        await user.type(input, 'Test task{enter}');
+        expect(screen.getAllByText(/test task/i).length).toBeGreaterThan(0);
     });
 
     it('renders account rows when accounts provided', () => {

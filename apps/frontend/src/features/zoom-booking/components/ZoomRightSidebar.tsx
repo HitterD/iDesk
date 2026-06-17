@@ -1,7 +1,9 @@
-import { Zap, FileText, ListChecks, CheckCircle2, Keyboard, User as UserIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Zap, FileText, ListChecks, CheckCircle2, Keyboard, User as UserIcon, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ZoomBooking } from '../types';
 import type { AccountLoad } from '../utils/autoPickAccount';
+import { useMyTasks } from '../hooks/useMyTasks';
 
 export interface ZoomRightSidebarProps {
     accounts: AccountLoad[];
@@ -25,6 +27,15 @@ export function ZoomRightSidebar({
     const top5 = [...accounts]
         .sort((a, b) => b.meetingsAtTime - a.meetingsAtTime)
         .slice(0, 5);
+
+    const { tasks, addTask, toggleTask, removeTask } = useMyTasks();
+    const [newTaskText, setNewTaskText] = useState('');
+
+    const commitTask = () => {
+        if (!newTaskText.trim()) return;
+        addTask(newTaskText);
+        setNewTaskText('');
+    };
 
     return (
         <aside
@@ -126,15 +137,67 @@ export function ZoomRightSidebar({
                 </div>
             </section>
 
-            {/* D4 · My Tasks (placeholder until useMyTasks lands in Phase 8) */}
+            {/* D4 · My Tasks */}
             <section className="p-3 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
                         My Tasks
                     </h3>
-                    <ListChecks className="h-3 w-3 text-slate-400" aria-hidden="true" />
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        onClick={commitTask}
+                        aria-label="Add task"
+                        data-testid="add-task-btn"
+                    >
+                        <Plus className="h-3 w-3" aria-hidden="true" />
+                    </Button>
                 </div>
-                <p className="text-xs text-slate-500 italic">No tasks yet. Press + to add.</p>
+                <input
+                    value={newTaskText}
+                    onChange={(e) => setNewTaskText(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitTask();
+                    }}
+                    placeholder="Add a task…"
+                    aria-label="New task text"
+                    className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 mb-2"
+                />
+                {tasks.length === 0 ? (
+                    <p className="text-[10px] text-slate-500 italic">No tasks yet</p>
+                ) : (
+                    <ul className="space-y-1" data-testid="task-list">
+                        {tasks.map((t) => (
+                            <li
+                                key={t.id}
+                                className="flex items-center gap-1.5 text-[11px]"
+                                data-testid={`task-row-${t.id}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={t.done}
+                                    onChange={() => toggleTask(t.id)}
+                                    className="h-3 w-3"
+                                    aria-label={`Toggle ${t.text}`}
+                                />
+                                <span
+                                    className={`flex-1 ${t.done ? 'line-through opacity-60' : ''}`}
+                                >
+                                    {t.text}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => removeTask(t.id)}
+                                    className="text-slate-400 hover:text-red-500"
+                                    aria-label={`Delete ${t.text}`}
+                                >
+                                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
 
             {/* D5 · System (pinned to bottom) */}
