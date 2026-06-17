@@ -3,14 +3,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('../../../../lib/api', () => ({
   default: { post: vi.fn() },
 }));
-vi.mock('../../../stores/useAuth', () => ({
+vi.mock('../../../../stores/useAuth', () => ({
   useAuth: () => ({ login: vi.fn() }),
 }));
 
-import api from '../../../lib/api';
+import api from '../../../../lib/api';
 import { BentoLoginPage } from '../BentoLoginPage';
 
 const mockApi = api as unknown as { post: ReturnType<typeof vi.fn> };
@@ -29,7 +29,7 @@ describe('BentoLoginPage integration', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/password/i), 'something');
+    await user.type(screen.getByLabelText('Password'), 'something');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
   });
@@ -41,7 +41,7 @@ describe('BentoLoginPage integration', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await user.type(screen.getByLabelText('Email Address'), 'test@example.com');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(await screen.findByText(/password is required/i)).toBeInTheDocument();
   });
@@ -65,8 +65,8 @@ describe('BentoLoginPage integration', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/email/i), 'admin@example.com');
-    await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.type(screen.getByLabelText('Email Address'), 'admin@example.com');
+    await user.type(screen.getByLabelText('Password'), 'password123');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     await waitFor(() => {
       expect(mockApi.post).toHaveBeenCalledWith('/auth/login', {
@@ -87,8 +87,8 @@ describe('BentoLoginPage integration', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/email/i), 'admin@example.com');
-    await user.type(screen.getByLabelText(/password/i), 'wrong');
+    await user.type(screen.getByLabelText('Email Address'), 'admin@example.com');
+    await user.type(screen.getByLabelText('Password'), 'wrong');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(await screen.findByText(/incorrect password/i)).toBeInTheDocument();
   });
@@ -104,8 +104,8 @@ describe('BentoLoginPage integration', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/email/i), 'admin@example.com');
-    await user.type(screen.getByLabelText(/password/i), 'wrong');
+    await user.type(screen.getByLabelText('Email Address'), 'admin@example.com');
+    await user.type(screen.getByLabelText('Password'), 'wrong');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(await screen.findByText(/security lock active/i)).toBeInTheDocument();
   });
@@ -123,8 +123,8 @@ describe('BentoLoginPage integration', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/email/i), 'admin@example.com');
-    await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.type(screen.getByLabelText('Email Address'), 'admin@example.com');
+    await user.type(screen.getByLabelText('Password'), 'password123');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /continue/i })).toBeDisabled();

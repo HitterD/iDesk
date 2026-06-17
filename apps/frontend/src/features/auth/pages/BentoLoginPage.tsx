@@ -183,7 +183,7 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className={cn("space-y-4 animate-rise", loginError && "animate-shake")} style={{ animationDelay: '0.34s' }}>
+                    <form onSubmit={handleSubmit} noValidate className={cn("space-y-4 animate-rise", loginError && "animate-shake")} style={{ animationDelay: '0.34s' }}>
                         <div className="space-y-2">
                             <label htmlFor="login-email" className="block text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
                                 Email Address
@@ -202,7 +202,6 @@ export const BentoLoginPage = () => {
                                     loginError?.type === 'error' && "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
                                 )}
                                 placeholder="user@company.com"
-                                required
                                 autoComplete="email"
                                 disabled={isLoading}
                             />
@@ -235,7 +234,6 @@ export const BentoLoginPage = () => {
                                         loginError?.type === 'error' && "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
                                     )}
                                     placeholder="••••••••"
-                                    required
                                     autoComplete="current-password"
                                     disabled={isLoading}
                                 />
