@@ -176,7 +176,7 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-4 animate-rise" style={{ animationDelay: '0.34s' }}>
+                    <form onSubmit={handleSubmit} className={cn("space-y-4 animate-rise", loginError && "animate-shake")} style={{ animationDelay: '0.34s' }}>
                         <div className="space-y-2">
                             <label htmlFor="login-email" className="block text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
                                 Email Address
@@ -272,6 +272,10 @@ export const BentoLoginPage = () => {
                             Continue
                         </button>
                     </form>
+
+                    <div className="mt-6 text-center text-sm text-muted-foreground animate-rise" style={{ animationDelay: '0.58s' }}>
+                        <a href="#" className="border-b border-dashed border-border hover:text-foreground hover:border-foreground pb-0.5">Use single sign-on (SSO)</a>
+                    </div>
 
                     {/* Card footer with kbd hints */}
                     <div className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-3 text-xs font-mono text-muted-foreground animate-rise" style={{ animationDelay: '0.66s' }}>
