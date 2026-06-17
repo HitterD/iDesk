@@ -29,6 +29,92 @@ export const SLOT_BG = {
     external: 'bg-slate-400/15 border-l-2 border-slate-400 cursor-pointer transition-colors duration-150 hover:bg-slate-400/25 cursor-not-allowed',
 };
 
+export const MAX_VISIBLE_ROWS = 4;
+
+export interface ProcessedBookingV2 {
+    id: string;
+    title: string;
+    bookedBy: string;
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
+    rowStart: number;
+    rowSpan: number;
+    isMyBooking: boolean;
+    isExternal: boolean;
+    accountColorHex: string;
+    rowIndex: number;
+    totalRows: number;
+    overflowCount: number;
+}
+
+/**
+ * Vertical-stack variant: assigns each booking a row inside overlapping groups,
+ * caps visible rows at MAX_VISIBLE_ROWS, and reports overflow count for a popover.
+ * Sort priority: my-bookings first → startTime → id (stable).
+ */
+export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] {
+    const seen = new Set<string>();
+    const all: ProcessedBookingV2[] = [];
+
+    day.slots.forEach((slot, index) => {
+        if (slot.booking && !seen.has(slot.booking.id)) {
+            seen.add(slot.booking.id);
+            const rowSpan = Math.max(1, Math.ceil(slot.booking.durationMinutes / SLOT_INTERVAL));
+            const slotBooking = slot.booking as CalendarSlot['booking'] & {
+                zoomAccount?: { colorHex?: string };
+            };
+            all.push({
+                id: slot.booking.id,
+                title: slot.booking.title,
+                bookedBy: slot.booking.bookedBy,
+                startTime: slot.booking.startTime || slot.time,
+                endTime: slot.booking.endTime || slot.endTime,
+                durationMinutes: slot.booking.durationMinutes,
+                rowStart: index + 2,
+                rowSpan,
+                isMyBooking: slot.status === 'my_booking',
+                isExternal: slot.booking.isExternal || false,
+                accountColorHex: slotBooking?.zoomAccount?.colorHex ?? '#3b82f6',
+                rowIndex: 0,
+                totalRows: 0,
+                overflowCount: 0,
+            });
+        }
+    });
+
+    if (all.length === 0) return all;
+
+    const assigned = new Set<string>();
+    for (const booking of all) {
+        if (assigned.has(booking.id)) continue;
+        const group = all.filter((b) => {
+            if (assigned.has(b.id)) return false;
+            const aStart = booking.rowStart;
+            const aEnd = booking.rowStart + booking.rowSpan;
+            const bStart = b.rowStart;
+            const bEnd = b.rowStart + b.rowSpan;
+            return aStart < bEnd && aEnd > bStart;
+        });
+        group.sort((a, b) => {
+            if (a.isMyBooking !== b.isMyBooking) return a.isMyBooking ? -1 : 1;
+            if (a.rowStart !== b.rowStart) return a.rowStart - b.rowStart;
+            return a.id.localeCompare(b.id);
+        });
+
+        const total = group.length;
+        const visible = Math.min(total, MAX_VISIBLE_ROWS);
+        group.forEach((b, idx) => {
+            b.rowIndex = idx;
+            b.totalRows = visible;
+            b.overflowCount = total - visible;
+            assigned.add(b.id);
+        });
+    }
+
+    return all;
+}
+
 export interface ProcessedBooking {
     id: string;
     title: string;
