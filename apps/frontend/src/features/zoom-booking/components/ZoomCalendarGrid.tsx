@@ -3,7 +3,7 @@ import { isToday, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Plus, Video, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CalendarDay } from '../types';
+import type { CalendarDay, CalendarSlot } from '../types';
 
 export const SLOT_INTERVAL = 30;
 export const SLOT_HEIGHT = 48;
@@ -61,9 +61,9 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
         if (slot.booking && !seen.has(slot.booking.id)) {
             seen.add(slot.booking.id);
             const rowSpan = Math.max(1, Math.ceil(slot.booking.durationMinutes / SLOT_INTERVAL));
-            const slotBooking = slot.booking as CalendarSlot['booking'] & {
+            const slotBooking = slot.booking as (CalendarSlot['booking'] & {
                 zoomAccount?: { colorHex?: string };
-            };
+            });
             all.push({
                 id: slot.booking.id,
                 title: slot.booking.title,
