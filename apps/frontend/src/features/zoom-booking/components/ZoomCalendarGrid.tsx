@@ -352,7 +352,7 @@ export function ZoomCalendarGrid({
                     return bookings.map((booking) => (
                         <div
                             key={booking.id}
-                            title={`${booking.title}\n${booking.startTime} - ${booking.endTime} (${booking.durationMinutes} min)\nBooked by: ${booking.bookedBy}\n🔗 Click to view Zoom link`}
+                            title={`${booking.title}\n${booking.startTime} - ${booking.endTime} (${booking.durationMinutes} min)\nBooked by: ${booking.bookedBy}\nKlik untuk lihat link Zoom`}
                             className={cn(
                                 "absolute rounded-xl cursor-pointer select-none",
                                 "transition-all duration-150 ease-out",

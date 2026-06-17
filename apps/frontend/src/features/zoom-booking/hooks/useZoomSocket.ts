@@ -1,7 +1,9 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { createElement } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
+import { CalendarPlus, CalendarX2, Settings, RefreshCw } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4050';
 
@@ -13,6 +15,8 @@ interface ZoomSocketEvents {
     'settings:updated': (data: { timestamp: string }) => void;
     'sync:completed': (data: { updatedCount: number }) => void;
 }
+
+const ic = (Cmp: typeof CalendarPlus) => createElement(Cmp, { className: 'h-4 w-4' });
 
 /**
  * Hook for real-time Zoom calendar updates via Socket.IO
@@ -33,9 +37,9 @@ export function useZoomSocket(accountId?: string) {
 
         // Show toast for visibility
         if (data.action === 'created') {
-            toast.info('📅 New booking added to calendar');
+            toast.info('New booking added to calendar', { icon: ic(CalendarPlus) });
         } else if (data.action === 'cancelled') {
-            toast.info('📅 Booking cancelled');
+            toast.info('Booking cancelled', { icon: ic(CalendarX2) });
         }
     }, [queryClient]);
 
@@ -43,11 +47,11 @@ export function useZoomSocket(accountId?: string) {
     const handleSettingsUpdate = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['zoom-settings'] });
         queryClient.invalidateQueries({ queryKey: ['zoom-accounts'] });
-        toast.info('⚙️ Settings updated');
+        toast.info('Settings updated', { icon: ic(Settings) });
     }, [queryClient]);
 
     // Handle booking created (for specific account)
-    const handleBookingCreated = useCallback((data: any) => {
+    const handleBookingCreated = useCallback((_data: any) => {
         queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
         queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
@@ -55,7 +59,7 @@ export function useZoomSocket(accountId?: string) {
     }, [queryClient]);
 
     // Handle booking cancelled
-    const handleBookingCancelled = useCallback((data: { bookingId: string; reason?: string }) => {
+    const handleBookingCancelled = useCallback((_data: { bookingId: string; reason?: string }) => {
         queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
         queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
@@ -68,7 +72,9 @@ export function useZoomSocket(accountId?: string) {
             queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
-            toast.info(`🔄 Calendar synced with Zoom (${data.updatedCount} updates)`);
+            toast.info(`Calendar synced with Zoom (${data.updatedCount} updates)`, {
+                icon: ic(RefreshCw),
+            });
         }
     }, [queryClient]);
 
@@ -82,7 +88,7 @@ export function useZoomSocket(accountId?: string) {
         socketRef.current = socket;
 
         socket.on('connect', () => {
-            console.log('🔌 Connected to Zoom WebSocket');
+            console.log('[Zoom Socket] Connected', { accountId });
 
             // Subscribe to specific account if provided
             if (accountId) {
@@ -91,7 +97,7 @@ export function useZoomSocket(accountId?: string) {
         });
 
         socket.on('disconnect', () => {
-            console.log('🔌 Disconnected from Zoom WebSocket');
+            console.log('[Zoom Socket] Disconnected');
         });
 
         // Register event handlers
