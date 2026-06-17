@@ -156,7 +156,14 @@ export const BentoLoginPage = () => {
                     )}
 
                     {loginError && (
-                        <div className="flex items-start gap-3 p-3 mb-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400">
+                        <div
+                            className={cn(
+                                'flex items-start gap-3 p-3 mb-4 rounded-lg border',
+                                loginError.type === 'warning'
+                                    ? 'bg-warning-500/10 border-warning-500/20 text-warning-600 dark:text-warning-500'
+                                    : 'bg-destructive/10 border-destructive/20 text-destructive'
+                            )}
+                        >
                             {getAlertIcon(loginError.type)}
                             <div>
                                 <p className="text-sm font-semibold">{loginError.message}</p>
