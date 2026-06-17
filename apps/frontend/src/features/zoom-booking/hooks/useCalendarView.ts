@@ -1,8 +1,13 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addMonths, addWeeks, addDays } from 'date-fns';
 
 export type CalendarView = 'month' | 'week' | 'day' | 'my-bookings';
+
+/** Special 'gabungan' value = combined/all accounts; otherwise an account id */
+export type AccountScope = 'gabungan' | string;
+
+const ACCOUNT_STORAGE_KEY = 'zoom-calendar-account';
 
 export interface CalendarViewState {
     view: CalendarView;
@@ -13,6 +18,8 @@ export interface CalendarViewState {
     navigateNext: () => void;
     navigateToDate: (date: Date) => void;
     navigateToToday: () => void;
+    accountScope: AccountScope;
+    setAccountScope: (scope: AccountScope) => void;
 }
 
 function parseDateParam(param: string | null): Date {
@@ -21,12 +28,21 @@ function parseDateParam(param: string | null): Date {
     return isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
+function readInitialScope(searchParams: URLSearchParams): AccountScope {
+    const fromUrl = searchParams.get('account');
+    if (fromUrl) return fromUrl;
+    if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (stored) return stored;
+    }
+    return 'gabungan';
+}
+
 function getDateRange(view: CalendarView, date: Date): { start: string; end: string } {
     switch (view) {
         case 'month': {
             const monthStart = startOfMonth(date);
             const monthEnd = endOfMonth(date);
-            // Include padding days for full weeks
             const start = startOfWeek(monthStart, { weekStartsOn: 1 });
             const end = endOfWeek(monthEnd, { weekStartsOn: 1 });
             return {
@@ -55,6 +71,9 @@ function getDateRange(view: CalendarView, date: Date): { start: string; end: str
 
 export function useCalendarView(): CalendarViewState {
     const [searchParams, setSearchParams] = useSearchParams();
+    const [accountScope, setAccountScopeState] = useState<AccountScope>(() =>
+        readInitialScope(searchParams),
+    );
 
     const view = (searchParams.get('view') as CalendarView) || 'month';
     const currentDate = parseDateParam(searchParams.get('date'));
@@ -119,6 +138,25 @@ export function useCalendarView(): CalendarViewState {
 
     const dateRange = useMemo(() => getDateRange(view, currentDate), [view, currentDate]);
 
+    // Sync accountScope → URL params + localStorage
+    useEffect(() => {
+        setSearchParams(
+            (prev) => {
+                const next = new Map(prev);
+                if (accountScope === 'gabungan') {
+                    next.delete('account');
+                } else {
+                    next.set('account', accountScope);
+                }
+                return Object.fromEntries(next);
+            },
+            { replace: true }
+        );
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(ACCOUNT_STORAGE_KEY, accountScope);
+        }
+    }, [accountScope, setSearchParams]);
+
     return {
         view,
         currentDate,
@@ -128,5 +166,8 @@ export function useCalendarView(): CalendarViewState {
         navigateNext,
         navigateToDate,
         navigateToToday,
+        accountScope,
+        setAccountScope: setAccountScopeState,
     };
 }
+
