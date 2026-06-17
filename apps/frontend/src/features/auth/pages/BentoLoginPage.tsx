@@ -129,8 +129,21 @@ export const BentoLoginPage = () => {
 
             <main className="flex-1 grid place-items-center px-4 py-6">
                 <div className="w-full max-w-[440px] bg-card border border-border rounded-2xl shadow-2xl p-8 relative animate-rise">
-                    <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">Sign in</h1>
-                    <p className="text-sm text-muted-foreground mb-6">Enter your credentials to continue.</p>
+                    {/* Corner ticks */}
+                    <span className="absolute top-0 left-0 w-3 h-3 border-t-[1.5px] border-l-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.1s' }} />
+                    <span className="absolute top-0 right-0 w-3 h-3 border-t-[1.5px] border-r-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.16s' }} />
+                    <span className="absolute bottom-0 left-0 w-3 h-3 border-b-[1.5px] border-l-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.22s' }} />
+                    <span className="absolute bottom-0 right-0 w-3 h-3 border-b-[1.5px] border-r-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.28s' }} />
+
+                    {/* Card header */}
+                    <div className="flex items-center gap-2 mb-6 text-[11px] font-mono font-semibold text-muted-foreground uppercase tracking-widest animate-rise" style={{ animationDelay: '0.08s' }}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse-dot" />
+                        <span>iDesk · Operations</span>
+                    </div>
+
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2 animate-rise" style={{ animationDelay: '0.16s' }}>Sign in</h1>
+                    <p className="text-sm text-muted-foreground mb-6 animate-rise" style={{ animationDelay: '0.22s' }}>Enter your credentials to continue.</p>
+                    <hr className="border-border mb-6 animate-hairline" style={{ animationDelay: '0.28s' }} />
 
                     {!isOnline && (
                         <div className="flex items-start gap-3 p-3 mb-4 bg-secondary/80 border border-border rounded-lg text-muted-foreground">
@@ -163,7 +176,7 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-4 animate-rise" style={{ animationDelay: '0.34s' }}>
                         <div className="space-y-2">
                             <label htmlFor="login-email" className="block text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
                                 Email Address
@@ -253,18 +266,26 @@ export const BentoLoginPage = () => {
                         <button
                             type="submit"
                             disabled={isLoading || !isOnline}
-                            className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors animate-rise"
+                            style={{ animationDelay: '0.52s' }}
                         >
                             Continue
                         </button>
                     </form>
+
+                    {/* Card footer with kbd hints */}
+                    <div className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-3 text-xs font-mono text-muted-foreground animate-rise" style={{ animationDelay: '0.66s' }}>
+                        <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-foreground/5">↵</kbd> Enter to continue</span>
+                        <span className="text-border-strong">·</span>
+                        <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-foreground/5">Esc</kbd> Clear</span>
+                    </div>
                 </div>
             </main>
 
             <footer className="px-9 pb-6 animate-fade-up" style={{ animationDelay: '0.7s' }}>
                 <hr className="border-border mb-4 animate-hairline" style={{ animationDelay: '0.85s' }} />
                 <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse-dot" />
                     <span>v3.18.2</span>
                     <span className="text-border-strong">·</span>
                     <span>All systems normal</span>

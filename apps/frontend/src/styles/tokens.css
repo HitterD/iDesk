@@ -272,3 +272,42 @@
         transition: background-color 0.4s var(--ease-in-out), color 0.4s var(--ease-in-out);
     }
 }
+
+/* ========================================
+   PAGE-REVEAL ANIMATIONS (login page)
+   Keyframes + utility classes used by BentoLoginPage.
+   NOTE: animate-pulse is already a skeleton shimmer (see index.css),
+   so the green status dot uses animate-pulse-dot.
+   ======================================== */
+@keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-down {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+    from { opacity: 0; transform: scale(0.4); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes hairline {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+@keyframes pulse-dot {
+    0% { box-shadow: 0 0 0 0 currentColor; }
+    70% { box-shadow: 0 0 0 6px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.animate-rise { animation: rise 0.55s var(--ease-out) both; }
+.animate-fade-down { animation: fade-down 0.5s var(--ease-out) both; }
+.animate-fade-up { animation: fade-up 0.5s var(--ease-out) both; }
+.animate-scale-in { animation: scale-in 0.5s var(--ease-spring) both; }
+.animate-hairline { animation: hairline 0.7s var(--ease-out) both; transform-origin: left; }
+.animate-pulse-dot { animation: pulse-dot 2.4s ease-out infinite; }
