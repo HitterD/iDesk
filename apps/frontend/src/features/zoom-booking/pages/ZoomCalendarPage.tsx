@@ -17,6 +17,7 @@ import { ZoomErrorBoundary } from '../components/ZoomErrorBoundary';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomCalendarHeader } from '../components/ZoomCalendarHeader';
 import { ZoomCalendarShell } from '../components/ZoomCalendarShell';
+import { ZoomRightSidebar } from '../components/ZoomRightSidebar';
 import { ZoomBookingPanel } from '../components/ZoomBookingPanel';
 import { ZoomMonthView } from '../components/ZoomMonthView';
 import { ZoomWeekView } from '../components/ZoomWeekView';
@@ -295,16 +296,52 @@ export function ZoomCalendarPage() {
                             canBook={canBook}
                             onBookMeeting={() => {
                                 if (!selectedAccountId && safeAccounts.length === 0) return;
-                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId 
-                                    ? safeAccounts[0]?.id 
+                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
+                                    ? safeAccounts[0]?.id
                                     : selectedAccountId;
-                                
+
                                 panel.openBooking({
                                     date: format(currentDate, 'yyyy-MM-dd'),
                                     time: format(new Date(), 'HH:00'),
                                     zoomAccountId: accountIdToUse,
                                 });
                             }}
+                        />
+                    }
+                    sidebar={
+                        <ZoomRightSidebar
+                            accounts={safeAccounts.map((a) => ({
+                                id: a.id,
+                                name: a.name,
+                                colorHex: a.colorHex ?? '#3b82f6',
+                                meetingsAtTime: 0,
+                            }))}
+                            upcomingBookings={[]}
+                            onBook1Hour={() => {
+                                if (!selectedAccountId && safeAccounts.length === 0) return;
+                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
+                                    ? safeAccounts[0]?.id
+                                    : selectedAccountId;
+                                panel.openBooking({
+                                    date: format(currentDate, 'yyyy-MM-dd'),
+                                    time: format(new Date(), 'HH:00'),
+                                    zoomAccountId: accountIdToUse!,
+                                });
+                            }}
+                            onBookCustom={() => {
+                                if (!selectedAccountId && safeAccounts.length === 0) return;
+                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
+                                    ? safeAccounts[0]?.id
+                                    : selectedAccountId;
+                                panel.openBooking({
+                                    date: format(currentDate, 'yyyy-MM-dd'),
+                                    time: format(new Date(), 'HH:00'),
+                                    zoomAccountId: accountIdToUse!,
+                                });
+                            }}
+                            onSync={handleSync}
+                            lastSyncAt={null}
+                            userName="User"
                         />
                     }
                     isPanelOpen={panel.isOpen}
