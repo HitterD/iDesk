@@ -1,11 +1,22 @@
-import { useMemo } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { format, isToday, startOfWeek, addDays, eachDayOfInterval } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { SLOT_INTERVAL, SLOT_HEIGHT, SLOT_BG, processBookingsForDay } from './ZoomCalendarGrid';
+import {
+    SLOT_INTERVAL,
+    SLOT_HEIGHT,
+    SLOT_BG,
+    processBookingsForDayV2,
+    MAX_VISIBLE_ROWS,
+} from './ZoomCalendarGrid';
+import type { ProcessedBookingV2 } from './ZoomCalendarGrid';
 import type { CalendarDay } from '../types';
 import type { ProcessedBooking } from './ZoomCalendarGrid';
 import { Video } from 'lucide-react';
+import {
+    ZoomOverflowPopover,
+    type OverflowBooking,
+} from './ZoomOverflowPopover';
 
 interface ZoomWeekViewProps {
     currentDate: Date;
@@ -60,6 +71,46 @@ export function ZoomWeekView({
         () => getCurrentTimeOffset(timeLabels, currentTime),
         [timeLabels, currentTime]
     );
+
+    // Overflow popover state — shared across all 7 day columns
+    const [overflowState, setOverflowState] = useState<{
+        anchor: HTMLElement | null;
+        open: boolean;
+        date: string | null;
+        rowStart: number | null;
+        bookings: OverflowBooking[];
+    }>({ anchor: null, open: false, date: null, rowStart: null, bookings: [] });
+
+    const openOverflow = (
+        anchor: HTMLElement,
+        date: string,
+        rowStart: number,
+        day: CalendarDay,
+        bookings: ProcessedBookingV2[],
+    ) => {
+        // Anchor the popover to a virtual element near the pill
+        const slots = day.slots[rowStart - 2];
+        const endSlot = day.slots[Math.min(rowStart + Math.max(...bookings.map(b => b.rowSpan)) - 2, day.slots.length - 1)];
+        const bookingsForPopover: OverflowBooking[] = bookings.map((b) => ({
+            id: b.id,
+            title: b.title,
+            startTime: b.startTime,
+            endTime: b.endTime,
+            accountId: (b as any).accountId ?? '',
+            accountName: (b as any).accountName ?? '',
+            accountColorHex: b.accountColorHex,
+            isMine: b.isMyBooking,
+        }));
+        setOverflowState({
+            anchor,
+            open: true,
+            date,
+            rowStart,
+            bookings: bookingsForPopover,
+        });
+        void slots;
+        void endSlot;
+    };
 
     const HEADER_HEIGHT = 60;
     const TIME_COL_WIDTH = 64;
@@ -173,58 +224,92 @@ export function ZoomWeekView({
                     );
                 })}
 
-                {/* Booking overlays */}
+                {/* Booking overlays — V2 vertical stack with overflow popover */}
                 {weekDays.map((day, colIdx) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const calDay = calendarMap.get(dateStr);
                     if (!calDay) return null;
 
-                    const bookings = processBookingsForDay(calDay);
-                    return bookings.map((booking) => {
-                        const topPx = (booking.rowStart - 2) * SLOT_HEIGHT;
-                        const heightPx = booking.rowSpan * SLOT_HEIGHT - 4;
-
-                        return (
-                            <div
-                                key={booking.id}
-                                className={cn(
-                                    "absolute rounded-xl cursor-pointer select-none",
-                                    "transition-all duration-150 ease-out",
-                                    "hover:brightness-110 hover:shadow-lg hover:z-20 hover:-translate-y-px",
-                                    "ring-1 ring-black/10 overflow-hidden flex flex-col",
-                                    booking.isExternal
-                                        ? "bg-slate-200/80 dark:bg-slate-700/80 border-l-[3px] border-l-slate-400 text-slate-700 dark:text-slate-300"
-                                        : booking.isMyBooking
-                                            ? "bg-gradient-to-br from-blue-500 to-blue-600 border-l-[3px] border-l-blue-300 text-white"
-                                            : "bg-gradient-to-br from-amber-400 to-amber-500 border-l-[3px] border-l-amber-200 text-white"
-                                )}
-                                style={{
-                                    top: topPx + 2,
-                                    height: heightPx,
-                                    left: `calc(${TIME_COL_WIDTH}px + ${colIdx} / ${numCols} * (100% - ${TIME_COL_WIDTH}px) + ${booking.columnIndex} / ${booking.totalColumns} * (100% - ${TIME_COL_WIDTH}px) / ${numCols} + 4px)`,
-                                    width: `calc((100% - ${TIME_COL_WIDTH}px) / ${numCols} / ${booking.totalColumns} - 8px)`,
-                                }}
-                                onClick={() => onBookingClick(booking)}
-                            >
-                                <div className="p-1.5 flex flex-col min-h-0">
-                                    <div className="text-[11px] font-bold truncate flex items-center gap-1">
-                                        <Video className="h-3 w-3 shrink-0" />
-                                        <span className="truncate">{booking.title}</span>
-                                    </div>
-                                    {booking.rowSpan >= 2 && (
-                                        <div className="flex flex-col min-h-0 mt-0.5">
-                                            <div className="text-[11px] opacity-80 truncate">
-                                                {booking.startTime} – {booking.endTime}
-                                            </div>
-                                            <div className="text-[10px] opacity-70 truncate mt-0.5">
-                                                {booking.bookedBy}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
+                    const bookings = processBookingsForDayV2(calDay);
+                    // Group by rowStart (time slot) — each group renders as a vertical stack
+                    const groups = new Map<number, ProcessedBookingV2[]>();
+                    bookings.forEach((b) => {
+                        const arr = groups.get(b.rowStart) ?? [];
+                        arr.push(b);
+                        groups.set(b.rowStart, arr);
                     });
+
+                    const cells: React.ReactNode[] = [];
+                    groups.forEach((group, rowStart) => {
+                        const visible = group
+                            .filter((b) => b.rowIndex < b.totalRows)
+                            .sort((a, b) => a.rowIndex - b.rowIndex);
+                        const overflowCount = group[0]?.overflowCount ?? 0;
+
+                        visible.forEach((booking) => {
+                            const topPx = (rowStart - 2) * SLOT_HEIGHT + 2 + booking.rowIndex * 16;
+                            const cellLeft = `calc(${TIME_COL_WIDTH}px + ${colIdx} / ${numCols} * (100% - ${TIME_COL_WIDTH}px) + 4px)`;
+                            const cellWidth = `calc((100% - ${TIME_COL_WIDTH}px) / ${numCols} - 8px)`;
+                            cells.push(
+                                <div
+                                    key={booking.id}
+                                    className="absolute h-3.5 rounded-sm cursor-pointer select-none ring-1 ring-black/10 flex items-center px-1.5 gap-1 overflow-hidden transition-all hover:brightness-110 hover:z-20"
+                                    style={{
+                                        top: topPx,
+                                        left: cellLeft,
+                                        width: cellWidth,
+                                        backgroundColor: booking.accountColorHex,
+                                        color: '#fff',
+                                    }}
+                                    title={`${booking.title}\n${booking.startTime} – ${booking.endTime}\nBooked by: ${booking.bookedBy}`}
+                                    onClick={() =>
+                                        onBookingClick({
+                                            id: booking.id,
+                                            title: booking.title,
+                                            bookedBy: booking.bookedBy,
+                                            startTime: booking.startTime,
+                                            endTime: booking.endTime,
+                                            durationMinutes: booking.durationMinutes,
+                                            rowStart: booking.rowStart,
+                                            rowSpan: booking.rowSpan,
+                                            isMyBooking: booking.isMyBooking,
+                                            isExternal: booking.isExternal,
+                                            columnIndex: 0,
+                                            totalColumns: 1,
+                                        } as ProcessedBooking)
+                                    }
+                                >
+                                    <Video className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                                    <span className="text-[10px] font-bold truncate">{booking.title}</span>
+                                </div>,
+                            );
+                        });
+
+                        // Overflow pill at bottom of stack when count > visible
+                        if (overflowCount > 0) {
+                            const pillTopPx =
+                                (rowStart - 2) * SLOT_HEIGHT + 2 + MAX_VISIBLE_ROWS * 16;
+                            const cellLeft = `calc(${TIME_COL_WIDTH}px + ${colIdx} / ${numCols} * (100% - ${TIME_COL_WIDTH}px) + 4px)`;
+                            const cellWidth = `calc((100% - ${TIME_COL_WIDTH}px) / ${numCols} - 8px)`;
+                            cells.push(
+                                <button
+                                    type="button"
+                                    key={`overflow-${dateStr}-${rowStart}`}
+                                    data-testid="overflow-pill"
+                                    className="absolute h-4 rounded-sm bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center hover:bg-slate-900 z-20"
+                                    style={{ top: pillTopPx, left: cellLeft, width: cellWidth }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openOverflow(e.currentTarget, dateStr, rowStart, calDay, group);
+                                    }}
+                                >
+                                    +{overflowCount} lainnya
+                                </button>,
+                            );
+                        }
+                    });
+
+                    return <Fragment key={dateStr}>{cells}</Fragment>;
                 })}
 
                 {/* Current time indicator */}
@@ -241,6 +326,61 @@ export function ZoomWeekView({
                     </div>
                 )}
             </div>
+
+            {/* Overflow popover (single instance, anchored to whichever pill was clicked) */}
+            {overflowState.anchor && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: overflowState.anchor.getBoundingClientRect().top,
+                        left: overflowState.anchor.getBoundingClientRect().left,
+                        width: 0,
+                        height: 0,
+                    }}
+                    aria-hidden="true"
+                />
+            )}
+            <ZoomOverflowPopover
+                open={overflowState.open}
+                onClose={() =>
+                    setOverflowState({ anchor: null, open: false, date: null, rowStart: null, bookings: [] })
+                }
+                onSelectBooking={(id) => {
+                    const found = overflowState.bookings.find((b) => b.id === id);
+                    if (found) {
+                        onBookingClick({
+                            id: found.id,
+                            title: found.title,
+                            bookedBy: found.accountName,
+                            startTime: found.startTime,
+                            endTime: found.endTime,
+                            durationMinutes: 60,
+                            rowStart: 0,
+                            rowSpan: 1,
+                            isMyBooking: found.isMine,
+                            isExternal: false,
+                            columnIndex: 0,
+                            totalColumns: 1,
+                        } as ProcessedBooking);
+                    }
+                    setOverflowState({ anchor: null, open: false, date: null, rowStart: null, bookings: [] });
+                }}
+                onBookSlot={() => {
+                    // Trigger booking flow at this slot (delegate to parent via slot click)
+                    if (overflowState.date && overflowState.rowStart !== null) {
+                        const calDay = calendarMap.get(overflowState.date);
+                        if (calDay) onSlotClick(calDay, overflowState.rowStart - 2);
+                    }
+                    setOverflowState({ anchor: null, open: false, date: null, rowStart: null, bookings: [] });
+                }}
+                bookings={overflowState.bookings}
+                timeRange={
+                    overflowState.bookings[0]
+                        ? `${overflowState.bookings[0].startTime} – ${overflowState.bookings[0].endTime}`
+                        : ''
+                }
+                date={overflowState.date ? format(new Date(overflowState.date), 'EEEE, d MMMM yyyy', { locale: idLocale }) : ''}
+            />
         </div>
     );
 }

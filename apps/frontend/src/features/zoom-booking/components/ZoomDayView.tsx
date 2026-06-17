@@ -1,12 +1,23 @@
-import { useMemo } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { format, isToday, addDays } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Video, User, Clock, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SLOT_INTERVAL, SLOT_HEIGHT, SLOT_BG, processBookingsForDay } from './ZoomCalendarGrid';
+import {
+    SLOT_INTERVAL,
+    SLOT_HEIGHT,
+    SLOT_BG,
+    processBookingsForDayV2,
+    MAX_VISIBLE_ROWS,
+} from './ZoomCalendarGrid';
+import type { ProcessedBookingV2 } from './ZoomCalendarGrid';
 import type { CalendarDay } from '../types';
 import type { ProcessedBooking } from './ZoomCalendarGrid';
+import {
+    ZoomOverflowPopover,
+    type OverflowBooking,
+} from './ZoomOverflowPopover';
 
 const TIME_COL_WIDTH = 64;
 
@@ -54,13 +65,39 @@ export function ZoomDayView({
 
     const bookings = useMemo(() => {
         if (!calDay) return [];
-        return processBookingsForDay(calDay);
+        return processBookingsForDayV2(calDay);
     }, [calDay]);
 
     const timeIndicatorOffset = useMemo(
         () => getTimeOffset(timeLabels, currentTime),
         [timeLabels, currentTime]
     );
+
+    // Overflow popover state
+    const [overflowState, setOverflowState] = useState<{
+        anchor: HTMLElement | null;
+        open: boolean;
+        rowStart: number | null;
+        bookings: OverflowBooking[];
+    }>({ anchor: null, open: false, rowStart: null, bookings: [] });
+
+    const openOverflow = (
+        anchor: HTMLElement,
+        rowStart: number,
+        group: ProcessedBookingV2[],
+    ) => {
+        const bookingsForPopover: OverflowBooking[] = group.map((b) => ({
+            id: b.id,
+            title: b.title,
+            startTime: b.startTime,
+            endTime: b.endTime,
+            accountId: (b as any).accountId ?? '',
+            accountName: (b as any).accountName ?? '',
+            accountColorHex: b.accountColorHex,
+            isMine: b.isMyBooking,
+        }));
+        setOverflowState({ anchor, open: true, rowStart, bookings: bookingsForPopover });
+    };
 
     return (
         <div className="flex flex-col h-full min-h-0">
@@ -141,68 +178,123 @@ export function ZoomDayView({
                         );
                     })}
 
-                    {/* Booking overlays */}
-                    {bookings.map((booking) => {
-                        const topPx = (booking.rowStart - 2) * SLOT_HEIGHT;
-                        const heightPx = booking.rowSpan * SLOT_HEIGHT - 4;
+                    {/* Booking overlays — V2 vertical stack with overflow popover */}
+                    {(() => {
+                        if (!calDay) return null;
+                        // Group by rowStart (time slot)
+                        const groups = new Map<number, ProcessedBookingV2[]>();
+                        bookings.forEach((b) => {
+                            const arr = groups.get(b.rowStart) ?? [];
+                            arr.push(b);
+                            groups.set(b.rowStart, arr);
+                        });
 
-                        return (
-                            <div
-                                key={booking.id}
-                                className={cn(
-                                    "absolute rounded-xl cursor-pointer select-none",
-                                    "transition-all duration-150 ease-out",
-                                    "hover:brightness-110 hover:shadow-lg hover:z-20 hover:-translate-y-px",
-                                    "ring-1 ring-black/10 overflow-hidden flex flex-col",
-                                    booking.isExternal
-                                        ? "bg-slate-200/80 dark:bg-slate-700/80 border-l-[3px] border-l-slate-400 text-slate-700 dark:text-slate-300"
-                                        : booking.isMyBooking
-                                            ? "bg-gradient-to-br from-blue-500 to-blue-600 border-l-[3px] border-l-blue-300 text-white"
-                                            : "bg-gradient-to-br from-amber-400 to-amber-500 border-l-[3px] border-l-amber-200 text-white"
-                                )}
-                                style={{
-                                    top: topPx + 2,
-                                    height: heightPx,
-                                    left: `calc(${TIME_COL_WIDTH}px + ${booking.columnIndex} / ${booking.totalColumns} * (100% - ${TIME_COL_WIDTH}px) + 4px)`,
-                                    width: `calc((100% - ${TIME_COL_WIDTH}px) / ${booking.totalColumns} - 8px)`,
-                                }}
-                                onClick={() => onBookingClick(booking)}
-                            >
-                                <div className="p-3 flex flex-col gap-1 h-full">
-                                    <div className="flex items-center gap-2 font-bold text-sm">
-                                        <Video className="h-4 w-4 shrink-0" />
-                                        <span className="truncate">{booking.title}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs opacity-80">
-                                        <Clock className="h-3.5 w-3.5 shrink-0" />
-                                        <span>{booking.startTime} – {booking.endTime} ({booking.durationMinutes} menit)</span>
-                                    </div>
-                                    {booking.rowSpan >= 2 && (
-                                        <div className="flex items-center gap-1.5 text-xs opacity-80">
-                                            <User className="h-3.5 w-3.5 shrink-0" />
-                                            <span className="truncate">{booking.bookedBy}</span>
+                        const cells: React.ReactNode[] = [];
+                        groups.forEach((group, rowStart) => {
+                            const visible = group
+                                .filter((b) => b.rowIndex < b.totalRows)
+                                .sort((a, b) => a.rowIndex - b.rowIndex);
+                            const overflowCount = group[0]?.overflowCount ?? 0;
+
+                            visible.forEach((booking) => {
+                                // Day view: each row gets a tall card (room for details)
+                                const isLarge = booking.rowSpan >= 4;
+                                const topPx = (rowStart - 2) * SLOT_HEIGHT + 2;
+                                const heightPx = Math.max(
+                                    isLarge ? 88 : 36,
+                                    booking.rowSpan * SLOT_HEIGHT - 4,
+                                );
+                                const rowHeight = isLarge ? 88 : 36;
+                                const rowTop =
+                                    (rowStart - 2) * SLOT_HEIGHT + 2 + booking.rowIndex * (rowHeight + 4);
+
+                                cells.push(
+                                    <div
+                                        key={booking.id}
+                                        className={cn(
+                                            "absolute rounded-xl cursor-pointer select-none",
+                                            "transition-all duration-150 ease-out",
+                                            "hover:brightness-110 hover:shadow-lg hover:z-20 hover:-translate-y-px",
+                                            "ring-1 ring-black/10 overflow-hidden flex flex-col",
+                                            booking.isExternal
+                                                ? "bg-slate-200/80 dark:bg-slate-700/80 border-l-[3px] border-l-slate-400 text-slate-700 dark:text-slate-300"
+                                                : booking.isMyBooking
+                                                    ? "bg-gradient-to-br from-blue-500 to-blue-600 border-l-[3px] border-l-blue-300 text-white"
+                                                    : "bg-gradient-to-br from-amber-400 to-amber-500 border-l-[3px] border-l-amber-200 text-white"
+                                        )}
+                                        style={{
+                                            top: isLarge ? topPx : rowTop,
+                                            height: heightPx,
+                                            left: `calc(${TIME_COL_WIDTH}px + 4px)`,
+                                            width: `calc(100% - ${TIME_COL_WIDTH}px - 8px)`,
+                                        }}
+                                        onClick={() =>
+                                            onBookingClick({
+                                                id: booking.id,
+                                                title: booking.title,
+                                                bookedBy: booking.bookedBy,
+                                                startTime: booking.startTime,
+                                                endTime: booking.endTime,
+                                                durationMinutes: booking.durationMinutes,
+                                                rowStart: booking.rowStart,
+                                                rowSpan: booking.rowSpan,
+                                                isMyBooking: booking.isMyBooking,
+                                                isExternal: booking.isExternal,
+                                                columnIndex: 0,
+                                                totalColumns: 1,
+                                            } as ProcessedBooking)
+                                        }
+                                    >
+                                        <div className="p-2 flex flex-col gap-1 h-full">
+                                            <div className="flex items-center gap-2 font-bold text-xs">
+                                                <Video className="h-3 w-3 shrink-0" />
+                                                <span className="truncate">{booking.title}</span>
+                                            </div>
+                                            {(isLarge || booking.rowSpan >= 2) && (
+                                                <div className="flex items-center gap-1 text-[10px] opacity-90">
+                                                    <Clock className="h-3 w-3 shrink-0" />
+                                                    <span>{booking.startTime} – {booking.endTime}</span>
+                                                </div>
+                                            )}
+                                            {isLarge && (
+                                                <div className="flex items-center gap-1 text-[10px] opacity-80">
+                                                    <User className="h-3 w-3 shrink-0" />
+                                                    <span className="truncate">{booking.bookedBy}</span>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                    {booking.isMyBooking && booking.rowSpan >= 4 && (
-                                        <div className="mt-auto">
-                                            <Button
-                                                size="sm"
-                                                variant="secondary"
-                                                className="h-7 text-xs gap-1.5 bg-white/20 hover:bg-white/30 text-white border-white/30"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onBookingClick(booking);
-                                                }}
-                                            >
-                                                <ExternalLink className="h-3 w-3" />
-                                                Lihat Detail
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
+                                    </div>,
+                                );
+                            });
+
+                            // Overflow pill at bottom of stack when count > visible
+                            if (overflowCount > 0) {
+                                const pillTop =
+                                    (rowStart - 2) * SLOT_HEIGHT + 2 + MAX_VISIBLE_ROWS * 40;
+                                cells.push(
+                                    <button
+                                        type="button"
+                                        key={`overflow-${rowStart}`}
+                                        data-testid="overflow-pill"
+                                        className="absolute h-5 rounded-md bg-slate-800 text-white text-[10px] font-semibold flex items-center justify-center hover:bg-slate-900 z-20"
+                                        style={{
+                                            top: pillTop,
+                                            left: `calc(${TIME_COL_WIDTH}px + 4px)`,
+                                            width: `calc(100% - ${TIME_COL_WIDTH}px - 8px)`,
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openOverflow(e.currentTarget, rowStart, group);
+                                        }}
+                                    >
+                                        +{overflowCount} lainnya
+                                    </button>,
+                                );
+                            }
+                        });
+
+                        return <Fragment>{cells}</Fragment>;
+                    })()}
 
                     {/* Current time indicator */}
                     {timeIndicatorOffset !== null && today && (
@@ -222,6 +314,47 @@ export function ZoomDayView({
                     )}
                 </div>
             </div>
+
+            {/* Overflow popover */}
+            <ZoomOverflowPopover
+                open={overflowState.open}
+                onClose={() =>
+                    setOverflowState({ anchor: null, open: false, rowStart: null, bookings: [] })
+                }
+                onSelectBooking={(id) => {
+                    const found = overflowState.bookings.find((b) => b.id === id);
+                    if (found) {
+                        onBookingClick({
+                            id: found.id,
+                            title: found.title,
+                            bookedBy: found.accountName,
+                            startTime: found.startTime,
+                            endTime: found.endTime,
+                            durationMinutes: 60,
+                            rowStart: 0,
+                            rowSpan: 1,
+                            isMyBooking: found.isMine,
+                            isExternal: false,
+                            columnIndex: 0,
+                            totalColumns: 1,
+                        } as ProcessedBooking);
+                    }
+                    setOverflowState({ anchor: null, open: false, rowStart: null, bookings: [] });
+                }}
+                onBookSlot={() => {
+                    if (overflowState.rowStart !== null && calDay) {
+                        onSlotClick(calDay, overflowState.rowStart - 2);
+                    }
+                    setOverflowState({ anchor: null, open: false, rowStart: null, bookings: [] });
+                }}
+                bookings={overflowState.bookings}
+                timeRange={
+                    overflowState.bookings[0]
+                        ? `${overflowState.bookings[0].startTime} – ${overflowState.bookings[0].endTime}`
+                        : ''
+                }
+                date={format(currentDate, 'EEEE, d MMMM yyyy', { locale: idLocale })}
+            />
         </div>
     );
 }
