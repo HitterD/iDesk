@@ -19,6 +19,7 @@ import { ZoomCalendarHeader } from '../components/ZoomCalendarHeader';
 import { ZoomCalendarSubBar } from '../components/ZoomCalendarSubBar';
 import { ZoomCalendarShell } from '../components/ZoomCalendarShell';
 import { ZoomRightSidebar } from '../components/ZoomRightSidebar';
+import { ZoomShortcutsModal } from '../components/ZoomShortcutsModal';
 import { ZoomBookingPanel } from '../components/ZoomBookingPanel';
 import { ZoomMonthView } from '../components/ZoomMonthView';
 import { ZoomWeekView } from '../components/ZoomWeekView';
@@ -65,7 +66,12 @@ export function ZoomCalendarPage() {
         navigateNext,
         navigateToDate,
         navigateToToday,
+        accountScope,
+        setAccountScope,
     } = useCalendarView();
+
+    // Shortcuts modal
+    const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
     // Panel state
     const panel = useBookingPanel();
@@ -113,6 +119,64 @@ export function ZoomCalendarPage() {
     const isLoading = accountsLoading || calendarLoading;
     const safeAccounts = accounts ?? [];
     const safeCalendar = calendar ?? [];
+
+    // Global keyboard shortcuts (must be after safeAccounts/panel declared)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            if (
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target?.isContentEditable
+            ) {
+                return;
+            }
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+            switch (e.key) {
+                case '?':
+                    e.preventDefault();
+                    setShortcutsOpen(true);
+                    break;
+                case 'T':
+                case 't':
+                    e.preventDefault();
+                    navigateToToday();
+                    break;
+                case 'B':
+                case 'b': {
+                    e.preventDefault();
+                    if (selectedAccountId || safeAccounts.length > 0) {
+                        const accountIdToUse =
+                            !selectedAccountId || selectedAccountId === 'all'
+                                ? safeAccounts[0]?.id
+                                : selectedAccountId;
+                        if (accountIdToUse) {
+                            panel.openBooking({
+                                date: format(currentDate, 'yyyy-MM-dd'),
+                                time: format(new Date(), 'HH:00'),
+                                zoomAccountId: accountIdToUse,
+                            });
+                        }
+                    }
+                    break;
+                }
+                case 'G':
+                case 'g':
+                    e.preventDefault();
+                    setAccountScope(
+                        accountScope === 'gabungan'
+                            ? safeAccounts[0]?.id ?? 'gabungan'
+                            : 'gabungan',
+                    );
+                    break;
+                default:
+                    break;
+            }
+        };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [currentDate, accountScope, safeAccounts, panel, navigateToToday, selectedAccountId, setAccountScope]);
 
     // Slot click → open booking panel
     const handleSlotClick = (day: CalendarDay, slotOrIndex: CalendarSlot | number) => {
@@ -293,6 +357,8 @@ export function ZoomCalendarPage() {
                             onNext={navigateNext}
                             onToday={navigateToToday}
                             onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
+                            accountScope={accountScope}
+                            onAccountScopeChange={setAccountScope}
                             onNavigateToDate={navigateToDate}
                             canBook={canBook}
                             onBookMeeting={() => {
@@ -335,10 +401,7 @@ export function ZoomCalendarPage() {
                                     zoomAccountId: accountIdToUse!,
                                 });
                             }}
-                            onOpenShortcuts={() => {
-                                // Phase 8 will wire to ZoomShortcutsModal
-                                toast.info('Shortcuts modal coming soon');
-                            }}
+                            onOpenShortcuts={() => setShortcutsOpen(true)}
                             onOpenSettings={() => {
                                 window.location.href = '/zoom-calendar/settings';
                             }}
