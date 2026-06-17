@@ -16,6 +16,7 @@ import type { ProcessedBooking } from '../components/ZoomCalendarGrid';
 import { ZoomErrorBoundary } from '../components/ZoomErrorBoundary';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomCalendarHeader } from '../components/ZoomCalendarHeader';
+import { ZoomCalendarSubBar } from '../components/ZoomCalendarSubBar';
 import { ZoomCalendarShell } from '../components/ZoomCalendarShell';
 import { ZoomRightSidebar } from '../components/ZoomRightSidebar';
 import { ZoomBookingPanel } from '../components/ZoomBookingPanel';
@@ -303,9 +304,46 @@ export function ZoomCalendarPage() {
                                 panel.openBooking({
                                     date: format(currentDate, 'yyyy-MM-dd'),
                                     time: format(new Date(), 'HH:00'),
-                                    zoomAccountId: accountIdToUse,
+                                    zoomAccountId: accountIdToUse!,
                                 });
                             }}
+                        />
+                    }
+                    subBar={
+                        <ZoomCalendarSubBar
+                            view={view}
+                            onViewChange={setView}
+                            onBook1Hour={() => {
+                                if (!selectedAccountId && safeAccounts.length === 0) return;
+                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
+                                    ? safeAccounts[0]?.id
+                                    : selectedAccountId;
+                                panel.openBooking({
+                                    date: format(currentDate, 'yyyy-MM-dd'),
+                                    time: format(new Date(), 'HH:00'),
+                                    zoomAccountId: accountIdToUse!,
+                                });
+                            }}
+                            onBookCustom={() => {
+                                if (!selectedAccountId && safeAccounts.length === 0) return;
+                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
+                                    ? safeAccounts[0]?.id
+                                    : selectedAccountId;
+                                panel.openBooking({
+                                    date: format(currentDate, 'yyyy-MM-dd'),
+                                    time: format(new Date(), 'HH:00'),
+                                    zoomAccountId: accountIdToUse!,
+                                });
+                            }}
+                            onOpenShortcuts={() => {
+                                // Phase 8 will wire to ZoomShortcutsModal
+                                toast.info('Shortcuts modal coming soon');
+                            }}
+                            onOpenSettings={() => {
+                                window.location.href = '/zoom-calendar/settings';
+                            }}
+                            isLive
+                            lastSyncAt={null}
                         />
                     }
                     sidebar={
