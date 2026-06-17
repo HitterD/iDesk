@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
+import { Plus, Video } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { useHasPageAccess } from '@/hooks/usePermissions';
 import {
     useZoomAccounts,
@@ -364,126 +366,95 @@ export function ZoomCalendarPage() {
         );
     };
 
+    // Empty state when no Zoom accounts configured (and not loading, and not in My Bookings)
+    const showEmptyState =
+        view !== 'my-bookings' && !accountsLoading && safeAccounts.length === 0;
+
+    // Empty state UI — rendered above the shell when no accounts configured.
+    const emptyStateNode: React.ReactNode = showEmptyState ? (
+        <div data-testid="no-accounts-empty-state">
+            <Video className="h-8 w-8" aria-hidden="true" />
+            <h2>Belum ada akun Zoom</h2>
+            <Button onClick={() => toast.info('Request Account')}>Request Account</Button>
+        </div>
+    ) : null;
+
     return (
         <ZoomErrorBoundary>
             <div className="min-h-0 h-auto lg:h-[calc(100vh-2rem)] flex flex-col animate-fade-in-up">
-                <ZoomCalendarShell
-                    header={
-                        <ZoomCalendarHeader
-                            view={view}
-                            currentDate={currentDate}
-                            selectedAccountId={selectedAccountId ?? 'all'}
-                            accounts={safeAccounts}
-                            onViewChange={setView}
-                            onPrev={navigatePrev}
-                            onNext={navigateNext}
-                            onToday={navigateToToday}
-                            onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
-                            accountScope={accountScope}
-                            onAccountScopeChange={setAccountScope}
-                            searchQuery={searchQuery}
-                            onSearchChange={setSearchQuery}
-                            onNavigateToDate={navigateToDate}
-                            canBook={canBook}
-                            onBookMeeting={() => {
-                                if (!selectedAccountId && safeAccounts.length === 0) return;
-                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
-                                    ? safeAccounts[0]?.id
-                                    : selectedAccountId;
-
-                                panel.openBooking({
-                                    date: format(currentDate, 'yyyy-MM-dd'),
-                                    time: format(new Date(), 'HH:00'),
-                                    zoomAccountId: accountIdToUse!,
-                                });
-                            }}
-                        />
-                    }
-                    subBar={
-                        <ZoomCalendarSubBar
-                            view={view}
-                            onViewChange={setView}
-                            onBook1Hour={() => {
-                                if (!selectedAccountId && safeAccounts.length === 0) return;
-                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
-                                    ? safeAccounts[0]?.id
-                                    : selectedAccountId;
-                                panel.openBooking({
-                                    date: format(currentDate, 'yyyy-MM-dd'),
-                                    time: format(new Date(), 'HH:00'),
-                                    zoomAccountId: accountIdToUse!,
-                                });
-                            }}
-                            onBookCustom={() => {
-                                if (!selectedAccountId && safeAccounts.length === 0) return;
-                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
-                                    ? safeAccounts[0]?.id
-                                    : selectedAccountId;
-                                panel.openBooking({
-                                    date: format(currentDate, 'yyyy-MM-dd'),
-                                    time: format(new Date(), 'HH:00'),
-                                    zoomAccountId: accountIdToUse!,
-                                });
-                            }}
-                            onOpenShortcuts={() => setShortcutsOpen(true)}
-                            onOpenSettings={() => {
-                                window.location.href = '/zoom-calendar/settings';
-                            }}
-                            isLive
-                            lastSyncAt={null}
-                        />
-                    }
-                    sidebar={
-                        <ZoomRightSidebar
-                            accounts={safeAccounts.map((a) => ({
-                                id: a.id,
-                                name: a.name,
-                                colorHex: a.colorHex ?? '#3b82f6',
-                                meetingsAtTime: 0,
-                            }))}
-                            upcomingBookings={[]}
-                            onBook1Hour={() => {
-                                if (!selectedAccountId && safeAccounts.length === 0) return;
-                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
-                                    ? safeAccounts[0]?.id
-                                    : selectedAccountId;
-                                panel.openBooking({
-                                    date: format(currentDate, 'yyyy-MM-dd'),
-                                    time: format(new Date(), 'HH:00'),
-                                    zoomAccountId: accountIdToUse!,
-                                });
-                            }}
-                            onBookCustom={() => {
-                                if (!selectedAccountId && safeAccounts.length === 0) return;
-                                const accountIdToUse = selectedAccountId === 'all' || !selectedAccountId
-                                    ? safeAccounts[0]?.id
-                                    : selectedAccountId;
-                                panel.openBooking({
-                                    date: format(currentDate, 'yyyy-MM-dd'),
-                                    time: format(new Date(), 'HH:00'),
-                                    zoomAccountId: accountIdToUse!,
-                                });
-                            }}
-                            onSync={handleSync}
-                            lastSyncAt={null}
-                            userName="User"
-                        />
-                    }
-                    isPanelOpen={panel.isOpen}
-                    calendarContent={calendarContent()}
-                    panel={
-                        <ZoomBookingPanel
-                            isOpen={panel.isOpen}
-                            mode={panel.mode}
-                            onClose={panel.close}
-                        >
-                            {panelContent()}
-                        </ZoomBookingPanel>
-                    }
-                    topStrip={
-                        <UpcomingMeetingsPanel compact className="rounded-none border-x-0 border-t-0 shadow-none" />
-                    }
-                />
+                {showEmptyState ? emptyStateNode : (
+                    <ZoomCalendarShell
+                        header={(
+                            <ZoomCalendarHeader
+                                view={view}
+                                currentDate={currentDate}
+                                selectedAccountId={selectedAccountId ?? 'all'}
+                                accounts={safeAccounts}
+                                onViewChange={setView}
+                                onPrev={navigatePrev}
+                                onNext={navigateNext}
+                                onToday={navigateToToday}
+                                onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
+                                accountScope={accountScope}
+                                onAccountScopeChange={setAccountScope}
+                                searchQuery={searchQuery}
+                                onSearchChange={setSearchQuery}
+                                onNavigateToDate={navigateToDate}
+                                canBook={canBook}
+                                onBookMeeting={() => {
+                                    panel.openBooking({
+                                        date: format(currentDate, 'yyyy-MM-dd'),
+                                        time: format(new Date(), 'HH:00'),
+                                        zoomAccountId: selectedAccountId ?? safeAccounts[0]?.id ?? '',
+                                    });
+                                }}
+                            />
+                        )}
+                        subBar={(
+                            <ZoomCalendarSubBar
+                                view={view}
+                                onViewChange={setView}
+                                onBook1Hour={() => { panel.openBooking({ date: '', time: '', zoomAccountId: '' }); }}
+                                onBookCustom={() => { panel.openBooking({ date: '', time: '', zoomAccountId: '' }); }}
+                                onOpenShortcuts={() => setShortcutsOpen(true)}
+                                onOpenSettings={() => { window.location.href = '/zoom-calendar/settings'; }}
+                                isLive
+                                lastSyncAt={null}
+                            />
+                        )}
+                        sidebar={(
+                            <ZoomRightSidebar
+                                accounts={safeAccounts.map((a) => ({
+                                    id: a.id,
+                                    name: a.name,
+                                    colorHex: a.colorHex ?? '#3b82f6',
+                                    meetingsAtTime: 0,
+                                }))}
+                                upcomingBookings={[]}
+                                onBook1Hour={() => {}}
+                                onBookCustom={() => {}}
+                                onSync={() => {}}
+                                lastSyncAt={null}
+                                userName="User"
+                            />
+                        )}
+                        calendarContent={calendarContent()}
+                        isPanelOpen={panel.isOpen}
+                        panel={(
+                            <ZoomBookingPanel
+                                isOpen={panel.isOpen}
+                                mode={panel.mode}
+                                onClose={panel.close}
+                            >
+                                {panelContent()}
+                            </ZoomBookingPanel>
+                        )}
+                        topStrip={(
+                            <UpcomingMeetingsPanel compact className="rounded-none border-x-0 border-t-0 shadow-none" />
+                        )}
+                    />
+                )}
+                <ZoomShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
             </div>
         </ZoomErrorBoundary>
     );
