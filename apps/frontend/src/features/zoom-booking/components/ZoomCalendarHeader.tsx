@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { format, startOfWeek, endOfWeek, setMonth, setYear, getYear } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, ListTodo, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ListTodo, Plus, Globe, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ZoomViewSwitcher } from './ZoomViewSwitcher';
+import { ZoomAccountSwitcher, GABUNGAN_ID } from './ZoomAccountSwitcher';
 import { ModernCalendar } from '@/components/ui/ModernCalendar';
 import { cn } from '@/lib/utils';
-import type { CalendarView } from '../hooks/useCalendarView';
+import type { CalendarView, AccountScope } from '../hooks/useCalendarView';
 import type { ZoomAccount } from '../types';
 import { motion } from 'framer-motion';
 
@@ -22,6 +23,9 @@ interface ZoomCalendarHeaderProps {
     onToday: () => void;
     onAccountChange: (accountId: string) => void;
     onNavigateToDate: (date: Date) => void;
+    /** Optional: when provided, header also renders the Gabungan + 10-account switcher modal */
+    accountScope?: AccountScope;
+    onAccountScopeChange?: (scope: AccountScope) => void;
     canBook?: boolean;
     onBookMeeting?: () => void;
     className?: string;
@@ -62,12 +66,28 @@ export function ZoomCalendarHeader({
     onToday,
     onAccountChange,
     onNavigateToDate,
+    accountScope,
+    onAccountScopeChange,
     onBookMeeting,
     className,
 }: ZoomCalendarHeaderProps) {
     const title = getHeaderTitle(view, currentDate);
     const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
     const [pickerYear, setPickerYear] = useState(getYear(currentDate));
+    const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
+
+    const showSwitcher = Boolean(accountScope !== undefined && onAccountScopeChange);
+
+    const currentLabel =
+        accountScope === undefined
+            ? null
+            : accountScope === GABUNGAN_ID
+                ? 'Gabungan'
+                : accounts.find((a) => a.id === accountScope)?.name ?? accountScope;
+    const currentColor =
+        accountScope && accountScope !== GABUNGAN_ID
+            ? accounts.find((a) => a.id === accountScope)?.colorHex
+            : undefined;
 
     const MONTHS = [
         'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
@@ -179,7 +199,33 @@ export function ZoomCalendarHeader({
 
             {/* Right: account filter + view switcher */}
             <div className="flex items-center gap-2 flex-wrap">
-                {accounts.length > 1 && (
+                {/* Switcher trigger (Gabungan + 10 accounts) */}
+                {showSwitcher && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsSwitcherOpen(true)}
+                        className="h-8 gap-1.5 text-xs font-semibold"
+                        aria-label="Switch Zoom account"
+                        data-testid="open-account-switcher"
+                    >
+                        {accountScope === GABUNGAN_ID ? (
+                            <Globe className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" />
+                        ) : currentColor ? (
+                            <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: currentColor }}
+                                aria-hidden="true"
+                            />
+                        ) : (
+                            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        <span className="max-w-[120px] truncate">{currentLabel ?? 'Pilih akun'}</span>
+                        <ChevronRight className="h-3 w-3 rotate-90 opacity-50" aria-hidden="true" />
+                    </Button>
+                )}
+
+                {accounts.length > 1 && !showSwitcher && (
                     <div className="flex items-center p-1 bg-[hsl(var(--secondary))]/50 rounded-xl overflow-x-auto custom-scrollbar shadow-inner relative ring-1 ring-[hsl(var(--border))] max-w-[400px] md:max-w-none">
                         <button
                             onClick={() => onAccountChange('all')}
@@ -235,7 +281,7 @@ export function ZoomCalendarHeader({
                 )}
 
                 <ZoomViewSwitcher view={view} onViewChange={onViewChange} />
-                
+
                 {canBook && onBookMeeting && (
                     <Button onClick={onBookMeeting} size="sm" className="h-8 gap-1.5 font-medium ml-2 shadow-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
                         <Plus className="h-4 w-4" />
@@ -244,6 +290,25 @@ export function ZoomCalendarHeader({
                     </Button>
                 )}
             </div>
+
+            {/* Account switcher modal */}
+            {showSwitcher && (
+                <ZoomAccountSwitcher
+                    open={isSwitcherOpen}
+                    accounts={accounts.map((a) => ({
+                        id: a.id,
+                        name: a.name,
+                        colorHex: a.colorHex ?? '#3b82f6',
+                        meetingsAtTime: 0,
+                    }))}
+                    currentAccountId={accountScope!}
+                    onSelect={(id) => {
+                        onAccountScopeChange!(id as AccountScope);
+                        setIsSwitcherOpen(false);
+                    }}
+                    onClose={() => setIsSwitcherOpen(false)}
+                />
+            )}
         </div>
     );
 }
