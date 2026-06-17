@@ -73,6 +73,9 @@ export function ZoomCalendarPage() {
     // Shortcuts modal
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
+    // Search filter (debounced via simple useState; React batches updates)
+    const [searchQuery, setSearchQuery] = useState('');
+
     // Panel state
     const panel = useBookingPanel();
 
@@ -119,6 +122,25 @@ export function ZoomCalendarPage() {
     const isLoading = accountsLoading || calendarLoading;
     const safeAccounts = accounts ?? [];
     const safeCalendar = calendar ?? [];
+
+    // Filter calendar by search query (case-insensitive substring on booking title)
+    const filteredCalendar = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return safeCalendar;
+        return safeCalendar.map((day) => ({
+            ...day,
+            slots: day.slots.map((slot) => {
+                if (!slot.booking) return slot;
+                if (slot.booking.title.toLowerCase().includes(q)) return slot;
+                // Drop non-matching bookings by replacing with available
+                return {
+                    ...slot,
+                    status: 'available' as const,
+                    booking: undefined,
+                };
+            }),
+        }));
+    }, [safeCalendar, searchQuery]);
 
     // Global keyboard shortcuts (must be after safeAccounts/panel declared)
     useEffect(() => {
@@ -292,7 +314,7 @@ export function ZoomCalendarPage() {
             content = (
                 <ZoomMonthView
                     currentDate={currentDate}
-                    calendar={safeCalendar}
+                    calendar={filteredCalendar}
                     canBook={canBook}
                     onSlotClick={(day, slot) => handleSlotClick(day, slot)}
                     onDateDoubleClick={handleDateDoubleClick}
@@ -303,7 +325,7 @@ export function ZoomCalendarPage() {
             content = (
                 <ZoomWeekView
                     currentDate={currentDate}
-                    calendar={safeCalendar}
+                    calendar={filteredCalendar}
                     timeLabels={timeLabels}
                     currentTime={currentTime}
                     canBook={canBook}
@@ -315,7 +337,7 @@ export function ZoomCalendarPage() {
             content = (
                 <ZoomDayView
                     currentDate={currentDate}
-                    calendar={safeCalendar}
+                    calendar={filteredCalendar}
                     timeLabels={timeLabels}
                     currentTime={currentTime}
                     canBook={canBook}
@@ -359,6 +381,8 @@ export function ZoomCalendarPage() {
                             onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
                             accountScope={accountScope}
                             onAccountScopeChange={setAccountScope}
+                            searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
                             onNavigateToDate={navigateToDate}
                             canBook={canBook}
                             onBookMeeting={() => {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, startOfWeek, endOfWeek, setMonth, setYear, getYear } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, ListTodo, Plus, Globe, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ListTodo, Plus, Globe, Users, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ZoomViewSwitcher } from './ZoomViewSwitcher';
@@ -26,6 +26,9 @@ interface ZoomCalendarHeaderProps {
     /** Optional: when provided, header also renders the Gabungan + 10-account switcher modal */
     accountScope?: AccountScope;
     onAccountScopeChange?: (scope: AccountScope) => void;
+    /** Optional: live search filter value + onChange */
+    searchQuery?: string;
+    onSearchChange?: (q: string) => void;
     canBook?: boolean;
     onBookMeeting?: () => void;
     className?: string;
@@ -68,6 +71,8 @@ export function ZoomCalendarHeader({
     onNavigateToDate,
     accountScope,
     onAccountScopeChange,
+    searchQuery,
+    onSearchChange,
     onBookMeeting,
     className,
 }: ZoomCalendarHeaderProps) {
@@ -77,6 +82,7 @@ export function ZoomCalendarHeader({
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 
     const showSwitcher = Boolean(accountScope !== undefined && onAccountScopeChange);
+    const showSearch = Boolean(searchQuery !== undefined && onSearchChange);
 
     const currentLabel =
         accountScope === undefined
@@ -199,6 +205,32 @@ export function ZoomCalendarHeader({
 
             {/* Right: account filter + view switcher */}
             <div className="flex items-center gap-2 flex-wrap">
+                {/* Live search filter */}
+                {showSearch && (
+                    <div className="relative">
+                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => onSearchChange!(e.target.value)}
+                            placeholder="Cari meeting…"
+                            aria-label="Cari meeting"
+                            data-testid="calendar-search-input"
+                            className="h-8 w-[200px] pl-8 pr-7 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md outline-none focus:ring-2 focus:ring-blue-400/30"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => onSearchChange!('')}
+                                aria-label="Clear search"
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {/* Switcher trigger (Gabungan + 10 accounts) */}
                 {showSwitcher && (
                     <Button
