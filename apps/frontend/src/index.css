@@ -117,6 +117,17 @@ textarea:focus {
 }
 
 @theme {
+  --color-account-1: hsl(217 91% 60%);
+  --color-account-2: hsl(160 84% 39%);
+  --color-account-3: hsl(262 83% 58%);
+  --color-account-4: hsl(38 92% 50%);
+  --color-account-5: hsl(330 81% 60%);
+  --color-account-6: hsl(189 94% 43%);
+  --color-account-7: hsl(84 81% 44%);
+  --color-account-8: hsl(0 84% 60%);
+  --color-account-9: hsl(271 81% 56%);
+  --color-account-10: hsl(215 16% 47%);
+
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
