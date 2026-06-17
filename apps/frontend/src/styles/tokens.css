@@ -190,6 +190,13 @@
         --duration-fast: 150ms;
         --duration-normal: 300ms;
         --duration-slow: 500ms;
+
+        /* BACKGROUND COMPOSITION (login page) */
+        --grid-line: rgba(0, 0, 0, 0.045);
+        --grid-size: 40px;
+        --glow-1: hsla(220, 90%, 50%, 0.08);
+        --glow-2: hsla(280, 80%, 50%, 0.04);
+        --vignette: rgba(0, 0, 0, 0.04);
     }
 
     .dark {
@@ -236,6 +243,13 @@
         /* Separators for dark mode */
         --separator-color: hsl(225, 15%, 22%);
         --separator-accent: hsl(224, 65%, 55%);
+
+        /* BACKGROUND COMPOSITION (login page) */
+        --grid-line: rgba(255, 255, 255, 0.025);
+        --grid-size: 40px;
+        --glow-1: hsla(220, 90%, 60%, 0.10);
+        --glow-2: hsla(280, 80%, 60%, 0.05);
+        --vignette: rgba(0, 0, 0, 0.35);
     }
 }
 
