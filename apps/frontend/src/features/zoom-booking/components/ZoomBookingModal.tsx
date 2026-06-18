@@ -6,7 +6,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import type { ZoomAccount } from '../types';
+import type { ZoomAccount, ZoomBooking } from '../types';
 import { ZoomBookingForm } from './ZoomBookingForm';
 import { ZoomBookingDetailView } from './ZoomBookingDetailView';
 import { ZoomRescheduleView } from './ZoomRescheduleView';
@@ -21,10 +21,10 @@ export interface ZoomBookingModalProps {
     preselectedTime?: string;
     /** Detail / Reschedule fields */
     bookingId?: string;
-    booking?: any; // ZoomBooking — kept loose to avoid circular imports
+    booking?: ZoomBooking;
     /** Shared */
     accounts: ZoomAccount[];
-    onReschedule?: (booking: any) => void;
+    onReschedule?: (booking: ZoomBooking) => void;
     onRescheduleSuccess?: () => void;
 }
 

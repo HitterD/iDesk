@@ -23,6 +23,12 @@ const extractMeetingId = (joinUrl: string): string => {
 };
 
 // P1: Generate full invitation text for copy
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+    const responseMessage = (error as { response?: { data?: { message?: unknown } } })
+        .response?.data?.message;
+    return typeof responseMessage === 'string' ? responseMessage : fallback;
+};
+
 const generateInvitationText = (booking: ZoomBooking): string => {
     const formattedDate = format(
         new Date(booking.bookingDate),
@@ -74,8 +80,8 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5, compact = false
             toast.success('Booking berhasil dibatalkan');
             setCancelBookingState(null);
             setCancelReason('');
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal membatalkan booking');
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, 'Gagal membatalkan booking'));
         }
     };
 
@@ -205,6 +211,7 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5, compact = false
                         dateLabel={formatDateLabel(booking.bookingDate)}
                         onCopyLink={(url) => copyToClipboard(url, 'Zoom link')}
                         onCopyInvitation={(text) => copyToClipboard(text, 'Zoom invitation')}
+                        onCopyPasscode={(passcode) => copyToClipboard(passcode, 'Passcode')}
                         onReschedule={() => setRescheduleBooking(booking)}
                         onCancel={() => setCancelBookingState(booking)}
                     />
@@ -241,6 +248,7 @@ interface UpcomingMeetingItemProps {
     dateLabel: string;
     onCopyLink: (url: string) => void;
     onCopyInvitation: (text: string) => void;
+    onCopyPasscode: (passcode: string) => void;
     onReschedule: () => void;
     onCancel: () => void;
 }
@@ -250,6 +258,7 @@ function UpcomingMeetingItem({
     dateLabel,
     onCopyLink,
     onCopyInvitation,
+    onCopyPasscode,
     onReschedule,
     onCancel
 }: UpcomingMeetingItemProps) {
@@ -335,7 +344,7 @@ function UpcomingMeetingItem({
                                 size="sm"
                                 variant="ghost"
                                 className="h-5 w-5 p-0"
-                                onClick={() => copyToClipboard(booking.meeting!.password!, 'Passcode')}
+                                onClick={() => onCopyPasscode(booking.meeting!.password!)}
                                 title="Copy passcode"
                             >
                                 <Copy className="h-3 w-3" />
