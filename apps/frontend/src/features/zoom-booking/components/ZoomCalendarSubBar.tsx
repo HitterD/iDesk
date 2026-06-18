@@ -1,63 +1,80 @@
-import { Zap, FileText, Settings, Keyboard, CircleDot } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ZoomViewSwitcher } from './ZoomViewSwitcher';
+import { Globe, Settings, Keyboard, CircleDot } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import type { CalendarView } from '../hooks/useCalendarView';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import type { AccountScope } from '../hooks/useCalendarView';
 
 export interface ZoomCalendarSubBarProps {
-    view: CalendarView;
-    onViewChange: (view: CalendarView) => void;
-    onBook1Hour: () => void;
-    onBookCustom: () => void;
-    onOpenShortcuts: () => void;
-    onOpenSettings: () => void;
+    /** Active account scope; Gabungan means merged/all-accounts view */
+    accountScope: AccountScope;
+    /** Account name currently displayed (auto-picked when in Gabungan) */
+    activeAccountName: string;
+    /** Color for the active account chip */
+    activeAccountColor?: string;
+    /** Whether to show the auto-pick hint next to the indicator */
+    showAutoPickHint?: boolean;
     isLive: boolean;
     lastSyncAt: Date | null;
+    onOpenShortcuts: () => void;
+    onOpenSettings: () => void;
     className?: string;
 }
 
 export function ZoomCalendarSubBar({
-    view,
-    onViewChange,
-    onBook1Hour,
-    onBookCustom,
-    onOpenShortcuts,
-    onOpenSettings,
+    accountScope,
+    activeAccountName,
+    activeAccountColor = '#3b82f6',
+    showAutoPickHint = false,
     isLive,
     lastSyncAt,
+    onOpenShortcuts,
+    onOpenSettings,
     className,
 }: ZoomCalendarSubBarProps) {
+    const isGabungan = accountScope === 'gabungan';
+
     return (
         <div
             data-testid="zoom-subbar"
-            className={`h-9 flex items-center px-4 gap-3 ${className ?? ''}`}
+            className={cn('h-9 flex items-center px-4 gap-3', className)}
         >
-            <ZoomViewSwitcher view={view} onViewChange={onViewChange} />
-
-            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                Quick:
-            </span>
-
-            <Button
-                size="sm"
-                className="h-7 px-3 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={onBook1Hour}
-                aria-label="1 hour"
-            >
-                <Zap className="h-3 w-3" aria-hidden="true" /> 1 hour
-            </Button>
-
-            <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-3 text-xs gap-1.5"
-                onClick={onBookCustom}
-            >
-                <FileText className="h-3 w-3" aria-hidden="true" /> Custom…
-            </Button>
+            {/* Gabungan / active-account indicator */}
+            {isGabungan ? (
+                <div
+                    data-testid="gabungan-indicator"
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300"
+                >
+                    <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Gabungan</span>
+                    <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>
+                    <span
+                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 pl-1 pr-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300"
+                        data-testid="gabungan-active-chip"
+                    >
+                        <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: activeAccountColor }}
+                            aria-hidden="true"
+                        />
+                        {activeAccountName}
+                    </span>
+                    {showAutoPickHint && (
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                            (auto-pilih)
+                        </span>
+                    )}
+                </div>
+            ) : (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                    <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: activeAccountColor }}
+                        aria-hidden="true"
+                    />
+                    <span className="truncate max-w-[160px]">{activeAccountName}</span>
+                </div>
+            )}
 
             <div className="ml-auto flex items-center gap-3">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -72,7 +89,10 @@ export function ZoomCalendarSubBar({
 
                 <div className="flex items-center gap-1 text-[11px]">
                     <CircleDot
-                        className={`h-3 w-3 ${isLive ? 'text-emerald-500 fill-emerald-500' : 'text-slate-400'}`}
+                        className={cn(
+                            'h-3 w-3',
+                            isLive ? 'text-emerald-500 fill-emerald-500' : 'text-slate-400'
+                        )}
                         aria-hidden="true"
                     />
                     <span

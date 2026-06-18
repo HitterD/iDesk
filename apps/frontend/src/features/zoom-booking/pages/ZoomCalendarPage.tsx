@@ -379,10 +379,19 @@ export function ZoomCalendarPage() {
                         )}
                         subBar={(
                             <ZoomCalendarSubBar
-                                view={view}
-                                onViewChange={setView}
-                                onBook1Hour={openBookingAtCurrentContext}
-                                onBookCustom={openBookingAtCurrentContext}
+                                accountScope={accountScope}
+                                activeAccountName={
+                                    (activeAccountId && safeAccounts.find((a) => a.id === activeAccountId)?.name) ||
+                                    safeAccounts[0]?.name ||
+                                    'Zoom'
+                                }
+                                activeAccountColor={
+                                    (activeAccountId &&
+                                        safeAccounts.find((a) => a.id === activeAccountId)?.colorHex) ||
+                                    safeAccounts[0]?.colorHex ||
+                                    '#3b82f6'
+                                }
+                                showAutoPickHint={accountScope === 'gabungan'}
                                 onOpenShortcuts={() => setShortcutsOpen(true)}
                                 onOpenSettings={() => { window.location.href = '/zoom-calendar/settings'; }}
                                 isLive
@@ -398,8 +407,6 @@ export function ZoomCalendarPage() {
                                     meetingsAtTime: 0,
                                 }))}
                                 upcomingBookings={[]}
-                                onBook1Hour={openBookingAtCurrentContext}
-                                onBookCustom={openBookingAtCurrentContext}
                                 onSync={handleSync}
                                 lastSyncAt={null}
                                 userName="User"

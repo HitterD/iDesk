@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, FileText, ListChecks, CheckCircle2, Keyboard, User as UserIcon, Plus, Trash2 } from 'lucide-react';
+import { ListChecks, CheckCircle2, Keyboard, User as UserIcon, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ZoomBooking } from '../types';
 import type { AccountLoad } from '../utils/autoPickAccount';
@@ -8,8 +8,6 @@ import { useMyTasks } from '../hooks/useMyTasks';
 export interface ZoomRightSidebarProps {
     accounts: AccountLoad[];
     upcomingBookings: ZoomBooking[];
-    onBook1Hour: () => void;
-    onBookCustom: () => void;
     onSync: () => void;
     lastSyncAt: Date | null;
     userName: string;
@@ -18,8 +16,6 @@ export interface ZoomRightSidebarProps {
 export function ZoomRightSidebar({
     accounts,
     upcomingBookings,
-    onBook1Hour,
-    onBookCustom,
     onSync,
     lastSyncAt,
     userName,
@@ -113,31 +109,7 @@ export function ZoomRightSidebar({
                 )}
             </section>
 
-            {/* D3 · Quick Book */}
-            <section className="p-3 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 mb-2">
-                    Quick Book
-                </h3>
-                <div className="flex flex-col gap-1.5">
-                    <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 gap-1.5"
-                        onClick={onBook1Hour}
-                    >
-                        <Zap className="h-3 w-3" aria-hidden="true" /> 1 hour meeting
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 gap-1.5"
-                        onClick={onBookCustom}
-                    >
-                        <FileText className="h-3 w-3" aria-hidden="true" /> Custom…
-                    </Button>
-                </div>
-            </section>
-
-            {/* D4 · My Tasks */}
+            {/* D3 · My Tasks */}
             <section className="p-3 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">

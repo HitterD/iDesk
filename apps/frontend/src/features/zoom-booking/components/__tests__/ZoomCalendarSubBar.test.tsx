@@ -8,61 +8,78 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
     <MemoryRouter>{children}</MemoryRouter>
 );
 
-const defaultProps = {
-    view: 'week' as const,
-    onViewChange: vi.fn(),
-    onBook1Hour: vi.fn(),
-    onBookCustom: vi.fn(),
-    onOpenShortcuts: vi.fn(),
-    onOpenSettings: vi.fn(),
+const baseProps = {
     isLive: true,
     lastSyncAt: new Date(),
+    onOpenShortcuts: vi.fn(),
+    onOpenSettings: vi.fn(),
+    accountScope: 'gabungan' as const,
+    activeAccountName: 'Zoom Utama',
+    activeAccountColor: '#3b82f6',
+    showAutoPickHint: true,
 };
 
 describe('ZoomCalendarSubBar', () => {
-    it('renders all 4 view switcher buttons', () => {
-        render(<ZoomCalendarSubBar {...defaultProps} />, { wrapper });
-        expect(screen.getByRole('button', { name: /month/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /week/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /day/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /my bookings/i })).toBeInTheDocument();
+    it('does not render Quick book buttons (1 hour / Custom)', () => {
+        render(<ZoomCalendarSubBar {...baseProps} />, { wrapper });
+        expect(screen.queryByRole('button', { name: /1 hour/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /custom/i })).not.toBeInTheDocument();
     });
 
-    it('renders 1-hour and custom quick-book buttons', () => {
-        render(<ZoomCalendarSubBar {...defaultProps} />, { wrapper });
-        expect(screen.getByRole('button', { name: /^1 hour$/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /custom/i })).toBeInTheDocument();
-    });
-
-    it('calls onBook1Hour when 1-hour button is clicked', async () => {
-        const onBook1Hour = vi.fn();
-        render(<ZoomCalendarSubBar {...defaultProps} onBook1Hour={onBook1Hour} />, { wrapper });
-        await userEvent.click(screen.getByRole('button', { name: /^1 hour$/i }));
-        expect(onBook1Hour).toHaveBeenCalledOnce();
-    });
-
-    it('calls onBookCustom when Custom button is clicked', async () => {
-        const onBookCustom = vi.fn();
-        render(<ZoomCalendarSubBar {...defaultProps} onBookCustom={onBookCustom} />, { wrapper });
-        await userEvent.click(screen.getByRole('button', { name: /custom/i }));
-        expect(onBookCustom).toHaveBeenCalledOnce();
-    });
-
-    it('shows Live indicator when isLive is true', () => {
-        render(<ZoomCalendarSubBar {...defaultProps} isLive={true} />, { wrapper });
-        expect(screen.getAllByText(/live/i).length).toBeGreaterThan(0);
-    });
-
-    it('shows Offline indicator when isLive is false', () => {
-        render(<ZoomCalendarSubBar {...defaultProps} isLive={false} />, { wrapper });
-        expect(screen.getAllByText(/offline/i).length).toBeGreaterThan(0);
+    it('does not render view switcher (moved to header)', () => {
+        render(<ZoomCalendarSubBar {...baseProps} />, { wrapper });
+        expect(screen.queryByTestId('view-switcher')).not.toBeInTheDocument();
     });
 
     it('renders legend chips', () => {
-        render(<ZoomCalendarSubBar {...defaultProps} />, { wrapper });
+        render(<ZoomCalendarSubBar {...baseProps} />, { wrapper });
         expect(screen.getAllByText(/saya/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/tim/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/external/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/blokir/i).length).toBeGreaterThan(0);
+    });
+
+    it('shows Live indicator when isLive is true', () => {
+        render(<ZoomCalendarSubBar {...baseProps} isLive={true} />, { wrapper });
+        expect(screen.getAllByText(/live/i).length).toBeGreaterThan(0);
+    });
+
+    it('shows Offline indicator when isLive is false', () => {
+        render(<ZoomCalendarSubBar {...baseProps} isLive={false} />, { wrapper });
+        expect(screen.getAllByText(/offline/i).length).toBeGreaterThan(0);
+    });
+
+    it('shows Gabungan indicator with active account name', () => {
+        render(
+            <ZoomCalendarSubBar
+                {...baseProps}
+                accountScope="gabungan"
+                activeAccountName="Zoom Cadangan"
+            />,
+            { wrapper }
+        );
+        expect(screen.getByTestId('gabungan-indicator')).toHaveTextContent(/gabungan/i);
+        expect(screen.getByTestId('gabungan-indicator')).toHaveTextContent(/zoom cadangan/i);
+    });
+
+    it('does not show Gabungan indicator when an individual account is selected', () => {
+        render(<ZoomCalendarSubBar {...baseProps} accountScope="zoom-1" />, { wrapper });
+        expect(screen.queryByTestId('gabungan-indicator')).not.toBeInTheDocument();
+    });
+
+    it('calls onOpenShortcuts when shortcuts button is clicked', async () => {
+        const onOpenShortcuts = vi.fn();
+        const user = userEvent.setup();
+        render(<ZoomCalendarSubBar {...baseProps} onOpenShortcuts={onOpenShortcuts} />, { wrapper });
+        await user.click(screen.getByRole('button', { name: /keyboard shortcuts/i }));
+        expect(onOpenShortcuts).toHaveBeenCalledOnce();
+    });
+
+    it('calls onOpenSettings when settings button is clicked', async () => {
+        const onOpenSettings = vi.fn();
+        const user = userEvent.setup();
+        render(<ZoomCalendarSubBar {...baseProps} onOpenSettings={onOpenSettings} />, { wrapper });
+        await user.click(screen.getByRole('button', { name: /^settings$/i }));
+        expect(onOpenSettings).toHaveBeenCalledOnce();
     });
 });

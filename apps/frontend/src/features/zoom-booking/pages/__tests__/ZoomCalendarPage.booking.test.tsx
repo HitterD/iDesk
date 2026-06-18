@@ -140,8 +140,7 @@ describe('ZoomCalendarPage booking actions', () => {
         expect(mocks.calendarAccountIds).toContain('zoom-2');
     });
 
-    it('does not open quick booking actions without booking permission', async () => {
-        const user = userEvent.setup();
+    it('hides Book Meeting button when user lacks booking permission', () => {
         mocks.hasAccess = false;
 
         render(
@@ -150,8 +149,9 @@ describe('ZoomCalendarPage booking actions', () => {
             </MemoryRouter>
         );
 
-        await user.click(screen.getByRole('button', { name: /^1 hour$/i }));
-
-        expect(screen.queryByTestId('zoom-booking-modal')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /book meeting/i })).not.toBeInTheDocument();
+        // Subbar no longer exposes quick book entry points
+        expect(screen.queryByRole('button', { name: /1 hour/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /custom/i })).not.toBeInTheDocument();
     });
 });

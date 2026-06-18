@@ -117,7 +117,10 @@ export function ZoomWeekView({
     const numCols = weekDays.length;
 
     return (
-        <div className="relative min-w-[600px]">
+        <div
+            data-testid="zoom-week-view"
+            className="relative h-full min-w-[600px] overflow-y-auto overflow-x-auto custom-scrollbar"
+        >
             {/* Day headers */}
             <div
                 className="sticky top-0 z-20 grid border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"

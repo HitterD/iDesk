@@ -13,39 +13,30 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 const baseProps = {
     accounts: [] as AccountLoad[],
     upcomingBookings: [] as ZoomBooking[],
-    onBook1Hour: vi.fn(),
-    onBookCustom: vi.fn(),
     onSync: vi.fn(),
     lastSyncAt: null as Date | null,
     userName: 'Bagas',
 };
 
 describe('ZoomRightSidebar', () => {
-    it('renders all 5 sections', () => {
+    it('renders the 4 remaining sections (Quick Book removed)', () => {
         render(<ZoomRightSidebar {...baseProps} />, { wrapper });
         expect(screen.getAllByText(/account load/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/upcoming/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/quick book/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/my tasks/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/^system$/i).length).toBeGreaterThan(0);
+    });
+
+    it('does not render Quick Book section or its buttons', () => {
+        render(<ZoomRightSidebar {...baseProps} />, { wrapper });
+        expect(screen.queryByText(/quick book/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /1 hour meeting/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /custom/i })).not.toBeInTheDocument();
     });
 
     it('displays user name in system section', () => {
         render(<ZoomRightSidebar {...baseProps} userName="Bagas" />, { wrapper });
         expect(screen.getAllByText(/Bagas/).length).toBeGreaterThan(0);
-    });
-
-    it('renders 1-hour and Custom buttons in quick book section', () => {
-        render(<ZoomRightSidebar {...baseProps} />, { wrapper });
-        expect(screen.getByRole('button', { name: /1 hour meeting/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /custom/i })).toBeInTheDocument();
-    });
-
-    it('calls onBook1Hour when 1-hour button clicked', async () => {
-        const onBook1Hour = vi.fn();
-        render(<ZoomRightSidebar {...baseProps} onBook1Hour={onBook1Hour} />, { wrapper });
-        screen.getByRole('button', { name: /1 hour meeting/i }).click();
-        expect(onBook1Hour).toHaveBeenCalledOnce();
     });
 
     it('shows empty state for accounts when none', () => {
