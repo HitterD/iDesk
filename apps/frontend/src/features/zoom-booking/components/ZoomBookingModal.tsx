@@ -1,10 +1,8 @@
-import { X } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { ZoomAccount, ZoomBooking } from '../types';
 import { ZoomBookingForm } from './ZoomBookingForm';
@@ -59,22 +57,19 @@ export function ZoomBookingModal({
             <DialogContent
                 className={
                     isMobile
-                        ? 'max-w-full max-h-[90vh] overflow-hidden p-0 gap-0'
-                        : 'max-w-[640px] max-h-[90vh] overflow-hidden p-0 gap-0'
+                        ? 'flex flex-col max-w-full max-h-[90vh] min-h-0 overflow-hidden p-0 gap-0'
+                        : 'flex flex-col max-w-[640px] max-h-[90vh] min-h-0 overflow-hidden p-0 gap-0'
                 }
             >
                 <DialogTitle className="sr-only">{TITLES[mode]}</DialogTitle>
 
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+                {/* Header — only the title; close button is provided by DialogContent */}
+                <div className="flex items-center px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
                     <h2 className="font-semibold text-base">{TITLES[mode]}</h2>
-                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="h-8 w-8">
-                        <X className="h-4 w-4" />
-                    </Button>
                 </div>
 
-                {/* Body — calendar stays 100% visible in background */}
-                <div className="overflow-y-auto flex-1 custom-scrollbar">
+                {/* Body — flex-1 + min-h-0 so the inner form can scroll */}
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                     {mode === 'booking' && zoomAccountId && (
                         <ZoomBookingForm
                             zoomAccountId={zoomAccountId}

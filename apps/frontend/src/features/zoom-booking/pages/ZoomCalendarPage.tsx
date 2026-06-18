@@ -10,6 +10,7 @@ import {
     useZoomSocket,
     useSyncMeetings,
     usePublicZoomSettings,
+    useMyUpcomingBookings,
     useCalendarView,
     useBookingPanel,
 } from '../hooks';
@@ -92,11 +93,21 @@ export function ZoomCalendarPage() {
     const { data: accounts, isLoading: accountsLoading } = useZoomAccounts();
     const { data: settings } = usePublicZoomSettings();
     const syncMeetings = useSyncMeetings();
+    const { data: upcomingBookings = [] } = useMyUpcomingBookings();
     const safeAccounts = accounts ?? [];
     const activeAccountId =
         accountScope !== 'gabungan' && safeAccounts.some((account) => account.id === accountScope)
             ? accountScope
             : selectedAccountId;
+
+    // Per-account meeting count derived from my upcoming bookings (best-effort load).
+    const meetingsPerAccount = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const booking of upcomingBookings) {
+            counts.set(booking.zoomAccountId, (counts.get(booking.zoomAccountId) ?? 0) + 1);
+        }
+        return counts;
+    }, [upcomingBookings]);
 
     // Real-time updates
     useZoomSocket(activeAccountId);
@@ -404,9 +415,9 @@ export function ZoomCalendarPage() {
                                     id: a.id,
                                     name: a.name,
                                     colorHex: a.colorHex ?? '#3b82f6',
-                                    meetingsAtTime: 0,
+                                    meetingsAtTime: meetingsPerAccount.get(a.id) ?? 0,
                                 }))}
-                                upcomingBookings={[]}
+                                upcomingBookings={upcomingBookings}
                                 onSync={handleSync}
                                 lastSyncAt={null}
                                 userName="User"

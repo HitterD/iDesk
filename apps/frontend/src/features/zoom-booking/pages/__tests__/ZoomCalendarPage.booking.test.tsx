@@ -26,6 +26,7 @@ vi.mock('../../hooks', async () => {
 
     return {
         ...actual,
+        useMyUpcomingBookings: () => ({ data: [] }),
         useZoomAccounts: () => ({
             data: [
                 {

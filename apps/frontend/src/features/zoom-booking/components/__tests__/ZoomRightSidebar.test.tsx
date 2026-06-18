@@ -66,4 +66,45 @@ describe('ZoomRightSidebar', () => {
         expect(screen.getByText(/Marketing/)).toBeInTheDocument();
         expect(screen.getByText(/Sales/)).toBeInTheDocument();
     });
+
+    it('shows upcoming meeting titles when provided', () => {
+        const upcoming: ZoomBooking[] = [
+            {
+                id: 'b1',
+                zoomAccountId: 'a1',
+                title: 'Weekly sync',
+                bookingDate: '2026-06-20',
+                startTime: '09:00',
+                endTime: '10:00',
+                durationMinutes: 60,
+                status: 'CONFIRMED',
+                zoomAccount: {
+                    id: 'a1',
+                    name: 'Marketing',
+                    email: 'm@x.com',
+                    accountType: 'MASTER',
+                    displayOrder: 1,
+                    colorHex: '#3b82f6',
+                    isActive: true,
+                    createdAt: '',
+                    updatedAt: '',
+                },
+                bookedByUserId: 'u1',
+                meeting: {
+                    id: 'm1',
+                    zoomBookingId: 'b1',
+                    zoomMeetingId: 'z1',
+                    joinUrl: 'https://x',
+                    startUrl: 'https://x',
+                    hostEmail: 'm@x.com',
+                    createdAt: '',
+                },
+                isExternal: false,
+                createdAt: '',
+                updatedAt: '',
+            },
+        ];
+        render(<ZoomRightSidebar {...baseProps} upcomingBookings={upcoming} />, { wrapper });
+        expect(screen.getByText('Weekly sync')).toBeInTheDocument();
+    });
 });
