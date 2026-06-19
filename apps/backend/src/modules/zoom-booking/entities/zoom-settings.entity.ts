@@ -16,10 +16,10 @@ export class ZoomSettings {
     @Column({ type: 'int', default: 30 })
     advanceBookingDays: number; // Max days ahead for booking
 
-    @Column({ type: 'time', default: '08:00' })
+    @Column({ type: 'time', default: '00:00' })
     slotStartTime: string; // Business hours start
 
-    @Column({ type: 'time', default: '18:00' })
+    @Column({ type: 'time', default: '23:59' })
     slotEndTime: string; // Business hours end
 
     @Column({ type: 'int', default: 30 })
@@ -28,13 +28,13 @@ export class ZoomSettings {
     @Column({ type: 'jsonb', default: '[]' })
     blockedDates: string[]; // Array of date strings (holidays)
 
-    @Column({ type: 'jsonb', default: '[1,2,3,4,5]' })
+    @Column({ type: 'jsonb', default: '[0,1,2,3,4,5,6]' })
     workingDays: number[]; // 0=Sunday, 1=Monday, etc.
 
     @Column({ default: false })
     requireDescription: boolean;
 
-    @Column({ type: 'int', default: 5 })
+    @Column({ type: 'int', default: 50 })
     maxBookingPerUserPerDay: number;
 
     @Column({ type: 'jsonb', default: '[30, 60, 90, 120]' })
