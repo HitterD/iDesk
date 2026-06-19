@@ -252,6 +252,13 @@ export function ZoomDayView({
                                         <div className="p-2 flex flex-col gap-1 h-full">
                                             <div className="flex items-center gap-2 font-bold text-xs">
                                                 <Video className="h-3 w-3 shrink-0" />
+                                                <span
+                                                    className="w-1.5 h-1.5 rounded-full bg-white/90 ring-1 ring-black/20 shrink-0"
+                                                    aria-hidden="true"
+                                                />
+                                                <span className="opacity-95 font-semibold truncate">
+                                                    {booking.accountName}
+                                                </span>
                                                 <span className="truncate">{booking.title}</span>
                                             </div>
                                             {(isLarge || booking.rowSpan >= 2) && (
