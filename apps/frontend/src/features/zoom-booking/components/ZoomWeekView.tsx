@@ -267,7 +267,7 @@ export function ZoomWeekView({
                                         backgroundColor: booking.accountColorHex,
                                         color: '#fff',
                                     }}
-                                    title={`${booking.title}\n${booking.startTime} – ${booking.endTime}\nBooked by: ${booking.bookedBy}`}
+                                    title={`${booking.title}\n${booking.startTime} – ${booking.endTime}\nAkun: ${booking.accountName}\nBooked by: ${booking.bookedBy}`}
                                     onClick={() =>
                                         onBookingClick({
                                             id: booking.id,
@@ -286,6 +286,13 @@ export function ZoomWeekView({
                                     }
                                 >
                                     <Video className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                                    <span
+                                        className="w-1.5 h-1.5 rounded-full bg-white/90 ring-1 ring-black/20 shrink-0"
+                                        aria-hidden="true"
+                                    />
+                                    <span className="text-[9px] font-semibold opacity-95 truncate max-w-[60px]">
+                                        {booking.accountName}
+                                    </span>
                                     <span className="text-[10px] font-bold truncate">{booking.title}</span>
                                 </div>,
                             );
