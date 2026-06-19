@@ -61,10 +61,9 @@ export class UpdateZoomSettingsDto {
     @IsOptional()
     requireDescription?: boolean;
 
-    @ApiPropertyOptional({ description: 'Max bookings per user per day' })
+    @ApiPropertyOptional({ description: 'Max bookings per user per day (no upper cap)' })
     @IsInt()
     @Min(1)
-    @Max(50)
     @IsOptional()
     maxBookingPerUserPerDay?: number;
 
