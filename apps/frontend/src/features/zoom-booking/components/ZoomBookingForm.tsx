@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { format, addDays, parseISO } from 'date-fns';
-import { Video, Calendar, Clock, Users, FileText, AlertTriangle, Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
+import { Video, Calendar, Clock, Users, FileText, AlertTriangle, Loader2, CheckCircle2, ExternalLink, Sparkles, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,18 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
-import { useCreateBooking, usePublicZoomSettings, useZoomCalendar } from '../hooks';
-import type { ZoomAccount, CreateBookingDto } from '../types';
+import {
+    useCreateBooking,
+    usePublicZoomSettings,
+    useZoomCalendar,
+    useAllAccountsAvailability,
+} from '../hooks';
+import type { ZoomAccount, CreateBookingDto, CalendarDay } from '../types';
 import { ZoomRecurringOptions } from './ZoomRecurringOptions';
+import { ZoomTimeSelect, type TimeSlotOption } from './ZoomTimeSelect';
+import { autoPickAccount, buildAvailability, type AccountLoad, type AccountAvailability } from '../utils/autoPickAccount';
+
+export const GABUNGAN_ACCOUNT_ID = 'gabungan';
 
 const generateTimeOptions = (
     startTime = '08:00',
@@ -57,6 +66,10 @@ interface ZoomBookingFormProps {
     preselectedTime?: string;
     accounts: ZoomAccount[];
     onClose: () => void;
+    /** When true, the form is in Gabungan mode: auto-picks the first free
+     *  account at the chosen date+time and cascades to the next account
+     *  (zoom 1 -> zoom 2 -> ... -> zoom 10) when the current one is booked. */
+    isGabungan?: boolean;
 }
 
 export function ZoomBookingForm({
@@ -65,8 +78,12 @@ export function ZoomBookingForm({
     preselectedTime,
     accounts,
     onClose,
+    isGabungan = false,
 }: ZoomBookingFormProps) {
-    const [selectedAccountId, setSelectedAccountId] = useState(zoomAccountId);
+    const [selectedAccountId, setSelectedAccountId] = useState(
+        isGabungan ? GABUNGAN_ACCOUNT_ID : zoomAccountId,
+    );
+    const [userPickedAccount, setUserPickedAccount] = useState(false);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [bookingDate, setBookingDate] = useState(preselectedDate || '');
@@ -74,6 +91,7 @@ export function ZoomBookingForm({
     const [duration, setDuration] = useState<number>(60);
     const [participantEmails, setParticipantEmails] = useState('');
     const [successJoinUrl, setSuccessJoinUrl] = useState<string | null>(null);
+    const [accountPickerOpen, setAccountPickerOpen] = useState(false);
 
     // Recurring state
     const [isRecurring, setIsRecurring] = useState(false);
@@ -93,49 +111,145 @@ export function ZoomBookingForm({
 
     // Refetch calendar on open to prevent stale conflict warnings
     useEffect(() => {
-        if (selectedAccountId && bookingDate) {
+        if (!isGabungan && selectedAccountId && bookingDate) {
             queryClient.refetchQueries({
                 queryKey: ['zoom-calendar', selectedAccountId, bookingDate, bookingDate],
                 exact: true,
             });
         }
-    }, [selectedAccountId, bookingDate, queryClient]);
+    }, [selectedAccountId, bookingDate, queryClient, isGabungan]);
 
-    const timeOptions = useMemo(() => {
-        if (settings) {
-            return generateTimeOptions(
-                settings.slotStartTime || '08:00',
-                settings.slotEndTime || '18:00',
-                settings.slotIntervalMinutes || 30
-            );
+    const timeOptions = useMemo<TimeSlotOption[]>(() => {
+        if (!settings) return [];
+        const allTimes = generateTimeOptions(
+            settings.slotStartTime || '00:00',
+            settings.slotEndTime || '23:59',
+            settings.slotIntervalMinutes || 30
+        );
+
+        // Gabungan mode auto-picks; no per-slot filtering needed.
+        if (isGabungan) {
+            return allTimes.map((time) => ({ time }));
         }
-        return generateTimeOptions();
-    }, [settings]);
 
-    const { data: calendarData, isFetching: isCalendarFetching } = useZoomCalendar(
-        selectedAccountId,
-        bookingDate || format(new Date(), 'yyyy-MM-dd'),
-        bookingDate || format(new Date(), 'yyyy-MM-dd')
-    );
-
-    // Set of start times that are NOT available for the selected date
-    const unavailableStartTimes = useMemo(() => {
-        const unavailable = new Set<string>();
-        if (!calendarData || !bookingDate) return unavailable;
-
-        const dayData = calendarData.find((d) => d.date === bookingDate);
-        if (!dayData) return unavailable;
-
-        for (const slot of dayData.slots) {
-            if (slot.status === 'booked' || slot.status === 'my_booking' || slot.status === 'blocked') {
-                unavailable.add(slot.time);
+        // Single-account mode: mark booked times as unavailable so the dropdown
+        // visually flags them. We still allow the user to attempt selection
+        // (the existing ZoomTimeSelect handles that UX with an info card).
+        const bookedSet = new Set<string>();
+        if (calendarData && calendarData.length > 0) {
+            for (const day of calendarData) {
+                for (const slot of day.slots) {
+                    if (slot.booking) {
+                        bookedSet.add(slot.time);
+                    }
+                }
             }
         }
-        return unavailable;
-    }, [calendarData, bookingDate]);
+        return allTimes.map((time) => ({
+            time,
+            isUnavailable: bookedSet.has(time),
+        }));
+    }, [settings, isGabungan, calendarData]);
+
+    const effectiveDate = bookingDate || format(new Date(), 'yyyy-MM-dd');
+
+    // Single-account calendar (non-Gabungan) for conflict + dropdown occupancy
+    const { data: calendarData, isFetching: isCalendarFetching } = useZoomCalendar(
+        !isGabungan ? selectedAccountId : undefined,
+        effectiveDate,
+        effectiveDate,
+    );
+
+    // All-accounts calendar (Gabungan) for auto-pick + dropdown occupancy
+    const allCalResults = useAllAccountsAvailability(
+        accounts,
+        isGabungan ? effectiveDate : undefined,
+        isGabungan,
+    );
+
+    // Per-account availability snapshot used by autoPickAccount
+    const availabilityForPick: AccountAvailability[] = useMemo(() => {
+        if (!isGabungan) return [];
+        const calMap = new Map<string, CalendarDay[]>();
+        accounts.forEach((a) => {
+            const data = allCalResults[a.id];
+            if (data) calMap.set(a.id, data);
+        });
+        return buildAvailability(accounts, calMap, effectiveDate);
+    }, [isGabungan, accounts, allCalResults, effectiveDate]);
+
+    // Per-account load count (count of bookings at chosen date)
+    const accountLoads: AccountLoad[] = useMemo(() => {
+        return accounts.map((a) => {
+            const cal = availabilityForPick.find((s) => s.id === a.id);
+            const meetings = cal?.bookingsByStartTime.size ?? 0;
+            return {
+                id: a.id,
+                name: a.name,
+                colorHex: a.colorHex,
+                meetingsAtTime: meetings,
+            };
+        });
+    }, [accounts, availabilityForPick]);
+
+    // Gabungan auto-pick: pick the first account free at (date, startTime, duration)
+    useEffect(() => {
+        if (!isGabungan) return;
+        if (userPickedAccount) return;
+        if (!startTime || !bookingDate) return;
+        if (accountLoads.length === 0) return;
+        const picked = autoPickAccount(
+            accountLoads,
+            bookingDate,
+            startTime,
+            duration,
+            availabilityForPick,
+        );
+        if (picked && picked.id !== selectedAccountId) {
+            setSelectedAccountId(picked.id);
+        }
+    }, [
+        isGabungan,
+        userPickedAccount,
+        startTime,
+        bookingDate,
+        duration,
+        accountLoads,
+        availabilityForPick,
+        selectedAccountId,
+    ]);
+
+    // Build time-slot options with joinUrl for Gabungan (per-account busiest)
+    // and for single-account (from calendarData).
+    const timeSlotOptions: TimeSlotOption[] = useMemo(() => {
+        const sourceCalendarData: CalendarDay[] | undefined = isGabungan
+            ? buildMergedGabunganCalendar(accounts, allCalResults, effectiveDate)
+            : calendarData;
+
+        if (!sourceCalendarData || !bookingDate) {
+            return timeOptions.map((t) => ({ time: t }));
+        }
+        const dayData = sourceCalendarData.find((d) => d.date === bookingDate);
+        if (!dayData) {
+            return timeOptions.map((t) => ({ time: t }));
+        }
+
+        return timeOptions.map((t) => {
+            const slot = dayData.slots.find((s) => s.time === t);
+            const occupied = slot && (slot.status === 'booked' || slot.status === 'my_booking');
+            const blocked = slot?.status === 'blocked';
+            return {
+                time: t,
+                isUnavailable: occupied || blocked,
+                bookingTitle: slot?.booking?.title,
+                joinUrl: slot?.booking?.joinUrl,
+            };
+        });
+    }, [calendarData, isGabungan, accounts, allCalResults, effectiveDate, bookingDate, timeOptions]);
 
     const conflictWarning = useMemo(() => {
         if (isCalendarFetching || !calendarData || !startTime || !duration || !bookingDate || createBooking.isPending) return null;
+        if (isGabungan) return null; // Gabungan uses the dropdown occupancy display
 
         const dayData = calendarData.find((d) => d.date === bookingDate);
         if (!dayData) return null;
@@ -167,13 +281,17 @@ export function ZoomBookingForm({
             }
         }
         return null;
-    }, [calendarData, bookingDate, startTime, duration, isCalendarFetching, createBooking.isPending]);
+    }, [calendarData, bookingDate, startTime, duration, isCalendarFetching, createBooking.isPending, isGabungan]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!title.trim()) { toast.error('Judul meeting wajib diisi'); return; }
         if (!bookingDate) { toast.error('Tanggal wajib dipilih'); return; }
+        if (isGabungan && (!selectedAccountId || selectedAccountId === GABUNGAN_ACCOUNT_ID)) {
+            toast.error('Pilih akun Zoom terlebih dahulu');
+            return;
+        }
         let recurrencePattern: string | undefined;
         if (isRecurring) {
             recurrencePattern = `FREQ=${freq};INTERVAL=${interval}`;
@@ -212,6 +330,28 @@ export function ZoomBookingForm({
 
     const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
 
+    // Count of accounts free at the selected (date, startTime, duration)
+    const accountsFreeAtPick = useMemo(() => {
+        if (!isGabungan) return null;
+        if (!startTime) return null;
+        const free = accountLoads.filter((a) => {
+            const snap = availabilityForPick.find((s) => s.id === a.id);
+            if (!snap) return true;
+            for (const booking of snap.bookingsByStartTime.values()) {
+                const [bH, bM] = booking.startTime.split(':').map(Number);
+                const [eH, eM] = booking.endTime.split(':').map(Number);
+                const [sH, sM] = startTime.split(':').map(Number);
+                const sStart = sH * 60 + sM;
+                const sEnd = sStart + duration;
+                const bStart = bH * 60 + bM;
+                const bEnd = eH * 60 + eM;
+                if (sStart < bEnd && sEnd > bStart) return false;
+            }
+            return true;
+        });
+        return free.length;
+    }, [isGabungan, startTime, duration, accountLoads, availabilityForPick]);
+
     // Success view
     if (successJoinUrl !== null || (createBooking.isSuccess && !createBooking.isPending)) {
         return (
@@ -243,25 +383,101 @@ export function ZoomBookingForm({
         <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
             {/* Scrollable fields */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {/* Account */}
-                <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Zoom Account</Label>
-                    <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                        <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Pilih akun Zoom" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {accounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: account.colorHex }} />
-                                        {account.name}
-                                    </div>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                {/* Account (Gabungan mode: auto-pick banner; else: dropdown) */}
+                {isGabungan ? (
+                    <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                                Auto-picked
+                            </span>
+                            {startTime && accountsFreeAtPick !== null && (
+                                <span className="text-[10px] text-emerald-700 dark:text-emerald-300">
+                                    · {accountsFreeAtPick}/{accounts.length} akun kosong di {startTime}
+                                </span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setAccountPickerOpen((o) => !o)}
+                            data-testid="gabungan-account-picker"
+                            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        >
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                                    style={{ backgroundColor: selectedAccount?.colorHex ?? '#10b981' }}
+                                />
+                                <span className="text-sm font-semibold truncate">
+                                    {selectedAccount?.name ?? 'Pilih akun…'}
+                                </span>
+                            </div>
+                            <ChevronDown
+                                className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${accountPickerOpen ? 'rotate-180' : ''}`}
+                                aria-hidden="true"
+                            />
+                        </button>
+                        {accountPickerOpen && (
+                            <ul
+                                data-testid="gabungan-account-list"
+                                className="max-h-[200px] overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                            >
+                                {[...accountLoads]
+                                    .sort((a, b) => {
+                                        if (a.meetingsAtTime !== b.meetingsAtTime) {
+                                            return a.meetingsAtTime - b.meetingsAtTime;
+                                        }
+                                        return a.id.localeCompare(b.id);
+                                    })
+                                    .map((acc) => (
+                                        <li key={acc.id}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedAccountId(acc.id);
+                                                    setUserPickedAccount(true);
+                                                    setAccountPickerOpen(false);
+                                                }}
+                                                data-testid={`gabungan-account-${acc.id}`}
+                                                className={`w-full text-left px-2 py-1.5 flex items-center gap-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-950/30 ${
+                                                    selectedAccountId === acc.id ? 'bg-blue-50 dark:bg-blue-950/30' : ''
+                                                }`}
+                                            >
+                                                <span
+                                                    className="w-2 h-2 rounded-full shrink-0"
+                                                    style={{ backgroundColor: acc.colorHex }}
+                                                />
+                                                <span className="flex-1 truncate font-semibold">{acc.name}</span>
+                                                <span className="text-[10px] text-slate-500">{acc.meetingsAtTime} mtg</span>
+                                            </button>
+                                        </li>
+                                    ))}
+                            </ul>
+                        )}
+                        <p className="text-[10px] text-slate-500">
+                            Sistem otomatis memilih akun kosong. Klik untuk override.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Zoom Account</Label>
+                        <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                            <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Pilih akun Zoom" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {accounts.map((account) => (
+                                    <SelectItem key={account.id} value={account.id}>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: account.colorHex }} />
+                                            {account.name}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 {/* Title */}
                 <div className="space-y-1.5">
@@ -294,40 +510,13 @@ export function ZoomBookingForm({
                             maxDate={addDays(new Date(), settings?.advanceBookingDays || 30)}
                         />
                     </div>
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold">
-                            <Clock className="h-3.5 w-3.5 inline mr-1" />
-                            Waktu Mulai *
-                        </Label>
-                        <Select value={startTime} onValueChange={setStartTime}>
-                            <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Pilih waktu" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {timeOptions.map((time) => {
-                                    const isUnavailable = unavailableStartTimes.has(time);
-                                    return (
-                                        <SelectItem
-                                            key={time}
-                                            value={time}
-                                            disabled={isUnavailable}
-                                            className={isUnavailable ? 'opacity-50 line-through text-red-400' : ''}
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                {isUnavailable && (
-                                                    <span className="inline-block w-2 h-2 rounded-full bg-red-400 shrink-0" />
-                                                )}
-                                                {time}
-                                                {isUnavailable && (
-                                                    <span className="text-[10px] text-red-400 ml-1">Terpakai</span>
-                                                )}
-                                            </span>
-                                        </SelectItem>
-                                    );
-                                })}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <ZoomTimeSelect
+                        label="Waktu Mulai *"
+                        value={startTime}
+                        onChange={setStartTime}
+                        options={timeSlotOptions}
+                        placeholder="Pilih waktu"
+                    />
                 </div>
 
                 {/* Duration */}
@@ -354,7 +543,7 @@ export function ZoomBookingForm({
                 </div>
 
                 {/* Conflict check loading */}
-                {isCalendarFetching && bookingDate && startTime && (
+                {!isGabungan && isCalendarFetching && bookingDate && startTime && (
                     <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                         <span className="text-sm">Memeriksa ketersediaan...</span>
@@ -433,3 +622,49 @@ export function ZoomBookingForm({
         </form>
     );
 }
+
+/**
+ * Merge all-accounts calendars into one "any account occupied" view.
+ * For Gabungan mode the time-slot dropdown needs to know whether the
+ * chosen time is occupied on ANY of the 10 accounts.
+ */
+function buildMergedGabunganCalendar(
+    accounts: ZoomAccount[],
+    allCalResults: ReturnType<typeof useAllAccountsAvailability>,
+    date: string,
+): CalendarDay[] | undefined {
+    if (accounts.length === 0) return undefined;
+    // Use the first account's day structure as a template (slot times match across accounts)
+    const firstCal = Object.values(allCalResults).find((cal) => cal && cal.length > 0);
+    const template = firstCal?.find((d) => d.date === date);
+    if (!template) return undefined;
+
+    const merged: CalendarDay = {
+        date: template.date,
+        dayOfWeek: template.dayOfWeek,
+        isWorkingDay: template.isWorkingDay,
+        isBlocked: template.isBlocked,
+        slots: template.slots.map((slot) => {
+            // Check if any account has a booking at this slot
+            for (const cal of Object.values(allCalResults)) {
+                if (!cal) continue;
+                const day = cal.find((d) => d.date === date);
+                if (!day) continue;
+                const otherSlot = day.slots.find((s) => s.time === slot.time);
+                if (otherSlot?.booking && (otherSlot.status === 'booked' || otherSlot.status === 'my_booking')) {
+                    return {
+                        ...slot,
+                        status: otherSlot.status,
+                        booking: otherSlot.booking,
+                    };
+                }
+                if (otherSlot?.status === 'blocked') {
+                    return { ...slot, status: 'blocked' };
+                }
+            }
+            return slot;
+        }),
+    };
+    return [merged];
+}
+
