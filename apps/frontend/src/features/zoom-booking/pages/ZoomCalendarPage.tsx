@@ -7,6 +7,7 @@ import { useHasPageAccess } from '@/hooks/usePermissions';
 import {
     useZoomAccounts,
     useZoomCalendar,
+    useZoomMergedCalendar,
     useZoomSocket,
     useSyncMeetings,
     usePublicZoomSettings,
@@ -14,6 +15,8 @@ import {
     useCalendarView,
     useBookingPanel,
 } from '../hooks';
+import type { MergedCalendarDay } from '../hooks/useZoomBooking';
+import { mergedCalendarToCalendar } from '../utils/mergedCalendarAdapter';
 import type { CalendarDay, CalendarSlot } from '../types'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import type { ProcessedBooking } from '../components/ZoomCalendarGrid';
 import { ZoomErrorBoundary } from '../components/ZoomErrorBoundary';
@@ -30,6 +33,7 @@ import { ZoomDayView } from '../components/ZoomDayView';
 import { ZoomMyBookingsView } from '../components/ZoomMyBookingsView';
 import { ZoomCalendarSkeletonView } from '../components/ZoomSkeletons';
 import { UpcomingMeetingsPanel } from '../components/UpcomingMeetingsPanel';
+import { useMostFreeAccount } from '../hooks/useMostFreeAccount';
 
 interface SyncMeetingsResult {
     updatedCount?: number;
@@ -109,8 +113,45 @@ export function ZoomCalendarPage() {
         return counts;
     }, [upcomingBookings]);
 
-    // Real-time updates
-    useZoomSocket(activeAccountId);
+    // Real-time updates.
+    // In Gabungan mode subscribe to ALL accounts so any booking change
+    // invalidates the merged calendar query immediately (no manual refresh).
+    const useGabungan = accountScope === 'gabungan';
+    const socketAccountId = useGabungan ? undefined : activeAccountId;
+    const gabunganAccountIds = useGabungan
+        ? safeAccounts.map((a) => a.id)
+        : undefined;
+    useZoomSocket(socketAccountId, gabunganAccountIds);
+
+    // Day view always renders single-account. When user is in Gabungan mode and
+    // switches to day view, auto-pick the most-free account so the day grid stays
+    // readable.
+    const isDayView = view === 'day';
+    const forceSingleForDay = isDayView && useGabungan;
+    const mostFreeAccount = useMostFreeAccount(safeAccounts, meetingsPerAccount);
+    const effectiveActiveAccountId = forceSingleForDay
+        ? (activeAccountId && safeAccounts.some((a) => a.id === activeAccountId)
+            ? activeAccountId
+            : mostFreeAccount?.id)
+        : activeAccountId;
+
+    // Calendar data source — merged endpoint when in Gabungan mode (and not day view),
+    // per-account otherwise.
+    const shouldLoadMerged = !isDayView && useGabungan;
+    const singleCalendar = useZoomCalendar(
+        view !== 'my-bookings' && !shouldLoadMerged ? effectiveActiveAccountId : undefined,
+        dateRange.start,
+        dateRange.end,
+    );
+    const mergedCalendar = useZoomMergedCalendar(
+        view !== 'my-bookings' && shouldLoadMerged ? dateRange.start : undefined,
+        view !== 'my-bookings' && shouldLoadMerged ? dateRange.end : undefined,
+    );
+
+    const calendar = shouldLoadMerged
+        ? mergedCalendarToCalendar(mergedCalendar.data as MergedCalendarDay[] | undefined)
+        : singleCalendar.data;
+    const calendarLoading = shouldLoadMerged ? mergedCalendar.isLoading : singleCalendar.isLoading;
 
     // Auto-select first account
     useEffect(() => {
@@ -118,13 +159,6 @@ export function ZoomCalendarPage() {
             setSelectedAccountId(accounts[0].id);
         }
     }, [accounts, selectedAccountId]);
-
-    // Calendar data for selected date range & account
-    const { data: calendar, isLoading: calendarLoading } = useZoomCalendar(
-        view !== 'my-bookings' ? activeAccountId : undefined,
-        dateRange.start,
-        dateRange.end
-    );
 
     // Time labels from settings
     const timeLabels = useMemo(() => {
@@ -176,8 +210,9 @@ export function ZoomCalendarPage() {
             date: format(currentDate, 'yyyy-MM-dd'),
             time: format(new Date(), 'HH:00'),
             zoomAccountId,
+            isGabungan: accountScope === 'gabungan',
         });
-    }, [activeAccountId, canBook, currentDate, panel, safeAccounts]);
+    }, [activeAccountId, canBook, currentDate, panel, safeAccounts, accountScope]);
 
     // Global keyboard shortcuts (must be after safeAccounts/panel declared)
     useEffect(() => {
@@ -243,6 +278,7 @@ export function ZoomCalendarPage() {
             date: day.date,
             time,
             zoomAccountId: activeAccountId,
+            isGabungan: accountScope === 'gabungan',
         });
     };
 
@@ -330,6 +366,8 @@ export function ZoomCalendarPage() {
                     onSlotClick={handleSlotIndexClick}
                     onBookingClick={handleBookingClick}
                     onNavigateDay={handleNavigateDay}
+                    forceSingleAccountMode={forceSingleForDay}
+                    forceSingleAccountName={mostFreeAccount?.name}
                 />
             );
         }
@@ -374,6 +412,7 @@ export function ZoomCalendarPage() {
                                 currentDate={currentDate}
                                 selectedAccountId={selectedAccountId ?? 'all'}
                                 accounts={safeAccounts}
+                                dateRange={dateRange}
                                 onViewChange={setView}
                                 onPrev={navigatePrev}
                                 onNext={navigateNext}
@@ -421,6 +460,7 @@ export function ZoomCalendarPage() {
                                 onSync={handleSync}
                                 lastSyncAt={null}
                                 userName="User"
+                                onOpenBooking={(b) => panel.openDetail(b.id)}
                             />
                         )}
                         calendarContent={calendarContent()}
@@ -437,6 +477,7 @@ export function ZoomCalendarPage() {
                     zoomAccountId={panel.context.zoomAccountId}
                     preselectedDate={panel.context.preselectedDate}
                     preselectedTime={panel.context.preselectedTime}
+                    isGabungan={panel.context.isGabungan}
                     bookingId={panel.context.bookingId}
                     booking={panel.context.booking}
                     accounts={safeAccounts}
