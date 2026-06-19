@@ -17,6 +17,7 @@ import {
     ZoomOverflowPopover,
     type OverflowBooking,
 } from './ZoomOverflowPopover';
+import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
 
 interface ZoomWeekViewProps {
     currentDate: Date;
@@ -71,6 +72,9 @@ export function ZoomWeekView({
         () => getCurrentTimeOffset(timeLabels, currentTime),
         [timeLabels, currentTime]
     );
+
+    const { data: zoomSettings } = useZoomSettings();
+    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
 
     // Overflow popover state — shared across all 7 day columns
     const [overflowState, setOverflowState] = useState<{
@@ -205,12 +209,11 @@ export function ZoomWeekView({
                                             isHour && "border-b-slate-300 dark:border-b-slate-600",
                                             today && "bg-blue-50/30 dark:bg-blue-950/10",
                                             slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : "bg-slate-50/50 dark:bg-slate-800/20",
-                                            (day.getDay() === 0 || day.getDay() === 6) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
+                                            !isWorkingDay(day, workingDays) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
                                         )}
                                         style={{ height: SLOT_HEIGHT }}
                                         onClick={() => {
-                                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                                            if (calDay && !isWeekend) onSlotClick(calDay, timeIndex);
+                                            if (calDay && isWorkingDay(day, workingDays)) onSlotClick(calDay, timeIndex);
                                         }}
                                     >
                                         {slot?.status === 'available' && canBook && (
