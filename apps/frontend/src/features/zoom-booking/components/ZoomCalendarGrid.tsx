@@ -58,8 +58,11 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
     const seen = new Set<string>();
     const all: ProcessedBookingV2[] = [];
 
-    day.slots.forEach((slot, index) => {
-        if (slot.booking && !seen.has(slot.booking.id)) {
+    const collectBookingsForSlot = (slot: CalendarSlot, index: number): void => {
+        if (!slot.booking) return;
+
+        // Primary booking (single-account view OR first booking of merged slot)
+        if (!seen.has(slot.booking.id)) {
             seen.add(slot.booking.id);
             const rowSpan = Math.max(1, Math.ceil(slot.booking.durationMinutes / SLOT_INTERVAL));
             const slotBooking = slot.booking as (CalendarSlot['booking'] & {
@@ -83,7 +86,43 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
                 overflowCount: 0,
             });
         }
-    });
+
+        // Extra bookings carried by the merged (Gabungan) adapter — these
+        // represent additional accounts that share the same time slot. They
+        // share the slot's rowStart so the existing overflow logic treats them
+        // as a vertical stack.
+        const slotAny = slot as CalendarSlot & {
+            extraBookings?: Array<NonNullable<CalendarSlot['booking']>>;
+        };
+        const extras = slotAny.extraBookings ?? [];
+        for (const extra of extras) {
+            if (seen.has(extra.id)) continue;
+            seen.add(extra.id);
+            const extraRowSpan = Math.max(1, Math.ceil(extra.durationMinutes / SLOT_INTERVAL));
+            const extraBooking = extra as NonNullable<CalendarSlot['booking']> & {
+                zoomAccount?: { colorHex?: string; name?: string };
+            };
+            all.push({
+                id: extra.id,
+                title: extra.title,
+                bookedBy: extra.bookedBy,
+                startTime: extra.startTime || slot.time,
+                endTime: extra.endTime || slot.endTime,
+                durationMinutes: extra.durationMinutes,
+                rowStart: index + 2,
+                rowSpan: extraRowSpan,
+                isMyBooking: false,
+                isExternal: extra.isExternal || false,
+                accountColorHex: extraBooking?.zoomAccount?.colorHex ?? '#3b82f6',
+                accountName: extraBooking?.zoomAccount?.name ?? 'Zoom',
+                rowIndex: 0,
+                totalRows: 0,
+                overflowCount: 0,
+            });
+        }
+    };
+
+    day.slots.forEach((slot, index) => collectBookingsForSlot(slot, index));
 
     if (all.length === 0) return all;
 

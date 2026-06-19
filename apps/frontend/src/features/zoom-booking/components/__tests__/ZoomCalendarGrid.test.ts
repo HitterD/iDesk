@@ -5,11 +5,11 @@ import type { CalendarDay } from '../../types';
 function mkDay(
     bookings: Array<{ id: string; startIdx: number; span: number; isMine?: boolean }>,
 ): CalendarDay {
-    const slots = Array.from({ length: 24 }, (_, i) => ({
+    const slots: CalendarDay['slots'] = Array.from({ length: 24 }, (_, i) => ({
         date: '2026-06-11',
         time: `${8 + Math.floor(i / 2)}:${i % 2 === 0 ? '00' : '30'}`,
         endTime: `${8 + Math.floor((i + 1) / 2)}:${(i + 1) % 2 === 0 ? '00' : '30'}`,
-        status: 'available' as const,
+        status: 'available',
     }));
     bookings.forEach((b) => {
         for (let i = 0; i < b.span; i++) {
@@ -97,5 +97,69 @@ describe('processBookingsForDayV2', () => {
     it('returns empty array for empty day', () => {
         const day = mkDay([]);
         expect(processBookingsForDayV2(day)).toEqual([]);
+    });
+
+    it('renders extraBookings from merged (Gabungan) slot as separate stack entries', () => {
+        // Simulate a merged slot with 1 primary + 2 extras (same time, different accounts).
+        // Bug repro: previously only the primary booking was rendered; extras were dropped.
+        const slots: CalendarDay['slots'] = Array.from({ length: 48 }, (_, i) => ({
+            date: '2026-06-11',
+            time: `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`,
+            endTime: `${String(Math.floor((i + 1) / 2)).padStart(2, '0')}:${(i + 1) % 2 === 0 ? '00' : '30'}`,
+            status: 'available' as const,
+        }));
+        // Slot index 40 = 20:00 (40 / 2 = 20 hours).
+        slots[40] = {
+            ...slots[40],
+            status: 'booked',
+            booking: {
+                id: 'zoom1',
+                title: 'Rapat',
+                bookedBy: 'User A',
+                durationMinutes: 60,
+                startTime: '20:00',
+                endTime: '21:00',
+                isExternal: false,
+            },
+        };
+        // Attach extras (different accounts at the same time, merged view).
+        (slots[40] as any).extraBookings = [
+            {
+                id: 'zoom2',
+                title: 'Standup',
+                bookedBy: 'User B',
+                durationMinutes: 60,
+                startTime: '20:00',
+                endTime: '21:00',
+                isExternal: false,
+            },
+            {
+                id: 'zoom3',
+                title: 'Demo',
+                bookedBy: 'User C',
+                durationMinutes: 60,
+                startTime: '20:00',
+                endTime: '21:00',
+                isExternal: false,
+            },
+        ];
+        const day: CalendarDay = {
+            date: '2026-06-11',
+            dayOfWeek: 3,
+            isWorkingDay: true,
+            isBlocked: false,
+            slots,
+        };
+
+        const result = processBookingsForDayV2(day);
+        const ids = result.map((r) => r.id);
+        expect(ids).toContain('zoom1');
+        expect(ids).toContain('zoom2');
+        expect(ids).toContain('zoom3');
+        expect(result).toHaveLength(3);
+
+        // All three should share the same rowStart (same time slot) so they stack vertically.
+        const rowStarts = new Set(result.map((r) => r.rowStart));
+        expect(rowStarts.size).toBe(1);
     });
 });
