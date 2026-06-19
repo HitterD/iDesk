@@ -43,6 +43,7 @@ export interface ProcessedBookingV2 {
     isMyBooking: boolean;
     isExternal: boolean;
     accountColorHex: string;
+    accountName: string;
     rowIndex: number;
     totalRows: number;
     overflowCount: number;
@@ -62,7 +63,7 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
             seen.add(slot.booking.id);
             const rowSpan = Math.max(1, Math.ceil(slot.booking.durationMinutes / SLOT_INTERVAL));
             const slotBooking = slot.booking as (CalendarSlot['booking'] & {
-                zoomAccount?: { colorHex?: string };
+                zoomAccount?: { colorHex?: string; name?: string };
             });
             all.push({
                 id: slot.booking.id,
@@ -76,6 +77,7 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
                 isMyBooking: slot.status === 'my_booking',
                 isExternal: slot.booking.isExternal || false,
                 accountColorHex: slotBooking?.zoomAccount?.colorHex ?? '#3b82f6',
+                accountName: slotBooking?.zoomAccount?.name ?? 'Zoom',
                 rowIndex: 0,
                 totalRows: 0,
                 overflowCount: 0,
