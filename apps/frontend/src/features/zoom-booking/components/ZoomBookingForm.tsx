@@ -119,38 +119,6 @@ export function ZoomBookingForm({
         }
     }, [selectedAccountId, bookingDate, queryClient, isGabungan]);
 
-    const timeOptions = useMemo<TimeSlotOption[]>(() => {
-        if (!settings) return [];
-        const allTimes = generateTimeOptions(
-            settings.slotStartTime || '00:00',
-            settings.slotEndTime || '23:59',
-            settings.slotIntervalMinutes || 30
-        );
-
-        // Gabungan mode auto-picks; no per-slot filtering needed.
-        if (isGabungan) {
-            return allTimes.map((time) => ({ time }));
-        }
-
-        // Single-account mode: mark booked times as unavailable so the dropdown
-        // visually flags them. We still allow the user to attempt selection
-        // (the existing ZoomTimeSelect handles that UX with an info card).
-        const bookedSet = new Set<string>();
-        if (calendarData && calendarData.length > 0) {
-            for (const day of calendarData) {
-                for (const slot of day.slots) {
-                    if (slot.booking) {
-                        bookedSet.add(slot.time);
-                    }
-                }
-            }
-        }
-        return allTimes.map((time) => ({
-            time,
-            isUnavailable: bookedSet.has(time),
-        }));
-    }, [settings, isGabungan, calendarData]);
-
     const effectiveDate = bookingDate || format(new Date(), 'yyyy-MM-dd');
 
     // Single-account calendar (non-Gabungan) for conflict + dropdown occupancy
@@ -191,6 +159,38 @@ export function ZoomBookingForm({
             };
         });
     }, [accounts, availabilityForPick]);
+
+    const timeOptions = useMemo<TimeSlotOption[]>(() => {
+        if (!settings) return [];
+        const allTimes = generateTimeOptions(
+            settings.slotStartTime || '00:00',
+            settings.slotEndTime || '23:59',
+            settings.slotIntervalMinutes || 30,
+        );
+
+        // Gabungan mode auto-picks; no per-slot filtering needed.
+        if (isGabungan) {
+            return allTimes.map((time) => ({ time }));
+        }
+
+        // Single-account mode: mark booked times as unavailable so the dropdown
+        // visually flags them. We still allow the user to attempt selection
+        // (the existing ZoomTimeSelect handles that UX with an info card).
+        const bookedSet = new Set<string>();
+        if (calendarData && calendarData.length > 0) {
+            for (const day of calendarData) {
+                for (const slot of day.slots) {
+                    if (slot.booking) {
+                        bookedSet.add(slot.time);
+                    }
+                }
+            }
+        }
+        return allTimes.map((time) => ({
+            time,
+            isUnavailable: bookedSet.has(time),
+        }));
+    }, [settings, isGabungan, calendarData]);
 
     // Gabungan auto-pick: pick the first account free at (date, startTime, duration)
     useEffect(() => {
