@@ -25,13 +25,13 @@ export class ZoomSettingsService {
             settings = this.settingsRepo.create({
                 defaultDurationMinutes: 60,
                 advanceBookingDays: 30,
-                slotStartTime: '08:00',
-                slotEndTime: '18:00',
+                slotStartTime: '00:00',
+                slotEndTime: '23:59',
                 slotIntervalMinutes: 30,
                 blockedDates: [],
-                workingDays: [1, 2, 3, 4, 5], // Mon-Fri
+                workingDays: [0, 1, 2, 3, 4, 5, 6],
                 requireDescription: false,
-                maxBookingPerUserPerDay: 5,
+                maxBookingPerUserPerDay: 50,
                 allowedDurations: [30, 60, 90, 120],
             });
             await this.settingsRepo.save(settings);
