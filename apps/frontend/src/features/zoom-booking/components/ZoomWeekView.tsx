@@ -309,7 +309,7 @@ export function ZoomWeekView({
                                     type="button"
                                     key={`overflow-${dateStr}-${rowStart}`}
                                     data-testid="overflow-pill"
-                                    className="absolute h-4 rounded-sm bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center hover:bg-slate-900 z-20"
+                                    className="absolute h-4 rounded-sm bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center hover:bg-slate-900 z-40 cursor-pointer pointer-events-auto"
                                     style={{ top: pillTopPx, left: cellLeft, width: cellWidth }}
                                     onClick={(e) => {
                                         e.stopPropagation();
