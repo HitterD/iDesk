@@ -18,6 +18,7 @@ import {
     ZoomOverflowPopover,
     type OverflowBooking,
 } from './ZoomOverflowPopover';
+import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
 
 const TIME_COL_WIDTH = 64;
 
@@ -62,6 +63,9 @@ export function ZoomDayView({
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const calDay = calendar.find((d) => d.date === dateStr);
     const today = isToday(currentDate);
+
+    const { data: zoomSettings } = useZoomSettings();
+    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
 
     const bookings = useMemo(() => {
         if (!calDay) return [];
@@ -158,11 +162,11 @@ export function ZoomDayView({
                                         "border-b border-slate-200 dark:border-slate-700 relative group",
                                         isHour && "border-b-slate-300 dark:border-b-slate-600",
                                         slot ? SLOT_BG[slot.status as keyof typeof SLOT_BG] : "bg-white dark:bg-slate-900",
-                                        (currentDate.getDay() === 0 || currentDate.getDay() === 6) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
+                                        !isWorkingDay(currentDate, workingDays) && 'bg-slate-100/80 dark:bg-slate-800/40 opacity-60 cursor-not-allowed'
                                     )}
                                     style={{ height: SLOT_HEIGHT }}
                                     onClick={() => {
-                                        const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                                        const isWeekend = !isWorkingDay(currentDate, workingDays);
                                         if (calDay && !isWeekend) onSlotClick(calDay, timeIndex);
                                     }}
                                 >

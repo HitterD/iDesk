@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import type { CalendarDay, CalendarSlot } from '../types';
 import { ZoomMonthDayPopover } from './ZoomMonthDayPopover';
 import { Video } from 'lucide-react';
+import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
 
 const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
@@ -71,6 +72,8 @@ export function ZoomMonthView({
 }: ZoomMonthViewProps) {
     const [popoverDate, setPopoverDate] = useState<string | null>(null);
     const days = useMemo(() => getDaysGrid(currentDate), [currentDate]);
+    const { data: zoomSettings } = useZoomSettings();
+    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
 
     const calendarMap = useMemo(() => {
         const map = new Map<string, CalendarDay>();
@@ -113,7 +116,7 @@ export function ZoomMonthView({
                     const visibleEvents = events.slice(0, 3);
                     const overflow = events.length - visibleEvents.length;
                     const isBlocked = calDay?.isBlocked ?? false;
-                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    const isWeekend = !isWorkingDay(day, workingDays);
 
                     return (
                         <div
