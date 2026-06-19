@@ -31,6 +31,11 @@ interface ZoomDayViewProps {
     onSlotClick: (day: CalendarDay, slotIndex: number) => void;
     onBookingClick: (booking: ProcessedBooking) => void;
     onNavigateDay: (delta: number) => void;
+    /** When true, day view is rendering in single-account fallback mode because
+     *  the user was in Gabungan mode. The banner explains this and shows which
+     *  account was auto-picked. */
+    forceSingleAccountMode?: boolean;
+    forceSingleAccountName?: string;
 }
 
 function getTimeOffset(timeLabels: string[], currentTime: Date): number | null {
@@ -59,6 +64,8 @@ export function ZoomDayView({
     onSlotClick,
     onBookingClick,
     onNavigateDay,
+    forceSingleAccountMode = false,
+    forceSingleAccountName,
 }: ZoomDayViewProps) {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const calDay = calendar.find((d) => d.date === dateStr);
@@ -105,6 +112,15 @@ export function ZoomDayView({
 
     return (
         <div className="flex flex-col h-full min-h-0">
+            {forceSingleAccountMode && (
+                <div
+                    data-testid="zoom-day-view-force-single-banner"
+                    className="sticky top-0 z-30 flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-xs font-medium text-amber-800 dark:text-amber-200"
+                >
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-500" aria-hidden="true" />
+                    Day view menampilkan 1 akun{forceSingleAccountName ? `: ${forceSingleAccountName}` : ''}. Untuk lihat semua akun, gunakan Week atau Month view.
+                </div>
+            )}
             {/* Mini header with prev/next */}
             <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onNavigateDay(-1)}>
