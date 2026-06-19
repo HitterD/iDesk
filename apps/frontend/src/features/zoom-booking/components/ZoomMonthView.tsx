@@ -40,6 +40,8 @@ interface DayEvents {
     bookingId?: string;
     startTime?: string;
     joinUrl?: string;
+    accountName?: string;
+    accountColorHex?: string;
 }
 
 function getDayEvents(day: CalendarDay | undefined): DayEvents[] {
@@ -50,12 +52,17 @@ function getDayEvents(day: CalendarDay | undefined): DayEvents[] {
     for (const slot of day.slots) {
         if (slot.booking && !seenIds.has(slot.booking.id)) {
             seenIds.add(slot.booking.id);
+            const slotBooking = slot.booking as (typeof slot.booking & {
+                zoomAccount?: { colorHex?: string; name?: string };
+            });
             events.push({
                 status: slot.status,
                 title: slot.booking.title,
                 bookingId: slot.booking.id,
                 startTime: slot.booking.startTime || slot.time,
                 joinUrl: slot.booking.joinUrl,
+                accountName: slotBooking?.zoomAccount?.name ?? 'Zoom',
+                accountColorHex: slotBooking?.zoomAccount?.colorHex ?? '#3b82f6',
             });
         }
     }
@@ -181,7 +188,16 @@ export function ZoomMonthView({
                                             }
                                         }}
                                     >
-                                        {event.title}
+                                        <span className="flex items-center gap-1">
+                                            <span
+                                                className="w-1.5 h-1.5 rounded-full bg-white/90 ring-1 ring-black/20 shrink-0"
+                                                aria-hidden="true"
+                                            />
+                                            <span className="font-semibold opacity-95 truncate max-w-[55px]">
+                                                {event.accountName}
+                                            </span>
+                                            <span className="truncate">{event.title}</span>
+                                        </span>
                                     </div>
                                 ))}
                                 {overflow > 0 && (
