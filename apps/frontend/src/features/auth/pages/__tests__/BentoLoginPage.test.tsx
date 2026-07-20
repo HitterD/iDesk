@@ -10,7 +10,7 @@ describe('BentoLoginPage smoke', () => {
         <BentoLoginPage />
       </MemoryRouter>
     );
-    expect(screen.getByPlaceholderText(/user@company\.com/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/nik atau email/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/•+/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /continue|sign in|authenticate/i })).toBeInTheDocument();
   });

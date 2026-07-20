@@ -59,8 +59,8 @@ export const BentoLoginPage = () => {
         if (!email.trim() || !password) {
             setLoginError({
                 type: 'warning',
-                message: !email.trim() ? 'Email is required.' : 'Password is required.',
-                details: 'Both email and password are required.',
+                message: !email.trim() ? 'NIK / Email is required.' : 'Password is required.',
+                details: 'NIK/Email dan password wajib diisi.',
             });
             return;
         }
@@ -188,11 +188,11 @@ export const BentoLoginPage = () => {
                     <form onSubmit={handleSubmit} noValidate className={cn("space-y-4 animate-rise", loginError && "animate-shake")} style={{ animationDelay: '0.34s' }}>
                         <div className="space-y-2">
                             <label htmlFor="login-email" className="block text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
-                                Email Address
+                                NIK / Email
                             </label>
                             <input
                                 id="login-email"
-                                type="email"
+                                type="text"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={handleKeyDown}
@@ -203,8 +203,8 @@ export const BentoLoginPage = () => {
                                     "hover:border-border",
                                     loginError?.type === 'error' && "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
                                 )}
-                                placeholder="user@company.com"
-                                autoComplete="email"
+                                placeholder="NIK atau email"
+                                autoComplete="username"
                                 disabled={isLoading}
                             />
                         </div>
