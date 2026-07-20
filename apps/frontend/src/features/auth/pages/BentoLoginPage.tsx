@@ -7,6 +7,8 @@ import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS } from '../ut
 import { useTheme } from '@/hooks/useTheme';
 import api from '../../../lib/api';
 
+const DASHBOARD_ROLES = new Set(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE']);
+
 export const BentoLoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -81,7 +83,7 @@ export const BentoLoginPage = () => {
             setFailedAttempts(0);
             login(user);
 
-            if (user.role === 'ADMIN' || user.role === 'AGENT') {
+            if (DASHBOARD_ROLES.has(user.role)) {
                 navigate('/dashboard');
             } else if (user.role === 'MANAGER') {
                 navigate('/manager/dashboard');

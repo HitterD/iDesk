@@ -102,7 +102,7 @@ export class UsersController {
 
     @Get('agents')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT)
     @ApiOperation({ summary: 'Get agents, optionally filtered by siteId' })
     @ApiQuery({ name: 'siteId', required: false, description: 'Filter agents by site ID' })
     @ApiResponse({ status: 200, description: 'Return agents.' })
@@ -112,7 +112,7 @@ export class UsersController {
 
     @Get('agents/stats')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT)
     @ApiOperation({ summary: 'Get agent performance statistics' })
     @ApiResponse({ status: 200, description: 'Return agent stats with ticket counts.' })
     async getAgentStats() {

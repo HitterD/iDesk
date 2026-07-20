@@ -200,7 +200,7 @@ export const BentoSidebar = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     // Fetch pending approvals for managers/admins to show badge count
-    const isManagerOrAdmin = user?.role === 'MANAGER' || user?.role === 'ADMIN' || user?.role === 'AGENT';
+    const isManagerOrAdmin = ['MANAGER', 'ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(user?.role || '');
     const { data: pendingApprovals } = usePendingApprovals();
     const pendingCount = isManagerOrAdmin ? pendingApprovals?.length : 0;
 

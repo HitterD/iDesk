@@ -41,7 +41,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     // Site isolation: AGENT is locked to their own site
     const { user: authUser } = useAuth();
-    const isAgentRole = authUser?.role === 'AGENT';
+    const isAgentRole = ['AGENT', 'AGENT_OPERATIONAL_SUPPORT'].includes(authUser?.role || '');
 
     const [selectedSite, setSelectedSite] = useState('ALL');
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -250,7 +250,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const usersByRole = useMemo(() => ({
         ADMIN: filteredUsers.filter(u => u.role === 'ADMIN'),
         MANAGER: filteredUsers.filter(u => u.role === 'MANAGER'),
-        AGENT: filteredUsers.filter(u => u.role === 'AGENT'),
+        AGENT: filteredUsers.filter(u => ['AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(u.role)),
         USER: filteredUsers.filter(u => u.role === 'USER'),
     }), [filteredUsers]);
 

@@ -18,6 +18,12 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { PermissionsService } from '../permissions/permissions.service';
 
+const OPERATIONAL_AGENT_ROLES = [
+    UserRole.AGENT,
+    UserRole.ADMIN,
+    UserRole.AGENT_OPERATIONAL_SUPPORT,
+];
+
 @Injectable()
 export class UserCrudService {
     private readonly logger = new Logger(UserCrudService.name);
@@ -249,7 +255,7 @@ export class UserCrudService {
             .leftJoinAndSelect('user.site', 'site')
             .where('user.isActive = :isActive', { isActive: true })
             .andWhere('user.role IN (:...roles)', {
-                roles: [UserRole.AGENT, UserRole.ADMIN],
+                roles: OPERATIONAL_AGENT_ROLES,
             })
             .select([
                 'user.id', 'user.fullName', 'user.email', 'user.role',
