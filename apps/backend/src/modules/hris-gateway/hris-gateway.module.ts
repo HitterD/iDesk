@@ -1,0 +1,16 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Site } from '../sites/entities/site.entity';
+import { Department } from '../users/entities/department.entity';
+import { User } from '../users/entities/user.entity';
+import { HrisGatewayAdapter } from './hris-gateway.adapter';
+import { HrisSyncController } from './hris-sync.controller';
+import { HrisSyncService } from './hris-sync.service';
+
+@Module({
+    imports: [TypeOrmModule.forFeature([User, Site, Department])],
+    providers: [HrisGatewayAdapter, HrisSyncService],
+    controllers: [HrisSyncController],
+    exports: [HrisGatewayAdapter, HrisSyncService],
+})
+export class HrisGatewayModule {}

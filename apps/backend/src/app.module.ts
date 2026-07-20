@@ -122,6 +122,7 @@ import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './
 // Shared Guards Module (provides PageAccessGuard, FeatureAccessGuard with dependencies)
 import { SharedGuardsModule } from './shared/core/shared-guards.module';
 import { HardwareRequestModule } from './modules/hardware-request/hardware-request.module';
+import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
 
 @Module({
     imports: [
@@ -220,6 +221,7 @@ import { HardwareRequestModule } from './modules/hardware-request/hardware-reque
         EFormRequestModule, // E-Form Access (VPN MVP)
         SharedGuardsModule, // Provides PageAccessGuard and FeatureAccessGuard with dependencies
         HardwareRequestModule,
+        HrisGatewayModule,
         EncryptionModule, // Provides CredentialCipherService (AES-256-GCM) for at-rest credential protection
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
