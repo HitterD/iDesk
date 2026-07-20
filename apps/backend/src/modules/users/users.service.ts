@@ -73,6 +73,10 @@ export class UsersService {
         return this.userCrudService.findByEmail(email);
     }
 
+    async findByEmployeeId(employeeId: string): Promise<User | undefined> {
+        return this.userCrudService.findByEmployeeId(employeeId);
+    }
+
     async updatePassword(userId: string, newPasswordHash: string): Promise<void> {
         return this.userPasswordService.updatePassword(userId, newPasswordHash);
     }

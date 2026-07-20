@@ -8,6 +8,8 @@ import { AuditAction } from '../../audit/entities/audit-log.entity';
 import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
 import { BCRYPT_ROUNDS } from '../../../shared/core/config/security.config';
+import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
+import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 
 // Login validation result types
 export interface LoginValidationResult {
@@ -22,6 +24,8 @@ export class AuthService {
         private jwtService: JwtService,
         private usersService: UsersService,
         private auditService: AuditService,
+        private hrisGateway: HrisGatewayAdapter,
+        private hrisSync: HrisSyncService,
     ) { }
 
     async changePassword(userId: string, dto: ChangePasswordDto, request?: Request) {
@@ -55,7 +59,12 @@ export class AuthService {
      * Validate user credentials with specific error codes
      * Returns result object with error code instead of just null
      */
-    async validateUserWithDetails(email: string, pass: string, request?: Request): Promise<LoginValidationResult> {
+    async validateUserWithDetails(identifier: string, pass: string, request?: Request): Promise<LoginValidationResult> {
+        if (!identifier.includes('@')) {
+            return this.validateNikUser(identifier.trim(), pass, request);
+        }
+
+        const email = identifier;
         const user = await this.usersService.findByEmail(email);
 
         // User not found
@@ -121,6 +130,61 @@ export class AuthService {
             success: true,
             user: result,
         };
+    }
+
+    private async validateNikUser(nik: string, pass: string, request?: Request): Promise<LoginValidationResult> {
+        const verification = await this.hrisGateway.verifyPassword(nik, pass);
+
+        if (verification && !verification.valid) {
+            return this.logNikFailure(nik, 'USER_NOT_FOUND', 'not found in HRIS', request);
+        }
+        if (verification && !verification.eligible) {
+            return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'not eligible in HRIS', request);
+        }
+
+        let user = await this.usersService.findByEmployeeId(nik);
+        let authenticated = verification?.match === true;
+
+        if (!authenticated && user) {
+            authenticated = await bcrypt.compare(pass, user.password || '');
+        }
+        if (!authenticated) {
+            return this.logNikFailure(nik, user ? 'WRONG_PASSWORD' : 'USER_NOT_FOUND', 'password rejected', request, user?.id);
+        }
+
+        if (!user) {
+            const employee = await this.hrisGateway.getEmployee(nik);
+            if (!employee) {
+                return this.logNikFailure(nik, 'USER_NOT_FOUND', 'profile unavailable for provisioning', request);
+            }
+            user = await this.hrisSync.provisionEmployee(employee);
+        }
+
+        if ((user as any).isActive === false || (user as any).status === 'DISABLED') {
+            return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'account disabled locally', request, user.id);
+        }
+
+        const { password, ...result } = user;
+        return { success: true, user: result };
+    }
+
+    private logNikFailure(
+        nik: string,
+        errorCode: NonNullable<LoginValidationResult['errorCode']>,
+        reason: string,
+        request?: Request,
+        userId = 'system',
+    ): LoginValidationResult {
+        this.auditService.logAsync({
+            userId,
+            action: AuditAction.LOGIN_FAILED,
+            entityType: 'auth',
+            entityId: userId === 'system' ? undefined : userId,
+            description: `Login failed for NIK ${nik}: ${reason}`,
+            newValue: { nik, reason: errorCode },
+            request,
+        });
+        return { success: false, errorCode };
     }
 
     async validateUser(email: string, pass: string): Promise<any> {

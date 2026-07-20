@@ -238,6 +238,11 @@ export class UserCrudService {
         return user || undefined;
     }
 
+    async findByEmployeeId(employeeId: string): Promise<User | undefined> {
+        const user = await this.userRepo.findOne({ where: { employeeId } });
+        return user || undefined;
+    }
+
     async getAgents(siteId?: string): Promise<User[]> {
         const qb = this.userRepo
             .createQueryBuilder('user')

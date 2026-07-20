@@ -4,6 +4,8 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../../users/users.service';
 import { AuditService } from '../../audit/audit.service';
 import * as bcrypt from 'bcrypt';
+import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
+import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 
 // Mock bcrypt
 jest.mock('bcrypt');
@@ -49,6 +51,14 @@ describe('AuthService', () => {
                     useValue: {
                         logAsync: jest.fn(),
                     },
+                },
+                {
+                    provide: HrisGatewayAdapter,
+                    useValue: { verifyPassword: jest.fn(), getEmployee: jest.fn() },
+                },
+                {
+                    provide: HrisSyncService,
+                    useValue: { provisionEmployee: jest.fn() },
                 },
             ],
         }).compile();
@@ -118,7 +128,13 @@ describe('AuthService', () => {
             const result = await service.login(mockUser);
 
             expect(jwtService.sign).toHaveBeenCalledWith(
-                { username: mockUser.email, sub: mockUser.id, role: mockUser.role, type: 'access' },
+                {
+                    username: mockUser.email,
+                    sub: mockUser.id,
+                    role: mockUser.role,
+                    type: 'access',
+                    fullName: mockUser.fullName,
+                },
                 expect.any(Object)
             );
             expect(result.access_token).toBe(mockToken);
