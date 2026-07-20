@@ -21,6 +21,8 @@
 - Mapping role: `nama_departemen` diawali `SECURITY & NETWORK INFRASTURCTURE` → `AGENT_OPERATIONAL_SUPPORT` (perhatikan typo HRIS: INFRASTURCTURE); persis `INFORMATION SYSTEM DEVELOPMENT` → `AGENT_ORACLE`; lainnya → `USER`.
 - Password default: `123456` (konstanta `DEFAULT_HRIS_PASSWORD`), selalu disimpan bcrypt.
 - Sync TIDAK meng-overwrite `password`, `role`, `email`, `isActive` user yang sudah ada.
+- `AGENT_OPERATIONAL_SUPPORT` mendapat akses kerja setara legacy `AGENT` pada fitur operasional. `AGENT_ORACLE` mendapat dashboard dan endpoint Oracle/K2 saja; keduanya bukan ADMIN dan tidak mendapat endpoint administrasi.
+- Semua guard/redirect/query yang semantik-nya "agent operasional" wajib memakai daftar role yang sama: `[ADMIN, AGENT, AGENT_OPERATIONAL_SUPPORT]`. Endpoint/query Oracle memakai `[ADMIN, AGENT_ORACLE]`. Hindari memberi kedua role akses endpoint lama hanya karena endpoint itu pernah menerima `AGENT`.
 - Gateway response nyata (terverifikasi): `POST /auth/verify` → HTTP 201 `{valid, eligible, match}`; `GET /employees?page=N` → `{data: HrisEmployee[50], total: 4736}` (param `limit`/`offset` TIDAK didukung); `GET /employees/:nik` → satu objek employee; koneksi kadang drop (HTTP 000) → GET wajib retry.
 - Semua command backend dijalankan dari `apps/backend`; frontend dari `apps/frontend`.
 
@@ -1127,7 +1129,144 @@ git commit -m "feat(auth): add NIK HRIS login path with gateway verify and JIT p
 
 ---
 
-### Task 5: Frontend — field login "NIK / Email"
+### Task 5: Akses operasional untuk role Agent baru
+
+**Files:**
+- Modify: `apps/backend/src/modules/users/users.controller.ts:103-119`
+- Modify: `apps/backend/src/modules/users/user-crud.service.ts:241-260`
+- Modify: `apps/frontend/src/features/auth/pages/BentoLoginPage.tsx:84-90`
+- Modify: `apps/frontend/src/features/admin/pages/BentoAdminAgentsPage.tsx:43-45,253`
+- Modify: `apps/frontend/src/components/layout/BentoSidebar.tsx:203`
+- Test: `apps/backend/src/modules/users/user-crud.service.hris.spec.ts` (file baru; unit test `getAgents` query builder)
+
+**Interfaces:**
+- Consumes: `UserRole` enum existing.
+- Produces:
+  - `OPERATIONAL_AGENT_ROLES = [UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT]` di `users.controller.ts` dan `user-crud.service.ts` (file-local karena hanya dua consumer, tidak ada abstraction baru).
+  - `AGENT_ORACLE` redirect ke `/dashboard`, tetapi tidak lolos endpoint `/users/agents` dan `/users/agents/stats`.
+  - Halaman Admin Agents menampilkan `AGENT_OPERATIONAL_SUPPORT` di kelompok operasional dan `AGENT_ORACLE` di kelompok Oracle, bukan kelompok legacy `AGENT`.
+
+- [ ] **Step 1: Tulis test role query getAgents**
+
+Buat `apps/backend/src/modules/users/user-crud.service.hris.spec.ts`:
+
+```typescript
+import { UserCrudService } from './user-crud.service';
+import { UserRole } from './enums/user-role.enum';
+
+describe('UserCrudService.getAgents — role HRIS', () => {
+    it('memasukkan legacy AGENT dan AGENT_OPERATIONAL_SUPPORT, bukan AGENT_ORACLE', async () => {
+        const qb = {
+            leftJoinAndSelect: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue([]),
+        };
+        const userRepo = { createQueryBuilder: jest.fn(() => qb) };
+        const service = new UserCrudService(
+            userRepo as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+        );
+
+        await service.getAgents();
+
+        expect(qb.andWhere).toHaveBeenCalledWith('user.role IN (:...roles)', {
+            roles: [UserRole.AGENT, UserRole.ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT],
+        });
+    });
+});
+```
+
+- [ ] **Step 2: Jalankan test, pastikan gagal**
+
+Run: `cd apps/backend && npx jest user-crud.service.hris --runInBand`
+Expected: FAIL karena query existing hanya berisi `AGENT` dan `ADMIN`.
+
+- [ ] **Step 3: Ubah backend role access minimum**
+
+Di `apps/backend/src/modules/users/user-crud.service.ts`, dekat import/top-level constants:
+
+```typescript
+const OPERATIONAL_AGENT_ROLES = [
+    UserRole.AGENT,
+    UserRole.ADMIN,
+    UserRole.AGENT_OPERATIONAL_SUPPORT,
+];
+```
+
+Di `getAgents`, ganti array literal pada `roles`:
+
+```typescript
+roles: OPERATIONAL_AGENT_ROLES,
+```
+
+Di `apps/backend/src/modules/users/users.controller.ts`, endpoint `GET /users/agents` dan `GET /users/agents/stats`, ganti decorator masing-masing menjadi:
+
+```typescript
+@Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT)
+```
+
+JANGAN tambahkan `AGENT_ORACLE`: endpoint ini menampilkan/menangani agent operasional, sedangkan Oracle sudah punya halaman dan guard spesifik `AGENT_ORACLE`.
+
+- [ ] **Step 4: Ubah redirect + display group frontend**
+
+Di `BentoLoginPage.tsx`, buat konstanta file-local sebelum component:
+
+```typescript
+const DASHBOARD_ROLES = new Set(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE']);
+```
+
+Ganti kondisi redirect:
+
+```typescript
+if (DASHBOARD_ROLES.has(user.role)) {
+    navigate('/dashboard');
+} else if (user.role === 'MANAGER') {
+```
+
+Di `BentoAdminAgentsPage.tsx`:
+
+```typescript
+const isAgentRole = ['AGENT', 'AGENT_OPERATIONAL_SUPPORT'].includes(authUser?.role || '');
+```
+
+Pada object pengelompokan user sekitar line 253, pertahankan key/section legacy `AGENT` untuk `u.role === 'AGENT'`, lalu tambahkan key terpisah agar varian baru tampil benar:
+
+```typescript
+AGENT_OPERATIONAL_SUPPORT: filteredUsers.filter(u => u.role === 'AGENT_OPERATIONAL_SUPPORT'),
+AGENT_ORACLE: filteredUsers.filter(u => u.role === 'AGENT_ORACLE'),
+```
+
+Di `BentoSidebar.tsx` line ~203, perluas `isManagerOrAdmin` untuk tampilan menu kerja operasional saja:
+
+```typescript
+const isManagerOrAdmin = ['MANAGER', 'ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(user?.role || '');
+```
+
+JANGAN mass-replace checks `role === 'AGENT'` lain. Audit endpoint/feature satu per satu saat role baru butuh akses nyata; memberi akses luas sekarang melanggar least privilege.
+
+- [ ] **Step 5: Jalankan test dan type check**
+
+Run:
+
+```bash
+cd apps/backend && npx jest users.technicians --runInBand
+cd ../../apps/frontend && npx tsc --noEmit
+```
+
+Expected: PASS dan tanpa error TypeScript baru.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/backend/src/modules/users/ apps/frontend/src/features/auth/pages/BentoLoginPage.tsx apps/frontend/src/features/admin/pages/BentoAdminAgentsPage.tsx apps/frontend/src/components/layout/BentoSidebar.tsx
+git commit -m "feat(auth): grant operational access to HRIS agent roles"
+```
+
+---
+
+### Task 6: Frontend — field login "NIK / Email"
 
 **Files:**
 - Modify: `apps/frontend/src/features/auth/pages/BentoLoginPage.tsx` (line ~57-61 pesan error, ~188-205 field)
@@ -1140,8 +1279,8 @@ git commit -m "feat(auth): add NIK HRIS login path with gateway verify and JIT p
 - [ ] **Step 1: Ubah field**
 
 Di `BentoLoginPage.tsx`:
-- Label (line ~188-190): teks `Email` → `NIK / Email`.
-- Input (line ~192-205): `type="email"` → `type="text"`, `autoComplete="email"` → `autoComplete="username"`, placeholder (jika ada) → `"NIK atau email"`.
+- Label (line ~188-190): teks `Email Address` → `NIK / Email`.
+- Input (line ~192-205): `type="email"` → `type="text"`, `autoComplete="email"` → `autoComplete="username"`, placeholder → `"NIK atau email"`.
 - Validasi submit (line ~57-61): pesan `'Email is required.'` → `'NIK / Email is required.'` dan `'Both email and password are required.'` → `'NIK/Email dan password wajib diisi.'`. JANGAN tambah validasi format email — NIK harus lolos.
 
 - [ ] **Step 2: Jalankan test frontend login**
@@ -1159,7 +1298,7 @@ git commit -m "feat(login): accept NIK or email in single login field"
 
 ---
 
-### Task 6: Verifikasi integrasi manual (Gateway live + sync)
+### Task 7: Verifikasi integrasi manual (Gateway live + sync)
 
 **Files:** tidak ada perubahan kode — checklist verifikasi.
 
