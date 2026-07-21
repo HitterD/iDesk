@@ -5,6 +5,7 @@ import { Ticket } from '../entities/ticket.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
+import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' } as const;
@@ -377,7 +378,7 @@ export class TicketQueryService {
         };
     }
 
-    async findOne(id: string): Promise<any> {
+    async findOne(id: string, user?: { id?: string; role: UserRole | string }): Promise<any> {
         const ticket = await this.ticketRepo.findOne({
             where: { id },
             relations: ['user', 'user.department', 'assignedTo', 'messages', 'messages.sender'],
@@ -385,6 +386,10 @@ export class TicketQueryService {
 
         if (!ticket) {
             throw new NotFoundException('Ticket not found');
+        }
+
+        if (user) {
+            validateTicketAccess(user, ticket);
         }
 
         // Use stored SLA Target if available, otherwise calculate it (for backwards compatibility)

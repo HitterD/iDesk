@@ -1,11 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { Ticket } from '../entities/ticket.entity';
+import { Ticket, TicketType } from '../entities/ticket.entity';
 
-export function isOracleK2Category(category?: string | null): boolean {
+export function isOracleK2Category(category?: string | null, ticketType?: string | null): boolean {
+    if (ticketType === TicketType.ORACLE_REQUEST || ticketType === 'ORACLE_REQUEST') return true;
     if (!category) return false;
     const cat = category.toLowerCase().trim();
-    return cat === 'oracle' || cat === 'k2' || cat === 'oracle / k2' || cat === 'oracle/k2';
+    return cat === 'oracle' || cat === 'k2' || cat === 'oracle / k2' || cat === 'oracle/k2' || cat === 'oracle_request';
 }
 
 export function isOracleRole(role?: string | null): boolean {
@@ -15,7 +16,7 @@ export function isOracleRole(role?: string | null): boolean {
 export function canAccessTicketObject(user: { id?: string; role: UserRole | string }, ticket: Partial<Ticket>): boolean {
     if (user.role === UserRole.ADMIN) return true;
 
-    const isOracleTicket = isOracleK2Category(ticket.category);
+    const isOracleTicket = isOracleK2Category(ticket.category, ticket.ticketType);
     const isOracle = isOracleRole(user.role);
 
     if (isOracle) {

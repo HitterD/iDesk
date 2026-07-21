@@ -18,6 +18,7 @@ import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { WorkloadService } from '../../workload/workload.service';
+import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 
 @Injectable()
 export class TicketUpdateService {
@@ -66,6 +67,7 @@ export class TicketUpdateService {
             if (!user) {
                 throw new NotFoundException('User not found');
             }
+            validateTicketAccess(user, ticket);
 
             const changes: string[] = [];
             const oldStatus = ticket.status;
@@ -256,6 +258,7 @@ export class TicketUpdateService {
         if (!assigner) {
             throw new NotFoundException('Assigner not found');
         }
+        validateTicketAccess(assigner, ticket);
 
         const oldAssigneeName = ticket.assignedTo ? ticket.assignedTo.fullName : 'Unassigned';
         const oldAssigneeId = ticket.assignedTo ? ticket.assignedTo.id : null;
