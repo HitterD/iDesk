@@ -73,6 +73,10 @@ export class User {
     @Column({ type: 'timestamp', nullable: true })
     lastActiveAt: Date;
 
+    // Wajib ganti password saat login (default 123456 / first login / reset admin)
+    @Column({ default: false })
+    mustChangePassword: boolean;
+
     // M4: Refresh token rotation support
     @Column({ type: 'varchar', nullable: true })
     hashedRefreshToken?: string;
