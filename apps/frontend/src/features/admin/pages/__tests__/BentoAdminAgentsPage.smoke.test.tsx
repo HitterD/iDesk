@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
 import api from '@/lib/api';
@@ -68,5 +68,30 @@ describe('BentoAdminAgentsPage (characterization)', () => {
         });
         renderPage();
         expect(await screen.findByText('Agent Cards')).toBeInTheDocument();
+    });
+
+    it('uses server role counts and forwards current filters to agent stats', async () => {
+        (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+            if (url.startsWith('/users?')) {
+                return Promise.resolve({
+                    data: {
+                        data: [],
+                        meta: {
+                            total: 10, page: 1, limit: 50, totalPages: 1,
+                            hasNextPage: false, hasPrevPage: false,
+                            roleCounts: { AGENT: 2, USER: 8 },
+                        },
+                    },
+                });
+            }
+            if (url.startsWith('/users/agents/stats?')) return Promise.resolve({ data: { agents: [] } });
+            if (url.startsWith('/sites/active')) return Promise.resolve({ data: [] });
+            if (url.startsWith('/permissions')) return Promise.resolve({ data: [] });
+            return Promise.resolve({ data: [] });
+        });
+
+        renderPage();
+        expect(await screen.findByText('2')).toBeInTheDocument();
+        await waitFor(() => expect(api.get).toHaveBeenCalledWith('/users/agents/stats?'));
     });
 });

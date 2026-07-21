@@ -140,15 +140,17 @@ export const BentoAdminAgentsPage: React.FC = () => {
     }, [isAgentRole, authUser?.siteId, sitesData]);
 
     // Fetch agent stats from backend API (pre-computed on server)
-    // Backend returns { summary, agents } - we extract the agents array
     const { data: agentStats = [] } = useQuery<AgentStats[]>({
-        queryKey: ['agent-stats'],
+        queryKey: ['agent-stats', selectedSite, deferredSearchQuery, selectedRole],
         queryFn: async () => {
-            const res = await api.get('/users/agents/stats');
-            // Backend returns { summary: {...}, agents: [...] }
+            const params = new URLSearchParams();
+            if (selectedSite !== 'ALL') params.set('siteCode', selectedSite);
+            if (deferredSearchQuery) params.set('search', deferredSearchQuery);
+            if (selectedRole !== 'ALL') params.set('role', selectedRole);
+            const res = await api.get(`/users/agents/stats?${params.toString()}`);
             return res.data.agents || [];
         },
-        staleTime: 30000, // Cache for 30 seconds
+        staleTime: 30000,
     });
 
     // Users are already filtered by server, just use them directly
@@ -205,32 +207,27 @@ export const BentoAdminAgentsPage: React.FC = () => {
     // HIGH: Keyboard shortcuts (must be after filteredUsers is defined)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Don't trigger if user is typing in an input
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
                 return;
             }
 
-            // ? - Show keyboard help
             if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 setShowKeyboardHelp(true);
             }
 
-            // Ctrl+Shift+A - Select all users (avoids browser Ctrl+A conflict)
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'A') {
                 e.preventDefault();
                 const allIds = filteredUsers.map(u => u.id);
                 setSelectedUserIds(new Set(allIds));
             }
 
-            // Delete - Delete selected users
             if (e.key === 'Delete' && selectedUserIds.size > 0) {
                 e.preventDefault();
                 setIsBulkDeleteOpen(true);
             }
 
-            // Escape - Close any open dialogs
             if (e.key === 'Escape') {
                 setShowKeyboardHelp(false);
             }
@@ -254,47 +251,32 @@ export const BentoAdminAgentsPage: React.FC = () => {
         USER: filteredUsers.filter(u => u.role === 'USER'),
     }), [filteredUsers]);
 
-    // Filtered agent stats for performance table (P2-2: includes role filter)
-    const filteredAgentStats = useMemo(() => {
-        let result = agentStats;
-        if (selectedSite !== 'ALL') {
-            result = result.filter(a => a.site?.code === selectedSite);
-        }
-        if (selectedRole !== 'ALL') {
-            result = result.filter(a => a.role === selectedRole);
-        }
-        return result;
-    }, [agentStats, selectedSite, selectedRole]);
-
-    // Dashboard stats - use filteredAgentStats for consistency (H2 fix)
+    // Dashboard stats - use agentStats directly
     const dashboardStats = useMemo(() => {
-        const totalResolved = filteredAgentStats.reduce((sum, a) => sum + a.resolvedThisMonth, 0);
-        const totalActive = filteredAgentStats.filter(a => a.inProgressTickets > 0).length;
-        const topPerformer = [...filteredAgentStats].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
+        const totalResolved = agentStats.reduce((sum, a) => sum + a.resolvedThisMonth, 0);
+        const totalActive = agentStats.filter(a => a.inProgressTickets > 0).length;
+        const topPerformer = [...agentStats].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth)[0];
 
         return {
-            totalAgents: filteredAgentStats.length,
+            totalAgents: agentStats.length,
             totalResolved,
             totalActive,
             topPerformer: topPerformer?.fullName || '-',
             topPerformerTickets: topPerformer?.resolvedThisMonth || 0,
         };
-    }, [filteredAgentStats]);
+    }, [agentStats]);
 
-    // P2-3: Displayed agent stats with stats card filter + E3: sorting
+    // Displayed agent stats with stats card filter + sorting
     const displayedAgentStats = useMemo(() => {
-        let result = filteredAgentStats;
+        let result = agentStats;
 
-        // Apply stats filter
         if (statsFilter === 'active') result = result.filter(a => a.inProgressTickets > 0);
         if (statsFilter === 'resolved') result = result.filter(a => a.resolvedThisMonth > 0);
         if (statsFilter === 'top') {
-            // Show only the top performer
             const sorted = [...result].sort((a, b) => b.resolvedThisMonth - a.resolvedThisMonth);
             return sorted.slice(0, 1);
         }
 
-        // E3: Apply column sorting
         return [...result].sort((a, b) => {
             const aVal = sortConfig.key === 'fullName'
                 ? a.fullName.toLowerCase()
@@ -312,18 +294,13 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 ? (aVal as number) - (bVal as number)
                 : (bVal as number) - (aVal as number);
         });
-    }, [filteredAgentStats, statsFilter, sortConfig]);
+    }, [agentStats, statsFilter, sortConfig]);
 
     // Site counts for tabs
-    // For ALL: use paginationMeta.total (real server total) when available, else fall back to agentStats.length
-    // For per-site: use agentStats which contains all agents across pages
-    const siteCounts = useMemo(() => {
-        const counts: Record<string, number> = { ALL: paginationMeta?.total ?? agentStats.length };
-        sitesData.forEach(site => {
-            counts[site.code] = agentStats.filter(a => a.site?.code === site.code).length;
-        });
-        return counts;
-    }, [agentStats, sitesData, paginationMeta]);
+    const siteCounts = useMemo(() => ({
+        ALL: paginationMeta?.total ?? 0,
+        ...(paginationMeta?.siteCounts ?? {}),
+    }), [paginationMeta]);
 
     const deleteMutation = useMutation({
         mutationFn: async (userId: string) => {
@@ -581,7 +558,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
             {/* P1-1 + P3-1: Agent Performance - Conditional Grid/Table View */}
             <AgentPerformancePanel
                 displayedAgentStats={displayedAgentStats}
-                filteredAgentStats={filteredAgentStats}
+                filteredAgentStats={agentStats}
                 viewMode={viewMode}
                 statsFilter={statsFilter}
                 selectedSite={selectedSite}

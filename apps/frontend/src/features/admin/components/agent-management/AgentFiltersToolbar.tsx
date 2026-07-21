@@ -19,7 +19,6 @@ interface AgentFiltersToolbarProps {
     siteCounts: Record<string, number>;
     selectedRole: RoleFilter;
     onRoleChange: (role: RoleFilter) => void;
-    users: User[];
     paginationMeta: PaginationMeta | undefined;
 }
 
@@ -36,7 +35,6 @@ export function AgentFiltersToolbar({
     siteCounts,
     selectedRole,
     onRoleChange,
-    users,
     paginationMeta,
 }: AgentFiltersToolbarProps) {
     return (
@@ -128,11 +126,9 @@ export function AgentFiltersToolbar({
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5">
                         {(['ALL', 'ADMIN', 'MANAGER', 'AGENT', 'AGENT_ADMIN', 'AGENT_ORACLE', 'AGENT_OPERATIONAL_SUPPORT', 'USER'] as const).map(role => {
-                            const isMultiPage = (paginationMeta?.totalPages ?? 1) > 1;
                             const count = role === 'ALL'
-                                ? users.length
-                                : users.filter(u => u.role === role).length;
-                            const displayCount = isMultiPage && role !== 'ALL' ? `~${count}` : count;
+                                ? (paginationMeta?.total ?? 0)
+                                : (paginationMeta?.roleCounts?.[role as keyof typeof paginationMeta.roleCounts] ?? 0);
                             const roleConfig = ROLE_CONFIG[role as keyof typeof ROLE_CONFIG];
                             const RoleIcon = roleConfig?.icon || Users;
 
@@ -141,7 +137,6 @@ export function AgentFiltersToolbar({
                                     key={role}
                                     onClick={() => onRoleChange(role)}
                                     disabled={count === 0 && role !== 'ALL'}
-                                    title={isMultiPage && role !== 'ALL' ? 'Count reflects current page only' : undefined}
                                     className={cn(
                                         "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 border",
                                         selectedRole === role
@@ -159,7 +154,7 @@ export function AgentFiltersToolbar({
                                             ? "bg-white/20 dark:bg-black/10"
                                             : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
                                     )}>
-                                        {displayCount}
+                                        {count}
                                     </span>
                                 </button>
                             );

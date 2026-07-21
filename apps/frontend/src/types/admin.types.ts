@@ -70,6 +70,8 @@ export interface PaginationMeta {
     totalPages: number;
     hasNextPage: boolean;
     hasPrevPage: boolean;
+    roleCounts?: Partial<Record<UserRole, number>>;
+    siteCounts?: Record<string, number>;
 }
 
 export interface PaginatedResponse<T> {
