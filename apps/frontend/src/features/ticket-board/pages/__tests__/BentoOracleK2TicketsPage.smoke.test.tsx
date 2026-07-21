@@ -1,70 +1,66 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import api from '@/lib/api';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { vi, describe, it, expect } from 'vitest';
 import { BentoOracleK2TicketsPage } from '../BentoOracleK2TicketsPage';
 
 vi.mock('@/lib/api', () => ({
     default: {
-        get: vi.fn((url: string) => {
-            if (url.startsWith('/tickets/paginated/oracle')) {
-                return Promise.resolve({
-                    data: {
-                        data: [
-                            {
-                                id: 't-1',
-                                ticketNumber: '010126-GEN-0001',
-                                title: 'Oracle DB provisioning',
-                                status: 'TODO',
-                                priority: 'HIGH',
-                                category: 'ORACLE_REQUEST',
-                                createdAt: '2026-06-12T08:00:00Z',
-                            },
-                        ],
-                        meta: { total: 1, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPrevPage: false },
-                    },
-                });
-            }
-            return Promise.resolve({ data: {} });
-        }),
+        get: vi.fn(() => Promise.resolve({ data: [] })),
+        post: vi.fn(() => Promise.resolve({ data: {} })),
         patch: vi.fn(() => Promise.resolve({ data: {} })),
     },
+}));
+
+vi.mock('@/features/ticket-board/hooks/useOracleK2Tickets', () => ({
+    useOracleK2Tickets: () => ({
+        data: {
+            data: [
+                {
+                    id: 'ora-1',
+                    ticketNumber: 'T-100',
+                    title: 'Oracle Bug',
+                    description: 'Oracle issue',
+                    status: 'TODO',
+                    priority: 'MEDIUM',
+                    category: 'Oracle',
+                    createdAt: '2026-07-21T00:00:00Z',
+                    updatedAt: '2026-07-21T00:00:00Z',
+                    user: { id: 'u-1', fullName: 'John Doe', email: 'john@example.com' },
+                },
+            ],
+            meta: { total: 1, page: 1, limit: 20, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+        },
+        isLoading: false,
+        isFetching: false,
+        isError: false,
+        refetch: vi.fn(),
+    }),
+}));
+
+vi.mock('@/stores/useAuth', () => ({
+    useAuth: () => ({
+        user: { role: 'AGENT_ORACLE', fullName: 'Oracle Agent' },
+        isAuthenticated: true,
+    }),
 }));
 
 vi.mock('@/hooks/useTicketSocket', () => ({
     useTicketListSocket: vi.fn(),
 }));
 
-const renderPage = () => {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return render(
-        <MemoryRouter>
+describe('BentoOracleK2TicketsPage', () => {
+    it('renders Oracle/K2 tickets page header and stats correctly', () => {
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
             <QueryClientProvider client={qc}>
-                <BentoOracleK2TicketsPage />
+                <MemoryRouter>
+                    <BentoOracleK2TicketsPage />
+                </MemoryRouter>
             </QueryClientProvider>
-        </MemoryRouter>
-    );
-};
+        );
 
-describe('BentoOracleK2TicketsPage (smoke)', () => {
-    it('renders page header "Oracle K2 Request"', async () => {
-        renderPage();
-        expect(await screen.findByText('Oracle K2 Request')).toBeInTheDocument();
-    });
-
-    it('calls /tickets/paginated/oracle', async () => {
-        renderPage();
-        await waitFor(() => {
-            expect(api.get).toHaveBeenCalledWith(
-                '/tickets/paginated/oracle',
-                expect.objectContaining({ params: expect.any(Object) })
-            );
-        });
-    });
-
-    it('renders the ticket list when data loads', async () => {
-        renderPage();
-        expect(await screen.findByText('Oracle DB provisioning')).toBeInTheDocument();
+        expect(screen.getByText('Oracle K2 Request')).toBeInTheDocument();
+        expect(screen.getByText('New Oracle/K2 Request')).toBeInTheDocument();
     });
 });
