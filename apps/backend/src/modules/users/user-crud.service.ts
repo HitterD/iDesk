@@ -47,6 +47,7 @@ export class UserCrudService {
             ...dto,
             password: hashedPassword,
             role: UserRole.AGENT,
+            mustChangePassword: true,
         });
         const savedUser = await this.userRepo.save(user);
 
@@ -176,6 +177,7 @@ export class UserCrudService {
             departmentId: dto.departmentId,
             siteId: dto.siteId, // P3: Site support
             appliedPresetId: dto.presetId, // P3: Map to entity's appliedPresetId
+            mustChangePassword: true,
         });
 
         const savedUser = await this.userRepo.save(user);
