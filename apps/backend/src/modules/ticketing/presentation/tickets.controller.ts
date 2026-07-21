@@ -100,7 +100,7 @@ export class TicketsController {
         return this.ticketQueryService.findAllPaginated(req.user.userId, req.user.role, userSiteId, pagination);
     }
 
-    @Get('paginated/oracle')
+    @Get(['paginated/oracle', 'oracle-k2'])
     @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Get paginated Oracle/K2 tickets (Oracle agent queue)' })
     @ApiResponse({ status: 200, description: 'Return paginated Oracle/K2 tickets.' })
@@ -146,8 +146,8 @@ export class TicketsController {
     @Get(':id/messages')
     @ApiOperation({ summary: 'Get ticket messages' })
     @ApiResponse({ status: 200, description: 'Return ticket messages.' })
-    async getMessages(@Param('id') id: string) {
-        return this.ticketMessagingService.getMessages(id);
+    async getMessages(@Param('id') id: string, @Request() req: any) {
+        return this.ticketMessagingService.getMessages(id, req.user.role);
     }
 
     @Get(':id/messages/paginated')
