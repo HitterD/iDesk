@@ -120,6 +120,8 @@ const RoleBasedRedirect = () => {
         return <Navigate to="/manager/dashboard" replace />;
     } else if (userRole === 'USER') {
         return <Navigate to="/client/my-tickets" replace />;
+    } else if (userRole === 'AGENT_ORACLE') {
+        return <Navigate to="/tickets/oracle-k2" replace />;
     }
     // ADMIN and AGENT go to admin/agent portal
     return <Navigate to="/dashboard" replace />;
@@ -175,7 +177,7 @@ export default function AppRoutes() {
 
                 <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" />} />
                 <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" />} />
-                <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'ADMIN']} />} />
+                <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'ADMIN']} requiredPageAccess="oracle_k2_tickets" />} />
                 <Route path="tickets/:id" element={<LazyRoute component={BentoTicketDetailPage} featureName="Ticket Detail" />} />
                 <Route path="tickets/create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
                 <Route path="settings" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" requiredPageAccess="settings" />} />
