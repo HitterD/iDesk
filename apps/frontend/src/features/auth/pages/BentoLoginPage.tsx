@@ -6,6 +6,7 @@ import api from '../../../lib/api';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
 import { Logo } from '../../../components/ui/Logo';
+import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
 
 interface LoginError {
     type: 'error' | 'warning' | 'info';
@@ -84,8 +85,20 @@ export const BentoLoginPage = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [failedAttempts, setFailedAttempts] = useState(0);
     const [rememberMe, setRememberMe] = useState(false);
+    const [mustChange, setMustChange] = useState<{ password: string } | null>(null);
     const login = useAuth((state) => state.login);
+    const updateUser = useAuth((state) => state.updateUser);
     const navigate = useNavigate();
+
+    const navigateByRole = useCallback((role: string) => {
+        if (role === 'ADMIN' || role === 'AGENT') {
+            navigate('/dashboard');
+        } else if (role === 'MANAGER') {
+            navigate('/manager/dashboard');
+        } else {
+            navigate('/client/my-tickets');
+        }
+    }, [navigate]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -136,12 +149,10 @@ export const BentoLoginPage = () => {
             setFailedAttempts(0);
             login(user);
 
-            if (user.role === 'ADMIN' || user.role === 'AGENT') {
-                navigate('/dashboard');
-            } else if (user.role === 'MANAGER') {
-                navigate('/manager/dashboard');
+            if (user.mustChangePassword) {
+                setMustChange({ password });
             } else {
-                navigate('/client/my-tickets');
+                navigateByRole(user.role);
             }
         } catch (err: unknown) {
             const newAttemptCount = failedAttempts + 1;
@@ -434,7 +445,19 @@ export const BentoLoginPage = () => {
             <div className="absolute right-8 bottom-6 z-10 text-[10px] text-muted-foreground/50 font-medium tracking-wide animate-in fade-in delay-1000">
                 &copy; {new Date().getFullYear()} iDesk Solutions.
             </div>
-            
+
+            {mustChange && (
+                <MustChangePasswordDialog
+                    currentPassword={mustChange.password}
+                    onSuccess={() => {
+                        const role = useAuth.getState().user?.role;
+                        updateUser({ mustChangePassword: false });
+                        setMustChange(null);
+                        if (role) navigateByRole(role);
+                    }}
+                />
+            )}
+
         </div>
     );
 };
