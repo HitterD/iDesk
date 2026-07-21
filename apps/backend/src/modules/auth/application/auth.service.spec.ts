@@ -221,6 +221,20 @@ describe('AuthService', () => {
             expect(usersService.updatePassword).toHaveBeenCalledWith(mockUser.id, 'newHashedPassword');
             expect(result.message).toBe('Password updated successfully');
         });
+
+        it('should clear mustChangePassword flag after successful change', async () => {
+            usersService.findById.mockResolvedValue(mockUser as any);
+            (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+            (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
+            usersService.updatePassword.mockResolvedValue(undefined);
+
+            await service.changePassword(mockUser.id, {
+                currentPassword: 'correctpassword',
+                newPassword: 'newpassword',
+            });
+
+            expect(usersService.update).toHaveBeenCalledWith(mockUser.id, { mustChangePassword: false });
+        });
     });
 
     describe('validateUser', () => {

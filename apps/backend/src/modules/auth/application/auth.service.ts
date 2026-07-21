@@ -37,6 +37,7 @@ export class AuthService {
 
         const newPasswordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
         await this.usersService.updatePassword(userId, newPasswordHash);
+        await this.usersService.update(userId, { mustChangePassword: false });
 
         // Audit log for password change
         this.auditService.logAsync({
