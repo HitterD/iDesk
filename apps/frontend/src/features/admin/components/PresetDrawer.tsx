@@ -399,11 +399,11 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                     {isSystem && (
                                         <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium">
                                             <Lock className="w-3 h-3" />
-                                            System preset (read-only)
+                                            System preset
                                         </span>
                                     )}
-                                    {isDirty && !isSystem && (
-                                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                    {isDirty && (
+                                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium font-medium">
                                             • Unsaved changes
                                         </span>
                                     )}
@@ -428,16 +428,14 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                             Delete
                                         </button>
                                     )}
-                                    {!isSystem && (
-                                        <button
-                                            onClick={() => saveMutation.mutate()}
-                                            disabled={saveMutation.isPending || !isDirty || !draft.name}
-                                            className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <Save className="w-3.5 h-3.5" />
-                                            {saveMutation.isPending ? 'Saving...' : 'Save'}
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => saveMutation.mutate()}
+                                        disabled={saveMutation.isPending || !isDirty || !draft.name}
+                                        className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <Save className="w-3.5 h-3.5" />
+                                        {saveMutation.isPending ? 'Saving...' : 'Save'}
+                                    </button>
                                 </div>
                             </div>
 
@@ -452,7 +450,6 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         <input
                                             type="text"
                                             value={draft.name || ''}
-                                            disabled={isSystem}
                                             onChange={e => updateDraft({ name: e.target.value })}
                                             placeholder="e.g. Senior Agent"
                                             className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800/50 border border-[hsl(var(--border))] rounded-lg outline-none focus:ring-1 focus:ring-blue-500/50 text-slate-800 dark:text-white placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -464,7 +461,6 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         </label>
                                         <select
                                             value={draft.targetRole || ''}
-                                            disabled={isSystem}
                                             onChange={e => updateDraft({ targetRole: e.target.value as PermissionPreset['targetRole'] })}
                                             className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800/50 border border-[hsl(var(--border))] rounded-lg outline-none focus:ring-1 focus:ring-blue-500/50 text-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
@@ -481,7 +477,6 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         </label>
                                         <textarea
                                             value={draft.description || ''}
-                                            disabled={isSystem}
                                             onChange={e => updateDraft({ description: e.target.value })}
                                             rows={2}
                                             placeholder="Brief description of what this preset allows..."
@@ -508,7 +503,6 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                                         canDelete: draft.permissions?.[resource]?.canDelete ?? false,
                                                     }}
                                                     onToggle={togglePermission}
-                                                    disabled={isSystem}
                                                     index={idx}
                                                 />
                                             ))}

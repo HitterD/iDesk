@@ -151,7 +151,12 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
 
     useEffect(() => {
         if (!watchedRole || !presets.length) return;
-        const match = presets.find((p: any) => p.targetRole === watchedRole);
+        const presetTargetRole = watchedRole?.startsWith('AGENT_') ? 'AGENT' : watchedRole;
+        const match = presets.find((preset: any) =>
+            watchedRole === 'AGENT_ORACLE' ? preset.name === 'Agent Oracle'
+                : watchedRole === 'AGENT_OPERATIONAL_SUPPORT' ? preset.name === 'Agent Operational Support'
+                : preset.targetRole === presetTargetRole,
+        );
         if (match) {
             setValue('presetId', match.id);
         }
