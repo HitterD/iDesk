@@ -28,7 +28,7 @@ export class UserPaginationDto {
     @IsString()
     siteCode?: string;
 
-    @ApiPropertyOptional({ description: 'Filter by role', enum: ['ADMIN', 'AGENT', 'USER'] })
+    @ApiPropertyOptional({ description: 'Filter by role', enum: ['ADMIN', 'AGENT', 'USER', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'MANAGER'] })
     @IsOptional()
     @IsString()
     role?: string;

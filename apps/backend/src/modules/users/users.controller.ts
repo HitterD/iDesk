@@ -115,8 +115,12 @@ export class UsersController {
     @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT)
     @ApiOperation({ summary: 'Get agent performance statistics' })
     @ApiResponse({ status: 200, description: 'Return agent stats with ticket counts.' })
-    async getAgentStats() {
-        return this.usersService.getAgentStats();
+    async getAgentStats(@Query() query: UserPaginationDto) {
+        return this.usersService.getAgentStats({
+            search: query.search,
+            siteCode: query.siteCode,
+            role: query.role,
+        });
     }
 
     @Get('technicians')
@@ -143,7 +147,7 @@ export class UsersController {
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 200)' })
     @ApiQuery({ name: 'search', required: false, description: 'Search by name or email' })
     @ApiQuery({ name: 'siteCode', required: false, description: 'Filter by site code (SPJ, SMG, KRW, JTB)' })
-    @ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'AGENT', 'USER'], description: 'Filter by role' })
+    @ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'AGENT', 'USER', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'MANAGER'], description: 'Filter by role' })
     @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field (fullName, email, createdAt, role)' })
     @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'], description: 'Sort order' })
     @ApiResponse({ status: 200, description: 'Return paginated users.' })

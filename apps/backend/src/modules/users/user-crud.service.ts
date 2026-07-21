@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, SelectQueryBuilder } from 'typeorm';
 import * as fs from 'fs';
 import { User } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
@@ -70,6 +70,25 @@ export class UserCrudService {
         return savedUser;
     }
 
+    private applyUserListFilters(
+        qb: SelectQueryBuilder<User>,
+        options: { search?: string; siteCode?: string; role?: string },
+        includeRole = true,
+    ): void {
+        if (options.search) {
+            qb.andWhere('(user.fullName ILIKE :search OR user.email ILIKE :search)', {
+                search: `%${options.search}%`,
+            });
+        }
+        if (options.siteCode && options.siteCode !== 'ALL') {
+            qb.andWhere('site.code = :siteCode', { siteCode: options.siteCode });
+        }
+        if (includeRole && options.role) {
+            qb.andWhere('user.role = :role', { role: options.role });
+        }
+        qb.andWhere("user.email NOT LIKE :deletedPrefix", { deletedPrefix: 'deleted_%' });
+    }
+
     async findAll(options: {
         page?: number;
         limit?: number;
@@ -94,30 +113,8 @@ export class UserCrudService {
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('user.site', 'site');
 
-        // Search filter
-        if (search) {
-            qb.andWhere(
-                '(user.fullName ILIKE :search OR user.email ILIKE :search)',
-                { search: `%${search}%` }
-            );
-        }
+        this.applyUserListFilters(qb, { search, siteCode, role });
 
-        // Site filter
-        if (siteCode && siteCode !== 'ALL') {
-            qb.andWhere('site.code = :siteCode', { siteCode });
-        }
-
-        // Role filter
-        if (role) {
-            qb.andWhere('user.role = :role', { role });
-        }
-
-        // Exclude soft-deleted users (email starts with 'deleted_')
-        qb.andWhere("user.email NOT LIKE :deletedPrefix", { deletedPrefix: 'deleted_%' });
-
-
-        // P1 perf: getCount() + getMany() → getManyAndCount() — single round-trip.
-        // Trim relations to id-only lookup so the count doesn't drag in joins.
         const validSortFields = ['fullName', 'email', 'createdAt', 'role'];
         const actualSortBy = validSortFields.includes(sortBy) ? sortBy : 'fullName';
         qb.orderBy(`user.${actualSortBy}`, sortOrder);
@@ -126,6 +123,34 @@ export class UserCrudService {
         qb.skip(skip).take(limit);
 
         const [data, total] = await qb.getManyAndCount();
+
+        const roleCountsQb = this.userRepo
+            .createQueryBuilder('user')
+            .leftJoin('user.site', 'site');
+        this.applyUserListFilters(roleCountsQb, { search, siteCode, role }, false);
+        const rawRoleCounts = await roleCountsQb
+            .select('user.role', 'role')
+            .addSelect('COUNT(*)', 'count')
+            .groupBy('user.role')
+            .getRawMany<{ role: UserRole; count: string }>();
+        const roleCounts = Object.fromEntries(
+            rawRoleCounts.map(({ role: r, count }) => [r, Number.parseInt(count, 10)]),
+        ) as Partial<Record<UserRole, number>>;
+
+        const siteCountQb = this.userRepo
+            .createQueryBuilder('user')
+            .leftJoin('user.site', 'site');
+        this.applyUserListFilters(siteCountQb, { search, siteCode: undefined, role });
+        const rawSiteCounts = await siteCountQb
+            .select('site.code', 'siteCode')
+            .addSelect('COUNT(*)', 'count')
+            .andWhere('site.code IS NOT NULL')
+            .groupBy('site.code')
+            .getRawMany<{ siteCode: string; count: string }>();
+        const siteCounts = Object.fromEntries(
+            rawSiteCounts.map(({ siteCode: sc, count }) => [sc, Number.parseInt(count, 10)]),
+        );
+
         const totalPages = Math.ceil(total / limit);
 
         return {
@@ -137,6 +162,8 @@ export class UserCrudService {
                 totalPages,
                 hasNextPage: page < totalPages,
                 hasPrevPage: page > 1,
+                roleCounts,
+                siteCounts,
             },
         };
     }
@@ -330,14 +357,15 @@ export class UserCrudService {
         return { success: true, message: `User deleted completely` };
     }
 
-    async getAgentStats(): Promise<any> {
-        const agents = await this.userRepo
+    async getAgentStats(options: { search?: string; siteCode?: string; role?: string } = {}): Promise<any> {
+        const agentQb = this.userRepo
             .createQueryBuilder('user')
             .leftJoinAndSelect('user.department', 'department')
-            .leftJoinAndSelect('user.site', 'site')
-            .where('user.role IN (:...roles)', { roles: [UserRole.ADMIN, UserRole.AGENT] })
-            .andWhere('user.isActive = :isActive', { isActive: true })
-            .andWhere("user.email NOT LIKE :deletedPrefix", { deletedPrefix: 'deleted_%' })
+            .leftJoinAndSelect('user.site', 'site');
+
+        this.applyUserListFilters(agentQb, options);
+
+        const agents = await agentQb
             .select(['user.id', 'user.fullName', 'user.email', 'user.role', 'user.avatarUrl', 'user.siteId', 'user.appraisalPoints'])
             .addSelect(['department.id', 'department.name', 'site.id', 'site.code', 'site.name'])
             .getMany();
