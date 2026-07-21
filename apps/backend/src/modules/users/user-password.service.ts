@@ -75,7 +75,7 @@ export class UserPasswordService {
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-        await this.userRepo.update(userId, { password: hashedPassword });
+        await this.userRepo.update(userId, { password: hashedPassword, mustChangePassword: true });
 
         // Audit log for password reset
         this.auditService.logAsync({
