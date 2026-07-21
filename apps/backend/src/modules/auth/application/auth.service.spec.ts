@@ -110,6 +110,18 @@ describe('AuthService', () => {
     });
 
     describe('login', () => {
+        it('login meneruskan mustChangePassword ke response', async () => {
+            jwtService.sign.mockReturnValue('token');
+            usersService.update.mockResolvedValue({} as any);
+            usersService.setCurrentRefreshToken = jest.fn();
+
+            const result = await service.login({
+                id: 'u1', email: 'a@b.com', role: 'USER', fullName: 'A', mustChangePassword: true,
+            } as any);
+
+            expect(result.user.mustChangePassword).toBe(true);
+        });
+
         it('should generate JWT token with correct payload', async () => {
             const mockToken = 'mock.jwt.token';
             jwtService.sign.mockReturnValue(mockToken);
