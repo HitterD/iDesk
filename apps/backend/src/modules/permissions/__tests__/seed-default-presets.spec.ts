@@ -102,4 +102,16 @@ describe('PermissionsService — seedDefaultPresets', () => {
             }
         }
     });
+
+    it('preserves an existing system preset pageAccess customization', async () => {
+        presetRepo = makeRepoMock([{
+            id: 'user-preset', name: 'User', isSystem: true,
+            pageAccess: { dashboard: true, tickets: true, zoom_calendar: true },
+            permissions: {},
+        }]);
+        await (svc as any).seedDefaultPresets();
+        expect(presetRepo.save).not.toHaveBeenCalledWith(
+            expect.objectContaining({ pageAccess: expect.objectContaining({ zoom_calendar: false }) }),
+        );
+    });
 });

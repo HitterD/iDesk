@@ -187,9 +187,24 @@ export class PageAccessGuard implements CanActivate {
                     system_health: false,
                     settings: false,
                 };
+            case UserRole.AGENT_ORACLE:
+                return {
+                    oracle_k2_tickets: true,
+                    notifications: true,
+                    dashboard: false,
+                    tickets: false,
+                    zoom_calendar: false,
+                    knowledge_base: false,
+                    reports: false,
+                    renewal: false,
+                    agents: false,
+                    automation: false,
+                    audit_logs: false,
+                    system_health: false,
+                    settings: false,
+                };
             case UserRole.AGENT:
             case UserRole.AGENT_OPERATIONAL_SUPPORT:
-            case UserRole.AGENT_ORACLE:
             case UserRole.AGENT_ADMIN:
                 // FIXED: reports and renewal should be true — matches AGENT preset in permissions.service.ts
                 return {
@@ -208,12 +223,10 @@ export class PageAccessGuard implements CanActivate {
                 };
             case UserRole.USER:
             default:
-                // FIXED: zoom_calendar was false but DEFAULT_PRESETS in permissions.service.ts
-                // has zoom_calendar: true for USER role — must be consistent
                 return {
                     dashboard: true,
                     tickets: true,
-                    zoom_calendar: true,
+                    zoom_calendar: false,
                     knowledge_base: true,
                     notifications: true,
                     reports: false,

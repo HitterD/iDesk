@@ -17,6 +17,7 @@ export const VALID_PAGE_KEYS = [
     'audit_logs',
     'system_health',
     'settings',
+    'oracle_k2_tickets',
 ] as const;
 
 // Type for valid page keys

@@ -12,25 +12,7 @@ interface FeaturePermission {
 // Valid target roles for presets
 const VALID_TARGET_ROLES = ['USER', 'AGENT', 'MANAGER', 'ADMIN'] as const;
 
-// Valid page keys that can be used in pageAccess
-const VALID_PAGE_KEYS = [
-    'dashboard',
-    'tickets',
-    'hardware_requests',
-    'eform_access',
-    'lost_items',
-    'zoom_calendar',
-    'knowledge_base',
-    'notifications',
-    'reports',
-    'renewal',
-    'agents',
-    'workloads',
-    'automation',
-    'audit_logs',
-    'system_health',
-    'settings',
-] as const;
+import { isValidPageKey } from '../../../shared/core/types/page-access.types';
 
 // Custom validator for pageAccess object
 @ValidatorConstraint({ name: 'isValidPageAccess', async: false })
@@ -39,9 +21,9 @@ class IsValidPageAccessConstraint implements ValidatorConstraintInterface {
         if (pageAccess === null || pageAccess === undefined) return true;
         if (typeof pageAccess !== 'object') return false;
 
-        // Check all values are booleans
+        // Check all keys are valid and values are booleans
         for (const [key, value] of Object.entries(pageAccess as Record<string, unknown>)) {
-            if (typeof value !== 'boolean') {
+            if (!isValidPageKey(key) || typeof value !== 'boolean') {
                 return false;
             }
         }

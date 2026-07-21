@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, OnModuleInit, Inject, forwardRef, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { FeatureDefinition } from './entities/feature-definition.entity';
 import { UserFeaturePermission } from './entities/user-feature-permission.entity';
 import { PermissionPreset, PermissionSet, PageAccess, PresetTargetRole } from './entities/permission-preset.entity';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { FeaturePermissionDto } from './dto/update-permissions.dto';
 import { CacheService, CacheKeys } from '../../shared/core/cache/cache.service';
 import { PermissionsGateway } from './permissions.gateway';
@@ -68,6 +69,11 @@ const MANAGER_PAGES: PageDefinition[] = [
     { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal', roles: ['MANAGER'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['MANAGER'] },
     { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads', roles: ['MANAGER'] },
+];
+
+const ORACLE_PAGES: PageDefinition[] = [
+    { key: 'oracle_k2_tickets', name: 'Oracle K2 Request', icon: 'Database', route: '/tickets/oracle-k2', roles: ['AGENT'] },
+    { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT'] },
 ];
 
 // Get default page access for each role
@@ -142,12 +148,12 @@ const DEFAULT_FEATURES: Partial<FeatureDefinition>[] = [
     { key: 'settings.view', name: 'View Settings', description: 'Access to user settings', category: 'System', icon: 'Settings', appliesToRoles: ['USER', 'AGENT'], sortOrder: 81 },
 ];
 
-// Simplified permission presets - 4 role-based presets only
+// Simplified permission presets - 7 role-based system presets
 const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
     // USER - Basic customer/employee who submits tickets
     {
         name: 'User',
-        description: 'Standard user. Create tickets, book Zoom, view Knowledge Base. Limited to own data only.',
+        description: 'Standard user. Create tickets, view Knowledge Base. Limited to own data only.',
         sortOrder: 1,
         isDefault: true,
         isSystem: true,
@@ -155,7 +161,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         pageAccess: {
             dashboard: true,
             tickets: true,
-            zoom_calendar: true,
+            zoom_calendar: false,
             knowledge_base: true,
             notifications: true,
             hardware_requests: true,
@@ -183,11 +189,42 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         },
     },
 
+    {
+        name: 'User Zoom',
+        description: 'Standard user with Zoom Calendar access.',
+        sortOrder: 2,
+        isSystem: true,
+        targetRole: 'USER',
+        pageAccess: {
+            dashboard: true,
+            tickets: true,
+            zoom_calendar: true,
+            knowledge_base: true,
+            notifications: true,
+            hardware_requests: true,
+            eform_access: true,
+            lost_items: true,
+        },
+        permissions: {
+            'ticketing.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'ticketing.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'ticketing.edit': { canView: false, canCreate: false, canEdit: true, canDelete: false },
+            'zoom_calendar.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'zoom_calendar.book': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'knowledge_base.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'lost_item.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'access_request.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'access_request.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'settings.view': { canView: true, canCreate: false, canEdit: true, canDelete: false },
+        },
+    },
+
     // AGENT - Helpdesk agent who handles tickets
     {
         name: 'Agent',
         description: 'Helpdesk agent. Manage tickets, assign, view reports. Full ticketing access.',
-        sortOrder: 2,
+        sortOrder: 3,
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
@@ -234,11 +271,73 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         },
     },
 
+    {
+        name: 'Agent Operational Support',
+        description: 'Operational support agent. Same page and ticket access as Agent.',
+        sortOrder: 4,
+        isSystem: true,
+        targetRole: 'AGENT',
+        pageAccess: {
+            dashboard: true,
+            tickets: true,
+            zoom_calendar: true,
+            knowledge_base: true,
+            notifications: true,
+            hardware_requests: true,
+            eform_access: true,
+            lost_items: true,
+            reports: true,
+            renewal: true,
+        },
+        permissions: {
+            'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.create': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.edit': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.escalate': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'zoom_calendar.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'zoom_calendar.book': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'knowledge_base.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'knowledge_base.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'knowledge_base.edit': { canView: true, canCreate: false, canEdit: true, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.dashboard': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'lost_item.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'lost_item.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'access_request.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'access_request.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
+            'renewal.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'settings.view': { canView: true, canCreate: false, canEdit: true, canDelete: false },
+        },
+    },
+
+    {
+        name: 'Agent Oracle',
+        description: 'Oracle/K2 agent. Oracle/K2 ticket queue and notifications only.',
+        sortOrder: 5,
+        isSystem: true,
+        targetRole: 'AGENT',
+        pageAccess: {
+            oracle_k2_tickets: true,
+            notifications: true,
+        },
+        permissions: {
+            'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.create': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.edit': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+        },
+    },
+
     // MANAGER - Team lead with approval and reporting
     {
         name: 'Manager',
         description: 'Team manager. Delete tickets, approve requests, full reports, manage renewals.',
-        sortOrder: 3,
+        sortOrder: 6,
         isSystem: true,
         targetRole: 'MANAGER',
         pageAccess: {
@@ -294,7 +393,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
     {
         name: 'Admin',
         description: 'System administrator. Full access to all features including budget and system settings.',
-        sortOrder: 4,
+        sortOrder: 7,
         isSystem: true,
         targetRole: 'ADMIN',
         pageAccess: {
@@ -402,7 +501,7 @@ export class PermissionsService implements OnModuleInit {
                 let modified = false;
                 const updatedPageAccess = { ...exists.pageAccess };
                 for (const [key, value] of Object.entries(preset.pageAccess || {})) {
-                    if (updatedPageAccess[key] !== value) {
+                    if (updatedPageAccess[key] === undefined) {
                         updatedPageAccess[key] = value;
                         modified = true;
                     }
@@ -538,10 +637,29 @@ export class PermissionsService implements OnModuleInit {
         }
 
         // Otherwise return default page access for their role
-        const rawRole = user.role || 'USER';
-        // Normalize agent subtypes to standard 'AGENT' for page access defaults
-        const role = rawRole.startsWith('AGENT_') ? 'AGENT' : rawRole as PresetTargetRole;
-        return getDefaultPageAccess(role);
+        const role = user.role as UserRole;
+        if (role === UserRole.AGENT_ORACLE) {
+            return Object.fromEntries(ORACLE_PAGES.map((page) => [page.key, true]));
+        }
+        const normalizedRole = (user.role || 'USER').startsWith('AGENT_') ? 'AGENT' : (user.role || 'USER') as PresetTargetRole;
+        return getDefaultPageAccess(normalizedRole);
+    }
+
+    async resolveDefaultPresetId(role: UserRole): Promise<string | null> {
+        const names: Record<UserRole, string> = {
+            [UserRole.USER]: 'User',
+            [UserRole.AGENT]: 'Agent',
+            [UserRole.AGENT_ADMIN]: 'Agent',
+            [UserRole.AGENT_OPERATIONAL_SUPPORT]: 'Agent Operational Support',
+            [UserRole.AGENT_ORACLE]: 'Agent Oracle',
+            [UserRole.MANAGER]: 'Manager',
+            [UserRole.ADMIN]: 'Admin',
+        };
+        const preset = await this.presetRepo.findOne({
+            where: { name: names[role], isSystem: true, isActive: true },
+            select: ['id'],
+        });
+        return preset?.id ?? null;
     }
 
     // Get available pages for a role (for preset editor UI)
@@ -857,7 +975,7 @@ export class PermissionsService implements OnModuleInit {
         }
 
         if (preset.isSystem) {
-            throw new Error('Cannot delete system preset');
+            throw new ForbiddenException('Cannot delete system preset');
         }
 
         await this.presetRepo.delete({ id: presetId });

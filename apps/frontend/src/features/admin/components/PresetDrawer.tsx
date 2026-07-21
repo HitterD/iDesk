@@ -82,6 +82,7 @@ const DEFAULT_PERMISSION_RESOURCES = [
     'audit_logs',
     'ict_budget',
     'notifications',
+    'oracle_k2_tickets',
 ] as const;
 
 const DEFAULT_PERMISSION_VALUES = {
