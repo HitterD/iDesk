@@ -14,6 +14,7 @@ interface User {
     phoneNumber?: string;
     departmentId?: string;
     siteId?: string;
+    mustChangePassword?: boolean;
 }
 
 interface AuthState {
