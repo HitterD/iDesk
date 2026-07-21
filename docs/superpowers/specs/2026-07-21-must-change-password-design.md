@@ -44,9 +44,11 @@ mustChangePassword: boolean;
 
 Migration baru:
 - `ALTER TABLE users ADD COLUMN "mustChangePassword" boolean NOT NULL DEFAULT false`
-- Set `true` untuk user existing yang password-nya `123456`. Karena bcrypt tak bisa
+- Set `true` untuk user existing dengan password lokal yang password-nya `123456`
+  **atau** `lastActiveAt` masih `NULL` (belum pernah login). Karena bcrypt tak bisa
   di-query via SQL, migration mengambil semua user dengan `password` lokal non-null,
-  `bcrypt.compare('123456', hash)` per user, lalu update yang match.
+  `bcrypt.compare('123456', hash)` per user, lalu update yang match atau belum pernah
+  login.
 - `down()`: drop kolom.
 
 ### 2. Set flag `true` di 4 jalur create/reset
@@ -94,8 +96,8 @@ Migration baru:
 
 ### 6. Testing
 
-- **Migration self-check** (script/test kecil): user password `123456` → flag `true`;
-  user password lain → flag `false`.
+- **Migration self-check** (script/test kecil): user password `123456` atau
+  `lastActiveAt` `NULL` → flag `true`; user lain → flag `false`.
 - **`auth.service.changePassword`**: setelah ganti sukses, flag user jadi `false`.
 - **`createUser` / `resetPassword`**: user hasil create/reset punya `mustChangePassword: true`.
 - **`MustChangePasswordDialog`**: submit valid memanggil `api.post('/auth/change-password', ...)`;
