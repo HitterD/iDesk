@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS } from '../utils/loginErrorMapping';
 import { useTheme } from '@/hooks/useTheme';
 import api from '../../../lib/api';
+import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
 
 const DASHBOARD_ROLES = new Set(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE']);
 
@@ -20,8 +21,20 @@ export const BentoLoginPage = () => {
     const [failedAttempts, setFailedAttempts] = useState(0);
     const [rememberMe, setRememberMe] = useState(false);
     const { theme, toggle: toggleTheme } = useTheme();
+    const [mustChange, setMustChange] = useState<{ password: string } | null>(null);
     const login = useAuth((state) => state.login);
+    const updateUser = useAuth((state) => state.updateUser);
     const navigate = useNavigate();
+
+    const navigateByRole = useCallback((role: string) => {
+        if (DASHBOARD_ROLES.has(role)) {
+            navigate('/dashboard');
+        } else if (role === 'MANAGER') {
+            navigate('/manager/dashboard');
+        } else {
+            navigate('/client/my-tickets');
+        }
+    }, [navigate]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -83,12 +96,10 @@ export const BentoLoginPage = () => {
             setFailedAttempts(0);
             login(user);
 
-            if (DASHBOARD_ROLES.has(user.role)) {
-                navigate('/dashboard');
-            } else if (user.role === 'MANAGER') {
-                navigate('/manager/dashboard');
+            if (user.mustChangePassword) {
+                setMustChange({ password });
             } else {
-                navigate('/client/my-tickets');
+                navigateByRole(user.role);
             }
         } catch (err: unknown) {
             const newAttemptCount = failedAttempts + 1;
@@ -304,6 +315,18 @@ export const BentoLoginPage = () => {
                     <span>© 2026 iDesk</span>
                 </div>
             </footer>
+
+            {mustChange && (
+                <MustChangePasswordDialog
+                    currentPassword={mustChange.password}
+                    onSuccess={() => {
+                        const role = useAuth.getState().user?.role;
+                        updateUser({ mustChangePassword: false });
+                        setMustChange(null);
+                        if (role) navigateByRole(role);
+                    }}
+                />
+            )}
         </div>
     );
 };

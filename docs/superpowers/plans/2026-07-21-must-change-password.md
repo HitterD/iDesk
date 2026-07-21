@@ -4,7 +4,7 @@
 
 **Goal:** Paksa user dengan password `123456` atau baru pertama kali login untuk mengganti password lewat popup non-dismissible saat login.
 
-**Architecture:** Kolom flag `mustChangePassword` di entity `User` sebagai satu sumber kebenaran. Migration menandai user existing ber-password `123456`. Empat jalur create/reset menandai `true`. Login mengirim flag ke frontend; popup non-dismissible me-reuse endpoint `POST /auth/change-password` yang ada, lalu meng-clear flag. Enforcement frontend-only (tanpa backend hard-block).
+**Architecture:** Kolom flag `mustChangePassword` di entity `User` sebagai satu sumber kebenaran. Migration menandai user existing dengan password `123456` atau `lastActiveAt` `NULL`. Empat jalur create/reset menandai `true`. Login mengirim flag ke frontend; popup non-dismissible me-reuse endpoint `POST /auth/change-password` yang ada, lalu meng-clear flag. Enforcement frontend-only (tanpa backend hard-block).
 
 **Tech Stack:** NestJS + TypeORM (PostgreSQL), bcrypt, Jest (backend); React + Zustand + TanStack Query + axios, Vitest/RTL (frontend).
 
@@ -51,7 +51,7 @@ git commit -m "feat(users): add mustChangePassword column to User entity"
 
 ---
 
-### Task 2: Migration — tambah kolom + tandai user password 123456
+### Task 2: Migration — tambah kolom + tandai user password 123456 atau belum pernah login
 
 **Files:**
 - Create: `apps/backend/src/migrations/1784600000000-AddMustChangePassword.ts`
@@ -76,25 +76,29 @@ export class AddMustChangePassword1784600000000 implements MigrationInterface {
             `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "mustChangePassword" boolean NOT NULL DEFAULT false`,
         );
 
-        // Tandai semua user yang password lokalnya masih "123456".
-        // bcrypt tidak bisa di-compare via SQL, jadi ambil user ber-password
-        // lalu compare per baris.
+        // Tandai user password lokal yang belum pernah login.
+        await qr.query(
+            `UPDATE "users"
+             SET "mustChangePassword" = true
+             WHERE "password" IS NOT NULL AND "lastActiveAt" IS NULL`,
+        );
+
+        // Tandai juga password lokal legacy "123456". bcrypt tidak dapat
+        // dibandingkan melalui SQL, jadi compare per baris lalu update batch.
         const users: Array<{ id: string; password: string | null }> = await qr.query(
             `SELECT "id", "password" FROM "users" WHERE "password" IS NOT NULL`,
         );
-
-        const matchedIds: string[] = [];
+        const legacyPasswordIds: string[] = [];
         for (const u of users) {
             if (u.password && (await bcrypt.compare('123456', u.password))) {
-                matchedIds.push(u.id);
+                legacyPasswordIds.push(u.id);
             }
         }
 
-        if (matchedIds.length > 0) {
-            // Update batch via ANY($1) — satu round-trip.
+        if (legacyPasswordIds.length > 0) {
             await qr.query(
                 `UPDATE "users" SET "mustChangePassword" = true WHERE "id" = ANY($1)`,
-                [matchedIds],
+                [legacyPasswordIds],
             );
         }
     }
@@ -121,7 +125,7 @@ Expected: migration `AddMustChangePassword1784600000000` sukses; kolom `mustChan
 
 ```bash
 git add apps/backend/src/migrations/1784600000000-AddMustChangePassword.ts
-git commit -m "feat(users): migration add mustChangePassword + flag legacy 123456 users"
+git commit -m "feat(users): flag legacy and first-login users for password change"
 ```
 
 ---
@@ -758,7 +762,7 @@ git commit -m "test: verify must-change-password end-to-end"
 
 ## Self-Review Notes
 
-- **Spec coverage:** data model (T1), migration+flag legacy (T2), 4 jalur set true — createUser/createAgent (T3), import (T4), reset (T5); clear saat change (T6); login kirim flag (T7); frontend type (T8), dialog (T9), integrasi login (T10); testing (T3,5,6,7,9,11). Semua bagian spec ter-cover.
+- **Spec coverage:** data model (T1), migration+flag password legacy atau first-login existing (T2), 4 jalur set true — createUser/createAgent (T3), import (T4), reset (T5); clear saat change (T6); login kirim flag (T7); frontend type (T8), dialog (T9), integrasi login (T10); testing (T3,5,6,7,9,11). Semua bagian spec ter-cover.
 - **Enforcement frontend-only:** tidak ada task guard backend — sesuai spec.
 - **Type consistency:** `mustChangePassword: boolean` konsisten backend entity & frontend `User` type; props dialog `currentPassword`/`onSuccess` konsisten antara T9 & T10; `navigateByRole(role: string)` didefinisikan T10 Step 1, dipakai T10 Step 3 & 4.
 - **Reuse:** endpoint change-password, `usersService.update`, gaya modal `ResetPasswordDialog` — tanpa endpoint/dependency baru.

@@ -120,6 +120,18 @@ describe('AuthService', () => {
     });
 
     describe('login', () => {
+        it('login meneruskan mustChangePassword ke response', async () => {
+            jwtService.sign.mockReturnValue('token');
+            usersService.update.mockResolvedValue({} as any);
+            usersService.setCurrentRefreshToken = jest.fn();
+
+            const result = await service.login({
+                id: 'u1', email: 'a@b.com', role: 'USER', fullName: 'A', mustChangePassword: true,
+            } as any);
+
+            expect(result.user.mustChangePassword).toBe(true);
+        });
+
         it('should generate JWT token with correct payload', async () => {
             const mockToken = 'mock.jwt.token';
             jwtService.sign.mockReturnValue(mockToken);
@@ -236,6 +248,20 @@ describe('AuthService', () => {
             expect(bcrypt.hash).toHaveBeenCalledWith('newpassword', expect.any(Number));
             expect(usersService.updatePassword).toHaveBeenCalledWith(mockUser.id, 'newHashedPassword');
             expect(result.message).toBe('Password updated successfully');
+        });
+
+        it('should clear mustChangePassword flag after successful change', async () => {
+            usersService.findById.mockResolvedValue(mockUser as any);
+            (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+            (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
+            usersService.updatePassword.mockResolvedValue(undefined);
+
+            await service.changePassword(mockUser.id, {
+                currentPassword: 'correctpassword',
+                newPassword: 'newpassword',
+            });
+
+            expect(usersService.update).toHaveBeenCalledWith(mockUser.id, { mustChangePassword: false });
         });
     });
 

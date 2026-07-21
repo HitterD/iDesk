@@ -193,6 +193,7 @@ export class UserImportService {
                             departmentId,
                             isActive,
                             password: hashedPassword,
+                            mustChangePassword: true,
                         });
 
                         await this.userRepo.save(newUser);
