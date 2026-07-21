@@ -6,9 +6,10 @@ import { User } from '../users/entities/user.entity';
 import { HrisGatewayAdapter } from './hris-gateway.adapter';
 import { HrisSyncController } from './hris-sync.controller';
 import { HrisSyncService } from './hris-sync.service';
+import { PermissionsModule } from '../permissions/permissions.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([User, Site, Department])],
+    imports: [TypeOrmModule.forFeature([User, Site, Department]), PermissionsModule],
     providers: [HrisGatewayAdapter, HrisSyncService],
     controllers: [HrisSyncController],
     exports: [HrisGatewayAdapter, HrisSyncService],

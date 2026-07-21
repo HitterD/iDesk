@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, SelectQueryBuilder } from 'typeorm';
 import * as fs from 'fs';
@@ -25,7 +25,7 @@ const OPERATIONAL_AGENT_ROLES = [
 ];
 
 @Injectable()
-export class UserCrudService {
+export class UserCrudService implements OnModuleInit {
     private readonly logger = new Logger(UserCrudService.name);
 
     constructor(
@@ -41,6 +41,31 @@ export class UserCrudService {
         private readonly auditService: AuditService,
         private readonly permissionsService: PermissionsService,
     ) { }
+
+    async onModuleInit() {
+        try {
+            await this.userRepo.query(`
+                UPDATE users u
+                SET applied_preset_id = p.id
+                FROM permission_presets p
+                WHERE u.applied_preset_id IS NULL
+                  AND p.is_system = true
+                  AND p.is_active = true
+                  AND (
+                    (u.role = 'USER' AND p.name = 'User') OR
+                    (u.role = 'AGENT' AND p.name = 'Agent') OR
+                    (u.role = 'AGENT_ADMIN' AND p.name = 'Agent') OR
+                    (u.role = 'AGENT_OPERATIONAL_SUPPORT' AND p.name = 'Agent Operational Support') OR
+                    (u.role = 'AGENT_ORACLE' AND p.name = 'Agent Oracle') OR
+                    (u.role = 'MANAGER' AND p.name = 'Manager') OR
+                    (u.role = 'ADMIN' AND p.name = 'Admin')
+                  )
+            `);
+            this.logger.log('Backfilled default permission presets for users without appliedPresetId');
+        } catch (err) {
+            this.logger.warn(`Failed to backfill default permission presets: ${err.message}`);
+        }
+    }
 
     async createAgent(dto: CreateAgentDto, createdByUserId?: string): Promise<User> {
         const existingUser = await this.userRepo.findOne({ where: { email: dto.email } });
@@ -199,6 +224,8 @@ export class UserCrudService {
 
         const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
+        const presetId = dto.presetId || (dto.role ? await this.permissionsService.resolveDefaultPresetId(dto.role) : null);
+
         const user = this.userRepo.create({
             email: dto.email,
             fullName: dto.fullName,
@@ -206,7 +233,7 @@ export class UserCrudService {
             password: hashedPassword,
             departmentId: dto.departmentId,
             siteId: dto.siteId, // P3: Site support
-            appliedPresetId: dto.presetId, // P3: Map to entity's appliedPresetId
+            appliedPresetId: presetId || undefined, // P3: Map to entity's appliedPresetId
             mustChangePassword: true,
         });
 

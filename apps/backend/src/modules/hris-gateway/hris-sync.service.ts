@@ -7,8 +7,10 @@ import { BCRYPT_ROUNDS } from '../../shared/core/config/security.config';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from '../users/entities/department.entity';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { HrisEmployee, HrisGatewayAdapter } from './hris-gateway.adapter';
 import { DEFAULT_HRIS_PASSWORD, resolveRole, resolveSiteCode } from './hris-mapping';
+import { PermissionsService } from '../permissions/permissions.service';
 
 export interface HrisSyncSummary {
     created: number;
@@ -29,6 +31,7 @@ export class HrisSyncService {
         @InjectRepository(User) private readonly userRepo: Repository<User>,
         @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
         @InjectRepository(Department) private readonly departmentRepo: Repository<Department>,
+        private readonly permissionsService: PermissionsService,
     ) {}
 
     @Cron('0 2 * * *', { timeZone: 'Asia/Jakarta', name: 'hris-daily-sync' })
@@ -122,6 +125,9 @@ export class HrisSyncService {
         existing.jobTitle = employee.nama_jabatan ?? existing.jobTitle;
         existing.siteId = siteId as unknown as string;
         existing.departmentId = (await this.findOrCreateDepartment(employee.nama_departemen, siteId)) as unknown as string;
+        if (!existing.appliedPresetId && existing.role) {
+            existing.appliedPresetId = (await this.permissionsService.resolveDefaultPresetId(existing.role as UserRole)) || undefined;
+        }
         await this.userRepo.save(existing);
         return 'updated';
     }
@@ -133,11 +139,14 @@ export class HrisSyncService {
 
         const siteId = this.resolveSiteId(employee.lokasi, siteByCode);
         const departmentId = await this.findOrCreateDepartment(employee.nama_departemen, siteId);
+        const role = resolveRole(employee.nama_departemen);
+        const presetId = await this.permissionsService.resolveDefaultPresetId(role as UserRole);
         const user = this.userRepo.create({
             email: await this.resolveUniqueEmail(employee),
             fullName: employee.nama_karyawan,
             employeeId: employee.nik_hris,
-            role: resolveRole(employee.nama_departemen),
+            role,
+            appliedPresetId: presetId || undefined,
             siteId: siteId ?? undefined,
             departmentId: departmentId ?? undefined,
             jobTitle: employee.nama_jabatan ?? undefined,
