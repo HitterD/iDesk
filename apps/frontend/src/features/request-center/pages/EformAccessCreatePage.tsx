@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import { ShieldCheck, ArrowLeft, Send, CheckCircle2, Calendar, Globe, Wifi, FileText, User, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,10 +19,11 @@ const FORM_TYPES = [
   { id: 'NETWORK' as FormType, label: 'Network Access', icon: Wifi, gradient: 'from-orange-500 to-amber-600', desc: 'Akses jaringan khusus' },
 ];
 
-const sectionVariants = {
+const sectionVariants: Variants = {
   hidden: { opacity: 0, y: 12 },
   visible: (i: number) => ({
-    opacity: 1, y: 0,
+    opacity: 1,
+    y: 0,
     transition: { delay: i * 0.07, duration: 0.28, ease: 'easeOut' },
   }),
 };
@@ -39,7 +40,7 @@ export const EformAccessCreatePage: React.FC = () => {
 
   const [formType, setFormType] = useState<FormType>('VPN');
   const [requesterName, setRequesterName] = useState(user?.fullName || '');
-  const [requesterDepartment, setRequesterDepartment] = useState(user?.department?.name || user?.departmentId || '');
+  const [requesterDepartment, setRequesterDepartment] = useState(user?.departmentId || '');
   const [formData, setFormData] = useState({
     kebutuhanAkses: 'Remote PC Kantor',
     alasan: '',

@@ -64,7 +64,7 @@ const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel
                         <span className="text-xs font-mono font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                             #{ticket.ticketNumber || ticket.id.split('-')[0]}
                         </span>
-                        <div className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1", statusConfig.bg, statusConfig.color)}>
+                        <div className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 bg-slate-100 dark:bg-slate-800", statusConfig.color)}>
                             {statusConfig.icon && React.createElement(statusConfig.icon as any, { className: "w-3 h-3" })}
                             {statusConfig.label}
                         </div>
@@ -377,8 +377,8 @@ export const ClientTicketDetailPage: React.FC = () => {
 
             <ConfirmationDialog
                 isOpen={isCancelDialogOpen}
-                onClose={() => setIsCancelDialogOpen(false)}
-                onConfirm={() => cancelMutation.mutate()}
+                onCancel={() => setIsCancelDialogOpen(false)}
+                onConfirm={() => cancelMutation.mutate(undefined)}
                 title="Cancel Ticket"
                 description="Are you sure you want to cancel this ticket? This action cannot be undone."
                 confirmText="Yes, Cancel Ticket"
