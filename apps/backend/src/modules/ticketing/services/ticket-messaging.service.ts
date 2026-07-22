@@ -9,6 +9,7 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
+import { assertTicketRoleAccess } from './ticket-oracle-access';
 
 @Injectable()
 export class TicketMessagingService {
@@ -36,8 +37,22 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string): Promise<TicketMessage[]> {
-        return this.findMessages(ticketId);
+    async getMessages(ticketId: string, userRole?: UserRole): Promise<TicketMessage[]> {
+        const ticket = await this.ticketRepo.findOne({
+            where: { id: ticketId },
+            select: ['id', 'category', 'ticketType'],
+        });
+        if (!ticket) throw new NotFoundException('Ticket not found');
+        if (userRole) assertTicketRoleAccess(ticket, userRole);
+
+        return this.messageRepo.find({
+            where: {
+                ticketId,
+                ...(userRole === UserRole.USER ? { isInternal: false } : {}),
+            },
+            relations: ['sender'],
+            order: { createdAt: 'ASC' },
+        });
     }
 
     /**
@@ -54,6 +69,13 @@ export class TicketMessagingService {
         data: TicketMessage[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
+        const ticket = await this.ticketRepo.findOne({
+            where: { id: ticketId },
+            select: ['id', 'category', 'ticketType'],
+        });
+        if (!ticket) throw new NotFoundException('Ticket not found');
+        if (userRole) assertTicketRoleAccess(ticket, userRole);
+
         const skip = (page - 1) * limit;
 
         // Build query
@@ -117,6 +139,7 @@ export class TicketMessagingService {
             if (!user) {
                 throw new NotFoundException('User not found');
             }
+            assertTicketRoleAccess(ticket, user.role);
 
             // Create Message
             const message = manager.create(TicketMessage, {
@@ -165,10 +188,18 @@ export class TicketMessagingService {
                 }
             }
 
-            // Save ticket changes if any
-            if (isFirstAgentReply || (isAgentOrAdmin && ticket.status === TicketStatus.IN_PROGRESS)) {
-                await manager.save(Ticket, ticket);
+            // === Update Unread Tracking ===
+            const now = new Date();
+            ticket.lastMessageAt = now;
+            ticket.lastMessageSenderRole = user.role;
+            if (isAgentOrAdmin) {
+                ticket.agentLastReadAt = now;
+            } else {
+                ticket.userLastReadAt = now;
             }
+
+            // Save ticket changes
+            await manager.save(Ticket, ticket);
 
             return { savedMessage, ticket, user };
         });
@@ -206,5 +237,18 @@ export class TicketMessagingService {
         );
 
         return savedMessage;
+    }
+
+    /**
+     * Mark a ticket as read for the current viewing user or agent
+     */
+    async markAsRead(ticketId: string, userId: string, role?: string): Promise<void> {
+        const isAgentSide = role && role !== UserRole.USER;
+        const now = new Date();
+        const updateData = isAgentSide
+            ? { agentLastReadAt: now }
+            : { userLastReadAt: now };
+
+        await this.ticketRepo.update(ticketId, updateData);
     }
 }

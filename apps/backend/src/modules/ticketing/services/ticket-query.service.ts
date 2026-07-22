@@ -261,6 +261,7 @@ export class TicketQueryService {
         const enrichedTickets = data.map((ticket) => ({
           ...ticket,
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
+          hasUnreadChat: computeHasUnreadChat(ticket, role),
         }));
 
         return {
@@ -367,8 +368,13 @@ export class TicketQueryService {
         const [data, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
 
+        const enrichedTickets = data.map((ticket) => ({
+            ...ticket,
+            hasUnreadChat: computeHasUnreadChat(ticket, role),
+        }));
+
         return {
-            data,
+            data: enrichedTickets as any,
             meta: {
                 total,
                 page,
@@ -608,5 +614,21 @@ export class TicketQueryService {
             topAgents,
             avgResolutionTime,
         };
+    }
+}
+
+export function computeHasUnreadChat(ticket: Ticket, userRole: UserRole): boolean {
+    if (!ticket.lastMessageAt || !ticket.lastMessageSenderRole) {
+        return false;
+    }
+    const isAgentSide = userRole !== UserRole.USER;
+    if (isAgentSide) {
+        if (ticket.lastMessageSenderRole !== 'USER') return false;
+        if (!ticket.agentLastReadAt) return true;
+        return new Date(ticket.lastMessageAt) > new Date(ticket.agentLastReadAt);
+    } else {
+        if (ticket.lastMessageSenderRole === 'USER') return false;
+        if (!ticket.userLastReadAt) return true;
+        return new Date(ticket.lastMessageAt) > new Date(ticket.userLastReadAt);
     }
 }

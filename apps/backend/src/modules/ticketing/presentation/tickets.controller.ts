@@ -139,7 +139,10 @@ export class TicketsController {
     @Get(':id')
     @ApiOperation({ summary: 'Get ticket details' })
     @ApiResponse({ status: 200, description: 'Return ticket details.' })
-    async findOne(@Param('id') id: string) {
+    async findOne(@Param('id') id: string, @Request() req: any) {
+        if (req?.user) {
+            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role);
+        }
         return this.ticketQueryService.findOne(id);
     }
 
@@ -209,7 +212,7 @@ export class TicketsController {
     }
 
     @Patch(':id/status')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Update ticket status' })
     @ApiResponse({ status: 200, description: 'Ticket status updated.' })
     async updateStatus(
@@ -221,7 +224,7 @@ export class TicketsController {
     }
 
     @Patch(':id/priority')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Update ticket priority' })
     @ApiResponse({ status: 200, description: 'Ticket priority updated.' })
     async updatePriority(
@@ -233,7 +236,7 @@ export class TicketsController {
     }
 
     @Patch(':id/category')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Update ticket category' })
     @ApiResponse({ status: 200, description: 'Ticket category updated.' })
     async updateCategory(
@@ -245,7 +248,7 @@ export class TicketsController {
     }
 
     @Patch(':id/device')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Update ticket device' })
     @ApiResponse({ status: 200, description: 'Ticket device updated.' })
     async updateDevice(
@@ -256,7 +259,7 @@ export class TicketsController {
         return this.ticketUpdateService.updateTicket(id, { device: dto.device }, req.user.userId);
     }
     @Patch(':id/assign')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Assign ticket to an agent' })
     @ApiResponse({ status: 200, description: 'Ticket assigned successfully.' })
     async assignTicket(
@@ -279,7 +282,7 @@ export class TicketsController {
     }
 
     @Patch('bulk/update')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Bulk update multiple tickets' })
     @ApiResponse({ status: 200, description: 'Tickets updated successfully.' })
     async bulkUpdate(
@@ -299,7 +302,7 @@ export class TicketsController {
     }
 
     @Post('merge')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
     @ApiOperation({ summary: 'Merge multiple tickets into one' })
     @ApiResponse({ status: 200, description: 'Tickets merged successfully.' })
     async mergeTickets(
