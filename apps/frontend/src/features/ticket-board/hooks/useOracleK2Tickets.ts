@@ -1,6 +1,6 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { Ticket } from '@/lib/api/types';
+import type { Ticket } from './useTickets';
 
 export interface OracleK2TicketsParams {
     page: number;

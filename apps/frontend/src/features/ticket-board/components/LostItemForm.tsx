@@ -25,7 +25,7 @@ const lostItemSchema = z.object({
     assetTag: z.string().optional(),
     lastSeenLocation: z.string().min(3, 'Location must be at least 3 characters'),
     lastSeenDate: z.date({
-        required_error: 'Date is required',
+        error: 'Date is required',
     }),
     lastSeenTime: z.string().min(1, 'Time is required'),
     circumstances: z.string().min(10, 'Please describe how the item was lost'),

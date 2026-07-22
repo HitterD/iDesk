@@ -118,10 +118,7 @@ export function ZoomCalendarPage() {
     // invalidates the merged calendar query immediately (no manual refresh).
     const useGabungan = accountScope === 'gabungan';
     const socketAccountId = useGabungan ? undefined : activeAccountId;
-    const gabunganAccountIds = useGabungan
-        ? safeAccounts.map((a) => a.id)
-        : undefined;
-    useZoomSocket(socketAccountId, gabunganAccountIds);
+    useZoomSocket(socketAccountId);
 
     // Day view always renders single-account. When user is in Gabungan mode and
     // switches to day view, auto-pick the most-free account so the day grid stays
@@ -210,7 +207,6 @@ export function ZoomCalendarPage() {
             date: format(currentDate, 'yyyy-MM-dd'),
             time: format(new Date(), 'HH:00'),
             zoomAccountId,
-            isGabungan: accountScope === 'gabungan',
         });
     }, [activeAccountId, canBook, currentDate, panel, safeAccounts, accountScope]);
 
@@ -278,7 +274,6 @@ export function ZoomCalendarPage() {
             date: day.date,
             time,
             zoomAccountId: activeAccountId,
-            isGabungan: accountScope === 'gabungan',
         });
     };
 
@@ -412,7 +407,6 @@ export function ZoomCalendarPage() {
                                 currentDate={currentDate}
                                 selectedAccountId={selectedAccountId ?? 'all'}
                                 accounts={safeAccounts}
-                                dateRange={dateRange}
                                 onViewChange={setView}
                                 onPrev={navigatePrev}
                                 onNext={navigateNext}
@@ -460,7 +454,6 @@ export function ZoomCalendarPage() {
                                 onSync={handleSync}
                                 lastSyncAt={null}
                                 userName="User"
-                                onOpenBooking={(b) => panel.openDetail(b.id)}
                             />
                         )}
                         calendarContent={calendarContent()}
@@ -477,7 +470,6 @@ export function ZoomCalendarPage() {
                     zoomAccountId={panel.context.zoomAccountId}
                     preselectedDate={panel.context.preselectedDate}
                     preselectedTime={panel.context.preselectedTime}
-                    isGabungan={panel.context.isGabungan}
                     bookingId={panel.context.bookingId}
                     booking={panel.context.booking}
                     accounts={safeAccounts}

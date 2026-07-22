@@ -32,9 +32,8 @@ import { TicketBoardErrorBoundary } from '../components/TicketBoardErrorBoundary
 import { TicketListPagination } from '../components/TicketListPagination';
 import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
-import type { Ticket } from '../types/ticket.types';
-import type { TicketRowData } from '../components/TicketListRow';
-import type { Agent } from '../components/ticket-detail/types';
+import type { Ticket } from '../hooks/useTickets';
+import type { Agent, TicketRowData } from '../components/TicketListRow';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -128,14 +127,10 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 source: (t.source as TicketRowData['source']) ?? 'WEB',
                 isOverdue: Boolean((t as { isOverdue?: boolean }).isOverdue),
                 slaTarget: t.slaTarget,
-                scheduledDate: t.scheduledDate,
-                isHardwareInstallation: t.isHardwareInstallation,
-                ictBudgetRequestId: t.ictBudgetRequestId,
                 assignedTo: t.assignedTo
                     ? {
                         id: t.assignedTo.id,
-                        fullName: t.assignedTo.fullName ?? '',
-                        avatarUrl: t.assignedTo.avatarUrl,
+                        fullName: t.assignedTo.fullName,
                     }
                     : undefined,
                 createdAt: t.createdAt,
@@ -143,16 +138,11 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 user: {
                     id: t.user?.id,
                     fullName: t.user?.fullName ?? 'Unknown',
-                    role: t.user?.role,
                     email: t.user?.email,
-                    avatarUrl: t.user?.avatarUrl,
                     department: t.user?.department
                         ? { name: t.user.department.name }
                         : undefined,
                 },
-                site: t.site
-                    ? { id: t.site.id, code: t.site.code, name: t.site.name }
-                    : undefined,
             })),
         [filteredTickets]
     );
@@ -255,7 +245,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
 
     const isAllSelected = rowData.length > 0 && selectedTickets.size === rowData.length;
     const isIndeterminate = selectedTickets.size > 0 && selectedTickets.size < rowData.length;
-    const canEdit = user?.role === 'ADMIN' || user?.role === 'AGENT_ORACLE';
+    const canEdit = user?.role === 'ADMIN' || user?.role === 'AGENT';
 
     if (isLoading) {
         return <TicketListSkeleton />;

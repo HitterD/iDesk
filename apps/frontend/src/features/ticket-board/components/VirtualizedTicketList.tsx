@@ -1,13 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TicketListRow, TicketRowData } from './TicketListRow';
+import { TicketListRow, TicketRowData, type Agent } from './TicketListRow';
 import { Inbox, Search, X } from 'lucide-react';
-
-interface Agent {
-    id: string;
-    fullName: string;
-    avatarUrl?: string;
-}
 
 interface VirtualizedTicketListProps {
     tickets: TicketRowData[];

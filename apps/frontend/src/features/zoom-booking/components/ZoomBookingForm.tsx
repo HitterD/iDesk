@@ -227,19 +227,19 @@ export function ZoomBookingForm({
             : calendarData;
 
         if (!sourceCalendarData || !bookingDate) {
-            return timeOptions.map((t) => ({ time: t }));
+            return timeOptions;
         }
         const dayData = sourceCalendarData.find((d) => d.date === bookingDate);
         if (!dayData) {
-            return timeOptions.map((t) => ({ time: t }));
+            return timeOptions;
         }
 
-        return timeOptions.map((t) => {
-            const slot = dayData.slots.find((s) => s.time === t);
+        return timeOptions.map((option) => {
+            const slot = dayData.slots.find((s) => s.time === option.time);
             const occupied = slot && (slot.status === 'booked' || slot.status === 'my_booking');
             const blocked = slot?.status === 'blocked';
             return {
-                time: t,
+                ...option,
                 isUnavailable: occupied || blocked,
                 bookingTitle: slot?.booking?.title,
                 joinUrl: slot?.booking?.joinUrl,

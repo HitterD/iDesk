@@ -39,7 +39,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Agent } from '../components/ticket-detail/types';
+import type { Agent } from '../components/TicketListRow';
 import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { format } from 'date-fns';
 import { useSavedFilters, SavedFilter } from '@/hooks/useSavedFilters';
