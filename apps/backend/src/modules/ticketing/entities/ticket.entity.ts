@@ -204,6 +204,20 @@ export class Ticket {
     @Column({ default: false })
     userAcknowledged: boolean;
 
+    // === Unread Chat Tracking Fields ===
+
+    @Column({ type: 'timestamp', nullable: true })
+    lastMessageAt: Date | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    lastMessageSenderRole: string | null; // 'USER' | 'AGENT' | 'ADMIN'
+
+    @Column({ type: 'timestamp', nullable: true })
+    userLastReadAt: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    agentLastReadAt: Date | null;
+
     // === Optimistic Locking ===
     // Note: Default 1 is required for existing data when column is first added
     @VersionColumn({ default: 1 })
