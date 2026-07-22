@@ -62,6 +62,8 @@ export interface TicketRowData {
         };
     };
     messages?: any[];
+    hasUnreadChat?: boolean;
+    unreadMessageCount?: number;
     site?: {
         id: string;
         code: string;
@@ -171,12 +173,20 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
                                 <Flame className="w-3.5 h-3.5 text-[hsl(var(--error-500))] animate-pulse-red" />
                             )}
                         </div>
-                        <h3
-                            className="font-semibold text-base text-slate-800 dark:text-white group-hover:text-[hsl(var(--primary))] transition-colors truncate"
-                            title={ticket.title}
-                        >
-                            {ticket.title}
-                        </h3>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <h3
+                                className="font-semibold text-base text-slate-800 dark:text-white group-hover:text-[hsl(var(--primary))] transition-colors truncate"
+                                title={ticket.title}
+                            >
+                                {ticket.title}
+                            </h3>
+                            {ticket.hasUnreadChat && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/60 shadow-sm animate-pulse shrink-0">
+                                    <MessageSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                    <span>Pesan Baru{ticket.unreadMessageCount ? ` (${ticket.unreadMessageCount})` : ''}</span>
+                                </span>
+                            )}
+                        </div>
                         {ticket.isHardwareInstallation && ticket.ictBudgetRequestId && (
                             <button
                                 onClick={(e) => {
