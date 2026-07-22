@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { NotificationType, Notification } from './types/notification.types';
 import { NOTIFICATION_ICONS } from './constants/notification.constants';
 import { formatTimeAgo, stripEmoji } from './utils/notification.utils';
-import { getNotificationRedirectPath, UserRole } from './utils/notificationRouter';
+import { getNotificationCenterPath, getNotificationRedirectPath, UserRole } from './utils/notificationRouter';
 
 export const NotificationPopover: React.FC = () => {
     const navigate = useNavigate();
@@ -83,8 +83,8 @@ export const NotificationPopover: React.FC = () => {
                 >
                     <div className="flex items-center justify-between p-4 border-b border-slate-50 dark:border-slate-800">
                         <h3 className="font-bold text-slate-900 dark:text-white">Notifications</h3>
-                        <Link 
-                            to="/notifications" 
+                        <Link
+                            to={getNotificationCenterPath(userRole)}
                             onClick={() => setIsOpen(false)}
                             className="text-xs font-bold text-primary hover:underline"
                         >
@@ -139,16 +139,18 @@ export const NotificationPopover: React.FC = () => {
                         )}
                     </div>
                     
-                    <div className="p-3 border-t border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 text-center">
-                        <Link 
-                            to="/admin/settings" 
-                            onClick={() => setIsOpen(false)}
-                            className="text-xs font-medium text-slate-500 hover:text-primary flex items-center justify-center gap-1.5"
-                        >
-                            <Settings className="w-3.5 h-3.5" />
-                            Notification Settings
-                        </Link>
-                    </div>
+                    {userRole !== 'USER' && (
+                        <div className="p-3 border-t border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 text-center">
+                            <Link
+                                to="/settings"
+                                onClick={() => setIsOpen(false)}
+                                className="text-xs font-medium text-slate-500 hover:text-primary flex items-center justify-center gap-1.5"
+                            >
+                                <Settings className="w-3.5 h-3.5" />
+                                Notification Settings
+                            </Link>
+                        </div>
+                    )}
                 </Popover.Content>
             </Popover.Portal>
         </Popover.Root>
