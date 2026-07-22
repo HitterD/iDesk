@@ -102,12 +102,19 @@ export class UsersController {
 
     @Get('agents')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT)
-    @ApiOperation({ summary: 'Get agents, optionally filtered by siteId' })
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @ApiOperation({ summary: 'Get agents, optionally filtered by siteId, category, or ticketType' })
     @ApiQuery({ name: 'siteId', required: false, description: 'Filter agents by site ID' })
+    @ApiQuery({ name: 'category', required: false, description: 'Filter agents by ticket category' })
+    @ApiQuery({ name: 'ticketType', required: false, description: 'Filter agents by ticket type' })
     @ApiResponse({ status: 200, description: 'Return agents.' })
-    async getAgents(@Query('siteId') siteId?: string) {
-        return this.usersService.getAgents(siteId);
+    async getAgents(
+        @Query('siteId') siteId?: string,
+        @Query('category') category?: string,
+        @Query('ticketType') ticketType?: string,
+        @Req() req?: any,
+    ) {
+        return this.usersService.getAgents(siteId, req?.user?.role, category, ticketType);
     }
 
     @Get('agents/stats')

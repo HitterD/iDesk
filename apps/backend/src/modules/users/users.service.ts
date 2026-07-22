@@ -85,8 +85,8 @@ export class UsersService {
         return this.userPasswordService.resetPassword(userId, newPassword, callerId, callerRole);
     }
 
-    async getAgents(siteId?: string): Promise<User[]> {
-        return this.userCrudService.getAgents(siteId);
+    async getAgents(siteId?: string, callerRole?: UserRole, category?: string, ticketType?: string): Promise<User[]> {
+        return this.userCrudService.getAgents(siteId, callerRole, category, ticketType);
     }
 
     async getAllUsers(): Promise<User[]> {
@@ -101,8 +101,8 @@ export class UsersService {
         return this.userCrudService.deleteUser(userId, adminId);
     }
 
-    async getAgentStats(): Promise<any> {
-        return this.userCrudService.getAgentStats();
+    async getAgentStats(options?: { search?: string; siteCode?: string; role?: string }): Promise<any> {
+        return this.userCrudService.getAgentStats(options);
     }
 
     async updateUserByAdmin(userId: string, updateData: Partial<User>, adminId?: string): Promise<User> {

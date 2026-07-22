@@ -24,6 +24,13 @@ const OPERATIONAL_AGENT_ROLES = [
     UserRole.AGENT_OPERATIONAL_SUPPORT,
 ];
 
+const AGENT_STATS_ROLES = [
+    UserRole.AGENT,
+    UserRole.AGENT_ORACLE,
+    UserRole.AGENT_ADMIN,
+    UserRole.AGENT_OPERATIONAL_SUPPORT,
+];
+
 @Injectable()
 export class UserCrudService implements OnModuleInit {
     private readonly logger = new Logger(UserCrudService.name);
@@ -45,20 +52,22 @@ export class UserCrudService implements OnModuleInit {
     async onModuleInit() {
         try {
             await this.userRepo.query(`
-                UPDATE users u
-                SET applied_preset_id = p.id
-                FROM permission_presets p
-                WHERE u.applied_preset_id IS NULL
-                  AND p.is_system = true
-                  AND p.is_active = true
+                UPDATE "users" AS user_record
+                SET
+                    "appliedPresetId" = preset.id,
+                    "appliedPresetName" = preset.name
+                FROM "permission_presets" AS preset
+                WHERE user_record."appliedPresetId" IS NULL
+                  AND preset."isSystem" = true
+                  AND preset."isActive" = true
                   AND (
-                    (u.role = 'USER' AND p.name = 'User') OR
-                    (u.role = 'AGENT' AND p.name = 'Agent') OR
-                    (u.role = 'AGENT_ADMIN' AND p.name = 'Agent') OR
-                    (u.role = 'AGENT_OPERATIONAL_SUPPORT' AND p.name = 'Agent Operational Support') OR
-                    (u.role = 'AGENT_ORACLE' AND p.name = 'Agent Oracle') OR
-                    (u.role = 'MANAGER' AND p.name = 'Manager') OR
-                    (u.role = 'ADMIN' AND p.name = 'Admin')
+                    (user_record.role = 'USER' AND preset.name = 'User') OR
+                    (user_record.role = 'AGENT' AND preset.name = 'Agent') OR
+                    (user_record.role = 'AGENT_ADMIN' AND preset.name = 'Agent') OR
+                    (user_record.role = 'AGENT_OPERATIONAL_SUPPORT' AND preset.name = 'Agent Operational Support') OR
+                    (user_record.role = 'AGENT_ORACLE' AND preset.name = 'Agent Oracle') OR
+                    (user_record.role = 'MANAGER' AND preset.name = 'Manager') OR
+                    (user_record.role = 'ADMIN' AND preset.name = 'Admin')
                   )
             `);
             this.logger.log('Backfilled default permission presets for users without appliedPresetId');
@@ -233,11 +242,15 @@ export class UserCrudService implements OnModuleInit {
             password: hashedPassword,
             departmentId: dto.departmentId,
             siteId: dto.siteId, // P3: Site support
-            appliedPresetId: presetId || undefined, // P3: Map to entity's appliedPresetId
             mustChangePassword: true,
         });
 
-        const savedUser = await this.userRepo.save(user);
+        let savedUser = await this.userRepo.save(user);
+
+        if (presetId) {
+            const { presetName } = await this.permissionsService.applyPresetToUser(savedUser.id, presetId);
+            savedUser = { ...savedUser, appliedPresetId: presetId, appliedPresetName: presetName };
+        }
 
         // Audit log for user creation
         this.auditService.logAsync({
@@ -305,14 +318,26 @@ export class UserCrudService implements OnModuleInit {
         return user || undefined;
     }
 
-    async getAgents(siteId?: string): Promise<User[]> {
+    async getAgents(
+        siteId?: string,
+        callerRole?: UserRole,
+        category?: string,
+        ticketType?: string,
+    ): Promise<User[]> {
+        const isOracleContext =
+            callerRole === UserRole.AGENT_ORACLE ||
+            ticketType === 'ORACLE_REQUEST' ||
+            category === 'ORACLE_REQUEST';
+
+        const roles = isOracleContext
+            ? [UserRole.AGENT_ORACLE, UserRole.ADMIN]
+            : [UserRole.AGENT, UserRole.ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ADMIN];
+
         const qb = this.userRepo
             .createQueryBuilder('user')
             .leftJoinAndSelect('user.site', 'site')
             .where('user.isActive = :isActive', { isActive: true })
-            .andWhere('user.role IN (:...roles)', {
-                roles: OPERATIONAL_AGENT_ROLES,
-            })
+            .andWhere('user.role IN (:...roles)', { roles })
             .select([
                 'user.id', 'user.fullName', 'user.email', 'user.role',
                 'user.avatarUrl', 'user.siteId', 'user.appraisalPoints',
@@ -388,7 +413,8 @@ export class UserCrudService implements OnModuleInit {
         const agentQb = this.userRepo
             .createQueryBuilder('user')
             .leftJoinAndSelect('user.department', 'department')
-            .leftJoinAndSelect('user.site', 'site');
+            .leftJoinAndSelect('user.site', 'site')
+            .andWhere('user.role IN (:...agentStatsRoles)', { agentStatsRoles: AGENT_STATS_ROLES });
 
         this.applyUserListFilters(agentQb, options);
 

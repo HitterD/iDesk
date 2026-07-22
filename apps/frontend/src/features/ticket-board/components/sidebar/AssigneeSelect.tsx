@@ -24,21 +24,25 @@ interface AssigneeSelectProps {
     value?: string;
     onChange: (value: string) => void;
     disabled?: boolean;
+    category?: string;
+    ticketType?: string;
 }
 
-export const AssigneeSelect = ({ value, onChange, disabled }: AssigneeSelectProps) => {
+export const AssigneeSelect = ({ value, onChange, disabled, category, ticketType }: AssigneeSelectProps) => {
     const [open, setOpen] = useState(false);
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
 
     const { data: agents = [] } = useQuery<Agent[]>({
-        queryKey: ['agents', isAdmin ? 'all' : user?.siteId],
+        queryKey: ['agents', isAdmin ? 'all' : user?.siteId, category || 'all', ticketType || 'all'],
         queryFn: async () => {
             const params = new URLSearchParams();
             // Non-admin: filter by own site
             if (!isAdmin && user?.siteId) {
                 params.set('siteId', user.siteId);
             }
+            if (category) params.set('category', category);
+            if (ticketType) params.set('ticketType', ticketType);
             const res = await api.get(`/users/agents?${params.toString()}`);
             return res.data;
         },

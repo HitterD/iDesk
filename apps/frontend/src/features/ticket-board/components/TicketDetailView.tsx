@@ -410,6 +410,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                             <label className="text-xs text-slate-500">Assignee</label>
                             <AssigneeSelect
                                 value={ticket.assignedToId}
+                                category={ticket.category}
+                                ticketType={ticket.ticketType}
                                 onChange={(val) => assignTicketMutation.mutate(val)}
                             />
                         </div>

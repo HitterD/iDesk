@@ -79,12 +79,13 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
     // Fetch agents for assignment
     const isAdmin = user?.role === 'ADMIN';
     const { data: agents = [] } = useQuery<Agent[]>({
-        queryKey: ['agents', isAdmin ? 'all' : user?.siteId],
+        queryKey: ['agents', 'oracle', isAdmin ? 'all' : user?.siteId],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (!isAdmin && user?.siteId) {
                 params.set('siteId', user.siteId);
             }
+            params.set('ticketType', 'ORACLE_REQUEST');
             const res = await api.get(`/users/agents?${params.toString()}`);
             return res.data;
         },

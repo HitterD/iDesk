@@ -108,7 +108,9 @@ export const BentoMyTicketsPage: React.FC = () => {
 
     const tickets = (response?.data ?? []).filter(t => 
         t.ticketType !== 'ICT_BUDGET' && 
-        t.ticketType !== 'HARDWARE_INSTALLATION'
+        t.ticketType !== 'HARDWARE_INSTALLATION' &&
+        t.ticketType !== 'ORACLE_REQUEST' &&
+        t.category !== 'ORACLE_REQUEST'
     );
     const meta = response?.meta;
 

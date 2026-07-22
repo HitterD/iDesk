@@ -72,16 +72,21 @@ export const BentoTicketDetailPage: React.FC = () => {
     });
 
     const isAdmin = user?.role === 'ADMIN';
+    const isOracleTicket = ticket?.category === 'ORACLE_REQUEST' || ticket?.ticketType === 'ORACLE_REQUEST';
     const { data: agents = [] } = useQuery<Agent[]>({
-        queryKey: ['agents', isAdmin ? 'all' : user?.siteId],
+        queryKey: ['agents', isOracleTicket ? 'oracle' : 'general', isAdmin ? 'all' : user?.siteId],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (!isAdmin && user?.siteId) {
                 params.set('siteId', user.siteId);
             }
+            if (isOracleTicket) {
+                params.set('ticketType', 'ORACLE_REQUEST');
+            }
             const res = await api.get(`/users/agents?${params.toString()}`);
             return res.data;
         },
+        enabled: Boolean(ticket),
     });
 
     // Fetch SLA configs for priorities

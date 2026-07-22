@@ -124,9 +124,16 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
             .leftJoinAndSelect('ticket.site', 'site');
 
+        // Oracle ticket isolation: filter out Oracle tickets by default from general paginated ticket list
+        if (ticketType === 'ORACLE_REQUEST' || category === 'ORACLE_REQUEST') {
+            qb.andWhere('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
+        } else {
+            qb.andWhere('(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', ORACLE_FILTER_PARAMS);
+        }
+
         // Role-based filtering
         if (role === UserRole.USER) {
-            qb.where('ticket.userId = :userId', { userId });
+            qb.andWhere('ticket.userId = :userId', { userId });
 
             // Only apply default exclusion if an explicit ticketType filter is not provided
             if (!ticketType) {
@@ -134,11 +141,6 @@ export class TicketQueryService {
                     excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION']
                 });
             }
-        } else if (role === UserRole.AGENT_ORACLE) {            // Oracle agent strictly sees only oracle requests
-            applyOracleFilter(qb, role);
-        } else if (isNonOracleAgent(role)) {
-            // Normal agents strictly DO NOT see oracle requests
-            applyOracleFilter(qb, role);
         }
 
         // Site isolation filtering

@@ -19,6 +19,7 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { WorkloadService } from '../../workload/workload.service';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
+import { assertTicketRoleAccess } from './ticket-oracle-access';
 
 @Injectable()
 export class TicketUpdateService {
@@ -248,17 +249,34 @@ export class TicketUpdateService {
             throw new BadRequestException('Assignee must be an operational support agent, oracle agent, or admin');
         }
 
-        // Oracle/K2 tickets can only be assigned to AGENT_ORACLE or ADMIN
+        // Oracle/K2 tickets vs General support tickets assignment role enforcement
         const isOracleTicket = ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST';
-        if (isOracleTicket && assignee.role !== UserRole.AGENT_ORACLE && assignee.role !== UserRole.ADMIN) {
-            throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can be assigned to Oracle/K2 tickets');
+        if (isOracleTicket) {
+            if (assignee.role !== UserRole.AGENT_ORACLE && assignee.role !== UserRole.ADMIN) {
+                throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can be assigned to Oracle/K2 tickets');
+            }
+        } else {
+            if (assignee.role === UserRole.AGENT_ORACLE) {
+                throw new ForbiddenException('General support tickets cannot be assigned to AGENT_ORACLE');
+            }
         }
 
         const assigner = await this.userRepo.findOne({ where: { id: userId } });
         if (!assigner) {
             throw new NotFoundException('Assigner not found');
         }
-        validateTicketAccess(assigner, ticket);
+
+        if (isOracleTicket) {
+            if (assigner.role && assigner.role !== UserRole.AGENT_ORACLE && assigner.role !== UserRole.ADMIN) {
+                throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can assign Oracle/K2 tickets');
+            }
+        } else {
+            if (assigner.role === UserRole.AGENT_ORACLE) {
+                throw new ForbiddenException('AGENT_ORACLE cannot assign general support tickets');
+            }
+        }
+        assertTicketRoleAccess(ticket, assigner.role);
+        assertTicketRoleAccess(ticket, assignee.role);
 
         const oldAssigneeName = ticket.assignedTo ? ticket.assignedTo.fullName : 'Unassigned';
         const oldAssigneeId = ticket.assignedTo ? ticket.assignedTo.id : null;
