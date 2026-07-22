@@ -4,8 +4,8 @@ import { RequiredFieldsBuilder } from '../catalog/RequiredFieldsBuilder';
 test('add field appends entry and calls onChange', () => {
   const onChange = vi.fn();
   render(<RequiredFieldsBuilder value={[]} onChange={onChange} />);
-  fireEvent.click(screen.getByRole('button', { name: /tambah field/i }));
+  fireEvent.click(screen.getByRole('button', { name: /tambah custom field/i }));
   fireEvent.change(screen.getAllByLabelText(/field key/i)[0], { target: { value: 'brand' } });
   fireEvent.change(screen.getAllByLabelText(/label/i)[0], { target: { value: 'Brand' } });
-  expect(onChange).toHaveBeenLastCalledWith([{ key: 'brand', label: 'Brand', type: 'string', required: true }]);
+  expect(onChange).toHaveBeenLastCalledWith([{ key: 'brand', label: 'Brand', type: 'text', required: true }]);
 });

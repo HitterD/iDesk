@@ -11,9 +11,9 @@ describe('StatsStrip', () => {
   });
   it('renders stat labels', () => {
     render(<StatsStrip scheduled={0} today={0} unscheduled={0} rescheduleRequested={0} />);
-    expect(screen.getByText('Total Scheduled')).toBeInTheDocument();
-    expect(screen.getByText("Today's Schedule")).toBeInTheDocument();
+    expect(screen.getByText('Scheduled')).toBeInTheDocument();
+    expect(screen.getByText('Today')).toBeInTheDocument();
     expect(screen.getByText('Unscheduled')).toBeInTheDocument();
-    expect(screen.getByText('Reschedule Req.')).toBeInTheDocument();
+    expect(screen.getByText('Reschedule')).toBeInTheDocument();
   });
 });

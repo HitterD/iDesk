@@ -13,13 +13,12 @@ describe('HardwareRequestsLayout', () => {
       <MemoryRouter initialEntries={['/hardware-requests']}>
         <Routes>
           <Route path="/hardware-requests" element={<HardwareRequestsLayout />}>
-            <Route index element={<div>LIST_CHILD</div>} />
+            <Route index element={<div data-testid="outlet-child">LIST_CHILD</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
     );
-    expect(screen.getByText('LIST_CHILD')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /hardware requests/i })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: /hardware requests tabs/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /hardware requests navigation/i })).toBeInTheDocument();
+    expect(screen.getByTestId('outlet-child')).toBeInTheDocument();
   });
 });

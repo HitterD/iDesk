@@ -3,7 +3,6 @@ import { describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DeliveryBoard } from '../DeliveryBoard';
-import { vi } from 'vitest';
 
 const mockReq = {
   id: 'r1', status: 'AWAITING_DELIVERY',

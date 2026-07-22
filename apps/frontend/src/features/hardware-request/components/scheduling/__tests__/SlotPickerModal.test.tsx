@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SlotPickerModal } from '../SlotPickerModal';
 import { vi } from 'vitest';
-import * as useSched from '../../hooks/useScheduleSelection';
+import * as useSched from '../../../hooks/useScheduleSelection';
 
-vi.mock('../../hooks/useScheduleSelection', () => ({
+vi.mock('../../../hooks/useScheduleSelection', () => ({
   useScheduleSelection: () => ({
     select: vi.fn(),
     isSelecting: false,
