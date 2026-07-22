@@ -70,9 +70,10 @@ describe('permission.util — v2 helpers', () => {
     });
   });
 
-  it('canDecideProcurement only ICT in PROCUREMENT', () => {
+  it('allows ICT to start or continue procurement', () => {
+    expect(canDecideProcurement(ictUser, { ...baseReq, status: 'APPROVED' })).toBe(true);
     expect(canDecideProcurement(ictUser, { ...baseReq, status: 'PROCUREMENT' })).toBe(true);
-    expect(canDecideProcurement(ictUser, { ...baseReq, status: 'APPROVED' })).toBe(false);
+    expect(canDecideProcurement(ownerUser, { ...baseReq, status: 'APPROVED' })).toBe(false);
     expect(canDecideProcurement(ownerUser, { ...baseReq, status: 'PROCUREMENT' })).toBe(false);
   });
 

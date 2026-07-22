@@ -150,14 +150,13 @@ function DrawerDetail({ r }: { r: HardwareRequest }) {
             {/* Requester */}
             <InfoBlock icon={User} label="Requester">
                 <span className="font-semibold text-slate-900 dark:text-white text-sm">{r.requester?.fullName ?? '—'}</span>
-                <span className="text-xs text-slate-400 dark:text-slate-500">{r.division ?? ''}</span>
             </InfoBlock>
 
             {/* Site */}
             <InfoBlock icon={MapPin} label="Site / Lokasi">
                 <span className="font-semibold text-slate-900 dark:text-white text-sm">{r.site?.name ?? '—'}</span>
-                {r.recipientName && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500">Penerima: {r.recipientName}</span>
+                {r.recipient?.fullName && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500">Penerima: {r.recipient.fullName}</span>
                 )}
             </InfoBlock>
 

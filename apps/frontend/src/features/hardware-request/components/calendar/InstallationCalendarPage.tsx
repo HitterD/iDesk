@@ -225,7 +225,10 @@ export function InstallationCalendarPage() {
           onConfirm={async reason => {
             if (!pendingReschedule) return;
             try {
-              await reschedule({ requestId: pendingReschedule.requestId, proposedAt: pendingReschedule.to, reason });
+              await reschedule.mutateAsync({
+                requestId: pendingReschedule.requestId,
+                payload: { proposedAt: pendingReschedule.to, reason },
+              });
             } catch {
               pendingReschedule.revert();
             } finally {

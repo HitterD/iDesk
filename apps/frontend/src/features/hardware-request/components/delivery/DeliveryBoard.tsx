@@ -76,7 +76,7 @@ function DeliveryRow({ item, editable, isUpdating, onToggle }: DeliveryRowProps)
         <div>
           <p className="font-medium">{item.name || item.categorySnapshot?.name}</p>
           <p className="text-sm text-muted-foreground">
-            qty: {item.quantity || item.qty}
+            qty: {item.quantity}
             {isArrived && item.arrivedAt && ` • Datang ${new Date(item.arrivedAt).toLocaleDateString('id-ID')}`}
             {isNotProcured && ' • Tidak diproses'}
           </p>

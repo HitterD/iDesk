@@ -1,15 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { HardwareRequestApi } from '../api/hardware-request.api';
+import type { RequestStatus } from '../types';
 
-const OPEN_STATUSES = [
-  'SUBMITTED', 'REVIEW', 'APPROVED', 'PROCUREMENT',
+const OPEN_STATUSES: RequestStatus[] = [
+  'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'PROCUREMENT',
   'AWAITING_DELIVERY', 'INSTALLATION',
-] as const;
+];
 
 export function useHardwareRequestsCount() {
   const query = useQuery({
     queryKey: ['hardware-requests', 'open-count'],
-    queryFn: () => HardwareRequestApi.list({ status: OPEN_STATUSES as unknown as string[], limit: 1 }),
+    queryFn: () => HardwareRequestApi.list({ status: OPEN_STATUSES, pageSize: 1 }),
     staleTime: 30_000,
   });
   const openCount = query.data?.meta?.total ?? 0;

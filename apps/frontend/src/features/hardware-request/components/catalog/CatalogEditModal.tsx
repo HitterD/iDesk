@@ -45,7 +45,7 @@ export function CatalogEditModal({ open, initial, onClose, onSubmit, isSubmittin
       category,
       active,
       displayOrder: initial?.displayOrder ?? 0,
-      requiredFields: [], // Fix validation error, must be array
+      requiredFields: {},
     });
   };
 

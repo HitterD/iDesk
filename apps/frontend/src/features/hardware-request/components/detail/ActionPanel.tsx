@@ -84,7 +84,7 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
                         Silakan pilih slot waktu yang sesuai untuk proses instalasi: 
                         <br/>
                         <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {r.items.map(i => i.catalogName || i.categorySnapshot?.name || i.category).join(', ')}
+                            {r.items.map(i => i.categorySnapshot?.name ?? i.name ?? '—').join(', ')}
                         </span>
                     </p>
                     <button

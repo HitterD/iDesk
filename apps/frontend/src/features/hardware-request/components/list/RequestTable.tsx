@@ -62,9 +62,6 @@ export function RequestTable({ rows }: { rows: HardwareRequest[] }) {
                                                 <span className="font-semibold text-slate-800 dark:text-slate-200 text-[13px]">
                                                     {r.requester?.fullName ?? '—'}
                                                 </span>
-                                                {r.division && (
-                                                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{r.division}</span>
-                                                )}
                                             </div>
                                         </div>
                                     </td>

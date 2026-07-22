@@ -8,15 +8,19 @@ export function ItemsCard({ r, children }: { r: HardwareRequest; children?: Reac
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {r.items.map(it => {
                     const snap = it.categorySnapshot;
+                    const recipientName = typeof snap.customFields === 'object' && snap.customFields !== null
+                        && 'recipientName' in snap.customFields
+                        ? String(snap.customFields.recipientName)
+                        : null;
                     const assets = (r.assets ?? []).filter(a => a.itemId === it.id);
                     return (
                         <li key={it.id} className="py-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between group">
                             <div className="space-y-1.5">
                                 <div className="text-sm font-bold text-slate-900 dark:text-slate-200">{String(snap.name ?? '—')}</div>
                                 <div className="text-[10px] text-slate-400 dark:text-slate-600 font-mono tracking-tight">{String(snap.code ?? '')}</div>
-                                {snap.customFields?.recipientName && (
+                                {recipientName && (
                                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                        👤 <span className="font-medium">{String(snap.customFields.recipientName)}</span>
+                                        👤 <span className="font-medium">{recipientName}</span>
                                     </div>
                                 )}
                                 {assets.length > 0 && (
