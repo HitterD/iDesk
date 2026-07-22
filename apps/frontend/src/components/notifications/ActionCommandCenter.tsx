@@ -103,7 +103,7 @@ const SNOOZE_OPTIONS: { label: string; value: SnoozeDuration }[] = [
 const ActionRow = ({
     item, onClick, index,
 }: { item: ActionItem; onClick: () => void; index: number }) => {
-    const { snooze, unsnooze, isSnoozePending } = useSnoozeActionItem();
+    const { snooze, unsnooze, isSnoozing } = useSnoozeActionItem();
     const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
     
     const cfg = URGENCY_CONFIG[item.urgency];
@@ -154,7 +154,7 @@ const ActionRow = ({
                     <div className="relative">
                         <button
                             onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(v => !v); }}
-                            disabled={isSnoozePending}
+                            disabled={isSnoozing}
                             className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                             title="Tunda reminder"
                         >

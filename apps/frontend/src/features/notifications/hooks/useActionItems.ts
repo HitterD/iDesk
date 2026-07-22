@@ -48,6 +48,7 @@ export const useActionItems = () => {
         activeItems,
         counts: data?.counts || { critical: 0, high: 0, normal: 0, total: 0 },
         isLoading,
+        isFetching,
         error,
         refetch
     };

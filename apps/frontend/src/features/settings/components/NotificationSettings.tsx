@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePushNotifications } from '../../../hooks/usePushNotifications';
-import { useCategorySettings, CategorySettings } from '../../../features/notifications/hooks/useCategorySettings';
+import { useCategorySettings } from '../../../features/notifications/hooks/useCategorySettings';
+import type { CategorySettings } from '@/components/notifications/types/notification.types';
 
 interface NotificationPreference {
     id: string;
@@ -67,6 +68,14 @@ const CHANNEL_KEY_MAP: Record<string, string> = {
 
 // Helper to get type setting with fallback to default
 // Backend stores with snake_case keys, so we need to convert
+const ACTION_ITEM_CATEGORIES = [
+    { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas' },
+    { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Approval, schedule, procurement' },
+    { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses menunggu proses' },
+    { key: 'RENEWAL', label: 'Renewal', desc: 'Kontrak mendekati expired' },
+    { key: 'ZOOM', label: 'Zoom', desc: 'Booking dan jadwal meeting' },
+] satisfies Array<{ key: keyof CategorySettings; label: string; desc: string }>;
+
 const getTypeSetting = (
     typeSettings: Record<string, Record<string, boolean>> | undefined,
     notificationType: string,
@@ -85,7 +94,7 @@ const getTypeSetting = (
 export const NotificationSettings: React.FC = () => {
     const queryClient = useQueryClient();
     const [expandedSection, setExpandedSection] = useState<string | null>('channels');
-    const { settings: categorySettings, isLoading: catLoading, update: updateCategory } = useCategorySettings();
+    const { settings: categorySettings, isLoading: catLoading, updateSettings } = useCategorySettings();
 
     // Push notification hook
     const {
@@ -421,22 +430,16 @@ export const NotificationSettings: React.FC = () => {
                         <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                         <span className="text-sm text-slate-400">Memuat...</span>
                     </div>
-                ) : (
+                ) : categorySettings ? (
                     <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                        {([
-                            { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas' },
-                            { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Approval, schedule, procurement' },
-                            { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses menunggu proses' },
-                            { key: 'RENEWAL', label: 'Renewal', desc: 'Kontrak mendekati expired' },
-                            { key: 'ZOOM', label: 'Zoom', desc: 'Booking dan jadwal meeting' },
-                        ] as { key: keyof CategorySettings; label: string; desc: string }[]).map(({ key, label, desc }) => (
+                        {ACTION_ITEM_CATEGORIES.map(({ key, label, desc }) => (
                             <div key={key} className="flex items-center justify-between px-4 py-3">
                                 <div>
                                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">{desc}</p>
                                 </div>
                                 <button
-                                    onClick={() => updateCategory({ [key]: !categorySettings[key] })}
+                                    onClick={() => updateSettings({ [key]: !categorySettings[key] })}
                                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
                                         categorySettings[key]
                                             ? 'bg-primary'
@@ -450,7 +453,7 @@ export const NotificationSettings: React.FC = () => {
                             </div>
                         ))}
                     </div>
-                )}
+                ) : null}
             </div>
 
             {/* Quiet Hours */}

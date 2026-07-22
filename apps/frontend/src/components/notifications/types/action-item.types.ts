@@ -1,5 +1,6 @@
 export type ActionItemUrgency = 'CRITICAL' | 'HIGH' | 'NORMAL';
 export type ActionItemEntityType = 'TICKET' | 'HARDWARE_REQUEST' | 'EFORM' | 'RENEWAL';
+export type SnoozeDuration = '30m' | '2h' | 'tomorrow';
 
 export interface ActionItem {
     id: string;

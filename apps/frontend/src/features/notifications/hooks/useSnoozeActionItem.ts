@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { ActionItemEntityType } from '@/components/notifications/types/action-item.types';
+import { ActionItemEntityType, SnoozeDuration } from '@/components/notifications/types/action-item.types';
 
 interface SnoozeVariables {
     entityType: ActionItemEntityType;
     entityId: string;
-    duration: string; // e.g., '1h', 'tomorrow', 'next_week'
+    duration: SnoozeDuration;
 }
 
 interface UnsnoozeVariables {
