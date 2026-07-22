@@ -174,12 +174,42 @@ export const useTicketListSocket = (options?: {
             }
         };
 
+        const handleNewMessage = (data: any) => {
+            const ticketId = data.ticketId || data.message?.ticketId;
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            if (ticketId) {
+                queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
+                    if (!oldData) return oldData;
+                    if (oldData.data && Array.isArray(oldData.data)) {
+                        return {
+                            ...oldData,
+                            data: oldData.data.map((t: any) =>
+                                t.id === ticketId
+                                    ? { ...t, hasUnreadChat: true, unreadMessageCount: (t.unreadMessageCount || 0) + 1 }
+                                    : t
+                            ),
+                        };
+                    }
+                    if (Array.isArray(oldData)) {
+                        return oldData.map((t: any) =>
+                            t.id === ticketId
+                                ? { ...t, hasUnreadChat: true, unreadMessageCount: (t.unreadMessageCount || 0) + 1 }
+                                : t
+                        );
+                    }
+                    return oldData;
+                });
+            }
+        };
+
         socket.on('tickets:listUpdated', handleListUpdate);
         socket.on('tickets:statusChanged', handleListUpdate);
         socket.on('ticket:assigned', handleListUpdate);
         socket.on('ticket:priority_changed', handleListUpdate);
         socket.on('ticket:created', handleNewTicket);
         socket.on('ticket:updated', handleTicketUpdated);
+        socket.on('ticket:newMessage', handleNewMessage);
+        socket.on('NEW_MESSAGE', handleNewMessage);
         socket.on('dashboard:stats:update', () => {
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         });
@@ -191,6 +221,8 @@ export const useTicketListSocket = (options?: {
             socket.off('ticket:priority_changed', handleListUpdate);
             socket.off('ticket:created', handleNewTicket);
             socket.off('ticket:updated', handleTicketUpdated);
+            socket.off('ticket:newMessage', handleNewMessage);
+            socket.off('NEW_MESSAGE', handleNewMessage);
             socket.off('dashboard:stats:update');
         };
     }, [isConnected, socket, queryClient]);

@@ -69,8 +69,10 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
         search: debouncedSearch,
     });
 
-    useTicketListSocket(() => {
-        queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
+    useTicketListSocket({
+        onTicketUpdated: () => {
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
+        },
     });
 
     const tickets: Ticket[] = data?.data ?? [];
