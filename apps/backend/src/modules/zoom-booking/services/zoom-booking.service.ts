@@ -46,6 +46,29 @@ export interface CalendarDay {
     slots: CalendarSlot[];
 }
 
+export interface MergedCalendarBooking extends NonNullable<CalendarSlot['booking']> {
+    zoomAccountId: string;
+    accountColorHex: string;
+}
+
+export interface MergedCalendarSlot {
+    date: string;
+    time: string;
+    endTime: string;
+    status: CalendarSlot['status'];
+    bookings: MergedCalendarBooking[];
+    bookingsOverflow: number;
+    isMyBooking: boolean;
+}
+
+export interface MergedCalendarDay {
+    date: string;
+    dayOfWeek: number;
+    isWorkingDay: boolean;
+    isBlocked: boolean;
+    slots: MergedCalendarSlot[];
+}
+
 // Force reload trigger - Dec 18, 2025 18:55
 @Injectable()
 export class ZoomBookingService {
@@ -154,14 +177,13 @@ export class ZoomBookingService {
     }
 
     /**
-     * Get current user's bookings (All)
+     * Get current user's & system active bookings (All)
      */
     async getMyBookings(userId: string): Promise<ZoomBooking[]> {
         return this.bookingRepo.find({
-            where: { bookedByUserId: userId },
-            relations: ['zoomAccount', 'meeting'],
+            relations: ['zoomAccount', 'meeting', 'bookedByUser'],
             order: { bookingDate: 'DESC', startTime: 'DESC' },
-            take: 50, // Limit history
+            take: 500, // Show full calendar history & future bookings
         });
     }
     async getCalendar(
@@ -242,6 +264,111 @@ export class ZoomBookingService {
         }
 
         return calendar;
+    }
+
+    async getMergedCalendar(
+        startDate: Date,
+        endDate: Date,
+        currentUserId: string,
+    ): Promise<MergedCalendarDay[]> {
+        const settings = await this.getSettings();
+        const startDateStr = startDate.toLocaleDateString('en-CA');
+        const endDateStr = endDate.toLocaleDateString('en-CA');
+        const bookings = await this.bookingRepo
+            .createQueryBuilder('booking')
+            .leftJoinAndSelect('booking.bookedByUser', 'user')
+            .leftJoinAndSelect('booking.meeting', 'meeting')
+            .leftJoinAndSelect('booking.zoomAccount', 'zoomAccount')
+            .where('zoomAccount.isActive = :isActive', { isActive: true })
+            .andWhere('booking.bookingDate >= :startDate', { startDate: startDateStr })
+            .andWhere('booking.bookingDate <= :endDate', { endDate: endDateStr })
+            .andWhere('booking.status IN (:...statuses)', {
+                statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
+            })
+            .orderBy('booking.startTime', 'ASC')
+            .getMany();
+
+        const calendar: MergedCalendarDay[] = [];
+        const current = new Date(startDate);
+        while (current <= endDate) {
+            const date = current.toLocaleDateString('en-CA');
+            const dayOfWeek = current.getDay();
+            const isWorkingDay = settings.workingDays.includes(dayOfWeek);
+            const isBlocked = settings.blockedDates.includes(date);
+            const dayBookings = bookings.filter((booking) =>
+                new Date(booking.bookingDate).toLocaleDateString('en-CA') === date,
+            );
+            calendar.push({
+                date,
+                dayOfWeek,
+                isWorkingDay,
+                isBlocked,
+                slots: this.generateMergedTimeSlots(
+                    settings.slotStartTime,
+                    settings.slotEndTime,
+                    settings.slotIntervalMinutes,
+                    date,
+                    dayBookings,
+                    currentUserId,
+                    isWorkingDay && !isBlocked,
+                ),
+            });
+            current.setDate(current.getDate() + 1);
+        }
+        return calendar;
+    }
+
+    private generateMergedTimeSlots(
+        startTime: string,
+        endTime: string,
+        intervalMinutes: number,
+        date: string,
+        bookings: ZoomBooking[],
+        currentUserId: string,
+        isAvailable: boolean,
+    ): MergedCalendarSlot[] {
+        const slots: MergedCalendarSlot[] = [];
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const [endHour, endMin] = endTime.split(':').map(Number);
+        let currentHour = startHour;
+        let currentMin = startMin;
+
+        while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+            const time = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+            const nextMin = currentMin + intervalMinutes;
+            const nextHour = currentHour + Math.floor(nextMin / 60);
+            const slotBookings = bookings
+                .filter((booking) => time >= booking.startTime.substring(0, 5) && time < booking.endTime.substring(0, 5))
+                .sort((a, b) => Number(b.bookedByUserId === currentUserId) - Number(a.bookedByUserId === currentUserId))
+                .map((booking): MergedCalendarBooking => ({
+                    id: booking.id,
+                    title: booking.title,
+                    bookedBy: booking.bookedByUserId === currentUserId
+                        ? 'Saya'
+                        : booking.isExternal ? 'External Meeting' : booking.bookedByUser?.fullName || 'Unknown',
+                    durationMinutes: booking.durationMinutes,
+                    startTime: booking.startTime.substring(0, 5),
+                    endTime: booking.endTime.substring(0, 5),
+                    isExternal: booking.isExternal,
+                    joinUrl: booking.meeting?.joinUrl,
+                    zoomAccountId: booking.zoomAccountId,
+                    accountColorHex: booking.zoomAccount?.colorHex || '#3b82f6',
+                }));
+            const isMyBooking = slotBookings.some((booking) => booking.bookedBy === 'Saya');
+            const visibleBookings = slotBookings.slice(0, 4);
+            slots.push({
+                date,
+                time,
+                endTime: `${nextHour.toString().padStart(2, '0')}:${(nextMin % 60).toString().padStart(2, '0')}`,
+                status: !isAvailable ? 'blocked' : slotBookings.length ? 'booked' : 'available',
+                bookings: visibleBookings,
+                bookingsOverflow: Math.max(0, slotBookings.length - visibleBookings.length),
+                isMyBooking,
+            });
+            currentMin = nextMin % 60;
+            currentHour = nextHour;
+        }
+        return slots;
     }
 
     /**
@@ -436,6 +563,77 @@ export class ZoomBookingService {
         }
 
         return dto.recurrencePattern ? results : results[0];
+    }
+
+    /**
+     * Checks whether any active account can accept a booking without reserving it.
+     */
+    async checkAvailability(
+        bookingDateStr: string,
+        startTime: string,
+        durationMinutes: number,
+    ): Promise<{ available: boolean; reason?: string }> {
+        const settings = await this.getSettings();
+
+        if (!settings.allowedDurations.includes(durationMinutes)) {
+            return {
+                available: false,
+                reason: `Durasi harus salah satu dari: ${settings.allowedDurations.join(', ')} menit.`,
+            };
+        }
+
+        const bookingDate = new Date(bookingDateStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (bookingDate < today) {
+            return { available: false, reason: `Tanggal ${bookingDateStr} sudah lewat.` };
+        }
+
+        const maxDate = new Date(today);
+        maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
+        if (bookingDate > maxDate) {
+            return {
+                available: false,
+                reason: `Tanggal ${bookingDateStr} melebihi batas maksimal ${settings.advanceBookingDays} hari.`,
+            };
+        }
+
+        if (!settings.workingDays.includes(bookingDate.getDay())) {
+            return { available: false, reason: `Tanggal ${bookingDateStr} bukan hari kerja.` };
+        }
+
+        if (settings.blockedDates.includes(bookingDateStr)) {
+            return { available: false, reason: `Tanggal ${bookingDateStr} diblokir.` };
+        }
+
+        const [startHour, startMinute] = startTime.split(':').map(Number);
+        const totalMinutes = startHour * 60 + startMinute + durationMinutes;
+        const endTime = `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`;
+        const allAccounts = await this.accountRepo.find({ where: { isActive: true } });
+
+        if (!allAccounts.length) {
+            return { available: false, reason: 'Tidak ada akun Zoom yang aktif.' };
+        }
+
+        for (const account of allAccounts) {
+            const conflict = await this.bookingRepo
+                .createQueryBuilder('booking')
+                .where('booking.zoomAccountId = :accountId', { accountId: account.id })
+                .andWhere('booking.bookingDate = :date', { date: bookingDateStr })
+                .andWhere('booking.status IN (:...statuses)', { statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED] })
+                .andWhere(
+                    '(booking.startTime < :endTime AND booking.endTime > :startTime)',
+                    { startTime, endTime },
+                )
+                .getOne();
+
+            if (!conflict) {
+                return { available: true };
+            }
+        }
+
+        return { available: false, reason: `Semua akun penuh pada ${bookingDateStr}` };
     }
 
     /**

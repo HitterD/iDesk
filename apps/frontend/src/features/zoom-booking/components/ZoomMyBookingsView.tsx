@@ -29,6 +29,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     pending:   { label: 'Pending',    color: 'text-amber-600 bg-amber-50 border-amber-200', icon: AlertCircle },
 };
 
+function normalizeDateStr(rawDate: string | Date | undefined): string {
+    if (!rawDate) return format(new Date(), 'yyyy-MM-dd');
+    if (typeof rawDate === 'string') {
+        return rawDate.split('T')[0];
+    }
+    return format(new Date(rawDate), 'yyyy-MM-dd');
+}
+
 export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: string) => void }) {
     const { data: bookings, isLoading } = useMyBookings();
     const cancelOwnBooking = useCancelOwnBooking();
@@ -41,7 +49,8 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
     const filtered = useMemo(() => {
         const all = bookings ?? [];
         const byTab = all.filter((b) => {
-            const date = parseISO(b.bookingDate);
+            const dateStr = normalizeDateStr(b.bookingDate);
+            const date = parseISO(dateStr);
             if (tab === 'upcoming') return isFuture(date) || isToday(date);
             if (tab === 'past')     return isPast(date) && !isToday(date);
             return true;
@@ -51,14 +60,15 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
         return byTab.filter((b) => {
             const titleMatch = b.title ? b.title.toLowerCase().includes(q) : false;
             const accountMatch = b.zoomAccount?.name ? b.zoomAccount.name.toLowerCase().includes(q) : false;
-            return titleMatch || accountMatch;
+            const userMatch = b.bookedByUser?.fullName ? b.bookedByUser.fullName.toLowerCase().includes(q) : false;
+            return titleMatch || accountMatch || userMatch;
         });
     }, [bookings, tab, search]);
 
     const grouped = useMemo(() => {
         const map = new Map<string, ZoomBooking[]>();
         for (const b of filtered) {
-            const key = b.bookingDate;
+            const key = normalizeDateStr(b.bookingDate);
             if (!map.has(key)) map.set(key, []);
             map.get(key)!.push(b);
         }
