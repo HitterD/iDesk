@@ -934,6 +934,21 @@ export class ZoomBookingService {
         return this.performCancellation(bookingId, dto, user, ipAddress, 'admin');
     }
 
+    private isStaffOrOwner(userRole?: string, ownerId?: string, currentUserId?: string): boolean {
+        const STAFF_ROLES: string[] = [
+            UserRole.ADMIN,
+            UserRole.AGENT_OPERATIONAL_SUPPORT,
+            UserRole.AGENT_ADMIN,
+            UserRole.AGENT_ORACLE,
+            UserRole.AGENT,
+            UserRole.MANAGER,
+        ];
+        if (userRole && STAFF_ROLES.includes(userRole)) {
+            return true;
+        }
+        return ownerId !== undefined && ownerId === currentUserId;
+    }
+
     private async performCancellation(
         bookingId: string,
         dto: CancelBookingDto,
@@ -950,11 +965,11 @@ export class ZoomBookingService {
             throw new NotFoundException('Booking not found');
         }
 
-        if (mode === 'admin' && user.role !== UserRole.ADMIN) {
+        if (mode === 'admin' && !this.isStaffOrOwner(user.role)) {
             throw new ForbiddenException('Only administrators can cancel bookings');
         }
         
-        if (mode === 'owner' && primaryBooking.bookedByUserId !== user.userId) {
+        if (mode === 'owner' && !this.isStaffOrOwner(user.role, primaryBooking.bookedByUserId, user.userId)) {
             throw new ForbiddenException('You can only cancel your own bookings');
         }
 
@@ -1140,7 +1155,7 @@ export class ZoomBookingService {
             throw new NotFoundException('Booking not found');
         }
 
-        if (primaryBooking.bookedByUserId !== user.userId && user.role !== UserRole.ADMIN) {
+        if (!this.isStaffOrOwner(user.role, primaryBooking.bookedByUserId, user.userId)) {
             throw new ForbiddenException('You can only reschedule your own bookings');
         }
 
