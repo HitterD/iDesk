@@ -74,9 +74,9 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
             if (!map.has(key)) map.set(key, []);
             map.get(key)!.push(b);
         }
-        // Sort dates ascending for upcoming, descending for past/all
+        // Sort dates ascending for all & upcoming (closest first), descending for past
         const entries = [...map.entries()];
-        entries.sort(([a], [b]) => (tab === 'upcoming' ? a.localeCompare(b) : b.localeCompare(a)));
+        entries.sort(([a], [b]) => (tab === 'past' ? b.localeCompare(a) : a.localeCompare(b)));
         return entries;
     }, [filtered, tab]);
 
