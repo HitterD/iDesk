@@ -486,6 +486,7 @@ export class ZoomBookingService {
 
         const results: ZoomBooking[] = [];
         const errors: string[] = [];
+        let existingSeriesMeeting: ZoomMeeting | null = null;
 
         for (const dateStr of datesToBook) {
             const bookingDate = new Date(dateStr);
@@ -561,8 +562,12 @@ export class ZoomBookingService {
                     user,
                     ipAddress,
                     seriesId,
-                    dto.recurrencePattern
+                    dto.recurrencePattern,
+                    existingSeriesMeeting
                 );
+                if (seriesId && !existingSeriesMeeting && booking.meeting) {
+                    existingSeriesMeeting = booking.meeting;
+                }
                 results.push(booking);
             } catch (err: any) {
                 errors.push(`Gagal pada ${dateStr}: ${err.message}`);
@@ -658,6 +663,7 @@ export class ZoomBookingService {
         ipAddress?: string,
         seriesId?: string,
         recurrencePattern?: string,
+        existingSeriesMeeting?: ZoomMeeting | null,
     ): Promise<ZoomBooking> {
         const settings = await this.getSettings();
         const account = await this.accountRepo.findOne({ where: { id: accountId, isActive: true } });
@@ -728,34 +734,49 @@ export class ZoomBookingService {
                 await queryRunner.manager.save(participants);
             }
 
-            // Create Zoom meeting
-            // Check if Zoom API is configured
-            if (!this.zoomApi.isConfigured()) {
-                throw new BadRequestException('Zoom API tidak dikonfigurasi. Silakan hubungi administrator.');
+            let meeting: ZoomMeeting;
+
+            if (existingSeriesMeeting) {
+                // Reuse existing Zoom meeting details for recurring series so invitation stays identical
+                meeting = queryRunner.manager.create(ZoomMeeting, {
+                    zoomBookingId: savedBooking.id,
+                    zoomMeetingId: existingSeriesMeeting.zoomMeetingId,
+                    joinUrl: existingSeriesMeeting.joinUrl,
+                    startUrl: existingSeriesMeeting.startUrl,
+                    password: existingSeriesMeeting.password,
+                    hostEmail: existingSeriesMeeting.hostEmail,
+                    meetingSettings: existingSeriesMeeting.meetingSettings,
+                });
+                await queryRunner.manager.save(meeting);
+            } else {
+                // Create Zoom meeting via Zoom API
+                if (!this.zoomApi.isConfigured()) {
+                    throw new BadRequestException('Zoom API tidak dikonfigurasi. Silakan hubungi administrator.');
+                }
+
+                // Format date properly for Zoom API
+                const startDateTime = new Date(`${dateStr}T${savedBooking.startTime}:00+07:00`);
+
+                const zoomMeeting = await this.zoomApi.createMeeting(
+                    account.email,
+                    savedBooking.title,
+                    startDateTime,
+                    savedBooking.durationMinutes,
+                    savedBooking.description,
+                );
+
+                // Save meeting details
+                meeting = queryRunner.manager.create(ZoomMeeting, {
+                    zoomBookingId: savedBooking.id,
+                    zoomMeetingId: zoomMeeting.id.toString(),
+                    joinUrl: zoomMeeting.join_url,
+                    startUrl: zoomMeeting.start_url,
+                    password: zoomMeeting.password,
+                    hostEmail: zoomMeeting.host_email,
+                    meetingSettings: zoomMeeting.settings,
+                });
+                await queryRunner.manager.save(meeting);
             }
-
-            // Format date properly for Zoom API
-            const startDateTime = new Date(`${dateStr}T${savedBooking.startTime}:00+07:00`);
-
-            const zoomMeeting = await this.zoomApi.createMeeting(
-                account.email,
-                savedBooking.title,
-                startDateTime,
-                savedBooking.durationMinutes,
-                savedBooking.description,
-            );
-
-            // Save meeting details
-            const meeting = queryRunner.manager.create(ZoomMeeting, {
-                zoomBookingId: savedBooking.id,
-                zoomMeetingId: zoomMeeting.id.toString(),
-                joinUrl: zoomMeeting.join_url,
-                startUrl: zoomMeeting.start_url,
-                password: zoomMeeting.password,
-                hostEmail: zoomMeeting.host_email,
-                meetingSettings: zoomMeeting.settings,
-            });
-            await queryRunner.manager.save(meeting);
 
             // Update booking status to confirmed
             savedBooking.status = BookingStatus.CONFIRMED;
