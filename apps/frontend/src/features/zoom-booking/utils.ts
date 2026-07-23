@@ -46,7 +46,9 @@ ${booking.meeting?.password ? `Passcode: ${booking.meeting.password}` : ''}`.tri
 export const copyToClipboard = async (text: string, label: string = 'Teks'): Promise<boolean> => {
     try {
         let copied = false;
-        if (navigator.clipboard && window.isSecureContext) {
+
+        // 1. Try modern async clipboard API first if available
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
             try {
                 await navigator.clipboard.writeText(text);
                 copied = true;
@@ -54,22 +56,32 @@ export const copyToClipboard = async (text: string, label: string = 'Teks'): Pro
                 copied = false;
             }
         }
-        
+
+        // 2. Fallback for HTTP / non-secure contexts / focus-trapped dialogs
         if (!copied) {
+            const container = (document.querySelector('[role="dialog"]') as HTMLElement) || document.body;
             const textArea = document.createElement("textarea");
             textArea.value = text;
-            textArea.style.position = "fixed";
+            // Place inside active dialog container so Radix FocusScope trap permits focus
+            textArea.style.position = "absolute";
+            textArea.style.left = "-9999px";
             textArea.style.top = "0";
-            textArea.style.left = "0";
             textArea.style.width = "1px";
             textArea.style.height = "1px";
-            textArea.style.opacity = "0";
-            document.body.appendChild(textArea);
+            textArea.setAttribute("readonly", "");
+            container.appendChild(textArea);
+
             textArea.focus();
             textArea.select();
-            textArea.setSelectionRange(0, 99999);
-            copied = document.execCommand('copy');
-            document.body.removeChild(textArea);
+            textArea.setSelectionRange(0, text.length || 99999);
+
+            try {
+                copied = document.execCommand('copy');
+            } catch {
+                copied = false;
+            }
+
+            container.removeChild(textArea);
         }
 
         if (copied) {
