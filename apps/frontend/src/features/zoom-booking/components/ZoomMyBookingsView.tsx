@@ -82,9 +82,9 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
 
     if (isLoading) {
         return (
-            <div className="flex-1 p-6 space-y-3 animate-pulse">
+            <div className="flex-1 space-y-3 p-6 animate-pulse">
                 {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-24 rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
                 ))}
             </div>
         );
@@ -92,19 +92,17 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
 
     return (
         <div className="flex flex-col h-full min-h-0">
-            {/* Sticky toolbar */}
-            <div className="shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 backdrop-blur space-y-3">
-                {/* Tabs */}
-                <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+            <div className="shrink-0 space-y-3 px-5 py-4">
+                <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
                     {(['all', 'upcoming', 'past'] as BookingTab[]).map((t) => (
                         <button
                             key={t}
                             onClick={() => setTab(t)}
                             className={cn(
-                                "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-200 [transition-timing-function:var(--ease-out)]",
                                 tab === t
-                                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                                    ? "bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                             )}
                         >
                             {t === 'all' ? 'Semua' : t === 'upcoming' ? 'Mendatang' : 'Selesai'}
@@ -119,7 +117,7 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
                         placeholder="Cari booking..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 h-8 text-xs"
+                        className="h-9 rounded-lg bg-slate-50 pl-8 text-xs dark:bg-slate-800/60"
                     />
                 </div>
             </div>
@@ -128,7 +126,7 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
             <div className="flex-1 overflow-auto custom-scrollbar px-4 py-3 space-y-4">
                 {grouped.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <Calendar className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
+                        <Calendar className="mb-3 h-10 w-10 text-slate-300 dark:text-slate-600" aria-hidden="true" />
                         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
                             Tidak ada booking
                         </p>
@@ -146,9 +144,9 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
                             {/* Date header */}
                             <div className="flex items-center gap-2 mb-2">
                                 <span className={cn(
-                                    "text-xs font-bold px-2 py-0.5 rounded-full",
+                                    "text-xs font-semibold",
                                     isDateToday
-                                        ? "bg-blue-600 text-white"
+                                        ? "text-blue-700 dark:text-blue-300"
                                         : "text-slate-500 dark:text-slate-400"
                                 )}>
                                     {isDateToday
@@ -223,9 +221,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
     return (
         <div
             className={cn(
-                "group relative rounded-2xl border bg-white dark:bg-slate-900 p-4",
-                "shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer",
-                "border-slate-200 dark:border-slate-700",
+                "group relative cursor-pointer rounded-xl bg-slate-50/80 p-4 transition-[transform,background-color] duration-200 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-800/80",
                 isPastBooking && "opacity-70"
             )}
             onClick={(e) => {
@@ -249,8 +245,8 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                             {booking.title}
                         </h4>
                         <span className={cn(
-                            "shrink-0 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium",
-                            cfg.color
+                            "shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            cfg.color.replace(' border-emerald-200', '').replace(' border-red-200', '')
                         )}>
                             <StatusIcon className="h-2.5 w-2.5" />
                             {cfg.label}
@@ -283,7 +279,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
 
             {/* Actions for upcoming bookings */}
             {!isPastBooking && status !== 'CANCELLED' && (
-                <div className="pl-3 mt-3 flex items-center gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2 pl-3">
                     {hasLink && (
                         <Button
                             size="sm"
@@ -337,7 +333,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                     <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs gap-1 ml-auto"
+                        className="ml-auto h-7 rounded-full text-xs"
                         onClick={(e) => {
                             e.stopPropagation();
                             onReschedule();
@@ -349,7 +345,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                     <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs gap-1 text-red-500 border-red-200 hover:bg-red-50"
+                        className="h-7 rounded-full border-red-200 text-xs text-red-500 hover:bg-red-50 dark:border-red-900/60 dark:hover:bg-red-950/40"
                         onClick={(e) => {
                             e.stopPropagation();
                             onCancel();

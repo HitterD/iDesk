@@ -1,41 +1,44 @@
-import { Video, Calendar } from 'lucide-react';
 import { SimpleBookingForm, ZoomMyBookingsView } from '../components';
 
 export function ClientZoomBookingPage() {
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 lg:p-6 animate-fade-in-up">
-            {/* Page Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                        <Video aria-hidden="true" className="h-6 w-6" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Booking Zoom</h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Buat jadwal meeting Zoom baru dan kelola seluruh daftar meeting Anda
-                        </p>
-                    </div>
-                </div>
-            </div>
+        <main className="mx-auto max-w-7xl space-y-6 p-4 lg:p-6 animate-fade-in-up">
+            <header className="space-y-1 px-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                    Zoom
+                </p>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                    Booking Zoom
+                </h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Buat jadwal meeting Zoom baru dan kelola seluruh daftar meeting Anda.
+                </p>
+            </header>
 
-            {/* Split Grid View (40% Kiri - 60% Kanan) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* Kolom Kiri: Form Booking Card */}
-                <div className="lg:col-span-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-card p-5 shadow-sm sticky top-6">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
-                        <Calendar className="h-4 w-4 text-blue-600" />
-                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Form Booking Zoom</h2>
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-6">
+                <section
+                    aria-labelledby="booking-form-heading"
+                    className="sticky top-6 rounded-2xl bg-card p-5 shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none lg:col-span-5"
+                >
+                    <div className="mb-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                            Detail meeting
+                        </p>
+                        <h2 id="booking-form-heading" className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                            Buat meeting
+                        </h2>
                     </div>
                     <SimpleBookingForm />
-                </div>
+                </section>
 
-                {/* Kolom Kanan: Panel Daftar Zoom Lengkap */}
-                <div className="lg:col-span-7 rounded-2xl border border-slate-200 dark:border-slate-800 bg-card shadow-sm overflow-hidden min-h-[600px] flex flex-col">
+                <section
+                    aria-label="Daftar meeting saya"
+                    className="flex min-h-[600px] flex-col overflow-hidden rounded-2xl bg-card shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none lg:col-span-7"
+                >
                     <ZoomMyBookingsView />
-                </div>
+                </section>
             </div>
-        </div>
+        </main>
     );
 }
 

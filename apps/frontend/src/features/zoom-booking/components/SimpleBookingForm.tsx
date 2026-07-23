@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
-import { CheckCircle2, Clock, FileText, Loader2, Users, Video, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, Video, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -156,17 +156,16 @@ export function SimpleBookingForm() {
     }
 
     const availabilityClassName = availability.isLoading
-        ? 'bg-muted/30'
+        ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
         : availability.data?.available
-            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
-            : 'border-red-500/30 bg-red-500/10 text-red-700';
+            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+            : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300';
 
     return (
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
-                <Label className="text-xs font-semibold" htmlFor="simple-booking-title">
-                    <FileText className="mr-1 inline h-3.5 w-3.5" />
-                    Judul *
+                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300" htmlFor="simple-booking-title">
+                    Judul meeting <span aria-hidden="true">*</span>
                 </Label>
                 <Input
                     aria-label="Judul"
@@ -179,9 +178,9 @@ export function SimpleBookingForm() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Tanggal *</Label>
+                    <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tanggal <span aria-hidden="true">*</span></Label>
                     <ModernDatePicker
                         maxDate={addDays(new Date(), settings?.advanceBookingDays || 30)}
                         minDate={new Date()}
@@ -202,9 +201,8 @@ export function SimpleBookingForm() {
             </div>
 
             <div className="space-y-1.5">
-                <Label className="text-xs font-semibold inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-                    Durasi *
+                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Durasi <span aria-hidden="true">*</span>
                 </Label>
                 <Select onValueChange={(value) => setDuration(Number(value))} value={String(duration)}>
                     <SelectTrigger className="w-full h-9 rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold focus:ring-2 focus:ring-blue-500">
@@ -225,22 +223,16 @@ export function SimpleBookingForm() {
             </div>
 
             {startTime && (
-                <div className="flex items-center justify-between rounded-xl bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-800/60 px-3.5 py-2 text-xs transition-all animate-in fade-in slide-in-from-top-1 duration-200">
-                    <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-                        <Clock className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                        Estimasi Jam Zoom:
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3.5 py-2.5 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                    <span className="font-medium">Waktu meeting</span>
+                    <span className="font-mono font-semibold tabular-nums">
+                        {startTime}–{calculateEndTime(startTime, duration)} WIB
                     </span>
-                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 shadow-2xs">
-                        <span>{startTime}</span>
-                        <span className="text-slate-400 font-normal">s/d</span>
-                        <span className="text-emerald-600 dark:text-emerald-400">{calculateEndTime(startTime, duration)}</span>
-                        <span className="text-[10px] text-slate-400 font-sans font-normal ml-0.5">WIB</span>
-                    </div>
                 </div>
             )}
 
             {bookingDate && startTime && (
-                <div className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${availabilityClassName}`}>
+                <div className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ${availabilityClassName}`}>
                     {availability.isLoading ? (
                         <><Loader2 className="h-4 w-4 shrink-0 animate-spin" />Mengecek ketersediaan...</>
                     ) : availability.data?.available ? (
@@ -252,7 +244,7 @@ export function SimpleBookingForm() {
             )}
 
             <div className="space-y-1.5">
-                <Label className="text-xs font-semibold" htmlFor="simple-booking-description">Deskripsi (Opsional)</Label>
+                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300" htmlFor="simple-booking-description">Deskripsi (Opsional)</Label>
                 <Textarea
                     id="simple-booking-description"
                     maxLength={500}
@@ -264,8 +256,7 @@ export function SimpleBookingForm() {
             </div>
 
             <div className="space-y-1.5">
-                <Label className="text-xs font-semibold" htmlFor="simple-booking-participants">
-                    <Users className="mr-1 inline h-3.5 w-3.5" />
+                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300" htmlFor="simple-booking-participants">
                     Peserta (Opsional)
                 </Label>
                 <Input
@@ -288,12 +279,16 @@ export function SimpleBookingForm() {
             />
 
             <Button
-                className="w-full font-semibold"
+                className="group mt-1 w-full rounded-full font-semibold transition-transform duration-200 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 active:translate-y-0"
                 disabled={createBooking.isPending || availability.data?.available === false}
                 type="submit"
             >
-                <Video className="mr-2 h-4 w-4" />
-                {createBooking.isPending ? 'Membuat...' : 'Book Meeting'}
+                {createBooking.isPending ? 'Membuat...' : 'Buat meeting'}
+                {!createBooking.isPending && (
+                    <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 [transition-timing-function:var(--ease-out)] group-hover:translate-x-0.5">
+                        <Video className="h-3 w-3" aria-hidden="true" />
+                    </span>
+                )}
             </Button>
         </form>
     );
