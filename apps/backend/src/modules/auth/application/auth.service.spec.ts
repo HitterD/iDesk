@@ -38,12 +38,14 @@ describe('AuthService', () => {
                         update: jest.fn(),
                         createUser: jest.fn(),
                         setCurrentRefreshToken: jest.fn(),
+                        getUserIfRefreshTokenMatches: jest.fn(),
                     },
                 },
                 {
                     provide: JwtService,
                     useValue: {
                         sign: jest.fn(),
+                        verify: jest.fn(),
                     },
                 },
                 {
@@ -200,6 +202,53 @@ describe('AuthService', () => {
                     entityType: 'auth',
                 })
             );
+        });
+
+        describe('rememberMe', () => {
+            it('defaults refreshExpiresIn to 7d when rememberMe is not passed', async () => {
+                jwtService.sign.mockReturnValue('token');
+                usersService.update.mockResolvedValue(mockUser as any);
+
+                const result = await service.login(mockUser);
+
+                expect(result.refreshExpiresIn).toBe('7d');
+            });
+
+            it('sets refreshExpiresIn to 90d when rememberMe is true', async () => {
+                jwtService.sign.mockReturnValue('token');
+                usersService.update.mockResolvedValue(mockUser as any);
+
+                const result = await service.login(mockUser, undefined, true);
+
+                expect(result.refreshExpiresIn).toBe('90d');
+            });
+
+            it('embeds rememberMe in the refresh token payload', async () => {
+                jwtService.sign.mockReturnValue('token');
+                usersService.update.mockResolvedValue(mockUser as any);
+
+                await service.login(mockUser, undefined, true);
+
+                expect(jwtService.sign).toHaveBeenCalledWith(
+                    expect.objectContaining({ type: 'refresh', rememberMe: true }),
+                    expect.objectContaining({ expiresIn: '90d' }),
+                );
+            });
+
+            it('preserves rememberMe across refresh token rotation', async () => {
+                jwtService.sign.mockReturnValue('new-token');
+                jwtService.verify.mockReturnValue({
+                    type: 'refresh',
+                    sub: mockUser.id,
+                    rememberMe: true,
+                });
+                usersService.getUserIfRefreshTokenMatches.mockResolvedValue(mockUser as any);
+                usersService.update.mockResolvedValue(mockUser as any);
+
+                const result = await service.refreshToken('old-refresh-token');
+
+                expect(result.refreshExpiresIn).toBe('90d');
+            });
         });
     });
 

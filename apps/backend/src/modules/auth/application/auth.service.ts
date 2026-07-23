@@ -213,18 +213,18 @@ export class AuthService {
         return AuthService.STAFF_ROLES.has(role) ? '8h' : '1h';
     }
 
-    async login(user: any, request?: Request) {
+    async login(user: any, request?: Request, rememberMe = false) {
         const payload = { username: user.email, sub: user.id, role: user.role, type: 'access', fullName: user.fullName };
-        const refreshPayload = { username: user.email, sub: user.id, role: user.role, type: 'refresh', fullName: user.fullName };
+        const refreshPayload = { username: user.email, sub: user.id, role: user.role, type: 'refresh', fullName: user.fullName, rememberMe };
         const expiresIn = this.getExpirationByRole(user.role);
-        const refreshExpiresIn = '7d';
+        const refreshExpiresIn = rememberMe ? '90d' : '7d';
 
         // M2: Update lastActiveAt on login
         await this.usersService.update(user.id, { lastActiveAt: new Date() });
 
         const access_token = this.jwtService.sign(payload, { expiresIn: expiresIn as `${number}${'s' | 'm' | 'h' | 'd'}` });
         const refresh_token = this.jwtService.sign(refreshPayload, { expiresIn: refreshExpiresIn as `${number}${'s' | 'm' | 'h' | 'd'}` });
-        
+
         await this.usersService.setCurrentRefreshToken(refresh_token, user.id);
 
         // Audit log for successful login
@@ -243,6 +243,7 @@ export class AuthService {
             refresh_token, // Added refresh token
             user: user,
             expiresIn, // Return expiration info to frontend
+            refreshExpiresIn,
         };
     }
 
@@ -250,12 +251,12 @@ export class AuthService {
         try {
             const decoded = this.jwtService.verify(token);
             if (decoded.type !== 'refresh') throw new UnauthorizedException('Invalid token type');
-            
+
             const user = await this.usersService.getUserIfRefreshTokenMatches(token, decoded.sub);
             if (!user) throw new UnauthorizedException('Invalid refresh token');
 
-            // Rotate tokens by calling login again
-            return this.login(user, request);
+            // Rotate tokens by calling login again, preserving rememberMe
+            return this.login(user, request, decoded.rememberMe === true);
         } catch(e) {
             throw new UnauthorizedException('Refresh token is invalid or expired');
         }
