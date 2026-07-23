@@ -89,6 +89,10 @@ export function SimpleBookingForm() {
             return;
         }
 
+        const computedUntil = isRecurring
+            ? (until || format(addDays(parseISO(bookingDate), 30), 'yyyy-MM-dd'))
+            : '';
+
         const dto: CreateBookingDto = {
             title: title.trim(),
             description: description.trim() || undefined,
@@ -99,14 +103,15 @@ export function SimpleBookingForm() {
                 .split(',')
                 .map((email) => email.trim())
                 .filter((email) => email.includes('@')),
-            recurrencePattern: isRecurring ? buildRecurrencePattern(freq, interval, until) : undefined,
+            recurrencePattern: isRecurring ? buildRecurrencePattern(freq, interval, computedUntil) : undefined,
         };
 
         try {
             const result = await createBooking.mutateAsync(dto);
+            const count = Array.isArray(result) ? result.length : 1;
             const booking = Array.isArray(result) ? result[0] : result;
 
-            toast.success('Booking berhasil dibuat! Link Zoom akan dikirim via email.');
+            toast.success(`Booking berhasil! ${count > 1 ? `${count} jadwal berulang dibuat.` : 'Link Zoom dikirim via email.'}`);
             setSuccessJoinUrl(booking?.meeting?.joinUrl ?? null);
             setBookingSucceeded(true);
             resetForm();
