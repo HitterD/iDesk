@@ -197,13 +197,20 @@ export class AuthService {
         return null;
     }
 
+    private static readonly STAFF_ROLES = new Set([
+        'ADMIN',
+        'AGENT',
+        'AGENT_OPERATIONAL_SUPPORT',
+        'AGENT_ORACLE',
+        'MANAGER',
+    ]);
+
     /**
-     * Get JWT expiration time based on user role
-     * Admin/Agent: 3 hours for extended work sessions
-     * User: 1 hour for security purposes
+     * Access token expiry by role: staff roles get 8h for extended work
+     * sessions, USER (and any unrecognized role) gets 1h.
      */
     private getExpirationByRole(role: string): string {
-        return '15m'; // M4: 15m access token for all roles
+        return AuthService.STAFF_ROLES.has(role) ? '8h' : '1h';
     }
 
     async login(user: any, request?: Request) {

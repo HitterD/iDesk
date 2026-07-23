@@ -153,33 +153,26 @@ describe('AuthService', () => {
             expect(result.user).toBe(mockUser);
         });
 
-        it('should set 15m expiration for ADMIN users', async () => {
-            const adminUser = { ...mockUser, role: 'ADMIN' };
-            jwtService.sign.mockReturnValue('token');
-            usersService.update.mockResolvedValue(adminUser as any);
+        it.each(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'MANAGER'])(
+            'should set 8h expiration for %s users',
+            async (role) => {
+                const staffUser = { ...mockUser, role };
+                jwtService.sign.mockReturnValue('token');
+                usersService.update.mockResolvedValue(staffUser as any);
 
-            const result = await service.login(adminUser);
+                const result = await service.login(staffUser);
 
-            expect(result.expiresIn).toBe('15m');
-        });
+                expect(result.expiresIn).toBe('8h');
+            },
+        );
 
-        it('should set 15m expiration for AGENT users', async () => {
-            const agentUser = { ...mockUser, role: 'AGENT' };
-            jwtService.sign.mockReturnValue('token');
-            usersService.update.mockResolvedValue(agentUser as any);
-
-            const result = await service.login(agentUser);
-
-            expect(result.expiresIn).toBe('15m');
-        });
-
-        it('should set 15m expiration for USER role', async () => {
+        it('should set 1h expiration for USER role', async () => {
             jwtService.sign.mockReturnValue('token');
             usersService.update.mockResolvedValue(mockUser as any);
 
             const result = await service.login(mockUser);
 
-            expect(result.expiresIn).toBe('15m');
+            expect(result.expiresIn).toBe('1h');
         });
 
         it('should update lastActiveAt on login', async () => {
