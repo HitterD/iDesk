@@ -18,8 +18,9 @@ import { cn } from '@/lib/utils';
 import { useMyBookings, useCancelOwnBooking } from '../hooks';
 import { CancelBookingModal } from './CancelBookingModal';
 import { RescheduleModal } from './RescheduleModal';
+import { BookingDetailsModal } from './BookingDetailsModal';
 import type { ZoomBooking } from '../types';
-import { formatZoomAccountName, generateInvitationText } from '../utils';
+import { formatZoomAccountName, generateInvitationText, copyToClipboard } from '../utils';
 
 type BookingTab = 'upcoming' | 'past' | 'all';
 
@@ -45,6 +46,7 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
     const [search, setSearch] = useState('');
     const [cancelTarget, setCancelTarget] = useState<ZoomBooking | null>(null);
     const [rescheduleTarget, setRescheduleTarget] = useState<ZoomBooking | null>(null);
+    const [detailBookingId, setDetailBookingId] = useState<string | null>(null);
 
     const filtered = useMemo(() => {
         const all = bookings ?? [];
@@ -163,7 +165,10 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
                                     <BookingCard
                                         key={booking.id}
                                         booking={booking}
-                                        onView={() => onBookingClick?.(booking.id)}
+                                        onView={() => {
+                                            if (onBookingClick) onBookingClick(booking.id);
+                                            else setDetailBookingId(booking.id);
+                                        }}
                                         onReschedule={() => setRescheduleTarget(booking)}
                                         onCancel={() => setCancelTarget(booking)}
                                     />
@@ -175,6 +180,13 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
             </div>
 
             {/* Modals */}
+            {detailBookingId && (
+                <BookingDetailsModal
+                    bookingId={detailBookingId}
+                    isOpen={!!detailBookingId}
+                    onClose={() => setDetailBookingId(null)}
+                />
+            )}
             <RescheduleModal
                 booking={rescheduleTarget}
                 isOpen={!!rescheduleTarget}
@@ -199,6 +211,9 @@ interface BookingCardProps {
 }
 
 function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardProps) {
+    const [copiedLink, setCopiedLink] = useState(false);
+    const [copiedInv, setCopiedInv] = useState(false);
+
     const status = booking.status ?? 'confirmed';
     const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.confirmed;
     const StatusIcon = cfg.icon;
@@ -209,10 +224,17 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
         <div
             className={cn(
                 "group relative rounded-2xl border bg-white dark:bg-slate-900 p-4",
-                "shadow-sm hover:shadow-md transition-all duration-200",
+                "shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer",
                 "border-slate-200 dark:border-slate-700",
                 isPastBooking && "opacity-70"
             )}
+            onClick={(e) => {
+                // If user didn't click inside an action button, open detail modal
+                const target = e.target as HTMLElement;
+                if (!target.closest('button')) {
+                    onView();
+                }
+            }}
         >
             {/* Color accent */}
             <div
@@ -248,9 +270,12 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                 </div>
 
                 <button
-                    onClick={onView}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onView();
+                    }}
                     className="shrink-0 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    title="Lihat detail"
+                    title="Lihat detail info card"
                 >
                     <ChevronRight className="h-4 w-4 text-slate-400" />
                 </button>
@@ -263,7 +288,10 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                         <Button
                             size="sm"
                             className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700"
-                            onClick={() => window.open(booking.meeting!.joinUrl, '_blank')}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(booking.meeting!.joinUrl, '_blank');
+                            }}
                         >
                             <ExternalLink className="h-3 w-3" />
                             Join
@@ -274,13 +302,17 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs gap-1"
-                            onClick={() => {
-                                navigator.clipboard.writeText(booking.meeting!.joinUrl);
-                                toast.success('Link Zoom disalin');
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                const ok = await copyToClipboard(booking.meeting!.joinUrl, 'Link Zoom');
+                                if (ok) {
+                                    setCopiedLink(true);
+                                    setTimeout(() => setCopiedLink(false), 2000);
+                                }
                             }}
                         >
-                            <Copy className="h-3 w-3" />
-                            Copy Link
+                            {copiedLink ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                            {copiedLink ? 'Tersalin' : 'Copy Link'}
                         </Button>
                     )}
                     {hasLink && (
@@ -288,21 +320,28 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs gap-1"
-                            onClick={() => {
+                            onClick={async (e) => {
+                                e.stopPropagation();
                                 const fullInvitation = generateInvitationText(booking);
-                                navigator.clipboard.writeText(fullInvitation);
-                                toast.success('Undangan Zoom lengkap disalin');
+                                const ok = await copyToClipboard(fullInvitation, 'Undangan Zoom');
+                                if (ok) {
+                                    setCopiedInv(true);
+                                    setTimeout(() => setCopiedInv(false), 2000);
+                                }
                             }}
                         >
-                            <FileText className="h-3 w-3" />
-                            Salin Undangan
+                            {copiedInv ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <FileText className="h-3 w-3" />}
+                            {copiedInv ? 'Undangan Tersalin' : 'Salin Undangan'}
                         </Button>
                     )}
                     <Button
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1 ml-auto"
-                        onClick={onReschedule}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onReschedule();
+                        }}
                     >
                         <CalendarClock className="h-3 w-3" />
                         Reschedule
@@ -311,7 +350,10 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1 text-red-500 border-red-200 hover:bg-red-50"
-                        onClick={onCancel}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onCancel();
+                        }}
                     >
                         <Trash2 className="h-3 w-3" />
                         Batal

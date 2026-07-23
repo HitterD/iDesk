@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { toast } from 'sonner';
 import type { ZoomBooking } from './types';
 
 export const formatZoomAccountName = (name?: string): string => {
@@ -37,4 +38,33 @@ ${booking.meeting?.joinUrl || 'Link belum tersedia'}
 
 Meeting ID: ${meetingId}
 ${booking.meeting?.password ? `Passcode: ${booking.meeting.password}` : ''}`.trim();
+};
+
+/**
+ * Universal clipboard copy helper working on both HTTP and HTTPS origins
+ */
+export const copyToClipboard = async (text: string, label: string = 'Teks'): Promise<boolean> => {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (!successful) throw new Error('Copy command failed');
+        }
+        toast.success(`${label} disalin ke clipboard!`);
+        return true;
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+        toast.error(`Gagal menyalin ${label.toLowerCase()}.`);
+        return false;
+    }
 };
