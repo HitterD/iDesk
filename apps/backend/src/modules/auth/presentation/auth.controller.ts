@@ -29,11 +29,13 @@ export class AuthController {
     @ApiOperation({ summary: 'User login - sets HttpOnly cookie' })
     @ApiResponse({ status: 200, description: 'Login successful, cookie set' })
     async login(@Request() req: any, @Res() res: Response) {
-        const result = await this.authService.login(req.user, req);
+        const rememberMe = req.body?.rememberMe === true;
+        const result = await this.authService.login(req.user, req, rememberMe);
 
-        // Calculate cookie maxAge based on expiresIn (e.g., '3h' -> 3*60*60*1000)
+        // Calculate cookie maxAge based on expiresIn (e.g., '8h' -> 8*60*60*1000)
         const expiresIn = result.expiresIn;
         const maxAgeMs = this.parseExpiresIn(expiresIn);
+        const refreshMaxAgeMs = this.parseExpiresIn(result.refreshExpiresIn);
 
         // Set HttpOnly cookie with the token
         res.cookie(COOKIE_NAME, result.access_token, {
@@ -44,7 +46,7 @@ export class AuthController {
         // Set refresh token in HttpOnly cookie
         res.cookie('refresh_token', result.refresh_token, {
             ...COOKIE_OPTIONS,
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            maxAge: refreshMaxAgeMs,
         });
 
         // Set CSRF token cookie after successful login
@@ -95,16 +97,17 @@ export class AuthController {
         }
         
         const result = await this.authService.refreshToken(refreshToken, req);
-        
+
         const maxAgeMs = this.parseExpiresIn(result.expiresIn);
+        const refreshMaxAgeMs = this.parseExpiresIn(result.refreshExpiresIn);
         res.cookie(COOKIE_NAME, result.access_token, {
             ...COOKIE_OPTIONS,
             maxAge: maxAgeMs,
         });
-        
+
         res.cookie('refresh_token', result.refresh_token, {
             ...COOKIE_OPTIONS,
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            maxAge: refreshMaxAgeMs,
         });
         
         return res.json({
