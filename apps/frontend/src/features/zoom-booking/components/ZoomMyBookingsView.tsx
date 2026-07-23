@@ -33,7 +33,7 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
     const { data: bookings, isLoading } = useMyBookings();
     const cancelOwnBooking = useCancelOwnBooking();
 
-    const [tab, setTab] = useState<BookingTab>('upcoming');
+    const [tab, setTab] = useState<BookingTab>('all');
     const [search, setSearch] = useState('');
     const [cancelTarget, setCancelTarget] = useState<ZoomBooking | null>(null);
     const [rescheduleTarget, setRescheduleTarget] = useState<ZoomBooking | null>(null);
@@ -84,7 +84,7 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
             <div className="shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 backdrop-blur space-y-3">
                 {/* Tabs */}
                 <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
-                    {(['upcoming', 'past', 'all'] as BookingTab[]).map((t) => (
+                    {(['all', 'upcoming', 'past'] as BookingTab[]).map((t) => (
                         <button
                             key={t}
                             onClick={() => setTab(t)}
@@ -95,7 +95,7 @@ export function ZoomMyBookingsView({ onBookingClick }: { onBookingClick?: (id: s
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                             )}
                         >
-                            {t === 'upcoming' ? 'Mendatang' : t === 'past' ? 'Selesai' : 'Semua'}
+                            {t === 'all' ? 'Semua' : t === 'upcoming' ? 'Mendatang' : 'Selesai'}
                         </button>
                     ))}
                 </div>
