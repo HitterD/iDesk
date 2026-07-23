@@ -48,6 +48,7 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
     const { user } = useAuth();
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
+    const [copiedInv, setCopiedInv] = useState(false);
 
     if (isLoading) {
         return (
@@ -219,10 +220,23 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
                                 </div>
                             )}
                         </div>
-                        <Button variant="outline" className="w-full text-xs h-9 rounded-lg"
-                            onClick={() => copyToClipboard(generateInvitationText(booking), 'Full Invitation')}>
-                            <FileText className="h-3.5 w-3.5 mr-1.5" />
-                            Salin Full Invitation
+                        <Button
+                            variant="outline"
+                            className={cn(
+                                "w-full text-xs h-9 rounded-lg font-bold transition-all",
+                                copiedInv ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" : "bg-white dark:bg-slate-900"
+                            )}
+                            onClick={async () => {
+                                const inv = generateInvitationText(booking);
+                                const ok = await copyToClipboard(inv, 'Full Invitation');
+                                if (ok) {
+                                    setCopiedInv(true);
+                                    setTimeout(() => setCopiedInv(false), 2000);
+                                }
+                            }}
+                        >
+                            {copiedInv ? <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
+                            {copiedInv ? 'Undangan Disalin ke Clipboard!' : 'Salin Full Invitation'}
                         </Button>
                     </div>
                 ) : (

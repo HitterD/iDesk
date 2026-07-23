@@ -52,11 +52,16 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [copiedInv, setCopiedInv] = useState(false);
 
-    const copyFullInvitation = () => {
+    const copyFullInvitation = async () => {
         if (!booking) return;
         const invitation = generateInvitationText(booking);
-        copyToClipboard(invitation, 'Undangan');
+        const ok = await copyToClipboard(invitation, 'Undangan');
+        if (ok) {
+            setCopiedInv(true);
+            setTimeout(() => setCopiedInv(false), 2000);
+        }
     };
 
     if (isLoading) {
@@ -253,10 +258,15 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
                             <Button
                                 onClick={copyFullInvitation}
                                 variant="outline"
-                                className="w-full bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-xl h-10 font-bold"
+                                className={cn(
+                                    "w-full rounded-xl h-10 font-bold transition-all",
+                                    copiedInv 
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" 
+                                        : "bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                                )}
                             >
-                                <FileText className="h-4 w-4 mr-2" />
-                                Salin Full Invitation
+                                {copiedInv ? <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" /> : <FileText className="h-4 w-4 mr-2" />}
+                                {copiedInv ? 'Undangan Disalin ke Clipboard!' : 'Salin Full Invitation'}
                             </Button>
                         </div>
                     ) : (

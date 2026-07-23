@@ -61,16 +61,13 @@ export const copyToClipboard = async (text: string, label: string = 'Teks'): Pro
             textArea.style.position = "fixed";
             textArea.style.top = "0";
             textArea.style.left = "0";
-            textArea.style.width = "2em";
-            textArea.style.height = "2em";
-            textArea.style.padding = "0";
-            textArea.style.border = "none";
-            textArea.style.outline = "none";
-            textArea.style.boxShadow = "none";
-            textArea.style.background = "transparent";
+            textArea.style.width = "1px";
+            textArea.style.height = "1px";
+            textArea.style.opacity = "0";
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
+            textArea.setSelectionRange(0, 99999);
             copied = document.execCommand('copy');
             document.body.removeChild(textArea);
         }
