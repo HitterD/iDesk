@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { useBookingDetails } from '../hooks';
 import { useAuth } from '@/stores/useAuth';
 import { CancelBookingModal } from './CancelBookingModal';
-import { formatZoomAccountName } from '../utils';
+import { formatZoomAccountName, generateInvitationText, copyToClipboard } from '../utils';
 import { cn } from '@/lib/utils';
 
 const extractMeetingId = (joinUrl: string): string => {
@@ -27,13 +27,6 @@ const extractMeetingId = (joinUrl: string): string => {
         return id.replace(/(\d{3})(\d{4})(\d{4})/, '$1 $2 $3');
     }
     return 'N/A';
-};
-
-const generateInvitationText = (booking: any): string => {
-    const formattedDate = format(new Date(booking.bookingDate), 'd MMMM yyyy', { locale: idLocale });
-    const meetingId = booking.meeting?.joinUrl ? extractMeetingId(booking.meeting.joinUrl) : 'N/A';
-    const accountName = formatZoomAccountName(booking.zoomAccount?.name);
-    return `${accountName} is inviting you to a scheduled Zoom meeting.\n\nTopic: ${booking.title}\nTime: ${formattedDate} ${booking.startTime} Jakarta\n\nJoin Zoom Meeting\n${booking.meeting?.joinUrl || 'Link will be available soon'}\n\nMeeting ID: ${meetingId}${booking.meeting?.password ? `\nPasscode: ${booking.meeting.password}` : ''}`.trim();
 };
 
 const STAFF_ROLES = [
@@ -55,30 +48,6 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
     const { user } = useAuth();
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
-
-    const copyToClipboard = async (text: string, label: string) => {
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textArea);
-                if (!successful) throw new Error('Copy command failed');
-            }
-            toast.success(`${label} disalin ke clipboard!`);
-        } catch (err) {
-            console.error('Failed to copy text: ', err);
-            toast.error('Gagal menyalin text. Clipboard tidak didukung.');
-        }
-    };
 
     if (isLoading) {
         return (

@@ -45,23 +45,42 @@ ${booking.meeting?.password ? `Passcode: ${booking.meeting.password}` : ''}`.tri
  */
 export const copyToClipboard = async (text: string, label: string = 'Teks'): Promise<boolean> => {
     try {
+        let copied = false;
         if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-        } else {
+            try {
+                await navigator.clipboard.writeText(text);
+                copied = true;
+            } catch {
+                copied = false;
+            }
+        }
+        
+        if (!copied) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.position = "fixed";
-            textArea.style.left = "-999999px";
-            textArea.style.top = "-999999px";
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.width = "2em";
+            textArea.style.height = "2em";
+            textArea.style.padding = "0";
+            textArea.style.border = "none";
+            textArea.style.outline = "none";
+            textArea.style.boxShadow = "none";
+            textArea.style.background = "transparent";
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-            const successful = document.execCommand('copy');
+            copied = document.execCommand('copy');
             document.body.removeChild(textArea);
-            if (!successful) throw new Error('Copy command failed');
         }
-        toast.success(`${label} disalin ke clipboard!`);
-        return true;
+
+        if (copied) {
+            toast.success(`${label} disalin ke clipboard!`);
+            return true;
+        } else {
+            throw new Error('Copy command failed');
+        }
     } catch (err) {
         console.error('Failed to copy text: ', err);
         toast.error(`Gagal menyalin ${label.toLowerCase()}.`);

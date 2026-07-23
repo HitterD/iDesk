@@ -20,7 +20,7 @@ import { useAuth } from '@/stores/useAuth';
 import type { ZoomBooking } from '../types';
 import { CancelBookingModal } from './CancelBookingModal';
 import { RescheduleModal } from './RescheduleModal';
-import { formatZoomAccountName } from '../utils';
+import { formatZoomAccountName, generateInvitationText, copyToClipboard } from '../utils';
 import { cn } from '@/lib/utils';
 
 interface BookingDetailsModalProps {
@@ -38,30 +38,6 @@ const extractMeetingId = (joinUrl: string): string => {
     return 'N/A';
 };
 
-const generateInvitationText = (booking: ZoomBooking): string => {
-    const formattedDate = format(
-        new Date(booking.bookingDate),
-        'd MMMM yyyy',
-        { locale: idLocale }
-    );
-    const meetingId = booking.meeting?.joinUrl
-        ? extractMeetingId(booking.meeting.joinUrl)
-        : 'N/A';
-    
-    const accountName = formatZoomAccountName(booking.zoomAccount?.name);
-
-    return `${accountName} is inviting you to a scheduled Zoom meeting.
-
-Topic: ${booking.title}
-Time: ${formattedDate} ${booking.startTime} Jakarta
-
-Join Zoom Meeting
-${booking.meeting?.joinUrl || 'Link will be available soon'}
-
-Meeting ID: ${meetingId}
-${booking.meeting?.password ? `Passcode: ${booking.meeting.password}` : ''}`.trim();
-};
-
 const STAFF_ROLES = [
     'ADMIN',
     'AGENT_OPERATIONAL_SUPPORT',
@@ -76,30 +52,6 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-
-    const copyToClipboard = async (text: string, label: string) => {
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textArea);
-                if (!successful) throw new Error('Copy command failed');
-            }
-            toast.success(`${label} disalin ke clipboard!`);
-        } catch (err) {
-            console.error('Failed to copy text: ', err);
-            toast.error('Gagal menyalin text. Clipboard tidak didukung.');
-        }
-    };
 
     const copyFullInvitation = () => {
         if (!booking) return;
