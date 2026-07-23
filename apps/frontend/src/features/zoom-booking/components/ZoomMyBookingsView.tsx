@@ -217,49 +217,43 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
     const StatusIcon = cfg.icon;
     const isPastBooking = isPast(parseISO(booking.bookingDate)) && !isToday(parseISO(booking.bookingDate));
     const hasLink = !!booking.meeting?.joinUrl;
+    const accountColor = booking.zoomAccount?.colorHex ?? '#3b82f6';
 
     return (
         <div
             className={cn(
-                "group relative cursor-pointer rounded-xl bg-slate-50/80 p-4 transition-[transform,background-color] duration-200 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-800/80",
-                isPastBooking && "opacity-70"
+                "group relative cursor-pointer rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 transition-all duration-200 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700",
+                isPastBooking && "opacity-60 bg-slate-50/50 dark:bg-slate-900/40"
             )}
             onClick={(e) => {
-                // If user didn't click inside an action button, open detail modal
                 const target = e.target as HTMLElement;
                 if (!target.closest('button')) {
                     onView();
                 }
             }}
         >
-            {/* Color accent */}
-            <div
-                className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-                style={{ backgroundColor: booking.zoomAccount?.colorHex ?? '#3b82f6' }}
-            />
-
-            <div className="pl-3 flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 mb-1">
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                             {booking.title}
                         </h4>
                         <span className={cn(
-                            "shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                            cfg.color.replace(' border-emerald-200', '').replace(' border-red-200', '')
+                            "shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide border",
+                            cfg.color
                         )}>
-                            <StatusIcon className="h-2.5 w-2.5" />
+                            <StatusIcon className="h-3 w-3" />
                             {cfg.label}
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1.5 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300">
+                            <Clock className="h-3.5 w-3.5 text-blue-500" />
                             {booking.startTime} – {booking.endTime}
                         </span>
-                        <span className="flex items-center gap-1">
-                            <Video className="h-3 w-3" />
+                        <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: accountColor }} />
                             {formatZoomAccountName(booking.zoomAccount?.name)}
                         </span>
                     </div>
@@ -270,26 +264,26 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                         e.stopPropagation();
                         onView();
                     }}
-                    className="shrink-0 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="shrink-0 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
                     title="Lihat detail info card"
                 >
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <ChevronRight className="h-4 w-4" />
                 </button>
             </div>
 
             {/* Actions for upcoming bookings */}
             {!isPastBooking && status !== 'CANCELLED' && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 pl-3">
+                <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-2">
                     {hasLink && (
                         <Button
                             size="sm"
-                            className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700"
+                            className="h-8 text-xs font-semibold gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(booking.meeting!.joinUrl, '_blank');
                             }}
                         >
-                            <ExternalLink className="h-3 w-3" />
+                            <ExternalLink className="h-3.5 w-3.5" />
                             Join
                         </Button>
                     )}
@@ -297,7 +291,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                         <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs gap-1"
+                            className="h-8 text-xs font-medium gap-1.5 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
                             onClick={async (e) => {
                                 e.stopPropagation();
                                 const ok = await copyToClipboard(booking.meeting!.joinUrl, 'Link Zoom');
@@ -307,7 +301,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                                 }
                             }}
                         >
-                            {copiedLink ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                            {copiedLink ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5 text-slate-400" />}
                             {copiedLink ? 'Tersalin' : 'Copy Link'}
                         </Button>
                     )}
@@ -315,7 +309,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                         <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs gap-1"
+                            className="h-8 text-xs font-medium gap-1.5 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
                             onClick={async (e) => {
                                 e.stopPropagation();
                                 const fullInvitation = generateInvitationText(booking);
@@ -326,34 +320,36 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                                 }
                             }}
                         >
-                            {copiedInv ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <FileText className="h-3 w-3" />}
+                            {copiedInv ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <FileText className="h-3.5 w-3.5 text-slate-400" />}
                             {copiedInv ? 'Undangan Tersalin' : 'Salin Undangan'}
                         </Button>
                     )}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="ml-auto h-7 rounded-full text-xs"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onReschedule();
-                        }}
-                    >
-                        <CalendarClock className="h-3 w-3" />
-                        Reschedule
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 rounded-full border-red-200 text-xs text-red-500 hover:bg-red-50 dark:border-red-900/60 dark:hover:bg-red-950/40"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onCancel();
-                        }}
-                    >
-                        <Trash2 className="h-3 w-3" />
-                        Batal
-                    </Button>
+                    <div className="ml-auto flex items-center gap-1.5">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs font-medium gap-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onReschedule();
+                            }}
+                        >
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            Reschedule
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs font-medium gap-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCancel();
+                            }}
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Batal
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>
