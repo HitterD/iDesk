@@ -3,7 +3,7 @@
  * No Dialog wrapper; the panel (ZoomBookingPanel) is the container.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { format, addDays, parseISO } from 'date-fns';
+import { format, addDays, parseISO, isSameDay } from 'date-fns';
 import { Video, Calendar, Clock, Users, FileText, AlertTriangle, Loader2, CheckCircle2, ExternalLink, Sparkles, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -162,11 +162,16 @@ export function ZoomBookingForm({
 
     const timeOptions = useMemo<TimeSlotOption[]>(() => {
         if (!settings) return [];
-        const allTimes = generateTimeOptions(
+        let allTimes = generateTimeOptions(
             settings.slotStartTime || '00:00',
             settings.slotEndTime || '23:59',
             settings.slotIntervalMinutes || 30,
         );
+
+        if (bookingDate && isSameDay(parseISO(bookingDate), new Date())) {
+            const nowStr = format(new Date(), 'HH:mm');
+            allTimes = allTimes.filter((t) => t >= nowStr);
+        }
 
         // Gabungan mode auto-picks; no per-slot filtering needed.
         if (isGabungan) {

@@ -2,7 +2,7 @@
  * RescheduleModal - Modal for users to reschedule their own bookings
  */
 import { useState, useMemo, useEffect } from 'react';
-import { format, addDays, parse } from 'date-fns';
+import { format, addDays, parse, isSameDay } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import {
     Dialog,
@@ -88,8 +88,13 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
             }
         }
 
+        if (selectedDate && isSameDay(selectedDate, new Date())) {
+            const nowStr = format(new Date(), 'HH:mm');
+            return options.filter((t) => t >= nowStr);
+        }
+
         return options;
-    }, [settings]);
+    }, [settings, selectedDate]);
 
     // Check for conflicts with selected time
     const hasConflict = useMemo(() => {

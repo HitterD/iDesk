@@ -13,6 +13,7 @@ import {
     isToday,
     addMonths,
     subMonths,
+    startOfDay,
 } from 'date-fns';
 
 interface ModernCalendarProps {
@@ -100,8 +101,8 @@ export const ModernCalendar: React.FC<ModernCalendarProps> = ({
 
     const handleDayClick = useCallback(
         (day: Date) => {
-            if (minDate && day < minDate) return;
-            if (maxDate && day > maxDate) return;
+            if (minDate && startOfDay(day) < startOfDay(minDate)) return;
+            if (maxDate && startOfDay(day) > startOfDay(maxDate)) return;
             onSelect?.(day);
         },
         [onSelect, minDate, maxDate]
@@ -140,8 +141,8 @@ export const ModernCalendar: React.FC<ModernCalendarProps> = ({
 
     const isDisabled = useCallback(
         (day: Date) => {
-            if (minDate && day < minDate) return true;
-            if (maxDate && day > maxDate) return true;
+            if (minDate && startOfDay(day) < startOfDay(minDate)) return true;
+            if (maxDate && startOfDay(day) > startOfDay(maxDate)) return true;
             return false;
         },
         [minDate, maxDate]

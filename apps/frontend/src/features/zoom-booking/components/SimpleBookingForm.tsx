@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { addDays, format, parseISO } from 'date-fns';
+import { useEffect, useState, useMemo } from 'react';
+import { addDays, format, parseISO, isSameDay } from 'date-fns';
 import { CheckCircle2, Loader2, Video, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -60,11 +60,32 @@ export function SimpleBookingForm() {
     const createBooking = useCreateBooking();
     const availability = useCheckAvailability(bookingDate || undefined, startTime || undefined, duration);
 
+    const filteredTimeOptions = useMemo(() => {
+        if (!bookingDate) return TIME_OPTIONS;
+        const isTodayBooking = isSameDay(parseISO(bookingDate), new Date());
+        if (!isTodayBooking) return TIME_OPTIONS;
+
+        const nowStr = format(new Date(), 'HH:mm');
+        return TIME_OPTIONS.filter((opt) => opt.time >= nowStr);
+    }, [bookingDate]);
+
     useEffect(() => {
         if (durationOptions.length && !durationOptions.includes(duration)) {
             setDuration(durationOptions[0]);
         }
     }, [duration, durationOptions]);
+
+    useEffect(() => {
+        if (!bookingDate) return;
+        const isTodayBooking = isSameDay(parseISO(bookingDate), new Date());
+        if (isTodayBooking) {
+            const nowStr = format(new Date(), 'HH:mm');
+            if (startTime && startTime < nowStr) {
+                const firstValid = filteredTimeOptions.find((opt) => opt.time >= nowStr);
+                setStartTime(firstValid ? firstValid.time : '');
+            }
+        }
+    }, [bookingDate, startTime, filteredTimeOptions]);
 
     const resetForm = () => {
         setTitle('');
@@ -194,7 +215,7 @@ export function SimpleBookingForm() {
                         label="Jam Mulai *"
                         value={startTime}
                         onChange={(t) => setStartTime(t)}
-                        options={TIME_OPTIONS}
+                        options={filteredTimeOptions}
                         placeholder="00:00"
                     />
                 </div>
