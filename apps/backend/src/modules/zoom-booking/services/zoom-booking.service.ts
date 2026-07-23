@@ -177,15 +177,25 @@ export class ZoomBookingService {
     }
 
     /**
-     * Get current user's own bookings (All)
+     * Get current user's own bookings (either created by user or invited as participant)
      */
-    async getMyBookings(userId: string): Promise<ZoomBooking[]> {
-        return this.bookingRepo.find({
-            where: { bookedByUserId: userId },
-            relations: ['zoomAccount', 'meeting', 'bookedByUser'],
-            order: { bookingDate: 'DESC', startTime: 'DESC' },
-            take: 500, // Show full calendar history & future bookings for user
-        });
+    async getMyBookings(userId: string, userEmail?: string): Promise<ZoomBooking[]> {
+        const qb = this.bookingRepo.createQueryBuilder('booking')
+            .leftJoinAndSelect('booking.zoomAccount', 'zoomAccount')
+            .leftJoinAndSelect('booking.meeting', 'meeting')
+            .leftJoinAndSelect('booking.bookedByUser', 'bookedByUser')
+            .leftJoinAndSelect('booking.participants', 'participants')
+            .where('booking.bookedByUserId = :userId', { userId });
+
+        if (userEmail) {
+            qb.orWhere('participants.email = :userEmail', { userEmail });
+        }
+
+        return qb
+            .orderBy('booking.bookingDate', 'DESC')
+            .addOrderBy('booking.startTime', 'DESC')
+            .take(500)
+            .getMany();
     }
     async getCalendar(
         zoomAccountId: string,

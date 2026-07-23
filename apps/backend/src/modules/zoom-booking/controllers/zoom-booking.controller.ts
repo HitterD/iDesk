@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Controller,
     Get,
     Post,
@@ -71,6 +72,51 @@ export class ZoomBookingController {
         );
     }
 
+    @Get('calendar/merged')
+    @ApiOperation({ summary: 'Get merged calendar data across active Zoom accounts' })
+    @ApiQuery({ name: 'startDate', required: true, description: 'YYYY-MM-DD' })
+    @ApiQuery({ name: 'endDate', required: true, description: 'YYYY-MM-DD' })
+    async getMergedCalendar(
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Req() req: Request,
+    ) {
+        const user = req.user as any;
+        return this.bookingService.getMergedCalendar(
+            new Date(startDate),
+            new Date(endDate),
+            user.userId,
+        );
+    }
+
+    @Get('availability')
+    @ApiOperation({ summary: 'Check availability without reserving a Zoom account' })
+    @ApiQuery({ name: 'date', required: true, description: 'YYYY-MM-DD' })
+    @ApiQuery({ name: 'startTime', required: true, description: 'HH:mm' })
+    @ApiQuery({ name: 'durationMinutes', required: true, example: 60 })
+    async getAvailability(
+        @Query('date') date: string,
+        @Query('startTime') startTime: string,
+        @Query('durationMinutes') durationMinutes: string,
+    ) {
+        const duration = Number(durationMinutes);
+        const parsedDate = new Date(`${date}T00:00:00`);
+        const normalizedDate = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
+        const dateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(date)
+            && !Number.isNaN(parsedDate.getTime())
+            && normalizedDate === date;
+
+        if (!dateIsValid
+            || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)
+            || !Number.isInteger(duration)
+            || duration < 30
+            || duration > 240) {
+            throw new BadRequestException('Parameter availability tidak valid.');
+        }
+
+        return this.bookingService.checkAvailability(date, startTime, duration);
+    }
+
     @Post()
     @Throttle({ default: { limit: 10, ttl: 60000 } }) // Stricter: 10 bookings per minute
     @ApiOperation({ summary: 'Create a new booking' })
@@ -87,7 +133,7 @@ export class ZoomBookingController {
     @ApiOperation({ summary: 'Get current user\'s bookings' })
     async getMyBookings(@Req() req: Request) {
         const user = req.user as any;
-        return this.bookingService.getMyBookings(user.userId);
+        return this.bookingService.getMyBookings(user.userId, user.email);
     }
 
     @Get('my-upcoming')
