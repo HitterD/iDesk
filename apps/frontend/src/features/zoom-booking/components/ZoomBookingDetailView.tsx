@@ -36,6 +36,15 @@ const generateInvitationText = (booking: any): string => {
     return `${accountName} is inviting you to a scheduled Zoom meeting.\n\nTopic: ${booking.title}\nTime: ${formattedDate} ${booking.startTime} Jakarta\n\nJoin Zoom Meeting\n${booking.meeting?.joinUrl || 'Link will be available soon'}\n\nMeeting ID: ${meetingId}${booking.meeting?.password ? `\nPasscode: ${booking.meeting.password}` : ''}`.trim();
 };
 
+const STAFF_ROLES = [
+    'ADMIN',
+    'AGENT_OPERATIONAL_SUPPORT',
+    'AGENT_ADMIN',
+    'AGENT_ORACLE',
+    'AGENT',
+    'MANAGER',
+];
+
 interface ZoomBookingDetailViewProps {
     bookingId: string;
     onClose: () => void;
@@ -82,12 +91,14 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
     if (!booking) return null;
 
     const isOwner = user?.id === booking.bookedByUserId;
+    const isStaff = !!(user?.role && STAFF_ROLES.includes(user.role));
     const isCancelled = booking.status === 'CANCELLED';
     const isConfirmed = booking.status === 'CONFIRMED';
     const isPending = booking.status === 'PENDING';
     const isExternal = booking.isExternal;
-    const canCancel = isOwner && !isCancelled && !isExternal;
-    const canReschedule = isOwner && !isCancelled && !isExternal;
+    const canManage = (isOwner || isStaff) && !isCancelled && !isExternal;
+    const canCancel = canManage;
+    const canReschedule = canManage;
 
     return (
         <div className="flex flex-col">
@@ -280,20 +291,19 @@ export function ZoomBookingDetailView({ bookingId, onClose, onReschedule }: Zoom
                             Reschedule
                         </Button>
                     )}
-                    {canCancel ? (
+                    {canCancel && (
                         <Button
                             variant="outline"
-                            className="flex-1 text-xs gap-1.5 h-9 text-red-600 border-red-200 hover:bg-red-50"
+                            className="flex-1 text-xs gap-1.5 h-9 text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
                             onClick={() => setShowCancelModal(true)}
                         >
                             <Trash2 className="h-3.5 w-3.5" />
                             Batalkan
                         </Button>
-                    ) : (
-                        <Button variant="secondary" className="flex-1 text-xs h-9" onClick={onClose}>
-                            Tutup
-                        </Button>
                     )}
+                    <Button variant="secondary" className="flex-1 text-xs h-9" onClick={onClose}>
+                        Tutup
+                    </Button>
                 </div>
             </div>
 
