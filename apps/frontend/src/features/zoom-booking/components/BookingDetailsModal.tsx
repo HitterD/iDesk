@@ -4,7 +4,7 @@ import { id as idLocale } from 'date-fns/locale';
 import { 
     Video, Calendar, Clock, User, Link2, Copy, 
     ExternalLink, FileText, Hash, Trash2, 
-    CheckCircle2, XCircle, Clock4, AlertCircle
+    CheckCircle2, XCircle, Clock4, AlertCircle, CalendarClock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -19,6 +19,7 @@ import { useBookingDetails } from '../hooks';
 import { useAuth } from '@/stores/useAuth';
 import type { ZoomBooking } from '../types';
 import { CancelBookingModal } from './CancelBookingModal';
+import { RescheduleModal } from './RescheduleModal';
 import { formatZoomAccountName } from '../utils';
 import { cn } from '@/lib/utils';
 
@@ -61,10 +62,20 @@ Meeting ID: ${meetingId}
 ${booking.meeting?.password ? `Passcode: ${booking.meeting.password}` : ''}`.trim();
 };
 
+const STAFF_ROLES = [
+    'ADMIN',
+    'AGENT_OPERATIONAL_SUPPORT',
+    'AGENT_ADMIN',
+    'AGENT_ORACLE',
+    'AGENT',
+    'MANAGER',
+];
+
 export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetailsModalProps) {
     const { user } = useAuth();
     const { data: booking, isLoading } = useBookingDetails(bookingId);
     const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
 
     const copyToClipboard = async (text: string, label: string) => {
         try {
@@ -111,11 +122,12 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
     if (!booking) return null;
 
     const isOwner = user?.id === booking.bookedByUserId;
+    const isStaff = !!(user?.role && STAFF_ROLES.includes(user.role));
     const isCancelled = booking.status === 'CANCELLED';
     const isConfirmed = booking.status === 'CONFIRMED';
     const isPending = booking.status === 'PENDING';
     const isExternal = booking.isExternal;
-    const canCancel = isOwner && !isCancelled && !isExternal;
+    const canManage = (isOwner || isStaff) && !isCancelled && !isExternal;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -324,15 +336,25 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
 
                     {/* Actions */}
                     <div className="pt-6 flex justify-between items-center gap-3">
-                        {canCancel ? (
-                            <Button 
-                                variant="ghost" 
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl font-bold h-11 px-5 transition-colors"
-                                onClick={() => setShowCancelModal(true)}
-                            >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Batalkan
-                            </Button>
+                        {canManage ? (
+                            <div className="flex items-center gap-2">
+                                <Button 
+                                    variant="outline" 
+                                    className="rounded-xl font-bold h-11 px-4 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    onClick={() => setShowRescheduleModal(true)}
+                                >
+                                    <CalendarClock className="w-4 h-4 mr-2" />
+                                    Reschedule
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl font-bold h-11 px-4 transition-colors"
+                                    onClick={() => setShowCancelModal(true)}
+                                >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Batalkan
+                                </Button>
+                            </div>
                         ) : <div />}
                         
                         <Button 
@@ -345,6 +367,15 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
                     </div>
                 </div>
             </DialogContent>
+
+            {/* Direct Reschedule Modal integration */}
+            {showRescheduleModal && (
+                <RescheduleModal
+                    isOpen={showRescheduleModal}
+                    onClose={() => setShowRescheduleModal(false)}
+                    booking={booking}
+                />
+            )}
 
             {/* Direct Cancel Modal integration */}
             {showCancelModal && (
