@@ -6,7 +6,7 @@ import { useState, useMemo } from 'react';
 import { format, parseISO, isPast, isFuture, isToday } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import {
-    Video, Calendar, Clock, ExternalLink, Copy,
+    Video, Calendar, Clock, ExternalLink, Copy, FileText,
     CalendarClock, Trash2, Search, ChevronRight,
     CheckCircle2, XCircle, AlertCircle
 } from 'lucide-react';
@@ -19,7 +19,7 @@ import { useMyBookings, useCancelOwnBooking } from '../hooks';
 import { CancelBookingModal } from './CancelBookingModal';
 import { RescheduleModal } from './RescheduleModal';
 import type { ZoomBooking } from '../types';
-import { formatZoomAccountName } from '../utils';
+import { formatZoomAccountName, generateInvitationText } from '../utils';
 
 type BookingTab = 'upcoming' | 'past' | 'all';
 
@@ -276,11 +276,26 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                             className="h-7 text-xs gap-1"
                             onClick={() => {
                                 navigator.clipboard.writeText(booking.meeting!.joinUrl);
-                                toast.success('Link disalin');
+                                toast.success('Link Zoom disalin');
                             }}
                         >
                             <Copy className="h-3 w-3" />
                             Copy Link
+                        </Button>
+                    )}
+                    {hasLink && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => {
+                                const fullInvitation = generateInvitationText(booking);
+                                navigator.clipboard.writeText(fullInvitation);
+                                toast.success('Undangan Zoom lengkap disalin');
+                            }}
+                        >
+                            <FileText className="h-3 w-3" />
+                            Salin Undangan
                         </Button>
                     )}
                     <Button

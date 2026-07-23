@@ -177,13 +177,14 @@ export class ZoomBookingService {
     }
 
     /**
-     * Get current user's & system active bookings (All)
+     * Get current user's own bookings (All)
      */
     async getMyBookings(userId: string): Promise<ZoomBooking[]> {
         return this.bookingRepo.find({
+            where: { bookedByUserId: userId },
             relations: ['zoomAccount', 'meeting', 'bookedByUser'],
             order: { bookingDate: 'DESC', startTime: 'DESC' },
-            take: 500, // Show full calendar history & future bookings
+            take: 500, // Show full calendar history & future bookings for user
         });
     }
     async getCalendar(
