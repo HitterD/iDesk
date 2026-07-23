@@ -209,7 +209,6 @@ interface BookingCardProps {
 }
 
 function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardProps) {
-    const [copiedLink, setCopiedLink] = useState(false);
     const [copiedInv, setCopiedInv] = useState(false);
 
     const status = booking.status ?? 'confirmed';
@@ -285,24 +284,6 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                         >
                             <ExternalLink className="h-3.5 w-3.5" />
                             Join
-                        </Button>
-                    )}
-                    {hasLink && (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs font-medium gap-1.5 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-                            onClick={async (e) => {
-                                e.stopPropagation();
-                                const ok = await copyToClipboard(booking.meeting!.joinUrl, 'Link Zoom');
-                                if (ok) {
-                                    setCopiedLink(true);
-                                    setTimeout(() => setCopiedLink(false), 2000);
-                                }
-                            }}
-                        >
-                            {copiedLink ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5 text-slate-400" />}
-                            {copiedLink ? 'Tersalin' : 'Copy Link'}
                         </Button>
                     )}
                     {hasLink && (
