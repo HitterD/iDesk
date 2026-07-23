@@ -91,7 +91,7 @@ export const BentoLoginPage = () => {
         setIsLoading(true);
 
         try {
-            const res = await api.post('/auth/login', { email, password });
+            const res = await api.post('/auth/login', { email, password, rememberMe });
             const { user } = res.data;
             setFailedAttempts(0);
             login(user);

@@ -72,7 +72,28 @@ describe('BentoLoginPage integration', () => {
     await user.type(screen.getByLabelText('Password'), password);
     await user.click(screen.getByRole('button', { name: /continue/i }));
     await waitFor(() => {
-      expect(mockApi.post).toHaveBeenCalledWith('/auth/login', { email, password });
+      expect(mockApi.post).toHaveBeenCalledWith('/auth/login', { email, password, rememberMe: false });
+    });
+  });
+
+  it('sends rememberMe: true when "Keep session active" is checked', async () => {
+    mockApi.post.mockResolvedValue({ data: { user: { role: 'ADMIN' } } });
+    render(
+      <MemoryRouter>
+        <BentoLoginPage />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('NIK / Email'), 'admin@example.com');
+    await user.type(screen.getByLabelText('Password'), 'password123');
+    await user.click(screen.getByLabelText(/keep session active/i));
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    await waitFor(() => {
+      expect(mockApi.post).toHaveBeenCalledWith('/auth/login', {
+        email: 'admin@example.com',
+        password: 'password123',
+        rememberMe: true,
+      });
     });
   });
 
