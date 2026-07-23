@@ -26,6 +26,16 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 });
 
 
+function calculateEndTime(startTime: string, durationMinutes: number): string {
+    if (!startTime) return '';
+    const [h, m] = startTime.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return '';
+    const totalMins = h * 60 + m + durationMinutes;
+    const endH = Math.floor(totalMins / 60) % 24;
+    const endM = totalMins % 60;
+    return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+}
+
 export function buildRecurrencePattern(freq: string, interval: number, until: string): string {
     const untilClause = until ? `;UNTIL=${until.replace(/-/g, '')}T235959Z` : '';
     return `FREQ=${freq};INTERVAL=${interval}${untilClause}`;
@@ -213,6 +223,21 @@ export function SimpleBookingForm() {
                     </SelectContent>
                 </Select>
             </div>
+
+            {startTime && (
+                <div className="flex items-center justify-between rounded-xl bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-800/60 px-3.5 py-2 text-xs transition-all animate-in fade-in slide-in-from-top-1 duration-200">
+                    <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                        <Clock className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        Estimasi Jam Zoom:
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 shadow-2xs">
+                        <span>{startTime}</span>
+                        <span className="text-slate-400 font-normal">s/d</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">{calculateEndTime(startTime, duration)}</span>
+                        <span className="text-[10px] text-slate-400 font-sans font-normal ml-0.5">WIB</span>
+                    </div>
+                </div>
+            )}
 
             {bookingDate && startTime && (
                 <div className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${availabilityClassName}`}>
