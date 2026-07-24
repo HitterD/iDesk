@@ -83,4 +83,18 @@ export class SitesController {
     remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
         return this.sitesService.remove(id, req.user?.id || req.user?.userId);
     }
+
+    @Post(':id/tv-token')
+    @ApiOperation({ summary: 'Generate/regenerate TV board token for a site (invalidates old token)' })
+    @Roles(UserRole.ADMIN)
+    generateTvToken(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+        return this.sitesService.generateTvToken(id, req.user?.id || req.user?.userId);
+    }
+
+    @Delete(':id/tv-token')
+    @ApiOperation({ summary: 'Revoke TV board token for a site' })
+    @Roles(UserRole.ADMIN)
+    revokeTvToken(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+        return this.sitesService.revokeTvToken(id, req.user?.id || req.user?.userId);
+    }
 }

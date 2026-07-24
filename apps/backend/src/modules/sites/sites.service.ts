@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomBytes } from 'crypto';
 import { Site } from './entities/site.entity';
 import { CreateSiteDto, UpdateSiteDto } from './dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
-import { CacheService } from '../../shared/core/cache/cache.service';
+import { CacheService } from '../../shared/core/cache';
 import { User } from '../users/entities/user.entity';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 
@@ -125,6 +126,43 @@ export class SitesService {
 
         await this.siteRepo.remove(site);
         await this.invalidateActiveCache();
+    }
+
+    async generateTvToken(id: string, userId?: string): Promise<Site> {
+        const site = await this.findOne(id);
+        const token = randomBytes(24).toString('hex');
+        site.tvToken = token;
+        const saved = await this.siteRepo.save(site);
+
+        if (userId) {
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.SITE_TV_TOKEN_GENERATE,
+                entityType: 'Site',
+                entityId: saved.id,
+                description: `Generated TV board token for site: ${saved.name} (${saved.code})`,
+            });
+        }
+
+        return saved;
+    }
+
+    async revokeTvToken(id: string, userId?: string): Promise<Site> {
+        const site = await this.findOne(id);
+        site.tvToken = null;
+        const saved = await this.siteRepo.save(site);
+
+        if (userId) {
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.SITE_TV_TOKEN_REVOKE,
+                entityType: 'Site',
+                entityId: saved.id,
+                description: `Revoked TV board token for site: ${saved.name} (${saved.code})`,
+            });
+        }
+
+        return saved;
     }
 
     async getServerHostSite(): Promise<Site | null> {
