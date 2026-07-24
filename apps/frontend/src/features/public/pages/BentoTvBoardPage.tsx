@@ -193,7 +193,7 @@ export const BentoTvBoardPage: React.FC = () => {
                                             <ColumnIcon className="h-4 w-4 text-slate-500" />
                                             <h2 className="text-base font-bold text-slate-900">{column.title}</h2>
                                             {column.key === 'resolved' && (
-                                                <span className="text-xs text-slate-400">(Hari ini)</span>
+                                                <span className="text-xs text-slate-400">(Minggu ini)</span>
                                             )}
                                         </div>
                                         <span className="text-2xl font-bold tabular-nums text-slate-900">{items.length}</span>

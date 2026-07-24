@@ -39,6 +39,7 @@ describe('BentoTvBoardPage', () => {
         expect(screen.getByText(/Open/)).toBeInTheDocument();
         expect(screen.getByText(/In Progress/)).toBeInTheDocument();
         expect(screen.getByText(/Resolved/)).toBeInTheDocument();
+        expect(screen.getByText('(Minggu ini)')).toBeInTheDocument();
         expect(screen.getByText(/Waiting Vendor: 2/)).toBeInTheDocument();
         expect(await screen.findByText('ORACLE / K2')).toBeInTheDocument();
         expect(screen.getByText('Akses Oracle gagal')).toBeInTheDocument();

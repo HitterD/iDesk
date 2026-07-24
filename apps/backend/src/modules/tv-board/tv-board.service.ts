@@ -50,16 +50,17 @@ export class TvBoardService {
             throw new NotFoundException('Site not found');
         }
 
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const tomorrowStart = new Date(todayStart);
-        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+        const weekStart = new Date();
+        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
 
         const tickets = await this.ticketRepo.find({
             where: [
                 { siteId, status: TicketStatus.TODO },
                 { siteId, status: TicketStatus.IN_PROGRESS },
-                { siteId, status: TicketStatus.RESOLVED, resolvedAt: Between(todayStart, tomorrowStart) },
+                { siteId, status: TicketStatus.RESOLVED, resolvedAt: Between(weekStart, weekEnd) },
             ],
             relations: ['user', 'assignedTo'],
             order: { createdAt: 'ASC' },

@@ -42,8 +42,13 @@ describe('TvBoardService', () => {
         });
     });
 
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
     describe('getBoardData', () => {
         it('groups tickets into open/inProgress/resolved columns and counts waiting vendor', async () => {
+            jest.useFakeTimers().setSystemTime(new Date('2026-07-22T12:00:00.000Z'));
             siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
             ticketRepo.find.mockResolvedValue([
                 {
@@ -79,6 +84,7 @@ describe('TvBoardService', () => {
                     isOverdue: false,
                     ticketType: TicketType.SERVICE,
                     category: 'GENERAL',
+                    resolvedAt: new Date('2026-07-19T12:00:00.000Z'),
                 },
             ]);
             ticketRepo.count.mockResolvedValue(3);
@@ -92,6 +98,15 @@ describe('TvBoardService', () => {
             expect(data.inProgress[0]).toMatchObject({ id: 't2', assignedToName: 'Agen Oracle', isOverdue: true, isOracleRequest: true });
             expect(data.resolved).toHaveLength(1);
             expect(data.resolved[0]).toMatchObject({ id: 't3', isOracleRequest: false });
+            const query = ticketRepo.find.mock.calls[0][0];
+            const resolvedFilter = query.where.find((filter: { status: TicketStatus }) => filter.status === TicketStatus.RESOLVED);
+            const resolvedRange = resolvedFilter.resolvedAt as { value: [Date, Date] };
+            const weekStart = new Date('2026-07-22T12:00:00.000Z');
+            weekStart.setHours(0, 0, 0, 0);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 7);
+            expect(resolvedRange.value).toEqual([weekStart, weekEnd]);
             expect(data.waitingVendorCount).toBe(3);
         });
 
