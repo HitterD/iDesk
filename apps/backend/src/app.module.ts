@@ -72,6 +72,7 @@ import { IpWhitelist } from './modules/ip-whitelist/entities/ip-whitelist.entity
 
 // New modules for Phase 1
 import { SitesModule } from './modules/sites/sites.module';
+import { TvBoardModule } from './modules/tv-board/tv-board.module';
 
 // New modules for Phase 2
 import { LostItemModule } from './modules/lost-item/lost-item.module';
@@ -206,6 +207,7 @@ import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
         AutomationModule,
         SettingsModule,
         SitesModule, // Phase 1: Multi-Site System
+        TvBoardModule,
 
         LostItemModule, // Phase 2: Ticket Types
         AccessRequestModule, // Phase 2: Ticket Types
