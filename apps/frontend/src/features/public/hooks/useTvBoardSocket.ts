@@ -9,6 +9,7 @@ export interface TvBoardCard {
     priority: string;
     slaTarget: string | null;
     isOverdue: boolean;
+    isOracleRequest: boolean;
 }
 
 export interface TvBoardData {

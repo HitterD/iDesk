@@ -10,8 +10,8 @@ vi.mock('@/lib/api', () => ({
                 siteName: 'Sampoerna Jaya',
                 siteCode: 'SPJ',
                 open: [
-                    { id: 't1', description: 'Printer rusak', requesterName: 'Budi', assignedToName: null, priority: 'MEDIUM', slaTarget: null, isOverdue: false },
-                    { id: 't2', description: 'Server down', requesterName: 'Cici', assignedToName: 'Agen B', priority: 'CRITICAL', slaTarget: '2026-07-25T00:00:00.000Z', isOverdue: true },
+                    { id: 't1', description: 'Akses Oracle gagal', requesterName: 'Budi', assignedToName: null, priority: 'MEDIUM', slaTarget: null, isOverdue: false, isOracleRequest: true },
+                    { id: 't2', description: 'Printer rusak', requesterName: 'Cici', assignedToName: 'Agen B', priority: 'CRITICAL', slaTarget: '2026-07-25T00:00:00.000Z', isOverdue: true, isOracleRequest: false },
                 ],
                 inProgress: [],
                 resolved: [],
@@ -40,7 +40,9 @@ describe('BentoTvBoardPage', () => {
         expect(screen.getByText(/In Progress/)).toBeInTheDocument();
         expect(screen.getByText(/Resolved/)).toBeInTheDocument();
         expect(screen.getByText(/Waiting Vendor: 2/)).toBeInTheDocument();
-        expect(await screen.findByText('Printer rusak')).toBeInTheDocument();
+        expect(await screen.findByText('ORACLE / K2')).toBeInTheDocument();
+        expect(screen.getByText('Akses Oracle gagal')).toBeInTheDocument();
+        expect(screen.getByText('Printer rusak')).toBeInTheDocument();
     });
 
     it('shows overdue indicator (red border) on overdue card but not on normal card', async () => {
@@ -52,8 +54,8 @@ describe('BentoTvBoardPage', () => {
             </MemoryRouter>
         );
 
-        const overdueCard = (await screen.findByText('Server down')).closest('div[data-testid="tv-board-card"]');
-        const normalCard = (await screen.findByText('Printer rusak')).closest('div[data-testid="tv-board-card"]');
+        const overdueCard = (await screen.findByText('Printer rusak')).closest('div[data-testid="tv-board-card"]');
+        const normalCard = (await screen.findByText('Akses Oracle gagal')).closest('div[data-testid="tv-board-card"]');
         expect(overdueCard?.className).toContain('border-red-600');
         expect(normalCard?.className).not.toContain('border-red-600');
     });
