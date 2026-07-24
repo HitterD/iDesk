@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Clock, Inbox, CircleDot, CheckCircle2, AlertTriangle, User, UserCheck } from 'lucide-react';
 import api from '@/lib/api';
 import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+import { useColumnAutoScroll } from '../hooks/useColumnAutoScroll';
 import { useTvBoardSocket, type TvBoardCard, type TvBoardData } from '../hooks/useTvBoardSocket';
 
 const COLUMNS: Array<{
@@ -84,6 +85,31 @@ function TvBoardCardView({ card }: { card: TvBoardCard }) {
                     </span>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function TvBoardColumnContent({
+    items,
+    ColumnIcon,
+    emptyMessage,
+}: {
+    items: TvBoardCard[];
+    ColumnIcon: React.ElementType;
+    emptyMessage: string;
+}) {
+    const scrollRef = useColumnAutoScroll<HTMLDivElement>();
+
+    return (
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-5">
+            {items.length > 0 ? (
+                items.map((card) => <TvBoardCardView key={card.id} card={card} />)
+            ) : (
+                <div className="flex h-full min-h-[160px] flex-col items-center justify-center p-6 text-center text-slate-400">
+                    <ColumnIcon className="mb-2 h-8 w-8 opacity-40" />
+                    <p className="text-xs font-medium">{emptyMessage}</p>
+                </div>
+            )}
         </div>
     );
 }
@@ -199,16 +225,11 @@ export const BentoTvBoardPage: React.FC = () => {
                                         <span className="text-2xl font-bold tabular-nums text-slate-900">{items.length}</span>
                                     </div>
 
-                                    <div className="flex-1 overflow-y-auto p-4 md:p-5">
-                                        {items.length > 0 ? (
-                                            items.map((card) => <TvBoardCardView key={card.id} card={card} />)
-                                        ) : (
-                                            <div className="flex h-full min-h-[160px] flex-col items-center justify-center p-6 text-center text-slate-400">
-                                                <ColumnIcon className="mb-2 h-8 w-8 opacity-40" />
-                                                <p className="text-xs font-medium">{column.emptyMessage}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <TvBoardColumnContent
+                                        items={items}
+                                        ColumnIcon={ColumnIcon}
+                                        emptyMessage={column.emptyMessage}
+                                    />
                                 </div>
                             </section>
                         );
