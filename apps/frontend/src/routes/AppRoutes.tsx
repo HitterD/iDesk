@@ -42,6 +42,7 @@ const BentoEditArticlePage = lazy(() => import('../features/knowledge-base/pages
 const BentoManageArticlesPage = lazy(() => import('../features/knowledge-base/pages/BentoManageArticlesPage').then(m => ({ default: m.BentoManageArticlesPage })));
 const BentoSlaSettingsPage = lazy(() => import('../features/admin/pages/BentoSlaSettingsPage').then(m => ({ default: m.BentoSlaSettingsPage })));
 const BentoFeedbackPage = lazy(() => import('../features/public/pages/BentoFeedbackPage').then(m => ({ default: m.BentoFeedbackPage })));
+const BentoTvBoardPage = lazy(() => import('../features/public/pages/BentoTvBoardPage').then(m => ({ default: m.BentoTvBoardPage })));
 const RenewalHubPage = lazy(() => import('../features/renewal/pages/RenewalHubPage'));
 const NotificationCenterPage = lazy(() => import('../features/notifications/pages/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
 const ClientNotificationCenter = lazy(() => import('../features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
@@ -59,6 +60,7 @@ const SystemHealthPage = lazy(() => import('../features/admin/pages/SystemHealth
 // Zoom Booking Calendar
 const ZoomCalendarPage = lazy(() => import('../features/zoom-booking/pages/ZoomCalendarPage').then(m => ({ default: m.ZoomCalendarPage })));
 const ZoomSettingsPage = lazy(() => import('../features/zoom-booking/pages/ZoomSettingsPage').then(m => ({ default: m.ZoomSettingsPage })));
+const ClientZoomBookingPage = lazy(() => import('../features/zoom-booking/pages/ClientZoomBookingPage').then(m => ({ default: m.ClientZoomBookingPage })));
 
 // Hardware Request
 const HardwareRequestsLayout = lazy(() => import('../features/hardware-request/layouts/HardwareRequestsLayout').then(m => ({ default: m.HardwareRequestsLayout })));
@@ -161,6 +163,7 @@ export default function AppRoutes() {
             <Route path="/login" element={<BentoLoginPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
             <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
+            <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
 
             {/* Admin/Agent Routes - Lazy loaded portal */}
             <Route
@@ -283,7 +286,7 @@ export default function AppRoutes() {
                 <Route path="create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
                 <Route path="tickets/:id" element={<LazyRoute component={ClientTicketDetailPage} featureName="Ticket Detail" />} />
                 <Route path="notifications" element={<LazyRoute component={ClientNotificationCenter} featureName="Notifications" requiredPageAccess="notifications" />} />
-                <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
+                <Route path="zoom-calendar" element={<LazyRoute component={ClientZoomBookingPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                 <Route path="kb" element={<LazyRoute component={ClientKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
                 <Route path="kb/articles/:id" element={<LazyRoute component={ClientArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
 
