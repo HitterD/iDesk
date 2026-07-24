@@ -60,9 +60,26 @@ export function TvBoardSettings() {
         }
     };
 
-    const handleCopy = (token: string) => {
-        navigator.clipboard.writeText(boardUrl(token));
-        toast.success('Link disalin ke clipboard');
+    const handleCopy = async (token: string) => {
+        const url = boardUrl(token);
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(url);
+            } else {
+                const input = document.createElement('textarea');
+                input.value = url;
+                input.style.position = 'fixed';
+                input.style.left = '-999999px';
+                document.body.appendChild(input);
+                input.select();
+                const copied = document.execCommand('copy');
+                document.body.removeChild(input);
+                if (!copied) throw new Error('Copy command failed');
+            }
+            toast.success('Link disalin ke clipboard');
+        } catch {
+            toast.error('Gagal menyalin link. Salin URL secara manual.');
+        }
     };
 
     if (loading) {
