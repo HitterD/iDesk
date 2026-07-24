@@ -13,7 +13,13 @@ describe('TvBoardGateway', () => {
         mockServer = { to: jest.fn().mockReturnValue(toReturn), emit: jest.fn() };
         tvBoardService = {
             resolveSiteIdByToken: jest.fn(),
-            getBoardData: jest.fn().mockResolvedValue({ siteCode: 'SPJ', open: [], inProgress: [], resolved: [], waitingVendorCount: 0 }),
+            getBoardData: jest.fn().mockResolvedValue({
+                siteCode: 'SPJ',
+                open: [{ id: 'oracle-1', isOracleRequest: true }],
+                inProgress: [],
+                resolved: [],
+                waitingVendorCount: 0,
+            }),
         };
         gateway = new TvBoardGateway(tvBoardService as any);
         (gateway as any).server = mockServer;
@@ -46,6 +52,12 @@ describe('TvBoardGateway', () => {
 
         expect(mockServer.to).toHaveBeenCalledWith('tv:site-A');
         expect(mockServer.to).not.toHaveBeenCalledWith('tv:site-B');
-        expect(toReturn.emit).toHaveBeenCalledWith('tv-board:update', expect.objectContaining({ siteCode: 'SPJ' }));
+        expect(toReturn.emit).toHaveBeenCalledWith(
+            'tv-board:update',
+            expect.objectContaining({
+                siteCode: 'SPJ',
+                open: [expect.objectContaining({ id: 'oracle-1', isOracleRequest: true })],
+            }),
+        );
     });
 });

@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { TvBoardService } from './tv-board.service';
 import { Site } from '../sites/entities/site.entity';
-import { Ticket, TicketStatus, TicketPriority } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TicketPriority, TicketType } from '../ticketing/entities/ticket.entity';
 
 describe('TvBoardService', () => {
     let service: TvBoardService;
@@ -46,8 +46,40 @@ describe('TvBoardService', () => {
         it('groups tickets into open/inProgress/resolved columns and counts waiting vendor', async () => {
             siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
             ticketRepo.find.mockResolvedValue([
-                { id: 't1', status: TicketStatus.TODO, description: 'Printer rusak', user: { fullName: 'Budi' }, assignedTo: null, priority: TicketPriority.MEDIUM, slaTarget: null, isOverdue: false },
-                { id: 't2', status: TicketStatus.IN_PROGRESS, description: 'Laptop lambat', user: { fullName: 'Ani' }, assignedTo: { fullName: 'Agen A' }, priority: TicketPriority.HIGH, slaTarget: new Date('2026-07-25'), isOverdue: true },
+                {
+                    id: 't1',
+                    status: TicketStatus.TODO,
+                    description: 'Printer rusak',
+                    user: { fullName: 'Budi' },
+                    assignedTo: null,
+                    priority: TicketPriority.MEDIUM,
+                    slaTarget: null,
+                    isOverdue: false,
+                    ticketType: TicketType.ORACLE_REQUEST,
+                },
+                {
+                    id: 't2',
+                    status: TicketStatus.IN_PROGRESS,
+                    description: 'Permintaan K2 lama',
+                    user: { fullName: 'Ani' },
+                    assignedTo: { fullName: 'Agen Oracle' },
+                    priority: TicketPriority.HIGH,
+                    slaTarget: new Date('2026-07-25'),
+                    isOverdue: true,
+                    category: 'ORACLE_REQUEST',
+                },
+                {
+                    id: 't3',
+                    status: TicketStatus.RESOLVED,
+                    description: 'Laptop lambat',
+                    user: { fullName: 'Cici' },
+                    assignedTo: { fullName: 'Agen A' },
+                    priority: TicketPriority.LOW,
+                    slaTarget: null,
+                    isOverdue: false,
+                    ticketType: TicketType.SERVICE,
+                    category: 'GENERAL',
+                },
             ]);
             ticketRepo.count.mockResolvedValue(3);
 
@@ -55,10 +87,11 @@ describe('TvBoardService', () => {
 
             expect(data.siteCode).toBe('SPJ');
             expect(data.open).toHaveLength(1);
-            expect(data.open[0]).toMatchObject({ description: 'Printer rusak', requesterName: 'Budi' });
+            expect(data.open[0]).toMatchObject({ id: 't1', requesterName: 'Budi', isOracleRequest: true });
             expect(data.inProgress).toHaveLength(1);
-            expect(data.inProgress[0]).toMatchObject({ assignedToName: 'Agen A', isOverdue: true });
-            expect(data.resolved).toHaveLength(0);
+            expect(data.inProgress[0]).toMatchObject({ id: 't2', assignedToName: 'Agen Oracle', isOverdue: true, isOracleRequest: true });
+            expect(data.resolved).toHaveLength(1);
+            expect(data.resolved[0]).toMatchObject({ id: 't3', isOracleRequest: false });
             expect(data.waitingVendorCount).toBe(3);
         });
 

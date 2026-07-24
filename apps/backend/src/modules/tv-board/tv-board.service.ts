@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Site } from '../sites/entities/site.entity';
-import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType } from '../ticketing/entities/ticket.entity';
 
 export interface TvBoardCard {
     id: string;
@@ -12,6 +12,7 @@ export interface TvBoardCard {
     priority: string;
     slaTarget: string | null;
     isOverdue: boolean;
+    isOracleRequest: boolean;
 }
 
 export interface TvBoardData {
@@ -76,6 +77,9 @@ export class TvBoardService {
             priority: t.priority,
             slaTarget: t.slaTarget ? t.slaTarget.toISOString() : null,
             isOverdue: t.isOverdue,
+            isOracleRequest:
+                t.ticketType === TicketType.ORACLE_REQUEST ||
+                t.category === 'ORACLE_REQUEST',
         });
 
         return {
