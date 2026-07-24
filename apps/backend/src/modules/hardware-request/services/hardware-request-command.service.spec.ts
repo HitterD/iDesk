@@ -51,7 +51,9 @@ describe('HardwareRequestCommandService', () => {
         dataSource = {
             transaction: jest.fn(async (cb: any) => cb({
                 getRepository: (e: any) => (e === HardwareRequest ? reqRepo :
-                                           e === HardwareRequestActivity ? activityRepo : reqRepo),
+                                           e === HardwareRequestItem ? reqRepo :
+                                           e === HardwareRequestActivity ? activityRepo :
+                                           e === InstallationSchedule ? scheduleRepo : {}),
             })),
         };
         scheduleRepo = { findOne: jest.fn() };
@@ -348,6 +350,10 @@ describe('HardwareRequestCommandService', () => {
             scheduleRepo.findOne.mockResolvedValue({ status: InstallStatus.DONE });
 
             const res = await service.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' });
+            expect(scheduleRepo.findOne).toHaveBeenCalledWith({
+                where: { requestId: 'r1', status: InstallStatus.DONE },
+                order: { createdAt: 'DESC' },
+            });
             expect(res.status).toBe(RequestStatus.AWAITING_USER_CONFIRMATION);
             expect(emitter.emit).toHaveBeenCalled();
         });

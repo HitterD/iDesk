@@ -25,7 +25,39 @@ describe('UserCrudService.getAgents HRIS roles', () => {
         await service.getAgents();
 
         expect(queryBuilder.andWhere).toHaveBeenCalledWith('user.role IN (:...roles)', {
-            roles: [UserRole.AGENT, UserRole.ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT],
+            roles: [
+                UserRole.AGENT,
+                UserRole.ADMIN,
+                UserRole.AGENT_OPERATIONAL_SUPPORT,
+                UserRole.AGENT_ADMIN,
+            ],
+        });
+    });
+
+    it('limits Oracle context to Oracle agents and admins', async () => {
+        const queryBuilder = {
+            leftJoinAndSelect: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue([]),
+        };
+        const userRepo = { createQueryBuilder: jest.fn(() => queryBuilder) };
+        const service = new UserCrudService(
+            userRepo as any,
+            {} as any,
+            {} as any,
+            {} as any,
+            {} as any,
+            {} as any,
+            {} as any,
+        );
+
+        await service.getAgents(undefined, UserRole.AGENT_ORACLE);
+
+        expect(queryBuilder.andWhere).toHaveBeenCalledWith('user.role IN (:...roles)', {
+            roles: [UserRole.AGENT_ORACLE, UserRole.ADMIN],
         });
     });
 });
@@ -41,7 +73,7 @@ describe('UserCrudService mustChangePassword on create', () => {
             {} as any, // departmentRepo
             {} as any, // mailerService
             { logAsync: jest.fn() } as any, // auditService
-            {} as any, // permissionsService
+            { resolveDefaultPresetId: jest.fn().mockResolvedValue(null), applyPresetToUser: jest.fn() } as any, // permissionsService
         );
     });
 

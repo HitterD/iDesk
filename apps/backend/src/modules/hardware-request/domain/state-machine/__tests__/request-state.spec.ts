@@ -14,8 +14,12 @@ describe('Request state machine — AWAITING_DELIVERY', () => {
     expect(canTransition(RequestStatus.AWAITING_DELIVERY, RequestStatus.COMPLETED)).toBe(false);
   });
 
-  it('allows INSTALLATION → COMPLETED', () => {
-    expect(canTransition(RequestStatus.INSTALLATION, RequestStatus.COMPLETED)).toBe(true);
+  it('forbids INSTALLATION → COMPLETED directly', () => {
+    expect(canTransition(RequestStatus.INSTALLATION, RequestStatus.COMPLETED)).toBe(false);
+  });
+
+  it('allows INSTALLATION → AWAITING_USER_CONFIRMATION', () => {
+    expect(canTransition(RequestStatus.INSTALLATION, RequestStatus.AWAITING_USER_CONFIRMATION)).toBe(true);
   });
 
   it('still allows PROCUREMENT → REJECTED', () => {

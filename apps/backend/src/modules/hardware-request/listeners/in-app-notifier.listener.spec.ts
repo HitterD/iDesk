@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { InAppNotifierListener } from './in-app-notifier.listener';
 import { NotificationService } from '../../notifications/notification.service';
+import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
 import { PermissionsService } from '../../permissions/permissions.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
@@ -8,6 +9,7 @@ import { NotificationType } from '../../notifications/entities/notification.enti
 describe('InAppNotifierListener', () => {
     let listener: InAppNotifierListener;
     const notif = { create: jest.fn() };
+    const notificationCenter = { emitActionItemsRefresh: jest.fn() };
     const perm = { listUsersWithRole: jest.fn().mockResolvedValue([{ id: 'lead1' }]) };
     const q = { findById: jest.fn() };
 
@@ -16,6 +18,7 @@ describe('InAppNotifierListener', () => {
             providers: [
                 InAppNotifierListener,
                 { provide: NotificationService, useValue: notif },
+                { provide: NotificationCenterService, useValue: notificationCenter },
                 { provide: PermissionsService, useValue: perm },
                 { provide: HardwareRequestQueryService, useValue: q },
             ],

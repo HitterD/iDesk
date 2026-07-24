@@ -2,6 +2,7 @@
 import { Test } from '@nestjs/testing';
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { CacheService } from '../../../shared/core/cache';
 import { HardwareCatalogService } from './hardware-catalog.service';
 import { HardwareCatalog } from '../domain/entities/hardware-catalog.entity';
 import { ItemCategory } from '../domain/enums/item-category.enum';
@@ -11,6 +12,10 @@ type R = jest.Mocked<Pick<Repository<HardwareCatalog>, 'find' | 'findOne' | 'sav
 describe('HardwareCatalogService', () => {
     let service: HardwareCatalogService;
     let repo: R;
+    const cacheService = {
+        getOrSet: jest.fn((_key, loader) => loader()),
+        delAsync: jest.fn().mockResolvedValue(undefined),
+    };
 
     beforeEach(async () => {
         repo = {
@@ -25,6 +30,7 @@ describe('HardwareCatalogService', () => {
             providers: [
                 HardwareCatalogService,
                 { provide: getRepositoryToken(HardwareCatalog), useValue: repo },
+                { provide: CacheService, useValue: cacheService },
             ],
         }).compile();
 

@@ -116,7 +116,10 @@ describe('HardwareRequestQueryService', () => {
 
             expect(repo.andWhere).toHaveBeenCalledWith('r.siteId = :siteId', { siteId: 's1' });
             expect(repo.andWhere).toHaveBeenCalledWith('r.requesterId = :reqId', { reqId: 'u2' });
-            expect(repo.andWhere).toHaveBeenCalledWith('(r.requestNumber ILIKE :q OR r.justification ILIKE :q)', { q: '%macbook%' });
+            expect(repo.andWhere).toHaveBeenCalledWith(
+                '(r.requestNumber ILIKE :q OR r.justification ILIKE :q OR items.categorySnapshot->>\'name\' ILIKE :q OR requester.fullName ILIKE :q)',
+                { q: '%macbook%' },
+            );
             expect(repo.skip).toHaveBeenCalledWith(10);
             expect(repo.take).toHaveBeenCalledWith(10);
         });

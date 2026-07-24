@@ -15,6 +15,7 @@ describe('UserCrudService Provisioning & Backfill', () => {
         };
         permissionsService = {
             resolveDefaultPresetId: jest.fn(async (role: UserRole) => `preset-id-${role}`),
+            applyPresetToUser: jest.fn(async (_userId: string, presetId: string) => ({ applied: true, presetName: presetId })),
         };
 
         service = new UserCrudService(
@@ -42,7 +43,10 @@ describe('UserCrudService Provisioning & Backfill', () => {
     it('runs backfill query onModuleInit', async () => {
         await service.onModuleInit();
         expect(userRepo.query).toHaveBeenCalledWith(
-            expect.stringContaining('UPDATE users u'),
+            expect.stringContaining('UPDATE "users" AS user_record'),
+        );
+        expect(userRepo.query).toHaveBeenCalledWith(
+            expect.stringContaining('"appliedPresetName" = preset.name'),
         );
     });
 });

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InstallationScheduleService, ActingUser } from '../installation-schedule.service';
 import { InstallationSchedule } from '../../domain/entities/installation-schedule.entity';
@@ -45,6 +46,12 @@ describe('InstallationScheduleService Edge Cases', () => {
             emit: jest.fn(),
         };
 
+        const dataSource = {
+            transaction: jest.fn(async (callback) => callback({
+                getRepository: (entity: unknown) => entity === InstallationSchedule ? repo : reqRepo,
+            })),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 InstallationScheduleService,
@@ -52,6 +59,7 @@ describe('InstallationScheduleService Edge Cases', () => {
                 { provide: getRepositoryToken(HardwareRequest), useValue: reqRepo },
                 { provide: HardwareActivityService, useValue: activityService },
                 { provide: EventEmitter2, useValue: emitter },
+                { provide: DataSource, useValue: dataSource },
             ],
         }).compile();
 
