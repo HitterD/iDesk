@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { Ticket, TicketStatus, TicketSource, TicketPriority } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
@@ -14,6 +14,7 @@ import { WorkloadService } from '../../workload/workload.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
+import { assertTicketRoleAccess } from './ticket-oracle-access';
 
 @Injectable()
 export class TicketCreateService {
@@ -45,12 +46,17 @@ export class TicketCreateService {
             if (!user) {
                 throw new NotFoundException('User not found');
             }
+            assertTicketRoleAccess({
+                category: createTicketDto.category || 'GENERAL',
+                ticketType: createTicketDto.ticketType || TicketType.SERVICE,
+            }, user.role);
 
             const ticket = this.ticketRepo.create({
                 title: createTicketDto.title,
                 description: createTicketDto.description,
                 priority: createTicketDto.priority,
                 category: createTicketDto.category || 'GENERAL',
+                ticketType: createTicketDto.ticketType || TicketType.SERVICE,
                 source: createTicketDto.source || TicketSource.WEB,
                 device: createTicketDto.device,
                 software: createTicketDto.software,
@@ -75,6 +81,7 @@ export class TicketCreateService {
             if (isHardwareInstallation) {
                 // Auto-set priority to HARDWARE_INSTALLATION
                 ticket.priority = TicketPriority.HARDWARE_INSTALLATION;
+                ticket.ticketType = TicketType.HARDWARE_INSTALLATION;
                 ticket.isHardwareInstallation = true;
                 ticket.scheduledDate = createTicketDto.scheduledDate ? new Date(createTicketDto.scheduledDate) : null;
                 ticket.scheduledTime = createTicketDto.scheduledTime || null;
@@ -162,6 +169,10 @@ export class TicketCreateService {
                 createdAt: ticket.createdAt,
             });
 
+            if (ticket.siteId) {
+                this.eventEmitter.emit('tv-board.ticket-changed', { siteId: ticket.siteId });
+            }
+
             // Emit Domain Event
             this.eventEmitter.emit(
                 'ticket.created',
@@ -194,7 +205,7 @@ export class TicketCreateService {
 
             // === Auto-Assignment: Assign to agent with lowest workload ===
             if (!(createTicketDto as any).assignedToId && finalTicket.siteId && user.role !== 'AGENT' && user.role !== 'AGENT_OPERATIONAL_SUPPORT') {
-                const isOracleTicket = createTicketDto.category === 'ORACLE_REQUEST' || (createTicketDto as any).ticketType === 'ORACLE_REQUEST';
+                const isOracleTicket = createTicketDto.category === 'ORACLE_REQUEST' || createTicketDto.ticketType === TicketType.ORACLE_REQUEST;
 
                 if (!isOracleTicket) {
                     try {

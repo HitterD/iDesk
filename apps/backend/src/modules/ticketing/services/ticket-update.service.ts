@@ -190,6 +190,10 @@ export class TicketUpdateService {
         this.eventsGateway.notifyDashboardStatsUpdate();
         this.eventsGateway.notifyTicketListUpdate();
 
+        if (savedTicket.siteId) {
+            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
+        }
+
         if (changes.length > 0) {
             const systemMessageContent = `System: ${changes.join(', ')} by ${user.fullName}`;
             const systemMessage = this.messageRepo.create({
@@ -316,6 +320,10 @@ export class TicketUpdateService {
         this.eventsGateway.notifyDashboardStatsUpdate();
         this.eventsGateway.notifyTicketListUpdate();
 
+        if (savedTicket.siteId) {
+            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
+        }
+
         // Emit Domain Event
         this.eventEmitter.emit(
             'ticket.assigned',
@@ -395,6 +403,10 @@ export class TicketUpdateService {
 
         this.eventsGateway.notifyTicketListUpdate();
         this.eventsGateway.notifyDashboardStatsUpdate();
+
+        if (savedTicket.siteId) {
+            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
+        }
 
         // Emit Domain Event
         this.eventEmitter.emit(
