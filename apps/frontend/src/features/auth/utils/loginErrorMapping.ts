@@ -33,7 +33,7 @@ export const getErrorFromResponse = (err: unknown, currentAttempts: number): Log
     if (errorCode) {
       switch (errorCode) {
         case 'USER_NOT_FOUND':
-          return { type: 'error', message: 'Account not found', details: 'No account exists with this email address.', errorCode };
+          return { type: 'error', message: 'Account not found', details: 'NIK atau email tidak terdaftar dalam sistem iDesk.', errorCode };
         case 'WRONG_PASSWORD': {
           const remainingAttempts = MAX_LOGIN_ATTEMPTS - currentAttempts - 1;
           return {
@@ -53,8 +53,16 @@ export const getErrorFromResponse = (err: unknown, currentAttempts: number): Log
     switch (status) {
       case 400:
         return { type: 'error', message: 'Invalid request', details: Array.isArray(message) ? message.join(', ') : message };
-      case 401:
-        return { type: 'error', message: (message as string) || 'Authentication failed', details: 'Check your credentials.' };
+      case 401: {
+        const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - currentAttempts - 1);
+        return {
+          type: 'error',
+          message: (message as string) || 'Incorrect password',
+          details: remainingAttempts > 0
+            ? `${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`
+            : 'This is your last attempt!',
+        };
+      }
       case 403:
         return { type: 'error', message: 'Access denied', details: 'Clearance required.' };
       case 423:

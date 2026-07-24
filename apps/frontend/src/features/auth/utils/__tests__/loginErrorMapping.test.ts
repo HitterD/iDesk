@@ -21,7 +21,7 @@ describe('getErrorFromResponse', () => {
     expect(result).toEqual({
       type: 'error',
       message: 'Account not found',
-      details: 'No account exists with this email address.',
+      details: 'NIK atau email tidak terdaftar dalam sistem iDesk.',
       errorCode: 'USER_NOT_FOUND',
     });
   });
