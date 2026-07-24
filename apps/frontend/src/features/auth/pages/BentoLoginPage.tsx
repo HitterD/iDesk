@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { useAuth } from '../../../stores/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertTriangle, WifiOff, Lock, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS } from '../utils/loginErrorMapping';
+import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS, RATE_LIMIT_WINDOW_SECONDS } from '../utils/loginErrorMapping';
 import { useTheme } from '@/hooks/useTheme';
 import api from '../../../lib/api';
 import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
@@ -15,6 +16,7 @@ export const BentoLoginPage = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loginError, setLoginError] = useState<LoginError | null>(null);
+    const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [capsLockOn, setCapsLockOn] = useState(false);
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -49,18 +51,70 @@ export const BentoLoginPage = () => {
 
     useEffect(() => {
         const update = () => {
-            const el = document.getElementById('utc-clock');
+            const el = document.getElementById('wib-clock');
             if (!el) return;
             const d = new Date();
-            const hh = String(d.getUTCHours()).padStart(2, '0');
-            const mm = String(d.getUTCMinutes()).padStart(2, '0');
-            const ss = String(d.getUTCSeconds()).padStart(2, '0');
-            el.textContent = `${hh}:${mm}:${ss} UTC`;
+            const timeStr = d.toLocaleTimeString('en-US', {
+                timeZone: 'Asia/Jakarta',
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+            });
+            el.textContent = `${timeStr} WIB`;
         };
         update();
         const id = setInterval(update, 1000);
         return () => clearInterval(id);
     }, []);
+
+    const getStorageKey = useCallback((identifier: string) => {
+        const trimmed = identifier.trim().toLowerCase();
+        return trimmed ? `idesk_rl_${trimmed}` : null;
+    }, []);
+
+    useEffect(() => {
+        const key = getStorageKey(email);
+        if (!key) {
+            setRateLimitSeconds(0);
+            return;
+        }
+        try {
+            const stored = localStorage.getItem(key);
+            if (!stored) {
+                setRateLimitSeconds(0);
+                return;
+            }
+            const expiry = parseInt(stored, 10);
+            if (!isNaN(expiry) && expiry > Date.now()) {
+                const remaining = Math.ceil((expiry - Date.now()) / 1000);
+                setRateLimitSeconds(remaining);
+            } else {
+                localStorage.removeItem(key);
+                setRateLimitSeconds(0);
+            }
+        } catch {
+            // Ignore localStorage errors
+        }
+    }, [email, getStorageKey]);
+
+    useEffect(() => {
+        if (rateLimitSeconds <= 0) return;
+        const interval = setInterval(() => {
+            setRateLimitSeconds((prev) => {
+                if (prev <= 1) {
+                    clearInterval(interval);
+                    const key = getStorageKey(email);
+                    if (key) {
+                        try { localStorage.removeItem(key); } catch {}
+                    }
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [rateLimitSeconds > 0, email, getStorageKey]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         setCapsLockOn(e.getModifierState('CapsLock'));
@@ -87,13 +141,19 @@ export const BentoLoginPage = () => {
             return;
         }
 
-        setLoginError(null);
+        if (rateLimitSeconds > 0) return;
+
         setIsLoading(true);
 
         try {
             const res = await api.post('/auth/login', { email, password, rememberMe });
             const { user } = res.data;
             setFailedAttempts(0);
+            setLoginError(null);
+            const key = getStorageKey(email);
+            if (key) {
+                try { localStorage.removeItem(key); } catch {}
+            }
             login(user);
 
             if (user.mustChangePassword) {
@@ -104,9 +164,26 @@ export const BentoLoginPage = () => {
         } catch (err: unknown) {
             const newAttemptCount = failedAttempts + 1;
             const error = getErrorFromResponse(err, failedAttempts);
-            setLoginError(error);
-            if (error.type === 'error' && error.errorCode !== 'USER_NOT_FOUND') {
-                setFailedAttempts(newAttemptCount);
+
+            if (axios.isAxiosError(err) && err.response?.status === 429) {
+                const retryAfterHeader = err.response.headers?.['retry-after'];
+                const parsedHeader = retryAfterHeader ? parseInt(retryAfterHeader, 10) : NaN;
+                const seconds = !isNaN(parsedHeader) && parsedHeader > 0 ? parsedHeader : RATE_LIMIT_WINDOW_SECONDS;
+                setRateLimitSeconds(seconds);
+
+                const key = getStorageKey(email);
+                if (key) {
+                    try {
+                        localStorage.setItem(key, String(Date.now() + seconds * 1000));
+                    } catch {}
+                }
+
+                setLoginError((prev) => (prev ? prev : error));
+            } else {
+                setLoginError(error);
+                if (error.type === 'error' && error.errorCode !== 'USER_NOT_FOUND') {
+                    setFailedAttempts(newAttemptCount);
+                }
             }
         } finally {
             setIsLoading(false);
@@ -120,15 +197,14 @@ export const BentoLoginPage = () => {
         }
     };
 
+    const isRateLimitError = loginError?.message === 'Rate limit exceeded';
+
     return (
         <div className="min-h-screen flex flex-col">
             <header className="flex items-center justify-between px-9 py-5 animate-fade-down">
-                <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary to-purple-500 shadow-sm" />
-                    <span className="font-semibold tracking-tight text-foreground">iDesk</span>
-                </div>
+                <div />
                 <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
-                    <span className="tabular-nums" id="utc-clock">--:--:-- UTC</span>
+                    <span className="tabular-nums" id="wib-clock">--:--:-- WIB</span>
                     <button
                         type="button"
                         onClick={toggleTheme}
@@ -168,7 +244,19 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    {loginError && (
+                    {rateLimitSeconds > 0 && (
+                        <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border bg-warning-500/10 border-warning-500/20 text-warning-600 dark:text-warning-500 animate-pulse">
+                            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-semibold">Rate limit exceeded</p>
+                                <p className="text-xs opacity-90 mt-0.5">
+                                    Wait {rateLimitSeconds} second{rateLimitSeconds === 1 ? '' : 's'}.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {loginError && (!rateLimitSeconds || !isRateLimitError) && (
                         <div
                             className={cn(
                                 'flex items-start gap-3 p-3 mb-4 rounded-lg border',
@@ -216,7 +304,7 @@ export const BentoLoginPage = () => {
                                 )}
                                 placeholder="NIK atau email"
                                 autoComplete="username"
-                                disabled={isLoading}
+                                disabled={isLoading || rateLimitSeconds > 0}
                             />
                         </div>
 
@@ -248,7 +336,7 @@ export const BentoLoginPage = () => {
                                     )}
                                     placeholder="••••••••"
                                     autoComplete="current-password"
-                                    disabled={isLoading}
+                                    disabled={isLoading || rateLimitSeconds > 0}
                                 />
                                 <button
                                     type="button"
@@ -269,31 +357,23 @@ export const BentoLoginPage = () => {
                                     checked={rememberMe}
                                     onChange={(e) => setRememberMe(e.target.checked)}
                                     className="w-4 h-4 rounded border-border/80 accent-primary"
-                                    disabled={isLoading}
+                                    disabled={isLoading || rateLimitSeconds > 0}
                                 />
                                 <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors select-none">
                                     Keep session active
                                 </span>
                             </label>
-
-                            <a href="#" className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
-                                Forgot Password?
-                            </a>
                         </div>
 
                         <button
                             type="submit"
-                            disabled={isLoading || !isOnline}
+                            disabled={isLoading || !isOnline || rateLimitSeconds > 0}
                             className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors animate-rise"
                             style={{ animationDelay: '0.52s' }}
                         >
-                            Continue
+                            {rateLimitSeconds > 0 ? `Wait (${rateLimitSeconds}s)` : 'Continue'}
                         </button>
                     </form>
-
-                    <div className="mt-6 text-center text-sm text-muted-foreground animate-rise" style={{ animationDelay: '0.58s' }}>
-                        <a href="#" className="border-b border-dashed border-border hover:text-foreground hover:border-foreground pb-0.5">Use single sign-on (SSO)</a>
-                    </div>
 
                     {/* Card footer with kbd hints */}
                     <div className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-3 text-xs font-mono text-muted-foreground animate-rise" style={{ animationDelay: '0.66s' }}>
@@ -309,8 +389,6 @@ export const BentoLoginPage = () => {
                 <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse-dot" />
                     <span>v3.18.2</span>
-                    <span className="text-border-strong">·</span>
-                    <span>All systems normal</span>
                     <span className="text-border-strong">·</span>
                     <span>© 2026 iDesk</span>
                 </div>
