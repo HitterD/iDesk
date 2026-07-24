@@ -35,6 +35,9 @@ export class Site {
     @Column({ default: false })
     isServerHost: boolean; // TRUE for SPJ (main server)
 
+    @Column({ type: 'varchar', nullable: true, unique: true })
+    tvToken: string | null;
+
     @CreateDateColumn()
     createdAt: Date;
 
