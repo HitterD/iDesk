@@ -81,6 +81,39 @@ describe('BentoTvBoardPage', () => {
         expect(await screen.findByText('ORACLE / K2')).toBeInTheDocument();
     });
 
+    it('shows requester name and department on separate lines', async () => {
+        renderBoard();
+
+        const requester = await screen.findByText('Muhammad Bagas Saputra Wijaya');
+        expect(requester).toHaveAttribute('title', 'Muhammad Bagas Saputra Wijaya');
+        expect(requester.className).toContain('truncate');
+        expect(screen.getByText('IT')).toBeInTheDocument();
+    });
+
+    it('omits the department line when the requester has none', async () => {
+        renderBoard();
+
+        const card = (await screen.findByText('Printer rusak')).closest('div[data-testid="tv-board-card"]');
+        expect(card).not.toBeNull();
+        expect(card?.querySelector('[data-testid="tv-board-department"]')).toBeNull();
+    });
+
+    it('shows assignee initials and name prominently', async () => {
+        renderBoard();
+
+        const assignee = await screen.findByText('Agen A');
+        expect(assignee.className).toContain('font-bold');
+        const card = assignee.closest('div[data-testid="tv-board-card"]');
+        expect(card?.textContent).toContain('AA');
+    });
+
+    it('flags unassigned tickets in amber', async () => {
+        renderBoard();
+
+        const unassigned = await screen.findByText('Belum ditugaskan');
+        expect(unassigned.className).toContain('text-amber');
+    });
+
     it('shows error page for invalid token', async () => {
         const api = (await import('@/lib/api')).default;
         (api.get as any).mockRejectedValueOnce({ response: { status: 404 } });

@@ -32,6 +32,32 @@ const COLUMNS: Array<{
     },
 ];
 
+const AVATAR_COLORS = [
+    'bg-blue-600',
+    'bg-emerald-600',
+    'bg-violet-600',
+    'bg-orange-600',
+    'bg-cyan-700',
+    'bg-rose-600',
+];
+
+function getInitials(name: string): string {
+    return name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((word) => word.charAt(0).toUpperCase())
+        .join('');
+}
+
+function getAvatarColor(name: string): string {
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) {
+        hash = (hash * 31 + name.charCodeAt(i)) % 2147483647;
+    }
+    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
 function TvBoardCardView({ card }: { card: TvBoardCard }) {
     const priorityConfig = PRIORITY_CONFIG[card.priority] ?? PRIORITY_CONFIG.MEDIUM;
     const PriorityIcon = priorityConfig.icon;
@@ -67,19 +93,46 @@ function TvBoardCardView({ card }: { card: TvBoardCard }) {
                         </span>
                     ) : null}
                 </div>
-                <p className="mb-5 line-clamp-3 text-lg font-bold leading-snug tracking-[-0.01em] text-slate-900">
+                <p className="mb-4 line-clamp-3 text-lg font-bold leading-snug tracking-[-0.01em] text-slate-900">
                     {card.description}
                 </p>
-                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-                    <span className="flex min-w-0 items-center gap-1.5 truncate" title={card.requesterName}>
-                        <User className="h-3.5 w-3.5 shrink-0" />
-                        {card.requesterName}
-                    </span>
-                    <span className="flex min-w-0 items-center gap-1.5 truncate font-medium text-slate-600" title={card.assignedToName ?? 'Unassigned'}>
-                        <UserCheck className="h-3.5 w-3.5 shrink-0 text-blue-600" />
-                        {card.assignedToName ?? 'Unassigned'}
-                    </span>
+
+                <div className="flex min-w-0 items-start gap-1.5">
+                    <User className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <div className="min-w-0">
+                        <p className="truncate text-[11px] font-medium text-slate-600" title={card.requesterName}>
+                            {card.requesterName}
+                        </p>
+                        {card.requesterDepartment && (
+                            <p
+                                data-testid="tv-board-department"
+                                className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400"
+                            >
+                                {card.requesterDepartment}
+                            </p>
+                        )}
+                    </div>
                 </div>
+
+                {card.assignedToName ? (
+                    <div className="mt-3 flex min-w-0 items-center gap-2.5 border-t border-slate-100 pt-3">
+                        <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${getAvatarColor(card.assignedToName)}`}
+                        >
+                            {getInitials(card.assignedToName)}
+                        </span>
+                        <span className="min-w-0 truncate text-sm font-bold text-slate-900" title={card.assignedToName}>
+                            {card.assignedToName}
+                        </span>
+                    </div>
+                ) : (
+                    <div className="mt-3 flex items-center gap-2.5 border-t border-slate-100 pt-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400">
+                            <UserCheck className="h-4 w-4" />
+                        </span>
+                        <span className="text-sm font-bold text-amber-600">Belum ditugaskan</span>
+                    </div>
+                )}
             </div>
         </div>
     );
