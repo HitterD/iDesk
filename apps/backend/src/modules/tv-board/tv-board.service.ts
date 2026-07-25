@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Site } from '../sites/entities/site.entity';
 import { Ticket, TicketStatus, TicketType } from '../ticketing/entities/ticket.entity';
 
@@ -8,6 +8,7 @@ export interface TvBoardCard {
     id: string;
     description: string;
     requesterName: string;
+    requesterDepartment: string | null;
     assignedToName: string | null;
     priority: string;
     slaTarget: string | null;
@@ -20,7 +21,6 @@ export interface TvBoardData {
     siteCode: string;
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
-    resolved: TvBoardCard[];
     waitingVendorCount: number;
 }
 
@@ -50,19 +50,12 @@ export class TvBoardService {
             throw new NotFoundException('Site not found');
         }
 
-        const weekStart = new Date();
-        weekStart.setHours(0, 0, 0, 0);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
-
         const tickets = await this.ticketRepo.find({
             where: [
                 { siteId, status: TicketStatus.TODO },
                 { siteId, status: TicketStatus.IN_PROGRESS },
-                { siteId, status: TicketStatus.RESOLVED, resolvedAt: Between(weekStart, weekEnd) },
             ],
-            relations: ['user', 'assignedTo'],
+            relations: ['user', 'user.department', 'assignedTo'],
             order: { createdAt: 'ASC' },
         });
 
@@ -74,6 +67,8 @@ export class TvBoardService {
             id: t.id,
             description: t.description,
             requesterName: t.user?.fullName ?? 'Unknown',
+            requesterDepartment:
+                t.user?.department?.code || t.user?.department?.name || null,
             assignedToName: t.assignedTo?.fullName ?? null,
             priority: t.priority,
             slaTarget: t.slaTarget ? t.slaTarget.toISOString() : null,
@@ -88,7 +83,6 @@ export class TvBoardService {
             siteCode: site.code,
             open: tickets.filter((t) => t.status === TicketStatus.TODO).map(toCard),
             inProgress: tickets.filter((t) => t.status === TicketStatus.IN_PROGRESS).map(toCard),
-            resolved: tickets.filter((t) => t.status === TicketStatus.RESOLVED).map(toCard),
             waitingVendorCount,
         };
     }

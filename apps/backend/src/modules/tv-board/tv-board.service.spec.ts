@@ -47,15 +47,14 @@ describe('TvBoardService', () => {
     });
 
     describe('getBoardData', () => {
-        it('groups tickets into open/inProgress/resolved columns and counts waiting vendor', async () => {
-            jest.useFakeTimers().setSystemTime(new Date('2026-07-22T12:00:00.000Z'));
+        it('groups tickets into open/inProgress columns and counts waiting vendor', async () => {
             siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
             ticketRepo.find.mockResolvedValue([
                 {
                     id: 't1',
                     status: TicketStatus.TODO,
                     description: 'Printer rusak',
-                    user: { fullName: 'Budi' },
+                    user: { fullName: 'Budi', department: { code: 'FIN', name: 'Finance' } },
                     assignedTo: null,
                     priority: TicketPriority.MEDIUM,
                     slaTarget: null,
@@ -66,25 +65,12 @@ describe('TvBoardService', () => {
                     id: 't2',
                     status: TicketStatus.IN_PROGRESS,
                     description: 'Permintaan K2 lama',
-                    user: { fullName: 'Ani' },
+                    user: { fullName: 'Ani', department: { code: null, name: 'Human Resource' } },
                     assignedTo: { fullName: 'Agen Oracle' },
                     priority: TicketPriority.HIGH,
                     slaTarget: new Date('2026-07-25'),
                     isOverdue: true,
                     category: 'ORACLE_REQUEST',
-                },
-                {
-                    id: 't3',
-                    status: TicketStatus.RESOLVED,
-                    description: 'Laptop lambat',
-                    user: { fullName: 'Cici' },
-                    assignedTo: { fullName: 'Agen A' },
-                    priority: TicketPriority.LOW,
-                    slaTarget: null,
-                    isOverdue: false,
-                    ticketType: TicketType.SERVICE,
-                    category: 'GENERAL',
-                    resolvedAt: new Date('2026-07-19T12:00:00.000Z'),
                 },
             ]);
             ticketRepo.count.mockResolvedValue(3);
@@ -96,18 +82,66 @@ describe('TvBoardService', () => {
             expect(data.open[0]).toMatchObject({ id: 't1', requesterName: 'Budi', isOracleRequest: true });
             expect(data.inProgress).toHaveLength(1);
             expect(data.inProgress[0]).toMatchObject({ id: 't2', assignedToName: 'Agen Oracle', isOverdue: true, isOracleRequest: true });
-            expect(data.resolved).toHaveLength(1);
-            expect(data.resolved[0]).toMatchObject({ id: 't3', isOracleRequest: false });
-            const query = ticketRepo.find.mock.calls[0][0];
-            const resolvedFilter = query.where.find((filter: { status: TicketStatus }) => filter.status === TicketStatus.RESOLVED);
-            const resolvedRange = resolvedFilter.resolvedAt as { value: [Date, Date] };
-            const weekStart = new Date('2026-07-22T12:00:00.000Z');
-            weekStart.setHours(0, 0, 0, 0);
-            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekEnd.getDate() + 7);
-            expect(resolvedRange.value).toEqual([weekStart, weekEnd]);
             expect(data.waitingVendorCount).toBe(3);
+        });
+
+        it('never queries or returns resolved tickets', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
+
+            const data = await service.getBoardData('site-1');
+
+            expect(data).not.toHaveProperty('resolved');
+            const query = ticketRepo.find.mock.calls[0][0];
+            const statuses = query.where.map((filter: { status: TicketStatus }) => filter.status);
+            expect(statuses).toEqual([TicketStatus.TODO, TicketStatus.IN_PROGRESS]);
+        });
+
+        it('maps requester department using code, falling back to name, then null', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
+            ticketRepo.find.mockResolvedValue([
+                {
+                    id: 'a',
+                    status: TicketStatus.TODO,
+                    description: 'Pakai code',
+                    user: { fullName: 'Budi', department: { code: 'IT', name: 'Information Technology' } },
+                    assignedTo: null,
+                    priority: TicketPriority.LOW,
+                    slaTarget: null,
+                    isOverdue: false,
+                },
+                {
+                    id: 'b',
+                    status: TicketStatus.TODO,
+                    description: 'Code kosong, pakai name',
+                    user: { fullName: 'Ani', department: { code: '', name: 'Human Resource' } },
+                    assignedTo: null,
+                    priority: TicketPriority.LOW,
+                    slaTarget: null,
+                    isOverdue: false,
+                },
+                {
+                    id: 'c',
+                    status: TicketStatus.TODO,
+                    description: 'Tanpa department',
+                    user: { fullName: 'Cici' },
+                    assignedTo: null,
+                    priority: TicketPriority.LOW,
+                    slaTarget: null,
+                    isOverdue: false,
+                },
+            ]);
+
+            const data = await service.getBoardData('site-1');
+
+            expect(data.open.map((card) => card.requesterDepartment)).toEqual(['IT', 'Human Resource', null]);
+        });
+
+        it('loads the department relation so requesterDepartment can be resolved', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
+
+            await service.getBoardData('site-1');
+
+            expect(ticketRepo.find.mock.calls[0][0].relations).toContain('user.department');
         });
 
         it('throws NotFoundException when site does not exist', async () => {

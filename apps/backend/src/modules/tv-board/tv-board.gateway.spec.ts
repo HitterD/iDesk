@@ -17,7 +17,6 @@ describe('TvBoardGateway', () => {
                 siteCode: 'SPJ',
                 open: [{ id: 'oracle-1', isOracleRequest: true }],
                 inProgress: [],
-                resolved: [],
                 waitingVendorCount: 0,
             }),
         };
