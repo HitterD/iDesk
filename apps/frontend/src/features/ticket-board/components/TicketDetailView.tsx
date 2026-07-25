@@ -12,6 +12,7 @@ import { MessageSourceBadge } from '@/components/ui/TelegramBadge';
 import { useTicketSocket } from '@/hooks/useTicketSocket';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { Paperclip } from 'lucide-react';
+import { getAttachmentUrl, isImageUrl } from './ticket-detail/utils';
 
 // Image Lightbox Component
 const ImageLightbox: React.FC<{
@@ -57,22 +58,6 @@ const AttachmentPreview: React.FC<{
 }> = ({ attachments, onImageClick, onPdfClick }) => {
     if (!attachments || attachments.length === 0) return null;
 
-    // Get the full URL for attachments (prepend backend URL if relative path)
-    const getFullUrl = (url: string) => {
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-            return url;
-        }
-        // Prepend backend URL for relative paths
-        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
-        return `${backendUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-    };
-
-    const isImage = (url: string) => {
-        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
-        const lowerUrl = url.toLowerCase();
-        return imageExtensions.some(ext => lowerUrl.includes(ext)) || lowerUrl.includes('/uploads/telegram/');
-    };
-
     const getFileName = (url: string) => {
         const parts = url.split('/');
         return parts[parts.length - 1] || 'file';
@@ -81,9 +66,9 @@ const AttachmentPreview: React.FC<{
     return (
         <div className="mt-2 space-y-2">
             {attachments.map((url, index) => {
-                const fullUrl = getFullUrl(url);
+                const fullUrl = getAttachmentUrl(url);
 
-                if (isImage(url)) {
+                if (isImageUrl(url)) {
                     return (
                         <div
                             key={index}
