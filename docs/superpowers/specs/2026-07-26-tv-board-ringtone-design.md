@@ -16,7 +16,7 @@ Halaman TV Board (`/tv/:token`) membunyikan ringtone kustom saat tiket masuk, sa
 | Jam pulang | Bisa diatur per site (default kosong), berlaku setiap hari termasuk akhir pekan. |
 | Autoplay | Tanpa overlay konfirmasi. Mengandalkan flag browser di mini PC + indikator kecil bila diblokir. |
 | Pemicu bunyi | Dibandingkan di sisi TV dari snapshot papan. Backend tidak mengirim event suara. |
-| Tumpang tindih | Satu bunyi per jenis per update, berapa pun jumlah tiketnya. |
+| Tumpang tindih | Satu bunyi per jenis per update. Jika kedua jenis muncul pada update sama, antrekan memutar Tiket Masuk lalu In Progress; tidak tumpang tindih. |
 | Penyimpanan | Kolom pada entity `Site`. Bukan tabel baru, bukan `system_settings`. |
 
 ## Batasan Browser (penting untuk operasional)
@@ -186,14 +186,15 @@ Lokasi: `apps/frontend/src/features/public/hooks/useRingtone.ts`
 
 ```ts
 export function useRingtone(): {
-    play: (url: string | null) => void;
+    enqueue: (urls: Array<string | null>) => void;
     blocked: boolean;
 };
 ```
 
 - Satu instance `Audio` disimpan di ref dan dipakai ulang; `src` diganti setiap pemutaran.
-- `play(null)` tidak melakukan apa pun.
-- Promise dari `HTMLAudioElement.play()` yang ditolak ditangkap. Kegagalan menyalakan `blocked` dan tidak melempar.
+- `enqueue()` membuang nilai `null`. Jika dua URL sah dikirim, URL pertama harus selesai (`ended`) atau gagal (`error`) sebelum URL kedua mulai. Urutan untuk satu update papan: Tiket Masuk, lalu In Progress.
+- Queue dari update baru ditambahkan setelah queue yang sedang berjalan, jadi tidak memotong ringtone yang sudah dimulai.
+- Promise dari `HTMLAudioElement.play()` yang ditolak ditangkap. Kegagalan menyalakan `blocked`, membuang item gagal, lalu lanjut ke item berikutnya tanpa melempar.
 - Pemutaran yang berhasil mematikan kembali `blocked`.
 - Memasang listener `{ once: true }` pada `pointerdown` dan `keydown` di `window` yang mencoba membuka kunci audio bila ada interaksi.
 
@@ -223,7 +224,7 @@ Interface `Site` di komponen ini ditambah keempat field baru.
 | Kondisi | Perilaku |
 |---|---|
 | Ringtone belum diupload (`null`) | Diam. Bukan error, tidak dicatat di log. |
-| File audio 404 atau rusak | Promise `play()` ditolak dan ditangkap. Papan tetap berjalan, event itu tidak berbunyi. |
+| File audio 404 atau rusak | Item queue gagal dibuang. Papan tetap berjalan, lalu queue lanjut ke ringtone berikutnya bila ada. |
 | Autoplay diblokir browser | Ikon `VolumeX` muncul di header. Papan tetap berjalan. |
 | Socket putus lalu tersambung ulang | Snapshot sebelumnya di-reset ke `null`; update pertama tidak membunyikan apa pun. |
 | Upload bukan file audio | Ditolak `fileFilter` backend. Toast merah di halaman settings. |
@@ -267,8 +268,10 @@ DTO
 - Jam tidak cocok mengembalikan `false`
 
 `useRingtone.test.ts`
-- `play(null)` tidak memanggil `HTMLAudioElement.play`
-- `play()` yang ditolak menyalakan `blocked` tanpa melempar
+- `enqueue([null])` tidak memanggil `HTMLAudioElement.play`
+- Dua URL valid diputar berurutan: URL kedua baru mulai setelah event `ended` dari URL pertama
+- `play()` yang ditolak menyalakan `blocked`, membuang item gagal, lalu melanjutkan queue tanpa melempar
+- Pemutaran valid setelah kegagalan mematikan kembali `blocked`
 
 `BentoTvBoardPage.smoke.test.tsx`
 - Indikator `VolumeX` tidak dirender saat audio normal
