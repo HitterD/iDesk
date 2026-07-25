@@ -5,6 +5,7 @@ export interface TvBoardCard {
     id: string;
     description: string;
     requesterName: string;
+    requesterDepartment: string | null;
     assignedToName: string | null;
     priority: string;
     slaTarget: string | null;
@@ -17,7 +18,6 @@ export interface TvBoardData {
     siteCode: string;
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
-    resolved: TvBoardCard[];
     waitingVendorCount: number;
 }
 

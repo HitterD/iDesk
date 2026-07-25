@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Clock, Inbox, CircleDot, CheckCircle2, AlertTriangle, User, UserCheck } from 'lucide-react';
+import { Clock, Inbox, CircleDot, AlertTriangle, User, UserCheck } from 'lucide-react';
 import api from '@/lib/api';
 import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { useColumnAutoScroll } from '../hooks/useColumnAutoScroll';
 import { useTvBoardSocket, type TvBoardCard, type TvBoardData } from '../hooks/useTvBoardSocket';
 
 const COLUMNS: Array<{
-    key: 'open' | 'inProgress' | 'resolved';
+    key: 'open' | 'inProgress';
     title: string;
     icon: React.ElementType;
     headerAccent: string;
+    span: string;
     emptyMessage: string;
 }> = [
     {
@@ -18,6 +19,7 @@ const COLUMNS: Array<{
         title: 'Open',
         icon: Inbox,
         headerAccent: 'border-t-4 border-slate-400',
+        span: 'md:col-span-2',
         emptyMessage: 'Tidak ada tiket dalam antrean Open',
     },
     {
@@ -25,14 +27,8 @@ const COLUMNS: Array<{
         title: 'In Progress',
         icon: CircleDot,
         headerAccent: 'border-t-4 border-blue-500',
+        span: 'md:col-span-3',
         emptyMessage: 'Tidak ada tiket sedang dikerjakan',
-    },
-    {
-        key: 'resolved',
-        title: 'Resolved',
-        icon: CheckCircle2,
-        headerAccent: 'border-t-4 border-emerald-500',
-        emptyMessage: 'Belum ada tiket selesai hari ini',
     },
 ];
 
@@ -155,10 +151,9 @@ export const BentoTvBoardPage: React.FC = () => {
         );
     }
 
-    const columnData: Record<'open' | 'inProgress' | 'resolved', TvBoardCard[]> = {
+    const columnData: Record<'open' | 'inProgress', TvBoardCard[]> = {
         open: data.open,
         inProgress: data.inProgress,
-        resolved: data.resolved,
     };
     const overdueCount = [...data.open, ...data.inProgress].filter((card) => card.isOverdue).length;
     const formattedDate = now.toLocaleDateString('id-ID', {
@@ -169,8 +164,8 @@ export const BentoTvBoardPage: React.FC = () => {
     });
 
     return (
-        <div className="min-h-[100dvh] bg-[#edf2f7] p-4 font-sans text-slate-900 md:p-6">
-            <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[1920px] flex-col gap-4 md:min-h-[calc(100dvh-3rem)] md:gap-6">
+        <div className="h-[100dvh] overflow-hidden bg-[#edf2f7] p-4 font-sans text-slate-900 md:p-6">
+            <div className="mx-auto flex h-full max-w-[1920px] flex-col gap-4 md:gap-6">
                 <header className="flex flex-wrap items-center justify-between gap-5 rounded-[24px] bg-white px-6 py-5 shadow-[0_16px_36px_-28px_rgba(15,23,42,0.35)] ring-1 ring-slate-200/80 motion-safe:animate-[fade-up_700ms_cubic-bezier(0.32,0.72,0,1)_both] motion-reduce:animate-none md:px-8">
                     <div>
                         <div className="flex items-center gap-2">
@@ -203,7 +198,7 @@ export const BentoTvBoardPage: React.FC = () => {
                     </div>
                 </header>
 
-                <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-5 md:gap-6">
                     {COLUMNS.map((column) => {
                         const ColumnIcon = column.icon;
                         const items = columnData[column.key];
@@ -211,16 +206,13 @@ export const BentoTvBoardPage: React.FC = () => {
                         return (
                             <section
                                 key={column.key}
-                                className={`flex min-h-[280px] flex-col rounded-[24px] bg-slate-100/80 p-1 ring-1 ring-slate-200/80 motion-safe:animate-[fade-up_700ms_cubic-bezier(0.32,0.72,0,1)_both] motion-reduce:animate-none ${column.headerAccent}`}
+                                className={`flex min-h-0 flex-col rounded-[24px] bg-slate-100/80 p-1 ring-1 ring-slate-200/80 motion-safe:animate-[fade-up_700ms_cubic-bezier(0.32,0.72,0,1)_both] motion-reduce:animate-none ${column.span} ${column.headerAccent}`}
                             >
                                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] bg-white">
                                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 md:px-5">
                                         <div className="flex items-center gap-2">
                                             <ColumnIcon className="h-4 w-4 text-slate-500" />
                                             <h2 className="text-base font-bold text-slate-900">{column.title}</h2>
-                                            {column.key === 'resolved' && (
-                                                <span className="text-xs text-slate-400">(Minggu ini)</span>
-                                            )}
                                         </div>
                                         <span className="text-2xl font-bold tabular-nums text-slate-900">{items.length}</span>
                                     </div>

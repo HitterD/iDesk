@@ -33,4 +33,12 @@ describe('stepAutoScroll', () => {
             0,
         )).toEqual({ phase: 'pause-top', scrollTop: 0, elapsedMs: 0 });
     });
+
+    it('scrolls down at 40px per second when content overflows', () => {
+        expect(stepAutoScroll(
+            { phase: 'down', scrollTop: 0, elapsedMs: 0 },
+            1000,
+            500,
+        )).toEqual({ phase: 'down', scrollTop: 40, elapsedMs: 0 });
+    });
 });

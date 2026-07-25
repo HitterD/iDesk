@@ -10,11 +10,12 @@ vi.mock('@/lib/api', () => ({
                 siteName: 'Sampoerna Jaya',
                 siteCode: 'SPJ',
                 open: [
-                    { id: 't1', description: 'Akses Oracle gagal', requesterName: 'Budi', assignedToName: null, priority: 'MEDIUM', slaTarget: null, isOverdue: false, isOracleRequest: true },
-                    { id: 't2', description: 'Printer rusak', requesterName: 'Cici', assignedToName: 'Agen B', priority: 'CRITICAL', slaTarget: '2026-07-25T00:00:00.000Z', isOverdue: true, isOracleRequest: false },
+                    { id: 't1', description: 'Akses Oracle gagal', requesterName: 'Budi', requesterDepartment: 'FIN', assignedToName: null, priority: 'MEDIUM', slaTarget: null, isOverdue: false, isOracleRequest: true },
+                    { id: 't2', description: 'Printer rusak', requesterName: 'Cici', requesterDepartment: null, assignedToName: 'Agen B', priority: 'CRITICAL', slaTarget: '2026-07-25T00:00:00.000Z', isOverdue: true, isOracleRequest: false },
                 ],
-                inProgress: [],
-                resolved: [],
+                inProgress: [
+                    { id: 't3', description: 'Jaringan lambat', requesterName: 'Muhammad Bagas Saputra Wijaya', requesterDepartment: 'IT', assignedToName: 'Agen A', priority: 'HIGH', slaTarget: null, isOverdue: false, isOracleRequest: false },
+                ],
                 waitingVendorCount: 2,
             },
         })),
@@ -25,35 +26,49 @@ vi.mock('../../hooks/useTvBoardSocket', () => ({
     useTvBoardSocket: () => ({ boardData: null, isConnected: true }),
 }));
 
+function renderBoard(entry = '/tv/abc-token') {
+    return render(
+        <MemoryRouter initialEntries={[entry]}>
+            <Routes>
+                <Route path="/tv/:token" element={<BentoTvBoardPage />} />
+            </Routes>
+        </MemoryRouter>
+    );
+}
+
 describe('BentoTvBoardPage', () => {
-    it('renders site name, 3 columns, and waiting vendor badge from initial fetch', async () => {
-        render(
-            <MemoryRouter initialEntries={['/tv/abc-token']}>
-                <Routes>
-                    <Route path="/tv/:token" element={<BentoTvBoardPage />} />
-                </Routes>
-            </MemoryRouter>
-        );
+    it('renders only Open and In Progress columns', async () => {
+        renderBoard();
 
         expect(await screen.findByText('Sampoerna Jaya')).toBeInTheDocument();
         expect(screen.getByText(/Open/)).toBeInTheDocument();
         expect(screen.getByText(/In Progress/)).toBeInTheDocument();
-        expect(screen.getByText(/Resolved/)).toBeInTheDocument();
-        expect(screen.getByText('(Minggu ini)')).toBeInTheDocument();
+        expect(screen.queryByText(/Resolved/)).not.toBeInTheDocument();
+        expect(screen.queryByText('(Minggu ini)')).not.toBeInTheDocument();
         expect(screen.getByText(/Waiting Vendor: 2/)).toBeInTheDocument();
-        expect(await screen.findByText('ORACLE / K2')).toBeInTheDocument();
-        expect(screen.getByText('Akses Oracle gagal')).toBeInTheDocument();
-        expect(screen.getByText('Printer rusak')).toBeInTheDocument();
+    });
+
+    it('gives Open 2 of 5 grid columns and In Progress 3 of 5', async () => {
+        renderBoard();
+
+        const openSection = (await screen.findByText('Open')).closest('section');
+        const inProgressSection = (await screen.findByText('In Progress')).closest('section');
+        expect(openSection?.className).toContain('md:col-span-2');
+        expect(inProgressSection?.className).toContain('md:col-span-3');
+    });
+
+    it('locks page height so columns overflow instead of the page', async () => {
+        const { container } = renderBoard();
+        await screen.findByText('Sampoerna Jaya');
+
+        const root = container.firstElementChild as HTMLElement;
+        expect(root.className).toContain('h-[100dvh]');
+        expect(root.className).toContain('overflow-hidden');
+        expect(root.className).not.toContain('min-h-[100dvh]');
     });
 
     it('shows overdue indicator (red border) on overdue card but not on normal card', async () => {
-        render(
-            <MemoryRouter initialEntries={['/tv/abc-token']}>
-                <Routes>
-                    <Route path="/tv/:token" element={<BentoTvBoardPage />} />
-                </Routes>
-            </MemoryRouter>
-        );
+        renderBoard();
 
         const overdueCard = (await screen.findByText('Printer rusak')).closest('div[data-testid="tv-board-card"]');
         const normalCard = (await screen.findByText('Akses Oracle gagal')).closest('div[data-testid="tv-board-card"]');
@@ -61,17 +76,16 @@ describe('BentoTvBoardPage', () => {
         expect(normalCard?.className).not.toContain('border-red-600');
     });
 
+    it('shows the Oracle/K2 badge', async () => {
+        renderBoard();
+        expect(await screen.findByText('ORACLE / K2')).toBeInTheDocument();
+    });
+
     it('shows error page for invalid token', async () => {
         const api = (await import('@/lib/api')).default;
         (api.get as any).mockRejectedValueOnce({ response: { status: 404 } });
 
-        render(
-            <MemoryRouter initialEntries={['/tv/bad-token']}>
-                <Routes>
-                    <Route path="/tv/:token" element={<BentoTvBoardPage />} />
-                </Routes>
-            </MemoryRouter>
-        );
+        renderBoard('/tv/bad-token');
 
         expect(await screen.findByText(/Link tidak valid/i)).toBeInTheDocument();
     });
