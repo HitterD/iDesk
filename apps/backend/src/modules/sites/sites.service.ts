@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
@@ -9,6 +9,14 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { CacheService } from '../../shared/core/cache';
 import { User } from '../users/entities/user.entity';
 import { Ticket } from '../ticketing/entities/ticket.entity';
+
+export type TvRingtoneSlot = 'newTicket' | 'inProgress' | 'closing';
+
+const TV_RINGTONE_COLUMNS: Record<TvRingtoneSlot, 'ringtoneNewTicket' | 'ringtoneInProgress' | 'ringtoneClosing'> = {
+    newTicket: 'ringtoneNewTicket',
+    inProgress: 'ringtoneInProgress',
+    closing: 'ringtoneClosing',
+};
 
 @Injectable()
 export class SitesService {
@@ -159,6 +167,58 @@ export class SitesService {
                 entityType: 'Site',
                 entityId: saved.id,
                 description: `Revoked TV board token for site: ${saved.name} (${saved.code})`,
+            });
+        }
+
+        return saved;
+    }
+
+    private resolveRingtoneColumn(slot: string): 'ringtoneNewTicket' | 'ringtoneInProgress' | 'ringtoneClosing' {
+        const column = TV_RINGTONE_COLUMNS[slot as TvRingtoneSlot];
+        if (!column) {
+            throw new BadRequestException(
+                `Slot ringtone tidak dikenal: ${slot}. Pilihan: ${Object.keys(TV_RINGTONE_COLUMNS).join(', ')}`,
+            );
+        }
+        return column;
+    }
+
+    // ponytail: file ringtone lama dibiarkan di disk saat diganti. File audio
+    // kecil, dan menghapus berkas yang mungkin masih dirujuk lebih berisiko
+    // daripada menyisakan file yatim. Modul sound berperilaku sama.
+    // Tambahkan pembersihan bila direktori uploads/sounds mulai membengkak.
+    async setTvRingtone(id: string, slot: string, url: string, userId?: string): Promise<Site> {
+        const site = await this.findOne(id);
+        const column = this.resolveRingtoneColumn(slot);
+        site[column] = url;
+        const saved = await this.siteRepo.save(site);
+
+        if (userId) {
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.SITE_UPDATE,
+                entityType: 'Site',
+                entityId: saved.id,
+                description: `Set TV ringtone [${slot}] for site: ${saved.name} (${saved.code})`,
+            });
+        }
+
+        return saved;
+    }
+
+    async clearTvRingtone(id: string, slot: string, userId?: string): Promise<Site> {
+        const site = await this.findOne(id);
+        const column = this.resolveRingtoneColumn(slot);
+        site[column] = null;
+        const saved = await this.siteRepo.save(site);
+
+        if (userId) {
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.SITE_UPDATE,
+                entityType: 'Site',
+                entityId: saved.id,
+                description: `Cleared TV ringtone [${slot}] for site: ${saved.name} (${saved.code})`,
             });
         }
 

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, Length, IsIP } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, Length, IsIP, Matches } from 'class-validator';
 
 export class CreateSiteDto {
     @IsString()
@@ -32,4 +32,8 @@ export class CreateSiteDto {
     @IsOptional()
     @IsBoolean()
     isServerHost?: boolean;
+
+    @IsOptional()
+    @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'closingTime harus format HH:mm, contoh 17:00' })
+    closingTime?: string | null;
 }

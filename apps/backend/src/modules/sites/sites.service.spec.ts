@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { SitesService } from './sites.service';
 import { Site } from './entities/site.entity';
 import { User } from '../users/entities/user.entity';
@@ -68,5 +68,49 @@ describe('SitesService — TV token', () => {
         siteRepo.findOne.mockResolvedValue(null);
 
         await expect(service.generateTvToken('missing-id')).rejects.toThrow(NotFoundException);
+    });
+
+    describe('TV ringtone', () => {
+        it.each([
+            ['newTicket', 'ringtoneNewTicket'],
+            ['inProgress', 'ringtoneInProgress'],
+            ['closing', 'ringtoneClosing'],
+        ])('setTvRingtone(%s) writes to column %s', async (slot, column) => {
+            siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'SPJ', code: 'SPJ' });
+
+            const result = await service.setTvRingtone('site-1', slot, '/uploads/sounds/abc.mp3', 'admin-1');
+
+            expect(result[column as keyof typeof result]).toBe('/uploads/sounds/abc.mp3');
+        });
+
+        it('clearTvRingtone sets the column back to null', async () => {
+            siteRepo.findOne.mockResolvedValue({
+                id: 'site-1',
+                name: 'SPJ',
+                code: 'SPJ',
+                ringtoneClosing: '/uploads/sounds/old.mp3',
+            });
+
+            const result = await service.clearTvRingtone('site-1', 'closing', 'admin-1');
+
+            expect(result.ringtoneClosing).toBeNull();
+        });
+
+        it('rejects an unknown slot without touching the repository', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'SPJ', code: 'SPJ' });
+
+            await expect(
+                service.setTvRingtone('site-1', 'tvToken', '/uploads/sounds/evil.mp3'),
+            ).rejects.toThrow(BadRequestException);
+            expect(siteRepo.save).not.toHaveBeenCalled();
+        });
+
+        it('throws NotFoundException when the site does not exist', async () => {
+            siteRepo.findOne.mockResolvedValue(null);
+
+            await expect(
+                service.setTvRingtone('missing', 'newTicket', '/uploads/sounds/a.mp3'),
+            ).rejects.toThrow(NotFoundException);
+        });
     });
 });
