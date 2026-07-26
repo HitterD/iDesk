@@ -38,6 +38,18 @@ export class Site {
     @Column({ type: 'varchar', nullable: true, unique: true })
     tvToken: string | null;
 
+    @Column({ type: 'varchar', nullable: true })
+    ringtoneNewTicket: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    ringtoneInProgress: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    ringtoneClosing: string | null;
+
+    @Column({ type: 'varchar', length: 5, nullable: true })
+    closingTime: string | null;
+
     @CreateDateColumn()
     createdAt: Date;
 
