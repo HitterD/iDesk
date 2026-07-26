@@ -17,13 +17,22 @@ vi.mock('@/lib/api', () => ({
                     { id: 't3', description: 'Jaringan lambat', requesterName: 'Muhammad Bagas Saputra Wijaya', requesterDepartment: 'IT', assignedToName: 'Agen A', priority: 'HIGH', slaTarget: null, isOverdue: false, isOracleRequest: false },
                 ],
                 waitingVendorCount: 2,
+                ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null },
             },
         })),
     },
 }));
 
+const socketState = { boardData: null as any, isConnected: true };
+
 vi.mock('../../hooks/useTvBoardSocket', () => ({
-    useTvBoardSocket: () => ({ boardData: null, isConnected: true }),
+    useTvBoardSocket: () => socketState,
+}));
+
+const ringtoneState = { blocked: false, enqueue: vi.fn() };
+
+vi.mock('../../hooks/useRingtone', () => ({
+    useRingtone: () => ringtoneState,
 }));
 
 function renderBoard(entry = '/tv/abc-token') {
@@ -112,6 +121,22 @@ describe('BentoTvBoardPage', () => {
 
         const unassigned = await screen.findByText('Belum ditugaskan');
         expect(unassigned.className).toContain('text-amber');
+    });
+
+    it('hides the muted indicator while audio plays normally', async () => {
+        ringtoneState.blocked = false;
+        renderBoard();
+
+        await screen.findByText('Sampoerna Jaya');
+        expect(screen.queryByTestId('tv-board-audio-blocked')).toBeNull();
+    });
+
+    it('shows the muted indicator when the browser blocks audio', async () => {
+        ringtoneState.blocked = true;
+        renderBoard();
+
+        expect(await screen.findByTestId('tv-board-audio-blocked')).toBeInTheDocument();
+        ringtoneState.blocked = false;
     });
 
     it('shows error page for invalid token', async () => {

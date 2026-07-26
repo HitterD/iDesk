@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Clock, Inbox, CircleDot, AlertTriangle, User, UserCheck } from 'lucide-react';
+import { Clock, Inbox, CircleDot, AlertTriangle, User, UserCheck, VolumeX } from 'lucide-react';
 import api from '@/lib/api';
 import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { useColumnAutoScroll } from '../hooks/useColumnAutoScroll';
 import { useTvBoardSocket, type TvBoardCard, type TvBoardData } from '../hooks/useTvBoardSocket';
+import { detectBoardSounds, type BoardSnapshot } from '../hooks/detectBoardSounds';
+import { shouldPlayClosing, toDateKey } from '../hooks/shouldPlayClosing';
+import { useRingtone } from '../hooks/useRingtone';
 
 const COLUMNS: Array<{
     key: 'open' | 'inProgress';
@@ -168,7 +171,10 @@ export const BentoTvBoardPage: React.FC = () => {
     const [initialData, setInitialData] = useState<TvBoardData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [now, setNow] = useState(new Date());
-    const { boardData: liveData } = useTvBoardSocket(token);
+    const { boardData: liveData, isConnected } = useTvBoardSocket(token);
+    const { enqueue, blocked } = useRingtone();
+    const prevSnapshotRef = useRef<BoardSnapshot | null>(null);
+    const lastClosingDateRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!token) {
@@ -185,7 +191,43 @@ export const BentoTvBoardPage: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const data = liveData ?? initialData;
+    // Socket putus: lupakan snapshot supaya update pertama setelah tersambung
+    // ulang tidak membunyikan semburan suara palsu.
+    useEffect(() => {
+        if (!isConnected) {
+            prevSnapshotRef.current = null;
+        }
+    }, [isConnected]);
+
+    const board = liveData ?? initialData;
+
+    // detectBoardSounds mengembalikan newTicket sebelum inProgress, sehingga
+    // enqueue selalu memutar bunyi Tiket Masuk lebih dulu bila satu update
+    // memicu keduanya. Queue tidak memotong ringtone yang sedang berbunyi.
+    useEffect(() => {
+        if (!board) return;
+
+        const snapshot: BoardSnapshot = {
+            open: board.open.map((card) => card.id),
+            inProgress: board.inProgress.map((card) => card.id),
+        };
+        const events = detectBoardSounds(prevSnapshotRef.current, snapshot);
+        prevSnapshotRef.current = snapshot;
+
+        enqueue(events.map((event) => (
+            event === 'newTicket' ? board.ringtones.newTicket : board.ringtones.inProgress
+        )));
+    }, [board, enqueue]);
+
+    useEffect(() => {
+        if (!board) return;
+        if (!shouldPlayClosing(now, board.ringtones.closingTime, lastClosingDateRef.current)) return;
+
+        lastClosingDateRef.current = toDateKey(now);
+        enqueue([board.ringtones.closing]);
+    }, [board, now, enqueue]);
+
+    const data = board;
 
     if (error) {
         return (
@@ -240,6 +282,15 @@ export const BentoTvBoardPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {blocked && (
+                            <span
+                                data-testid="tv-board-audio-blocked"
+                                title="Suara diblokir browser. Jalankan browser dengan --autoplay-policy=no-user-gesture-required."
+                                className="rounded-full bg-amber-50 p-1.5 text-amber-600 ring-1 ring-amber-200"
+                            >
+                                <VolumeX className="h-4 w-4" />
+                            </span>
+                        )}
                         <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-700">
                             Waiting Vendor: {data.waitingVendorCount}
                         </span>

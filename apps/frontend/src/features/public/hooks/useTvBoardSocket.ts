@@ -13,12 +13,20 @@ export interface TvBoardCard {
     isOracleRequest: boolean;
 }
 
+export interface TvBoardRingtones {
+    newTicket: string | null;
+    inProgress: string | null;
+    closing: string | null;
+    closingTime: string | null;
+}
+
 export interface TvBoardData {
     siteName: string;
     siteCode: string;
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
     waitingVendorCount: number;
+    ringtones: TvBoardRingtones;
 }
 
 interface UseTvBoardSocketReturn {
