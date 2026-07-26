@@ -7,10 +7,16 @@ import {
     Param,
     Delete,
     UseGuards,
+    UseInterceptors,
+    UploadedFile,
     ParseUUIDPipe,
+    BadRequestException,
     Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { SitesService } from './sites.service';
 import { CreateSiteDto, UpdateSiteDto } from './dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
@@ -96,5 +102,51 @@ export class SitesController {
     @Roles(UserRole.ADMIN)
     revokeTvToken(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
         return this.sitesService.revokeTvToken(id, req.user?.id || req.user?.userId);
+    }
+
+    @Post(':id/tv-ringtone')
+    @ApiOperation({ summary: 'Upload a TV board ringtone for one slot (newTicket | inProgress | closing)' })
+    @ApiConsumes('multipart/form-data')
+    @Roles(UserRole.ADMIN)
+    @UseInterceptors(FileInterceptor('file', {
+        storage: diskStorage({
+            destination: './uploads/sounds',
+            filename: (req, file, cb) => {
+                const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+                cb(null, `${randomName}${extname(file.originalname)}`);
+            },
+        }),
+        fileFilter: (req, file, cb) => {
+            if (!file.mimetype.startsWith('audio/')) {
+                return cb(new Error('Hanya file audio yang diizinkan'), false);
+            }
+            cb(null, true);
+        },
+        limits: {
+            fileSize: 5 * 1024 * 1024,
+        },
+    }))
+    uploadTvRingtone(
+        @Param('id', ParseUUIDPipe) id: string,
+        @UploadedFile() file: Express.Multer.File,
+        @Body('slot') slot: string,
+        @Req() req: any,
+    ) {
+        if (!file) {
+            throw new BadRequestException('File audio wajib diunggah');
+        }
+        const url = `/uploads/sounds/${file.filename}`;
+        return this.sitesService.setTvRingtone(id, slot, url, req.user?.id || req.user?.userId);
+    }
+
+    @Delete(':id/tv-ringtone/:slot')
+    @ApiOperation({ summary: 'Remove a TV board ringtone from one slot' })
+    @Roles(UserRole.ADMIN)
+    clearTvRingtone(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Param('slot') slot: string,
+        @Req() req: any,
+    ) {
+        return this.sitesService.clearTvRingtone(id, slot, req.user?.id || req.user?.userId);
     }
 }
