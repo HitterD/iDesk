@@ -144,6 +144,40 @@ describe('TvBoardService', () => {
             expect(ticketRepo.find.mock.calls[0][0].relations).toContain('user.department');
         });
 
+        it('includes per-site ringtones in the payload', async () => {
+            siteRepo.findOne.mockResolvedValue({
+                id: 'site-1',
+                name: 'Sampoerna Jaya',
+                code: 'SPJ',
+                ringtoneNewTicket: '/uploads/sounds/masuk.mp3',
+                ringtoneInProgress: '/uploads/sounds/proses.mp3',
+                ringtoneClosing: '/uploads/sounds/pulang.mp3',
+                closingTime: '17:00',
+            });
+
+            const data = await service.getBoardData('site-1');
+
+            expect(data.ringtones).toEqual({
+                newTicket: '/uploads/sounds/masuk.mp3',
+                inProgress: '/uploads/sounds/proses.mp3',
+                closing: '/uploads/sounds/pulang.mp3',
+                closingTime: '17:00',
+            });
+        });
+
+        it('passes unset ringtones through as null rather than empty strings', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'Sampoerna Jaya', code: 'SPJ' });
+
+            const data = await service.getBoardData('site-1');
+
+            expect(data.ringtones).toEqual({
+                newTicket: null,
+                inProgress: null,
+                closing: null,
+                closingTime: null,
+            });
+        });
+
         it('throws NotFoundException when site does not exist', async () => {
             siteRepo.findOne.mockResolvedValue(null);
             await expect(service.getBoardData('missing')).rejects.toThrow(NotFoundException);

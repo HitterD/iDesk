@@ -18,6 +18,7 @@ describe('TvBoardGateway', () => {
                 open: [{ id: 'oracle-1', isOracleRequest: true }],
                 inProgress: [],
                 waitingVendorCount: 0,
+                ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null },
             }),
         };
         gateway = new TvBoardGateway(tvBoardService as any);

@@ -16,12 +16,20 @@ export interface TvBoardCard {
     isOracleRequest: boolean;
 }
 
+export interface TvBoardRingtones {
+    newTicket: string | null;
+    inProgress: string | null;
+    closing: string | null;
+    closingTime: string | null;
+}
+
 export interface TvBoardData {
     siteName: string;
     siteCode: string;
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
     waitingVendorCount: number;
+    ringtones: TvBoardRingtones;
 }
 
 @Injectable()
@@ -84,6 +92,12 @@ export class TvBoardService {
             open: tickets.filter((t) => t.status === TicketStatus.TODO).map(toCard),
             inProgress: tickets.filter((t) => t.status === TicketStatus.IN_PROGRESS).map(toCard),
             waitingVendorCount,
+            ringtones: {
+                newTicket: site.ringtoneNewTicket ?? null,
+                inProgress: site.ringtoneInProgress ?? null,
+                closing: site.ringtoneClosing ?? null,
+                closingTime: site.closingTime ?? null,
+            },
         };
     }
 }
