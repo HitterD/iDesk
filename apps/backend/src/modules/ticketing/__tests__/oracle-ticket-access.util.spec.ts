@@ -24,11 +24,11 @@ describe('Oracle Ticket Access Utility', () => {
         expect(canAccessTicketObject(user, { category: 'Hardware' })).toBe(false);
     });
 
-    it('prevents non-Oracle agents and users from accessing Oracle tickets', () => {
+    it('prevents non-Oracle agents from accessing Oracle tickets while allowing USER requests', () => {
         const agent = { role: UserRole.AGENT };
         const user = { role: UserRole.USER };
         expect(canAccessTicketObject(agent, { category: 'Oracle' })).toBe(false);
-        expect(canAccessTicketObject(user, { category: 'Oracle' })).toBe(false);
+        expect(canAccessTicketObject(user, { category: 'Oracle' })).toBe(true);
         expect(canAccessTicketObject(agent, { category: 'Hardware' })).toBe(true);
     });
 

@@ -1,7 +1,7 @@
 import { IsEnum, IsNotEmpty, IsString, IsOptional, MaxLength, MinLength, IsBoolean, IsDateString, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TicketPriority, TicketSource } from '../entities/ticket.entity';
+import { TicketPriority, TicketSource, TicketType } from '../entities/ticket.entity';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 import { NoSqlInjection } from '../../../shared/core/validators/common.validators';
 
@@ -35,6 +35,11 @@ export class CreateTicketDto {
     @Sanitize({ removeHtml: true })
     @Transform(({ value }) => value || undefined)
     category?: string;
+
+    @ApiPropertyOptional({ enum: TicketType, example: TicketType.SERVICE })
+    @IsEnum(TicketType)
+    @IsOptional()
+    ticketType?: TicketType;
 
     @ApiPropertyOptional({ enum: TicketSource, example: 'WEB' })
     @IsEnum(TicketSource)

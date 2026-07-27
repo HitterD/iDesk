@@ -6,11 +6,15 @@ describe('Ticket Creation Oracle Guard', () => {
     let service: TicketCreateService;
     let userRepo: any;
     let ticketRepo: any;
+    let eventEmitter: { emit: jest.Mock };
 
     beforeEach(() => {
         userRepo = {
             findOne: jest.fn(async ({ where: { id } }) => {
                 if (id === 'user-1') return { id: 'user-1', role: UserRole.USER, fullName: 'Standard User' };
+                if (id === 'user-site-1') {
+                    return { id: 'user-site-1', role: UserRole.USER, fullName: 'Site Client', siteId: 'site-1' };
+                }
                 if (id === 'oracle-1') return { id: 'oracle-1', role: UserRole.AGENT_ORACLE, fullName: 'Oracle Agent' };
                 return null;
             }),
@@ -41,6 +45,8 @@ describe('Ticket Creation Oracle Guard', () => {
             },
         };
 
+        eventEmitter = { emit: jest.fn() };
+
         service = new TicketCreateService(
             ticketRepo,
             { create: jest.fn(), save: jest.fn() } as any,
@@ -49,20 +55,35 @@ describe('Ticket Creation Oracle Guard', () => {
             { server: { emit: jest.fn() }, notifyDashboardStatsUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyNewTicket: jest.fn() } as any,
             { get: jest.fn(), set: jest.fn() } as any,
             { invalidateTicketCache: jest.fn(), onTicketChange: jest.fn() } as any,
-            { emit: jest.fn() } as any,
+            eventEmitter as any,
             { recalculateAgentWorkload: jest.fn() } as any,
             { logAsync: jest.fn() } as any,
         );
     });
 
-    it('blocks USER from creating an Oracle ticket', async () => {
-        await expect(
-            service.createTicket('user-1', {
-                title: 'Oracle Bug',
-                description: 'Issue in Oracle',
-                category: 'Oracle',
-            } as any),
-        ).rejects.toThrow(ForbiddenException);
+    it('allows USER to create an Oracle ticket', async () => {
+        const ticket = await service.createTicket('user-1', {
+            title: 'Oracle Bug',
+            description: 'Issue in Oracle',
+            category: 'Oracle',
+        } as any);
+
+        expect(ticket).toBeDefined();
+        expect(ticket.category).toBe('Oracle');
+    });
+
+    it('emits a TV Board refresh for an Oracle/K2 ticket created by a client with a site', async () => {
+        await service.createTicket('user-site-1', {
+            title: 'Oracle access issue',
+            description: 'Tidak dapat membuka menu K2',
+            category: 'ORACLE_REQUEST',
+            ticketType: 'ORACLE_REQUEST',
+        } as any);
+
+        expect(eventEmitter.emit).toHaveBeenCalledWith(
+            'tv-board.ticket-changed',
+            { siteId: 'site-1' },
+        );
     });
 
     it('allows AGENT_ORACLE to create an Oracle ticket', async () => {
