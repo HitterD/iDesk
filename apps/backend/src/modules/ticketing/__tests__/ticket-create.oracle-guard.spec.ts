@@ -61,7 +61,7 @@ describe('Ticket Creation Oracle Guard', () => {
         );
     });
 
-    it('allows USER to create an Oracle ticket', async () => {
+    it('allows USER to create an Oracle ticket (Oracle/K2 request submission is unrestricted for requesters)', async () => {
         const ticket = await service.createTicket('user-1', {
             title: 'Oracle Bug',
             description: 'Issue in Oracle',
@@ -95,5 +95,15 @@ describe('Ticket Creation Oracle Guard', () => {
 
         expect(ticket).toBeDefined();
         expect(ticket.category).toBe('Oracle');
+    });
+
+    it('rejects AGENT_ORACLE creation outside Oracle/K2 category', async () => {
+        await expect(
+            service.createTicket('oracle-1', {
+                title: 'Standard issue',
+                description: 'Standard ticket description',
+                category: 'GENERAL',
+            } as any),
+        ).rejects.toBeInstanceOf(ForbiddenException);
     });
 });
