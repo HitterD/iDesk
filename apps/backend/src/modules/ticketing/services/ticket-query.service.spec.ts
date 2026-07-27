@@ -1,6 +1,15 @@
 import { TicketQueryService } from './ticket-query.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 
+const ORACLE_EXCLUSION =
+    '(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)';
+const ORACLE_ONLY =
+    '(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)';
+const ORACLE_FILTER_PARAMS = {
+    oracleType: 'ORACLE_REQUEST',
+    oracleCategory: 'ORACLE_REQUEST',
+};
+
 describe('TicketQueryService', () => {
     let service: any;
     let mockRepo: any;
@@ -42,5 +51,43 @@ describe('TicketQueryService', () => {
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.category NOT IN (:...excludeCategories)', { excludeCategories: ['Hardware Request'] });
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.createdAt >= :startDate', { startDate: '2023-01-01' });
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.createdAt <= :endDate', { endDate: '2023-12-31' });
+    });
+
+    it('includes Oracle/K2 tickets owned by USER in the paginated list', async () => {
+        await service.findAllPaginated('user-1', UserRole.USER, 'site-1');
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+            'ticket.userId = :userId',
+            { userId: 'user-1' },
+        );
+        expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(
+            ORACLE_EXCLUSION,
+            ORACLE_FILTER_PARAMS,
+        );
+    });
+
+    it.each([
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT_ORACLE,
+    ])('keeps Oracle/K2 out of the general paginated list for %s', async (role) => {
+        await service.findAllPaginated('actor-1', role, 'site-1');
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+            ORACLE_EXCLUSION,
+            ORACLE_FILTER_PARAMS,
+        );
+    });
+
+    it('keeps the Oracle queue Oracle-only', async () => {
+        await service.findAllPaginatedOracle('oracle-1', UserRole.AGENT_ORACLE, 'site-1');
+
+        expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+            ORACLE_ONLY,
+            ORACLE_FILTER_PARAMS,
+        );
     });
 });

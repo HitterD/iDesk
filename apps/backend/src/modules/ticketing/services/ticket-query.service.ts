@@ -124,11 +124,13 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
             .leftJoinAndSelect('ticket.site', 'site');
 
-        // Oracle ticket isolation: filter out Oracle tickets by default from general paginated ticket list
-        if (ticketType === 'ORACLE_REQUEST' || category === 'ORACLE_REQUEST') {
-            qb.andWhere('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
-        } else {
-            qb.andWhere('(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', ORACLE_FILTER_PARAMS);
+        // Client My Tickets includes every ticket owned by the requester.
+        // Oracle/K2 remains isolated from every non-client general list.
+        if (role !== UserRole.USER) {
+            qb.andWhere(
+                '(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)',
+                ORACLE_FILTER_PARAMS,
+            );
         }
 
         // Role-based filtering
