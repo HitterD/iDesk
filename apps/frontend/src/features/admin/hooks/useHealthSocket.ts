@@ -1,7 +1,19 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Types matching backend DTOs
+export interface RedisQueueDepth {
+    name: string;
+    waiting: number;
+    active: number;
+    failed: number;
+}
+
+export interface RedisDetail {
+    usedMemory: number;
+    keys: number;
+    queues: RedisQueueDepth[];
+}
+
 export interface SystemMetrics {
     cpuUsage: number;
     memoryUsage: number;
@@ -24,6 +36,7 @@ export interface InfrastructureStatus {
     redis: {
         status: 'connected' | 'disabled' | 'error';
         latency?: number;
+        detail?: RedisDetail;
     };
     websocket: {
         status: 'active' | 'inactive';
@@ -65,8 +78,46 @@ export interface DetailedHealthStatus {
     recentIncidents: SystemIncident[];
 }
 
-interface UseHealthSocketReturn {
+export interface HealthHistory {
+    cpu: number[];
+    memory: number[];
+    dbLatency: number[];
+    redisLatency: number[];
+}
+
+export interface HealthFastUpdate {
+    serverTime: string;
+    uptime: number;
+    cpuUsage: number;
+    memoryUsage: number;
+    memoryFree: number;
+    loadAverage: number[];
+    database: InfrastructureStatus['database'];
+    redis: InfrastructureStatus['redis'];
+    websocket: InfrastructureStatus['websocket'];
+}
+
+export interface HealthSlowUpdate {
+    serverTime: string;
+    status: DetailedHealthStatus['status'];
+    disk: { diskUsage: number; diskTotal: number; diskFree: number };
+    services: ServiceStatus[];
+    redisDetail?: RedisDetail;
+    backup: InfrastructureStatus['backup'];
+}
+
+export interface HealthSnapshot extends DetailedHealthStatus {
+    serverTime: string;
+    history: HealthHistory;
+    sampledAt: { fast: string; slow: string };
+    redisDetail?: RedisDetail;
+}
+
+export interface UseHealthSocketReturn {
     healthData: DetailedHealthStatus | null;
+    uptime: number;
+    history: HealthHistory;
+    isStale: boolean;
     isConnected: boolean;
     isSubscribed: boolean;
     lastUpdate: Date | null;
@@ -81,19 +132,53 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ||
     import.meta.env.VITE_API_URL ||
     'http://localhost:5050';
 
-/**
- * Custom hook for real-time health monitoring via WebSocket
- */
+const STALE_THRESHOLD_MS = 6_000;
+const HISTORY_SIZE = 60;
+
+function appendFastSample(history: HealthHistory, update: HealthFastUpdate): HealthHistory {
+    const pushCap = (arr: number[], val: number) => [...arr, val].slice(-HISTORY_SIZE);
+    const redisLatency =
+        update.redis.status === 'connected' && update.redis.latency !== undefined
+            ? pushCap(history.redisLatency, update.redis.latency)
+            : history.redisLatency;
+
+    return {
+        cpu: pushCap(history.cpu, update.cpuUsage),
+        memory: pushCap(history.memory, update.memoryUsage),
+        dbLatency: pushCap(history.dbLatency, update.database.latency || 0),
+        redisLatency,
+    };
+}
+
 export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
-    const [socket, setSocket] = useState<Socket | null>(null);
+    const [, setSocket] = useState<Socket | null>(null);
     const [healthData, setHealthData] = useState<DetailedHealthStatus | null>(null);
+    const [history, setHistory] = useState<HealthHistory>({ cpu: [], memory: [], dbLatency: [], redisLatency: [] });
     const [isConnected, setIsConnected] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [incidents, setIncidents] = useState<SystemIncident[]>([]);
+
+    const [uptime, setUptime] = useState(0);
+    const [uptimeBase, setUptimeBase] = useState<{ uptime: number; receivedAt: number } | null>(null);
+    const [lastFastUpdate, setLastFastUpdate] = useState<number | null>(null);
+    const [clockNow, setClockNow] = useState(Date.now());
+
     const socketRef = useRef<Socket | null>(null);
 
-    // Initialize socket connection
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            const now = Date.now();
+            setClockNow(now);
+            if (uptimeBase) {
+                setUptime(uptimeBase.uptime + (now - uptimeBase.receivedAt) / 1_000);
+            }
+        }, 1_000);
+        return () => window.clearInterval(timer);
+    }, [uptimeBase]);
+
+    const isStale = Boolean(lastFastUpdate && Date.now() - lastFastUpdate > STALE_THRESHOLD_MS);
+
     const connect = useCallback(() => {
         if (socketRef.current?.connected) return;
 
@@ -106,35 +191,84 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         });
 
         newSocket.on('connect', () => {
-            console.log('[HealthSocket] Connected');
             setIsConnected(true);
         });
 
         newSocket.on('disconnect', () => {
-            console.log('[HealthSocket] Disconnected');
             setIsConnected(false);
             setIsSubscribed(false);
+            setLastFastUpdate(null);
         });
 
-        newSocket.on('health:update', (data: DetailedHealthStatus) => {
-            setHealthData(data);
+        newSocket.on('health:snapshot', (snapshot: HealthSnapshot) => {
+            setHealthData(snapshot);
+            setHistory(snapshot.history);
+            setUptimeBase({ uptime: snapshot.uptime, receivedAt: Date.now() });
+            setUptime(snapshot.uptime);
+            setLastFastUpdate(Date.now());
+            setLastUpdate(new Date());
+        });
+
+        newSocket.on('health:fast', (update: HealthFastUpdate) => {
+            setHealthData((current) => current ? {
+                ...current,
+                timestamp: update.serverTime,
+                uptime: update.uptime,
+                system: {
+                    ...current.system,
+                    cpuUsage: update.cpuUsage,
+                    memoryUsage: update.memoryUsage,
+                    memoryFree: update.memoryFree,
+                    loadAverage: update.loadAverage,
+                },
+                infrastructure: {
+                    ...current.infrastructure,
+                    database: update.database,
+                    redis: update.redis,
+                    websocket: update.websocket,
+                },
+            } : current);
+
+            setHistory((current) => appendFastSample(current, update));
+            setUptimeBase({ uptime: update.uptime, receivedAt: Date.now() });
+            setUptime(update.uptime);
+            setLastFastUpdate(Date.now());
+            setLastUpdate(new Date());
+        });
+
+        newSocket.on('health:slow', (update: HealthSlowUpdate) => {
+            setHealthData((current) => current ? {
+                ...current,
+                status: update.status,
+                timestamp: update.serverTime,
+                system: {
+                    ...current.system,
+                    diskUsage: update.disk.diskUsage,
+                    diskTotal: update.disk.diskTotal,
+                    diskFree: update.disk.diskFree,
+                },
+                infrastructure: {
+                    ...current.infrastructure,
+                    backup: update.backup,
+                    redis: {
+                        ...current.infrastructure.redis,
+                        detail: update.redisDetail,
+                    },
+                },
+                services: update.services,
+            } : current);
+
             setLastUpdate(new Date());
         });
 
         newSocket.on('health:incident', (incident: SystemIncident) => {
-            console.log('[HealthSocket] Incident:', incident);
             setIncidents(prev => [incident, ...prev].slice(0, 50));
-        });
-
-        newSocket.on('connect_error', (error) => {
-            console.error('[HealthSocket] Connection error:', error.message);
         });
 
         socketRef.current = newSocket;
         setSocket(newSocket);
     }, []);
 
-    // Disconnect socket
     const disconnect = useCallback(() => {
         if (socketRef.current) {
             socketRef.current.removeAllListeners();
@@ -143,28 +277,24 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
             setSocket(null);
             setIsConnected(false);
             setIsSubscribed(false);
+            setLastFastUpdate(null);
         }
     }, []);
 
-    // Subscribe to health updates
     const subscribe = useCallback(() => {
         if (socketRef.current?.connected) {
             socketRef.current.emit('health:subscribe');
             setIsSubscribed(true);
-            console.log('[HealthSocket] Subscribed to updates');
         }
     }, []);
 
-    // Unsubscribe from health updates
     const unsubscribe = useCallback(() => {
         if (socketRef.current?.connected) {
             socketRef.current.emit('health:unsubscribe');
             setIsSubscribed(false);
-            console.log('[HealthSocket] Unsubscribed from updates');
         }
     }, []);
 
-    // Auto-connect and subscribe on mount
     useEffect(() => {
         if (autoConnect) {
             connect();
@@ -175,7 +305,6 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         };
     }, [autoConnect, connect, disconnect]);
 
-    // Auto-subscribe when connected
     useEffect(() => {
         if (isConnected && autoConnect && !isSubscribed) {
             subscribe();
@@ -184,6 +313,9 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
 
     return {
         healthData,
+        uptime,
+        history,
+        isStale,
         isConnected,
         isSubscribed,
         lastUpdate,
