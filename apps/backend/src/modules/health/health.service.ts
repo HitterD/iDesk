@@ -1,8 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -14,6 +13,7 @@ import {
     DetailedHealthStatus,
     BasicHealthStatus,
 } from './dto/health.dto';
+import { HealthSamplerService } from './health-sampler.service';
 
 interface IncidentRecord {
     id: string;
@@ -25,7 +25,7 @@ interface IncidentRecord {
 }
 
 @Injectable()
-export class HealthService implements OnModuleInit {
+export class HealthService {
     private readonly logger = new Logger(HealthService.name);
 
     // In-memory storage for recent incidents (last 50)
@@ -59,15 +59,9 @@ export class HealthService implements OnModuleInit {
         @InjectDataSource()
         private dataSource: DataSource,
         private configService: ConfigService,
+        @Inject(forwardRef(() => HealthSamplerService))
+        private readonly sampler: HealthSamplerService,
     ) { }
-
-    async onModuleInit() {
-        this.logger.log('HealthService initialized - starting health monitoring');
-        // Delay first health check to avoid blocking startup
-        setTimeout(() => {
-            this.performHealthCheck();
-        }, 10000); // 10 second delay
-    }
 
     /**
      * Set WebSocket client count (called by HealthGateway)
@@ -92,38 +86,43 @@ export class HealthService implements OnModuleInit {
     }
 
     /**
-     * Get detailed health status with all metrics
+     * Get detailed health status with all metrics from sampler snapshot
      */
     async getDetailedHealth(): Promise<DetailedHealthStatus> {
-        const [systemMetrics, infrastructure, services] = await Promise.all([
-            this.getSystemMetrics(),
-            this.getInfrastructureStatus(),
-            this.getServicesStatus(),
-        ]);
+        const { serverTime, history, sampledAt, redisDetail, ...health } = this.sampler.getSnapshot();
+        return health;
+    }
 
-        // Determine overall status
-        let overallStatus: 'ok' | 'degraded' | 'error' = 'ok';
-        const hasErrors = services.some(s => s.status === 'down') ||
-            infrastructure.database.status === 'disconnected';
-        const hasDegraded = services.some(s => s.status === 'degraded');
 
-        if (hasErrors) {
-            overallStatus = 'error';
-        } else if (hasDegraded) {
-            overallStatus = 'degraded';
-        }
+    /**
+     * Get overall status without side effects
+     */
+    getOverallStatus(
+        infrastructure: InfrastructureStatus,
+        services: ServiceStatus[],
+    ): 'ok' | 'degraded' | 'error' {
+        if (infrastructure.database.status === 'disconnected' || services.some(({ status }) => status === 'down')) return 'error';
+        return services.some(({ status }) => status === 'degraded') ? 'degraded' : 'ok';
+    }
 
-        this.lastCheck = new Date();
+    /**
+     * Get fast system metrics (CPU, Memory, OS info - no disk)
+     */
+    async getFastSystemMetrics(): Promise<Omit<SystemMetrics, 'diskUsage' | 'diskTotal' | 'diskFree'>> {
+        const cpuUsage = await this.getCpuUsage();
+        const memTotal = os.totalmem();
+        const memFree = os.freemem();
+        const memUsage = ((memTotal - memFree) / memTotal) * 100;
 
         return {
-            status: overallStatus,
-            timestamp: this.lastCheck.toISOString(),
-            uptime: process.uptime(),
-            version: this.configService.get<string>('APP_VERSION', '1.5.0'),
-            system: systemMetrics,
-            infrastructure,
-            services,
-            recentIncidents: this.recentIncidents.slice(0, 10),
+            cpuUsage: Math.round(cpuUsage * 100) / 100,
+            memoryUsage: Math.round(memUsage * 100) / 100,
+            memoryTotal: memTotal,
+            memoryFree: memFree,
+            platform: os.platform(),
+            arch: os.arch(),
+            nodeVersion: process.version,
+            loadAverage: os.loadavg(),
         };
     }
 
@@ -131,27 +130,26 @@ export class HealthService implements OnModuleInit {
      * Get system metrics (CPU, Memory, Disk)
      */
     async getSystemMetrics(): Promise<SystemMetrics> {
-        const cpuUsage = await this.getCpuUsage();
-        const memTotal = os.totalmem();
-        const memFree = os.freemem();
-        const memUsage = ((memTotal - memFree) / memTotal) * 100;
-
-        // Get disk usage for uploads folder
+        const fastMetrics = await this.getFastSystemMetrics();
         const diskInfo = await this.getDiskUsage();
 
         return {
-            cpuUsage: Math.round(cpuUsage * 100) / 100,
-            memoryUsage: Math.round(memUsage * 100) / 100,
-            memoryTotal: memTotal,
-            memoryFree: memFree,
-            diskUsage: diskInfo.usage,
-            diskTotal: diskInfo.total,
-            diskFree: diskInfo.free,
-            platform: os.platform(),
-            arch: os.arch(),
-            nodeVersion: process.version,
-            loadAverage: os.loadavg(),
+            ...fastMetrics,
+            diskUsage: diskInfo.diskUsage,
+            diskTotal: diskInfo.diskTotal,
+            diskFree: diskInfo.diskFree,
         };
+    }
+
+    /**
+     * Check Redis health
+     */
+    async checkRedisHealth(): Promise<{ status: 'connected' | 'disabled' | 'error'; latency?: number }> {
+        const redisActive = this.configService.get('REDIS_ENABLED') === 'true';
+        if (!redisActive) {
+            return { status: 'disabled' };
+        }
+        return { status: 'disabled' };
     }
 
     /**
@@ -194,31 +192,9 @@ export class HealthService implements OnModuleInit {
     }
 
     /**
-     * Get recent incidents
-     */
-    getRecentIncidents(limit = 20): SystemIncident[] {
-        return this.recentIncidents.slice(0, limit);
-    }
-
-    /**
-     * Periodic health check (every 30 seconds)
-     */
-    @Cron(CronExpression.EVERY_30_SECONDS)
-    async performHealthCheck(): Promise<void> {
-        try {
-            await this.getDetailedHealth();
-            this.logger.debug('Health check completed');
-        } catch (error) {
-            this.logger.error('Health check failed', error);
-        }
-    }
-
-    // ==================== Private Methods ====================
-
-    /**
      * Check database health with latency measurement
      */
-    private async checkDatabaseHealth(): Promise<{ status: 'connected' | 'disconnected'; latency: number }> {
+    async checkDatabaseHealth(): Promise<{ status: 'connected' | 'disconnected'; latency: number }> {
         const start = Date.now();
         try {
             await this.dataSource.query('SELECT 1');
@@ -236,52 +212,9 @@ export class HealthService implements OnModuleInit {
     }
 
     /**
-     * Check Redis health
-     */
-    private async checkRedisHealth(): Promise<{ status: 'connected' | 'disabled' | 'error'; latency?: number }> {
-        const redisActive = this.configService.get('REDIS_ENABLED') === 'true';
-
-        if (!redisActive) {
-            return { status: 'disabled' };
-        }
-
-        const start = Date.now();
-        try {
-            // Try to ping Redis via cache service pattern
-            const Redis = require('ioredis');
-            const host = this.configService.get<string>('REDIS_HOST', 'localhost');
-            const port = this.configService.get<number>('REDIS_PORT', 6379);
-            const password = this.configService.get<string>('REDIS_PASSWORD');
-
-            const client = new Redis({
-                host,
-                port,
-                password: password || undefined,
-                maxRetriesPerRequest: 1,
-                connectTimeout: 2000,
-                lazyConnect: true,
-            });
-
-            await client.connect();
-            await client.ping();
-            await client.quit();
-
-            return {
-                status: 'connected',
-                latency: Date.now() - start,
-            };
-        } catch (error) {
-            return {
-                status: 'error',
-                latency: Date.now() - start,
-            };
-        }
-    }
-
-    /**
      * Check backup (Synology) status
      */
-    private async checkBackupStatus(): Promise<{ configured: boolean; connected?: boolean; lastBackup?: string }> {
+    async checkBackupStatus(): Promise<{ configured: boolean; connected?: boolean; lastBackup?: string }> {
         try {
             // Check if any backup configuration exists
             const result = await this.dataSource.query(
@@ -310,6 +243,7 @@ export class HealthService implements OnModuleInit {
             return { configured: false };
         }
     }
+
 
     /**
      * Check individual service health
@@ -454,57 +388,33 @@ export class HealthService implements OnModuleInit {
     }
 
     /**
-     * Get disk usage for the application directory
+     * Get recent incidents
      */
-    private async getDiskUsage(): Promise<{ usage: number; total: number; free: number }> {
+    getRecentIncidents(limit = 20): SystemIncident[] {
+        return this.recentIncidents.slice(0, limit);
+    }
+
+    /**
+     * Get disk usage for the application directory using fs.promises.statfs
+     */
+    async getDiskUsage(): Promise<{ diskUsage: number; diskTotal: number; diskFree: number }> {
+        const configuredPath = this.configService.get<string>('UPLOAD_PATH', './uploads');
+        const uploadPath = path.resolve(configuredPath);
+        const diskPath = fs.existsSync(uploadPath) ? uploadPath : path.parse(process.cwd()).root;
+
         try {
-            // Use the uploads directory or root
-            const uploadPath = this.configService.get('UPLOAD_PATH') || './uploads';
-            const absolutePath = path.resolve(uploadPath);
-
-            // For Windows, use different approach
-            if (os.platform() === 'win32') {
-                const { execSync } = require('child_process');
-                const drive = absolutePath.split(':')[0] + ':';
-
-                try {
-                    const output = execSync(`wmic logicaldisk where "DeviceID='${drive}'" get Size,FreeSpace /format:csv`, {
-                        encoding: 'utf8',
-                        timeout: 5000,
-                    });
-
-                    const lines = output.trim().split('\n').filter((l: any) => l.trim());
-                    if (lines.length >= 2) {
-                        const values = lines[1].split(',');
-                        const freeSpace = parseInt(values[1] || '0', 10);
-                        const totalSize = parseInt(values[2] || '0', 10);
-
-                        if (totalSize > 0) {
-                            return {
-                                usage: Math.round(((totalSize - freeSpace) / totalSize) * 100 * 100) / 100,
-                                total: totalSize,
-                                free: freeSpace,
-                            };
-                        }
-                    }
-                } catch (e) {
-                    // Fallback if wmic fails
-                }
-            }
-
-            // Fallback - return safe defaults
+            const stats = await fs.promises.statfs(diskPath);
+            const total = stats.blocks * stats.bsize;
+            const free = stats.bavail * stats.bsize;
             return {
-                usage: 0,
-                total: 0,
-                free: 0,
+                diskUsage: total === 0 ? 0 : Math.round(((total - free) / total) * 10_000) / 100,
+                diskTotal: total,
+                diskFree: free,
             };
         } catch (error) {
-            this.logger.debug('Could not get disk usage', error);
-            return {
-                usage: 0,
-                total: 0,
-                free: 0,
-            };
+            this.logger.warn(`Could not read disk usage for ${diskPath}: ${error.message}`);
+            return { diskUsage: 0, diskTotal: 0, diskFree: 0 };
         }
     }
 }
+

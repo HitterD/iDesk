@@ -11,13 +11,17 @@ import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { Interval } from '@nestjs/schedule';
 import { HealthService } from './health.service';
+import { HealthFastUpdate, HealthSlowUpdate, SystemIncident } from './dto/health.dto';
+
+import { HealthSamplerService } from './health-sampler.service';
 
 /**
  * WebSocket Gateway for real-time System Health updates
  * 
  * Events emitted:
- * - `health:update` - Full health status (every 5 seconds)
- * - `health:metrics` - System metrics only (CPU, RAM, Disk)
+ * - `health:snapshot` - Full health status snapshot
+ * - `health:fast` - Fast telemetry updates (2s)
+ * - `health:slow` - Slow telemetry updates (30s)
  * - `health:incident` - When a service status changes
  * 
  * Events subscribed:
@@ -35,12 +39,25 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     @WebSocketServer() server: Server;
     private logger = new Logger('HealthGateway');
     private subscribedClients: Set<string> = new Set();
-    private lastHealthStatus: any = null;
 
     constructor(
         @Inject(forwardRef(() => HealthService))
         private readonly healthService: HealthService,
+        @Inject(forwardRef(() => HealthSamplerService))
+        private readonly healthSampler: HealthSamplerService,
     ) { }
+
+    pushFast(update: HealthFastUpdate): void {
+        this.server?.to('health-updates').emit('health:fast', update);
+    }
+
+    pushSlow(update: HealthSlowUpdate): void {
+        this.server?.to('health-updates').emit('health:slow', update);
+    }
+
+    pushIncident(incident: SystemIncident): void {
+        this.server?.to('health-updates').emit('health:incident', incident);
+    }
 
     afterInit(server: Server) {
         this.logger.log('Health WebSocket Gateway initialized');
@@ -65,11 +82,7 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         this.subscribedClients.add(client.id);
         client.join('health-updates');
         this.logger.log(`Client ${client.id} subscribed to health updates`);
-
-        // Send current health status immediately
-        if (this.lastHealthStatus) {
-            client.emit('health:update', this.lastHealthStatus);
-        }
+        client.emit('health:snapshot', this.healthSampler.getSnapshot());
     }
 
     /**
@@ -94,58 +107,6 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     }
 
     /**
-     * Broadcast health update every 5 seconds
-     */
-    @Interval(5000)
-    async broadcastHealthUpdate(): Promise<void> {
-        if (this.subscribedClients.size === 0) {
-            // No subscribers, skip the check but update cached status periodically
-            return;
-        }
-
-        try {
-            const healthStatus = await this.healthService.getDetailedHealth();
-            this.lastHealthStatus = healthStatus;
-
-            // Check for incidents (status changes)
-            this.checkAndEmitIncidents(healthStatus);
-
-            // Emit full health update to all subscribers
-            this.server.to('health-updates').emit('health:update', healthStatus);
-
-            // Also emit just metrics for lightweight updates
-            this.server.to('health-updates').emit('health:metrics', {
-                timestamp: healthStatus.timestamp,
-                system: healthStatus.system,
-                infrastructure: healthStatus.infrastructure,
-            });
-
-            this.logger.debug(`Health update broadcasted to ${this.subscribedClients.size} clients`);
-        } catch (error) {
-            this.logger.error('Failed to broadcast health update', error);
-        }
-    }
-
-    /**
-     * Emit incident when service status changes
-     */
-    private checkAndEmitIncidents(healthStatus: any): void {
-        const newIncidents = healthStatus.recentIncidents?.filter((incident: any) => {
-            // Check if incident is from the last 10 seconds
-            const incidentTime = new Date(incident.timestamp).getTime();
-            const now = Date.now();
-            return now - incidentTime < 10000;
-        });
-
-        if (newIncidents && newIncidents.length > 0) {
-            for (const incident of newIncidents) {
-                this.server.to('health-updates').emit('health:incident', incident);
-                this.logger.warn(`Health incident emitted: ${incident.service} - ${incident.newStatus}`);
-            }
-        }
-    }
-
-    /**
      * Update WebSocket client count in health service
      */
     private async updateWsClientCount(): Promise<void> {
@@ -157,13 +118,5 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             this.healthService.setWsClientCount(this.subscribedClients.size);
         }
     }
-
-    /**
-     * Force emit current health status (called from controller)
-     */
-    async forceEmit(): Promise<void> {
-        const healthStatus = await this.healthService.getDetailedHealth();
-        this.lastHealthStatus = healthStatus;
-        this.server.to('health-updates').emit('health:update', healthStatus);
-    }
 }
+

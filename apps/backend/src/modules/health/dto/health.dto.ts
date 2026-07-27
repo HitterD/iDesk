@@ -24,6 +24,7 @@ export interface InfrastructureStatus {
     redis: {
         status: 'connected' | 'disabled' | 'error';
         latency?: number; // ms
+        detail?: RedisDetail;
     };
     websocket: {
         status: 'active' | 'inactive';
@@ -73,3 +74,56 @@ export interface BasicHealthStatus {
     database: 'connected' | 'disconnected';
     version: string;
 }
+
+export const FAST_INTERVAL_MS = 2_000;
+export const SLOW_INTERVAL_MS = 30_000;
+export const HISTORY_SIZE = 60;
+
+export interface RedisQueueDepth {
+    name: string;
+    waiting: number;
+    active: number;
+    failed: number;
+}
+
+export interface RedisDetail {
+    usedMemory: number;
+    keys: number;
+    queues: RedisQueueDepth[];
+}
+
+export interface HealthHistory {
+    cpu: number[];
+    memory: number[];
+    dbLatency: number[];
+    redisLatency: number[];
+}
+
+export interface HealthFastUpdate {
+    serverTime: string;
+    uptime: number;
+    cpuUsage: number;
+    memoryUsage: number;
+    memoryFree: number;
+    loadAverage: number[];
+    database: InfrastructureStatus['database'];
+    redis: InfrastructureStatus['redis'];
+    websocket: InfrastructureStatus['websocket'];
+}
+
+export interface HealthSlowUpdate {
+    serverTime: string;
+    status: DetailedHealthStatus['status'];
+    disk: Pick<SystemMetrics, 'diskUsage' | 'diskTotal' | 'diskFree'>;
+    services: ServiceStatus[];
+    redisDetail?: RedisDetail;
+    backup: InfrastructureStatus['backup'];
+}
+
+export interface HealthSnapshot extends DetailedHealthStatus {
+    serverTime: string;
+    history: HealthHistory;
+    sampledAt: { fast: string; slow: string };
+    redisDetail?: RedisDetail;
+}
+

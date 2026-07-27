@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { HealthGateway } from './health.gateway';
+import { HealthSamplerService } from './health-sampler.service';
 
 @Module({
     imports: [
@@ -14,8 +15,9 @@ import { HealthGateway } from './health.gateway';
     controllers: [HealthController],
     providers: [
         HealthService,
+        HealthSamplerService,
         HealthGateway,
     ],
-    exports: [HealthService, HealthGateway],
+    exports: [HealthService, HealthSamplerService, HealthGateway],
 })
 export class HealthModule { }

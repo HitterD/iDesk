@@ -33,6 +33,7 @@ import {
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useHealthSocket, DetailedHealthStatus, ServiceStatus } from '../hooks/useHealthSocket';
+import { Sparkline } from '@/components/ui/Sparkline';
 
 // Service icon mapping
 const serviceIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -57,19 +58,20 @@ const formatBytes = (bytes: number): string => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Format uptime
+// Format uptime with padded seconds
 const formatUptime = (seconds: number): string => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
 
     if (days > 0) {
-        return `${days}d ${hours}h ${minutes}m`;
+        return `${days}d ${hours}h ${minutes}m ${secs}s`;
     }
     if (hours > 0) {
-        return `${hours}h ${minutes}m`;
+        return `${hours}h ${minutes}m ${secs}s`;
     }
-    return `${minutes}m`;
+    return `${minutes}m ${secs}s`;
 };
 
 // Format relative time
@@ -156,23 +158,45 @@ const CircularGauge: React.FC<{ value: number; label: string; color: string; siz
     );
 };
 
-// Live pulse indicator
-const LivePulse: React.FC<{ isConnected: boolean }> = ({ isConnected }) => (
-    <div className="flex items-center gap-2">
-        <div className={cn(
-            "w-2 h-2 rounded-full",
-            isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
-        )} />
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-            {isConnected ? 'Live' : 'Disconnected'}
-        </span>
-    </div>
-);
+// Live pulse indicator with stale state
+const LivePulse: React.FC<{ isConnected: boolean; isSubscribed: boolean; isStale: boolean; lastUpdate: Date | null }> = ({
+    isConnected, isSubscribed, isStale, lastUpdate
+}) => {
+    const elapsedSeconds = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0;
+
+    if (isStale) {
+        return (
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    Stale {elapsedSeconds}s
+                </span>
+            </div>
+        );
+    }
+    if (isConnected && isSubscribed) {
+        return (
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs text-slate-500 dark:text-slate-400">Live</span>
+            </div>
+        );
+    }
+    return (
+        <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-xs text-red-600 dark:text-red-400 font-medium">Disconnected</span>
+        </div>
+    );
+};
 
 export const SystemHealthPage: React.FC = () => {
     // Real-time WebSocket connection
     const {
         healthData,
+        uptime,
+        history,
+        isStale,
         isConnected,
         isSubscribed,
         lastUpdate,
@@ -186,11 +210,10 @@ export const SystemHealthPage: React.FC = () => {
             const res = await api.get('/health/detailed');
             return res.data;
         },
-        refetchInterval: isConnected ? false : 30000, // Only poll if WS disconnected
-        enabled: !healthData, // Disable if we have WS data
+        refetchInterval: isConnected ? false : 30000,
+        enabled: !healthData,
     });
 
-    // Use WebSocket data if available, otherwise fall back to API
     const health = healthData || apiHealth;
 
     // Fetch Synology backup status
@@ -218,6 +241,7 @@ export const SystemHealthPage: React.FC = () => {
     }, [lastUpdate]);
 
     const isInitialLoading = isLoading && !health;
+    const redisDetail = health?.infrastructure?.redis?.detail;
 
     return (
         <div className="space-y-6 animate-fade-in-up">
@@ -230,7 +254,12 @@ export const SystemHealthPage: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <LivePulse isConnected={isConnected && isSubscribed} />
+                    <LivePulse
+                        isConnected={isConnected}
+                        isSubscribed={isSubscribed}
+                        isStale={isStale}
+                        lastUpdate={lastUpdate}
+                    />
                     <button
                         onClick={() => refetch()}
                         disabled={isInitialLoading}
@@ -309,9 +338,18 @@ export const SystemHealthPage: React.FC = () => {
                                         color={health.system.cpuUsage > 80 ? '#ef4444' : health.system.cpuUsage > 60 ? '#f59e0b' : '#22c55e'}
                                     />
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 mb-1">
-                                            <Cpu className="w-4 h-4" />
-                                            <span className="text-sm font-medium">CPU Usage</span>
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                                                <Cpu className="w-4 h-4" />
+                                                <span className="text-sm font-medium">CPU Usage</span>
+                                            </div>
+                                            <Sparkline
+                                                data={history.cpu}
+                                                width={60}
+                                                height={24}
+                                                filled
+                                                color={health.system.cpuUsage > 80 ? 'danger' : health.system.cpuUsage > 60 ? 'warning' : 'success'}
+                                            />
                                         </div>
                                         <p className="text-xs text-slate-400">
                                             Load: {health.system.loadAverage.map(l => l.toFixed(2)).join(', ')}
@@ -326,9 +364,18 @@ export const SystemHealthPage: React.FC = () => {
                                         color={health.system.memoryUsage > 85 ? '#ef4444' : health.system.memoryUsage > 70 ? '#f59e0b' : '#22c55e'}
                                     />
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 mb-1">
-                                            <MemoryStick className="w-4 h-4" />
-                                            <span className="text-sm font-medium">Memory</span>
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                                                <MemoryStick className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Memory</span>
+                                            </div>
+                                            <Sparkline
+                                                data={history.memory}
+                                                width={60}
+                                                height={24}
+                                                filled
+                                                color={health.system.memoryUsage > 85 ? 'danger' : health.system.memoryUsage > 70 ? 'warning' : 'success'}
+                                            />
                                         </div>
                                         <p className="text-xs text-slate-400">
                                             {formatBytes(health.system.memoryTotal - health.system.memoryFree)} / {formatBytes(health.system.memoryTotal)}
@@ -366,7 +413,7 @@ export const SystemHealthPage: React.FC = () => {
                                             <span className="text-sm font-medium">Uptime</span>
                                         </div>
                                         <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                            {formatUptime(health.uptime)}
+                                            {formatUptime(uptime || health.uptime || 0)}
                                         </p>
                                     </div>
                                 </div>
@@ -389,10 +436,15 @@ export const SystemHealthPage: React.FC = () => {
                                 </div>
                                 <StatusBadge status={health?.infrastructure?.database?.status || 'disconnected'} />
                             </div>
-                            <h3 className="text-base font-bold text-slate-800 dark:text-white">Database</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                PostgreSQL • {health?.infrastructure?.database?.latency || 0}ms
-                            </p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-800 dark:text-white">Database</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                        PostgreSQL • {health?.infrastructure?.database?.latency || 0}ms
+                                    </p>
+                                </div>
+                                <Sparkline data={history.dbLatency} width={60} height={24} color="info" />
+                            </div>
                         </div>
 
                         {/* Redis Status */}
@@ -407,14 +459,29 @@ export const SystemHealthPage: React.FC = () => {
                                 <StatusBadge status={health?.infrastructure?.redis?.status || 'disabled'} />
                             </div>
                             <h3 className="text-base font-bold text-slate-800 dark:text-white">Redis Cache</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                {health?.infrastructure?.redis?.status === 'disabled'
-                                    ? 'Not configured'
-                                    : health?.infrastructure?.redis?.latency
-                                        ? `${health.infrastructure.redis.latency}ms`
-                                        : 'Queue system'
-                                }
-                            </p>
+                            {redisDetail ? (
+                                <>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                        {health?.infrastructure?.redis?.latency ?? 0}ms · {formatBytes(redisDetail.usedMemory)} · {redisDetail.keys} keys
+                                    </p>
+                                    <div className="mt-3 space-y-1.5">
+                                        {redisDetail.queues.map((queue) => (
+                                            <div key={queue.name} className="flex justify-between gap-2 text-xs">
+                                                <span className="truncate">{queue.name}</span>
+                                                <span className={cn(queue.failed > 0 && 'text-red-600 dark:text-red-400 font-semibold')}>
+                                                    Waiting: {queue.waiting} · Active: {queue.active} · Failed: {queue.failed}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : health?.infrastructure?.redis?.status === 'disabled' ? (
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Set REDIS_ENABLED=true</p>
+                            ) : (
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                    {health?.infrastructure?.redis?.latency ?? 0}ms
+                                </p>
+                            )}
                         </div>
 
                         {/* WebSocket Status */}
@@ -426,7 +493,7 @@ export const SystemHealthPage: React.FC = () => {
                                 <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                                     <Wifi className="w-5 h-5 text-green-600 dark:text-green-400" />
                                 </div>
-                                <StatusBadge status={isConnected ? 'operational' : 'down'} />
+                                <StatusBadge status={health?.infrastructure?.websocket?.status === 'active' ? 'operational' : 'down'} />
                             </div>
                             <h3 className="text-base font-bold text-slate-800 dark:text-white">WebSocket</h3>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
