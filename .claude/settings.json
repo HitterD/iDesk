@@ -1,6 +1,11 @@
 {
   "enabledPlugins": {
     "caveman@caveman": true,
-    "context-mode@context-mode": true
+    "context-mode@context-mode": true,
+    "superpowers@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "taste-skill@taste-skill": true,
+    "impeccable@impeccable": true
   }
 }

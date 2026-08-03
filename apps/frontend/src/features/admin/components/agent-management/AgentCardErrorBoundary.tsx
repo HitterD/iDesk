@@ -40,19 +40,20 @@ export class AgentCardErrorBoundary extends Component<Props, State> {
             }
 
             return (
-                <div className="glass-card p-4 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                <div role="alert" className="glass-card p-4 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
                     <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-3">
-                        <AlertCircle className="w-5 h-5" />
+                        <AlertCircle className="w-5 h-5" aria-hidden="true" />
                         <span className="font-medium text-sm">Error loading card</span>
                     </div>
                     <p className="text-xs text-red-500 dark:text-red-400 mb-3">
                         {this.state.error?.message || 'Something went wrong'}
                     </p>
                     <button
+                        type="button"
                         onClick={this.handleRetry}
-                        className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        className="flex items-center gap-1.5 min-h-[44px] text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
-                        <RefreshCw className="w-3 h-3" />
+                        <RefreshCw className="w-3 h-3" aria-hidden="true" />
                         Try again
                     </button>
                 </div>

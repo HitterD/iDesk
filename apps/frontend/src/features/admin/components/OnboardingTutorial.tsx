@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, ChevronRight, ChevronLeft, Upload, Download, Users, Search, Shield, Keyboard, BarChart3, CheckCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronRight, ChevronLeft, Upload, Users, Search, Shield, Keyboard, BarChart3, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 
 interface OnboardingTutorialProps {
     onComplete: () => void;
@@ -40,7 +42,9 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     },
     {
         title: 'Keyboard Shortcuts',
-        description: 'Press ? anytime to see keyboard shortcuts. Use Ctrl+A to select all, Delete to remove selected, Escape to close dialogs.',
+        // Must match the handler in BentoAdminAgentsPage — the old copy advertised
+        // plain Ctrl+A and a bare Delete, neither of which exists.
+        description: 'Press ? anytime to see keyboard shortcuts. Use Ctrl+Shift+A to select all, Ctrl+Delete to remove selected, Escape to close dialogs.',
         icon: Keyboard,
     },
     {
@@ -59,6 +63,20 @@ export const shouldShowOnboarding = (): boolean => {
 
 export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComplete }) => {
     const [currentStep, setCurrentStep] = useState(0);
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    // Stable identity: useFocusTrap re-runs its effect whenever onEscape changes.
+    const handleSkip = useCallback(() => {
+        localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
+        onComplete();
+    }, [onComplete]);
+
+    useFocusTrap(dialogRef, { enabled: true, onEscape: handleSkip });
+
+    useEffect(() => {
+        lockBodyScroll();
+        return unlockBodyScroll;
+    }, []);
 
     const handleNext = () => {
         if (currentStep < TUTORIAL_STEPS.length - 1) {
@@ -74,15 +92,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
         }
     };
 
-    const handleComplete = () => {
-        localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
-        onComplete();
-    };
-
-    const handleSkip = () => {
-        localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
-        onComplete();
-    };
+    const handleComplete = handleSkip;
 
     const step = TUTORIAL_STEPS[currentStep];
     const Icon = step.icon;
@@ -98,7 +108,13 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
             />
 
             {/* Modal */}
-            <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in zoom-in-95 duration-300">
+            <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="onboarding-title"
+                className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in zoom-in-95 duration-300"
+            >
                 {/* Progress Bar */}
                 <div className="h-1 bg-slate-200 dark:bg-slate-800">
                     <div
@@ -111,7 +127,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                 <button
                     onClick={handleSkip}
                     type="button"
-                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors text-sm z-10"
+                    className="absolute top-4 right-4 px-3 min-h-[44px] text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors text-sm z-10"
                 >
                     Skip tour
                 </button>
@@ -119,7 +135,14 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                 {/* Content */}
                 <div className="p-8 pt-6">
                     {/* Step Indicator */}
-                    <div className="flex items-center gap-1 mb-4">
+                    <div
+                        className="flex items-center gap-1 mb-4"
+                        role="progressbar"
+                        aria-valuenow={currentStep + 1}
+                        aria-valuemin={1}
+                        aria-valuemax={TUTORIAL_STEPS.length}
+                        aria-label={`Step ${currentStep + 1} of ${TUTORIAL_STEPS.length}`}
+                    >
                         {TUTORIAL_STEPS.map((_, idx) => (
                             <div
                                 key={idx}
@@ -137,11 +160,11 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
 
                     {/* Icon */}
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-4">
-                        <Icon className="w-8 h-8 text-primary" />
+                        <Icon className="w-8 h-8 text-primary" aria-hidden="true" />
                     </div>
 
                     {/* Title */}
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+                    <h2 id="onboarding-title" className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
                         {step.title}
                     </h2>
 

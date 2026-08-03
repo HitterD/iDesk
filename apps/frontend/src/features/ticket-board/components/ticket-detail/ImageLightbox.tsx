@@ -1,91 +1,122 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 
 interface ImageLightboxProps {
+    /**
+     * Already-resolved URL (callers pass what `getAttachmentUrl` returned).
+     * Re-running that normalization here stripped the host off an absolute URL and
+     * rebuilt it from env, which broke previews whenever the two disagreed.
+     */
     src: string;
+    /** Describes the image for screen readers; falls back to a generic label. */
+    alt?: string;
     onClose: () => void;
 }
 
-export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, onClose }) => {
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 3;
+const SCALE_STEP = 0.25;
+
+export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, alt, onClose }) => {
     const [scale, setScale] = useState(1);
     const [rotation, setRotation] = useState(0);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
-    // Handle escape key to close
+    useFocusTrap(dialogRef, { enabled: true, onEscape: onClose });
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-            if (e.key === '+' || e.key === '=') setScale(s => Math.min(s + 0.25, 3));
-            if (e.key === '-') setScale(s => Math.max(s - 0.25, 0.5));
-            if (e.key === 'r' || e.key === 'R') setRotation(r => r + 90);
+            if (e.key === '+' || e.key === '=') setScale(s => Math.min(s + SCALE_STEP, MAX_SCALE));
+            if (e.key === '-') setScale(s => Math.max(s - SCALE_STEP, MIN_SCALE));
+            // Keep the angle bounded — an unbounded counter drifts past what
+            // transform can express meaningfully after enough presses.
+            if (e.key === 'r' || e.key === 'R') setRotation(r => (r + 90) % 360);
         };
-        
+
         document.addEventListener('keydown', handleKeyDown);
-        // Prevent body scroll when lightbox is open
-        document.body.style.overflow = 'hidden';
-        
+        // Ref-counted: the lightbox opens from inside the ticket detail modal,
+        // so a naive reset would restore scrolling while that modal is still up.
+        lockBodyScroll();
+
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
+            unlockBodyScroll();
         };
-    }, [onClose]);
+    }, []);
 
     const handleZoomIn = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setScale(s => Math.min(s + 0.25, 3));
+        setScale(s => Math.min(s + SCALE_STEP, MAX_SCALE));
     };
 
     const handleZoomOut = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setScale(s => Math.max(s - 0.25, 0.5));
+        setScale(s => Math.max(s - SCALE_STEP, MIN_SCALE));
     };
 
     const handleRotate = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setRotation(r => r + 90);
+        setRotation(r => (r + 90) % 360);
     };
 
     const lightboxContent = (
         <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={alt || 'Image preview'}
             className="fixed inset-0 flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-200"
             style={{ zIndex: 99999 }}
             onClick={onClose}
         >
             {/* Close button */}
             <button
+                type="button"
                 onClick={onClose}
+                aria-label="Close image preview"
                 className="absolute top-6 right-6 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:scale-110"
                 title="Close (Esc)"
             >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6" aria-hidden="true" />
             </button>
 
             {/* Controls */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/50 rounded-full p-2">
                 <button
+                    type="button"
                     onClick={handleZoomOut}
-                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    disabled={scale <= MIN_SCALE}
+                    aria-label="Zoom out"
+                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors disabled:opacity-40"
                     title="Zoom Out (-)"
                 >
-                    <ZoomOut className="w-5 h-5" />
+                    <ZoomOut className="w-5 h-5" aria-hidden="true" />
                 </button>
-                <span className="text-white text-sm font-medium min-w-[60px] text-center">
+                <span className="text-white text-sm font-medium min-w-[60px] text-center tabular-nums" aria-live="polite">
                     {Math.round(scale * 100)}%
                 </span>
                 <button
+                    type="button"
                     onClick={handleZoomIn}
-                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    disabled={scale >= MAX_SCALE}
+                    aria-label="Zoom in"
+                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors disabled:opacity-40"
                     title="Zoom In (+)"
                 >
-                    <ZoomIn className="w-5 h-5" />
+                    <ZoomIn className="w-5 h-5" aria-hidden="true" />
                 </button>
                 <div className="w-px h-6 bg-white/20 mx-1" />
                 <button
+                    type="button"
                     onClick={handleRotate}
-                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    aria-label="Rotate image"
+                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors"
                     title="Rotate (R)"
                 >
-                    <RotateCw className="w-5 h-5" />
+                    <RotateCw className="w-5 h-5" aria-hidden="true" />
                 </button>
             </div>
 
@@ -96,7 +127,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, onClose }) =>
             >
                 <img
                     src={src}
-                    alt="Attachment"
+                    alt={alt || 'Attachment preview'}
                     className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
                     style={{ 
                         transform: `scale(${scale}) rotate(${rotation}deg)`,
@@ -111,10 +142,12 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, onClose }) =>
             <a
                 href={src}
                 download
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="absolute bottom-6 right-6 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:scale-105"
             >
-                <Download className="w-5 h-5" />
+                <Download className="w-5 h-5" aria-hidden="true" />
                 Download
             </a>
 

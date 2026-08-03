@@ -14,6 +14,11 @@ import { TicketDetail } from '../../ticket-board/components/ticket-detail/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '../../ticket-board/components/ticket-detail/constants';
 import { cn } from '@/lib/utils';
 
+/** SLA countdown only renders down to the minute, so recomputing faster is wasted work. */
+const SLA_TICK_MS = 60_000;
+/** Mirrors `CancelTicketDto.reason` (`@MaxLength(500)`); a longer body is rejected server-side. */
+const CANCEL_REASON_MAX = 500;
+
 const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel: () => void }) => {
     const navigate = useNavigate();
     const isClosed = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
@@ -46,7 +51,7 @@ const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel
         };
 
         calculateTimeLeft();
-        const timer = setInterval(calculateTimeLeft, 60000);
+        const timer = setInterval(calculateTimeLeft, SLA_TICK_MS);
         return () => clearInterval(timer);
     }, [ticket.slaTarget, isClosed]);
 
@@ -54,12 +59,14 @@ const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-4">
                 <button
+                    type="button"
                     onClick={() => navigate('/client/my-tickets')}
-                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors"
+                    aria-label="Back to my tickets"
+                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors"
                 >
-                    <ArrowLeft className="w-5 h-5" />
+                    <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                 </button>
-                <div>
+                <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-mono font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                             #{ticket.ticketNumber || ticket.id.split('-')[0]}
@@ -69,12 +76,12 @@ const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel
                             {statusConfig.label}
                         </div>
                     </div>
-                    <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                    <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight break-words">
                         {ticket.title}
                     </h1>
                 </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 {ticket.slaTarget && !isClosed && timeLeft && (
                     <div className={cn(
                         "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border",
@@ -103,11 +110,12 @@ const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel
                 )}
                 {!isClosed && (
                     <button
+                        type="button"
                         onClick={onCancel}
-                        className="px-3 py-1.5 rounded-full text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 transition-colors flex items-center gap-1.5"
+                        className="px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 transition-colors flex items-center gap-1.5"
                     >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Cancel
+                        <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                        Cancel ticket
                     </button>
                 )}
             </div>
@@ -134,54 +142,139 @@ const UserStatusPipeline = ({ status }: { status: string }) => {
         { id: 'RESOLVED', label: 'Resolved' }
     ];
 
-    const currentIndex = steps.findIndex(s => s.id === status);
-    
+    // An unknown status yields -1, which would mark every step "upcoming" — treat it
+    // as freshly opened instead so the pipeline never renders as blank.
+    const foundIndex = steps.findIndex(s => s.id === status);
+    const currentIndex = foundIndex === -1 ? 0 : foundIndex;
+    const progress = currentIndex / (steps.length - 1);
+
     return (
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-6 overflow-x-auto">
-            <div className="flex items-center justify-between max-w-3xl mx-auto relative min-w-[500px]">
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 dark:bg-slate-800 -z-10" />
-                <div 
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-primary -z-10 transition-all duration-500" 
-                    style={{ width: `${currentIndex > 0 ? (currentIndex / (steps.length - 1)) * 100 : 0}%` }}
+        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sm:p-6">
+            <ol
+                className="flex items-start justify-between max-w-3xl mx-auto relative"
+                aria-label="Ticket progress"
+            >
+                <div className="absolute left-0 top-4 -translate-y-1/2 w-full h-0.5 bg-slate-100 dark:bg-slate-800" aria-hidden="true" />
+                {/* scaleX rather than an animated width: width animation relayouts the row
+                    on every frame, which janks the whole header on low-end devices. */}
+                <div
+                    className="absolute left-0 top-4 -translate-y-1/2 w-full h-0.5 bg-primary origin-left transition-transform duration-500 motion-reduce:transition-none"
+                    style={{ transform: `scaleX(${progress})` }}
+                    aria-hidden="true"
                 />
-                
+
                 {steps.map((step, idx) => {
                     const isCompleted = idx < currentIndex;
                     const isCurrent = idx === currentIndex;
                     const config = STATUS_CONFIG[step.id];
 
                     return (
-                        <div key={step.id} className="flex flex-col items-center gap-2 relative bg-white dark:bg-slate-900 px-2">
+                        <li
+                            key={step.id}
+                            aria-current={isCurrent ? 'step' : undefined}
+                            className="flex flex-col items-center gap-2 relative flex-1 min-w-0 bg-white dark:bg-slate-900 px-1"
+                        >
                             <div className={cn(
-                                "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors z-10 ring-4 ring-white dark:ring-slate-900",
-                                isCompleted ? "bg-primary text-primary-foreground" : 
-                                isCurrent ? "bg-white border-2 border-primary text-primary" : 
+                                "w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold transition-colors ring-4 ring-white dark:ring-slate-900",
+                                isCompleted ? "bg-primary text-primary-foreground" :
+                                isCurrent ? "bg-white border-2 border-primary text-primary" :
                                 "bg-slate-100 dark:bg-slate-800 text-slate-400"
                             )}>
-                                {isCompleted ? <CheckCircle className="w-4 h-4" /> : (idx + 1)}
+                                {isCompleted ? <CheckCircle className="w-4 h-4" aria-hidden="true" /> : (idx + 1)}
                             </div>
                             <span className={cn(
-                                "text-[11px] font-bold uppercase tracking-wider",
-                                isCurrent ? config?.color || "text-slate-900 dark:text-white" : 
-                                isCompleted ? "text-slate-600 dark:text-slate-300" : 
+                                "text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-center leading-tight",
+                                isCurrent ? config?.color || "text-slate-900 dark:text-white" :
+                                isCompleted ? "text-slate-600 dark:text-slate-300" :
                                 "text-slate-400"
                             )}>
                                 {step.label}
                             </span>
-                        </div>
+                        </li>
                     );
                 })}
+            </ol>
+        </div>
+    );
+};
+
+/** Rendered in the desktop sidebar and again in the mobile strip — same markup, one source. */
+const InstallationSchedule = ({ ticket, className }: { ticket: TicketDetail; className?: string }) => (
+    <div className={cn("p-5 border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/10 shrink-0", className)}>
+        <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <HardDrive className="w-3 h-3" aria-hidden="true" />
+            Installation Schedule
+        </p>
+        <div className="space-y-3">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm border border-amber-100 dark:border-amber-800/50">
+                <p className="text-xs text-amber-600 dark:text-amber-500 mb-0.5 flex items-center gap-1.5">
+                    <Wrench className="w-3 h-3" aria-hidden="true" /> Hardware Type
+                </p>
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{ticket.hardwareType || 'Not specified'}</p>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
+                    <p className="text-[10px] text-slate-500 uppercase">Date</p>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '-'}
+                    </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
+                    <p className="text-[10px] text-slate-500 uppercase">Time</p>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {ticket.scheduledTime ? `${ticket.scheduledTime}` : '-'}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+/**
+ * The sidebar is desktop-only, so on a phone the assignee, priority and — for hardware
+ * tickets — the whole installation schedule were unreachable. This carries the same
+ * facts in a compact strip.
+ */
+const MobileTicketMeta = ({ ticket }: { ticket: TicketDetail }) => {
+    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.LOW;
+
+    return (
+        <div className="lg:hidden border-b border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap items-center gap-2 px-5 py-3 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-slate-500">
+                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                        {ticket.assignedTo?.fullName?.charAt(0) || '?'}
+                    </span>
+                    {ticket.assignedTo?.fullName || 'Unassigned'}
+                </span>
+                <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-bold bg-slate-100 dark:bg-slate-800", priorityConfig.color)}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" aria-hidden="true" />
+                    {priorityConfig.label}
+                </span>
+                {ticket.category && (
+                    <span className="px-2 py-0.5 rounded-md font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {ticket.category}
+                    </span>
+                )}
+                {ticket.device && (
+                    <span className="px-2 py-0.5 rounded-md font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {ticket.device}
+                    </span>
+                )}
+            </div>
+            {ticket.isHardwareInstallation && (
+                <InstallationSchedule ticket={ticket} className="border-t pt-4" />
+            )}
         </div>
     );
 };
 
 const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.LOW;
-    
+
     return (
-        <div className="w-64 border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-col hidden lg:flex">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800">
+        <div className="w-64 border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-col overflow-y-auto custom-scrollbar shrink-0 hidden lg:flex">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Assigned Agent</p>
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
@@ -225,34 +318,7 @@ const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
             </div>
 
             {ticket.isHardwareInstallation && (
-                <div className="p-5 mt-auto border-t border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/10">
-                    <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                        <HardDrive className="w-3 h-3" />
-                        Installation Schedule
-                    </p>
-                    <div className="space-y-3">
-                        <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm border border-amber-100 dark:border-amber-800/50">
-                            <p className="text-xs text-amber-600 dark:text-amber-500 mb-0.5 flex items-center gap-1.5">
-                                <Wrench className="w-3 h-3" /> Hardware Type
-                            </p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{ticket.hardwareType || 'Not specified'}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] text-slate-500 uppercase">Date</p>
-                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '-'}
-                                </p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] text-slate-500 uppercase">Time</p>
-                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    {ticket.scheduledTime ? `${ticket.scheduledTime}` : '-'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <InstallationSchedule ticket={ticket} className="mt-auto border-t" />
             )}
         </div>
     );
@@ -266,6 +332,7 @@ export const ClientTicketDetailPage: React.FC = () => {
     
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
 
     const { isConnected, typingUsers, sendTypingStart, sendTypingStop } = useTicketSocket({
         ticketId: id
@@ -304,6 +371,7 @@ export const ClientTicketDetailPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             toast.success('Ticket cancelled successfully');
             setIsCancelDialogOpen(false);
+            setCancelReason('');
         },
         onError: () => {
             toast.error('Failed to cancel ticket');
@@ -343,16 +411,23 @@ export const ClientTicketDetailPage: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-950 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <UserTicketHeader ticket={ticket} onCancel={() => setIsCancelDialogOpen(true)} />
-            <UserStatusPipeline status={ticket.status} />
-            
-            <div className="flex flex-1 min-h-0">
-                <div className="flex-1 flex flex-col min-w-0 border-r border-slate-200 dark:border-slate-800">
-                    <div className="shrink-0">
+        <div className="flex flex-col h-full w-full overflow-hidden bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="shrink-0">
+                <UserTicketHeader ticket={ticket} onCancel={() => setIsCancelDialogOpen(true)} />
+            </div>
+            <div className="shrink-0">
+                <UserStatusPipeline status={ticket.status} />
+            </div>
+            <div className="shrink-0">
+                <MobileTicketMeta ticket={ticket} />
+            </div>
+
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 flex flex-col min-w-0 min-h-0 border-r border-slate-200 dark:border-slate-800 overflow-hidden">
+                    <div className="shrink-0 border-b border-slate-100 dark:border-slate-800">
                         <TicketInfoCard ticket={ticket} />
                     </div>
-                    <div className="flex-1 min-h-0 bg-slate-50 dark:bg-slate-900/30">
+                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900/30">
                         <TicketChat
                             ticket={ticket}
                             isConnected={isConnected}
@@ -377,14 +452,29 @@ export const ClientTicketDetailPage: React.FC = () => {
 
             <ConfirmationDialog
                 isOpen={isCancelDialogOpen}
-                onCancel={() => setIsCancelDialogOpen(false)}
-                onConfirm={() => cancelMutation.mutate(undefined)}
+                onCancel={() => { setIsCancelDialogOpen(false); setCancelReason(''); }}
+                onConfirm={() => cancelMutation.mutate(cancelReason.trim() || undefined)}
+                isLoading={cancelMutation.isPending}
                 title="Cancel Ticket"
                 description="Are you sure you want to cancel this ticket? This action cannot be undone."
                 confirmText="Yes, Cancel Ticket"
                 cancelText="No, Keep It"
                 variant="destructive"
-            />
+            >
+                <label htmlFor="cancel-reason" className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                    Reason <span className="text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                    id="cancel-reason"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    maxLength={CANCEL_REASON_MAX}
+                    rows={2}
+                    disabled={cancelMutation.isPending}
+                    placeholder="Tell the agent why you no longer need this ticket"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary resize-none disabled:opacity-50"
+                />
+            </ConfirmationDialog>
         </div>
     );
 };

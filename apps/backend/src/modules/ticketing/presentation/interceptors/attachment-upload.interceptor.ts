@@ -1,6 +1,7 @@
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import type * as multer from 'multer';
+import { extname, join, relative } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import type { Request } from 'express';
 
@@ -60,3 +61,13 @@ export const AttachmentMultiInterceptor = () =>
 /** Single-file variant for endpoints that accept a `file` field. */
 export const AttachmentSingleInterceptor = () =>
     FileInterceptor('files', { storage, fileFilter, limits });
+
+/** Helper function to get standardized relative URL path for stored upload file */
+export function getRelativeUploadPath(file: Express.Multer.File): string {
+    if (file.path) {
+        const rel = relative(UPLOAD_ROOT, file.path).replace(/\\/g, '/');
+        return `/uploads/${rel.replace(/^\/+/, '')}`;
+    }
+    return `/uploads/${file.filename}`;
+}
+

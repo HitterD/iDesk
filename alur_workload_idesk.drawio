@@ -1,0 +1,76 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="workload_flow" name="Alur Auto-Assign Tiket">
+    <mxGraphModel dx="1000" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Nodes -->
+        <mxCell id="start" value="Tiket perlu di-assign&#10;(Tiket Baru / Reassign SLA)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="get_agents" value="Ambil daftar agent memenuhi syarat&#10;(Role cocok, Site cocok, Aktif)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="140" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="hitung_beban" value="Hitung beban tiap agent&#10;(= Jumlah Tiket Aktif x Bobot Priority)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="240" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_kapasitas" value="Ada agent di&#10;bawah kapasitas?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="340" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="antrean" value="Tiket masuk antrean&#10;(+ Notif supervisor)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="350" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pilih_agent" value="Pilih agent dengan beban&#10;paling ringan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="460" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="set_assign" value="Set assignedToId&#10;ke agent tersebut" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="560" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="update_workload" value="Update AgentDailyWorkload&#10;(Tambah bobot tiket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="660" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notif_agent" value="Kirim notifikasi assignment&#10;ke agent" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="760" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_1" edge="1" parent="1" source="start" target="get_agents" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2" edge="1" parent="1" source="get_agents" target="hitung_beban" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3" edge="1" parent="1" source="hitung_beban" target="cek_kapasitas" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_4" value="Tidak" edge="1" parent="1" source="cek_kapasitas" target="antrean" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_5" value="Ya" edge="1" parent="1" source="cek_kapasitas" target="pilih_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_6" edge="1" parent="1" source="pilih_agent" target="set_assign" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_7" edge="1" parent="1" source="set_assign" target="update_workload" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_8" edge="1" parent="1" source="update_workload" target="notif_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

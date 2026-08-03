@@ -37,29 +37,30 @@ export const StatCard: React.FC<StatCardProps> = ({
     const Component = onClick ? 'button' : 'div';
 
     return (
+        // No role/tabIndex/onKeyDown overrides: when onClick is set this already IS a
+        // <button>, so the extra Enter handler fired onClick a second time.
         <Component
+            type={onClick ? 'button' : undefined}
             onClick={onClick}
+            aria-pressed={onClick ? isActive ?? false : undefined}
             className={cn(
-                "p-5 rounded-xl flex flex-col transition-colors duration-150 group relative border animate-fade-in-up text-left w-full",
+                "p-5 rounded-xl flex flex-col transition-[transform,box-shadow,border-color,background-color] duration-150 motion-reduce:transition-none group relative border animate-fade-in-up motion-reduce:animate-none text-left w-full",
                 "bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]",
-                onClick && "cursor-pointer hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5",
+                onClick && "cursor-pointer hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5 motion-reduce:transform-none",
                 isActive && "border-primary shadow-sm ring-1 ring-primary"
             )}
-            role={onClick ? "button" : undefined}
-            tabIndex={onClick ? 0 : undefined}
-            onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
         >
             <div className="flex justify-between items-start mb-2 z-10">
                 <span className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">
                     {title}
                 </span>
                 <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 transition-colors">
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-5 h-5" aria-hidden="true" />
                 </div>
             </div>
-            
+
             <div className="z-10 mt-1">
-                <div className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-none">
+                <div className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-none tabular-nums">
                     {value}
                 </div>
                 {subtitle && (
@@ -71,7 +72,7 @@ export const StatCard: React.FC<StatCardProps> = ({
             <div className={cn(
                 "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-md transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group-hover:h-3/4",
                 getAccentColor()
-            )} />
+            )} aria-hidden="true" />
         </Component>
     );
 };

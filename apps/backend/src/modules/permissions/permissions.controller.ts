@@ -95,6 +95,13 @@ export class PermissionsController {
         return this.permissionsService.applyPresetToUser(userId, presetId);
     }
 
+    // Remove the applied preset from a user (falls back to role defaults)
+    @Delete('users/:userId/preset')
+    @Roles(UserRole.ADMIN)
+    async removePreset(@Param('userId') userId: string) {
+        return this.permissionsService.removePresetFromUser(userId);
+    }
+
     // Bulk apply preset to multiple users
     @Post('bulk-apply')
     @Roles(UserRole.ADMIN)

@@ -25,6 +25,8 @@ export { ZoomMonthDayPopover } from './ZoomMonthDayPopover';
 export { ZoomBookingForm } from './ZoomBookingForm';
 export { ZoomBookingDetailView } from './ZoomBookingDetailView';
 export { ZoomRescheduleView } from './ZoomRescheduleView';
+export { SimpleRecurringField } from './SimpleRecurringField';
+export { SimpleBookingForm } from './SimpleBookingForm';
 
 // ── Skeletons ────────────────────────────────────────────────────────────────
 export {

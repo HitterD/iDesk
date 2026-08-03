@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../../stores/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, AlertTriangle, WifiOff, Lock, Sun, Moon } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, WifiOff, Lock, Sun, Moon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS, RATE_LIMIT_WINDOW_SECONDS } from '../utils/loginErrorMapping';
 import { useTheme } from '@/hooks/useTheme';
@@ -10,6 +10,9 @@ import api from '../../../lib/api';
 import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
 
 const DASHBOARD_ROLES = new Set(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE']);
+/** Start counting down the remaining attempts once the user is this far in. */
+const ATTEMPT_WARNING_THRESHOLD = 3;
+const CLOCK_TICK_MS = 1_000;
 
 export const BentoLoginPage = () => {
     const [email, setEmail] = useState('');
@@ -27,6 +30,8 @@ export const BentoLoginPage = () => {
     const login = useAuth((state) => state.login);
     const updateUser = useAuth((state) => state.updateUser);
     const navigate = useNavigate();
+    const emailRef = useRef<HTMLInputElement>(null);
+    const passwordRef = useRef<HTMLInputElement>(null);
 
     const navigateByRole = useCallback((role: string) => {
         if (DASHBOARD_ROLES.has(role)) {
@@ -49,9 +54,13 @@ export const BentoLoginPage = () => {
         };
     }, []);
 
+    // Written straight to the node: this ticks every second and going through state
+    // would re-render the whole form (and every input) once per tick.
+    const clockRef = useRef<HTMLSpanElement>(null);
+
     useEffect(() => {
         const update = () => {
-            const el = document.getElementById('wib-clock');
+            const el = clockRef.current;
             if (!el) return;
             const d = new Date();
             const timeStr = d.toLocaleTimeString('en-US', {
@@ -64,7 +73,7 @@ export const BentoLoginPage = () => {
             el.textContent = `${timeStr} WIB`;
         };
         update();
-        const id = setInterval(update, 1000);
+        const id = setInterval(update, CLOCK_TICK_MS);
         return () => clearInterval(id);
     }, []);
 
@@ -118,17 +127,27 @@ export const BentoLoginPage = () => {
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         setCapsLockOn(e.getModifierState('CapsLock'));
+        // The card footer advertises "Esc Clear"; make that true instead of a lie.
+        if (e.key === 'Escape') {
+            setEmail('');
+            setPassword('');
+            setLoginError(null);
+        }
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!email.trim() || !password) {
+            const emailMissing = !email.trim();
             setLoginError({
                 type: 'warning',
-                message: !email.trim() ? 'NIK / Email is required.' : 'Password is required.',
+                message: emailMissing ? 'NIK / Email is required.' : 'Password is required.',
                 details: 'NIK/Email dan password wajib diisi.',
             });
+            // Land the caret on the field that is actually at fault; otherwise a
+            // keyboard user has to hunt for it from wherever focus happened to be.
+            (emailMissing ? emailRef : passwordRef).current?.focus();
             return;
         }
 
@@ -204,7 +223,7 @@ export const BentoLoginPage = () => {
             <header className="flex items-center justify-between px-9 py-5 animate-fade-down">
                 <div />
                 <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
-                    <span className="tabular-nums" id="wib-clock">--:--:-- WIB</span>
+                    <span className="tabular-nums" ref={clockRef} aria-hidden="true">--:--:-- WIB</span>
                     <button
                         type="button"
                         onClick={toggleTheme}
@@ -224,19 +243,19 @@ export const BentoLoginPage = () => {
                     <span className="absolute bottom-0 left-0 w-3 h-3 border-b-[1.5px] border-l-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.22s' }} />
                     <span className="absolute bottom-0 right-0 w-3 h-3 border-b-[1.5px] border-r-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.28s' }} />
 
-                    {/* Card header */}
-                    <div className="flex items-center gap-2 mb-6 text-[11px] font-mono font-semibold text-muted-foreground uppercase tracking-widest animate-rise" style={{ animationDelay: '0.08s' }}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse-dot" />
-                        <span>iDesk · Operations</span>
+                    {/* Logo inside card top with opening animation */}
+                    <div className="flex flex-col items-center justify-center mb-6 animate-logo-entrance animate-logo-float">
+                        <img
+                            src="/idesk-logo.png"
+                            alt="iDesk Logo"
+                            className="w-48 sm:w-56 h-auto object-contain transition-transform duration-300 hover:scale-105"
+                        />
                     </div>
-
-                    <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2 animate-rise" style={{ animationDelay: '0.16s' }}>Sign in</h1>
-                    <p className="text-sm text-muted-foreground mb-6 animate-rise" style={{ animationDelay: '0.22s' }}>Enter your credentials to continue.</p>
                     <hr className="border-border mb-6 animate-hairline" style={{ animationDelay: '0.28s' }} />
 
                     {!isOnline && (
-                        <div className="flex items-start gap-3 p-3 mb-4 bg-secondary/80 border border-border rounded-lg text-muted-foreground">
-                            <WifiOff className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+                        <div role="status" className="flex items-start gap-3 p-3 mb-4 bg-secondary/80 border border-border rounded-lg text-muted-foreground">
+                            <WifiOff className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
                             <div>
                                 <p className="text-sm font-semibold text-foreground">System Offline</p>
                                 <p className="text-xs mt-0.5">Check your network connection to authenticate.</p>
@@ -245,8 +264,8 @@ export const BentoLoginPage = () => {
                     )}
 
                     {rateLimitSeconds > 0 && (
-                        <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border bg-warning-500/10 border-warning-500/20 text-warning-600 dark:text-warning-500 animate-pulse">
-                            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                        <div role="alert" className="flex items-start gap-3 p-3 mb-4 rounded-lg border bg-warning-500/10 border-warning-500/20 text-warning-600 dark:text-warning-500 animate-pulse motion-reduce:animate-none">
+                            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
                             <div>
                                 <p className="text-sm font-semibold">Rate limit exceeded</p>
                                 <p className="text-xs opacity-90 mt-0.5">
@@ -258,6 +277,8 @@ export const BentoLoginPage = () => {
 
                     {loginError && (!rateLimitSeconds || !isRateLimitError) && (
                         <div
+                            role="alert"
+                            id="login-error"
                             className={cn(
                                 'flex items-start gap-3 p-3 mb-4 rounded-lg border',
                                 loginError.type === 'warning'
@@ -275,9 +296,9 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    {failedAttempts >= 3 && !loginError && (
-                        <div className="flex items-center gap-2 text-warning-500 text-xs font-mono mb-2">
-                            <AlertTriangle className="w-3.5 h-3.5" />
+                    {failedAttempts >= ATTEMPT_WARNING_THRESHOLD && !loginError && (
+                        <div role="status" className="flex items-center gap-2 text-warning-500 text-xs font-mono mb-2">
+                            <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
                             {MAX_LOGIN_ATTEMPTS - failedAttempts > 0
                                 ? `WARNING: ${MAX_LOGIN_ATTEMPTS - failedAttempts} ATTEMPT(S) REMAINING`
                                 : 'CRITICAL: LOGIN SYSTEM LOCKOUT IMMINENT'}
@@ -291,10 +312,13 @@ export const BentoLoginPage = () => {
                             </label>
                             <input
                                 id="login-email"
+                                ref={emailRef}
                                 type="text"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={handleKeyDown}
+                                aria-invalid={loginError?.type === 'error' || undefined}
+                                aria-describedby={loginError ? 'login-error' : undefined}
                                 className={cn(
                                     "w-full px-4 py-3 bg-background/50 border border-border/50 rounded-lg text-foreground font-medium shadow-sm",
                                     "placeholder:text-muted-foreground/60 transition-colors duration-150",
@@ -314,18 +338,21 @@ export const BentoLoginPage = () => {
                                     Password
                                 </label>
                                 {capsLockOn && (
-                                    <span className="text-[10px] font-bold tracking-widest text-warning-500 uppercase flex items-center gap-1 animate-pulse">
-                                        <AlertTriangle className="w-3 h-3" /> Caps Lock
+                                    <span role="status" className="text-[10px] font-bold tracking-widest text-warning-500 uppercase flex items-center gap-1 animate-pulse motion-reduce:animate-none">
+                                        <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Caps Lock is on
                                     </span>
                                 )}
                             </div>
                             <div className="relative">
                                 <input
                                     id="login-password"
+                                    ref={passwordRef}
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     onKeyDown={handleKeyDown}
+                                    aria-invalid={loginError?.type === 'error' || undefined}
+                                    aria-describedby={loginError ? 'login-error' : undefined}
                                     className={cn(
                                         "w-full px-4 py-3 bg-background/50 border border-border/50 rounded-lg text-foreground font-medium pr-12 shadow-sm",
                                         "placeholder:text-muted-foreground/60 transition-colors duration-150",
@@ -338,14 +365,16 @@ export const BentoLoginPage = () => {
                                     autoComplete="current-password"
                                     disabled={isLoading || rateLimitSeconds > 0}
                                 />
+                                {/* Was tabIndex={-1}, which put the only way to verify a typed
+                                    password out of reach for keyboard and switch users. */}
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                                    tabIndex={-1}
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                    aria-pressed={showPassword}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 >
-                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                                 </button>
                             </div>
                         </div>
@@ -368,9 +397,10 @@ export const BentoLoginPage = () => {
                         <button
                             type="submit"
                             disabled={isLoading || !isOnline || rateLimitSeconds > 0}
-                            className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors animate-rise"
+                            className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors animate-rise flex items-center justify-center gap-2"
                             style={{ animationDelay: '0.52s' }}
                         >
+                            {isLoading && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                             {rateLimitSeconds > 0 ? `Wait (${rateLimitSeconds}s)` : 'Continue'}
                         </button>
                     </form>

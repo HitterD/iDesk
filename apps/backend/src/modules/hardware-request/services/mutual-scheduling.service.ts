@@ -82,7 +82,7 @@ export class MutualSchedulingService {
       const busy = await schedRepo.find({
         where: {
           technicianId: dto.technicianId,
-          status: In([InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.CONFIRMED, InstallStatus.INSTALLING]),
+          status: In([InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS]),
           scheduledStart: Between(earliest, latest),
         },
         select: ['scheduledStart', 'scheduledEnd'],

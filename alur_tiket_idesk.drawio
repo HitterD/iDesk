@@ -1,0 +1,165 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="helpdesk_flow" name="Alur Tiket Helpdesk">
+    <mxGraphModel dx="1200" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Nodes -->
+        <mxCell id="start" value="USER Membuat Tiket&#10;(via Web/Telegram/Email)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="post_ticket" value="POST /tickets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="validate" value="TicketCreateService:&#10;Validasi DTO &amp;amp; Assign ticketNumber" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sla" value="Hitung slaTarget&#10;(Priority + SlaConfig + Business Hours)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="340" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="persist" value="Persist Tiket (Status TODO)&#10;&amp;amp; Emit event ticket.created" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="440" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notify" value="NotificationService&#10;Kirim notif ke agent grup terkait" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="540" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_rule" value="WorkflowRule&#10;Ada yang Cocok?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="640" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="eksekusi_rule" value="Eksekusi Action:&#10;Auto-assign, ubah priority, notif" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="650" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tunggu" value="Tunggu Agent Pickup&#10;(Antrean Tiket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="760" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assign" value="Agent Assign ke Dirinya /&#10;Di-assign Manual" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="860" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="in_progress" value="Status -&gt; IN_PROGRESS&#10;(Set firstResponseAt saat balas)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="960" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="chat" value="Percakapan via TicketMessage&#10;(Internal / Eksternal)" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1060" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_vendor" value="Butuh Bantuan&#10;Vendor?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1160" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wait_vendor" value="Status -&gt; WAITING_VENDOR&#10;(Akumulasi waitingVendorMinutes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1170" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="resolve_agent" value="Agent Menyelesaikan Tiket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1280" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="resolved" value="Status -&gt; RESOLVED&#10;(Set resolvedAt)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1380" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="survey" value="Trigger TicketSurvey&#10;ke USER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1480" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cancel" value="Status -&gt; CANCELLED&#10;(USER cancel sebelum resolve)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="860" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sla_monitor" value="Cron SLA Monitor&#10;(Background Task)&#10;Menandai Breach jika lewat Target" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1370" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_1" edge="1" parent="1" source="start" target="post_ticket" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2" edge="1" parent="1" source="post_ticket" target="validate" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3" edge="1" parent="1" source="validate" target="sla" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_4" edge="1" parent="1" source="sla" target="persist" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_5" edge="1" parent="1" source="persist" target="notify" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_6" edge="1" parent="1" source="notify" target="cek_rule" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_7" value="Ya" edge="1" parent="1" source="cek_rule" target="eksekusi_rule" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_8" value="Tidak" edge="1" parent="1" source="cek_rule" target="tunggu" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- eksekusi_rule back to tunggu -->
+        <mxCell id="e_9" edge="1" parent="1" source="eksekusi_rule" target="tunggu" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;entryX=1;entryY=0.25;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_10" edge="1" parent="1" source="tunggu" target="assign" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_11" edge="1" parent="1" source="assign" target="in_progress" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_12" edge="1" parent="1" source="in_progress" target="chat" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_13" edge="1" parent="1" source="chat" target="cek_vendor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_14" value="Ya" edge="1" parent="1" source="cek_vendor" target="wait_vendor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_15" value="Tidak" edge="1" parent="1" source="cek_vendor" target="resolve_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- wait_vendor to resolve_agent -->
+        <mxCell id="e_16" edge="1" parent="1" source="wait_vendor" target="resolve_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_17" edge="1" parent="1" source="resolve_agent" target="resolved" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_18" edge="1" parent="1" source="resolved" target="survey" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Async / Side effects (Cancel) -->
+        <mxCell id="e_19" value="Batal" edge="1" parent="1" source="tunggu" target="cancel" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#FF0000;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_20" value="Batal" edge="1" parent="1" source="chat" target="cancel" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#FF0000;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Async SLA Monitor -->
+        <mxCell id="e_21" value="Cek Target" edge="1" parent="1" source="resolved" target="sla_monitor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

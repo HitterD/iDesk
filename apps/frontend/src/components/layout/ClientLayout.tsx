@@ -10,6 +10,7 @@ import { Logo } from '../ui/Logo';
 import { UserAvatar } from '../ui/UserAvatar';
 import { FeatureErrorBoundary } from '../ui/FeatureErrorBoundary';
 import { useMyPermissions } from '@/hooks/usePermissions';
+import { cn } from '@/lib/utils';
 
 // Page transition variants - optimized for performance (no blur)
 const pageVariants: Variants = {
@@ -78,10 +79,12 @@ export const ClientLayout: React.FC = () => {
             ? location.pathname === item.path
             : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
+    const isTicketDetailPage = location.pathname.startsWith('/client/tickets/');
+
     return (
-        <div className="min-h-screen app-background-blobs bg-slate-50 dark:bg-slate-900">
+        <div className={cn("min-h-screen app-background-blobs bg-slate-50 dark:bg-slate-900", isTicketDetailPage && "h-screen flex flex-col overflow-hidden")}>
             {/* Navbar */}
-            <nav className="glass-card-elevated sticky top-0 z-50">
+            <nav className="glass-card-elevated sticky top-0 z-50 shrink-0">
                 <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
                     <div className="flex justify-between h-16">
                         {/* Logo */}
@@ -182,21 +185,25 @@ export const ClientLayout: React.FC = () => {
             </nav>
 
             {/* Main Content */}
-            <main className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8">
+            <main className={cn(
+                "w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12",
+                isTicketDetailPage ? "flex-1 min-h-0 py-4 flex flex-col overflow-hidden" : "py-8"
+            )}>
                 <FeatureErrorBoundary featureName="Client Portal">
                     <Outlet />
                 </FeatureErrorBoundary>
             </main>
 
-
             {/* Footer */}
-            <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-6 mt-auto">
-                <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
-                    <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                        © {new Date().getFullYear()} iDesk Enterprise Platform. Need help? Contact IT Support.
-                    </p>
-                </div>
-            </footer>
+            {!isTicketDetailPage && (
+                <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-6 mt-auto shrink-0">
+                    <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
+                        <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                            © {new Date().getFullYear()} iDesk Enterprise Platform. Need help? Contact IT Support.
+                        </p>
+                    </div>
+                </footer>
+            )}
         </div>
     );
 };

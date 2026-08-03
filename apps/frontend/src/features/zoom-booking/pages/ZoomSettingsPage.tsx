@@ -31,6 +31,7 @@ import {
     useZoomSettings,
     useUpdateZoomSettings,
     useUpdateZoomAccount,
+    useCreateZoomAccount,
     useAllBookings,
     useSyncMeetings,
 } from '../hooks';
@@ -48,6 +49,7 @@ const COLOR_PALETTE = [
 
 export function ZoomSettingsPage() {
     const [editingAccount, setEditingAccount] = useState<ZoomAccount | null>(null);
+    const [newAccount, setNewAccount] = useState({ name: '', email: '', colorHex: COLOR_PALETTE[0] });
     const [cancellingBooking, setCancellingBooking] = useState<ZoomBooking | null>(null);
     const [bookingsPage, setBookingsPage] = useState(1);
     const BOOKINGS_PER_PAGE = 10;
@@ -69,6 +71,7 @@ export function ZoomSettingsPage() {
     // Mutations
     const updateSettings = useUpdateZoomSettings();
     const updateAccount = useUpdateZoomAccount();
+    const createAccount = useCreateZoomAccount();
     const syncMeetings = useSyncMeetings();
 
     // Form state for settings
@@ -86,8 +89,8 @@ export function ZoomSettingsPage() {
         try {
             await updateSettings.mutateAsync(settingsForm);
             toast.success('Settings saved successfully');
-        } catch (error) {
-            toast.error('Failed to save settings');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to save settings');
         }
     };
 
@@ -97,8 +100,19 @@ export function ZoomSettingsPage() {
             await updateAccount.mutateAsync({ id, data });
             toast.success('Account updated');
             setEditingAccount(null);
-        } catch (error) {
-            toast.error('Failed to update account');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to update account');
+        }
+    };
+
+    const handleCreateAccount = async () => {
+        try {
+            await createAccount.mutateAsync(newAccount);
+            toast.success('Account created');
+            setNewAccount({ name: '', email: '', colorHex: COLOR_PALETTE[0] });
+            refetchAccounts();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to create account');
         }
     };
 
@@ -403,6 +417,34 @@ export function ZoomSettingsPage() {
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                                 Manage the list of Zoom credentials used as round-robin resources.
                             </p>
+                            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                                <Input
+                                    placeholder="Account name"
+                                    value={newAccount.name}
+                                    onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
+                                />
+                                <Input
+                                    type="email"
+                                    placeholder="zoom.admin1@kapalapi.co.id"
+                                    value={newAccount.email}
+                                    onChange={(e) => setNewAccount({ ...newAccount, email: e.target.value })}
+                                />
+                                <Select
+                                    value={newAccount.colorHex}
+                                    onValueChange={(colorHex) => setNewAccount({ ...newAccount, colorHex })}
+                                >
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {COLOR_PALETTE.map((color) => <SelectItem key={color} value={color}>{color}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    onClick={handleCreateAccount}
+                                    disabled={createAccount.isPending || !newAccount.name.trim() || !newAccount.email.trim()}
+                                >
+                                    {createAccount.isPending ? 'Creating...' : 'Add Account'}
+                                </Button>
+                            </div>
                         </div>
                         
                         {accountsLoading ? (

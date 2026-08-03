@@ -181,10 +181,21 @@ export const BentoTvBoardPage: React.FC = () => {
             setError('Link tidak valid, hubungi admin.');
             return;
         }
-        api.get(`/tv/board/${token}`)
-            .then((res) => setInitialData(res.data))
-            .catch(() => setError('Link tidak valid, hubungi admin.'));
-    }, [token]);
+
+        const fetchBoardData = () => {
+            api.get(`/tv/board/${token}`)
+                .then((res) => setInitialData(res.data))
+                .catch(() => setError('Link tidak valid, hubungi admin.'));
+        };
+
+        fetchBoardData();
+
+        // Polling fallback: every 15s if socket is disconnected, or every 30s as safety sync
+        const pollIntervalMs = isConnected ? 30000 : 15000;
+        const interval = setInterval(fetchBoardData, pollIntervalMs);
+
+        return () => clearInterval(interval);
+    }, [token, isConnected]);
 
     useEffect(() => {
         const interval = setInterval(() => setNow(new Date()), 1000);

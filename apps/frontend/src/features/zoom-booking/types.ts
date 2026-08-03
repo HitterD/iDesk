@@ -110,7 +110,7 @@ export interface CalendarDay {
 }
 
 export interface CreateBookingDto {
-    zoomAccountId: string;
+    zoomAccountId?: string;
     title: string;
     description?: string;
     bookingDate: string;

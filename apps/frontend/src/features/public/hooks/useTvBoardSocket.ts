@@ -34,9 +34,13 @@ interface UseTvBoardSocketReturn {
     isConnected: boolean;
 }
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ||
+const rawSocketUrl = import.meta.env.VITE_SOCKET_URL ||
     import.meta.env.VITE_API_URL ||
     'http://localhost:5050';
+const SOCKET_URL = rawSocketUrl
+    .replace(/\/v1\/?$/, '')
+    .replace(/\/api\/?$/, '')
+    .replace(/\/+$/, '');
 
 export function useTvBoardSocket(token: string | undefined): UseTvBoardSocketReturn {
     const [boardData, setBoardData] = useState<TvBoardData | null>(null);
@@ -60,6 +64,11 @@ export function useTvBoardSocket(token: string | undefined): UseTvBoardSocketRet
         });
 
         socket.on('disconnect', () => {
+            setIsConnected(false);
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('TV Board socket connect_error:', err);
             setIsConnected(false);
         });
 

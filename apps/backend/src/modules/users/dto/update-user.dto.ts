@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsEnum, IsUUID, IsEmail, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../enums/user-role.enum';
 
@@ -36,7 +37,14 @@ export class UpdateUserDto {
     @ApiPropertyOptional({ description: 'Department ID' })
     @IsUUID()
     @IsOptional()
-    departmentId?: string;
+    @Transform(({ value }) => (value === '' ? null : value))
+    departmentId?: string | null;
+
+    @ApiPropertyOptional({ description: 'Site ID' })
+    @IsUUID()
+    @IsOptional()
+    @Transform(({ value }) => (value === '' ? null : value))
+    siteId?: string | null;
 
     @ApiPropertyOptional({ description: 'Account active status' })
     @IsBoolean()

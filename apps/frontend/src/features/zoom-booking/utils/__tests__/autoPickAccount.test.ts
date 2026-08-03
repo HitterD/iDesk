@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoPickAccount, type AccountLoad } from '../autoPickAccount';
+import { autoPickAccount, buildAvailability, type AccountLoad } from '../autoPickAccount';
 
 describe('autoPickAccount', () => {
     const accounts: AccountLoad[] = [
@@ -31,7 +31,23 @@ describe('autoPickAccount', () => {
             { id: 'z', name: 'Z', colorHex: '#000', meetingsAtTime: 1 },
             { id: 'a', name: 'A', colorHex: '#fff', meetingsAtTime: 1 },
         ];
-        const picked = autoPickAccount(tied, '10:00');
+        const picked = autoPickAccount(tied, '2026-07-21');
         expect(picked?.id).toBe('a');
+    });
+
+    it('skips accounts with an overlapping booking', () => {
+        const availability = buildAvailability(
+            [
+                { id: 'a1', name: 'Marketing', colorHex: '#3b82f6' },
+                { id: 'a2', name: 'Sales', colorHex: '#10b981' },
+            ] as any,
+            new Map([
+                ['a1', [{ date: '2026-07-21', slots: [{ time: '10:00', booking: { id: 'b1', title: 'Busy', bookedBy: 'A', durationMinutes: 60, startTime: '10:00', endTime: '11:00' } }] }]],
+                ['a2', [{ date: '2026-07-21', slots: [] }]],
+            ]) as any,
+            '2026-07-21',
+        );
+        const picked = autoPickAccount(accounts.slice(0, 2), '2026-07-21', '10:30', 30, availability);
+        expect(picked?.id).toBe('a2');
     });
 });

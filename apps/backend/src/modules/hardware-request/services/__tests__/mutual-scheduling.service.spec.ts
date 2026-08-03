@@ -25,7 +25,7 @@ describe('MutualSchedulingService', () => {
     mockEmitter = { emit: jest.fn() } as any;
     const itemRepoMock = { findBy: jest.fn() };
     const reqRepoMock = { findOne: jest.fn(), save: jest.fn((x) => x) };
-    const schedRepoMock = { create: jest.fn((x) => x), save: jest.fn(async (x) => ({ id: 'sch-1', ...x })), findOne: jest.fn() };
+    const schedRepoMock = { create: jest.fn((x) => x), save: jest.fn(async (x) => ({ id: 'sch-1', ...x })), find: jest.fn().mockResolvedValue([]), findOne: jest.fn() };
     const linkRepoMock = { create: jest.fn((x) => x), save: jest.fn() };
 
     mockDataSource = {

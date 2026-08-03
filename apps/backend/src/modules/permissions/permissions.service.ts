@@ -768,6 +768,29 @@ export class PermissionsService implements OnModuleInit {
         return { applied: true, presetName: preset.name };
     }
 
+    /**
+     * Clear a user's applied preset and its per-user permission overrides.
+     * The user falls back to the role defaults resolved by `getUserPageAccess`.
+     */
+    async removePresetFromUser(userId: string): Promise<{ removed: boolean }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException(`User ${userId} not found`);
+        }
+
+        await this.permissionRepo.delete({ userId });
+
+        user.appliedPresetId = null;
+        user.appliedPresetName = null;
+        await this.userRepo.save(user);
+
+        await this.cacheService.delAsync(CacheKeys.pageAccess(userId));
+        this.permissionsGateway.notifyPresetChange(userId, '', '');
+
+        this.logger.log(`Removed applied preset from user ${userId}`);
+        return { removed: true };
+    }
+
     async listUsersWithRole(role: string): Promise<User[]> {
         // ICT_STAFF = semua user ADMIN+MANAGER+AGENT yang bisa akses hardware_requests
         if (role === 'ICT_STAFF') {
@@ -929,6 +952,12 @@ export class PermissionsService implements OnModuleInit {
         const preset = await this.presetRepo.findOne({ where: { id: presetId } });
         if (!preset) {
             throw new NotFoundException(`Preset ${presetId} not found`);
+        }
+
+        // `resolveDefaultPresetId` looks system presets up by name, so a rename would
+        // silently break default-preset resolution for every new user of that role.
+        if (preset.isSystem && data.name !== undefined && data.name !== preset.name) {
+            throw new ForbiddenException('Cannot rename a system preset');
         }
 
         // If setting as default, unset other defaults

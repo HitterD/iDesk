@@ -57,8 +57,7 @@ export class LostItemController {
         @Body() dto: CreateLostItemDto,
         @UploadedFiles() photos: Express.Multer.File[],
     ) {
-        const baseUrl = this.configService.get<string>('API_URL', 'http://localhost:5050');
-        const photoUrls = (photos || []).map(f => `${baseUrl}/uploads/lost-items/${f.filename}`);
+        const photoUrls = (photos || []).map(f => `/uploads/lost-items/${f.filename}`);
         return this.lostItemService.create(req.user.userId, { ...dto, photoUrls });
     }
 

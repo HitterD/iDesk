@@ -60,4 +60,21 @@ describe('TvBoardGateway', () => {
             }),
         );
     });
+
+    it('resolves siteId from ticketRepo when only ticketId is provided in event payload', async () => {
+        const mockTicketRepo = {
+            findOne: jest.fn().mockResolvedValue({ id: 't-123', siteId: 'site-resolved' }),
+        };
+        const gatewayWithRepo = new TvBoardGateway(tvBoardService as any, mockTicketRepo as any);
+        (gatewayWithRepo as any).server = mockServer;
+
+        await gatewayWithRepo.handleGenericTicketEvent({ ticketId: 't-123' });
+
+        expect(mockTicketRepo.findOne).toHaveBeenCalledWith({
+            where: { id: 't-123' },
+            select: ['siteId'],
+        });
+        expect(mockServer.to).toHaveBeenCalledWith('tv:site-resolved');
+        expect(toReturn.emit).toHaveBeenCalledWith('tv-board:update', expect.any(Object));
+    });
 });

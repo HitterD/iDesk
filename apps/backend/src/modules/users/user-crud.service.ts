@@ -202,7 +202,7 @@ export class UserCrudService implements OnModuleInit {
         };
     }
 
-    async update(userId: string, updateData: Partial<User>): Promise<User> {
+    async update(userId: string, updateData: any): Promise<User> {
         await this.userRepo.update(userId, updateData);
         const updatedUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['department'] });
         if (!updatedUser) {
@@ -545,7 +545,7 @@ export class UserCrudService implements OnModuleInit {
         };
     }
 
-    async updateUserByAdmin(userId: string, updateData: Partial<User>, adminId?: string): Promise<User> {
+    async updateUserByAdmin(userId: string, updateData: any, adminId?: string): Promise<User> {
         const user = await this.userRepo.findOne({ where: { id: userId } });
         if (!user) {
             throw new NotFoundException('User not found');

@@ -1,0 +1,89 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="zoom_flow" name="Alur Booking Zoom">
+    <mxGraphModel dx="1000" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Nodes -->
+        <mxCell id="start" value="USER Buka Calendar Zoom" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input" value="Pilih tanggal, jam mulai-selesai,&#10;judul &amp;amp; partisipan" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="post_zoom" value="POST /zoom-bookings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_bentrok" value="Jadwal bentrok?&#10;(akun/slot sudah terpakai)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="340" width="260" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tolak" value="Tolak:&#10;Minta pilih slot lain" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="350" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="buat_booking" value="Buat booking &amp;amp;&#10;Masukkan ke Bull Queue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="460" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="processor" value="zoom-meeting.processor:&#10;Panggil Zoom API S2S OAuth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="560" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="simpan_db" value="Simpan joinUrl, meetingId,&#10;password (ZoomMeeting)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="660" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="selesai_undang" value="Kirim notifikasi + undangan&#10;ke partisipan" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="760" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Cron Flow -->
+        <mxCell id="start_cron" value="Cron zoom-sync&#10;(Tiap 5 menit)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="660" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sinkron" value="Sinkron meeting isExternal=true&#10;ke kalender iDesk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="760" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_1" edge="1" parent="1" source="start" target="input" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2" edge="1" parent="1" source="input" target="post_zoom" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3" edge="1" parent="1" source="post_zoom" target="cek_bentrok" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_4" value="Ya" edge="1" parent="1" source="cek_bentrok" target="tolak" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_5" value="Tidak" edge="1" parent="1" source="cek_bentrok" target="buat_booking" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_6" edge="1" parent="1" source="buat_booking" target="processor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_7" edge="1" parent="1" source="processor" target="simpan_db" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_8" edge="1" parent="1" source="simpan_db" target="selesai_undang" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_9" value="Tarik meeting luar iDesk" edge="1" parent="1" source="start_cron" target="sinkron" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#666666;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

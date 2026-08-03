@@ -5,12 +5,24 @@
  * Kolom kiri  : daftar preset (search + list)
  * Kolom kanan : editor preset (nama, deskripsi, permissions, pageAccess)
  */
-import React, { useState, useEffect, useCallback } from 'react';
-import { X, Plus, Trash2, Copy, Save, Shield, ChevronRight, Search, Lock, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Plus, Trash2, Copy, Save, Shield, ChevronRight, Search, Lock } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
+import { ConfirmDialog } from './ConfirmDialog';
+
+/** Sentinel id for the not-yet-persisted preset being composed in the editor. */
+const NEW_PRESET_ID = '__new__';
+
+/**
+ * Action deferred behind the unsaved-changes confirmation.
+ * `close` dismisses the drawer; `select` switches to another preset; `new` starts a blank one.
+ */
+type PendingAction = { type: 'close' } | { type: 'new' } | { type: 'select'; preset: PermissionPreset };
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -103,18 +115,21 @@ const PermissionRow: React.FC<{
 }> = ({ resource, value, onToggle, disabled, index = 0 }) => {
     const isEnabled = value.canView === true;
 
+    const label = resource.replace(/_/g, ' ');
+
     return (
         <div className={cn(
             "flex items-center justify-between py-2.5 px-3 border-b border-[hsl(var(--border))] last:border-0 rounded-sm",
             index % 2 === 1 && "bg-slate-50/50 dark:bg-slate-800/20"
         )}>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
-                {resource.replace(/_/g, ' ')}
+                {label}
             </span>
             <button
                 type="button"
                 role="switch"
                 aria-checked={isEnabled}
+                aria-label={`Access to ${label}`}
                 disabled={disabled}
                 onClick={() => onToggle(resource, !isEnabled)}
                 className={cn(
@@ -142,6 +157,8 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
     const [draft, setDraft] = useState<Partial<PermissionPreset>>({});
     const [isDirty, setIsDirty] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+    const drawerRef = useRef<HTMLDivElement>(null);
 
     // ── Data fetching ──
     const { data: presets = [], isLoading } = useQuery<PermissionPreset[]>({
@@ -159,6 +176,60 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
         setDraft({ ...preset });
         setIsDirty(false);
     }, []);
+
+    const startNew = useCallback(() => {
+        setSelectedId(NEW_PRESET_ID);
+        setDraft({ ...EMPTY_PRESET });
+        setIsDirty(true);
+    }, []);
+
+    const closeDrawer = useCallback(() => {
+        setSelectedId(null);
+        setDraft({});
+        setIsDirty(false);
+        onClose();
+    }, [onClose]);
+
+    /** Any navigation away from a dirty draft must be confirmed first. */
+    const requestClose = useCallback(() => {
+        if (isDirty) {
+            setPendingAction({ type: 'close' });
+            return;
+        }
+        closeDrawer();
+    }, [isDirty, closeDrawer]);
+
+    const requestSelect = useCallback((preset: PermissionPreset) => {
+        if (isDirty && preset.id !== selectedId) {
+            setPendingAction({ type: 'select', preset });
+            return;
+        }
+        selectPreset(preset);
+    }, [isDirty, selectedId, selectPreset]);
+
+    const requestNew = useCallback(() => {
+        if (isDirty) {
+            setPendingAction({ type: 'new' });
+            return;
+        }
+        startNew();
+    }, [isDirty, startNew]);
+
+    const discardAndContinue = useCallback(() => {
+        if (!pendingAction) return;
+        setPendingAction(null);
+        if (pendingAction.type === 'close') closeDrawer();
+        else if (pendingAction.type === 'new') startNew();
+        else selectPreset(pendingAction.preset);
+    }, [pendingAction, closeDrawer, startNew, selectPreset]);
+
+    useFocusTrap(drawerRef, { enabled: isOpen, onEscape: requestClose });
+
+    useEffect(() => {
+        if (!isOpen) return;
+        lockBodyScroll();
+        return unlockBodyScroll;
+    }, [isOpen]);
 
     // ── Auto-select first preset on open ──
     useEffect(() => {
@@ -192,16 +263,23 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
     // ── Mutations ──
     const saveMutation = useMutation({
         mutationFn: async () => {
-            if (selectedId === '__new__') {
-                return api.post('/permissions/presets', draft);
+            const payload = {
+                name: draft.name,
+                description: draft.description,
+                targetRole: draft.targetRole,
+                pageAccess: draft.pageAccess,
+                permissions: draft.permissions,
+            };
+            if (selectedId === NEW_PRESET_ID) {
+                return api.post('/permissions/presets', payload);
             }
-            return api.put(`/permissions/presets/${selectedId}`, draft);
+            return api.put(`/permissions/presets/${selectedId}`, payload);
         },
         onSuccess: (res) => {
             toast.success('Preset saved');
             queryClient.invalidateQueries({ queryKey: ['permission-presets'] });
             setIsDirty(false);
-            if (selectedId === '__new__') {
+            if (selectedId === NEW_PRESET_ID) {
                 setSelectedId(res.data.id);
             }
         },
@@ -227,11 +305,11 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
     const cloneMutation = useMutation({
         mutationFn: async (preset: PermissionPreset) => {
             const clone = {
-                ...preset,
                 name: `${preset.name} (Copy)`,
-                isSystem: false,
-                id: undefined,
-                createdAt: undefined,
+                description: preset.description,
+                targetRole: preset.targetRole,
+                pageAccess: preset.pageAccess,
+                permissions: preset.permissions,
             };
             return api.post('/permissions/presets', clone);
         },
@@ -247,13 +325,6 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
         },
     });
 
-    // ── New preset ──
-    const handleNew = () => {
-        setSelectedId('__new__');
-        setDraft({ ...EMPTY_PRESET });
-        setIsDirty(true);
-    };
-
     // ── Filtered presets ──
     const filteredPresets = search
         ? presets.filter(p =>
@@ -263,7 +334,10 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
         : presets;
 
     const selectedPreset = presets.find(p => p.id === selectedId);
-    const isNew = selectedId === '__new__';
+    const deletedPreset = presets.find(p => p.id === deletingId);
+    const deletedPresetName = deletedPreset?.name ?? 'This preset';
+    const deletedPresetUsage = deletedPreset?.usageCount ?? 0;
+    const isNew = selectedId === NEW_PRESET_ID;
     const isSystem = selectedPreset?.isSystem && !isNew;
     const permissionResources = [...DEFAULT_PERMISSION_RESOURCES];
 
@@ -275,11 +349,15 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                     'fixed inset-0 bg-black/30 backdrop-blur-[2px] z-40 transition-[opacity,visibility] duration-300',
                     isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none invisible'
                 )}
-                onClick={onClose}
+                onClick={requestClose}
             />
 
             {/* Drawer */}
             <div
+                ref={drawerRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="preset-drawer-title"
                 className={cn(
                     'fixed top-0 right-0 h-full w-full max-w-5xl bg-[hsl(var(--card))] shadow-2xl z-50',
                     'flex flex-col border-l border-[hsl(var(--border))] transition-[transform,visibility] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
@@ -293,13 +371,15 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                             <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Permission Presets</h2>
+                            <h2 id="preset-drawer-title" className="text-lg font-bold text-slate-800 dark:text-white">Permission Presets</h2>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{presets.length} presets</p>
                         </div>
                     </div>
                     <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                        type="button"
+                        onClick={requestClose}
+                        aria-label="Close permission presets"
+                        className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
                         <X className="w-5 h-5 text-slate-500" />
                     </button>
@@ -323,8 +403,9 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                 />
                             </div>
                             <button
-                                onClick={handleNew}
-                                className="w-full flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                type="button"
+                                onClick={requestNew}
+                                className="w-full flex items-center justify-center gap-2 px-3 min-h-[36px] py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 New Preset
@@ -346,7 +427,9 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                     {filteredPresets.map(preset => (
                                         <button
                                             key={preset.id}
-                                            onClick={() => selectPreset(preset)}
+                                            type="button"
+                                            onClick={() => requestSelect(preset)}
+                                            aria-current={selectedId === preset.id && !isNew}
                                             className={cn(
                                                 'w-full text-left flex items-center gap-2 px-3 py-2.5 border-b border-[hsl(var(--border))] transition-colors',
                                                 'hover:bg-slate-50 dark:hover:bg-slate-800/60',
@@ -403,7 +486,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         </span>
                                     )}
                                     {isDirty && (
-                                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium font-medium">
+                                        <span role="status" className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                                             • Unsaved changes
                                         </span>
                                     )}
@@ -411,6 +494,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                 <div className="flex items-center gap-2">
                                     {!isNew && selectedPreset && (
                                         <button
+                                            type="button"
                                             onClick={() => cloneMutation.mutate(selectedPreset)}
                                             disabled={cloneMutation.isPending}
                                             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
@@ -421,6 +505,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                     )}
                                     {!isNew && selectedPreset && !isSystem && (
                                         <button
+                                            type="button"
                                             onClick={() => setDeletingId(selectedId)}
                                             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
                                         >
@@ -429,6 +514,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         </button>
                                     )}
                                     <button
+                                        type="button"
                                         onClick={() => saveMutation.mutate()}
                                         disabled={saveMutation.isPending || !isDirty || !draft.name}
                                         className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -444,11 +530,14 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                 {/* Basic Info */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                                            Preset Name *
+                                        <label htmlFor="preset-name" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                                            Preset Name <span className="text-rose-500" aria-hidden="true">*</span>
                                         </label>
                                         <input
+                                            id="preset-name"
                                             type="text"
+                                            required
+                                            disabled={!!isSystem}
                                             value={draft.name || ''}
                                             onChange={e => updateDraft({ name: e.target.value })}
                                             placeholder="e.g. Senior Agent"
@@ -456,10 +545,12 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <label htmlFor="preset-target-role" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                                             Target Role
                                         </label>
                                         <select
+                                            id="preset-target-role"
+                                            disabled={!!isSystem}
                                             value={draft.targetRole || ''}
                                             onChange={e => updateDraft({ targetRole: e.target.value as PermissionPreset['targetRole'] })}
                                             className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800/50 border border-[hsl(var(--border))] rounded-lg outline-none focus:ring-1 focus:ring-blue-500/50 text-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
@@ -472,10 +563,12 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                         </select>
                                     </div>
                                     <div className="col-span-2">
-                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <label htmlFor="preset-description" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                                             Description
                                         </label>
                                         <textarea
+                                            id="preset-description"
+                                            disabled={!!isSystem}
                                             value={draft.description || ''}
                                             onChange={e => updateDraft({ description: e.target.value })}
                                             rows={2}
@@ -503,6 +596,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
                                                         canDelete: draft.permissions?.[resource]?.canDelete ?? false,
                                                     }}
                                                     onToggle={togglePermission}
+                                                    disabled={!!isSystem}
                                                     index={idx}
                                                 />
                                             ))}
@@ -531,36 +625,32 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
             </div>
 
             {/* ── Delete Confirmation ── */}
-            {deletingId && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-                    <div className="bg-[hsl(var(--card))] rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-[hsl(var(--border))]">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-800 dark:text-white">Delete Preset</h3>
-                                <p className="text-sm text-slate-500">This action cannot be undone.</p>
-                            </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setDeletingId(null)}
-                                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => deleteMutation.mutate(deletingId)}
-                                disabled={deleteMutation.isPending}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                            >
-                                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmDialog
+                isOpen={!!deletingId}
+                onClose={() => setDeletingId(null)}
+                onConfirm={() => deletingId && deleteMutation.mutate(deletingId)}
+                title="Delete Preset"
+                message={
+                    deletedPresetUsage > 0
+                        ? `"${deletedPresetName}" is applied to ${deletedPresetUsage} user(s). They will fall back to their role defaults. This cannot be undone.`
+                        : `"${deletedPresetName}" will be permanently removed. This cannot be undone.`
+                }
+                confirmText="Delete"
+                variant="danger"
+                isLoading={deleteMutation.isPending}
+            />
+
+            {/* ── Unsaved changes guard ── */}
+            <ConfirmDialog
+                isOpen={!!pendingAction}
+                onClose={() => setPendingAction(null)}
+                onConfirm={discardAndContinue}
+                title="Discard unsaved changes?"
+                message={`Your edits to "${draft.name || 'this preset'}" have not been saved yet and will be lost.`}
+                confirmText="Discard"
+                cancelText="Keep editing"
+                variant="warning"
+            />
         </>
     );
 };

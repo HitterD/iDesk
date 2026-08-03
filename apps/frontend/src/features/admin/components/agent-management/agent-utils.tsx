@@ -1,5 +1,4 @@
 import React from 'react';
-import { Shield, Crown, Users } from 'lucide-react';
 import { Ticket } from '@/types/ticket.types';
 import { Site } from '@/types/admin.types';
 
@@ -8,55 +7,17 @@ export interface TicketWithSite extends Ticket {
     site?: Site;
 }
 
-// Site colors for badges - fallback if site code not found
-export const SITE_COLORS: Record<string, string> = {
-    SPJ: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    JTB: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-};
-
-export const ROLE_CONFIG = {
-    ADMIN: {
-        icon: Shield,
-        label: 'Administrators',
-        color: 'text-purple-600',
-        bgColor: 'bg-purple-100 dark:bg-purple-900/30',
-        badgeColor: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    },
-    MANAGER: {
-        icon: Crown,
-        label: 'Managers',
-        color: 'text-amber-600',
-        bgColor: 'bg-amber-100 dark:bg-amber-900/30',
-        badgeColor: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-    },
-    AGENT: {
-        icon: Users,
-        label: 'Agents',
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-100 dark:bg-blue-900/30',
-        badgeColor: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    },
-    USER: {
-        icon: Users,
-        label: 'Users',
-        color: 'text-slate-600',
-        bgColor: 'bg-slate-100 dark:bg-slate-800',
-        badgeColor: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-    },
-};
-
-// Generate consistent color based on name
-export const getAvatarColor = (name: string): string => {
-    const colors = [
-        'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-amber-500',
-        'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-teal-500'
-    ];
-    if (!name) return colors[0];
-    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-};
+// Role and site presentation live in agent-types; re-exported here so the many
+// existing `from './agent-utils'` imports keep resolving to the same objects.
+export {
+    SITE_COLORS,
+    ROLE_CONFIG,
+    ROLE_ORDER,
+    getRoleConfig,
+    getRoleLabel,
+    getAvatarColor,
+} from './agent-types';
+export type { UserRoleKey, RoleConfigEntry } from './agent-types';
 
 // M3: Helper function to highlight search matches
 export const highlightText = (text: string, query: string): React.ReactNode => {

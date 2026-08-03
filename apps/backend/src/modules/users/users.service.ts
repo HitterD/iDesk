@@ -25,7 +25,7 @@ export class UsersService {
         return this.userCrudService.findAll(options);
     }
 
-    async update(userId: string, updateData: Partial<User>): Promise<User> {
+    async update(userId: string, updateData: any): Promise<User> {
         return this.userCrudService.update(userId, updateData);
     }
 
@@ -105,7 +105,7 @@ export class UsersService {
         return this.userCrudService.getAgentStats(options);
     }
 
-    async updateUserByAdmin(userId: string, updateData: Partial<User>, adminId?: string): Promise<User> {
+    async updateUserByAdmin(userId: string, updateData: any, adminId?: string): Promise<User> {
         return this.userCrudService.updateUserByAdmin(userId, updateData, adminId);
     }
 

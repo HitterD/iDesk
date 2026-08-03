@@ -9,6 +9,35 @@ import { SITE_COLORS, ROLE_CONFIG } from './agent-utils';
 
 type SortKey = 'fullName' | 'openTickets' | 'inProgressTickets' | 'resolvedThisWeek' | 'resolvedThisMonth' | 'slaCompliance' | 'appraisalPoints' | 'activeWorkloadPoints';
 
+interface SortHeaderProps {
+    label: string;
+    sortKey: SortKey;
+    sortConfig: { key: SortKey; dir: 'asc' | 'desc' };
+    onSort: (key: SortKey) => void;
+    align?: 'left' | 'center';
+}
+
+function SortHeader({ label, sortKey, sortConfig, onSort, align = 'center' }: SortHeaderProps) {
+    const isSorted = sortConfig.key === sortKey;
+    return (
+        <th
+            aria-sort={isSorted ? (sortConfig.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+            className={cn(
+                'px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase',
+                align === 'left' ? 'text-left' : 'text-center'
+            )}
+        >
+            <button
+                type="button"
+                onClick={() => onSort(sortKey)}
+                className="min-h-[44px] -my-3 px-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+                {label} {isSorted && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+            </button>
+        </th>
+    );
+}
+
 interface AgentPerformancePanelProps {
     displayedAgentStats: AgentStats[];
     filteredAgentStats: AgentStats[];
@@ -46,11 +75,15 @@ export function AgentPerformancePanel({
 }: AgentPerformancePanelProps) {
     if (displayedAgentStats.length === 0) return null;
 
+    // Grid callbacks previously scanned all users for every card and every action.
+    // A lookup table keeps render work linear as the visible agent count grows.
+    const usersById = new Map(users.map(user => [user.id, user]));
+
     return (
         <div className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-[hsl(var(--border))] flex items-center justify-between">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" />
+            <div className="px-4 sm:px-6 py-4 border-b border-[hsl(var(--border))] flex items-center justify-between">
+                <h3 className="min-w-0 font-bold text-slate-800 dark:text-white flex flex-wrap items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-primary shrink-0" aria-hidden="true" />
                     {viewMode === 'grid' ? 'Agent Cards' : 'Agent Performance'}
                     <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
                         ({displayedAgentStats.length}{statsFilter !== 'all' ? ` of ${filteredAgentStats.length}` : ''} agents)
@@ -80,7 +113,7 @@ export function AgentPerformancePanel({
                                 email: agent.email,
                                 role: agent.role as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER',
                                 site: agent.site,
-                                isActive: users.find(u => u.id === agent.id)?.isActive,
+                                isActive: usersById.get(agent.id)?.isActive,
                                 openTickets: agent.openTickets,
                                 inProgressTickets: agent.inProgressTickets,
                                 resolvedThisMonth: agent.resolvedThisMonth,
@@ -97,7 +130,7 @@ export function AgentPerformancePanel({
                                 createdAt: '',
                             })}
                             onEdit={(user) => {
-                                const fullUser = users.find(u => u.id === user.id);
+                                const fullUser = usersById.get(user.id);
                                 if (fullUser) onEditUser(fullUser);
                             }}
                             renderCard={(user, isSelected) => (
@@ -127,18 +160,18 @@ export function AgentPerformancePanel({
                                         onSelect={() => onToggleSelection(user.id)}
                                         isSelected={isSelected}
                                         onEdit={() => {
-                                            const fullUser = users.find(u => u.id === user.id);
+                                            const fullUser = usersById.get(user.id);
                                             if (fullUser) onEditUser(fullUser);
                                         }}
                                         onToggleActive={() => {
-                                            const fullUser = users.find(u => u.id === user.id);
+                                            const fullUser = usersById.get(user.id);
                                             if (fullUser) {
                                                 onToggleActive({ userId: user.id, isActive: !fullUser.isActive });
                                             }
                                         }}
                                         isActive={user.isActive ?? true}
                                         onResetPassword={() => {
-                                            const fullUser = users.find(u => u.id === user.id);
+                                            const fullUser = usersById.get(user.id);
                                             if (fullUser) { onResetPassword(fullUser); }
                                         }}
                                     />
@@ -150,7 +183,7 @@ export function AgentPerformancePanel({
                     /* Standard grid for <50 agents - keeps animations */
                     <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                         {displayedAgentStats.map((agent, index) => (
-                            <div key={agent.id} className="animate-fade-in-up" style={{ animationDelay: `${index * 30}ms` }}>
+                            <div key={agent.id} className="animate-fade-in-up motion-reduce:animate-none" style={{ animationDelay: `${index * 30}ms` }}>
                                 <AgentCardErrorBoundary>
                                     <AgentCard
                                         agent={agent}
@@ -165,18 +198,18 @@ export function AgentPerformancePanel({
                                         onSelect={() => onToggleSelection(agent.id)}
                                         isSelected={selectedUserIds.has(agent.id)}
                                         onEdit={() => {
-                                            const user = users.find(u => u.id === agent.id);
+                                            const user = usersById.get(agent.id);
                                             if (user) onEditUser(user);
                                         }}
                                         onToggleActive={() => {
-                                            const user = users.find(u => u.id === agent.id);
+                                            const user = usersById.get(agent.id);
                                             if (user) {
                                                 onToggleActive({ userId: agent.id, isActive: !user.isActive });
                                             }
                                         }}
-                                        isActive={users.find(u => u.id === agent.id)?.isActive ?? true}
+                                        isActive={usersById.get(agent.id)?.isActive ?? true}
                                         onResetPassword={() => {
-                                            const user = users.find(u => u.id === agent.id);
+                                            const user = usersById.get(agent.id);
                                             if (user) { onResetPassword(user); }
                                         }}
                                     />
@@ -191,55 +224,15 @@ export function AgentPerformancePanel({
                         {/* P2-3: Sticky headers for better scroll experience */}
                         <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10 border-b border-[hsl(var(--border))]">
                             <tr>
-                                <th
-                                    onClick={() => onSort('fullName')}
-                                    className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    Agent {sortConfig.key === 'fullName' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
+                                <SortHeader label="Agent" sortKey="fullName" sortConfig={sortConfig} onSort={onSort} align="left" />
                                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Site</th>
-                                <th
-                                    onClick={() => onSort('openTickets')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    Open {sortConfig.key === 'openTickets' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th
-                                    onClick={() => onSort('inProgressTickets')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    In Progress {sortConfig.key === 'inProgressTickets' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th
-                                    onClick={() => onSort('appraisalPoints')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    Appraisal {sortConfig.key === 'appraisalPoints' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th
-                                    onClick={() => onSort('activeWorkloadPoints')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    Load Pts {sortConfig.key === 'activeWorkloadPoints' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th
-                                    onClick={() => onSort('resolvedThisWeek')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    Week {sortConfig.key === 'resolvedThisWeek' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th
-                                    onClick={() => onSort('resolvedThisMonth')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    Month {sortConfig.key === 'resolvedThisMonth' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th
-                                    onClick={() => onSort('slaCompliance')}
-                                    className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    SLA % {sortConfig.key === 'slaCompliance' && (sortConfig.dir === 'asc' ? '↑' : '↓')}
-                                </th>
+                                <SortHeader label="Open" sortKey="openTickets" sortConfig={sortConfig} onSort={onSort} />
+                                <SortHeader label="In Progress" sortKey="inProgressTickets" sortConfig={sortConfig} onSort={onSort} />
+                                <SortHeader label="Appraisal" sortKey="appraisalPoints" sortConfig={sortConfig} onSort={onSort} />
+                                <SortHeader label="Load Pts" sortKey="activeWorkloadPoints" sortConfig={sortConfig} onSort={onSort} />
+                                <SortHeader label="Week" sortKey="resolvedThisWeek" sortConfig={sortConfig} onSort={onSort} />
+                                <SortHeader label="Month" sortKey="resolvedThisMonth" sortConfig={sortConfig} onSort={onSort} />
+                                <SortHeader label="SLA %" sortKey="slaCompliance" sortConfig={sortConfig} onSort={onSort} />
                                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Role</th>
                                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Actions</th>
                             </tr>
@@ -266,32 +259,32 @@ export function AgentPerformancePanel({
                                         ) : '-'}
                                     </td>
                                     <td className="px-4 py-4 text-center">
-                                        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300">
+                                        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 tabular-nums">
                                             {agent.openTickets}
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-center">
-                                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400">
+                                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 tabular-nums">
                                             {agent.inProgressTickets}
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-center">
-                                        <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-sm font-medium text-amber-600 dark:text-amber-400">
+                                        <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-sm font-medium text-amber-600 dark:text-amber-400 tabular-nums">
                                             {agent.appraisalPoints || 0}
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-center">
-                                        <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 rounded-lg text-sm font-medium text-red-600 dark:text-red-400">
+                                        <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 tabular-nums">
                                             {agent.activeWorkloadPoints || 0}
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-center">
-                                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400">
+                                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400 tabular-nums">
                                             {agent.resolvedThisWeek}
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-center">
-                                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400">
+                                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-lg text-sm font-medium text-green-600 dark:text-green-400 tabular-nums">
                                             {agent.resolvedThisMonth}
                                         </span>
                                     </td>
@@ -300,13 +293,13 @@ export function AgentPerformancePanel({
                                             <Tooltip.Root delayDuration={200}>
                                                 <Tooltip.Trigger asChild>
                                                     <span className={cn(
-                                                        "px-2 py-1 rounded-lg text-sm font-medium cursor-help inline-flex items-center gap-1",
+                                                        "px-2 py-1 rounded-lg text-sm font-medium cursor-help inline-flex items-center gap-1 tabular-nums",
                                                         agent.slaCompliance >= 90 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
                                                             agent.slaCompliance >= 70 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
                                                                 "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                                                     )}>
                                                         {agent.slaCompliance}%
-                                                        <Info className="w-3 h-3 opacity-60" />
+                                                        <Info className="w-3 h-3 opacity-60" aria-hidden="true" />
                                                     </span>
                                                 </Tooltip.Trigger>
                                                 <Tooltip.Portal>
@@ -335,12 +328,13 @@ export function AgentPerformancePanel({
                                     </td>
                                     <td className="px-4 py-4 text-center">
                                         <button
-                                            onClick={() => onViewDetail(users.find(u => u.id === agent.id) || null)}
-                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                                            title="View Details"
-                                            aria-label="View Details"
+                                            type="button"
+                                            onClick={() => onViewDetail(usersById.get(agent.id) || null)}
+                                            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                                            title={`View details for ${agent.fullName}`}
+                                            aria-label={`View details for ${agent.fullName}`}
                                         >
-                                            <Eye className="w-4 h-4 text-slate-500" />
+                                            <Eye className="w-4 h-4 text-slate-500" aria-hidden="true" />
                                         </button>
                                     </td>
                                 </tr>

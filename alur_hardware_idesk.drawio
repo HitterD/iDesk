@@ -1,0 +1,148 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="hardware_flow" name="Alur Permintaan Hardware">
+    <mxGraphModel dx="1200" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Nodes -->
+        <mxCell id="start" value="USER Membuka&#10;Request Hardware" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input" value="Isi Item, Justifikasi,&#10;Recipient, Site" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="submit" value="Submit&#10;(Status: DRAFT -&gt; SUBMITTED)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="review" value="Approver Manager&#10;Review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="340" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_setuju" value="Disetujui?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="440" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rejected" value="Status -&gt; REJECTED&#10;(+ rejectReason &amp;amp; Notifikasi)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="450" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="approved" value="Status -&gt; APPROVED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="560" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="procured" value="Procurement Menandai&#10;PROCURED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="660" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="jadwal" value="Technician Menjadwalkan&#10;Instalasi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="760" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="proposed" value="InstallationSchedule&#10;Status -&gt; PROPOSED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="860" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pilih_slot" value="USER Pilih Slot&#10;dari proposedSlots" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="960" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="scheduled" value="Status -&gt; SCHEDULED&#10;(Kirim Reminder D-1 &amp;amp; D-0)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1060" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="teknisi_datang" value="Teknisi Datang &amp;amp; Menandai&#10;install_marked_done_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1160" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="awaiting" value="Status -&gt; AWAITING_USER_CONFIRMATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="1260" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_konfirmasi" value="USER Konfirmasi&#10;Dalam 24 Jam?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="1360" width="280" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="issue" value="Buat Tiket SERVICE Follow-up&#10;(+ Status Hold)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="1380" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cron_confirm" value="Cron install-auto-confirm&#10;(Tiap 5 menit menutup otomatis)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1370" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="completed" value="userConfirmedAt set&#10;Status -&gt; COMPLETED&#10;(completedAt)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="310" y="1520" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_1" edge="1" parent="1" source="start" target="input" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2" edge="1" parent="1" source="input" target="submit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3" edge="1" parent="1" source="submit" target="review" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_4" edge="1" parent="1" source="review" target="cek_setuju" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_5" value="Tidak" edge="1" parent="1" source="cek_setuju" target="rejected" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_6" value="Ya" edge="1" parent="1" source="cek_setuju" target="approved" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_7" edge="1" parent="1" source="approved" target="procured" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_8" edge="1" parent="1" source="procured" target="jadwal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_9" edge="1" parent="1" source="jadwal" target="proposed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_10" edge="1" parent="1" source="proposed" target="pilih_slot" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_11" edge="1" parent="1" source="pilih_slot" target="scheduled" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_12" edge="1" parent="1" source="scheduled" target="teknisi_datang" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_13" edge="1" parent="1" source="teknisi_datang" target="awaiting" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_14" edge="1" parent="1" source="awaiting" target="cek_konfirmasi" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_15" value="Ya, ACCEPT_AS_IS" edge="1" parent="1" source="cek_konfirmasi" target="completed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_16" value="Ya, REPORT_ISSUE" edge="1" parent="1" source="cek_konfirmasi" target="issue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_17" value="Tidak" edge="1" parent="1" source="cek_konfirmasi" target="cron_confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#d79b00;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="e_18" edge="1" parent="1" source="cron_confirm" target="completed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="120" y="1550" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

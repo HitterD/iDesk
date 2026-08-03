@@ -93,12 +93,13 @@ export class User {
     @JoinColumn({ name: 'siteId' })
     site: Site;
 
-    // Permission Preset tracking - which preset was last applied to this user
+    // Permission Preset tracking - which preset was last applied to this user.
+    // Nullable: cleared when an admin removes the preset (user falls back to role defaults).
     @Column({ type: 'varchar', nullable: true })
-    appliedPresetId: string;
+    appliedPresetId: string | null;
 
     @Column({ type: 'varchar', nullable: true })
-    appliedPresetName: string;
+    appliedPresetName: string | null;
 
     @ManyToOne(() => PermissionPreset, { nullable: true })
     @JoinColumn({ name: 'appliedPresetId' })

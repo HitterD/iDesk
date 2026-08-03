@@ -9,6 +9,13 @@ const FOCUSABLE_ELEMENTS = [
     '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
+/**
+ * Active traps, outermost first. Nested overlays (a ConfirmDialog inside a drawer)
+ * are portaled outside their parent's DOM subtree, so without this stack the parent
+ * trap would keep yanking focus back out of the child. Only the topmost trap enforces.
+ */
+const trapStack: HTMLElement[] = [];
+
 interface UseFocusTrapOptions {
     enabled?: boolean;
     initialFocus?: RefObject<HTMLElement>;
@@ -31,6 +38,14 @@ export function useFocusTrap<T extends HTMLElement>(
 
     const previousActiveElement = useRef<Element | null>(null);
 
+    // Read through a ref so an inline `onEscape={() => ...}` does not re-run the
+    // effect on every parent render — that tear-down/set-up cycle re-steals focus
+    // and fires the returnFocus path while the dialog is still open.
+    const onEscapeRef = useRef(onEscape);
+    useEffect(() => {
+        onEscapeRef.current = onEscape;
+    });
+
     useEffect(() => {
         if (!enabled || !containerRef.current) return;
 
@@ -38,6 +53,9 @@ export function useFocusTrap<T extends HTMLElement>(
 
         // Store the previously focused element
         previousActiveElement.current = document.activeElement;
+
+        trapStack.push(container);
+        const isTopmost = () => trapStack[trapStack.length - 1] === container;
 
         // Get all focusable elements
         const getFocusableElements = () => {
@@ -58,9 +76,11 @@ export function useFocusTrap<T extends HTMLElement>(
 
         // Handle keydown events
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isTopmost()) return;
+
             if (e.key === 'Escape' && escapeDeactivates) {
                 e.preventDefault();
-                onEscape?.();
+                onEscapeRef.current?.();
                 return;
             }
 
@@ -95,6 +115,7 @@ export function useFocusTrap<T extends HTMLElement>(
 
         // Handle focus events to keep focus within container
         const handleFocusIn = (e: FocusEvent) => {
+            if (!isTopmost()) return;
             if (!container.contains(e.target as Node)) {
                 const focusableElements = getFocusableElements();
                 if (focusableElements.length > 0) {
@@ -116,12 +137,15 @@ export function useFocusTrap<T extends HTMLElement>(
             document.removeEventListener('focusin', handleFocusIn);
             clearTimeout(timeoutId);
 
+            const stackIndex = trapStack.lastIndexOf(container);
+            if (stackIndex !== -1) trapStack.splice(stackIndex, 1);
+
             // Return focus to previously focused element
             if (returnFocus && previousActiveElement.current instanceof HTMLElement) {
                 previousActiveElement.current.focus();
             }
         };
-    }, [enabled, containerRef, initialFocus, returnFocus, escapeDeactivates, onEscape]);
+    }, [enabled, containerRef, initialFocus, returnFocus, escapeDeactivates]);
 }
 
 // Simple hook for just trapping focus without options

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, NavigateFunction } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Send, Paperclip, AlertCircle, Clock, Tag, Monitor, Box, FileText, Save, Trash2, Calendar, CheckCircle2, Ticket, HardDrive, DollarSign, PackageX, Wifi } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '../../../stores/useAuth';
+import { useMyPermissions } from '@/hooks/usePermissions';
 import { logger } from '@/lib/logger';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,8 +14,18 @@ import { IctBudgetForm } from '@/features/ticket-board/components/IctBudgetForm'
 import { LostItemForm } from '@/features/ticket-board/components/LostItemForm';
 import { AccessRequestForm } from '@/features/ticket-board/components/AccessRequestForm';
 import { useAvailableSlots } from '@/features/request-center/api/schedule.api';
+import { cn } from '@/lib/utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
+import {
+    MAX_ATTACHMENTS_PER_TICKET,
+    formatFileSize,
+    validateAttachmentFile,
+} from '@/lib/file-validation';
 
 const DRAFT_KEY = 'ticket-draft';
+/** Hardware installs must be booked at least one day ahead. */
+const MIN_SCHEDULE_LEAD_MS = 24 * 60 * 60 * 1000;
 
 interface TicketDraft {
     title: string;
@@ -34,10 +45,18 @@ interface SlaConfig {
     responseTimeMinutes: number;
 }
 
+/** Shape returned by GET /ticket-attributes (see backend ticket-attributes.service.ts). */
+interface TicketAttribute {
+    id: string;
+    type: string;
+    value: string;
+}
+
 interface TicketAttributes {
-    categories: string[];
-    devices: string[];
-    software: string[];
+    categories: TicketAttribute[];
+    priorities: TicketAttribute[];
+    devices: TicketAttribute[];
+    software: TicketAttribute[];
 }
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -60,19 +79,130 @@ const formatDuration = (minutes: number): string => {
 
 type TicketType = 'none' | 'service' | 'hardware' | 'ict-budget' | 'lost-item' | 'access-request' | 'oracle-request';
 
+const TICKET_TYPES: TicketType[] = ['none', 'service', 'hardware', 'ict-budget', 'lost-item', 'access-request', 'oracle-request'];
+const DRAFT_AUTOSAVE_DELAY_MS = 3_000;
+
+function getInitialTicketType(value: string | null): TicketType {
+    return value && TICKET_TYPES.includes(value as TicketType) ? value as TicketType : 'none';
+}
+
+interface TicketTypeCardActionArgs {
+    setTicketType: (type: TicketType) => void;
+    navigate: NavigateFunction;
+    getBasePath: () => string;
+}
+
+const TICKET_TYPE_CARDS: Array<{
+    key: string;
+    pageKey?: string;
+    eyebrow: string;
+    title: string;
+    description: string;
+    icon: typeof Ticket;
+    action: (args: TicketTypeCardActionArgs) => void;
+}> = [
+    {
+        key: 'service',
+        pageKey: 'tickets',
+        eyebrow: 'General Support',
+        title: 'Service Ticket',
+        description: 'Laporkan masalah hardware, software, jaringan, atau kebutuhan IT support umum lainnya.',
+        icon: Ticket,
+        action: ({ setTicketType }) => setTicketType('service'),
+    },
+    {
+        key: 'hardware-budget',
+        pageKey: 'hardware_requests',
+        eyebrow: 'Procurement',
+        title: 'Hardware & Budget',
+        description: 'Ajukan pembelian barang IT baru.',
+        icon: DollarSign,
+        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/hardware-requests`),
+    },
+    {
+        key: 'lost-item',
+        pageKey: 'lost_items',
+        eyebrow: 'Asset',
+        title: 'Lost Item Report',
+        description: 'Laporkan laptop, HP, ID card, kunci, atau barang hilang lainnya.',
+        icon: PackageX,
+        action: ({ setTicketType }) => setTicketType('lost-item'),
+    },
+    {
+        key: 'access-request',
+        pageKey: 'eform_access',
+        eyebrow: 'Network',
+        title: 'Access Request',
+        description: 'Minta akses WiFi, VPN, atau website dengan form approval.',
+        icon: Wifi,
+        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/eform-access/new`),
+    },
+    {
+        key: 'oracle-request',
+        eyebrow: 'Enterprise System',
+        title: 'Oracle / K2 Request',
+        description: 'Bantuan sistem Oracle, update role K2, atau isu ERP.',
+        icon: Box,
+        action: ({ setTicketType }) => setTicketType('oracle-request'),
+    },
+];
+
+const TicketTypeCard: React.FC<{
+    card: typeof TICKET_TYPE_CARDS[number];
+    index: number;
+    className?: string;
+    style?: React.CSSProperties;
+} & TicketTypeCardActionArgs> = ({ card, index, className = '', style, setTicketType, navigate, getBasePath }) => (
+    // Double-bezel: gradient hairline shell wrapping a solid inner core, concentric radii.
+    <div style={style} className={`p-px rounded-[1.4rem] bg-gradient-to-br from-primary/25 via-border to-accent/20 dark:from-primary/30 dark:via-border dark:to-accent/20 ${className}`}>
+        <button
+            type="button"
+            onClick={() => card.action({ setTicketType, navigate, getBasePath })}
+            aria-label={`Pilih ${card.title}`}
+            className="group relative flex flex-col justify-between w-full min-h-[44px] h-full overflow-hidden rounded-[calc(1.4rem-1px)] bg-white dark:bg-card p-6 text-left shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02] transition-all duration-300 motion-reduce:transition-none ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10 motion-reduce:transform-none active:scale-[0.98] active:duration-100"
+        >
+            <span className="absolute top-5 right-6 font-mono text-[11px] tracking-widest text-primary/25 dark:text-primary/30 select-none">
+                {String(index + 1).padStart(2, '0')}
+            </span>
+
+            <div>
+                <div className="w-[3.25rem] h-[3.25rem] rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center mb-5 transition-colors duration-300 group-hover:bg-primary group-hover:ring-primary">
+                    <card.icon className="w-6 h-6 text-primary transition-colors duration-300 group-hover:text-primary-foreground" aria-hidden="true" />
+                </div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-accent mb-1.5">{card.eyebrow}</p>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2 tracking-tight">{card.title}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    {card.description}
+                </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 mt-6 text-xs font-semibold text-primary opacity-0 -translate-x-1 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:opacity-100 group-hover:translate-x-0">
+                Pilih
+                <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-0.5">
+                    <ArrowLeft className="w-3 h-3 rotate-180" aria-hidden="true" />
+                </span>
+            </div>
+        </button>
+    </div>
+);
+
 export const BentoCreateTicketPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const { user } = useAuth();
+    const { data: myPermissions } = useMyPermissions();
     const [isLoading, setIsLoading] = useState(false);
     
-    const initialType = (searchParams.get('type') as TicketType) || 'none';
+    const initialType = getInitialTicketType(searchParams.get('type'));
     const [ticketType, setTicketType] = useState<TicketType>(initialType);
     
-    const [attributes, setAttributes] = useState<TicketAttributes>({ categories: [], devices: [], software: [] });
+    const [attributes, setAttributes] = useState<TicketAttributes>({ categories: [], priorities: [], devices: [], software: [] });
+    const [attributesError, setAttributesError] = useState(false);
     const [showAddModal, setShowAddModal] = useState<{ type: string; show: boolean }>({ type: '', show: false });
     const [newAttributeValue, setNewAttributeValue] = useState('');
+    const [isAddingAttribute, setIsAddingAttribute] = useState(false);
+    const addModalRef = useRef<HTMLDivElement>(null);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -82,6 +212,27 @@ export const BentoCreateTicketPage: React.FC = () => {
         software: '',
         criticalReason: '',
     });
+
+    const [errors, setErrors] = useState<{ title?: string; description?: string; hardwareDescription?: string }>({});
+    const titleRef = useRef<HTMLInputElement>(null);
+    const descriptionRef = useRef<HTMLTextAreaElement>(null);
+    const hardwareDescriptionRef = useRef<HTMLTextAreaElement>(null);
+
+    const validateTitle = (val: string) => {
+        const trimmed = val.trim();
+        if (trimmed.length > 0 && trimmed.length < 5) {
+            return 'Judul tiket minimal 5 karakter';
+        }
+        return undefined;
+    };
+
+    const validateDescription = (val: string) => {
+        const trimmed = val.trim();
+        if (trimmed.length > 0 && trimmed.length < 10) {
+            return 'Deskripsi tiket minimal 10 karakter';
+        }
+        return undefined;
+    };
 
     // Hardware installation state
     const [hardwareData, setHardwareData] = useState({
@@ -191,7 +342,7 @@ export const BentoCreateTicketPage: React.FC = () => {
 
         autoSaveTimerRef.current = setTimeout(() => {
             saveDraft();
-        }, 3000); // Auto-save after 3 seconds of inactivity
+        }, DRAFT_AUTOSAVE_DELAY_MS); // Auto-save after inactivity
 
         return () => {
             if (autoSaveTimerRef.current) {
@@ -223,16 +374,40 @@ export const BentoCreateTicketPage: React.FC = () => {
     const fetchAttributes = async () => {
         try {
             const res = await api.get('/ticket-attributes');
-            setAttributes(res.data);
+            setAttributes({
+                categories: res.data?.categories ?? [],
+                priorities: res.data?.priorities ?? [],
+                devices: res.data?.devices ?? [],
+                software: res.data?.software ?? [],
+            });
+            setAttributesError(false);
         } catch (error) {
+            // Surfaced in the UI: silently-empty dropdowns look like "no options exist".
             logger.error('Failed to fetch attributes:', error);
+            setAttributesError(true);
         }
     };
 
+    // Stable identity: useFocusTrap re-runs its effect whenever onEscape changes.
+    const handleCloseAddModal = useCallback(() => {
+        setShowAddModal({ type: '', show: false });
+        setNewAttributeValue('');
+    }, []);
+
+    useFocusTrap(addModalRef, { enabled: showAddModal.show, onEscape: handleCloseAddModal });
+
+    useEffect(() => {
+        if (!showAddModal.show) return;
+        lockBodyScroll();
+        return unlockBodyScroll;
+    }, [showAddModal.show]);
+
     const handleAddAttribute = async () => {
-        if (!newAttributeValue.trim()) return;
+        // Enter-to-submit plus a click could fire this twice and create duplicates.
+        if (!newAttributeValue.trim() || isAddingAttribute) return;
+        setIsAddingAttribute(true);
         try {
-            await api.post('/ticket-attributes', { type: showAddModal.type, value: newAttributeValue });
+            await api.post('/ticket-attributes', { type: showAddModal.type, value: newAttributeValue.trim() });
             toast.success('Attribute added successfully');
             setNewAttributeValue('');
             setShowAddModal({ type: '', show: false });
@@ -240,6 +415,8 @@ export const BentoCreateTicketPage: React.FC = () => {
         } catch (error: any) {
             logger.error('Failed to add attribute:', error);
             toast.error(error.response?.data?.message || 'Failed to add attribute');
+        } finally {
+            setIsAddingAttribute(false);
         }
     };
 
@@ -248,14 +425,68 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     const selectedSla = slaConfigs.find(s => s.priority === formData.priority);
 
+    /**
+     * Appends to the current selection instead of replacing it, and rejects files
+     * the backend would refuse anyway (10MB each, 5 total, whitelisted types) so the
+     * user finds out before the upload rather than after it.
+     */
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setFiles(Array.from(e.target.files));
+        const picked = Array.from(e.target.files ?? []);
+        e.target.value = ''; // allow re-picking the same file after a removal
+        if (picked.length === 0) return;
+
+        const accepted: File[] = [];
+        for (const file of picked) {
+            if (files.length + accepted.length >= MAX_ATTACHMENTS_PER_TICKET) {
+                toast.error(`Maksimal ${MAX_ATTACHMENTS_PER_TICKET} lampiran`);
+                break;
+            }
+            const isDuplicate = [...files, ...accepted].some(
+                (f) => f.name === file.name && f.size === file.size,
+            );
+            if (isDuplicate) continue;
+
+            const result = validateAttachmentFile(file);
+            if (!result.valid) {
+                toast.error(`${file.name}: ${result.error}`);
+                continue;
+            }
+            accepted.push(file);
         }
+
+        if (accepted.length > 0) setFiles((prev) => [...prev, ...accepted]);
+    };
+
+    const handleRemoveFile = (index: number) => {
+        setFiles((prev) => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Client-side validation checks
+        if (ticketType === 'service' || ticketType === 'oracle-request') {
+            const titleErr = validateTitle(formData.title) || (formData.title.trim().length === 0 ? 'Judul tiket wajib diisi (minimal 5 karakter)' : undefined);
+            const descErr = validateDescription(formData.description) || (formData.description.trim().length === 0 ? 'Deskripsi tiket wajib diisi (minimal 10 karakter)' : undefined);
+
+            if (titleErr || descErr) {
+                setErrors({ title: titleErr, description: descErr });
+                toast.error(titleErr || descErr || 'Mohon lengkapi formulir sesuai ketentuan minimal karakter.');
+                // Browser native validation does not cover minimum character rules.
+                // Move focus to exact field instead of leaving it on Submit.
+                (titleErr ? titleRef : descriptionRef).current?.focus();
+                return;
+            }
+        } else if (ticketType === 'hardware') {
+            const descErr = validateDescription(hardwareData.description) || (hardwareData.description.trim().length === 0 ? 'Keterangan hardware wajib diisi (minimal 10 karakter)' : undefined);
+            if (descErr) {
+                setErrors({ hardwareDescription: descErr });
+                toast.error(descErr);
+                hardwareDescriptionRef.current?.focus();
+                return;
+            }
+        }
+
         setIsLoading(true);
         try {
             const formDataToSend = new FormData();
@@ -300,8 +531,14 @@ export const BentoCreateTicketPage: React.FC = () => {
                 },
             });
 
-            // Clear draft on successful submission
-            localStorage.removeItem(DRAFT_KEY);
+            // Only the service form autosaves a draft, so only a service submit may clear it.
+            // Clearing unconditionally would destroy an unrelated service draft when a
+            // hardware or oracle ticket is submitted.
+            if (ticketType === 'service') {
+                localStorage.removeItem(DRAFT_KEY);
+                setHasDraft(false);
+                setLastSaved(null);
+            }
 
             toast.success(ticketType === 'hardware' ? 'Hardware Installation scheduled!' : 'Ticket created successfully!');
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -310,7 +547,7 @@ export const BentoCreateTicketPage: React.FC = () => {
 
             // Oracle/K2 requests: agent_oracle/admin go to the dedicated queue, USER/others go to my-tickets
             if (ticketType === 'oracle-request') {
-                if (user?.role === 'AGENT_ORACLE' || user?.role === 'ADMIN') {
+                if (user?.role === 'ADMIN') {
                     navigate('/tickets/oracle-k2');
                 } else {
                     navigate('/client/my-tickets');
@@ -320,13 +557,58 @@ export const BentoCreateTicketPage: React.FC = () => {
             } else {
                 navigate('/client/my-tickets');
             }
-        } catch (error) {
+        } catch (error: any) {
             logger.error('Failed to create ticket:', error);
-            toast.error('Failed to create ticket. Please try again.');
+            const serverMsg = error.response?.data?.message;
+            if (Array.isArray(serverMsg)) {
+                toast.error(`Gagal membuat tiket: ${serverMsg.join(', ')}`);
+            } else if (typeof serverMsg === 'string') {
+                toast.error(`Gagal membuat tiket: ${serverMsg}`);
+            } else {
+                toast.error('Gagal membuat tiket. Silakan periksa kembali formulir Anda.');
+            }
         } finally {
             setIsLoading(false);
         }
     };
+
+    // Helper to check page access permission from preset / defaults
+    const canAccessPage = useCallback((pageKey?: string): boolean => {
+        if (!pageKey) return true;
+        if (user?.role === 'ADMIN') return true;
+
+        if (myPermissions?.pageAccess) {
+            return myPermissions.pageAccess[pageKey] === true;
+        }
+
+        const roleDefaults: Record<string, string[]> = {
+            USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
+            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
+            AGENT_ORACLE: ['oracle_k2_tickets', 'notifications'],
+            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],
+        };
+
+        const userRole = (user?.role || 'USER') as string;
+        return (roleDefaults[userRole] || roleDefaults['USER']).includes(pageKey);
+    }, [user?.role, myPermissions?.pageAccess]);
+
+    // Direct access guard (URL params e.g. ?type=lost-item)
+    useEffect(() => {
+        if (ticketType === 'lost-item' && !canAccessPage('lost_items')) {
+            toast.error('Anda tidak memiliki akses ke halaman Lost Items');
+            setTicketType('none');
+        }
+        if ((ticketType === 'hardware' || ticketType === 'ict-budget') && !canAccessPage('hardware_requests')) {
+            toast.error('Anda tidak memiliki akses ke halaman Hardware Requests');
+            setTicketType('none');
+        }
+        if (ticketType === 'access-request' && !canAccessPage('eform_access')) {
+            toast.error('Anda tidak memiliki akses ke halaman E-Form Access');
+            setTicketType('none');
+        }
+    }, [ticketType, canAccessPage]);
 
     const handleBack = () => {
         if (ticketType !== 'none') {
@@ -340,124 +622,68 @@ export const BentoCreateTicketPage: React.FC = () => {
     if (ticketType === 'none') {
         const getBasePath = () => location.pathname.startsWith('/client') ? '/client' : location.pathname.startsWith('/manager') ? '/manager' : '';
 
+        const visibleCards = TICKET_TYPE_CARDS.filter(card => canAccessPage(card.pageKey));
+
+        const getCardGridClass = (cardIndex: number, totalCards: number) => {
+            if (totalCards === 5) {
+                return `md:col-span-2 ${cardIndex === 3 ? 'md:col-start-2' : ''}`;
+            }
+            if (totalCards === 4) {
+                return `md:col-span-3`;
+            }
+            if (totalCards === 3) {
+                return `md:col-span-2`;
+            }
+            if (totalCards === 2) {
+                return `md:col-span-3`;
+            }
+            return `md:col-span-6 max-w-md mx-auto`;
+        };
+
         return (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-6 lg:space-y-8 animate-in fade-in duration-500">
+            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-8 lg:space-y-10 animate-in fade-in duration-500">
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <button
+                        type="button"
                         onClick={() => navigate(-1)}
+                        aria-label="Go back"
                         className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">Create New Ticket</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm">Choose the type of request</p>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary mb-0.5">New Request</p>
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">Buat Tiket Baru</h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">Pilih jenis kebutuhan Anda di bawah ini</p>
                     </div>
                 </div>
 
-                {/* Ticket Type Selection Cards (Refined Industrial) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {/* Service Ticket Card */}
-                    <button
-                        onClick={() => setTicketType('service')}
-                        className="group flex flex-col p-7 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-left relative overflow-hidden"
-                    >
-                        <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/20 transition-colors relative z-10">
-                            <Ticket className="w-7 h-7 text-primary" />
-                        </div>
-                        <h2 className="text-base font-semibold text-slate-800 dark:text-white mb-2 tracking-tight relative z-10">Service Ticket</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[90%] mb-6 relative z-10">
-                            Report issues with hardware, software, network, or general IT support.
-                        </p>
-                        <div className="mt-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 text-primary text-xs font-bold group-hover:bg-primary group-hover:text-slate-900 transition-colors relative z-10 w-fit">
-                            <span>Start Request</span>
-                            <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-                    </button>
-
-                    {/* Hardware Request Card */}
-                    <button
-                        onClick={() => navigate(`${getBasePath()}/hardware-requests`)}
-                        className="group flex flex-col p-7 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 hover:shadow-xl hover:-translate-y-1 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-left relative overflow-hidden"
-                    >
-                        <div className="w-14 h-14 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-5 group-hover:bg-emerald-500/20 transition-colors relative z-10">
-                            <DollarSign className="w-7 h-7 text-emerald-500" />
-                        </div>
-                        <h2 className="text-base font-semibold text-slate-800 dark:text-white mb-2 tracking-tight relative z-10">Hardware & Budget</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[90%] mb-6 relative z-10">
-                            Ajukan pembelian barang IT baru (Procurement).
-                        </p>
-                        <div className="mt-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold group-hover:bg-emerald-500 group-hover:text-white transition-colors relative z-10 w-fit">
-                            <span>Create Request</span>
-                            <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-                    </button>
-
-                    {/* Lost Item Card */}
-                    <button
-                        onClick={() => setTicketType('lost-item')}
-                        className="group flex flex-col p-7 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-rose-500/50 hover:shadow-xl hover:-translate-y-1 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-left relative overflow-hidden"
-                    >
-                        <div className="w-14 h-14 rounded-xl bg-rose-500/10 flex items-center justify-center mb-5 group-hover:bg-rose-500/20 transition-colors relative z-10">
-                            <PackageX className="w-7 h-7 text-rose-500" />
-                        </div>
-                        <h2 className="text-base font-semibold text-slate-800 dark:text-white mb-2 tracking-tight relative z-10">Lost Item Report</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[90%] mb-6 relative z-10">
-                            Report lost laptop, phone, ID card, keys, or other items.
-                        </p>
-                        <div className="mt-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500/5 text-rose-600 dark:text-rose-400 text-xs font-bold group-hover:bg-rose-500 group-hover:text-white transition-colors relative z-10 w-fit">
-                            <span>Report Item</span>
-                            <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-                    </button>
-
-                    {/* Access Request Card (Now Sky Blue) */}
-                    <button
-                        onClick={() => navigate(`${getBasePath()}/eform-access/new`)}
-                        className="group flex flex-col p-7 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-sky-500/50 hover:shadow-xl hover:-translate-y-1 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-left relative overflow-hidden"
-                    >
-                        <div className="w-14 h-14 rounded-xl bg-sky-500/10 flex items-center justify-center mb-5 group-hover:bg-sky-500/20 transition-colors relative z-10">
-                            <Wifi className="w-7 h-7 text-sky-500" />
-                        </div>
-                        <h2 className="text-base font-semibold text-slate-800 dark:text-white mb-2 tracking-tight relative z-10">Access Request</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[90%] mb-6 relative z-10">
-                            Request WiFi, VPN, or website access with approval form.
-                        </p>
-                        <div className="mt-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-sky-500/5 text-sky-600 dark:text-sky-400 text-xs font-bold group-hover:bg-sky-500 group-hover:text-white transition-colors relative z-10 w-fit">
-                            <span>Request Access</span>
-                            <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-                    </button>
-
-                    {/* Oracle/K2 Card */}
-                    <button
-                        onClick={() => setTicketType('oracle-request')}
-                        className="group flex flex-col p-7 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-cyan-600/50 hover:shadow-xl hover:-translate-y-1 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-left relative overflow-hidden"
-                    >
-                        <div className="w-14 h-14 rounded-xl bg-cyan-600/10 flex items-center justify-center mb-5 group-hover:bg-cyan-600/20 transition-colors relative z-10">
-                            <Box className="w-7 h-7 text-cyan-600" />
-                        </div>
-                        <h2 className="text-base font-semibold text-slate-800 dark:text-white mb-2 tracking-tight relative z-10">Oracle / K2 Request</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[90%] mb-6 relative z-10">
-                            Request Oracle system assistance, K2 role updates, or ERP issues.
-                        </p>
-                        <div className="mt-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-600/5 text-cyan-600 dark:text-cyan-400 text-xs font-bold group-hover:bg-cyan-600 group-hover:text-white transition-colors relative z-10 w-fit">
-                            <span>Request Support</span>
-                            <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-                    </button>
+                {/* Ticket Type Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-5">
+                    {visibleCards.map((card, idx) => (
+                        <TicketTypeCard
+                            key={card.key}
+                            card={card}
+                            index={idx}
+                            setTicketType={setTicketType}
+                            navigate={navigate}
+                            getBasePath={getBasePath}
+                            className={`animate-in fade-in slide-in-from-bottom-3 fill-mode-both ${getCardGridClass(idx, visibleCards.length)}`}
+                            style={{ animationDelay: `${idx * 60}ms`, animationDuration: '500ms' }}
+                        />
+                    ))}
                 </div>
 
                 {/* Info Guidance Strip */}
-                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 flex gap-4 items-center shadow-sm">
-                    <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl text-slate-400 shadow-sm border border-slate-200 dark:border-slate-700 shrink-0">
+                <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent p-5 flex gap-4 items-center">
+                    <div className="p-2.5 bg-white dark:bg-card rounded-xl text-primary shadow-sm ring-1 ring-primary/10 shrink-0">
                         <AlertCircle className="w-5 h-5" />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-1">Select the most relevant ticket type</h4>
+                        <h4 className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-1">Pilih jenis tiket yang paling sesuai</h4>
                         <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
-                            Each ticket type routes to a specialized team. If unsure, default to <span className="font-semibold text-slate-700 dark:text-slate-300">Service Ticket</span> for general IT support.
+                            Tiap jenis tiket masuk ke tim yang berbeda. Kalau ragu, pilih <span className="font-semibold text-slate-700 dark:text-slate-300">Service Ticket</span> untuk IT support umum.
                         </p>
                     </div>
                 </div>
@@ -472,10 +698,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                 {/* Header - Compact */}
                 <div className="flex items-center gap-4">
                     <button
+                        type="button"
                         onClick={handleBack}
+                        aria-label="Back to request types"
                         className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl shadow-sm">
@@ -537,20 +765,45 @@ export const BentoCreateTicketPage: React.FC = () => {
 
                             {/* Description - Auto Expand */}
                             <div>
-                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5 uppercase tracking-wide">
-                                    <FileText className="w-4 h-4 text-emerald-500" /> Keterangan Hardware *
-                                </label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                        <FileText className="w-4 h-4 text-emerald-500" /> Keterangan Hardware *
+                                    </label>
+                                    <span className={cn(
+                                        "text-xs font-mono font-semibold",
+                                        hardwareData.description.length > 0 && hardwareData.description.trim().length < 10
+                                            ? "text-red-500 font-bold"
+                                            : "text-slate-400"
+                                    )}>
+                                        {hardwareData.description.trim().length}/10 min
+                                    </span>
+                                </div>
                                 <textarea
+                                    ref={hardwareDescriptionRef}
                                     required
+                                    maxLength={5000}
                                     value={hardwareData.description}
                                     onChange={(e) => {
-                                        setHardwareData({ ...hardwareData, description: e.target.value });
+                                        const val = e.target.value;
+                                        setHardwareData({ ...hardwareData, description: val });
+                                        setErrors(prev => ({ ...prev, hardwareDescription: validateDescription(val) }));
                                         e.target.style.height = 'auto';
                                         e.target.style.height = Math.max(100, e.target.scrollHeight) + 'px';
                                     }}
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/30 outline-none transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm resize-none min-h-[100px] text-slate-800 dark:text-white"
-                                    placeholder="Jelaskan detail hardware, lokasi spesifik, atau instruksi instalasi..."
+                                    className={cn(
+                                        "w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm outline-none transition-colors shadow-sm resize-none min-h-[100px] text-slate-800 dark:text-white",
+                                        errors.hardwareDescription
+                                            ? "border-red-500 focus:ring-2 focus:ring-red-500/30"
+                                            : "border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500/30"
+                                    )}
+                                    placeholder="Jelaskan detail hardware, lokasi spesifik, atau instruksi instalasi (minimal 10 karakter)..."
                                 />
+                                {errors.hardwareDescription && (
+                                    <p className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
+                                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                        {errors.hardwareDescription}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Attachments */}
@@ -576,9 +829,15 @@ export const BentoCreateTicketPage: React.FC = () => {
                                 </label>
                                 <ModernDatePicker
                                     value={hardwareData.scheduledDate ? parseISO(hardwareData.scheduledDate) : undefined}
-                                    onChange={(date) => setHardwareData({ ...hardwareData, scheduledDate: format(date, 'yyyy-MM-dd') })}
+                                    onChange={(date) => setHardwareData({
+                                        ...hardwareData,
+                                        scheduledDate: format(date, 'yyyy-MM-dd'),
+                                        // Available slots depend on date. Keeping the old selection
+                                        // submits a time that may no longer be offered for the new day.
+                                        scheduledTime: '',
+                                    })}
                                     placeholder="Select optimal date"
-                                    minDate={new Date(Date.now() + 86400000)}
+                                    minDate={new Date(Date.now() + MIN_SCHEDULE_LEAD_MS)}
                                     triggerClassName="w-full px-4 py-3 text-sm bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl font-medium shadow-sm"
                                 />
                             </div>
@@ -693,10 +952,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                 {/* Header - Compact */}
                 <div className="flex items-center gap-3">
                     <button
+                        type="button"
                         onClick={handleBack}
+                        aria-label="Back to request types"
                         className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
@@ -743,10 +1004,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                 {/* Header - Compact */}
                 <div className="flex items-center gap-3">
                     <button
+                        type="button"
                         onClick={handleBack}
+                        aria-label="Back to request types"
                         className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <div className="p-1.5 bg-red-100 dark:bg-red-900/50 rounded-lg">
@@ -793,10 +1056,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                 {/* Header - Compact */}
                 <div className="flex items-center gap-3">
                     <button
+                        type="button"
                         onClick={handleBack}
+                        aria-label="Back to request types"
                         className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <div className="p-1.5 bg-sky-100 dark:bg-sky-900/50 rounded-lg">
@@ -834,7 +1099,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                             onClick={handleBack}
                             className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                         >
-                            <ArrowLeft className="w-5 h-5" />
+                            <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                         </button>
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl shadow-sm">
@@ -869,35 +1134,87 @@ export const BentoCreateTicketPage: React.FC = () => {
                     <div className="space-y-6">
                         {/* Title */}
                         <div>
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5 uppercase tracking-wide">
-                                <FileText className="w-4 h-4 text-cyan-500" /> Subject / Title *
-                            </label>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                    <FileText className="w-4 h-4 text-cyan-500" /> Subject / Title *
+                                </label>
+                                <span className={cn(
+                                    "text-xs font-mono font-semibold",
+                                    formData.title.length > 0 && formData.title.trim().length < 5
+                                        ? "text-red-500 font-bold"
+                                        : "text-slate-400"
+                                )}>
+                                    {formData.title.trim().length}/5 min
+                                </span>
+                            </div>
                             <input
+                                ref={titleRef}
                                 type="text"
                                 required
+                                maxLength={200}
                                 value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/40 outline-none transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm font-medium text-slate-800 dark:text-white"
-                                placeholder="E.g., Account Locked, Role Missing, Transaction Failed"
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setFormData({ ...formData, title: val });
+                                    setErrors(prev => ({ ...prev, title: validateTitle(val) }));
+                                }}
+                                className={cn(
+                                    "w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm outline-none transition-colors shadow-sm font-medium text-slate-800 dark:text-white",
+                                    errors.title
+                                        ? "border-red-500 focus:ring-2 focus:ring-red-500/30"
+                                        : "border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500/40"
+                                )}
+                                placeholder="E.g., Account Locked, Role Missing, Transaction Failed (minimal 5 karakter)..."
                             />
+                            {errors.title && (
+                                <p className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    {errors.title}
+                                </p>
+                            )}
                         </div>
 
                         {/* Description */}
                         <div>
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5 uppercase tracking-wide">
-                                <FileText className="w-4 h-4 text-cyan-500" /> Detail Kebutuhan / Error *
-                            </label>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                    <FileText className="w-4 h-4 text-cyan-500" /> Detail Kebutuhan / Error *
+                                </label>
+                                <span className={cn(
+                                    "text-xs font-mono font-semibold",
+                                    formData.description.length > 0 && formData.description.trim().length < 10
+                                        ? "text-red-500 font-bold"
+                                        : "text-slate-400"
+                                )}>
+                                    {formData.description.trim().length}/10 min
+                                </span>
+                            </div>
                             <textarea
+                                ref={descriptionRef}
                                 required
+                                maxLength={5000}
                                 value={formData.description}
                                 onChange={(e) => {
-                                    setFormData({ ...formData, description: e.target.value });
+                                    const val = e.target.value;
+                                    setFormData({ ...formData, description: val });
+                                    setErrors(prev => ({ ...prev, description: validateDescription(val) }));
                                     e.target.style.height = 'auto';
                                     e.target.style.height = Math.max(120, e.target.scrollHeight) + 'px';
                                 }}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/40 outline-none transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm resize-none min-h-[120px] text-slate-800 dark:text-white leading-relaxed"
-                                placeholder="Tuliskan secara lengkap error atau kebutuhan spesifik sistem. Lampirkan URL atau Error Code jika tersedia..."
+                                className={cn(
+                                    "w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm outline-none transition-colors shadow-sm resize-none min-h-[120px] text-slate-800 dark:text-white leading-relaxed",
+                                    errors.description
+                                        ? "border-red-500 focus:ring-2 focus:ring-red-500/30"
+                                        : "border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500/40"
+                                )}
+                                placeholder="Tuliskan secara lengkap error atau kebutuhan spesifik sistem (minimal 10 karakter)..."
                             />
+                            {errors.description && (
+                                <p className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    {errors.description}
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
@@ -991,10 +1308,12 @@ export const BentoCreateTicketPage: React.FC = () => {
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <button
+                        type="button"
                         onClick={handleBack}
+                        aria-label="Back to request types"
                         className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl shadow-sm border border-amber-200/50">
@@ -1044,65 +1363,162 @@ export const BentoCreateTicketPage: React.FC = () => {
                     {/* LEFT COLUMN - Subject & Description (5 cols) */}
                     <div className="lg:col-span-5 space-y-6">
                         <div>
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5 uppercase tracking-wide">
-                                <FileText className="w-4 h-4 text-amber-500" />
-                                Subject *
-                            </label>
+                            <div className="flex justify-between items-center mb-2">
+                                <label htmlFor="service-ticket-title" className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                    <FileText className="w-4 h-4 text-amber-500" aria-hidden="true" />
+                                    Subject *
+                                </label>
+                                <span className={cn(
+                                    "text-xs font-mono font-semibold",
+                                    formData.title.length > 0 && formData.title.trim().length < 5
+                                        ? "text-red-500 font-bold"
+                                        : "text-slate-400"
+                                )}>
+                                    {formData.title.trim().length}/5 min
+                                </span>
+                            </div>
                             <input
+                                id="service-ticket-title"
+                                ref={titleRef}
                                 type="text"
                                 required
+                                maxLength={200}
                                 value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                className="w-full px-4 py-3 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-amber-500/30 outline-none text-slate-800 dark:text-white placeholder:text-slate-400 shadow-sm"
-                                placeholder="Summary of the issue..."
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setFormData({ ...formData, title: val });
+                                    setErrors(prev => ({ ...prev, title: validateTitle(val) }));
+                                }}
+                                aria-invalid={Boolean(errors.title)}
+                                aria-describedby={errors.title ? 'service-ticket-title-error' : undefined}
+                                className={cn(
+                                    "w-full px-4 py-3 h-12 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm font-medium outline-none text-slate-800 dark:text-white placeholder:text-slate-400 shadow-sm transition-colors",
+                                    errors.title
+                                        ? "border-red-500 focus:ring-2 focus:ring-red-500/30"
+                                        : "border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500/30"
+                                )}
+                                placeholder="Summary of the issue (minimal 5 karakter)..."
                             />
+                            {errors.title && (
+                                <p className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    {errors.title}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex-1">
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 block flex items-center gap-1.5 uppercase tracking-wide">
-                                <FileText className="w-4 h-4 text-amber-500" />
-                                Description *
-                            </label>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                    <FileText className="w-4 h-4 text-amber-500" />
+                                    Description *
+                                </label>
+                                <span className={cn(
+                                    "text-xs font-mono font-semibold",
+                                    formData.description.length > 0 && formData.description.trim().length < 10
+                                        ? "text-red-500 font-bold"
+                                        : "text-slate-400"
+                                )}>
+                                    {formData.description.trim().length}/10 min
+                                </span>
+                            </div>
                             <textarea
+                                ref={descriptionRef}
                                 required
+                                maxLength={5000}
                                 value={formData.description}
                                 onChange={(e) => {
-                                    setFormData({ ...formData, description: e.target.value });
+                                    const val = e.target.value;
+                                    setFormData({ ...formData, description: val });
+                                    setErrors(prev => ({ ...prev, description: validateDescription(val) }));
                                     e.target.style.height = 'auto';
                                     e.target.style.height = Math.max(140, e.target.scrollHeight) + 'px';
                                 }}
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-amber-500/30 outline-none text-slate-800 dark:text-white placeholder:text-slate-400 shadow-sm resize-none min-h-[140px] leading-relaxed"
-                                placeholder="Include any error message, exact steps leading to the issue, or other context..."
+                                className={cn(
+                                    "w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm font-medium outline-none text-slate-800 dark:text-white placeholder:text-slate-400 shadow-sm resize-none min-h-[140px] leading-relaxed transition-colors",
+                                    errors.description
+                                        ? "border-red-500 focus:ring-2 focus:ring-red-500/30"
+                                        : "border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500/30"
+                                )}
+                                placeholder="Include any error message, exact steps leading to the issue, or other context (minimal 10 karakter)..."
                                 style={{ height: 'auto', minHeight: '140px' }}
                             />
+                            {errors.description && (
+                                <p className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    {errors.description}
+                                </p>
+                            )}
                         </div>
 
                         {/* File Upload Region */}
                         <div>
-                            <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                            <input
+                                type="file"
+                                multiple
+                                ref={fileInputRef}
+                                className="hidden"
+                                onChange={handleFileChange}
+                                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+                            />
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-full h-[60px] flex items-center justify-center gap-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-slate-500 hover:text-amber-700 dark:hover:text-amber-400 font-semibold text-sm transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
+                                disabled={files.length >= MAX_ATTACHMENTS_PER_TICKET}
+                                className="w-full h-[60px] flex items-center justify-center gap-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-slate-500 hover:text-amber-700 dark:hover:text-amber-400 font-semibold text-sm transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm disabled:opacity-50 disabled:hover:border-slate-200"
                             >
                                 <Paperclip className="w-5 h-5" />
-                                {files.length > 0 ? `${files.length} file(s) attached` : 'Drop files here or Click to attach'}
+                                {files.length >= MAX_ATTACHMENTS_PER_TICKET
+                                    ? `Batas ${MAX_ATTACHMENTS_PER_TICKET} lampiran tercapai`
+                                    : 'Drop files here or Click to attach'}
                             </button>
+                            <p className="text-[11px] text-slate-400 mt-1.5">
+                                Maks {MAX_ATTACHMENTS_PER_TICKET} file, 10 MB per file. PDF, gambar, dokumen Office, txt, csv, zip.
+                            </p>
                             {files.length > 0 && (
-                                <p className="text-[11px] font-medium text-slate-500 mt-2 truncate max-w-full italic">{files.map(f => f.name).join(', ')}</p>
+                                <ul className="mt-2 space-y-1.5">
+                                    {files.map((file, index) => (
+                                        <li
+                                            key={`${file.name}-${file.size}`}
+                                            className="flex items-center gap-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-1 py-1"
+                                        >
+                                            <span className="truncate flex-1" title={file.name}>{file.name}</span>
+                                            <span className="shrink-0 text-slate-400">{formatFileSize(file.size)}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveFile(index)}
+                                                aria-label={`Hapus lampiran ${file.name}`}
+                                                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
                             )}
                         </div>
                     </div>
 
                     {/* CENTER COLUMN - Classification (3 cols) */}
                     <div className="lg:col-span-3 space-y-6">
+                        {attributesError && (
+                            <div role="alert" className="flex items-start gap-2 text-xs bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl p-3">
+                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="font-semibold">Gagal memuat daftar kategori/device/software.</p>
+                                    <button type="button" onClick={fetchAttributes} className="underline font-bold mt-1">
+                                        Coba lagi
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         <div>
                             <div className="flex justify-between items-center mb-3">
                                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
                                     <Tag className="w-4 h-4 text-amber-500" /> Category
                                 </label>
                                 {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                    <button type="button" onClick={() => setShowAddModal({ type: 'CATEGORY', show: true })} className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase tracking-wider hover:bg-amber-100">+ Add</button>
+                                    <button type="button" onClick={() => setShowAddModal({ type: 'CATEGORY', show: true })} className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 min-h-[32px] px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-amber-100 dark:hover:bg-amber-900/40">+ Add</button>
                                 )}
                             </div>
                             <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
@@ -1114,7 +1530,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <SelectItem value="HARDWARE">Hardware</SelectItem>
                                     <SelectItem value="SOFTWARE">Software</SelectItem>
                                     <SelectItem value="NETWORK">Network</SelectItem>
-                                    {attributes.categories?.map((attr: any) => (
+                                    {attributes.categories?.map((attr) => (
                                         <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -1127,7 +1543,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <Monitor className="w-4 h-4 text-amber-500" /> Device
                                 </label>
                                 {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                    <button type="button" onClick={() => setShowAddModal({ type: 'DEVICE', show: true })} className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase tracking-wider hover:bg-amber-100">+ Add</button>
+                                    <button type="button" onClick={() => setShowAddModal({ type: 'DEVICE', show: true })} className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 min-h-[32px] px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-amber-100 dark:hover:bg-amber-900/40">+ Add</button>
                                 )}
                             </div>
                             <Select value={formData.device} onValueChange={(value) => setFormData({ ...formData, device: value })}>
@@ -1135,7 +1551,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <SelectValue placeholder="Choose device (optional)" />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-700 font-medium">
-                                    {attributes.devices?.map((attr: any) => (
+                                    {attributes.devices?.map((attr) => (
                                         <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -1148,7 +1564,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <Box className="w-4 h-4 text-amber-500" /> Software
                                 </label>
                                 {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                    <button type="button" onClick={() => setShowAddModal({ type: 'SOFTWARE', show: true })} className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase tracking-wider hover:bg-amber-100">+ Add</button>
+                                    <button type="button" onClick={() => setShowAddModal({ type: 'SOFTWARE', show: true })} className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 min-h-[32px] px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-amber-100 dark:hover:bg-amber-900/40">+ Add</button>
                                 )}
                             </div>
                             <Select value={formData.software} onValueChange={(value) => setFormData({ ...formData, software: value })}>
@@ -1156,7 +1572,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     <SelectValue placeholder="Choose app (optional)" />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-700 font-medium">
-                                    {attributes.software?.map((attr: any) => (
+                                    {attributes.software?.map((attr) => (
                                         <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -1276,13 +1692,20 @@ export const BentoCreateTicketPage: React.FC = () => {
 
             {/* Add Attribute Modal */}
             {showAddModal.show && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl w-[400px] border border-slate-200 dark:border-slate-700 shadow-2xl animate-in zoom-in-95 duration-300">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">Add New {showAddModal.type}</h3>
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200 p-4">
+                    <div
+                        ref={addModalRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="add-attribute-title"
+                        className="bg-white dark:bg-slate-800 p-8 rounded-2xl w-full max-w-[400px] border border-slate-200 dark:border-slate-700 shadow-2xl animate-in zoom-in-95 duration-300"
+                    >
+                        <h3 id="add-attribute-title" className="text-xl font-bold text-slate-800 dark:text-white mb-6">Add New {showAddModal.type}</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">{showAddModal.type} Name</label>
+                                <label htmlFor="new-attribute-value" className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">{showAddModal.type} Name</label>
                                 <input
+                                    id="new-attribute-value"
                                     type="text"
                                     value={newAttributeValue}
                                     onChange={(e) => setNewAttributeValue(e.target.value)}
@@ -1293,17 +1716,19 @@ export const BentoCreateTicketPage: React.FC = () => {
                             </div>
                             <div className="flex gap-3 pt-2">
                                 <button
-                                    onClick={() => setShowAddModal({ type: '', show: false })}
-                                    className="flex-1 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors duration-150"
+                                    type="button"
+                                    onClick={handleCloseAddModal}
+                                    className="flex-1 py-3 min-h-[44px] text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors duration-150"
                                 >
                                     Cancel
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={handleAddAttribute}
-                                    disabled={!newAttributeValue.trim()}
-                                    className="flex-1 py-3 text-sm font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-md shadow-amber-400/20"
+                                    disabled={!newAttributeValue.trim() || isAddingAttribute}
+                                    className="flex-1 py-3 min-h-[44px] text-sm font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-md shadow-amber-400/20"
                                 >
-                                    Confirm
+                                    {isAddingAttribute ? 'Adding…' : 'Confirm'}
                                 </button>
                             </div>
                         </div>

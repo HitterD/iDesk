@@ -23,6 +23,31 @@ Thumbs.db
 *.log
 **/logs/
 
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+.next/
+.cache/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+**/logs/
+
 # IDE files
 .vscode/
 .idea/
@@ -38,3 +63,22 @@ apps/backend/uploads/*
 
 # Backups
 backups/
+
+# Agent & IDE metadata
+.brainstorm-visual/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.impeccable/
+.superpowers/
+
+# Temporary & Dump files
+*.tmp
+~$*
+_new_method.txt
+.tmp-employees.json
+apps/backend/jest_out*.txt
+apps/backend/hris-*.json
+fix_numbers.py
+update_blueprint*.py

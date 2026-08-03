@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 
 export type Theme = 'light' | 'dark';
-const STORAGE_KEY = 'idesk-theme';
+const STORAGE_KEY = 'vite-ui-theme';
 
 export const useTheme = () => {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    return stored ?? 'dark';
+    if (typeof window === 'undefined') return 'light';
+    const stored = (localStorage.getItem(STORAGE_KEY) || localStorage.getItem('idesk-theme')) as Theme | null;
+    return stored ?? 'light';
   });
 
   useEffect(() => {

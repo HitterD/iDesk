@@ -52,6 +52,33 @@ export function decrypt(value: string | null): string | null {
     }
 }
 
+/** Ambiguous-free alphabet: no O/0, I/l/1. */
+const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+
+/**
+ * Generate a password using the CSPRNG (`crypto.getRandomValues`).
+ * `Math.random()` is not cryptographically secure and must never be used for
+ * credentials. Rejection sampling avoids the modulo bias of `% length`.
+ */
+export function generateSecurePassword(length = 16): string {
+    const alphabetLength = PASSWORD_ALPHABET.length;
+    // Largest multiple of alphabetLength that fits in a byte; values above it are rejected.
+    const limit = Math.floor(256 / alphabetLength) * alphabetLength;
+    const out: string[] = [];
+    const buffer = new Uint8Array(length * 2);
+
+    while (out.length < length) {
+        crypto.getRandomValues(buffer);
+        for (let i = 0; i < buffer.length && out.length < length; i++) {
+            if (buffer[i] < limit) {
+                out.push(PASSWORD_ALPHABET[buffer[i] % alphabetLength]);
+            }
+        }
+    }
+
+    return out.join('');
+}
+
 /**
  * Create encrypted storage adapter for Zustand
  */

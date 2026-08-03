@@ -18,6 +18,11 @@ export const VALID_PAGE_KEYS = [
     'system_health',
     'settings',
     'oracle_k2_tickets',
+    'hardware_requests',
+    'eform_access',
+    'lost_items',
+    'workloads',
+    'ict_budget',
 ] as const;
 
 // Type for valid page keys

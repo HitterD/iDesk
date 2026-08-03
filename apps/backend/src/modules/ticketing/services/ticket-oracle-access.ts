@@ -1,6 +1,7 @@
+import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket } from '../entities/ticket.entity';
-import { isOracleK2Category, validateTicketAccess } from '../utils/oracle-ticket-access.util';
+import { isOracleK2Category } from '../utils/oracle-ticket-access.util';
 
 const NON_ORACLE_AGENT_ROLES = [
     UserRole.AGENT,
@@ -18,5 +19,11 @@ export const assertTicketRoleAccess = (
     ticket: Pick<Ticket, 'category' | 'ticketType'>,
     role: UserRole,
 ): void => {
-    validateTicketAccess({ role }, ticket);
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.AGENT_ORACLE && !isOracleTicket(ticket)) {
+        throw new ForbiddenException('AGENT_ORACLE can only access Oracle/K2 tickets');
+    }
+    if (isNonOracleAgent(role) && isOracleTicket(ticket)) {
+        throw new ForbiddenException('Access to Oracle/K2 tickets is restricted');
+    }
 };

@@ -19,6 +19,11 @@ export interface HrisSyncSummary {
     errors: string[];
 }
 
+export interface HrisDisableSummary {
+    disabled: number;
+    errors: string[];
+}
+
 const MAX_PAGES = 500;
 
 @Injectable()
@@ -43,6 +48,18 @@ export class HrisSyncService {
             this.logger.log(`HRIS sync completed: created=${summary.created}, updated=${summary.updated}, skipped=${summary.skipped}, errors=${summary.errors.length}`);
         } catch (error: any) {
             this.logger.error(`HRIS scheduled sync failed: ${error.message}`);
+        }
+    }
+
+    @Cron('0 3 * * *', { timeZone: 'Asia/Jakarta', name: 'hris-daily-disable-departed' })
+    async scheduledDisableDeparted(): Promise<void> {
+        if (!this.gateway.isConfigured()) return;
+
+        try {
+            const summary = await this.disableDepartedEmployees();
+            this.logger.log(`HRIS disable-departed completed: disabled=${summary.disabled}, errors=${summary.errors.length}`);
+        } catch (error: any) {
+            this.logger.error(`HRIS scheduled disable-departed failed: ${error.message}`);
         }
     }
 
@@ -90,22 +107,7 @@ export class HrisSyncService {
             throw new Error('HRIS employee is missing NIK or name');
         }
 
-        const siteByCode = await this.loadSiteMap();
-        const siteId = this.resolveSiteId(employee.lokasi, siteByCode);
-        const departmentId = await this.findOrCreateDepartment(employee.nama_departemen, siteId);
-        const user = this.userRepo.create({
-            email: await this.resolveUniqueEmail(employee),
-            fullName: employee.nama_karyawan,
-            employeeId: employee.nik_hris,
-            role: resolveRole(employee.nama_departemen),
-            siteId: siteId ?? undefined,
-            departmentId: departmentId ?? undefined,
-            jobTitle: employee.nama_jabatan ?? undefined,
-            password: await bcrypt.hash(DEFAULT_HRIS_PASSWORD, BCRYPT_ROUNDS),
-            isActive: true,
-        });
-
-        return this.userRepo.save(user);
+        return this.provisionEmployeeFromSiteMap(employee, await this.loadSiteMap());
     }
 
     private async upsertEmployee(
@@ -125,8 +127,14 @@ export class HrisSyncService {
         existing.jobTitle = employee.nama_jabatan ?? existing.jobTitle;
         existing.siteId = siteId as unknown as string;
         existing.departmentId = (await this.findOrCreateDepartment(employee.nama_departemen, siteId)) as unknown as string;
-        if (!existing.appliedPresetId && existing.role) {
-            existing.appliedPresetId = (await this.permissionsService.resolveDefaultPresetId(existing.role as UserRole)) || undefined;
+        if (!existing.appliedPresetId) {
+            const presetId = await this.permissionsService.resolveDefaultPresetId(existing.role as UserRole);
+            if (!presetId) {
+                throw new Error(`No active default permission preset for role ${existing.role}`);
+            }
+            const { presetName } = await this.permissionsService.applyPresetToUser(existing.id, presetId);
+            existing.appliedPresetId = presetId;
+            existing.appliedPresetName = presetName;
         }
         await this.userRepo.save(existing);
         return 'updated';
@@ -140,13 +148,18 @@ export class HrisSyncService {
         const siteId = this.resolveSiteId(employee.lokasi, siteByCode);
         const departmentId = await this.findOrCreateDepartment(employee.nama_departemen, siteId);
         const role = resolveRole(employee.nama_departemen);
-        const presetId = await this.permissionsService.resolveDefaultPresetId(role as UserRole);
+        const presetId = await this.permissionsService.resolveDefaultPresetId(role);
+        if (!presetId) {
+            throw new Error(`No active default permission preset for role ${role}`);
+        }
+        const preset = await this.permissionsService.getPresetById(presetId);
         const user = this.userRepo.create({
             email: await this.resolveUniqueEmail(employee),
             fullName: employee.nama_karyawan,
             employeeId: employee.nik_hris,
             role,
-            appliedPresetId: presetId || undefined,
+            appliedPresetId: preset.id,
+            appliedPresetName: preset.name,
             siteId: siteId ?? undefined,
             departmentId: departmentId ?? undefined,
             jobTitle: employee.nama_jabatan ?? undefined,
@@ -154,7 +167,73 @@ export class HrisSyncService {
             isActive: true,
         });
 
-        return this.userRepo.save(user);
+        const savedUser = await this.userRepo.save(user);
+        await this.permissionsService.applyPresetToUser(savedUser.id, preset.id);
+        return savedUser;
+    }
+
+    /**
+     * Disables local users whose NIK no longer appears (or is marked resigned via
+     * tgl_keluar) in the HRIS Gateway. Never deletes — only isActive=false — and
+     * backfills appliedPresetId first so a disabled user is never left with no preset.
+     */
+    async disableDepartedEmployees(): Promise<HrisDisableSummary> {
+        const summary: HrisDisableSummary = { disabled: 0, errors: [] };
+        const activeNiks = await this.fetchActiveNiks(summary);
+        if (activeNiks === null) {
+            return summary;
+        }
+
+        const departedUsers = await this.userRepo
+            .createQueryBuilder('user')
+            .where('user.employeeId IS NOT NULL')
+            .andWhere('user.isActive = :isActive', { isActive: true })
+            .getMany();
+
+        for (const user of departedUsers) {
+            if (activeNiks.has(user.employeeId)) continue;
+            try {
+                if (!user.appliedPresetId) {
+                    const presetId = await this.permissionsService.resolveDefaultPresetId(user.role as UserRole);
+                    if (!presetId) {
+                        throw new Error(`No active default permission preset for role ${user.role}`);
+                    }
+                    await this.permissionsService.applyPresetToUser(user.id, presetId);
+                }
+                await this.userRepo.update(user.id, { isActive: false });
+                summary.disabled++;
+            } catch (error: any) {
+                summary.errors.push(`${user.employeeId}: ${error.message}`);
+            }
+        }
+
+        return summary;
+    }
+
+    private async fetchActiveNiks(summary: HrisDisableSummary): Promise<Set<string> | null> {
+        const niks = new Set<string>();
+        let fetched = 0;
+        let total = Number.MAX_SAFE_INTEGER;
+
+        for (let page = 1; page <= MAX_PAGES && fetched < total; page++) {
+            const result = await this.gateway.getEmployeesPage(page);
+            if (!result || !Array.isArray(result.data)) {
+                summary.errors.push(`page ${page}: fetch failed`);
+                return null;
+            }
+
+            total = result.total;
+            fetched += result.data.length;
+            if (result.data.length === 0) break;
+
+            for (const employee of result.data) {
+                if (employee.nik_hris && !employee.tgl_keluar) {
+                    niks.add(employee.nik_hris);
+                }
+            }
+        }
+
+        return niks;
     }
 
     private async loadSiteMap(): Promise<Map<string, Site>> {

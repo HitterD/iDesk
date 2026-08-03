@@ -25,6 +25,7 @@ import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserPaginationDto } from './dto/user-pagination.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
 import { CacheService } from '../../shared/core/cache/cache.service';
@@ -267,7 +268,7 @@ export class UsersController {
     @ApiResponse({ status: 200, description: 'Password reset successfully.' })
     async resetUserPassword(
         @Param('id') userId: string,
-        @Body() body: { newPassword: string },
+        @Body() body: ResetPasswordDto,
         @Req() req: any,
     ) {
         return this.usersService.resetPassword(userId, body.newPassword, req.user.userId, req.user.role);

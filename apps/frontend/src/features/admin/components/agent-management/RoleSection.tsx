@@ -3,12 +3,11 @@ import { ChevronDown, ChevronRight, Mail, Building, Edit2, Key, Trash2, CheckSqu
 import * as Collapsible from '@radix-ui/react-collapsible';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
-import { PermissionPreset } from './agent-types';
-import { ROLE_CONFIG, SITE_COLORS } from './agent-utils';
+import { PermissionPreset, ROLE_CONFIG, SITE_COLORS, type UserRoleKey } from './agent-types';
 import { PresetDropdown } from './PresetDropdown';
 
 export const RoleSection: React.FC<{
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
+    role: UserRoleKey;
     users: User[];
     onEdit: (user: User) => void;
     onDelete: (user: User) => void;
@@ -20,7 +19,7 @@ export const RoleSection: React.FC<{
     applyingPresetUserId?: string | null;
 }> = ({ role, users, onEdit, onDelete, onResetPassword, selectedIds, onToggleSelection, presets, onApplyPreset, applyingPresetUserId }) => {
     const [isOpen, setIsOpen] = useState(true);
-    const config = ROLE_CONFIG[role as keyof typeof ROLE_CONFIG];
+    const config = ROLE_CONFIG[role];
     if (!config) return null;
     const Icon = config.icon;
 
@@ -28,15 +27,15 @@ export const RoleSection: React.FC<{
 
     return (
         <Collapsible.Root open={isOpen} onOpenChange={setIsOpen} className="mb-4">
-            <Collapsible.Trigger className="w-full">
+            <Collapsible.Trigger className="w-full min-h-[44px]" aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${config.pluralLabel}`}>
                 <div className={cn(
                     "flex items-center justify-between p-4 rounded-xl cursor-pointer transition-[opacity,transform,colors] duration-200 ease-out",
                     config.bgColor, "hover:opacity-90"
                 )}>
                     <div className="flex items-center gap-3">
-                        {isOpen ? <ChevronDown className={cn("w-5 h-5", config.color)} /> : <ChevronRight className={cn("w-5 h-5", config.color)} />}
-                        <Icon className={cn("w-5 h-5", config.color)} />
-                        <span className={cn("font-bold", config.color)}>{config.label}</span>
+                        {isOpen ? <ChevronDown className={cn("w-5 h-5", config.color)} aria-hidden="true" /> : <ChevronRight className={cn("w-5 h-5", config.color)} aria-hidden="true" />}
+                        <Icon className={cn("w-5 h-5", config.color)} aria-hidden="true" />
+                        <span className={cn("font-bold", config.color)}>{config.pluralLabel}</span>
                         <span className={cn("px-2 py-0.5 rounded-full text-xs font-bold", config.badgeColor)}>
                             {users.length}
                         </span>
@@ -44,18 +43,18 @@ export const RoleSection: React.FC<{
                 </div>
             </Collapsible.Trigger>
 
-            <Collapsible.Content className="mt-2 animate-in slide-in-from-top-2 duration-200">
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <table className="w-full text-left">
+            <Collapsible.Content className="mt-2 animate-in motion-reduce:animate-none slide-in-from-top-2 duration-200">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left">
                         <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                                <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[180px]">Name</th>
-                                <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[180px]">Email</th>
-                                <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[60px]">Site</th>
-                                <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Department</th>
-                                <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[140px]">Preset</th>
-                                <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Actions</th>
-                                <th className="px-2 py-3 w-10"></th>
+                                <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[180px]">Name</th>
+                                <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[180px]">Email</th>
+                                <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[60px]">Site</th>
+                                <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Department</th>
+                                <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[140px]">Preset</th>
+                                <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Actions</th>
+                                <th scope="col" className="px-2 py-3 w-10"><span className="sr-only">Select</span></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -71,7 +70,7 @@ export const RoleSection: React.FC<{
                                     </td>
                                     <td className="px-3 py-3">
                                         <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-sm">
-                                            <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                                            <Mail className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
                                             <span className="truncate max-w-[140px]">{user.email}</span>
                                         </div>
                                     </td>
@@ -87,7 +86,7 @@ export const RoleSection: React.FC<{
                                     <td className="px-3 py-3">
                                         {user.department ? (
                                             <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-sm">
-                                                <Building className="w-3.5 h-3.5" />
+                                                <Building className="w-3.5 h-3.5" aria-hidden="true" />
                                                 <span className="truncate">{user.department.name}</span>
                                             </div>
                                         ) : (
@@ -103,42 +102,52 @@ export const RoleSection: React.FC<{
                                         />
                                     </td>
                                     <td className="px-3 py-3">
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {/* Actions fade in on hover but stay reachable: focus-within keeps
+                                            them visible for keyboard users, and touch devices (no hover)
+                                            get them permanently via the coarse-pointer media query. */}
+                                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                                             <button
+                                                type="button"
                                                 onClick={() => onEdit(user)}
-                                                className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                                className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                                 title="Edit"
-                                                aria-label="Edit user"
+                                                aria-label={`Edit ${user.fullName}`}
                                             >
-                                                <Edit2 className="w-4 h-4" />
+                                                <Edit2 className="w-4 h-4" aria-hidden="true" />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => onResetPassword(user)}
-                                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
                                                 title="Reset Password"
-                                                aria-label="Reset password"
+                                                aria-label={`Reset password for ${user.fullName}`}
                                             >
-                                                <Key className="w-4 h-4" />
+                                                <Key className="w-4 h-4" aria-hidden="true" />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => onDelete(user)}
-                                                className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                 title="Delete"
-                                                aria-label="Delete user"
+                                                aria-label={`Delete ${user.fullName}`}
                                             >
-                                                <Trash2 className="w-4 h-4" />
+                                                <Trash2 className="w-4 h-4" aria-hidden="true" />
                                             </button>
                                         </div>
                                     </td>
                                     <td className="px-2 py-3">
                                         <button
+                                            type="button"
                                             onClick={() => onToggleSelection(user.id)}
-                                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                            role="checkbox"
+                                            aria-checked={selectedIds.has(user.id)}
+                                            aria-label={`Select ${user.fullName}`}
+                                            className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                                         >
                                             {selectedIds.has(user.id) ? (
-                                                <CheckSquare className="w-4 h-4 text-primary" />
+                                                <CheckSquare className="w-4 h-4 text-primary" aria-hidden="true" />
                                             ) : (
-                                                <Square className="w-4 h-4 text-slate-400" />
+                                                <Square className="w-4 h-4 text-slate-400" aria-hidden="true" />
                                             )}
                                         </button>
                                     </td>

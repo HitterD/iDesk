@@ -46,8 +46,7 @@ export class FoundClaimController {
         @Body() dto: CreateFoundClaimDto,
         @UploadedFiles() photos: Express.Multer.File[],
     ) {
-        const baseUrl = this.configService.get<string>('API_URL', 'http://localhost:5050');
-        const photoUrls = (photos || []).map(f => `${baseUrl}/uploads/found-items/${f.filename}`);
+        const photoUrls = (photos || []).map(f => `/uploads/found-items/${f.filename}`);
         return this.foundClaimService.create(req.user.userId, { ...dto, photoUrls });
     }
 

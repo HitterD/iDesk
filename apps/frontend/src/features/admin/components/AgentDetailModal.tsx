@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { X, User, Users, Mail, Building, Shield, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin, Crown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, User, Mail, Building, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { SITE_COLORS, getRoleConfig, getRoleLabel, type UserRoleKey } from './agent-management/agent-types';
 
 interface Site {
     id: string;
@@ -17,7 +19,7 @@ interface AgentDetailModalProps {
         id: string;
         fullName: string;
         email: string;
-        role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT';
+        role: UserRoleKey;
         department?: { name: string };
         site?: Site;
         avatarUrl?: string;
@@ -51,23 +53,6 @@ interface ActivityItem {
     timestamp: string;
 }
 
-const SITE_COLORS: Record<string, string> = {
-    SPJ: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    JTB: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-};
-
-const ROLE_CONFIG = {
-    ADMIN: { icon: Shield, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
-    MANAGER: { icon: Crown, color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-    AGENT: { icon: User, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
-    AGENT_ADMIN: { icon: Shield, color: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-900/30' },
-    AGENT_ORACLE: { icon: User, color: 'text-orange-600', bg: 'bg-orange-100 dark:bg-orange-900/30' },
-    AGENT_OPERATIONAL_SUPPORT: { icon: Users, color: 'text-teal-600', bg: 'bg-teal-100 dark:bg-teal-900/30' },
-    USER: { icon: User, color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
-};
-
 // Format relative time
 const formatRelativeTime = (date: string | undefined) => {
     if (!date) return 'Never';
@@ -85,7 +70,10 @@ const formatRelativeTime = (date: string | undefined) => {
     return d.toLocaleDateString();
 };
 
-// Get avatar color based on name
+/**
+ * Gradient avatar palette — deliberately distinct from the flat `bg-*` variant in
+ * agent-types; this modal renders a large hero avatar, not a table badge.
+ */
 const getAvatarColor = (name: string): string => {
     const colors = [
         'from-blue-500 to-cyan-500',
@@ -96,6 +84,7 @@ const getAvatarColor = (name: string): string => {
         'from-indigo-500 to-violet-500',
         'from-teal-500 to-cyan-500',
     ];
+    if (!name) return colors[0];
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
 };
@@ -160,7 +149,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
     // Early return AFTER all hooks (React requires consistent hook order)
     if (!isOpen || !agent) return null;
 
-    const roleConfig = ROLE_CONFIG[agent.role] || ROLE_CONFIG.USER;
+    const roleConfig = getRoleConfig(agent.role);
     const RoleIcon = roleConfig.icon;
 
     const statCards = [
@@ -203,10 +192,10 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg my-auto overflow-hidden animate-in zoom-in-95 duration-200 z-10 max-h-[90vh] flex flex-col border border-slate-200/50 dark:border-slate-800">
                 {/* Header with Avatar */}
                 <div className="relative bg-gradient-to-br from-primary/20 via-secondary/10 to-primary/5 p-6 pb-16 shrink-0">
                     <button
@@ -259,9 +248,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                     {agent.site.code}
                                 </span>
                             )}
-                            <span className={cn("px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1", roleConfig.bg, roleConfig.color)}>
-                                <RoleIcon className="w-3 h-3" />
-                                {agent.role}
+                            <span className={cn("px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1", roleConfig.bgColor, roleConfig.color)}>
+                                <RoleIcon className="w-3 h-3" aria-hidden="true" />
+                                {getRoleLabel(agent.role)}
                             </span>
                             {agent.jobTitle && (
                                 <span className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-1">
@@ -413,6 +402,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

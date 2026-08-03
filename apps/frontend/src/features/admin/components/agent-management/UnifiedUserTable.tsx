@@ -3,8 +3,9 @@ import { Edit2, Key, Trash2, CheckSquare, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
 import { PermissionPreset } from './agent-types';
-import { ROLE_CONFIG, SITE_COLORS, getAvatarColor, highlightText, formatLastActive } from './agent-utils';
+import { SITE_COLORS, getAvatarColor, getRoleConfig, getRoleLabel, highlightText, formatLastActive } from './agent-utils';
 import { PresetDropdown } from './PresetDropdown';
+import { RoleDropdown } from './RoleDropdown';
 
 export const UnifiedUserTable: React.FC<{
     users: User[];
@@ -18,24 +19,35 @@ export const UnifiedUserTable: React.FC<{
     presets: PermissionPreset[];
     onApplyPreset: (userId: string, presetId: string, presetName: string) => void;
     applyingPresetUserId?: string | null;
-}> = ({ users, searchQuery, onEdit, onDelete, onResetPassword, selectedIds, onToggleSelection, onSelectAll, presets, onApplyPreset, applyingPresetUserId }) => {
+    onApplyRole?: (userId: string, role: string) => void;
+    applyingRoleUserId?: string | null;
+}> = ({ users, searchQuery, onEdit, onDelete, onResetPassword, selectedIds, onToggleSelection, onSelectAll, presets, onApplyPreset, applyingPresetUserId, onApplyRole, applyingRoleUserId }) => {
     const allSelected = users.length > 0 && users.every(u => selectedIds.has(u.id));
 
     return (
-        <div className="bg-white dark:bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] overflow-hidden">
-            <table className="w-full text-left">
+        <div className="bg-white dark:bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] overflow-x-auto">
+            <table className="w-full min-w-[930px] text-left">
                 <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-[hsl(var(--border))]">
                     <tr>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[220px]">User</th>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Role</th>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[60px]">Site</th>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[80px]">Status</th>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[140px]">Preset</th>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[110px]">Last Active</th>
-                        <th className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Actions</th>
-                        <th className="px-2 py-3 w-10">
-                            <button onClick={onSelectAll} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                {allSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-slate-400" />}
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[220px]">User</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[130px]">Role</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[60px]">Site</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[80px]">Status</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[140px]">Preset</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[110px]">Last Active</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Actions</th>
+                        <th scope="col" className="px-2 py-3 w-10">
+                            <button
+                                type="button"
+                                onClick={onSelectAll}
+                                role="checkbox"
+                                aria-checked={allSelected}
+                                aria-label={allSelected ? 'Deselect all users' : 'Select all users'}
+                                className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                            >
+                                {allSelected
+                                    ? <CheckSquare className="w-4 h-4 text-primary" aria-hidden="true" />
+                                    : <Square className="w-4 h-4 text-slate-400" aria-hidden="true" />}
                             </button>
                         </th>
                     </tr>
@@ -59,9 +71,18 @@ export const UnifiedUserTable: React.FC<{
                                 </div>
                             </td>
                             <td className="px-3 py-3">
-                                <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", (ROLE_CONFIG as any)[user.role]?.badgeColor || 'bg-slate-100 text-slate-600')}>
-                                    {user.role}
-                                </span>
+                                {onApplyRole ? (
+                                    <RoleDropdown
+                                        user={user}
+                                        onApplyRole={onApplyRole}
+                                        isApplying={applyingRoleUserId === user.id}
+                                        bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0}
+                                    />
+                                ) : (
+                                    <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", getRoleConfig(user.role).badgeColor)}>
+                                        {getRoleLabel(user.role)}
+                                    </span>
+                                )}
                             </td>
                             <td className="px-3 py-3">
                                 {user.site ? (
@@ -86,27 +107,37 @@ export const UnifiedUserTable: React.FC<{
                                     presets={presets}
                                     onApplyPreset={onApplyPreset}
                                     isApplying={applyingPresetUserId === user.id}
+                                    bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0}
                                 />
                             </td>
                             <td className="px-3 py-3 text-xs">
-                                {formatLastActive((user as any).lastActiveAt)}
+                                {formatLastActive(user.lastActiveAt)}
                             </td>
                             <td className="px-3 py-3">
                                 <div className="flex items-center gap-1">
-                                    <button onClick={() => onEdit(user)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit" aria-label="Edit user">
-                                        <Edit2 className="w-4 h-4 text-slate-500" />
+                                    <button type="button" onClick={() => onEdit(user)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit" aria-label={`Edit ${user.fullName}`}>
+                                        <Edit2 className="w-4 h-4 text-slate-500" aria-hidden="true" />
                                     </button>
-                                    <button onClick={() => onResetPassword(user)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Reset Password" aria-label="Reset password">
-                                        <Key className="w-4 h-4 text-slate-500" />
+                                    <button type="button" onClick={() => onResetPassword(user)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Reset Password" aria-label={`Reset password for ${user.fullName}`}>
+                                        <Key className="w-4 h-4 text-slate-500" aria-hidden="true" />
                                     </button>
-                                    <button onClick={() => onDelete(user)} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete" aria-label="Delete user">
-                                        <Trash2 className="w-4 h-4" />
+                                    <button type="button" onClick={() => onDelete(user)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete" aria-label={`Delete ${user.fullName}`}>
+                                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                                     </button>
                                 </div>
                             </td>
                             <td className="px-2 py-3">
-                                <button onClick={() => onToggleSelection(user.id)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                    {selectedIds.has(user.id) ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4 text-slate-400" />}
+                                <button
+                                    type="button"
+                                    onClick={() => onToggleSelection(user.id)}
+                                    role="checkbox"
+                                    aria-checked={selectedIds.has(user.id)}
+                                    aria-label={`Select ${user.fullName}`}
+                                    className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                >
+                                    {selectedIds.has(user.id)
+                                        ? <CheckSquare className="w-4 h-4 text-primary" aria-hidden="true" />
+                                        : <Square className="w-4 h-4 text-slate-400" aria-hidden="true" />}
                                 </button>
                             </td>
                         </tr>

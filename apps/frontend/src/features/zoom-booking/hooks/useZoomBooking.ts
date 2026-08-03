@@ -28,6 +28,50 @@ export function useZoomAccounts() {
 
 // ==================== CALENDAR ====================
 
+export interface MergedCalendarBooking {
+    id: string;
+    title: string;
+    bookedBy: string;
+    durationMinutes: number;
+    startTime: string;
+    endTime: string;
+    isExternal?: boolean;
+    joinUrl?: string;
+    zoomAccountId: string;
+    accountColorHex: string;
+}
+
+export interface MergedCalendarSlot {
+    date: string;
+    time: string;
+    endTime: string;
+    status: CalendarDay['slots'][number]['status'];
+    bookings: MergedCalendarBooking[];
+    bookingsOverflow: number;
+    isMyBooking: boolean;
+}
+
+export interface MergedCalendarDay {
+    date: string;
+    dayOfWeek: number;
+    isWorkingDay: boolean;
+    isBlocked: boolean;
+    slots: MergedCalendarSlot[];
+}
+
+export function useZoomMergedCalendar(startDate: string | undefined, endDate: string | undefined) {
+    return useQuery<MergedCalendarDay[]>({
+        queryKey: ['zoom-calendar-merged', startDate, endDate],
+        queryFn: async () => {
+            const params = new URLSearchParams({ startDate: startDate!, endDate: endDate! });
+            const response = await api.get(`/zoom-booking/calendar/merged?${params}`);
+            return response.data;
+        },
+        enabled: !!startDate && !!endDate,
+        staleTime: 30000,
+    });
+}
+
 /**
  * Fetch calendar data for a Zoom account
  */
@@ -237,7 +281,7 @@ export function useUpdateZoomSettings() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (data: Partial<ZoomSettings>) => {
+        mutationFn: async ({ id: _id, updatedAt: _updatedAt, ...data }: Partial<ZoomSettings>) => {
             const response = await api.put('/admin/zoom/settings', data);
             return response.data;
         },
@@ -469,7 +513,14 @@ export function useUpdateZoomAccount() {
 
     return useMutation({
         mutationFn: async ({ id, data }: { id: string; data: Partial<ZoomAccount> }) => {
-            const response = await api.put(`/admin/zoom/accounts/${id}`, data);
+            const {
+                id: _id,
+                createdAt: _createdAt,
+                updatedAt: _updatedAt,
+                accountType: _accountType,
+                ...payload
+            } = data;
+            const response = await api.put(`/admin/zoom/accounts/${id}`, payload);
             return response.data;
         },
         onSuccess: () => {

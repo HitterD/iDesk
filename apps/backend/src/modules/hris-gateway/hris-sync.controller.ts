@@ -19,4 +19,11 @@ export class HrisSyncController {
     run() {
         return this.hrisSyncService.syncAll();
     }
+
+    @Post('disable-departed')
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Disable (bukan hapus) user yang NIK-nya sudah tidak ada di HRIS Gateway' })
+    disableDeparted() {
+        return this.hrisSyncService.disableDepartedEmployees();
+    }
 }

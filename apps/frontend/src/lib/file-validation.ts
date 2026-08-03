@@ -17,7 +17,13 @@ export const ALLOWED_DOCUMENT_TYPES = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
     'text/csv',
+    // Browsers report zip inconsistently across platforms; accept the known variants.
+    'application/zip',
+    'application/x-zip-compressed',
 ];
+
+/** Mirrors backend `MAX_FILES` in attachment-upload.interceptor.ts */
+export const MAX_ATTACHMENTS_PER_TICKET = 5;
 export const ALLOWED_ATTACHMENT_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_DOCUMENT_TYPES];
 
 export interface FileValidationResult {

@@ -3,7 +3,7 @@ import type { User } from '@/types/admin.types';
 import { AgentTableSkeleton, ErrorState } from './AgentTableSkeletons';
 import { UnifiedUserTable } from './UnifiedUserTable';
 import { RoleSection } from './RoleSection';
-import type { PermissionPreset } from './agent-types';
+import { ROLE_ORDER, type PermissionPreset, type UserRoleKey } from './agent-types';
 
 interface UsersByRoleSectionProps {
     isLoading: boolean;
@@ -11,7 +11,7 @@ interface UsersByRoleSectionProps {
     error: unknown;
     onRetry: () => void;
     filteredUsers: User[];
-    usersByRole: { ADMIN: User[]; MANAGER: User[]; AGENT: User[]; USER: User[] };
+    usersByRole: Record<UserRoleKey, User[]>;
     displayMode: 'unified' | 'collapsed';
     searchQuery: string;
     deferredSearchQuery: string;
@@ -28,6 +28,8 @@ interface UsersByRoleSectionProps {
     presets: PermissionPreset[];
     onApplyPreset: (userId: string, presetId: string, presetName: string) => void;
     applyingPresetUserId: string | null;
+    onApplyRole?: (userId: string, role: string) => void;
+    applyingRoleUserId?: string | null;
 }
 
 export function UsersByRoleSection({
@@ -53,6 +55,8 @@ export function UsersByRoleSection({
     presets,
     onApplyPreset,
     applyingPresetUserId,
+    onApplyRole,
+    applyingRoleUserId,
 }: UsersByRoleSectionProps) {
     if (isLoading) {
         return <AgentTableSkeleton />;
@@ -67,9 +71,9 @@ export function UsersByRoleSection({
     }
     if (filteredUsers.length === 0) {
         return (
-            <div className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-12 text-center">
+            <div role="status" className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-12 text-center">
                 <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                    <Users className="w-10 h-10 text-slate-400" />
+                    <Users className="w-10 h-10 text-slate-400" aria-hidden="true" />
                 </div>
                 <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">No Users Found</h3>
                 <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed mb-6">
@@ -84,18 +88,20 @@ export function UsersByRoleSection({
                 <div className="flex items-center justify-center gap-3">
                     {searchQuery && (
                         <button
+                            type="button"
                             onClick={onClearSearch}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                         >
-                            <RefreshCw className="w-4 h-4" />
+                            <RefreshCw className="w-4 h-4" aria-hidden="true" />
                             Clear Search
                         </button>
                     )}
                     <button
+                        type="button"
                         onClick={onAddUser}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                     >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-4 h-4" aria-hidden="true" />
                         Add User
                     </button>
                 </div>
@@ -118,57 +124,27 @@ export function UsersByRoleSection({
                     presets={presets}
                     onApplyPreset={onApplyPreset}
                     applyingPresetUserId={applyingPresetUserId}
+                    onApplyRole={onApplyRole}
+                    applyingRoleUserId={applyingRoleUserId}
                 />
             ) : (
                 <div className="space-y-2">
-                    <RoleSection
-                        role="ADMIN"
-                        users={usersByRole.ADMIN}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onResetPassword={onResetPassword}
-                        selectedIds={selectedUserIds}
-                        onToggleSelection={onToggleSelection}
-                        presets={presets}
-                        onApplyPreset={onApplyPreset}
-                        applyingPresetUserId={applyingPresetUserId}
-                    />
-                    <RoleSection
-                        role="MANAGER"
-                        users={usersByRole.MANAGER}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onResetPassword={onResetPassword}
-                        selectedIds={selectedUserIds}
-                        onToggleSelection={onToggleSelection}
-                        presets={presets}
-                        onApplyPreset={onApplyPreset}
-                        applyingPresetUserId={applyingPresetUserId}
-                    />
-                    <RoleSection
-                        role="AGENT"
-                        users={usersByRole.AGENT}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onResetPassword={onResetPassword}
-                        selectedIds={selectedUserIds}
-                        onToggleSelection={onToggleSelection}
-                        presets={presets}
-                        onApplyPreset={onApplyPreset}
-                        applyingPresetUserId={applyingPresetUserId}
-                    />
-                    <RoleSection
-                        role="USER"
-                        users={usersByRole.USER}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onResetPassword={onResetPassword}
-                        selectedIds={selectedUserIds}
-                        onToggleSelection={onToggleSelection}
-                        presets={presets}
-                        onApplyPreset={onApplyPreset}
-                        applyingPresetUserId={applyingPresetUserId}
-                    />
+                    {/* Most-privileged first here; ROLE_ORDER is authored least-first for pickers. */}
+                    {[...ROLE_ORDER].reverse().map(role => (
+                        <RoleSection
+                            key={role}
+                            role={role}
+                            users={usersByRole[role] ?? []}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onResetPassword={onResetPassword}
+                            selectedIds={selectedUserIds}
+                            onToggleSelection={onToggleSelection}
+                            presets={presets}
+                            onApplyPreset={onApplyPreset}
+                            applyingPresetUserId={applyingPresetUserId}
+                        />
+                    ))}
                 </div>
             )}
         </>

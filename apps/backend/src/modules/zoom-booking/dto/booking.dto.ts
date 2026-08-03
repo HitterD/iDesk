@@ -16,10 +16,10 @@ import {
 } from 'class-validator';
 
 export class CreateBookingDto {
-    @ApiProperty({ description: 'Zoom account ID' })
+    @ApiPropertyOptional({ description: 'Zoom account ID (opsional — auto-assign jika kosong)' })
     @IsString()
-    @IsNotEmpty()
-    zoomAccountId: string;
+    @IsOptional()
+    zoomAccountId?: string;
 
     @ApiProperty({ description: 'Meeting title', minLength: 5, maxLength: 100 })
     @IsString()

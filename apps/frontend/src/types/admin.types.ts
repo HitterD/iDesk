@@ -37,6 +37,8 @@ export interface User {
     phoneNumber?: string;
     avatarUrl?: string;
     lastLoginAt?: string;
+    /** Set by the backend on every login (auth.service.ts) — drives the "Last Active" column. */
+    lastActiveAt?: string;
     appliedPresetId?: string | null;
     appliedPresetName?: string | null;
 }

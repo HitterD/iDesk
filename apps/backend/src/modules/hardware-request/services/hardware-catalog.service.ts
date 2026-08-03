@@ -6,7 +6,7 @@ import { HardwareCatalog } from '../domain/entities/hardware-catalog.entity';
 import { CatalogItemInactiveError } from '../domain/errors';
 import { CreateCatalogDto } from '../dto/create-catalog.dto';
 import { UpdateCatalogDto } from '../dto/update-catalog.dto';
-import { CacheService } from '../../shared/core/cache/cache.service';
+import { CacheService } from '../../../shared/core/cache';
 
 @Injectable()
 export class HardwareCatalogService {

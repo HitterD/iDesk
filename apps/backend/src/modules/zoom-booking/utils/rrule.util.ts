@@ -36,7 +36,7 @@ export class RRuleUtil {
             const dates = finalRule.all().slice(0, maxOccurrences);
 
             // Format back to YYYY-MM-DD
-            return dates.map(d => {
+            return dates.map((d: Date) => {
                 const y = d.getUTCFullYear();
                 const m = String(d.getUTCMonth() + 1).padStart(2, '0');
                 const d2 = String(d.getUTCDate()).padStart(2, '0');

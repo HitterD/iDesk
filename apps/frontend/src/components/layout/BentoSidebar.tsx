@@ -40,9 +40,6 @@ import { useMyPermissions } from '@/hooks/usePermissions';
 import { usePermissions as useIctPermissions } from '@/features/hardware-request/hooks/usePermissions';
 import { usePendingApprovals } from '@/features/request-center/api/eform-request.api';
 
-// Detect if user is on Mac
-const isMac = () => typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
 // Types for navigation structure
 interface NavItem {
     key: string;
@@ -83,19 +80,19 @@ const NavGroupComponent: React.FC<{
                     className={cn(
                         "w-full flex items-center justify-center p-3 rounded-lg transition-[opacity,transform,colors] duration-200 ease-out relative",
                         hasActiveChild
-                            ? 'bg-primary text-white font-semibold shadow-md dark:bg-primary/90'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800/40 dark:hover:text-slate-200 hover:translate-x-0.5'
+                            ? 'bg-primary text-primary-foreground font-semibold shadow-md dark:bg-primary'
+                            : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground dark:hover:bg-secondary/20 hover:translate-x-0.5'
                     )}
                 >
                     <group.icon className="w-5 h-5" />
                     {pendingCount && pendingCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900" />
+                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border-2 border-background" />
                     )}
                 </button>
                 {/* Tooltip with group items */}
-                <div className="absolute left-full ml-2 top-0 hidden group-hover/nav:block z-50">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 min-w-[180px]">
-                        <div className="px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <div className="absolute left-full ml-2 top-0 hidden group-hover/nav:block group-focus-within/nav:block z-50">
+                    <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border py-2 min-w-[180px]">
+                        <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             {group.label}
                         </div>
                         {group.items.map((item) => (
@@ -106,15 +103,15 @@ const NavGroupComponent: React.FC<{
                                     cn(
                                         "flex items-center gap-2 px-3 py-2 text-sm transition-colors rounded-lg relative",
                                         isActive
-                                            ? 'bg-primary text-white font-medium shadow-sm'
-                                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:translate-x-0.5'
+                                            ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                                            : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:hover:bg-secondary/30 hover:translate-x-0.5'
                                     )
                                 }
                             >
                                 <item.icon className="w-4 h-4" />
                                 {item.label}
                                 {item.key === 'eform_access' && pendingCount && pendingCount > 0 && (
-                                    <span className="ml-auto bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                    <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                                         {pendingCount}
                                     </span>
                                 )}
@@ -134,20 +131,20 @@ const NavGroupComponent: React.FC<{
                 className={cn(
                     "w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors duration-150 group relative",
                     hasActiveChild
-                        ? 'text-slate-900 dark:text-white'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                        ? 'text-foreground font-semibold'
+                        : 'text-muted-foreground hover:text-foreground'
                 )}
             >
                 <div className={cn("w-0.5 h-3 rounded-full mr-1 transition-colors", hasActiveChild ? "bg-primary" : "bg-primary/40")} />
-                <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">
+                <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/75">
                     {group.label}
                 </span>
                 {!isExpanded && pendingCount && pendingCount > 0 && (
-                    <span className="mr-2 w-2 h-2 bg-red-500 rounded-full" />
+                    <span className="mr-2 w-2 h-2 bg-destructive rounded-full" />
                 )}
                 <ChevronDown
                     className={cn(
-                        "w-4 h-4 transition-transform duration-200 text-slate-400",
+                        "w-4 h-4 transition-transform duration-200 text-muted-foreground/60",
                         isExpanded ? 'rotate-0' : '-rotate-90'
                     )}
                 />
@@ -172,15 +169,15 @@ const NavGroupComponent: React.FC<{
                                         cn(
                                             "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors duration-150 group/item relative",
                                             isActive
-                                                ? 'bg-primary text-white font-semibold shadow-md dark:bg-primary/90'
-                                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800/40 dark:hover:text-slate-200 hover:translate-x-0.5'
+                                                ? 'bg-primary text-primary-foreground font-semibold shadow-md dark:bg-primary'
+                                                : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground dark:hover:bg-secondary/25 hover:translate-x-0.5'
                                         )
                                     }
                                 >
                                     <item.icon className="w-4 h-4 shrink-0" />
                                     <span className="font-medium text-sm">{item.label}</span>
                                     {item.key === 'eform_access' && pendingCount && pendingCount > 0 && (
-                                        <span className="ml-auto bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                        <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                                             {pendingCount}
                                         </span>
                                     )}
@@ -197,7 +194,31 @@ const NavGroupComponent: React.FC<{
 export const BentoSidebar = () => {
     const { user } = useAuth();
     const location = useLocation();
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+        const saved = localStorage.getItem('sidebar-is-collapsed');
+        return saved ? JSON.parse(saved) : false;
+    });
+
+    // Save collapse state to localStorage
+    useEffect(() => {
+        localStorage.setItem('sidebar-is-collapsed', JSON.stringify(isCollapsed));
+    }, [isCollapsed]);
+
+    // Global keyboard shortcut (Ctrl+B / Cmd+B) to toggle collapse
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+                const target = e.target as HTMLElement;
+                if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                    return;
+                }
+                e.preventDefault();
+                setIsCollapsed(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     // Fetch pending approvals for managers/admins to show badge count
     const isManagerOrAdmin = ['MANAGER', 'ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(user?.role || '');
@@ -402,9 +423,10 @@ export const BentoSidebar = () => {
             {/* Toggle Button */}
             <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-label={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
+                title={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
                 aria-expanded={!isCollapsed}
-                className="absolute -right-3 top-10 w-7 h-7 bg-card dark:bg-slate-800 border-2 border-primary/20 rounded-lg flex items-center justify-center text-gray-600 dark:text-slate-400 hover:text-primary transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
+                className="absolute -right-3 top-10 w-7 h-7 bg-card border border-border rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
             >
                 {isCollapsed ? <ChevronRight className="w-4 h-4" aria-hidden="true" /> : <ChevronLeft className="w-4 h-4" aria-hidden="true" />}
             </button>
@@ -418,20 +440,6 @@ export const BentoSidebar = () => {
                 )}
             </div>
 
-            {/* Command Palette Hint */}
-            {!isCollapsed && (
-                <div className="px-2 mb-4">
-                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-slate-500 bg-muted/50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
-                        <Search className="w-3 h-3" />
-                        <span>Press</span>
-                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-700 rounded text-[10px] font-mono shadow-sm">
-                            {isMac() ? '⌘' : 'Ctrl'}+K
-                        </kbd>
-                        <span>to search</span>
-                    </div>
-                </div>
-            )}
-
             {/* Navigation */}
             <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
                 {/* Loading skeleton while permissions are being fetched */}
@@ -440,7 +448,7 @@ export const BentoSidebar = () => {
                         {[1, 2, 3, 4, 5].map(i => (
                             <div
                                 key={i}
-                                className={`h-11 bg-slate-200 dark:bg-slate-700/50 rounded-2xl animate-pulse ${isCollapsed ? 'w-11 mx-auto' : 'w-full'
+                                className={`h-11 bg-muted/70 rounded-2xl animate-pulse ${isCollapsed ? 'w-11 mx-auto' : 'w-full'
                                     }`}
                                 style={{ animationDelay: `${i * 60}ms` }}
                             />
@@ -473,8 +481,8 @@ export const BentoSidebar = () => {
                                     "flex items-center gap-3 rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 glass-hover-scale",
                                     isCollapsed ? "justify-center p-3" : "px-4 py-3",
                                     isActive
-                                        ? 'bg-primary text-white font-semibold shadow-md dark:bg-primary/90'
-                                        : 'text-slate-600 font-medium dark:text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800/40 dark:hover:text-slate-200 transition-colors hover:translate-x-0.5'
+                                        ? 'bg-primary text-primary-foreground font-semibold shadow-md dark:bg-primary'
+                                        : 'text-muted-foreground font-medium hover:bg-secondary/60 hover:text-foreground dark:hover:bg-secondary/25 transition-colors hover:translate-x-0.5'
                                 )
                             }
                         >
@@ -485,7 +493,7 @@ export const BentoSidebar = () => {
                                 </span>
                             )}
                             {!isCollapsed && entry.key === 'eform_access' && pendingCount && pendingCount > 0 && (
-                                <span className="ml-auto bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                                     {pendingCount}
                                 </span>
                             )}
@@ -495,13 +503,13 @@ export const BentoSidebar = () => {
             </nav>
 
             {/* Footer / User Profile */}
-            <div className="pt-4 pb-2 mt-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
-                <div className={cn("flex items-center gap-3", isCollapsed ? "justify-center px-0" : "px-4 py-2")}>
+            <div className="pt-3 pb-2 mt-2 border-t border-border">
+                <div className={cn("flex items-center gap-2.5", isCollapsed ? "justify-center px-0" : "px-3 py-1.5")}>
                     <UserAvatar useCurrentUser size="md" />
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0 animate-in fade-in duration-300">
-                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.fullName}</p>
-                            <p className="text-xs text-gray-500 dark:text-slate-400 truncate capitalize">{user?.role?.toLowerCase()}</p>
+                            <p className="text-sm font-semibold text-foreground truncate">{user?.fullName}</p>
+                            <p className="text-xs text-muted-foreground font-medium truncate capitalize">{user?.role?.toLowerCase()}</p>
                         </div>
                     )}
                     {/* Logout Button - Inline with profile */}
@@ -510,7 +518,7 @@ export const BentoSidebar = () => {
                         title="Logout"
                         aria-label="Logout"
                         className={cn(
-                            "p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors duration-300 group focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 shrink-0",
+                            "p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-200 group focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive shrink-0",
                             isCollapsed && "mt-2"
                         )}
                     >

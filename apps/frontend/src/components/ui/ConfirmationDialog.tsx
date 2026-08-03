@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { AlertTriangle, Trash2, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 
 interface ConfirmationDialogProps {
     isOpen: boolean;
@@ -12,6 +14,8 @@ interface ConfirmationDialogProps {
     onConfirm: () => void;
     onCancel: () => void;
     isLoading?: boolean;
+    /** Extra input rendered between the description and the action row. */
+    children?: React.ReactNode;
 }
 
 const variantConfig = {
@@ -51,18 +55,38 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
     onConfirm,
     onCancel,
     isLoading = false,
+    children,
 }) => {
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    // Escape must not dismiss mid-request: the action is already in flight and
+    // closing here only hides the result. Stable identity — useFocusTrap re-runs
+    // its effect whenever onEscape changes.
+    const handleEscape = useCallback(() => {
+        if (!isLoading) onCancel();
+    }, [isLoading, onCancel]);
+
+    useFocusTrap(dialogRef, { enabled: isOpen, onEscape: handleEscape });
+
+    useEffect(() => {
+        if (!isOpen) return;
+        lockBodyScroll();
+        return unlockBodyScroll;
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const config = variantConfig[variant];
     const Icon = config.icon;
+    const dismiss = () => { if (!isLoading) onCancel(); };
 
     return (
         <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={onCancel}
+            onClick={dismiss}
         >
             <div
+                ref={dialogRef}
                 role="alertdialog"
                 aria-modal="true"
                 aria-labelledby="confirmation-title"
@@ -90,28 +114,34 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                         </p>
                     </div>
                     <button
-                        onClick={onCancel}
+                        type="button"
+                        onClick={dismiss}
                         disabled={isLoading}
-                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                        aria-label={cancelText}
+                        className="p-1 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
                     >
-                        <X className="w-5 h-5 text-slate-400" />
+                        <X className="w-5 h-5 text-slate-400" aria-hidden="true" />
                     </button>
                 </div>
+
+                {children && <div className="px-6 pb-2">{children}</div>}
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
                     <button
-                        onClick={onCancel}
+                        type="button"
+                        onClick={dismiss}
                         disabled={isLoading}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                        className="px-4 py-2 min-h-[44px] text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
                     >
                         {cancelText}
                     </button>
                     <button
+                        type="button"
                         onClick={onConfirm}
                         disabled={isLoading}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors duration-150",
+                            "flex items-center gap-2 px-4 py-2 min-h-[44px] text-sm font-bold rounded-lg transition-colors duration-150",
                             config.confirmBg,
                             config.confirmHover,
                             config.confirmText,

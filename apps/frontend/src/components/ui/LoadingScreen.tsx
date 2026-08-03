@@ -11,12 +11,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
       <div className="text-center">
         {/* Animated Logo */}
         <div className="animate-blur-in">
-          <Logo size="xl" variant="icon" className="mx-auto mb-6 animate-floating" />
-        </div>
-        
-        {/* Text Logo */}
-        <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <Logo size="lg" variant="text" />
+          <Logo size="xl" className="mx-auto mb-6 animate-floating" />
         </div>
         
         {/* Loading Indicator */}

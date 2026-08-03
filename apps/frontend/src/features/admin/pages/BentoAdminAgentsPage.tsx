@@ -22,9 +22,15 @@ import { Site, User, AgentStats, PaginatedResponse } from '@/types/admin.types';
 import { usePermissionPresets } from '@/hooks/usePermissions';
 import { useAuth } from '@/stores/useAuth';
 
-import { SITE_COLORS, ROLE_CONFIG, getAvatarColor } from '../components/agent-management/agent-utils';
 import { PresetDropdown } from '../components/agent-management/PresetDropdown';
-import { PermissionPreset } from '../components/agent-management/agent-types';
+import {
+    SITE_COLORS,
+    ROLE_CONFIG,
+    ROLE_ORDER,
+    getAvatarColor,
+    type PermissionPreset,
+    type UserRoleKey,
+} from '../components/agent-management/agent-types';
 
 
 export const BentoAdminAgentsPage: React.FC = () => {
@@ -54,6 +60,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
     const [isComparisonOpen, setIsComparisonOpen] = useState(false);
     const [isBulkSiteChangeOpen, setIsBulkSiteChangeOpen] = useState(false);
+    const [isBulkPresetOpen, setIsBulkPresetOpen] = useState(false);
     const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
     const [currentPage, setCurrentPage] = useState(1);
@@ -162,32 +169,63 @@ export const BentoAdminAgentsPage: React.FC = () => {
     // Track which user is currently having preset applied (for loading state)
     const [applyingPresetUserId, setApplyingPresetUserId] = useState<string | null>(null);
 
-    // Mutation: apply preset directly from table row
+    // Mutation: apply preset directly from table row.
+    // An empty presetId means "remove preset" — a different endpoint, since
+    // POST .../preset/ (no id) does not match the apply route.
     const tableApplyPresetMutation = useMutation({
         mutationFn: async ({ userId, presetId }: { userId: string; presetId: string; presetName: string }) => {
-            const res = await api.post(`/permissions/users/${userId}/preset/${presetId}`);
+            const res = presetId
+                ? await api.post(`/permissions/users/${userId}/preset/${presetId}`)
+                : await api.delete(`/permissions/users/${userId}/preset`);
             return res.data;
         },
         onMutate: ({ userId, presetId, presetName }) => {
             setApplyingPresetUserId(userId);
+            const usersQueryKey = ['users', currentPage, pageSize, selectedSite, deferredSearchQuery, selectedRole];
+            const previousData = queryClient.getQueryData(usersQueryKey);
             // Optimistic update: update user in query cache immediately
-            queryClient.setQueryData(
-                ['users', currentPage, pageSize, selectedSite, deferredSearchQuery, selectedRole],
-                (old: any) => {
-                    if (!old) return old;
-                    return {
-                        ...old,
-                        data: old.data.map((u: User) =>
-                            u.id === userId
-                                ? { ...u, appliedPresetId: presetId, appliedPresetName: presetName }
-                                : u
-                        ),
-                    };
-                }
-            );
+            queryClient.setQueryData(usersQueryKey, (old: any) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    data: old.data.map((u: User) =>
+                        u.id === userId
+                            ? { ...u, appliedPresetId: presetId || null, appliedPresetName: presetName || null }
+                            : u
+                    ),
+                };
+            });
+            return { previousData, usersQueryKey };
         },
         onSuccess: (_, { presetName }) => {
-            toast.success(`Preset "${presetName}" applied`);
+            toast.success(presetName ? `Preset "${presetName}" applied` : 'Preset removed');
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['my-permissions'] });
+        },
+        onError: (error: any, _vars, context) => {
+            // Roll the row back so the badge does not keep showing a preset that was never applied.
+            if (context?.previousData !== undefined) {
+                queryClient.setQueryData(context.usersQueryKey, context.previousData);
+            }
+            toast.error(error.response?.data?.message || 'Failed to apply preset');
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+        },
+        onSettled: () => {
+            setApplyingPresetUserId(null);
+        },
+    });
+
+    // Mutation: apply preset to all checked users at once (bulk-apply endpoint)
+    const bulkRowApplyPresetMutation = useMutation({
+        mutationFn: async ({ userIds, presetId }: { userIds: string[]; presetId: string; presetName: string }) => {
+            const res = await api.post('/permissions/bulk-apply', { userIds, presetId });
+            return res.data;
+        },
+        onMutate: ({ userIds }) => {
+            setApplyingPresetUserId(userIds[0]);
+        },
+        onSuccess: (data, { presetName }) => {
+            toast.success(`Preset "${presetName}" applied to ${data.updated} users`);
             queryClient.invalidateQueries({ queryKey: ['users'] });
             queryClient.invalidateQueries({ queryKey: ['my-permissions'] });
         },
@@ -200,8 +238,46 @@ export const BentoAdminAgentsPage: React.FC = () => {
         },
     });
 
+    // Checking multiple rows, then picking a preset on any checked row applies it to all checked rows.
     const handleApplyPreset = (userId: string, presetId: string, presetName: string) => {
+        if (presetId && selectedUserIds.size > 1 && selectedUserIds.has(userId)) {
+            bulkRowApplyPresetMutation.mutate({ userIds: Array.from(selectedUserIds), presetId, presetName });
+            return;
+        }
         tableApplyPresetMutation.mutate({ userId, presetId, presetName });
+    };
+
+    // Track which user is currently having role updated via dropdown
+    const [applyingRoleUserId, setApplyingRoleUserId] = useState<string | null>(null);
+
+    const tableChangeRoleMutation = useMutation({
+        mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+            const res = await api.patch(`/users/${userId}/role`, { role });
+            return res.data;
+        },
+        onMutate: ({ userId }) => {
+            setApplyingRoleUserId(userId);
+        },
+        onSuccess: (data) => {
+            toast.success(`Role updated to ${data.role || 'new role'}`);
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['agent-stats'] });
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to update role');
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+        },
+        onSettled: () => {
+            setApplyingRoleUserId(null);
+        },
+    });
+
+    const handleApplyRole = (userId: string, role: string) => {
+        if (role && selectedUserIds.size > 1 && selectedUserIds.has(userId)) {
+            bulkRoleChangeMutation.mutate({ userIds: Array.from(selectedUserIds), role: role as UserRoleKey });
+            return;
+        }
+        tableChangeRoleMutation.mutate({ userId, role });
     };
 
     // HIGH: Keyboard shortcuts (must be after filteredUsers is defined)
@@ -209,6 +285,10 @@ export const BentoAdminAgentsPage: React.FC = () => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+            // A dialog owns the keyboard while it is open; page-level shortcuts must not fire behind it.
+            if (document.querySelector('[aria-modal="true"]')) {
                 return;
             }
 
@@ -223,13 +303,11 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 setSelectedUserIds(new Set(allIds));
             }
 
-            if (e.key === 'Delete' && selectedUserIds.size > 0) {
+            // Bulk delete needs a modifier: a bare Delete keypress is far too easy to hit
+            // by accident while dozens of rows are selected.
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Delete' && selectedUserIds.size > 0) {
                 e.preventDefault();
                 setIsBulkDeleteOpen(true);
-            }
-
-            if (e.key === 'Escape') {
-                setShowKeyboardHelp(false);
             }
         };
 
@@ -243,13 +321,15 @@ export const BentoAdminAgentsPage: React.FC = () => {
         setCurrentPage(1);
     };
 
-    // Group users by role
-    const usersByRole = useMemo(() => ({
-        ADMIN: filteredUsers.filter(u => u.role === 'ADMIN'),
-        MANAGER: filteredUsers.filter(u => u.role === 'MANAGER'),
-        AGENT: filteredUsers.filter(u => ['AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(u.role)),
-        USER: filteredUsers.filter(u => u.role === 'USER'),
-    }), [filteredUsers]);
+    // Group users by role. One bucket per role — lumping AGENT_ADMIN/ORACLE/OPERATIONAL_SUPPORT
+    // under "Agents" hid which specialised role a user actually held.
+    const usersByRole = useMemo(() => {
+        const groups = Object.fromEntries(ROLE_ORDER.map(role => [role, [] as User[]])) as Record<UserRoleKey, User[]>;
+        for (const user of filteredUsers) {
+            groups[user.role as UserRoleKey]?.push(user);
+        }
+        return groups;
+    }, [filteredUsers]);
 
     // Dashboard stats - use agentStats directly
     const dashboardStats = useMemo(() => {
@@ -489,7 +569,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
 
     // Bulk role change mutation — uses Promise.allSettled so partial failures are reported individually
     const bulkRoleChangeMutation = useMutation({
-        mutationFn: async ({ userIds, role }: { userIds: string[]; role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' }) => {
+        mutationFn: async ({ userIds, role }: { userIds: string[]; role: UserRoleKey }) => {
             const results = await Promise.allSettled(
                 userIds.map(id => api.patch(`/users/${id}/role`, { role }))
             );
@@ -521,6 +601,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 onViewModeChange={setViewMode}
                 onBulkRoleChange={() => setIsBulkRoleChangeOpen(true)}
                 onBulkSiteChange={() => setIsBulkSiteChangeOpen(true)}
+                onBulkPreset={() => setIsBulkPresetOpen(true)}
                 onCompare={() => setIsComparisonOpen(true)}
                 onBulkDelete={() => setIsBulkDeleteOpen(true)}
                 onExport={() => setIsExportPreviewOpen(true)}
@@ -543,13 +624,11 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 siteCounts={siteCounts}
                 selectedRole={selectedRole}
                 onRoleChange={(role) => { setSelectedRole(role); setCurrentPage(1); }}
-                users={users}
                 paginationMeta={paginationMeta}
             />
 
             {/* Stats Dashboard */}
             <AgentStatsDashboard
-                total={paginationMeta?.total}
                 dashboardStats={dashboardStats}
                 statsFilter={statsFilter}
                 onStatsFilterChange={setStatsFilter}
@@ -602,6 +681,8 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 presets={presets}
                 onApplyPreset={handleApplyPreset}
                 applyingPresetUserId={applyingPresetUserId}
+                onApplyRole={handleApplyRole}
+                applyingRoleUserId={applyingRoleUserId}
             />
 
             {/* P1-2 + P1-3: Sticky Pagination with Page Size Selector */}
@@ -687,6 +768,11 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 })}
                 bulkSiteOpen={isBulkSiteChangeOpen}
                 onBulkSiteClose={() => setIsBulkSiteChangeOpen(false)}
+                bulkPresetOpen={isBulkPresetOpen}
+                onBulkPresetClose={() => setIsBulkPresetOpen(false)}
+                selectedUsers={users
+                    .filter(u => selectedUserIds.has(u.id))
+                    .map(u => ({ id: u.id, fullName: u.fullName, role: u.role }))}
                 selectedUserIds={selectedUserIds}
                 pdfExportOpen={isPdfExportOpen}
                 onPdfExportClose={() => setIsPdfExportOpen(false)}

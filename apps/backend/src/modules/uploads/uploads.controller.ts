@@ -35,8 +35,7 @@ export class UploadsController {
             throw new BadRequestException('No files uploaded');
         }
         
-        const baseUrl = process.env.API_URL || 'http://localhost:5050';
-        const urls = files.map((file) => `${baseUrl}/uploads/${file.filename}`);
+        const urls = files.map((file) => `/uploads/${file.filename}`);
         return { 
             success: true,
             urls,

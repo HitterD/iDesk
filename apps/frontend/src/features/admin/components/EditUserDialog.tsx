@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, Mail, Building, Shield, Phone, Briefcase, Save, ToggleLeft, ToggleRight, MapPin, Key, Sparkles, CheckCircle, Hash } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -39,6 +40,32 @@ interface Department {
     id: string;
     name: string;
 }
+
+
+export const getFilteredPresetsByRole = (role: string, presets: any[]) => {
+    if (!role || !presets || presets.length === 0) return presets || [];
+
+    let targetRole: 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN' = 'USER';
+    let prefix = 'user';
+
+    if (role.startsWith('AGENT')) {
+        targetRole = 'AGENT';
+        prefix = 'agent';
+    } else if (role === 'MANAGER') {
+        targetRole = 'MANAGER';
+        prefix = 'manager';
+    } else if (role === 'ADMIN') {
+        targetRole = 'ADMIN';
+        prefix = 'admin';
+    }
+
+    return presets.filter(p => {
+        const matchesTarget = p.targetRole === targetRole;
+        const nameLower = (p.name || '').toLowerCase();
+        const matchesPrefix = nameLower.startsWith(prefix);
+        return matchesTarget || matchesPrefix;
+    });
+};
 
 export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose, user }) => {
     const queryClient = useQueryClient();
@@ -184,7 +211,12 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        updateMutation.mutate(formData);
+        const payload = {
+            ...formData,
+            departmentId: formData.departmentId || null,
+            siteId: formData.siteId || null,
+        };
+        updateMutation.mutate(payload as any);
     };
 
     if (!isOpen || !user) return null;
@@ -192,12 +224,12 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
     const avatarColor = getAvatarColor(formData.fullName || user.fullName);
     const initial = (formData.fullName || user.fullName).charAt(0).toUpperCase();
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 z-10 flex flex-col max-h-[90vh] my-auto border border-slate-200/50 dark:border-slate-800">
                 {/* Header with Avatar Preview */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900 z-10">
                     <div className="flex items-center gap-3">
                         <div className={cn(
                             "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg text-white flex-shrink-0",
@@ -211,6 +243,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                         </div>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                     >
@@ -219,7 +252,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
                     {/* Full Name */}
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
@@ -258,7 +291,11 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                                 <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <select
                                     value={formData.role}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                                    onChange={(e) => {
+                                        const newRole = e.target.value as any;
+                                        setFormData({ ...formData, role: newRole });
+                                        setSelectedPresetId('');
+                                    }}
                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none transition-colors duration-150 appearance-none"
                                 >
                                     <option value="ADMIN">Admin</option>
@@ -405,7 +442,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                                     className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-violet-200 dark:border-violet-700 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 outline-none"
                                 >
                                     <option value="">{currentPresetName ? 'Change preset...' : 'Select a preset...'}</option>
-                                    {presets.map((preset) => (
+                                    {getFilteredPresetsByRole(formData.role, presets).map((preset) => (
                                         <option key={preset.id} value={preset.id}>
                                             {preset.name} {preset.isDefault && '(Default)'}
                                         </option>
@@ -452,6 +489,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

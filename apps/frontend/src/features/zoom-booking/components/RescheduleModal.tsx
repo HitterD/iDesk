@@ -153,23 +153,33 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[500px] bg-slate-900/95 border-slate-700/50">
+            <DialogContent className="sm:max-w-[500px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 text-slate-900 dark:text-white">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-lg text-white">
-                        <CalendarIcon className="h-5 w-5 text-blue-400" />
-                        Reschedule Meeting
+                    <DialogTitle className="flex items-center gap-3 text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-500/10 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center ring-1 ring-blue-500/20 shrink-0">
+                            <CalendarIcon className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <span>Reschedule Meeting</span>
+                            <p className="text-xs font-normal text-slate-500 dark:text-slate-400 mt-0.5">
+                                Atur ulang tanggal dan waktu booking Zoom Anda
+                            </p>
+                        </div>
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-6 py-4">
-                    {/* Current Booking Info */}
-                    <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                <div className="space-y-5 py-2">
+                    {/* Current Booking Info Card */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 shadow-sm">
                         <div className="flex items-start gap-3">
-                            <Video className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
-                            <div>
-                                <h3 className="font-medium text-white">{booking.title}</h3>
-                                <p className="text-sm text-slate-400 mt-1">
-                                    Jadwal saat ini: {format(originalDate, 'EEEE, d MMMM yyyy', { locale: idLocale })} • {booking.startTime.substring(0, 5)} - {booking.endTime.substring(0, 5)}
+                            <div className="p-2 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
+                                <Video className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-sm text-slate-900 dark:text-white tracking-tight truncate">{booking.title}</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    <span className="text-slate-700 dark:text-slate-300 font-medium">Jadwal saat ini:</span>{' '}
+                                    {format(originalDate, 'EEEE, d MMMM yyyy', { locale: idLocale })} • {booking.startTime.substring(0, 5)} - {booking.endTime.substring(0, 5)}
                                 </p>
                             </div>
                         </div>
@@ -177,27 +187,32 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
 
                     {/* New Date Selection */}
                     <div className="space-y-2">
-                        <Label className="text-slate-300">Tanggal Baru</Label>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <CalendarIcon className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Tanggal Baru
+                        </Label>
                         <ModernDatePicker
                             value={selectedDate}
                             onChange={setSelectedDate}
                             minDate={new Date()}
                             maxDate={settings ? addDays(new Date(), settings.advanceBookingDays) : undefined}
+                            triggerClassName="h-11 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm hover:border-blue-500/50 focus:ring-2 focus:ring-blue-500/30 transition-all shadow-none"
                         />
                     </div>
 
                     {/* New Time Selection */}
                     <div className="space-y-2">
-                        <Label className="text-slate-300">Waktu Baru</Label>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Waktu Baru
+                        </Label>
                         <Select value={selectedTime} onValueChange={setSelectedTime}>
-                            <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+                            <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 hover:border-blue-500/50 shadow-none transition-all">
                                 <SelectValue placeholder="Pilih waktu" />
                             </SelectTrigger>
-                            <SelectContent className="bg-slate-800 border-slate-600">
+                            <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-60 shadow-xl">
                                 {timeOptions.map(time => (
-                                    <SelectItem key={time} value={time} className="text-white">
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="h-4 w-4" />
+                                    <SelectItem key={time} value={time} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
+                                        <div className="flex items-center gap-2 font-medium">
+                                            <Clock className="h-3.5 w-3.5 text-slate-400" />
                                             {time}
                                         </div>
                                     </SelectItem>
@@ -206,20 +221,22 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
                         </Select>
                     </div>
 
-                    {/* Duration (optional change) */}
+                    {/* Duration */}
                     <div className="space-y-2">
-                        <Label className="text-slate-300">Durasi (menit)</Label>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Durasi (menit)
+                        </Label>
                         <Select
                             value={selectedDuration?.toString() || booking.durationMinutes.toString()}
                             onValueChange={(v) => setSelectedDuration(parseInt(v))}
                         >
-                            <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+                            <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 hover:border-blue-500/50 shadow-none transition-all">
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-slate-800 border-slate-600">
+                            <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl">
                                 {(settings?.allowedDurations || [30, 60, 90, 120]).map(d => (
-                                    <SelectItem key={d} value={d.toString()} className="text-white">
-                                        {d} menit
+                                    <SelectItem key={d} value={d.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
+                                        <span className="font-medium">{d} menit</span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -228,23 +245,29 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
 
                     {/* Conflict Warning */}
                     {hasConflict && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                            <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
-                            <p className="text-sm text-amber-200">
-                                Waktu yang dipilih bertabrakan dengan booking lain pada tanggal ini.
+                        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs shadow-sm">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                            <p className="font-medium leading-relaxed">
+                                Waktu yang dipilih bertabrakan dengan jadwal booking lain pada tanggal ini.
                             </p>
                         </div>
                     )}
                 </div>
 
-                <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={onClose}>
+                <DialogFooter className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onClose}
+                        className="h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-sm transition-all"
+                    >
                         Batal
                     </Button>
                     <Button
+                        type="button"
                         onClick={handleSubmit}
                         disabled={!isChanged || hasConflict || reschedule.isPending}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-500/20 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {reschedule.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
                     </Button>

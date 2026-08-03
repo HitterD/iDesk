@@ -5,6 +5,7 @@ import { EditUserDialog } from '../EditUserDialog';
 import { AgentDetailModal } from '../AgentDetailModal';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { BulkRoleChangeDialog } from '../BulkRoleChangeDialog';
+import { BulkPermissionDialog } from '../BulkPermissionDialog';
 import { PresetDrawer } from '../PresetDrawer';
 import { ExportPreviewDialog } from '../ExportPreviewDialog';
 import { AgentComparisonDialog } from '../AgentComparisonDialog';
@@ -12,6 +13,7 @@ import { BulkSiteChangeDialog } from '../BulkSiteChangeDialog';
 import { OnboardingTutorial } from '../OnboardingTutorial';
 import { ExportPdfDialog } from '../ExportPdfDialog';
 import type { AgentStats, User } from '@/types/admin.types';
+import type { UserRoleKey } from './agent-types';
 
 interface AgentManagementDialogsProps {
     importOpen: boolean;
@@ -39,7 +41,7 @@ interface AgentManagementDialogsProps {
     isBulkDeleting: boolean;
     bulkRoleOpen: boolean;
     onBulkRoleClose: () => void;
-    onConfirmBulkRole: (role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT') => void;
+    onConfirmBulkRole: (role: UserRoleKey) => void;
     isBulkRolePending: boolean;
     presetManageOpen: boolean;
     onPresetManageClose: () => void;
@@ -64,6 +66,10 @@ interface AgentManagementDialogsProps {
     }>;
     bulkSiteOpen: boolean;
     onBulkSiteClose: () => void;
+    bulkPresetOpen: boolean;
+    onBulkPresetClose: () => void;
+    /** Selected rows in full — the bulk preset dialog needs each role to filter presets. */
+    selectedUsers: Array<{ id: string; fullName: string; role: string }>;
     selectedUserIds: Set<string>;
     pdfExportOpen: boolean;
     onPdfExportClose: () => void;
@@ -111,6 +117,9 @@ export function AgentManagementDialogs({
     comparisonAgents,
     bulkSiteOpen,
     onBulkSiteClose,
+    bulkPresetOpen,
+    onBulkPresetClose,
+    selectedUsers,
     selectedUserIds,
     pdfExportOpen,
     onPdfExportClose,
@@ -174,7 +183,7 @@ export function AgentManagementDialogs({
                 onClose={onBulkDeleteClose}
                 onConfirm={onConfirmBulkDelete}
                 title="Delete Selected Users"
-                message={`Are you sure you want to delete ${selectedCount} users? This action cannot be undone.`}
+                message={`Are you sure you want to delete ${selectedCount} ${selectedCount === 1 ? 'user' : 'users'}? This action cannot be undone.`}
                 confirmText="Delete All"
                 variant="danger"
                 isLoading={isBulkDeleting}
@@ -214,6 +223,13 @@ export function AgentManagementDialogs({
                 onClose={onBulkSiteClose}
                 selectedCount={selectedCount}
                 selectedUserIds={Array.from(selectedUserIds)}
+            />
+
+            {/* Bulk Permission Preset Dialog */}
+            <BulkPermissionDialog
+                isOpen={bulkPresetOpen}
+                onClose={onBulkPresetClose}
+                selectedUsers={selectedUsers}
             />
 
             {/* PDF Export Dialog */}

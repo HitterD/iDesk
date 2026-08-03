@@ -65,7 +65,7 @@ export class ManagerDashboardService {
         // P1 perf: dashboard is hit on every manager page load. 60s cache drops
         // the entire ~30+ query burst to a single Redis hit on warm cache.
         const siteIds = query.siteIds?.length ? [...query.siteIds].sort().join(',') : 'all';
-        const cacheKey = `manager-dashboard:${siteIds}:${query.excludeCategory || ''}:${query.days || 7}`;
+        const cacheKey = `manager-dashboard:${siteIds}`;
         return this.cacheService.getOrSet(
             cacheKey,
             () => this.computeDashboardStats(query),

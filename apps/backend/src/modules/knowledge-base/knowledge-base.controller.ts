@@ -180,9 +180,8 @@ export class KnowledgeBaseController {
         if (!file) {
             throw new BadRequestException('No file uploaded');
         }
-        const baseUrl = process.env.API_URL || 'http://localhost:5050';
         return {
-            url: `${baseUrl}/uploads/kb/${file.filename}`,
+            url: `/uploads/kb/${file.filename}`,
             filename: file.filename,
         };
     }
@@ -221,10 +220,9 @@ export class KnowledgeBaseController {
         if (!files || files.length === 0) {
             throw new BadRequestException('No files uploaded');
         }
-        const baseUrl = process.env.API_URL || 'http://localhost:5050';
         return {
             urls: files.map((file) => ({
-                url: `${baseUrl}/uploads/kb/${file.filename}`,
+                url: `/uploads/kb/${file.filename}`,
                 filename: file.filename,
             })),
         };

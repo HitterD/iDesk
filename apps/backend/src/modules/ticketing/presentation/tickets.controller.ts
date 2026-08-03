@@ -39,7 +39,7 @@ import { BulkUpdateTicketsDto } from '../dto/bulk-update.dto';
 import { MergeTicketsDto } from '../dto/ticket-merge.dto';
 import { TicketMergeService } from '../services/ticket-merge.service';
 import { TicketStatsService } from '../services/ticket-stats.service';
-import { AttachmentMultiInterceptor } from './interceptors/attachment-upload.interceptor';
+import { AttachmentMultiInterceptor, getRelativeUploadPath } from './interceptors/attachment-upload.interceptor';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -70,7 +70,7 @@ export class TicketsController {
                 }
             }
         }
-        const filePaths = files ? files.map(f => `/uploads/${f.filename}`) : [];
+        const filePaths = files ? files.map(f => getRelativeUploadPath(f)) : [];
         return this.ticketCreateService.createTicket(req.user.userId, createTicketDto, filePaths);
     }
 
@@ -185,7 +185,7 @@ export class TicketsController {
                 }
             }
         }
-        const filePaths = files ? files.map(f => `/uploads/${f.filename}`) : [];
+        const filePaths = files ? files.map(f => getRelativeUploadPath(f)) : [];
 
         let parsedMentionedUserIds: string[] = [];
         if (typeof mentionedUserIds === 'string') {

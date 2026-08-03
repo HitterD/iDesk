@@ -89,6 +89,10 @@ export class PermissionsGateway implements OnGatewayInit, OnGatewayConnection, O
     notifyPresetChange(userId: string, presetId: string, presetName: string): void {
         const roomName = `user:${userId}`;
 
+        if (!this.server) {
+            return;
+        }
+
         this.server.to(roomName).emit('permissions:presetChanged', {
             userId,
             presetId,

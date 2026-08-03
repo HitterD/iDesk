@@ -47,7 +47,7 @@ describe('BentoAdminAgentsPage (characterization)', () => {
 
     it('renders stat cards', async () => {
         renderPage();
-        expect(await screen.findByText('Total Users')).toBeInTheDocument();
+        expect(await screen.findByText('Total Agents')).toBeInTheDocument();
         expect(screen.getByText('Active (In Progress)')).toBeInTheDocument();
         expect(screen.getByText('Resolved (Month)')).toBeInTheDocument();
     });

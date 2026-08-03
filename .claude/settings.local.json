@@ -30,7 +30,63 @@
       "Bash(/c/Users/IT18/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh *)",
       "Bash(npx tsc *)",
       "Bash(JWT_SECRET=\"test-secret-min-32-chars-long-12345\" npx jest --maxWorkers=1 --testPathPattern=\"hardware-request.*\\\\.\\(integration|installation-schedule|hardware-request-command\\)\\\\.spec\")",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Read(//tmp/**)",
+      "Bash(echo \"EXIT $?\")",
+      "Bash(echo \"TSC_EXIT $?\")",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git ls-tree *)",
+      "Bash(node -)",
+      "Bash(git diff-tree *)",
+      "Bash(python *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :5454)",
+      "Bash(tasklist //FI \"PID eq 3212\" //FI \"PID eq 22800\")",
+      "Bash(docker version *)",
+      "PowerShell(Get-Process *)",
+      "Bash(timeout 10 wsl -l -v)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(timeout 15 docker context ls)",
+      "Bash(timeout 15 docker context show)",
+      "Bash(timeout 10 docker info)",
+      "Bash(git -C '/f/Program Bagas/SynologyDrive/iDesk-main' status --short -- apps/backend/src/modules/zoom-booking apps/frontend/src/features/zoom-booking apps/frontend/src/routes/AppRoutes.tsx docs/superpowers/plans/2026-07-22-client-zoom-booking-simplify.md)",
+      "Bash(git -C '/f/Program Bagas/SynologyDrive/iDesk-main' diff --stat -- apps/backend/src/modules/zoom-booking apps/frontend/src/features/zoom-booking apps/frontend/src/routes/AppRoutes.tsx docs/superpowers/plans/2026-07-22-client-zoom-booking-simplify.md)",
+      "Bash(git -C '/f/Program Bagas/SynologyDrive/iDesk-main' diff -- apps/backend/src/modules/zoom-booking/dto/booking.dto.ts apps/backend/src/modules/zoom-booking/services/zoom-booking.service.ts apps/backend/src/modules/zoom-booking/controllers/zoom-booking.controller.ts apps/frontend/src/features/zoom-booking/types.ts apps/frontend/src/features/zoom-booking/hooks/index.ts apps/frontend/src/features/zoom-booking/components/index.ts apps/frontend/src/features/zoom-booking/pages/index.ts apps/frontend/src/routes/AppRoutes.tsx)",
+      "Bash(git *)",
+      "PowerShell(Test-Path *)",
+      "Bash(ln -s '/f/Program Bagas/SynologyDrive/iDesk-main/apps/backend/node_modules' /tmp/idesk-client-zoom-merge/apps/backend/node_modules)",
+      "Bash(ln -s '/f/Program Bagas/SynologyDrive/iDesk-main/apps/frontend/node_modules' /tmp/idesk-client-zoom-merge/apps/frontend/node_modules)",
+      "Bash(C:/Users/IT18/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/brainstorming/scripts/start-server.sh *)"
     ]
-  }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking UI changes"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Design deep pass"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "Impeccable design detector: immediate-tier checks after Edit/Write/MultiEdit on UI files, full-rule deep pass on Stop."
 }

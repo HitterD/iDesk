@@ -116,24 +116,27 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
     const originalDate = new Date(booking.bookingDate);
 
     return (
-        <div className="p-5 space-y-5">
+        <div className="p-6 space-y-5">
             {/* Current booking info */}
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
                 <div className="flex items-start gap-3">
-                    <Video className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
-                    <div>
-                        <h3 className="font-semibold text-sm text-slate-900 dark:text-white">{booking.title}</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Jadwal saat ini: {format(originalDate, 'EEEE, d MMMM yyyy', { locale: idLocale })} • {booking.startTime.substring(0, 5)} - {booking.endTime.substring(0, 5)}
+                    <div className="p-2 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
+                        <Video className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-sm text-slate-900 dark:text-white tracking-tight truncate">{booking.title}</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">Jadwal saat ini:</span>{' '}
+                            {format(originalDate, 'EEEE, d MMMM yyyy', { locale: idLocale })} • {booking.startTime.substring(0, 5)} - {booking.endTime.substring(0, 5)}
                         </p>
                     </div>
                 </div>
             </div>
 
             {/* New date */}
-            <div className="space-y-1.5">
-                <Label className="text-xs font-semibold flex items-center gap-1.5">
-                    <CalendarIcon className="h-3.5 w-3.5" />
+            <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5 text-blue-500" />
                     Tanggal Baru
                 </Label>
                 <ModernDatePicker
@@ -141,24 +144,25 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
                     onChange={(date) => setSelectedDate(date)}
                     minDate={new Date()}
                     maxDate={settings ? addDays(new Date(), settings.advanceBookingDays) : undefined}
+                    triggerClassName="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm hover:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 shadow-none transition-colors"
                 />
             </div>
 
             {/* New time */}
-            <div className="space-y-1.5">
-                <Label className="text-xs font-semibold flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" />
+            <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-500" />
                     Waktu Baru
                 </Label>
                 <Select value={selectedTime} onValueChange={setSelectedTime}>
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 hover:border-blue-500/50 shadow-none transition-colors">
                         <SelectValue placeholder="Pilih waktu" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-60">
                         {timeOptions.map((time) => (
-                            <SelectItem key={time} value={time}>
-                                <div className="flex items-center gap-2">
-                                    <Clock className="h-3.5 w-3.5" />
+                            <SelectItem key={time} value={time} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
+                                <div className="flex items-center gap-2 font-medium">
+                                    <Clock className="h-3.5 w-3.5 text-slate-400" />
                                     {time}
                                 </div>
                             </SelectItem>
@@ -168,19 +172,22 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
             </div>
 
             {/* Duration */}
-            <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Durasi (menit)</Label>
+            <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-500" />
+                    Durasi (menit)
+                </Label>
                 <Select
                     value={selectedDuration.toString()}
                     onValueChange={(v) => setSelectedDuration(parseInt(v))}
                 >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 hover:border-blue-500/50 shadow-none transition-colors">
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                         {(settings?.allowedDurations || [30, 60, 90, 120]).map((d) => (
-                            <SelectItem key={d} value={d.toString()}>
-                                {d} menit
+                            <SelectItem key={d} value={d.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
+                                <span className="font-medium">{d} menit</span>
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -188,22 +195,22 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
             </div>
 
             {/* Warning block */}
-            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 rounded-lg text-xs mt-4">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <p>
+            <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs mt-4">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
                     Waktu yang tersedia disesuaikan dengan ketersediaan akun Zoom saat ini untuk memastikan <b>Link Zoom tidak berubah</b>.
                 </p>
             </div>
 
             {/* Scope Selection for Recurring */}
             {booking.seriesId && (
-                <div className="space-y-3 pt-2 border-t">
-                    <Label className="text-xs font-semibold">Terapkan Perubahan Untuk:</Label>
+                <div className="space-y-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Terapkan Perubahan Untuk:</Label>
                     <Select value={scope} onValueChange={(val: any) => setScope(val)}>
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm">
                             <SelectValue placeholder="Pilih jadwal yang diubah" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                             <SelectItem value="this">Hanya jadwal ini</SelectItem>
                             <SelectItem value="following">Jadwal ini dan selanjutnya</SelectItem>
                             <SelectItem value="all">Semua jadwal dalam seri</SelectItem>
@@ -214,23 +221,23 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
 
             {/* Conflict warning */}
             {hasConflict && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs">
                     <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                    <p className="font-medium leading-relaxed">
                         Waktu yang dipilih bertabrakan dengan booking lain.
                     </p>
                 </div>
             )}
 
             {/* Actions */}
-            <div className="flex gap-2 pt-1">
-                <Button variant="outline" onClick={onClose} className="flex-1">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <Button variant="outline" onClick={onClose} className="h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-sm">
                     Batal
                 </Button>
                 <Button
                     onClick={handleSubmit}
                     disabled={!isChanged || hasConflict || reschedule.isPending}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50"
                 >
                     {reschedule.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </Button>

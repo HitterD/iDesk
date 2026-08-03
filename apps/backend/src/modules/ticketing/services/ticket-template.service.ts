@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketTemplate } from '../entities/ticket-template.entity';
 import { CreateTicketTemplateDto, UpdateTicketTemplateDto } from '../dto/ticket-template.dto';
-import { CacheService } from '../../shared/core/cache/cache.service';
+import { CacheService } from '../../../shared/core/cache';
 
 @Injectable()
 export class TicketTemplateService {

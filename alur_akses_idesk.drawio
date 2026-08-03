@@ -1,0 +1,104 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="access_flow" name="Alur Permintaan Akses">
+    <mxGraphModel dx="1000" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Nodes -->
+        <mxCell id="start" value="USER Ajukan eForm" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input" value="Pilih jenis form, isi data&#10;&amp;amp; kebutuhan akses" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="post_eform" value="POST /eform-requests&#10;(Status Awal: menunggu Manager 1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mgr1_review" value="Manager 1 me-review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="340" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_mgr1" value="Manager 1&#10;Setuju?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="440" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mgr1_ok" value="Set manager1ApprovedAt&#10;(Teruskan ke Manager 2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="560" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mgr2_review" value="Manager 2 me-review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="660" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_mgr2" value="Manager 2&#10;Setuju?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="760" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mgr2_ok" value="Set manager2ApprovedAt&#10;Status -&gt; APPROVED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="880" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="simpan_kredensial" value="Simpan kredensial &amp;amp; tanda tangan digital&#10;(EformCredential + EformSignature)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="980" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="selesai" value="Akses diberikan&#10;(+ notifikasi ke USER)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1080" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rejected" value="Status -&gt; REJECTED&#10;(+ alasan &amp;amp; notifikasi ke USER)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="600" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_1" edge="1" parent="1" source="start" target="input" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2" edge="1" parent="1" source="input" target="post_eform" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3" edge="1" parent="1" source="post_eform" target="mgr1_review" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_4" edge="1" parent="1" source="mgr1_review" target="cek_mgr1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_5" value="Ya" edge="1" parent="1" source="cek_mgr1" target="mgr1_ok" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="e_6" value="Tidak" edge="1" parent="1" source="cek_mgr1" target="rejected" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_7" edge="1" parent="1" source="mgr1_ok" target="mgr2_review" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_8" edge="1" parent="1" source="mgr2_review" target="cek_mgr2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_9" value="Ya" edge="1" parent="1" source="cek_mgr2" target="mgr2_ok" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_10" value="Tidak" edge="1" parent="1" source="cek_mgr2" target="rejected" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_11" edge="1" parent="1" source="mgr2_ok" target="simpan_kredensial" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_12" edge="1" parent="1" source="simpan_kredensial" target="selesai" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

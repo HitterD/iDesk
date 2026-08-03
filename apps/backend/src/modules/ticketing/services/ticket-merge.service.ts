@@ -6,6 +6,7 @@ import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { AuditService, AuditAction } from '../../audit';
+import { assertTicketRoleAccess } from './ticket-oracle-access';
 
 @Injectable()
 export class TicketMergeService {
@@ -57,6 +58,11 @@ export class TicketMergeService {
             const user = await manager.findOne(User, { where: { id: userId } });
             if (!user) {
                 throw new NotFoundException('User not found');
+            }
+
+            assertTicketRoleAccess(primaryTicket, user.role);
+            for (const secondaryTicket of secondaryTickets) {
+                assertTicketRoleAccess(secondaryTicket, user.role);
             }
 
             // Pre-validate status before any writes

@@ -1,0 +1,130 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="sla_monitor_flow" name="Alur SLA Monitoring">
+    <mxGraphModel dx="1200" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- SECTION 1: RESOLUTION SLA -->
+        <mxCell id="label_res" value="RESOLUTION SLA MONITORING" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=14;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="300" y="10" width="300" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="start_res" value="Cron sla-checker.service.ts&#10;(Setiap 10 Menit)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="query_res" value="Query tiket non-resolved&#10;dengan slaTarget &lt; now" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_breach" value="Sudah breach?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="overdue" value="Set isOverdue=true&#10;Kirim notif HIGH ke&#10;assignee + supervisor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="370" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_warn" value="Cek warning threshold:&#10;now &gt; slaTarget - X menit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="250" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_warn_sent" value="slaWarningSent = false?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="360" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="send_warn" value="Set slaWarningSent=true&#10;Kirim notif peringatan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="490" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="skip" value="Skip / Abaikan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="370" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges RES -->
+        <mxCell id="e_res_1" edge="1" parent="1" source="start_res" target="query_res" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_res_2" edge="1" parent="1" source="query_res" target="cek_breach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="e_res_3" value="Ya, belum ditandai" edge="1" parent="1" source="cek_breach" target="overdue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="e_res_4" value="Belum" edge="1" parent="1" source="cek_breach" target="cek_warn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_res_5" edge="1" parent="1" source="cek_warn" target="cek_warn_sent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_res_6" value="Ya" edge="1" parent="1" source="cek_warn_sent" target="send_warn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#006600;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_res_7" value="Tidak" edge="1" parent="1" source="cek_warn_sent" target="skip" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#666666;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Divider Line -->
+        <mxCell id="divider" value="" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="100" y="580" />
+            <mxPoint x="1100" y="580" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- SECTION 2: FIRST RESPONSE SLA -->
+        <mxCell id="label_fr" value="FIRST RESPONSE SLA MONITORING" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=14;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="300" y="600" width="300" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="start_fr" value="Cron sla-monitor.service.ts&#10;(Setiap 15 Menit)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="640" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="eval_fr" value="Evaluasi firstResponseTarget" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="740" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cek_fr_breach" value="firstResponseAt null &amp;amp;&#10;lewat target?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="840" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fr_breach" value="Set isFirstResponseBreached=true&#10;Evaluasi auto-reassign" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="970" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fr_reassign" value="autoReassignedAt diset&#10;Pindah ke agent fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1080" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="skip_fr" value="Skip / Abaikan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;shadow=1;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="850" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges FR -->
+        <mxCell id="e_fr_1" edge="1" parent="1" source="start_fr" target="eval_fr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fr_2" edge="1" parent="1" source="eval_fr" target="cek_fr_breach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fr_3" value="Ya" edge="1" parent="1" source="cek_fr_breach" target="fr_breach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#FF0000;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fr_4" edge="1" parent="1" source="fr_breach" target="fr_reassign" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fr_5" value="Tidak" edge="1" parent="1" source="cek_fr_breach" target="skip_fr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#666666;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

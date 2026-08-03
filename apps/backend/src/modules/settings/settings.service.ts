@@ -6,6 +6,7 @@ import { UpdateStorageSettingsDto } from './dto/storage-settings.dto';
 import { SchedulingConfig } from './dto/scheduling-config.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { CacheService } from '../../shared/core/cache';
 
 export interface StorageSettings {
     autoCleanupEnabled: boolean;
@@ -60,6 +61,7 @@ export class SettingsService {
         @InjectDataSource()
         private readonly dataSource: DataSource,
         private readonly auditService: AuditService,
+        private readonly cacheService: CacheService,
     ) { }
 
     async getSetting<T>(key: string, defaultValue?: T): Promise<T | null> {
