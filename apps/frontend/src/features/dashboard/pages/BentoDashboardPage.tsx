@@ -614,10 +614,15 @@ export const BentoDashboardPage = () => {
                     
                     {/* 3 Compact Panels (Overdue, AvgRes, SLA) */}
                     <div className="xl:col-span-1 flex flex-col gap-4">
-                        <div className="flex-1 bg-card border border-border rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:border-primary/50 transition-all group" onClick={() => navigate('/tickets/list?overdue=true')}>
+                        <button
+                            type="button"
+                            aria-label={`View ${liveStats.overdue} overdue tickets`}
+                            className="flex-1 bg-card border border-border rounded-2xl p-4 flex items-center justify-between text-left cursor-pointer hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all group"
+                            onClick={() => navigate('/tickets/list?overdue=true')}
+                        >
                             <div className="flex items-center gap-3">
                                 <div className={cn("p-2 rounded-lg transition-colors", liveStats.overdue > 0 ? "bg-destructive/10 text-destructive group-hover:bg-destructive/20" : "bg-secondary text-muted-foreground")}>
-                                    <AlertTriangle className="w-5 h-5" />
+                                    <AlertTriangle className="w-5 h-5" aria-hidden="true" />
                                 </div>
                                 <div>
                                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overdue</p>
@@ -625,7 +630,7 @@ export const BentoDashboardPage = () => {
                                 </div>
                             </div>
                             {liveStats.overdue > 0 && <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-md">Action Req</span>}
-                        </div>
+                        </button>
                         
                         <div className="flex-1 bg-card border border-border rounded-2xl p-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
