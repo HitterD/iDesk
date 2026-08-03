@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,6 +71,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
     const [currentStep, setCurrentStep] = useState(0);
     const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
     const [isVisible, setIsVisible] = useState(false);
+    const frameRef = useRef<number | null>(null);
 
     const currentStepData = steps[currentStep];
     const isLastStep = currentStep === steps.length - 1;
@@ -90,20 +91,32 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         }
     }, [currentStepData]);
 
+    const scheduleTargetUpdate = useCallback(() => {
+        if (frameRef.current !== null) return;
+        frameRef.current = requestAnimationFrame(() => {
+            frameRef.current = null;
+            updateTargetPosition();
+        });
+    }, [updateTargetPosition]);
+
     useEffect(() => {
         if (!isOpen) return;
-        
-        updateTargetPosition();
-        
-        // Update on scroll/resize
-        window.addEventListener('scroll', updateTargetPosition, true);
-        window.addEventListener('resize', updateTargetPosition);
-        
+
+        scheduleTargetUpdate();
+
+        const scrollOptions: AddEventListenerOptions = { capture: true, passive: true };
+        window.addEventListener('scroll', scheduleTargetUpdate, scrollOptions);
+        window.addEventListener('resize', scheduleTargetUpdate);
+
         return () => {
-            window.removeEventListener('scroll', updateTargetPosition, true);
-            window.removeEventListener('resize', updateTargetPosition);
+            window.removeEventListener('scroll', scheduleTargetUpdate, scrollOptions);
+            window.removeEventListener('resize', scheduleTargetUpdate);
+            if (frameRef.current !== null) {
+                cancelAnimationFrame(frameRef.current);
+                frameRef.current = null;
+            }
         };
-    }, [isOpen, currentStep, updateTargetPosition]);
+    }, [isOpen, currentStep, scheduleTargetUpdate]);
 
     const handleNext = () => {
         if (isLastStep) {

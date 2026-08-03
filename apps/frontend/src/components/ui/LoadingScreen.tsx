@@ -7,7 +7,12 @@ interface LoadingScreenProps {
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
   return (
-    <div className="fixed inset-0 bg-background flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-background flex items-center justify-center z-50"
+      role="status"
+      aria-live="polite"
+      aria-label={message || 'Loading'}
+    >
       <div className="text-center">
         {/* Animated Logo */}
         <div className="animate-blur-in">
@@ -22,6 +27,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
                 key={i}
                 className="w-2.5 h-2.5 bg-primary rounded-full animate-bounce"
                 style={{ animationDelay: `${i * 0.15}s` }}
+                aria-hidden="true"
               />
             ))}
           </div>
@@ -49,8 +55,10 @@ export const LoadingSpinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; className?: s
   };
 
   return (
-    <div 
+    <div
       className={`${sizeClasses[size]} border-primary/30 border-t-primary rounded-full animate-spin ${className}`}
+      role="status"
+      aria-label="Loading"
     />
   );
 };

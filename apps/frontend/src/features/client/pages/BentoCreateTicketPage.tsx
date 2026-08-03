@@ -752,14 +752,18 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     </button>
                                 </div>
                                 {hardwareData.hardwareType === 'OTHER' && (
-                                    <input
-                                        type="text"
-                                        required
-                                        value={hardwareData.customHardwareType}
-                                        onChange={(e) => setHardwareData({ ...hardwareData, customHardwareType: e.target.value })}
-                                        className="w-full mt-3 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/30 outline-none transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm text-slate-800 dark:text-white"
-                                        placeholder="Specify hardware type..."
-                                    />
+                                    <>
+                                        <label htmlFor="custom-hardware-type" className="sr-only">Specify hardware type</label>
+                                        <input
+                                            id="custom-hardware-type"
+                                            type="text"
+                                            required
+                                            value={hardwareData.customHardwareType}
+                                            onChange={(e) => setHardwareData({ ...hardwareData, customHardwareType: e.target.value })}
+                                            className="w-full mt-3 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/30 outline-none transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm text-slate-800 dark:text-white"
+                                            placeholder="Specify hardware type..."
+                                        />
+                                    </>
                                 )}
                             </div>
 
@@ -779,9 +783,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     </span>
                                 </div>
                                 <textarea
+                                    id="hardware-description"
                                     ref={hardwareDescriptionRef}
                                     required
                                     maxLength={5000}
+                                    aria-invalid={Boolean(errors.hardwareDescription)}
+                                    aria-describedby={errors.hardwareDescription ? 'hardware-description-error' : undefined}
                                     value={hardwareData.description}
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -799,8 +806,8 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     placeholder="Jelaskan detail hardware, lokasi spesifik, atau instruksi instalasi (minimal 10 karakter)..."
                                 />
                                 {errors.hardwareDescription && (
-                                    <p className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
-                                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    <p id="hardware-description-error" className="text-xs text-red-500 font-medium mt-1.5 flex items-center gap-1">
+                                        <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                                         {errors.hardwareDescription}
                                     </p>
                                 )}

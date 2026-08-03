@@ -324,7 +324,7 @@ export const ActionCommandCenter = () => {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 8, scale: 0.97 }}
                             transition={{ type: 'spring', damping: 22, stiffness: 320 }}
-                            className="absolute right-0 mt-2 w-[360px] sm:w-[400px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col"
+                            className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-[400px] sm:w-[400px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col"
                         >
                             {/* Header */}
                             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">

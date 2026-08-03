@@ -262,7 +262,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                         <div className="relative">
                                             <select
                                                 {...register('sheetName', { required: 'Sheet wajib dipilih' })}
-                                                className="w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
+                                                className="w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50 appearance-none cursor-pointer"
                                             >
                                                 <option value="">Pilih Sheet</option>
                                                 {discoveredSheets?.sheets?.filter((s: any) => s?.properties?.title)?.map((s: any) => (
@@ -278,7 +278,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                             {...register('sheetName', { required: 'Sheet name wajib diisi' })}
                                             type="text"
                                             placeholder="Contoh: VPN Access"
-                                            className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                                            className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50"
                                         />
                                     )}
                                     <div className="flex items-center gap-2 mt-2">
@@ -299,7 +299,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                     <div className="relative">
                                         <select
                                             {...register('dataType', { required: true })}
-                                            className="w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
+                                            className="w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50 appearance-none cursor-pointer"
                                         >
                                             <option value="RENEWAL">Renewal Contract</option>
                                             <option value="VPN">VPN Access</option>
@@ -327,7 +327,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                     <div className="relative">
                                         <select
                                             {...register('syncDirection')}
-                                            className="w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
+                                            className="w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50 appearance-none cursor-pointer"
                                         >
                                             <option value="BOTH">Two-Way (Both)</option>
                                             <option value="PUSH">Push to Sheet</option>
@@ -344,7 +344,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                         {...register('headerRow', { valueAsNumber: true })}
                                         type="number"
                                         min={1}
-                                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50"
                                     />
                                 </div>
                                 <div>
@@ -355,7 +355,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                         {...register('dataStartRow', { valueAsNumber: true })}
                                         type="number"
                                         min={1}
-                                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50"
                                     />
                                 </div>
                             </div>
@@ -370,7 +370,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                         {...register('syncIntervalSeconds', { valueAsNumber: true })}
                                         type="number"
                                         min={10}
-                                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:border-cyan-500/50"
                                     />
                                 </div>
                                 <div className="flex items-end">
@@ -414,7 +414,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                             <div className="relative flex-1">
                                                 <select
                                                     {...register(`columnMapping.${idx}.iDeskField`)}
-                                                    className="w-full pl-3 pr-8 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none appearance-none cursor-pointer"
+                                                    className="w-full pl-3 pr-8 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 appearance-none cursor-pointer"
                                                 >
                                                     <option value="">iDesk Field</option>
                                                     {availableFields.map(f => (
@@ -427,7 +427,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                             <div className="relative flex-1">
                                                 <select
                                                     {...register(`columnMapping.${idx}.sheetColumn`)}
-                                                    className="w-full pl-3 pr-8 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none appearance-none cursor-pointer"
+                                                    className="w-full pl-3 pr-8 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 appearance-none cursor-pointer"
                                                 >
                                                     <option value="">Sheet Column</option>
                                                     {headers.map(h => (
@@ -439,7 +439,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                             <div className="relative w-28">
                                                 <select
                                                     {...register(`columnMapping.${idx}.type`)}
-                                                    className="w-full pl-3 pr-8 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none appearance-none cursor-pointer"
+                                                    className="w-full pl-3 pr-8 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 appearance-none cursor-pointer"
                                                 >
                                                     <option value="string">String</option>
                                                     <option value="number">Number</option>
@@ -451,7 +451,7 @@ export function SheetMappingModal({ isOpen, onClose, config, sheet }: Props) {
                                             <button
                                                 type="button"
                                                 onClick={() => removeMapping(idx)}
-                                                className="p-2 hover:bg-red-500/20 rounded-lg text-slate-400 hover:text-red-400"
+                                                className="p-2 hover:bg-red-500/20 rounded-lg text-slate-300 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>

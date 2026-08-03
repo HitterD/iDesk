@@ -150,7 +150,19 @@ export const ClientProfilePage: React.FC = () => {
             {/* Profile Card */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+                    <div
+                        className="relative group cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        onClick={handleAvatarClick}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                handleAvatarClick();
+                            }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Change avatar"
+                    >
                         <UserAvatar useCurrentUser size="xl" showFallbackIcon />
                         <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <Camera className="w-6 h-6 text-white" />
