@@ -118,6 +118,13 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
         navigate(`/tickets/${ticket.id}`);
     };
 
+    const handleRowKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleRowClick();
+        }
+    };
+
     // Combine custom style with staggered animation delay
     const rowStyle: React.CSSProperties = {
         ...style,
@@ -159,9 +166,17 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
 
             {/* Ticket Info with Quick Preview */}
             <TicketQuickPreview ticket={ticket} side="right" disabled={false}>
-                <div className="flex items-center gap-3 min-w-0" onClick={handleRowClick}>
-                    <div className={cn("w-1.5 h-12 rounded-full shrink-0", priorityConfig.barColor)} />
-                    <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div
+                        className="flex items-center gap-3 min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        onClick={handleRowClick}
+                        onKeyDown={handleRowKeyDown}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)}: ${ticket.title}`}
+                    >
+                        <div className={cn("w-1.5 h-12 rounded-full shrink-0", priorityConfig.barColor)} />
+                        <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
                             <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-[hsl(var(--muted))] dark:bg-slate-800 px-1.5 py-0.5 rounded font-medium">
                                 #{ticket.ticketNumber || ticket.id.slice(0, 8)}
@@ -187,20 +202,22 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
                                 </span>
                             )}
                         </div>
-                        {ticket.isHardwareInstallation && ticket.ictBudgetRequestId && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/hardware-requests/${ticket.ictBudgetRequestId}?highlight=installation`);
-                                }}
-                                className="flex items-center gap-1 mt-1 px-2 py-0.5 w-fit rounded-md bg-purple-50 hover:bg-purple-100 text-[11px] font-medium text-purple-700 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:text-purple-400 transition-colors"
-                            >
-                                <Wrench className="w-3 h-3" />
-                                <span>Lihat di Hardware Requests</span>
-                                <ChevronRight className="w-3 h-3 ml-0.5" />
-                            </button>
-                        )}
                     </div>
+                    </div>
+                    {ticket.isHardwareInstallation && ticket.ictBudgetRequestId && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/hardware-requests/${ticket.ictBudgetRequestId}?highlight=installation`);
+                            }}
+                            className="flex items-center gap-1 mt-1 px-2 py-0.5 w-fit rounded-md bg-purple-50 hover:bg-purple-100 text-[11px] font-medium text-purple-700 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:text-purple-400 transition-colors"
+                        >
+                            <Wrench className="w-3 h-3" aria-hidden="true" />
+                            <span>Lihat di Hardware Requests</span>
+                            <ChevronRight className="w-3 h-3 ml-0.5" aria-hidden="true" />
+                        </button>
+                    )}
                 </div>
             </TicketQuickPreview>
 
@@ -215,7 +232,14 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
 
             {/* Site Badge (Admin only) */}
             {showSiteColumn && (
-                <div className="" onClick={handleRowClick}>
+                <div
+                    className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    onClick={handleRowClick}
+                    onKeyDown={handleRowKeyDown}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)} site`}
+                >
                     {ticket.site ? (
                         <Badge variant="outline" className="text-xs font-medium">
                             {ticket.site.code}
@@ -236,7 +260,14 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
             </StopPropagationWrapper>
 
             {/* Requester */}
-            <div className="flex items-center gap-2 min-w-0" onClick={handleRowClick}>
+            <div
+                className="flex items-center gap-2 min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={handleRowClick}
+                onKeyDown={handleRowKeyDown}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)} requester`}
+            >
                 <UserAvatar
                     user={ticket.user}
                     size="sm"
@@ -298,7 +329,14 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
             </StopPropagationWrapper>
 
             {/* Target Date */}
-            <div className="min-w-0" onClick={handleRowClick}>
+            <div
+                className="min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={handleRowClick}
+                onKeyDown={handleRowKeyDown}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)} target date`}
+            >
                 <TargetDateCell
                     slaTarget={ticket.slaTarget}
                     scheduledDate={ticket.scheduledDate}
@@ -309,7 +347,14 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
 
             {/* Created Date & Quick Actions */}
             <div className="flex items-center justify-between gap-1">
-                <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400" onClick={handleRowClick}>
+                <div
+                    className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    onClick={handleRowClick}
+                    onKeyDown={handleRowKeyDown}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)} created date`}
+                >
                     <span>{formatSmartDate(ticket.createdAt)}</span>
                     {ticket.messages && ticket.messages.length > 0 && (
                         <span className="flex items-center gap-0.5">
@@ -331,7 +376,14 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
                             </button>
                         </StopPropagationWrapper>
                     )}
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-[color,transform] duration-150" onClick={handleRowClick} />
+                    <button
+                        type="button"
+                        onClick={handleRowClick}
+                        aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)}`}
+                        className="rounded p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-[color,transform] duration-150" aria-hidden="true" />
+                    </button>
                 </div>
             </div>
         </div>
