@@ -76,6 +76,30 @@ describe('AuthService', () => {
     });
 
     describe('validateUserWithDetails', () => {
+        it('records current timing gap for missing email users', async () => {
+            usersService.findByEmail.mockResolvedValue(null as any);
+            (bcrypt.compare as jest.Mock).mockClear();
+
+            const result = await service.validateUserWithDetails('notfound@example.com', 'password');
+
+            expect(result.success).toBe(false);
+            expect(result.errorCode).toBe('USER_NOT_FOUND');
+            expect(bcrypt.compare).not.toHaveBeenCalled();
+            expect(auditService.logAsync).toHaveBeenCalled();
+        });
+
+        it('records password verification for existing email users', async () => {
+            usersService.findByEmail.mockResolvedValue(mockUser as any);
+            (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+            (bcrypt.compare as jest.Mock).mockClear();
+
+            const result = await service.validateUserWithDetails('test@example.com', 'password');
+
+            expect(result.success).toBe(false);
+            expect(result.errorCode).toBe('WRONG_PASSWORD');
+            expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+        });
+
         it('should return USER_NOT_FOUND when user does not exist', async () => {
             usersService.findByEmail.mockResolvedValue(null as any);
 
@@ -85,6 +109,7 @@ describe('AuthService', () => {
             expect(result.errorCode).toBe('USER_NOT_FOUND');
             expect(auditService.logAsync).toHaveBeenCalled();
         });
+
 
         it('should return ACCOUNT_DISABLED when user is inactive', async () => {
             usersService.findByEmail.mockResolvedValue({
