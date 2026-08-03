@@ -10,11 +10,13 @@ import { Request } from 'express';
 import { BCRYPT_ROUNDS } from '../../../shared/core/config/security.config';
 import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
+import { ValidatedUser } from './auth.types';
+import { DUMMY_PASSWORD_HASH, verifyPassword } from './password-verifier';
 
 // Login validation result types
 export interface LoginValidationResult {
     success: boolean;
-    user?: any;
+    user?: ValidatedUser;
     errorCode?: 'USER_NOT_FOUND' | 'WRONG_PASSWORD' | 'ACCOUNT_DISABLED';
 }
 
@@ -61,22 +63,23 @@ export class AuthService {
      * Returns result object with error code instead of just null
      */
     async validateUserWithDetails(identifier: string, pass: string, request?: Request): Promise<LoginValidationResult> {
-        if (!identifier.includes('@')) {
-            return this.validateNikUser(identifier.trim(), pass, request);
+        const normalizedIdentifier = identifier.trim();
+        if (!normalizedIdentifier.includes('@')) {
+            return this.validateNikUser(normalizedIdentifier, pass, request);
         }
 
-        const email = identifier;
+        const email = normalizedIdentifier.toLowerCase();
         const user = await this.usersService.findByEmail(email);
+        const isPasswordValid = await verifyPassword(pass, user?.password ?? DUMMY_PASSWORD_HASH);
+        const maskedEmail = this.maskEmail(email);
 
-        // User not found
         if (!user) {
-            // Log failed attempt (user not found)
             this.auditService.logAsync({
                 userId: 'system',
                 action: AuditAction.LOGIN_FAILED,
                 entityType: 'auth',
-                description: `Login failed: User not found for email ${email}`,
-                newValue: { email, reason: 'USER_NOT_FOUND' },
+                description: `Login failed: User not found for email ${maskedEmail}`,
+                newValue: { email: maskedEmail, reason: 'USER_NOT_FOUND' },
                 request,
             });
 
@@ -86,16 +89,14 @@ export class AuthService {
             };
         }
 
-        // Check if user is active (if such field exists)
         if ((user as any).isActive === false || (user as any).status === 'DISABLED') {
-            // Log failed attempt (account disabled)
             this.auditService.logAsync({
                 userId: user.id,
                 action: AuditAction.LOGIN_FAILED,
                 entityType: 'auth',
                 entityId: user.id,
                 description: `Login failed: Account disabled for ${user.fullName}`,
-                newValue: { email, reason: 'ACCOUNT_DISABLED' },
+                newValue: { email: maskedEmail, reason: 'ACCOUNT_DISABLED' },
                 request,
             });
 
@@ -105,17 +106,14 @@ export class AuthService {
             };
         }
 
-        // Password check
-        const isPasswordValid = await bcrypt.compare(pass, user.password || '');
         if (!isPasswordValid) {
-            // Log failed attempt (wrong password)
             this.auditService.logAsync({
                 userId: user.id,
                 action: AuditAction.LOGIN_FAILED,
                 entityType: 'auth',
                 entityId: user.id,
                 description: `Login failed: Wrong password for ${user.fullName}`,
-                newValue: { email, reason: 'WRONG_PASSWORD' },
+                newValue: { email: maskedEmail, reason: 'WRONG_PASSWORD' },
                 request,
             });
 
@@ -125,12 +123,16 @@ export class AuthService {
             };
         }
 
-        // Success - return user without password
         const { password, ...result } = user;
         return {
             success: true,
-            user: result,
+            user: result as ValidatedUser,
         };
+    }
+
+    private maskEmail(email: string): string {
+        const [localPart, domain] = email.split('@');
+        return `${localPart.slice(0, 1)}***@${domain?.slice(0, 1) ?? '*'}***`;
     }
 
     private async validateNikUser(nik: string, pass: string, request?: Request): Promise<LoginValidationResult> {

@@ -2,6 +2,7 @@ import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
 import { AuthService } from '../../application/auth.service';
+import { ValidatedUser } from '../../application/auth.types';
 
 // Custom exception with error code for frontend
 class LoginException extends HttpException {
@@ -25,7 +26,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
         });
     }
 
-    async validate(email: string, pass: string): Promise<any> {
+    async validate(email: string, pass: string): Promise<ValidatedUser> {
         const result = await this.authService.validateUserWithDetails(email, pass);
 
         if (!result.success) {
@@ -48,6 +49,10 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
                 default:
                     throw new UnauthorizedException('Login failed');
             }
+        }
+
+        if (!result.user) {
+            throw new UnauthorizedException('Login failed');
         }
 
         return result.user;

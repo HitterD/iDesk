@@ -80,12 +80,16 @@ describe('AuthService', () => {
             usersService.findByEmail.mockResolvedValue(null as any);
             (bcrypt.compare as jest.Mock).mockClear();
 
-            const result = await service.validateUserWithDetails('notfound@example.com', 'password');
+            const result = await service.validateUserWithDetails(' NotFound@Example.com ', 'password');
 
             expect(result.success).toBe(false);
             expect(result.errorCode).toBe('USER_NOT_FOUND');
-            expect(bcrypt.compare).not.toHaveBeenCalled();
-            expect(auditService.logAsync).toHaveBeenCalled();
+            expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+            expect(bcrypt.compare).toHaveBeenCalledWith('password', expect.any(String));
+            expect(usersService.findByEmail).toHaveBeenCalledWith('notfound@example.com');
+            expect(auditService.logAsync).toHaveBeenCalledWith(expect.objectContaining({
+                newValue: { email: 'n***@e***', reason: 'USER_NOT_FOUND' },
+            }));
         });
 
         it('records password verification for existing email users', async () => {
@@ -121,6 +125,7 @@ describe('AuthService', () => {
 
             expect(result.success).toBe(false);
             expect(result.errorCode).toBe('ACCOUNT_DISABLED');
+            expect(bcrypt.compare).toHaveBeenCalledTimes(1);
         });
 
         it('should return WRONG_PASSWORD when password is incorrect', async () => {
@@ -141,8 +146,8 @@ describe('AuthService', () => {
 
             expect(result.success).toBe(true);
             expect(result.user).toBeDefined();
-            expect(result.user.email).toBe('test@example.com');
-            expect(result.user.password).toBeUndefined(); // Password should be stripped
+            expect(result.user).toEqual(expect.objectContaining({ email: 'test@example.com' }));
+            expect(result.user).not.toHaveProperty('password'); // Password should be stripped
         });
     });
 
