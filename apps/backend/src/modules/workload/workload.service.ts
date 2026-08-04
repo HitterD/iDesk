@@ -104,21 +104,54 @@ export class WorkloadService {
             relations: ['site'],
         });
 
-        const workloads: any[] = [];
-        for (const agent of agents) {
-            const workload = await this.getAgentWorkload(agent.id, siteId, workDate);
+        if (agents.length === 0) {
+            return [];
+        }
 
-            // Get active tickets for the agent
-            const activeTickets = await this.ticketRepo.find({
-                where: {
-                    assignedToId: agent.id,
+        const agentIds = agents.map(a => a.id);
+
+        // One query for existing workload rows, then create only what's missing,
+        // instead of a findOne-or-create round trip per agent.
+        const existingWorkloads = await this.workloadRepo.find({
+            where: { agentId: In(agentIds), siteId, workDate },
+        });
+        const workloadByAgent = new Map(existingWorkloads.map(w => [w.agentId, w]));
+
+        const missingAgentIds = agentIds.filter(id => !workloadByAgent.has(id));
+        if (missingAgentIds.length > 0) {
+            const created = await this.workloadRepo.save(
+                missingAgentIds.map(agentId => this.workloadRepo.create({
+                    agentId,
                     siteId,
-                    status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR]),
-                },
-                select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category'],
-            });
+                    workDate,
+                    totalPoints: 0,
+                    activeTickets: 0,
+                    resolvedTickets: 0,
+                })),
+            );
+            created.forEach(w => workloadByAgent.set(w.agentId, w));
+        }
 
-            workloads.push({
+        // One query for every agent's active tickets instead of one per agent.
+        const activeTickets = await this.ticketRepo.find({
+            where: {
+                assignedToId: In(agentIds),
+                siteId,
+                status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR]),
+            },
+            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId'],
+        });
+        const activeTicketsByAgent = new Map<string, typeof activeTickets>();
+        for (const ticket of activeTickets) {
+            const agentId = ticket.assignedToId as string;
+            const list = activeTicketsByAgent.get(agentId) ?? [];
+            list.push(ticket);
+            activeTicketsByAgent.set(agentId, list);
+        }
+
+        return agents.map(agent => {
+            const workload = workloadByAgent.get(agent.id)!;
+            return {
                 agentId: agent.id,
                 agentName: agent.fullName,
                 email: agent.email,
@@ -130,11 +163,9 @@ export class WorkloadService {
                 siteCode: agent.site?.code || '',
                 siteName: agent.site?.name || '',
                 activeTicketsCount: workload.activeTickets,
-                activeTickets: activeTickets,
-            });
-        }
-
-        return workloads;
+                activeTickets: activeTicketsByAgent.get(agent.id) ?? [],
+            };
+        });
     }
 
     async recalculateAgentWorkload(agentId: string, siteId: string, userId?: string): Promise<AgentDailyWorkload> {
@@ -155,11 +186,12 @@ export class WorkloadService {
             t.status !== TicketStatus.RESOLVED && t.status !== TicketStatus.CANCELLED
         );
 
-        // Calculate total points
+        // Calculate total points — prefetch all weights once instead of one query per ticket.
+        const weights = await this.priorityWeightRepo.find();
+        const weightByPriority = new Map(weights.map(w => [w.priority, w.points]));
         let totalPoints = 0;
         for (const ticket of openTickets) {
-            const weight = await this.getPriorityWeight(ticket.priority);
-            totalPoints += weight;
+            totalPoints += weightByPriority.get(ticket.priority) ?? this.DEFAULT_WEIGHTS[ticket.priority] ?? 2;
         }
 
         // Count resolved today
@@ -237,17 +269,37 @@ export class WorkloadService {
             return null;
         }
 
-        // Get or create workload for each agent (already fetched)
-        const agentWorkloads: { agent: User; points: number; lastAssignedAt: Date | null }[] = [];
+        // One query for existing workload rows, then create only what's missing,
+        // instead of a findOne-or-create round trip per agent.
+        const availableAgentIds = availableAgents.map(a => a.id);
+        const existingWorkloads = await this.workloadRepo.find({
+            where: { agentId: In(availableAgentIds), siteId, workDate: today },
+        });
+        const workloadByAgent = new Map(existingWorkloads.map(w => [w.agentId, w]));
 
-        for (const agent of availableAgents) {
-            const workload = await this.getAgentWorkload(agent.id, siteId, today);
-            agentWorkloads.push({
+        const missingAgentIds = availableAgentIds.filter(id => !workloadByAgent.has(id));
+        if (missingAgentIds.length > 0) {
+            const created = await this.workloadRepo.save(
+                missingAgentIds.map(agentId => this.workloadRepo.create({
+                    agentId,
+                    siteId,
+                    workDate: today,
+                    totalPoints: 0,
+                    activeTickets: 0,
+                    resolvedTickets: 0,
+                })),
+            );
+            created.forEach(w => workloadByAgent.set(w.agentId, w));
+        }
+
+        const agentWorkloads: { agent: User; points: number; lastAssignedAt: Date | null }[] = availableAgents.map(agent => {
+            const workload = workloadByAgent.get(agent.id)!;
+            return {
                 agent,
                 points: workload.totalPoints,
                 lastAssignedAt: workload.lastAssignedAt || null,
-            });
-        }
+            };
+        });
 
         // Sort by points (ascending). Tie-breaker: lastAssignedAt (older/null first)
         agentWorkloads.sort((a, b) => {

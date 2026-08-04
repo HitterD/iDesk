@@ -182,50 +182,61 @@ export class ManagerReportsService {
             relations: ['site'],
         });
 
+        if (agents.length === 0) {
+            return [];
+        }
+
+        const agentIds = agents.map(a => a.id);
+
+        // One grouped count for "assigned in period" instead of one query per agent.
+        const assignedRows = await this.ticketRepo.createQueryBuilder('t')
+            .select('t.assignedToId', 'agentId')
+            .addSelect('COUNT(*)', 'count')
+            .where('t.assignedToId IN (:...agentIds)', { agentIds })
+            .andWhere('t.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate })
+            .groupBy('t.assignedToId')
+            .getRawMany<{ agentId: string; count: string }>();
+        const totalAssignedByAgent = new Map(assignedRows.map(r => [r.agentId, Number(r.count)]));
+
+        // One fetch for every resolved ticket in the period instead of one per agent.
+        const resolvedTickets = await this.ticketRepo.find({
+            where: {
+                assignedToId: In(agentIds),
+                resolvedAt: Between(startDate, endDate),
+            },
+        });
+        const resolvedByAgent = new Map<string, typeof resolvedTickets>();
+        for (const ticket of resolvedTickets) {
+            const agentId = ticket.assignedToId as string;
+            const list = resolvedByAgent.get(agentId) ?? [];
+            list.push(ticket);
+            resolvedByAgent.set(agentId, list);
+        }
+
         const performances: AgentPerformance[] = [];
 
         for (const agent of agents) {
-            // Total assigned in period
-            const totalAssigned = await this.ticketRepo.count({
-                where: {
-                    assignedToId: agent.id,
-                    createdAt: Between(startDate, endDate),
-                },
-            });
-
-            // Resolved in period
-            const resolved = await this.ticketRepo.count({
-                where: {
-                    assignedToId: agent.id,
-                    resolvedAt: Between(startDate, endDate),
-                },
-            });
-
-            // Avg resolution time
-            const resolvedTickets = await this.ticketRepo.find({
-                where: {
-                    assignedToId: agent.id,
-                    resolvedAt: Between(startDate, endDate),
-                },
-            });
+            const totalAssigned = totalAssignedByAgent.get(agent.id) ?? 0;
+            const agentResolvedTickets = resolvedByAgent.get(agent.id) ?? [];
+            const resolved = agentResolvedTickets.length;
 
             let avgResolutionHours = 0;
-            if (resolvedTickets.length > 0) {
-                const totalHours = resolvedTickets.reduce((sum, t) => {
+            if (agentResolvedTickets.length > 0) {
+                const totalHours = agentResolvedTickets.reduce((sum, t) => {
                     if (t.resolvedAt && t.createdAt) {
                         return sum + (t.resolvedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
                     }
                     return sum;
                 }, 0);
-                avgResolutionHours = Math.round((totalHours / resolvedTickets.length) * 10) / 10;
+                avgResolutionHours = Math.round((totalHours / agentResolvedTickets.length) * 10) / 10;
             }
 
             // SLA compliance
-            const slaBreached = resolvedTickets.filter(t =>
+            const slaBreached = agentResolvedTickets.filter(t =>
                 t.slaTarget && t.resolvedAt && t.resolvedAt > t.slaTarget
             ).length;
-            const slaCompliance = resolvedTickets.length > 0
-                ? Math.round(((resolvedTickets.length - slaBreached) / resolvedTickets.length) * 100)
+            const slaCompliance = agentResolvedTickets.length > 0
+                ? Math.round(((agentResolvedTickets.length - slaBreached) / agentResolvedTickets.length) * 100)
                 : 100;
 
             performances.push({
