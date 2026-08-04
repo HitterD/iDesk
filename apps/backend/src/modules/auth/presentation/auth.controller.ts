@@ -11,7 +11,6 @@ import { setCsrfCookie } from '../../../shared/core/middleware/csrf.middleware';
 import {
     ACCESS_COOKIE_NAME,
     REFRESH_COOKIE_NAME,
-    AUTH_COOKIE_OPTIONS,
     clearCookieOptions,
     withCookieMaxAge,
 } from './cookie-options';
@@ -64,7 +63,6 @@ export class AuthController {
         // Clear the auth cookie
         res.clearCookie(ACCESS_COOKIE_NAME, clearCookieOptions());
         res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions());
-        void AUTH_COOKIE_OPTIONS;
 
         return res.json({ message: 'Logged out successfully' });
     }
