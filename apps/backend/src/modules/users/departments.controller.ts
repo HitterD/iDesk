@@ -1,10 +1,15 @@
 import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { Roles } from '../../shared/core/decorators/roles.decorator';
+import { UserRole } from './enums/user-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
-import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 
 @Controller('departments')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.MANAGER)
 export class DepartmentsController {
     constructor(
         @InjectRepository(Department)

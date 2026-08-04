@@ -6,7 +6,10 @@ import {
     Logger,
     HttpCode,
     HttpStatus,
+    UnauthorizedException,
+    InternalServerErrorException,
 } from '@nestjs/common';
+import { timingSafeEqual, createHmac } from 'crypto';
 import { ApiTags, ApiOperation, ApiExcludeController } from '@nestjs/swagger';
 import { ZoomSyncService } from '../services/zoom-sync.service';
 
@@ -36,11 +39,14 @@ export class ZoomWebhookController {
         @Headers('x-zm-signature') signature: string,
         @Headers('x-zm-request-timestamp') timestamp: string,
     ) {
-        // Validate webhook signature (security)
         const webhookSecret = process.env.ZOOM_WEBHOOK_SECRET;
-        if (webhookSecret && !this.validateSignature(body, signature, timestamp, webhookSecret)) {
-            this.logger.warn('Invalid webhook signature received');
-            return { status: 'unauthorized' };
+        if (!webhookSecret || !this.validateSignature(body, signature, timestamp, webhookSecret)) {
+            this.logger.warn('Rejected Zoom webhook with invalid signature');
+            throw new UnauthorizedException('Invalid webhook signature');
+        }
+
+        if (!body || typeof body !== 'object' || typeof body.event !== 'string') {
+            throw new UnauthorizedException('Invalid webhook payload');
         }
 
         const event = body.event;
@@ -88,8 +94,9 @@ export class ZoomWebhookController {
 
             return { status: 'success' };
         } catch (error) {
-            this.logger.error(`Error handling webhook: ${error.message}`, error.stack);
-            return { status: 'error', message: error.message };
+            if (error instanceof UnauthorizedException) throw error;
+            this.logger.error(`Error handling webhook: ${error instanceof Error ? error.message : 'unknown error'}`);
+            throw new InternalServerErrorException('Webhook processing failed');
         }
     }
 
@@ -170,21 +177,19 @@ export class ZoomWebhookController {
      * https://developers.zoom.us/docs/api/rest/webhook-reference/#verify-webhook-events
      */
     private validateSignature(
-        body: any,
+        body: unknown,
         signature: string,
         timestamp: string,
         secret: string,
     ): boolean {
-        if (!signature || !timestamp) return false;
+        if (!signature || !timestamp || !/^\d+$/.test(timestamp)) return false;
+        const timestampMs = Number(timestamp) * 1000;
+        if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) return false;
 
-        const crypto = require('crypto');
         const message = `v0:${timestamp}:${JSON.stringify(body)}`;
-        const hash = crypto
-            .createHmac('sha256', secret)
-            .update(message)
-            .digest('hex');
-        const expectedSignature = `v0=${hash}`;
-
-        return signature === expectedSignature;
+        const hash = createHmac('sha256', secret).update(message).digest('hex');
+        const expected = Buffer.from(`v0=${hash}`);
+        const provided = Buffer.from(signature);
+        return expected.length === provided.length && timingSafeEqual(expected, provided);
     }
 }

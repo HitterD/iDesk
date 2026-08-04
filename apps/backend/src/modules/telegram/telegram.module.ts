@@ -64,7 +64,7 @@ import { AppCacheModule } from '../../shared/core/cache';
                     };
                 }
 
-                logger.log(`Telegram Bot Token: ${token.substring(0, 10)}...`);
+                logger.log('Telegram bot token configured');
                 logger.log(`Mode: ${useWebhook ? 'Webhook' : 'Polling'}`);
 
                 if (useWebhook && webhookDomain) {

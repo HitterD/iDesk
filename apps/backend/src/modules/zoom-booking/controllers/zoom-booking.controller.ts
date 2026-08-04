@@ -150,8 +150,7 @@ export class ZoomBookingController {
 
             return await this.bookingService.getMyUpcomingBookings(user.userId);
         } catch (error: any) {
-            console.error(`[ZoomController] Error in getMyUpcomingBookings: ${error.message}`, error.stack);
-            return []; // Fail safe even in controller
+            throw error;
         }
     }
 
