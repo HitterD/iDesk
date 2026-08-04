@@ -14,11 +14,12 @@ import { RefreshTokenClaims } from './refresh-session.types';
 
 const REFRESH_SESSION_MODE = process.env.AUTH_REFRESH_SESSION_MODE || 'legacy';
 const REFRESH_EXPIRY_SECONDS = { '7d': 7 * 24 * 60 * 60, '90d': 90 * 24 * 60 * 60 } as const;
-import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
+import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { ValidatedUser } from './auth.types';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from './password-verifier';
 import { validatePasswordPolicy } from './password-policy';
+import { maskIdentifier } from '../../../shared/security/sensitive-data';
 
 // Login validation result types
 export interface LoginValidationResult {
@@ -152,21 +153,25 @@ export class AuthService {
     }
 
     private async validateNikUser(nik: string, pass: string, request?: Request): Promise<LoginValidationResult> {
-        const verification = await this.hrisGateway.verifyPassword(nik, pass);
+        let verification;
+        try {
+            verification = await this.hrisGateway.verifyPassword(nik, pass);
+        } catch (error) {
+            if (error instanceof HrisUnavailableError || error instanceof HrisInvalidResponseError) {
+                return this.logNikFailure(nik, 'USER_NOT_FOUND', 'HRIS unavailable', request);
+            }
+            throw error;
+        }
 
-        if (verification && !verification.valid) {
+        if (!verification.valid) {
             return this.logNikFailure(nik, 'USER_NOT_FOUND', 'not found in HRIS', request);
         }
-        if (verification && !verification.eligible) {
+        if (!verification.eligible) {
             return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'not eligible in HRIS', request);
         }
 
         let user = await this.usersService.findByEmployeeId(nik);
-        let authenticated = verification?.match === true;
-
-        if (!authenticated && user) {
-            authenticated = await bcrypt.compare(pass, user.password || '');
-        }
+        const authenticated = verification.match === true;
         if (!authenticated) {
             return this.logNikFailure(nik, user ? 'WRONG_PASSWORD' : 'USER_NOT_FOUND', 'password rejected', request, user?.id);
         }
@@ -194,13 +199,14 @@ export class AuthService {
         request?: Request,
         userId = 'system',
     ): LoginValidationResult {
+        const maskedNik = maskIdentifier(nik);
         this.auditService.logAsync({
             userId,
             action: AuditAction.LOGIN_FAILED,
             entityType: 'auth',
             entityId: userId === 'system' ? undefined : userId,
-            description: `Login failed for NIK ${nik}: ${reason}`,
-            newValue: { nik, reason: errorCode },
+            description: `Login failed for NIK ${maskedNik}: ${reason}`,
+            newValue: { nik: maskedNik, reason: errorCode },
             request,
         });
         return { success: false, errorCode };

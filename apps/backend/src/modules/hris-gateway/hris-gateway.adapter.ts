@@ -19,6 +19,35 @@ export interface HrisVerifyResult {
     match: boolean;
 }
 
+export class HrisUnavailableError extends Error {
+    readonly cause?: unknown;
+
+    constructor(message = 'HRIS gateway unavailable', options?: { cause?: unknown }) {
+        super(message);
+        this.name = 'HrisUnavailableError';
+        this.cause = options?.cause;
+    }
+}
+
+export class HrisInvalidResponseError extends Error {
+    constructor(message = 'Invalid HRIS gateway response') {
+        super(message);
+        this.name = 'HrisInvalidResponseError';
+    }
+}
+
+function isVerifyResult(value: unknown): value is HrisVerifyResult {
+    if (!value || typeof value !== 'object') return false;
+    const result = value as Record<string, unknown>;
+    return typeof result.valid === 'boolean'
+        && typeof result.eligible === 'boolean'
+        && typeof result.match === 'boolean';
+}
+
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'unknown error';
+}
+
 export interface HrisEmployeesPage {
     data: HrisEmployee[];
     total: number;
@@ -55,13 +84,15 @@ export class HrisGatewayAdapter {
         }
     }
 
-    /** null means Gateway failed; match:false means Gateway rejected password. */
-    async verifyPassword(nik: string, password: string): Promise<HrisVerifyResult | null> {
+    async verifyPassword(nik: string, password: string): Promise<HrisVerifyResult> {
         try {
-            return (await this.http.post('/auth/verify', { nik, password })).data;
-        } catch (error: any) {
-            this.logger.warn(`HRIS password verification unavailable: ${error.message}`);
-            return null;
+            const result: unknown = (await this.http.post('/auth/verify', { nik, password })).data;
+            if (!isVerifyResult(result)) throw new HrisInvalidResponseError();
+            return result;
+        } catch (error) {
+            if (error instanceof HrisInvalidResponseError) throw error;
+            this.logger.warn(`HRIS password verification unavailable: ${errorMessage(error)}`);
+            throw new HrisUnavailableError(undefined, { cause: error });
         }
     }
 

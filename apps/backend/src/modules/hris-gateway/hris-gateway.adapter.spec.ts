@@ -37,9 +37,18 @@ describe('HrisGatewayAdapter', () => {
         expect(mockPost).toHaveBeenCalledWith('/auth/verify', { nik: '00000024', password: 'secret' });
     });
 
-    it('returns null when password verification cannot reach Gateway', async () => {
+    it('throws unavailable error when password verification cannot reach Gateway', async () => {
         mockPost.mockRejectedValue(new Error('ECONNREFUSED'));
-        await expect(adapter.verifyPassword('00000024', 'secret')).resolves.toBeNull();
+        await expect(adapter.verifyPassword('00000024', 'secret')).rejects.toMatchObject({
+            name: 'HrisUnavailableError',
+        });
+    });
+
+    it('rejects malformed password verification response', async () => {
+        mockPost.mockResolvedValue({ data: { valid: true } });
+        await expect(adapter.verifyPassword('00000024', 'secret')).rejects.toMatchObject({
+            name: 'HrisInvalidResponseError',
+        });
     });
 
     it('retries GET employee then returns it', async () => {
