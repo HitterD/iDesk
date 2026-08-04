@@ -49,4 +49,71 @@ describe('HealthService', () => {
         }));
         expect(dataSource.query).not.toHaveBeenCalled();
     });
+
+    describe('checkRedisHealth', () => {
+        const build = (redisEnabled: string, pingRedis = jest.fn()) => {
+            const service = new HealthService(
+                { query: jest.fn() } as unknown as DataSource,
+                { get: jest.fn().mockReturnValue(redisEnabled) } as unknown as ConfigService,
+                { pingRedis } as any,
+            );
+            return { service, pingRedis };
+        };
+
+        it('returns disabled without probing when REDIS_ENABLED is not true', async () => {
+            const { service, pingRedis } = build('false');
+            await expect(service.checkRedisHealth()).resolves.toEqual({ status: 'disabled' });
+            expect(pingRedis).not.toHaveBeenCalled();
+        });
+
+        it('returns connected with latency from the authenticated ping', async () => {
+            const { service } = build('true', jest.fn().mockResolvedValue({ status: 'connected', latency: 3 }));
+            await expect(service.checkRedisHealth()).resolves.toEqual({ status: 'connected', latency: 3 });
+        });
+
+        it('returns error instead of disabled when the ping fails', async () => {
+            const { service } = build('true', jest.fn().mockResolvedValue({ status: 'error' }));
+            await expect(service.checkRedisHealth()).resolves.toEqual({ status: 'error' });
+        });
+    });
+
+    describe('getReadiness', () => {
+        const build = (redisEnabled: string, redis: any, dbFails = false) =>
+            new HealthService(
+                { query: dbFails ? jest.fn().mockRejectedValue(new Error('down')) : jest.fn() } as unknown as DataSource,
+                { get: jest.fn().mockReturnValue(redisEnabled) } as unknown as ConfigService,
+                { pingRedis: jest.fn().mockResolvedValue(redis) } as any,
+            );
+
+        afterEach(() => {
+            delete process.env.AUTH_REFRESH_SESSION_MODE;
+        });
+
+        it('is ready in legacy mode even when Redis is disabled', async () => {
+            process.env.AUTH_REFRESH_SESSION_MODE = 'legacy';
+            await expect(build('false', { status: 'disabled' }).getReadiness()).resolves.toEqual({
+                status: 'ready',
+                ready: true,
+                dependencies: { database: 'connected', redis: 'disabled' },
+            });
+        });
+
+        it('is not ready when Redis holds security state but errors', async () => {
+            process.env.AUTH_REFRESH_SESSION_MODE = 'redis';
+            await expect(build('true', { status: 'error' }).getReadiness()).resolves.toEqual({
+                status: 'not_ready',
+                ready: false,
+                dependencies: { database: 'connected', redis: 'error' },
+            });
+        });
+
+        it('is not ready when the database is down', async () => {
+            process.env.AUTH_REFRESH_SESSION_MODE = 'legacy';
+            await expect(build('false', { status: 'disabled' }, true).getReadiness()).resolves.toEqual({
+                status: 'not_ready',
+                ready: false,
+                dependencies: { database: 'disconnected', redis: 'disabled' },
+            });
+        });
+    });
 });

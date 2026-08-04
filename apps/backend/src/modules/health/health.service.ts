@@ -12,8 +12,13 @@ import {
     SystemIncident,
     DetailedHealthStatus,
     BasicHealthStatus,
+    ReadinessStatus,
 } from './dto/health.dto';
 import { HealthSamplerService } from './health-sampler.service';
+import {
+    requiresRedisSecurityState,
+    resolveRefreshSessionMode,
+} from '../../shared/core/config/security.config';
 
 interface IncidentRecord {
     id: string;
@@ -142,14 +147,35 @@ export class HealthService {
     }
 
     /**
-     * Check Redis health
+     * Check Redis health via the sampler's authenticated client.
+     * Returns `disabled` only when REDIS_ENABLED is not 'true'.
      */
-    async checkRedisHealth(): Promise<{ status: 'connected' | 'disabled' | 'error'; latency?: number }> {
-        const redisActive = this.configService.get('REDIS_ENABLED') === 'true';
-        if (!redisActive) {
+    async checkRedisHealth(): Promise<InfrastructureStatus['redis']> {
+        if (this.configService.get('REDIS_ENABLED') !== 'true') {
             return { status: 'disabled' };
         }
-        return { status: 'disabled' };
+        return this.sampler.pingRedis();
+    }
+
+    /**
+     * Readiness contract: database is always required; Redis is required only when
+     * refresh-session security state lives in Redis (AUTH_REFRESH_SESSION_MODE != legacy).
+     */
+    async getReadiness(): Promise<ReadinessStatus> {
+        const redisRequired = requiresRedisSecurityState(resolveRefreshSessionMode());
+        const [db, redis] = await Promise.all([
+            this.checkDatabaseHealth(),
+            this.checkRedisHealth(),
+        ]);
+
+        const dependencies = {
+            database: db.status,
+            redis: redis.status,
+        };
+        const ready = db.status === 'connected'
+            && (!redisRequired || redis.status === 'connected');
+
+        return { status: ready ? 'ready' : 'not_ready', ready, dependencies };
     }
 
     /**

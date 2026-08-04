@@ -75,6 +75,16 @@ export interface BasicHealthStatus {
     version: string;
 }
 
+/** Stable readiness body; shape is identical for HTTP 200 and 503. */
+export interface ReadinessStatus {
+    status: 'ready' | 'not_ready';
+    ready: boolean;
+    dependencies: {
+        database: InfrastructureStatus['database']['status'];
+        redis: InfrastructureStatus['redis']['status'];
+    };
+}
+
 export const FAST_INTERVAL_MS = 2_000;
 export const SLOW_INTERVAL_MS = 30_000;
 export const HISTORY_SIZE = 60;

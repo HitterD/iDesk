@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Production Docker Compose - Full Stack
 # Run: docker-compose up -d
 
@@ -26,15 +24,30 @@ services:
   redis:
     image: redis:7-alpine
     container_name: idesk-redis
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    # No host port: Redis holds refresh-session security state and is reachable
+    # only through the internal idesk-network.
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set and non-empty}
+    command: >
+      redis-server --appendonly yes --maxmemory-policy noeviction
+      --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD must be set and non-empty}"
     volumes:
       - ./backups/redis:/data
     networks:
       - idesk-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,7 +71,8 @@ services:
       REDIS_ENABLED: "true"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set and non-empty}
+      AUTH_REFRESH_SESSION_MODE: ${AUTH_REFRESH_SESSION_MODE:-legacy}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}

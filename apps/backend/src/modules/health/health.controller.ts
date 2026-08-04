@@ -1,9 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { HealthService } from './health.service';
 import {
     BasicHealthStatus,
     DetailedHealthStatus,
+    ReadinessStatus,
     ServiceStatus,
     SystemMetrics,
     SystemIncident,
@@ -83,12 +85,9 @@ export class HealthController {
     @ApiOperation({ summary: 'Readiness probe' })
     @ApiResponse({ status: 200, description: 'Service is ready' })
     @ApiResponse({ status: 503, description: 'Service is not ready' })
-    async ready(): Promise<{ status: string; ready: boolean }> {
-        const health = await this.healthService.getBasicHealth();
-        const isReady = health.database === 'connected';
-        return {
-            status: isReady ? 'ready' : 'not_ready',
-            ready: isReady,
-        };
+    async ready(@Res({ passthrough: true }) res: Response): Promise<ReadinessStatus> {
+        const readiness = await this.healthService.getReadiness();
+        res.status(readiness.ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
+        return readiness;
     }
 }

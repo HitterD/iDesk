@@ -8,11 +8,11 @@ import { AuditAction } from '../../audit/entities/audit-log.entity';
 import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
 import { randomUUID } from 'crypto';
-import { BCRYPT_ROUNDS } from '../../../shared/core/config/security.config';
+import { BCRYPT_ROUNDS, resolveRefreshSessionMode } from '../../../shared/core/config/security.config';
 import { RefreshSessionStore } from '../infrastructure/refresh-session.store';
 import { RefreshTokenClaims } from './refresh-session.types';
 
-const REFRESH_SESSION_MODE = process.env.AUTH_REFRESH_SESSION_MODE || 'legacy';
+const REFRESH_SESSION_MODE = resolveRefreshSessionMode();
 const REFRESH_EXPIRY_SECONDS = { '7d': 7 * 24 * 60 * 60, '90d': 90 * 24 * 60 * 60 } as const;
 import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';

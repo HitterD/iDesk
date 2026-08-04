@@ -8,6 +8,7 @@ import {
     HealthFastUpdate,
     HealthSlowUpdate,
     HealthHistory,
+    InfrastructureStatus,
     RedisDetail,
     RedisQueueDepth,
     FAST_INTERVAL_MS,
@@ -134,6 +135,26 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    /**
+     * Authenticated Redis PING using the sampler's shared client.
+     * Never surfaces the underlying error message (may contain connection secrets).
+     */
+    async pingRedis(): Promise<InfrastructureStatus['redis']> {
+        if (!this.redisEnabled) return { status: 'disabled' };
+        try {
+            if (!this.redisClient) {
+                await this.createRedisClient();
+                if (!this.redisClient) return { status: 'error' };
+            }
+            const start = Date.now();
+            await this.redisClient.ping();
+            return { status: 'connected', latency: Date.now() - start };
+        } catch {
+            this.logger.warn('Redis PING failed');
+            return { status: 'error' };
+        }
+    }
+
     private appendHistory(key: keyof HealthHistory, value: number): void {
         const values = this.history[key];
         values.push(value);
@@ -143,21 +164,10 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
     }
 
     async refreshFastTier(): Promise<void> {
-        const pingRedis = async (): Promise<{ status: 'connected' | 'disabled' | 'error'; latency?: number }> => {
-            if (!this.redisEnabled) return { status: 'disabled' };
-            if (!this.redisClient) {
-                await this.createRedisClient();
-                if (!this.redisClient) return { status: 'error' };
-            }
-            const start = Date.now();
-            await this.redisClient.ping();
-            return { status: 'connected', latency: Date.now() - start };
-        };
-
         const [metricsRes, dbRes, redisRes] = await Promise.allSettled([
             this.healthService.getFastSystemMetrics(),
             this.healthService.checkDatabaseHealth(),
-            pingRedis(),
+            this.pingRedis(),
         ]);
 
         const serverTime = new Date().toISOString();
