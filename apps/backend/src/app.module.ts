@@ -124,12 +124,19 @@ import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './
 import { SharedGuardsModule } from './shared/core/shared-guards.module';
 import { HardwareRequestModule } from './modules/hardware-request/hardware-request.module';
 import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
+import authConfig from './config/auth.config';
+import { validateAuthEnvironment } from './config/auth.config';
 
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
             envFilePath: ['.env', '../../.env'], // Check apps/backend/.env first, then root/.env
+            load: [authConfig],
+            validate: (env) => {
+                validateAuthEnvironment(env);
+                return env;
+            },
         }),
         EventEmitterModule.forRoot(),
         ReportsModule,
@@ -145,7 +152,7 @@ import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
             database: process.env.DB_DATABASE || 'idesk_db',
             autoLoadEntities: true,
             // SECURITY: Use migrations in production, never auto-sync
-            synchronize: process.env.NODE_ENV !== 'production',
+            synchronize: process.env.DB_SYNCHRONIZE === 'true' && process.env.NODE_ENV !== 'production',
             // Enable migrations for production
             migrationsRun: process.env.NODE_ENV === 'production',
             migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
