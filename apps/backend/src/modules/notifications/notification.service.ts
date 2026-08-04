@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+
+const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { Notification, NotificationType, NotificationCategory } from './entities/notification.entity';
@@ -422,7 +424,7 @@ export class NotificationService {
                 link: notification.link,
                 isRead: notification.isRead,
                 createdAt: notification.createdAt,
-            }); } catch (e) { console.warn('Socket emit failed', e); }
+            }); } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
         }
 
         return savedNotifications;
