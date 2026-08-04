@@ -24,6 +24,6 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 # Install only production dependencies to reduce image bloat
 RUN npm ci --only=production
 
-EXPOSE 3001
+EXPOSE 5050
 
 CMD ["node", "dist/main"]

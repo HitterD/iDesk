@@ -258,7 +258,8 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
 
     // Start server and configure timeouts
-    const server = await app.listen(5050, '0.0.0.0');
+    const port = Number(process.env.PORT || 5050);
+    const server = await app.listen(port, '0.0.0.0');
 
     // Server timeout configuration to prevent resource exhaustion
     server.setTimeout(30000);         // 30 second request timeout

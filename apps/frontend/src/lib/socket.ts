@@ -2,9 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { useEffect, useState, useRef } from 'react';
 
 // Socket URL from environment variable with fallback
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 
-                   import.meta.env.VITE_API_URL || 
-                   'http://localhost:5050';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || window.location.origin;
 
 // Lazy socket instance - only one per app
 let socketInstance: Socket | null = null;

@@ -89,5 +89,5 @@ export class HealthController {
         const readiness = await this.healthService.getReadiness();
         res.status(readiness.ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
         return readiness;
-    }
+    } // readiness status is explicit for Compose/Kubernetes probes
 }

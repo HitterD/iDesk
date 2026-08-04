@@ -5,7 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { CalendarPlus, CalendarX2, Settings, RefreshCw } from 'lucide-react';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4050';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || window.location.origin;
 
 interface ZoomSocketEvents {
     'booking:created': (data: any) => void;

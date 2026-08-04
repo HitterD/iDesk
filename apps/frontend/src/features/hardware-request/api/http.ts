@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const hrHttp = axios.create({
-    baseURL: `${import.meta.env.VITE_API_URL}/v1/hardware-requests`,
+    baseURL: `${import.meta.env.VITE_API_URL || ''}/v1/hardware-requests`,
     withCredentials: true,
 });
 
