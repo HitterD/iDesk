@@ -7,6 +7,15 @@ import { UserRole } from './enums/user-role.enum';
 import { BCRYPT_ROUNDS } from '../../shared/core/config/security.config';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { validatePasswordPolicy } from '../auth/application/password-policy';
+
+function assertPasswordPolicy(password: string, user: Pick<User, 'email' | 'fullName' | 'employeeId'>): void {
+    const result = validatePasswordPolicy(password, user);
+    if (!result.valid) {
+        throw new BadRequestException(`Password policy violation: ${result.reason}`);
+    }
+}
+
 
 @Injectable()
 export class UserPasswordService {
@@ -31,6 +40,7 @@ export class UserPasswordService {
             throw new BadRequestException('Current password is incorrect');
         }
 
+        assertPasswordPolicy(newPassword, user);
         const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
         await this.userRepo.update(userId, { password: hashedPassword });
 
@@ -74,6 +84,7 @@ export class UserPasswordService {
             }
         }
 
+        assertPasswordPolicy(newPassword, user);
         const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
         await this.userRepo.update(userId, { password: hashedPassword, mustChangePassword: true });
 

@@ -1,5 +1,8 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 import { UserRole } from '../../domain/user.entity';
+import { PASSWORD_POLICY } from '../../application/password-policy';
+
+const { minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH } = PASSWORD_POLICY;
 
 export class RegisterDto {
     @IsEmail()
@@ -8,7 +11,8 @@ export class RegisterDto {
 
     @IsString()
     @IsNotEmpty()
-    @MinLength(6)
+    @MinLength(PASSWORD_MIN_LENGTH)
+    @MaxLength(PASSWORD_MAX_LENGTH)
     password: string;
 
     @IsString()

@@ -18,6 +18,7 @@ import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { ValidatedUser } from './auth.types';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from './password-verifier';
+import { validatePasswordPolicy } from './password-policy';
 
 // Login validation result types
 export interface LoginValidationResult {
@@ -46,6 +47,14 @@ export class AuthService {
         const isMatch = await bcrypt.compare(dto.currentPassword, user.password || '');
         if (!isMatch) {
             throw new BadRequestException('Current password is incorrect');
+        }
+        const passwordPolicy = validatePasswordPolicy(dto.newPassword, {
+            email: user.email,
+            fullName: user.fullName,
+            nik: user.employeeId,
+        });
+        if (!passwordPolicy.valid) {
+            throw new BadRequestException(`Password policy violation: ${passwordPolicy.reason}`);
         }
 
         const newPasswordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);

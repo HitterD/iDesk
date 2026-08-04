@@ -312,7 +312,7 @@ describe('AuthService', () => {
             await expect(
                 service.changePassword(mockUser.id, {
                     currentPassword: 'wrongpassword',
-                    newPassword: 'newpassword',
+                    newPassword: 'New-password7!',
                 })
             ).rejects.toThrow('Current password is incorrect');
         });
@@ -325,10 +325,10 @@ describe('AuthService', () => {
 
             const result = await service.changePassword(mockUser.id, {
                 currentPassword: 'correctpassword',
-                newPassword: 'newpassword',
+                newPassword: 'New-password7!',
             });
 
-            expect(bcrypt.hash).toHaveBeenCalledWith('newpassword', expect.any(Number));
+            expect(bcrypt.hash).toHaveBeenCalledWith('New-password7!', expect.any(Number));
             expect(usersService.updatePassword).toHaveBeenCalledWith(mockUser.id, 'newHashedPassword');
             expect(result.message).toBe('Password updated successfully');
         });
@@ -341,7 +341,7 @@ describe('AuthService', () => {
 
             await service.changePassword(mockUser.id, {
                 currentPassword: 'correctpassword',
-                newPassword: 'newpassword',
+                newPassword: 'New-password7!',
             });
 
             expect(usersService.update).toHaveBeenCalledWith(mockUser.id, { mustChangePassword: false });

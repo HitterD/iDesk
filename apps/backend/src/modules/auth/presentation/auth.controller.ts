@@ -8,15 +8,13 @@ import { LocalAuthGuard } from '../infrastructure/guards/local-auth.guard';
 import { JwtAuthGuard } from '../infrastructure/guards/jwt-auth.guard';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { setCsrfCookie } from '../../../shared/core/middleware/csrf.middleware';
-
-// Cookie configuration constants
-const COOKIE_NAME = 'access_token';
-const COOKIE_OPTIONS = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict' as const,
-    path: '/',
-};
+import {
+    ACCESS_COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
+    AUTH_COOKIE_OPTIONS,
+    clearCookieOptions,
+    withCookieMaxAge,
+} from './cookie-options';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -38,16 +36,10 @@ export class AuthController {
         const refreshMaxAgeMs = this.parseExpiresIn(result.refreshExpiresIn);
 
         // Set HttpOnly cookie with the token
-        res.cookie(COOKIE_NAME, result.access_token, {
-            ...COOKIE_OPTIONS,
-            maxAge: maxAgeMs,
-        });
+        res.cookie(ACCESS_COOKIE_NAME, result.access_token, withCookieMaxAge(maxAgeMs));
 
         // Set refresh token in HttpOnly cookie
-        res.cookie('refresh_token', result.refresh_token, {
-            ...COOKIE_OPTIONS,
-            maxAge: refreshMaxAgeMs,
-        });
+        res.cookie(REFRESH_COOKIE_NAME, result.refresh_token, withCookieMaxAge(refreshMaxAgeMs));
 
         // Set CSRF token cookie after successful login
         // This allows subsequent state-changing requests to include the token
@@ -70,18 +62,9 @@ export class AuthController {
         await this.authService.logout(req.user, req);
 
         // Clear the auth cookie
-        res.clearCookie(COOKIE_NAME, {
-            httpOnly: COOKIE_OPTIONS.httpOnly,
-            secure: COOKIE_OPTIONS.secure,
-            sameSite: COOKIE_OPTIONS.sameSite,
-            path: COOKIE_OPTIONS.path,
-        });
-        res.clearCookie('refresh_token', {
-            httpOnly: COOKIE_OPTIONS.httpOnly,
-            secure: COOKIE_OPTIONS.secure,
-            sameSite: COOKIE_OPTIONS.sameSite,
-            path: COOKIE_OPTIONS.path,
-        });
+        res.clearCookie(ACCESS_COOKIE_NAME, clearCookieOptions());
+        res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions());
+        void AUTH_COOKIE_OPTIONS;
 
         return res.json({ message: 'Logged out successfully' });
     }
@@ -100,15 +83,9 @@ export class AuthController {
 
         const maxAgeMs = this.parseExpiresIn(result.expiresIn);
         const refreshMaxAgeMs = this.parseExpiresIn(result.refreshExpiresIn);
-        res.cookie(COOKIE_NAME, result.access_token, {
-            ...COOKIE_OPTIONS,
-            maxAge: maxAgeMs,
-        });
+        res.cookie(ACCESS_COOKIE_NAME, result.access_token, withCookieMaxAge(maxAgeMs));
 
-        res.cookie('refresh_token', result.refresh_token, {
-            ...COOKIE_OPTIONS,
-            maxAge: refreshMaxAgeMs,
-        });
+        res.cookie(REFRESH_COOKIE_NAME, result.refresh_token, withCookieMaxAge(refreshMaxAgeMs));
         
         return res.json({
             user: result.user,
