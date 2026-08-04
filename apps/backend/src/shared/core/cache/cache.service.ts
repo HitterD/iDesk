@@ -1,5 +1,6 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RedisClientService } from './redis-client.service';
 
 interface CacheEntry<T> {
     value: T;
@@ -7,265 +8,151 @@ interface CacheEntry<T> {
 }
 
 /**
- * Cache Service with Redis support
- * 
- * When REDIS_ENABLED=true, uses Redis for distributed caching
- * When REDIS_ENABLED=false, uses in-memory Map (single instance only)
- * 
- * Environment Variables:
- * - REDIS_ENABLED: Set to 'true' to use Redis (default: false)
- * - REDIS_HOST: Redis server host (default: localhost)
- * - REDIS_PORT: Redis server port (default: 6379)
- * - REDIS_PASSWORD: Redis password (optional)
- * - CACHE_TTL: Default TTL in seconds (default: 300)
+ * Application cache.
+ *
+ * Two disjoint sets of operations share one Redis connection:
+ * - `*Security` methods back authentication state. They fail closed: when Redis is
+ *   unavailable they throw, and never read or write the in-memory map.
+ * - Every other method is best-effort. When Redis is unavailable they fall back to
+ *   the in-memory map (single instance only) and log the degradation.
+ *
+ * Environment variables: `REDIS_ENABLED`, `REDIS_HOST`, `REDIS_PORT`,
+ * `REDIS_PASSWORD`, `CACHE_TTL` (seconds, default 300).
  */
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(CacheService.name);
     private cache = new Map<string, CacheEntry<any>>();
     private cleanupInterval: NodeJS.Timeout | null = null;
-    private redisClient: any = null;
-    private useRedis: boolean = false;
+    private fallbackLoggedAt = 0;
 
-    // Default TTL: 5 minutes
-    private readonly defaultTtl: number;
+    private readonly defaultTtlSeconds: number;
 
-    constructor(private configService: ConfigService) {
-        this.defaultTtl = parseInt(this.configService.get('CACHE_TTL', '300'), 10) * 1000;
-        this.useRedis = this.configService.get('REDIS_ENABLED') === 'true';
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly redis: RedisClientService,
+    ) {
+        this.defaultTtlSeconds = parseInt(this.configService.get('CACHE_TTL', '300'), 10);
     }
 
-    async onModuleInit() {
-        if (this.useRedis) {
-            try {
-                const Redis = require('ioredis');
-                const host = this.configService.get<string>('REDIS_HOST', 'localhost');
-                const port = this.configService.get<number>('REDIS_PORT', 6379);
-                const password = this.configService.get<string>('REDIS_PASSWORD');
-
-                this.redisClient = new Redis({
-                    host,
-                    port,
-                    password: password || undefined,
-                    // Retry strategy with exponential backoff
-                    retryStrategy: (times: number) => {
-                        if (times > 10) {
-                            this.logger.error('Redis max retry attempts (10) reached, falling back to in-memory cache');
-                            this.useRedis = false;
-                            return null; // Stop retrying
-                        }
-                        const delay = Math.min(times * 100, 3000); // Exponential backoff, max 3s
-                        this.logger.warn(`Redis retry attempt ${times}, next retry in ${delay}ms`);
-                        return delay;
-                    },
-                    maxRetriesPerRequest: 3,
-                    enableReadyCheck: true,
-                    reconnectOnError: (err: Error) => {
-                        const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT'];
-                        return targetErrors.some(e => err.message.includes(e));
-                    },
-                    lazyConnect: false,
-                });
-
-                // Redis event listeners for monitoring
-                this.redisClient.on('error', (err: Error) => {
-                    this.logger.error(`Redis error: ${err.message}`);
-                });
-
-                this.redisClient.on('reconnecting', () => {
-                    this.logger.log('Redis reconnecting...');
-                });
-
-                this.redisClient.on('ready', () => {
-                    this.logger.log(`✅ Redis ready at ${host}:${port}`);
-                });
-
-                this.redisClient.on('close', () => {
-                    this.logger.warn('Redis connection closed');
-                });
-
-                // Test connection
-                await this.redisClient.ping();
-                this.logger.log(`✅ CacheService connected to Redis at ${host}:${port}`);
-            } catch (error: any) {
-                this.logger.warn(`⚠️ Redis connection failed: ${error.message}. Falling back to in-memory cache.`);
-                this.useRedis = false;
-                this.redisClient = null;
-            }
-        }
-
-        if (!this.useRedis) {
-            // Cleanup expired entries every minute for in-memory cache
-            this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
-            this.logger.log('CacheService initialized with in-memory store');
-        }
+    onModuleInit(): void {
+        // The in-memory map is always the fallback path, so its sweeper always runs.
+        this.cleanupInterval = setInterval(() => this.cleanup(), 60_000);
+        this.logger.log(
+            this.redis.enabled
+                ? 'CacheService using Redis with in-memory fallback'
+                : 'CacheService using in-memory store',
+        );
     }
 
-    async onModuleDestroy() {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-        }
-        if (this.redisClient) {
-            await this.redisClient.quit();
-        }
+    onModuleDestroy(): void {
+        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
         this.cache.clear();
     }
 
+    // ---------------------------------------------------------------------------
+    // Security state: fail closed, never falls back to memory.
+    // ---------------------------------------------------------------------------
+
     async setSecurity<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
-        if (!this.useRedis || !this.redisClient) {
-            throw new Error('Redis security store unavailable');
-        }
-        await this.redisClient.setex(key, ttlSeconds, JSON.stringify(value));
+        this.requireSecurityStore();
+        await this.redis.set(key, JSON.stringify(value), ttlSeconds);
     }
 
     async getSecurity<T>(key: string): Promise<T | null> {
-        if (!this.useRedis || !this.redisClient) {
-            throw new Error('Redis security store unavailable');
-        }
-        const data = await this.redisClient.get(key);
-        return data ? JSON.parse(data) as T : null;
+        this.requireSecurityStore();
+        const data = await this.redis.get(key);
+        return data ? (JSON.parse(data) as T) : null;
     }
 
     async deleteSecurity(key: string): Promise<void> {
-        if (!this.useRedis || !this.redisClient) {
-            throw new Error('Redis security store unavailable');
-        }
-        await this.redisClient.del(key);
+        this.requireSecurityStore();
+        await this.redis.del(key);
     }
 
     async deleteSecurityByPattern(pattern: string): Promise<void> {
-        if (!this.useRedis || !this.redisClient) {
-            throw new Error('Redis security store unavailable');
-        }
-        let cursor = '0';
-        do {
-            const [nextCursor, keys] = await this.redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
-            cursor = nextCursor;
-            if (keys.length) await this.redisClient.del(...keys);
-        } while (cursor !== '0');
+        this.requireSecurityStore();
+        await this.redis.deleteByPattern(pattern);
     }
 
     async scanSecurity(pattern: string): Promise<string[]> {
-        if (!this.useRedis || !this.redisClient) {
-            throw new Error('Redis security store unavailable');
-        }
-        const keys: string[] = [];
-        let cursor = '0';
-        do {
-            const [nextCursor, batch] = await this.redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
-            cursor = nextCursor;
-            keys.push(...batch);
-        } while (cursor !== '0');
-        return keys;
+        this.requireSecurityStore();
+        return this.redis.scan(pattern);
     }
 
     async evalSecurity(script: string, keys: string[], args: string[]): Promise<unknown> {
-        if (!this.useRedis || !this.redisClient) {
-            throw new Error('Redis security store unavailable');
-        }
-        return this.redisClient.eval(script, keys.length, ...keys, ...args);
+        this.requireSecurityStore();
+        return this.redis.eval(script, keys, args);
     }
 
-    /**
-     * Get value from cache
-     */
-    get<T>(key: string): T | null {
-        // For Redis, we need async but maintain sync interface for compatibility
-        // Use getAsync for async Redis operations
-        if (this.useRedis && this.redisClient) {
-            // Return null here, use getAsync for Redis
-            return null;
-        }
+    /** Security state has no safe degraded mode; callers map this to a service-unavailable response. */
+    private requireSecurityStore(): void {
+        if (!this.redis.isReady()) throw new Error('Redis security store unavailable');
+    }
 
+    // ---------------------------------------------------------------------------
+    // Best-effort cache: Redis when ready, in-memory otherwise.
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Reads through Redis when it is ready, otherwise from the in-memory fallback.
+     *
+     * There is no synchronous read: a synchronous accessor cannot reach Redis, so it
+     * would silently miss every cached entry whenever Redis is the active backend.
+     */
+    async getAsync<T>(key: string): Promise<T | null> {
+        if (this.redis.isReady()) {
+            try {
+                const data = await this.redis.get(key);
+                return data ? (JSON.parse(data) as T) : null;
+            } catch (error: any) {
+                this.logger.error(`Redis get failed for ${key}: ${error.message}`);
+                return null;
+            }
+        }
+        this.logFallback();
+        return this.getFromMemory<T>(key);
+    }
+
+    private getFromMemory<T>(key: string): T | null {
         const entry = this.cache.get(key);
         if (!entry) return null;
-
         if (Date.now() > entry.expiresAt) {
             this.cache.delete(key);
             return null;
         }
-
         return entry.value as T;
     }
 
-    /**
-     * Get value from cache (async - supports Redis)
-     */
-    async getAsync<T>(key: string): Promise<T | null> {
-        if (this.useRedis && this.redisClient) {
-            try {
-                const data = await this.redisClient.get(key);
-                if (!data) return null;
-                return JSON.parse(data) as T;
-            } catch (error) {
-                this.logger.error(`Redis get error for key ${key}:`, error);
-                return null;
-            }
-        }
-        return this.get<T>(key);
+    set<T>(key: string, value: T, ttlSeconds = this.defaultTtlSeconds): void {
+        void this.setAsync(key, value, ttlSeconds);
     }
 
-    /**
-     * Set value in cache with optional TTL (in seconds)
-     */
-    set<T>(key: string, value: T, ttlSeconds?: number): void {
-        const ttl = ttlSeconds || Math.floor(this.defaultTtl / 1000);
-
-        if (this.useRedis && this.redisClient) {
-            // Fire and forget for sync interface
-            this.redisClient.setex(key, ttl, JSON.stringify(value)).catch((err: any) => {
-                this.logger.error(`Redis set error for key ${key}:`, err);
-            });
-            return;
-        }
-
-        this.cache.set(key, {
-            value,
-            expiresAt: Date.now() + (ttl * 1000),
-        });
-    }
-
-    /**
-     * Set value in cache (async - supports Redis)
-     */
-    async setAsync<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
-        const ttl = ttlSeconds || Math.floor(this.defaultTtl / 1000);
-
-        if (this.useRedis && this.redisClient) {
+    async setAsync<T>(key: string, value: T, ttlSeconds = this.defaultTtlSeconds): Promise<void> {
+        if (this.redis.isReady()) {
             try {
-                await this.redisClient.setex(key, ttl, JSON.stringify(value));
-            } catch (error) {
-                this.logger.error(`Redis setAsync error for key ${key}:`, error);
+                await this.redis.set(key, JSON.stringify(value), ttlSeconds);
+            } catch (error: any) {
+                this.logger.error(`Redis set failed for ${key}: ${error.message}`);
             }
             return;
         }
-
-        this.set(key, value, ttlSeconds);
+        this.logFallback();
+        this.cache.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
     }
 
-    /**
-     * Delete a specific key
-     */
     del(key: string): boolean {
-        if (this.useRedis && this.redisClient) {
-            this.redisClient.del(key).catch((err: any) => {
-                this.logger.error(`Redis del error for key ${key}:`, err);
-            });
-            return true;
-        }
-        return this.cache.delete(key);
+        void this.delAsync(key);
+        return true;
     }
 
-    /**
-     * Delete a specific key (async)
-     */
     async delAsync(key: string): Promise<boolean> {
-        if (this.useRedis && this.redisClient) {
+        if (this.redis.isReady()) {
             try {
-                await this.redisClient.del(key);
+                await this.redis.del(key);
                 return true;
-            } catch (error) {
-                this.logger.error(`Redis delAsync error for key ${key}:`, error);
+            } catch (error: any) {
+                this.logger.error(`Redis del failed for ${key}: ${error.message}`);
                 return false;
             }
         }
@@ -273,111 +160,179 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Delete all keys matching a pattern
+     * Deletes every key in one cache namespace. Uses SCAN, never KEYS, so a large
+     * keyspace does not block the server.
+     *
+     * @throws Error when the pattern is not owned by a declared cache namespace —
+     * an unscoped pattern could reach `auth:refresh:*` and log every user out.
      */
     async delByPattern(pattern: string): Promise<number> {
-        if (this.useRedis && this.redisClient) {
+        assertCacheNamespace(pattern);
+
+        if (this.redis.isReady()) {
             try {
-                const keys = await this.redisClient.keys(pattern);
-                if (keys.length > 0) {
-                    await this.redisClient.del(...keys);
-                }
-                return keys.length;
-            } catch (error) {
-                this.logger.error(`Redis delByPattern error for pattern ${pattern}:`, error);
+                return await this.redis.deleteByPattern(pattern);
+            } catch (error: any) {
+                this.logger.error(`Redis delByPattern failed for ${pattern}: ${error.message}`);
                 return 0;
             }
         }
 
-        const regex = new RegExp(pattern.replace('*', '.*'));
+        const regex = patternToRegExp(pattern);
         let deleted = 0;
-
         for (const key of this.cache.keys()) {
             if (regex.test(key)) {
                 this.cache.delete(key);
                 deleted++;
             }
         }
-
         return deleted;
     }
 
     /**
-     * Clear entire cache
+     * Clears every declared cache namespace, one namespace at a time.
+     *
+     * Deliberately not `FLUSHDB`: the database is shared with refresh-session
+     * security state, so a flush would invalidate every active session.
      */
     async clear(): Promise<void> {
-        if (this.useRedis && this.redisClient) {
-            try {
-                await this.redisClient.flushdb();
-            } catch (error) {
-                this.logger.error('Redis clear error:', error);
+        if (this.redis.isReady()) {
+            for (const namespace of CACHE_NAMESPACES) {
+                await this.delByPattern(`${namespace}*`);
             }
             return;
         }
         this.cache.clear();
     }
 
-    /**
-     * Get or set - returns cached value or executes factory function
-     */
-    async getOrSet<T>(
-        key: string,
-        factory: () => Promise<T>,
-        ttlSeconds?: number
-    ): Promise<T> {
+    async getOrSet<T>(key: string, factory: () => Promise<T>, ttlSeconds?: number): Promise<T> {
         const cached = await this.getAsync<T>(key);
-        if (cached !== null) {
-            return cached;
-        }
+        if (cached !== null) return cached;
 
         const value = await factory();
         await this.setAsync(key, value, ttlSeconds);
         return value;
     }
 
-    /**
-     * Get cache stats
-     */
+    /** Counts only declared cache namespaces; security keys are never enumerated here. */
     async getStats(): Promise<{ size: number; keys: string[]; backend: string }> {
-        if (this.useRedis && this.redisClient) {
+        if (this.redis.isReady()) {
             try {
-                const keys = await this.redisClient.keys('*');
-                return {
-                    size: keys.length,
-                    keys: keys.slice(0, 100), // Limit keys returned
-                    backend: 'redis',
-                };
-            } catch (error) {
+                const keys: string[] = [];
+                for (const namespace of CACHE_NAMESPACES) {
+                    keys.push(...(await this.redis.scan(`${namespace}*`)));
+                }
+                return { size: keys.length, keys: keys.slice(0, 100), backend: 'redis' };
+            } catch {
                 return { size: 0, keys: [], backend: 'redis-error' };
             }
         }
-        return {
-            size: this.cache.size,
-            keys: Array.from(this.cache.keys()),
-            backend: 'memory',
-        };
+        return { size: this.cache.size, keys: Array.from(this.cache.keys()), backend: 'memory' };
     }
 
-    /**
-     * Cleanup expired entries (only for in-memory cache)
-     */
-    private cleanup(): void {
-        if (this.useRedis) return; // Redis handles TTL automatically
+    /** Redis was expected but is unavailable. Rate-limited to one line per minute. */
+    private logFallback(): void {
+        if (!this.redis.enabled) return;
+        const now = Date.now();
+        if (now - this.fallbackLoggedAt < 60_000) return;
+        this.fallbackLoggedAt = now;
+        this.logger.warn('Redis unavailable; serving non-security cache from in-memory fallback');
+    }
 
+    private cleanup(): void {
         const now = Date.now();
         let cleaned = 0;
-
         for (const [key, entry] of this.cache.entries()) {
             if (now > entry.expiresAt) {
                 this.cache.delete(key);
                 cleaned++;
             }
         }
-
-        if (cleaned > 0) {
-            this.logger.debug(`Cleaned up ${cleaned} expired cache entries`);
-        }
+        if (cleaned > 0) this.logger.debug(`Cleaned up ${cleaned} expired cache entries`);
     }
+}
+
+/**
+ * Every cache namespace, with its owner and how it is invalidated.
+ *
+ * `auth:refresh` is intentionally absent: it is security state, owned by
+ * RefreshSessionStore, and must never be reachable from cache clear or stats.
+ *
+ * | Namespace              | Owner                        | TTL      | Invalidation                          |
+ * |------------------------|------------------------------|----------|---------------------------------------|
+ * | `dashboard:stats:`     | ticket-stats/query services  | default  | CacheInvalidationService ticket/user   |
+ * | `tickets:list:`        | ticket query service         | default  | CacheInvalidationService ticket change |
+ * | `ticket:`              | ticket query service         | default  | CacheInvalidationService ticket change |
+ * | `ticket-templates:`    | ticket-template service      | default  | service-local invalidateAll            |
+ * | `user:`                | users service                | default  | CacheInvalidationService user change   |
+ * | `agents:all`           | users service                | default  | CacheInvalidationService user change   |
+ * | `perm:`                | permissions service          | 60s      | TTL only                               |
+ * | `pageAccess:`          | page-access guard            | default  | TTL, or user permission change         |
+ * | `featureAccess:`       | feature-access guard         | default  | TTL only                               |
+ * | `accessDenials:`       | page-access guard            | 300s     | TTL (lockout counter)                  |
+ * | `accessLockout:`       | page-access guard            | 300s     | TTL (lockout flag)                     |
+ * | `kb:article:`          | knowledge-base service       | default  | CacheInvalidationService KB change     |
+ * | `kb:articles:`         | knowledge-base service       | default  | CacheInvalidationService KB change     |
+ * | `sla:config`           | SLA config service           | default  | CacheInvalidationService SLA change    |
+ * | `sla-config:`          | SLA config service           | 60s      | delete on SLA config write             |
+ * | `sites:active`         | sites service                | default  | delete on site write                   |
+ * | `sounds:`              | sound service                | 60s      | delete-all on sound write              |
+ * | `hw-catalog:`          | hardware catalog service     | 60s      | delete on catalog write                |
+ * | `settings:scheduling`  | scheduling settings service  | default  | write-through on settings update       |
+ * | `manager-dashboard:`   | manager dashboard service    | default  | TTL only                               |
+ * | `reports:`             | reports service              | default  | TTL only                               |
+ * | `search:`              | search service               | 60s      | TTL only                               |
+ * | `suggestions:`         | search service               | 60s      | TTL only                               |
+ * | `action-items:`        | notification center          | default  | TTL only                               |
+ * | `push:`                | push channel service         | 60-65s   | TTL (dedup/throttle windows)           |
+ * | `telegram:linkcode:`   | telegram service             | 300s     | consumed on link, else TTL             |
+ */
+export const CACHE_NAMESPACES = [
+    'dashboard:stats:',
+    'tickets:list:',
+    'ticket:',
+    'ticket-templates:',
+    'user:',
+    'agents:all',
+    'perm:',
+    'pageAccess:',
+    'featureAccess:',
+    'accessDenials:',
+    'accessLockout:',
+    'kb:article:',
+    'kb:articles:',
+    'sla:config',
+    'sla-config:',
+    'sites:active',
+    'sounds:',
+    'hw-catalog:',
+    'settings:scheduling',
+    'manager-dashboard:',
+    'reports:',
+    'search:',
+    'suggestions:',
+    'action-items:',
+    'push:',
+    'telegram:linkcode:',
+] as const;
+
+/** Namespace holding authentication state. Off-limits to every non-security cache operation. */
+export const SECURITY_NAMESPACE = 'auth:refresh';
+
+/** @throws Error when `pattern` does not start with a declared cache namespace. */
+export function assertCacheNamespace(pattern: string): void {
+    const owned = CACHE_NAMESPACES.some(
+        (namespace) => pattern.startsWith(namespace) || `${namespace}*` === pattern,
+    );
+    if (!owned) {
+        throw new Error(`Cache pattern is not in a declared cache namespace: ${pattern}`);
+    }
+}
+
+/** Glob to RegExp for the in-memory fallback. Escapes every metacharacter except `*`. */
+function patternToRegExp(pattern: string): RegExp {
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    return new RegExp(`^${escaped}$`);
 }
 
 // Cache key builders for consistent key naming

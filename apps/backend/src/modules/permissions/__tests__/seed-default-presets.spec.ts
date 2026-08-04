@@ -32,9 +32,10 @@ function makeRepoMock(seed: any[] = []) {
 }
 
 const mockCache: Partial<CacheService> = {
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue(undefined),
-    del: jest.fn().mockResolvedValue(undefined),
+    getAsync: jest.fn().mockResolvedValue(null),
+    setAsync: jest.fn().mockResolvedValue(undefined),
+    delAsync: jest.fn().mockResolvedValue(true),
+    delByPattern: jest.fn().mockResolvedValue(0),
 };
 
 const mockGateway = {};

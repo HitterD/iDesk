@@ -49,7 +49,7 @@ export class SearchService {
         const cacheKey = `search:${JSON.stringify(dto)}`;
         
         // Check cache
-        const cached = await this.cacheService.get<SearchResultDto>(cacheKey);
+        const cached = await this.cacheService.getAsync<SearchResultDto>(cacheKey);
         if (cached) {
             this.logger.debug(`Cache hit for search: ${query}`);
             return cached;
@@ -118,7 +118,7 @@ export class SearchService {
         results.timing = Date.now() - startTime;
         
         // Cache for 60 seconds
-        await this.cacheService.set(cacheKey, results, 60);
+        await this.cacheService.setAsync(cacheKey, results, 60);
         
         this.logger.debug(`Search completed in ${results.timing}ms, found ${results.totalCount} results`);
         
@@ -340,7 +340,7 @@ export class SearchService {
         if (!query || query.length < 2) return [];
 
         const cacheKey = `suggestions:${query.toLowerCase()}`;
-        const cached = await this.cacheService.get<SearchSuggestionDto[]>(cacheKey);
+        const cached = await this.cacheService.getAsync<SearchSuggestionDto[]>(cacheKey);
         if (cached) return cached;
 
         const searchTerm = `%${query.toLowerCase()}%`;
@@ -413,7 +413,7 @@ export class SearchService {
         });
 
         // Cache for 5 minutes
-        await this.cacheService.set(cacheKey, suggestions.slice(0, limit), 300);
+        await this.cacheService.setAsync(cacheKey, suggestions.slice(0, limit), 300);
 
         return suggestions.slice(0, limit);
     }

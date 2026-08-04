@@ -99,7 +99,7 @@ export class TelegramService {
 
         // SECURITY: Store in CacheService with 5 minute TTL (supports Redis)
         const cacheKey = `${LINK_CODE_PREFIX}${code}`;
-        this.cacheService.set(cacheKey, { userId }, 300); // 5 minutes TTL
+        await this.cacheService.setAsync(cacheKey, { userId }, 300); // 5 minutes TTL
 
         this.logger.debug(`Generated link code ${code} for user ${userId}`);
         return code;
@@ -107,7 +107,7 @@ export class TelegramService {
 
     async verifyAndLink(telegramId: string, code: string): Promise<{ success: boolean; message: string }> {
         const cacheKey = `${LINK_CODE_PREFIX}${code}`;
-        const linkData = this.cacheService.get<{ userId: string }>(cacheKey);
+        const linkData = await this.cacheService.getAsync<{ userId: string }>(cacheKey);
 
         if (!linkData) {
             return { success: false, message: 'Kode tidak valid atau sudah kadaluarsa.' };
@@ -145,7 +145,7 @@ export class TelegramService {
         );
 
         // Remove used code from cache
-        this.cacheService.del(cacheKey);
+        await this.cacheService.delAsync(cacheKey);
 
         // Get user name for welcome message
         const user = await this.userRepo.findOne({ where: { id: linkData.userId } });

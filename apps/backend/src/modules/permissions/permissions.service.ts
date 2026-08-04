@@ -879,14 +879,10 @@ export class PermissionsService implements OnModuleInit {
      * rather than waiting for the 60s TTL to expire.
      */
     async invalidatePermissionCache(userId: string): Promise<void> {
-        // CacheService delAsync only handles single keys; a follow-up plan
-        // can introduce a SCAN-based wildcard delete. For now we invalidate
-        // the canonical set of (feature, action) combinations we know exist.
-        const actions: Array<'view' | 'create' | 'edit' | 'delete'> = ['view', 'create', 'edit', 'delete'];
-        await Promise.all(
-            actions.map((a) => this.cacheService.delAsync(`perm:${userId}:*:${a}`).catch(() => undefined)),
-        );
-        // Belt-and-braces: also wipe any specific feature keys we know about
+        // Scoped to this user's `perm:` namespace and deleted via SCAN. The previous
+        // per-action `delAsync('perm:<id>:*:<action>')` treated `*` as a literal key,
+        // so cached permissions survived a role change until the TTL expired.
+        await this.cacheService.delByPattern(`perm:${userId}:*`).catch(() => undefined);
         await this.cacheService.delAsync(`pageAccess:${userId}`).catch(() => undefined);
     }
 
