@@ -2,6 +2,8 @@ import { Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
+import { AuthenticatedClaims, AuthenticatedUser } from '../../application/auth-user.types';
+import { toAuthenticatedUser } from '../../application/auth-user.mapper';
 
 /**
  * Custom JWT extractor that checks cookie first, then Authorization header
@@ -44,8 +46,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         });
     }
 
-    async validate(payload: any) {
-        if (!payload || !payload.sub) {
+    async validate(payload: AuthenticatedClaims): Promise<AuthenticatedUser> {
+        if (!payload?.sub || !payload.username || !payload.role || !payload.fullName) {
             throw new UnauthorizedException('Invalid token payload');
         }
 
@@ -54,6 +56,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             this.logger.debug(`Validating user: ${payload.sub}`);
         }
 
-        return { userId: payload.sub, username: payload.username, role: payload.role, fullName: payload.fullName };
+        return toAuthenticatedUser({
+            id: payload.sub,
+            email: payload.username,
+            role: payload.role,
+            fullName: payload.fullName,
+        });
     }
 }

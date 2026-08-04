@@ -1,13 +1,12 @@
-import { UserRole } from '../../users/enums/user-role.enum';
+export {
+    AuthenticatedClaims,
+    AuthenticatedUser,
+    ValidatedUser,
+} from './auth-user.types';
 
-export interface ValidatedUser {
-    id: string;
-    email: string;
-    fullName: string;
-    role: UserRole | string;
-    isActive: boolean;
-    mustChangePassword: boolean;
-    employeeId?: string | null;
-    departmentId?: string | null;
-    siteId?: string | null;
-}
+export type { UserRole } from '../../users/enums/user-role.enum';
+
+import type { AuthenticatedUser, ValidatedUser } from './auth-user.types';
+
+export type AuthRequestUser = AuthenticatedUser;
+export type AuthenticatedUserData = ValidatedUser;

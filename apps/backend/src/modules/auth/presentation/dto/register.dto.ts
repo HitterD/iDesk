@@ -1,5 +1,5 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
-import { UserRole } from '../../domain/user.entity';
+import { UserRole } from '../../../users/enums/user-role.enum';
 import { PASSWORD_POLICY } from '../../application/password-policy';
 
 const { minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH } = PASSWORD_POLICY;

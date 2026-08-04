@@ -7,6 +7,9 @@ import * as bcrypt from 'bcrypt';
 import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { RefreshSessionStore } from '../infrastructure/refresh-session.store';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { ValidatedUser } from './auth-user.types';
+
 
 // Mock bcrypt
 jest.mock('bcrypt');
@@ -17,13 +20,13 @@ describe('AuthService', () => {
     let jwtService: jest.Mocked<JwtService>;
     let auditService: jest.Mocked<AuditService>;
 
-    const mockUser = {
+    const mockUser: ValidatedUser = {
         id: 'user-123',
         email: 'test@example.com',
-        password: 'hashedPassword123',
         fullName: 'Test User',
-        role: 'USER',
+        role: UserRole.USER,
         isActive: true,
+        mustChangePassword: false,
     };
 
     beforeEach(async () => {
@@ -200,7 +203,7 @@ describe('AuthService', () => {
         it.each(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'MANAGER'])(
             'should set 8h expiration for %s users',
             async (role) => {
-                const staffUser = { ...mockUser, role };
+                const staffUser: ValidatedUser = { ...mockUser, role: role as UserRole };
                 jwtService.sign.mockReturnValue('token');
                 usersService.update.mockResolvedValue(staffUser as any);
 
@@ -357,8 +360,9 @@ describe('AuthService', () => {
             const result = await service.validateUser('test@example.com', 'password');
 
             expect(result).toBeDefined();
-            expect(result.email).toBe(mockUser.email);
-            expect(result.password).toBeUndefined();
+            expect(result).not.toBeNull();
+            expect(result?.email).toBe(mockUser.email);
+            expect(result).not.toHaveProperty('password');
         });
 
         it('should return null when user not found', async () => {

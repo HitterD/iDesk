@@ -16,7 +16,8 @@ const REFRESH_SESSION_MODE = resolveRefreshSessionMode();
 const REFRESH_EXPIRY_SECONDS = { '7d': 7 * 24 * 60 * 60, '90d': 90 * 24 * 60 * 60 } as const;
 import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
-import { ValidatedUser } from './auth.types';
+import { ValidatedUser } from './auth-user.types';
+import { toValidatedUser } from './auth-user.mapper';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from './password-verifier';
 import { validatePasswordPolicy } from './password-policy';
 import { maskIdentifier } from '../../../shared/security/sensitive-data';
@@ -110,7 +111,7 @@ export class AuthService {
             };
         }
 
-        if ((user as any).isActive === false || (user as any).status === 'DISABLED') {
+        if (user.isActive === false) {
             this.auditService.logAsync({
                 userId: user.id,
                 action: AuditAction.LOGIN_FAILED,
@@ -144,10 +145,9 @@ export class AuthService {
             };
         }
 
-        const { password, ...result } = user;
         return {
             success: true,
-            user: result as ValidatedUser,
+            user: toValidatedUser(user),
         };
     }
 
@@ -188,12 +188,11 @@ export class AuthService {
             user = await this.hrisSync.provisionEmployee(employee);
         }
 
-        if ((user as any).isActive === false || (user as any).status === 'DISABLED') {
+        if (user.isActive === false) {
             return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'account disabled locally', request, user.id);
         }
 
-        const { password, ...result } = user;
-        return { success: true, user: result };
+        return { success: true, user: toValidatedUser(user) };
     }
 
     private logNikFailure(
@@ -216,11 +215,10 @@ export class AuthService {
         return { success: false, errorCode };
     }
 
-    async validateUser(email: string, pass: string): Promise<any> {
+    async validateUser(email: string, pass: string): Promise<ValidatedUser | null> {
         const user = await this.usersService.findByEmail(email);
         if (user && await bcrypt.compare(pass, user.password || '')) {
-            const { password, ...result } = user;
-            return result;
+            return toValidatedUser(user);
         }
         return null;
     }
@@ -241,7 +239,7 @@ export class AuthService {
         return AuthService.STAFF_ROLES.has(role) ? '8h' : '1h';
     }
 
-    async login(user: any, request?: Request, rememberMe = false, familyId: string = randomUUID(), parentId?: string) {
+    async login(user: ValidatedUser, request?: Request, rememberMe = false, familyId: string = randomUUID(), parentId?: string) {
         const payload = { username: user.email, sub: user.id, role: user.role, type: 'access', fullName: user.fullName };
         const tokenId = randomUUID();
         const refreshPayload = {
@@ -320,7 +318,13 @@ export class AuthService {
             }
             if (!user) throw new UnauthorizedException('Invalid refresh token');
 
-            return this.login(user, request, decoded.rememberMe === true, decoded.familyId, decoded.tokenId);
+            return this.login(
+                toValidatedUser(user),
+                request,
+                decoded.rememberMe === true,
+                decoded.familyId,
+                decoded.tokenId,
+            );
         } catch (error) {
             if (error instanceof UnauthorizedException) throw error;
             // A store outage is not an invalid token. Mapping it to 401 would log every
@@ -339,8 +343,8 @@ export class AuthService {
         }
     }
 
-    async logout(user: any, request?: Request) {
-        if (user && user.userId) {
+    async logout(user: { userId: string } | null | undefined, request?: Request) {
+        if (user?.userId) {
             await this.invalidateUserSessions(user.userId);
             this.auditService.logAsync({
                 userId: user.userId,
@@ -356,8 +360,8 @@ export class AuthService {
     async register(registerDto: RegisterDto) {
         return this.usersService.createUser({
             ...registerDto,
-            role: registerDto.role || 'USER',
-        } as any);
+            role: registerDto.role,
+        });
     }
 }
 

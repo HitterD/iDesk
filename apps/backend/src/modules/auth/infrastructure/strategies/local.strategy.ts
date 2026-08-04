@@ -2,7 +2,7 @@ import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
 import { AuthService } from '../../application/auth.service';
-import { ValidatedUser } from '../../application/auth.types';
+import { ValidatedUser } from '../../application/auth-user.types';
 
 // Custom exception with error code for frontend
 class LoginException extends HttpException {
