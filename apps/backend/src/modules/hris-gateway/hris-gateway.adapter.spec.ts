@@ -8,7 +8,21 @@ jest.mock('axios', () => ({
     },
 }));
 
-import { HrisGatewayAdapter } from './hris-gateway.adapter';
+import { HrisGatewayAdapter, resolveRequestTimeoutMs } from './hris-gateway.adapter';
+
+describe('resolveRequestTimeoutMs', () => {
+    it.each([
+        [undefined, 10_000],
+        ['', 10_000],
+        ['abc', 10_000],
+        ['0', 10_000],
+        ['-5', 10_000],
+        ['5000', 5_000],
+        ['999999', 30_000],
+    ])('maps %s to %s ms', (raw, expected) => {
+        expect(resolveRequestTimeoutMs(raw)).toBe(expected);
+    });
+});
 
 describe('HrisGatewayAdapter', () => {
     let adapter: HrisGatewayAdapter;

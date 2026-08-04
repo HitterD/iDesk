@@ -54,7 +54,15 @@ export interface HrisEmployeesPage {
 }
 
 const GET_RETRIES = 3;
-const REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
+const MAX_TIMEOUT_MS = 30_000;
+
+/** Bounded per-request timeout; invalid or out-of-range values fall back to the default. */
+export function resolveRequestTimeoutMs(raw = process.env.HRIS_GATEWAY_TIMEOUT_MS): number {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_TIMEOUT_MS;
+    return Math.min(parsed, MAX_TIMEOUT_MS);
+}
 
 @Injectable()
 export class HrisGatewayAdapter {
@@ -64,7 +72,7 @@ export class HrisGatewayAdapter {
     constructor() {
         this.http = axios.create({
             baseURL: process.env.HRIS_GATEWAY_BASE_URL,
-            timeout: REQUEST_TIMEOUT_MS,
+            timeout: resolveRequestTimeoutMs(),
             headers: {
                 'X-API-Key': process.env.HRIS_GATEWAY_API_KEY || '',
                 'Content-Type': 'application/json',

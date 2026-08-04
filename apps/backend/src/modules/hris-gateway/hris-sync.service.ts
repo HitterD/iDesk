@@ -11,6 +11,7 @@ import { UserRole } from '../users/enums/user-role.enum';
 import { HrisEmployee, HrisGatewayAdapter } from './hris-gateway.adapter';
 import { DEFAULT_HRIS_PASSWORD, resolveRole, resolveSiteCode } from './hris-mapping';
 import { PermissionsService } from '../permissions/permissions.service';
+import { maskIdentifier } from '../../shared/security/sensitive-data';
 
 export interface HrisSyncSummary {
     created: number;
@@ -91,7 +92,7 @@ export class HrisSyncService {
                         const action = await this.upsertEmployee(employee, siteByCode);
                         summary[action]++;
                     } catch (error: any) {
-                        summary.errors.push(`${employee.nik_hris || 'unknown'}: ${error.message}`);
+                        summary.errors.push(`${maskIdentifier(employee.nik_hris || 'unknown')}: ${error.message}`);
                     }
                 }
             }
@@ -203,7 +204,7 @@ export class HrisSyncService {
                 await this.userRepo.update(user.id, { isActive: false });
                 summary.disabled++;
             } catch (error: any) {
-                summary.errors.push(`${user.employeeId}: ${error.message}`);
+                summary.errors.push(`${maskIdentifier(user.employeeId || 'unknown')}: ${error.message}`);
             }
         }
 
