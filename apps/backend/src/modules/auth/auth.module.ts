@@ -13,6 +13,10 @@ import { AppCacheModule } from '../../shared/core/cache/cache.module';
 import { RefreshSessionStore } from './infrastructure/refresh-session.store';
 import { TokenService } from './application/token.service';
 import { SessionService } from './application/session.service';
+import { CredentialValidatorService } from './application/credential-validator.service';
+import { HrisProvisioningService } from './application/hris-provisioning.service';
+import { AuthEventPublisher } from './application/auth-events';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
 // Fail fast if JWT_SECRET is not configured or too short
@@ -44,6 +48,7 @@ assertRefreshSessionConfig();
         AuditModule,
         HrisGatewayModule,
         AppCacheModule,
+        EventEmitterModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             useFactory: (configService: ConfigService) => {
@@ -61,8 +66,18 @@ assertRefreshSessionConfig();
             inject: [ConfigService],
         }),
     ],
-    providers: [AuthService, JwtStrategy, LocalStrategy, RefreshSessionStore, TokenService, SessionService],
+    providers: [
+        AuthService,
+        JwtStrategy,
+        LocalStrategy,
+        RefreshSessionStore,
+        TokenService,
+        SessionService,
+        CredentialValidatorService,
+        HrisProvisioningService,
+        AuthEventPublisher,
+    ],
     controllers: [AuthController],
-    exports: [AuthService, PassportModule, JwtModule],
+    exports: [AuthService, PassportModule, JwtModule, AuthEventPublisher],
 })
 export class AuthModule { }

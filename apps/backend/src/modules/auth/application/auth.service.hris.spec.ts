@@ -1,18 +1,29 @@
 import { Test } from '@nestjs/testing';
-import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { AuditService } from '../../audit/audit.service';
 import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError } from '../../hris-gateway/hris-gateway.adapter';
-import { RefreshSessionStore } from '../infrastructure/refresh-session.store';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { UsersService } from '../../users/users.service';
+import { TokenService } from './token.service';
+import { SessionService } from './session.service';
+import { CredentialValidatorService } from './credential-validator.service';
+import { HrisProvisioningService } from './hris-provisioning.service';
 
 jest.mock('bcrypt');
 
 describe('AuthService HRIS NIK login', () => {
     let service: AuthService;
-    let users: { findByEmail: jest.Mock; findByEmployeeId: jest.Mock };
+    let users: {
+        findByEmail: jest.Mock;
+        findByEmployeeId: jest.Mock;
+        findById: jest.Mock;
+        update: jest.Mock;
+        updatePassword: jest.Mock;
+        setCurrentRefreshToken: jest.Mock;
+        removeRefreshToken: jest.Mock;
+        getUserIfRefreshTokenMatches: jest.Mock;
+    };
     let gateway: { verifyPassword: jest.Mock; getEmployee: jest.Mock };
     let sync: { provisionEmployee: jest.Mock };
     let audit: { logAsync: jest.Mock };
@@ -28,7 +39,16 @@ describe('AuthService HRIS NIK login', () => {
     };
 
     beforeEach(async () => {
-        users = { findByEmail: jest.fn(), findByEmployeeId: jest.fn() };
+        users = {
+            findByEmail: jest.fn(),
+            findByEmployeeId: jest.fn(),
+            findById: jest.fn(),
+            update: jest.fn().mockResolvedValue(undefined),
+            updatePassword: jest.fn(),
+            setCurrentRefreshToken: jest.fn(),
+            removeRefreshToken: jest.fn(),
+            getUserIfRefreshTokenMatches: jest.fn(),
+        };
         gateway = { verifyPassword: jest.fn(), getEmployee: jest.fn() };
         sync = { provisionEmployee: jest.fn() };
         audit = { logAsync: jest.fn() };
@@ -37,11 +57,19 @@ describe('AuthService HRIS NIK login', () => {
             providers: [
                 AuthService,
                 { provide: UsersService, useValue: users },
-                { provide: JwtService, useValue: {} },
+                {
+                    provide: TokenService,
+                    useValue: { issueRefreshToken: jest.fn(), verifyRefreshToken: jest.fn() },
+                },
+                {
+                    provide: SessionService,
+                    useValue: { persist: jest.fn(), rotate: jest.fn(), invalidateUser: jest.fn() },
+                },
+                CredentialValidatorService,
+                HrisProvisioningService,
                 { provide: AuditService, useValue: audit },
                 { provide: HrisGatewayAdapter, useValue: gateway },
                 { provide: HrisSyncService, useValue: sync },
-                { provide: RefreshSessionStore, useValue: { create: jest.fn(), consume: jest.fn(), invalidateFamily: jest.fn(), invalidateUserSessions: jest.fn() } },
             ],
         }).compile();
         service = module.get(AuthService);

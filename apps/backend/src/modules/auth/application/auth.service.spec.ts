@@ -9,6 +9,8 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { ValidatedUser } from './auth-user.types';
 import { IssuedTokens, TokenService } from './token.service';
 import { SessionService } from './session.service';
+import { CredentialValidatorService } from './credential-validator.service';
+import { HrisProvisioningService } from './hris-provisioning.service';
 import { RefreshTokenClaims } from './refresh-session.types';
 import { User } from '../../users/entities/user.entity';
 
@@ -103,6 +105,11 @@ describe('AuthService', () => {
                         rotate: jest.fn(),
                         invalidateUser: jest.fn(),
                     },
+                },
+                CredentialValidatorService,
+                {
+                    provide: HrisProvisioningService,
+                    useValue: { provision: jest.fn() },
                 },
                 {
                     provide: AuditService,

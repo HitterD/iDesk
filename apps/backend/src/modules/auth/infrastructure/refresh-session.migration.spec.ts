@@ -34,11 +34,22 @@ type Mocks = ReturnType<typeof mocks>;
 
 function mocks() {
     return {
-        jwt: { sign: jest.fn().mockReturnValue('signed.jwt.token'), verify: jest.fn() },
+        token: {
+            issueRefreshToken: jest.fn().mockReturnValue({
+                access_token: 'access.token',
+                refresh_token: 'refresh.token',
+                tokenId: 'issued-token',
+                familyId: 'issued-family',
+                expiresIn: '1h',
+                refreshExpiresIn: '7d',
+                refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            }),
+            verifyRefreshToken: jest.fn(),
+        },
         users: {
             update: jest.fn().mockResolvedValue(undefined),
             updatePassword: jest.fn().mockResolvedValue(undefined),
-            findById: jest.fn().mockResolvedValue({ id: 'user-1', email: 'u@e.com', role: 'USER' }),
+            findById: jest.fn().mockResolvedValue({ ...USER, password: 'hash' }),
             setCurrentRefreshToken: jest.fn().mockResolvedValue(undefined),
             removeRefreshToken: jest.fn().mockResolvedValue(undefined),
             getUserIfRefreshTokenMatches: jest.fn().mockResolvedValue(null),
@@ -53,12 +64,26 @@ function mocks() {
     };
 }
 
-function serviceIn(mode: string, m: Mocks) {
+function servicesIn(mode: string, m: Mocks) {
     const AuthService = authServiceIn(mode);
-    return new AuthService(m.jwt, m.users, m.audit, {}, {}, m.store);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SessionService } = require('../application/session.service');
+    const session = new SessionService(m.users, m.store);
+    return {
+        auth: new AuthService(m.users, m.audit, {}, {}, m.token, session),
+        session,
+    };
 }
 
-const USER = { id: 'user-1', email: 'u@e.com', role: 'USER', fullName: 'U' };
+function serviceIn(mode: string, m: Mocks) {
+    return servicesIn(mode, m).auth;
+}
+
+function sessionIn(mode: string, m: Mocks) {
+    return servicesIn(mode, m).session;
+}
+
+const USER = { id: 'user-1', email: 'u@e.com', role: 'USER', fullName: 'U', isActive: true, mustChangePassword: false };
 const ROTATION_CLAIMS = {
     sub: 'user-1',
     tokenId: 'token-1',
@@ -66,6 +91,17 @@ const ROTATION_CLAIMS = {
     type: 'refresh',
     rememberMe: false,
 };
+
+function configureRefreshToken(m: Mocks, claims: Record<string, unknown> = ROTATION_CLAIMS) {
+    m.token.verifyRefreshToken.mockReturnValue(claims);
+}
+
+function configureLogin(m: Mocks, expiresIn = '1h') {
+    m.token.issueRefreshToken.mockReturnValue({
+        ...m.token.issueRefreshToken(),
+        expiresIn,
+    });
+}
 
 const originalMode = process.env.AUTH_REFRESH_SESSION_MODE;
 const originalRedis = process.env.REDIS_ENABLED;
@@ -83,6 +119,7 @@ describe('refresh session cutover — write path per mode', () => {
         ['redis', true, false],
     ])('%s writes redis=%s legacy=%s', async (mode, redisWrite, legacyWrite) => {
         const m = mocks();
+        configureLogin(m);
         await serviceIn(mode, m).login(USER);
 
         expect(m.store.create).toHaveBeenCalledTimes(redisWrite ? 1 : 0);
@@ -91,6 +128,7 @@ describe('refresh session cutover — write path per mode', () => {
 
     it('stores no raw token in the legacy column path after cutover', async () => {
         const m = mocks();
+        configureLogin(m);
         await serviceIn('redis', m).login(USER);
         expect(m.users.setCurrentRefreshToken).not.toHaveBeenCalled();
     });
@@ -99,7 +137,7 @@ describe('refresh session cutover — write path per mode', () => {
 describe('refresh session cutover — read path per mode', () => {
     it('dual honours a legacy token that carries no rotation claims', async () => {
         const m = mocks();
-        m.jwt.verify.mockReturnValue({ sub: 'user-1', type: 'refresh', rememberMe: false });
+        configureRefreshToken(m, { sub: 'user-1', type: 'refresh', rememberMe: false });
         m.users.getUserIfRefreshTokenMatches.mockResolvedValue(USER);
 
         await serviceIn('dual', m).refreshToken('legacy.token');
@@ -110,8 +148,7 @@ describe('refresh session cutover — read path per mode', () => {
 
     it('redis refuses a legacy token that carries no rotation claims', async () => {
         const m = mocks();
-        m.jwt.verify.mockReturnValue({ sub: 'user-1', type: 'refresh', rememberMe: false });
-
+        configureRefreshToken(m, { sub: 'user-1', type: 'refresh', rememberMe: false });
         const status = await rejectionStatus(serviceIn('redis', m).refreshToken('legacy.token'));
 
         expect(status).toBe(UNAUTHORIZED);
@@ -120,7 +157,7 @@ describe('refresh session cutover — read path per mode', () => {
 
     it('redis reads a rotation token from the store, never from the legacy column', async () => {
         const m = mocks();
-        m.jwt.verify.mockReturnValue(ROTATION_CLAIMS);
+        configureRefreshToken(m);
         m.store.consume.mockResolvedValue({ status: 'valid', session: { userId: 'user-1' } });
 
         await serviceIn('redis', m).refreshToken('rotation.token');
@@ -131,7 +168,7 @@ describe('refresh session cutover — read path per mode', () => {
 
     it('invalidates the whole family when a token is presented twice', async () => {
         const m = mocks();
-        m.jwt.verify.mockReturnValue(ROTATION_CLAIMS);
+        configureRefreshToken(m);
         m.store.consume.mockResolvedValue({ status: 'reused', session: { userId: 'user-1' } });
 
         const status = await rejectionStatus(serviceIn('redis', m).refreshToken('rotation.token'));
@@ -142,7 +179,7 @@ describe('refresh session cutover — read path per mode', () => {
 
     it('rejects a rotation token whose session belongs to another user', async () => {
         const m = mocks();
-        m.jwt.verify.mockReturnValue(ROTATION_CLAIMS);
+        configureRefreshToken(m);
         m.store.consume.mockResolvedValue({ status: 'valid', session: { userId: 'someone-else' } });
 
         const status = await rejectionStatus(serviceIn('redis', m).refreshToken('rotation.token'));
@@ -152,7 +189,7 @@ describe('refresh session cutover — read path per mode', () => {
 
     it('reports a Redis outage as unavailable, not as an invalid token', async () => {
         const m = mocks();
-        m.jwt.verify.mockReturnValue(ROTATION_CLAIMS);
+        configureRefreshToken(m);
         const service = serviceIn('redis', m);
         // Same registry copy the service resolved, so its `instanceof` guard sees this class.
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -170,7 +207,7 @@ describe('refresh session cutover — invalidation', () => {
         ['redis', true, false],
     ])('%s invalidation clears redis=%s legacy=%s', async (mode, redisClear, legacyClear) => {
         const m = mocks();
-        await serviceIn(mode, m).invalidateUserSessions('user-1');
+        await sessionIn(mode, m).invalidateUser('user-1');
 
         expect(m.store.invalidateUserSessions).toHaveBeenCalledTimes(redisClear ? 1 : 0);
         expect(m.users.removeRefreshToken).toHaveBeenCalledTimes(legacyClear ? 1 : 0);
