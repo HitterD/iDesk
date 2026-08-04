@@ -82,3 +82,4 @@ apps/backend/jest_out*.txt
 apps/backend/hris-*.json
 fix_numbers.py
 update_blueprint*.py
+.playwright-mcp/

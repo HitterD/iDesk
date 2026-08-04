@@ -233,6 +233,19 @@ export const BentoTicketListPage: React.FC = () => {
 
     const { assignTicketMutation, updateStatusMutation, updatePriorityMutation } = useTicketListMutations(agents);
 
+    const handleUpdatePriority = useCallback(
+        (ticketId: string, priority: string) => updatePriorityMutation.mutate({ ticketId, priority }),
+        [updatePriorityMutation]
+    );
+    const handleUpdateStatus = useCallback(
+        (ticketId: string, status: string) => updateStatusMutation.mutate({ ticketId, status }),
+        [updateStatusMutation]
+    );
+    const handleAssign = useCallback(
+        (ticketId: string, assigneeId: string) => assignTicketMutation.mutate({ ticketId, assigneeId }),
+        [assignTicketMutation]
+    );
+
     // Use server response data
     const tickets = paginatedData?.data || [];
     const paginationMeta = paginatedData?.meta;
@@ -686,15 +699,9 @@ export const BentoTicketListPage: React.FC = () => {
                             selectedTickets={selectedTickets}
                             agents={agents}
                             onSelect={handleSelectTicket}
-                            onUpdatePriority={(ticketId, priority) =>
-                                updatePriorityMutation.mutate({ ticketId, priority })
-                            }
-                            onUpdateStatus={(ticketId, status) =>
-                                updateStatusMutation.mutate({ ticketId, status })
-                            }
-                            onAssign={(ticketId, assigneeId) =>
-                                assignTicketMutation.mutate({ ticketId, assigneeId })
-                            }
+                            onUpdatePriority={handleUpdatePriority}
+                            onUpdateStatus={handleUpdateStatus}
+                            onAssign={handleAssign}
                             hasActiveFilters={hasActiveFilters}
                             onClearFilters={clearFilters}
                         />

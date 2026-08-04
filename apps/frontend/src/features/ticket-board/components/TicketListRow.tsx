@@ -95,7 +95,7 @@ interface TicketListRowProps {
     style?: React.CSSProperties;
 }
 
-export const TicketListRow: React.FC<TicketListRowProps> = ({
+export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     ticket,
     index,
     showSiteColumn,
@@ -388,7 +388,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = ({
             </div>
         </div>
     );
-};
+});
 
 export default TicketListRow;
 
