@@ -13,29 +13,29 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RateLimiter } from '../../../../shared/core/utils/rate-limiter';
+import { UserRole } from '../../../users/enums/user-role.enum';
+import { TicketRepository } from '../../repositories/ticket.repository';
+import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
+
+export function buildCorsOrigin() {
+    return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        const allowedOrigins = (process.env.WS_CORS_ORIGIN || process.env.FRONTEND_URL || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+        if (process.env.NODE_ENV !== 'production') {
+            allowedOrigins.push('http://localhost:4050', 'http://localhost:3000', 'http://localhost:5173');
+        }
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+            return;
+        }
+        callback(new Error('WebSocket origin not allowed'), false);
+    };
+}
 
 @WebSocketGateway({
-    cors: {
-        origin: function(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-            const allowedOrigins = [
-                'http://localhost:4050',
-                'http://localhost:3000',
-                'http://localhost:5173',
-                'http://localhost:5050',
-            ];
-            if (process.env.FRONTEND_URL) {
-                allowedOrigins.push(process.env.FRONTEND_URL);
-            }
-            // Allow if it's in the allowed list or if there is no origin (e.g. server-to-server) or development
-            // Just be permissive since it's an internal tool mostly, or match exactly
-            if (!origin || allowedOrigins.includes(origin)) {
-                callback(null, true);
-            } else {
-                callback(null, true); // Allow all for development/testing ease as originally designed locally
-            }
-        },
-        credentials: true,
-    },
+    cors: { origin: buildCorsOrigin(), credentials: true },
 })
 export class EventsGateway
     implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
@@ -51,12 +51,10 @@ export class EventsGateway
     constructor(
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
+        private readonly ticketRepository: TicketRepository,
     ) {
         // Clean up rate limiter entries periodically
-        setInterval(() => {
-            this.connectionLimiter.cleanup();
-            this.messageLimiter.cleanup();
-        }, 60000); // Every minute
+        // RateLimiter cleanup occurs on demand; gateway must not keep Jest/process alive.
     }
 
     afterInit(server: Server) {
@@ -77,45 +75,32 @@ export class EventsGateway
         this.logger.log(`Client disconnected: ${client.id}`);
     }
 
-    handleConnection(client: Socket, ...args: any[]) {
-        // Get client IP for rate limiting
+    handleConnection(client: Socket) {
         const clientIp = client.handshake.address || 'unknown';
-
-        // Check connection rate limit
         if (!this.connectionLimiter.isAllowed(clientIp)) {
-            this.logger.warn(`Connection rate limit exceeded for IP: ${clientIp}`);
             client.emit('error', { message: 'Connection rate limit exceeded. Try again later.' });
             client.disconnect(true);
             return;
         }
 
-        this.logger.log(`Client connected: ${client.id} (IP: ${clientIp})`);
-
-        // Try to authenticate via token in handshake
         try {
-            const token = client.handshake.auth?.token ||
-                client.handshake.headers?.authorization?.split(' ')[1] ||
-                client.handshake.query?.token;
-
-            if (token) {
-                const payload = this.jwtService.verify(token, {
-                    secret: this.configService.get('JWT_SECRET'),
-                });
-
-                if (payload && payload.sub) {
-                    // Auto-identify user from token
-                    client.data.userId = payload.sub;
-                    client.data.role = payload.role;
-                    client.data.clientIp = clientIp; // Store IP for message rate limiting
-                    this.connectedUsers.set(client.id, payload.sub);
-                    client.join(`user:${payload.sub}`);
-                    this.server.emit('user:online', { userId: payload.sub });
-                    this.logger.log(`User auto-authenticated: ${payload.sub} (Socket: ${client.id})`);
-                }
-            }
-        } catch (error) {
-            // Token verification failed - allow connection but require manual identify
-            this.logger.debug(`Token verification failed for ${client.id}: ${error.message}`);
+            const token = client.handshake.auth?.token
+                || client.handshake.headers?.authorization?.split(' ')[1]
+                || client.handshake.query?.token;
+            if (!token) throw new Error('Missing token');
+            const payload = this.jwtService.verify<{ sub: string; role: UserRole }>(token, {
+                secret: this.configService.get('JWT_SECRET'),
+            });
+            if (!payload.sub || !payload.role) throw new Error('Invalid claims');
+            client.data.userId = payload.sub;
+            client.data.role = payload.role;
+            client.data.clientIp = clientIp;
+            this.connectedUsers.set(client.id, payload.sub);
+            client.join(`user:${payload.sub}`);
+            this.server.emit('user:online', { userId: payload.sub });
+        } catch {
+            this.logger.warn(`Rejected unauthenticated socket ${client.id}`);
+            client.disconnect(true);
         }
     }
 
@@ -137,14 +122,14 @@ export class EventsGateway
 
 
     @SubscribeMessage('identify')
-    handleIdentify(@ConnectedSocket() client: Socket, @MessageBody() userId: string) {
-        this.connectedUsers.set(client.id, userId);
-        this.server.emit('user:online', { userId });
-        this.logger.log(`User identified: ${userId} (Socket: ${client.id})`);
-
-        // Send current online users to the newly connected client
+    handleIdentify(@ConnectedSocket() client: Socket, @MessageBody() userId?: string) {
+        const authenticatedUserId = client.data.userId as string | undefined;
+        if (!authenticatedUserId || (userId && userId !== authenticatedUserId)) {
+            return { status: 'error', message: 'Unauthorized' };
+        }
         const onlineUserIds = Array.from(new Set(this.connectedUsers.values()));
         client.emit('users:online', onlineUserIds);
+        return { status: 'ok', userId: authenticatedUserId };
     }
 
     @SubscribeMessage('typing:start')
@@ -166,16 +151,28 @@ export class EventsGateway
 
     // Join a ticket room for real-time updates
     @SubscribeMessage('join:ticket')
-    handleJoinTicket(@ConnectedSocket() client: Socket, @MessageBody() ticketId: string) {
+    async handleJoinTicket(@ConnectedSocket() client: Socket, @MessageBody() ticketId: string) {
+        const userId = client.data.userId as string | undefined;
+        const role = client.data.role as UserRole | undefined;
+        if (!userId || !ticketId || !role) return { status: 'error', message: 'Unauthorized' };
+        const ticket = await this.ticketRepository.findById(ticketId, ['user', 'assignedTo']);
+        if (!ticket) return { status: 'error', message: 'Not found' };
+        if (role === UserRole.USER && ticket.userId !== userId) return { status: 'error', message: 'Forbidden' };
+        try {
+            assertTicketRoleAccess(ticket, role);
+        } catch {
+            return { status: 'error', message: 'Forbidden' };
+        }
         client.join(`ticket:${ticketId}`);
-        this.logger.log(`Client ${client.id} joined room ticket:${ticketId}`);
+        return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
     // Leave a ticket room
     @SubscribeMessage('leave:ticket')
     handleLeaveTicket(@ConnectedSocket() client: Socket, @MessageBody() ticketId: string) {
+        if (!client.data.userId || !ticketId) return { status: 'error', message: 'Unauthorized' };
         client.leave(`ticket:${ticketId}`);
-        this.logger.log(`Client ${client.id} left room ticket:${ticketId}`);
+        return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
     // Notify all clients about ticket update
@@ -229,8 +226,12 @@ export class EventsGateway
     // Join admin/agent notification room
     @SubscribeMessage('join:admin')
     handleJoinAdmin(@ConnectedSocket() client: Socket) {
+        const role = client.data.role as UserRole | undefined;
+        if (![UserRole.ADMIN, UserRole.AGENT, UserRole.MANAGER].includes(role as UserRole)) {
+            return { status: 'error', message: 'Forbidden' };
+        }
         client.join('admin:notifications');
-        this.logger.log(`Client ${client.id} joined admin notifications`);
+        return { status: 'ok', room: 'admin:notifications' };
     }
 
     // Notify admins about important events

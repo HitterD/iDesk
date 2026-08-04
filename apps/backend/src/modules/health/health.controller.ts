@@ -1,5 +1,11 @@
-import { Controller, Get, HttpStatus, Query, Res } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Query, Res, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { Roles } from '../../shared/core/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+import { Public } from '../../shared/core/decorators/public.decorator';
 import { Response } from 'express';
+
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { HealthService } from './health.service';
 import {
@@ -13,6 +19,8 @@ import {
 
 @ApiTags('Health')
 @Controller('health')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class HealthController {
     constructor(private readonly healthService: HealthService) { }
 
@@ -71,6 +79,7 @@ export class HealthController {
     /**
      * Liveness probe for container orchestration
      */
+    @Public()
     @Get('live')
     @ApiOperation({ summary: 'Liveness probe' })
     @ApiResponse({ status: 200, description: 'Service is alive' })
