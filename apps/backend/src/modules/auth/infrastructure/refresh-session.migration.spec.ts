@@ -70,7 +70,7 @@ function servicesIn(mode: string, m: Mocks) {
     const { SessionService } = require('../application/session.service');
     const session = new SessionService(m.users, m.store);
     return {
-        auth: new AuthService(m.users, m.audit, {}, {}, m.token, session),
+        auth: new AuthService(m.users, m.audit, m.token, session, { validate: jest.fn() }),
         session,
     };
 }
