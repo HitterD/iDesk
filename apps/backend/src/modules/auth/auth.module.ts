@@ -1,4 +1,4 @@
-import { Module, Logger } from '@nestjs/common';
+import { Module, Logger, Injectable } from '@nestjs/common';
 import { AuthService } from './application/auth.service';
 import { AuthController } from './presentation/auth.controller';
 import { JwtModule } from '@nestjs/jwt';
@@ -16,6 +16,23 @@ import { SessionService } from './application/session.service';
 import { CredentialValidatorService } from './application/credential-validator.service';
 import { HrisProvisioningService } from './application/hris-provisioning.service';
 import { AuthEventPublisher } from './application/auth-events';
+import { AuthMetricsService } from './monitoring/auth-metrics.service';
+import { AUTH_EVENT } from './application/auth-events';
+import { OnEvent } from '@nestjs/event-emitter';
+
+@Injectable()
+export class AuthMetricsListener {
+    constructor(private readonly metrics: AuthMetricsService) {}
+
+    @OnEvent(AUTH_EVENT.LOGIN_SUCCEEDED)
+    onLogin(payload: any) { this.metrics.recordEvent(AUTH_EVENT.LOGIN_SUCCEEDED, payload); }
+
+    @OnEvent(AUTH_EVENT.LOGIN_FAILED)
+    onFailure(payload: any) { this.metrics.recordEvent(AUTH_EVENT.LOGIN_FAILED, payload); }
+
+    @OnEvent(AUTH_EVENT.REFRESH_REUSED)
+    onReuse(payload: any) { this.metrics.recordEvent(AUTH_EVENT.REFRESH_REUSED, payload); }
+}
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
