@@ -11,6 +11,7 @@ import { AuditModule } from '../audit/audit.module';
 import { HrisGatewayModule } from '../hris-gateway/hris-gateway.module';
 import { AppCacheModule } from '../../shared/core/cache/cache.module';
 import { RefreshSessionStore } from './infrastructure/refresh-session.store';
+import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
 // Fail fast if JWT_SECRET is not configured or too short
 const logger = new Logger('AuthModule');
@@ -27,6 +28,11 @@ if (jwtSecret.length < 32) {
     logger.error('JWT_SECRET must be at least 32 characters for security');
     throw new Error('JWT_SECRET must be at least 32 characters long.');
 }
+
+// Refuse to boot a refresh-session mode this deployment cannot serve: Redis security
+// state has no in-memory fallback, so `dual`/`redis` without Redis would accept every
+// login and then reject every refresh.
+assertRefreshSessionConfig();
 
 @Module({
     imports: [

@@ -39,6 +39,7 @@ describe('AuthService', () => {
                         update: jest.fn(),
                         createUser: jest.fn(),
                         setCurrentRefreshToken: jest.fn(),
+                        removeRefreshToken: jest.fn(),
                         getUserIfRefreshTokenMatches: jest.fn(),
                     },
                 },

@@ -53,7 +53,7 @@ export class UserPasswordService {
     }
 
     async removeRefreshToken(userId: string) {
-        await this.userRepo.update(userId, { hashedRefreshToken: null as unknown as string });
+        await this.userRepo.update(userId, { hashedRefreshToken: null });
     }
 
     async getUserIfRefreshTokenMatches(refreshToken: string, userId: string) {

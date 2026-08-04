@@ -77,9 +77,15 @@ export class User {
     @Column({ default: false })
     mustChangePassword: boolean;
 
-    // M4: Refresh token rotation support
+    /**
+     * Legacy refresh-token bcrypt hash. Superseded by the Redis refresh-session store
+     * (`auth:refresh:*`); still written while `AUTH_REFRESH_SESSION_MODE` is `legacy` or
+     * `dual`, and kept only until the cutover rollback window closes.
+     *
+     * @deprecated Removed by `RemoveLegacyRefreshTokenColumn` after cutover verification.
+     */
     @Column({ type: 'varchar', nullable: true })
-    hashedRefreshToken?: string;
+    hashedRefreshToken?: string | null;
 
     @ManyToOne(() => Department)
     @JoinColumn({ name: 'departmentId' })

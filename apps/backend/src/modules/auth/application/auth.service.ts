@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from '../presentation/dto/register.dto';
 import { ChangePasswordDto } from '../presentation/dto/change-password.dto';
@@ -61,6 +61,10 @@ export class AuthService {
         const newPasswordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
         await this.usersService.updatePassword(userId, newPasswordHash);
         await this.usersService.update(userId, { mustChangePassword: false });
+
+        // A changed password must not leave old refresh families usable. Synchronous:
+        // if the store is unavailable the change fails rather than leaving live sessions.
+        await this.invalidateUserSessions(userId);
 
         // Audit log for password change
         this.auditService.logAsync({
@@ -293,12 +297,15 @@ export class AuthService {
             if (decoded.type !== 'refresh') {
                 throw new UnauthorizedException('Invalid token type');
             }
-            if (REFRESH_SESSION_MODE !== 'legacy' && (!decoded.tokenId || !decoded.familyId)) {
+            // A token without rotation claims was issued before cutover. `dual` still honours
+            // it so the rollout does not log everyone out; `redis` refuses it outright.
+            const isRotationToken = Boolean(decoded.tokenId && decoded.familyId);
+            if (REFRESH_SESSION_MODE === 'redis' && !isRotationToken) {
                 throw new UnauthorizedException('Invalid token type');
             }
 
             let user;
-            if (REFRESH_SESSION_MODE === 'redis' || REFRESH_SESSION_MODE === 'dual') {
+            if (REFRESH_SESSION_MODE !== 'legacy' && isRotationToken) {
                 const consumed = await this.refreshSessionStore.consume(decoded.familyId, decoded.tokenId);
                 if (consumed.status === 'reused') {
                     await this.refreshSessionStore.invalidateFamily(decoded.familyId);
@@ -316,6 +323,9 @@ export class AuthService {
             return this.login(user, request, decoded.rememberMe === true, decoded.familyId, decoded.tokenId);
         } catch (error) {
             if (error instanceof UnauthorizedException) throw error;
+            // A store outage is not an invalid token. Mapping it to 401 would log every
+            // user out and send them all to the login endpoint during the outage.
+            if (error instanceof ServiceUnavailableException) throw error;
             throw new UnauthorizedException('Refresh token is invalid or expired');
         }
     }
