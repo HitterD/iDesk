@@ -111,6 +111,61 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         this.cache.clear();
     }
 
+    async setSecurity<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+        if (!this.useRedis || !this.redisClient) {
+            throw new Error('Redis security store unavailable');
+        }
+        await this.redisClient.setex(key, ttlSeconds, JSON.stringify(value));
+    }
+
+    async getSecurity<T>(key: string): Promise<T | null> {
+        if (!this.useRedis || !this.redisClient) {
+            throw new Error('Redis security store unavailable');
+        }
+        const data = await this.redisClient.get(key);
+        return data ? JSON.parse(data) as T : null;
+    }
+
+    async deleteSecurity(key: string): Promise<void> {
+        if (!this.useRedis || !this.redisClient) {
+            throw new Error('Redis security store unavailable');
+        }
+        await this.redisClient.del(key);
+    }
+
+    async deleteSecurityByPattern(pattern: string): Promise<void> {
+        if (!this.useRedis || !this.redisClient) {
+            throw new Error('Redis security store unavailable');
+        }
+        let cursor = '0';
+        do {
+            const [nextCursor, keys] = await this.redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+            cursor = nextCursor;
+            if (keys.length) await this.redisClient.del(...keys);
+        } while (cursor !== '0');
+    }
+
+    async scanSecurity(pattern: string): Promise<string[]> {
+        if (!this.useRedis || !this.redisClient) {
+            throw new Error('Redis security store unavailable');
+        }
+        const keys: string[] = [];
+        let cursor = '0';
+        do {
+            const [nextCursor, batch] = await this.redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+            cursor = nextCursor;
+            keys.push(...batch);
+        } while (cursor !== '0');
+        return keys;
+    }
+
+    async evalSecurity(script: string, keys: string[], args: string[]): Promise<unknown> {
+        if (!this.useRedis || !this.redisClient) {
+            throw new Error('Redis security store unavailable');
+        }
+        return this.redisClient.eval(script, keys.length, ...keys, ...args);
+    }
+
     /**
      * Get value from cache
      */

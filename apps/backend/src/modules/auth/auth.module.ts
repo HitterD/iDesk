@@ -9,6 +9,8 @@ import { UsersModule } from '../users/users.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuditModule } from '../audit/audit.module';
 import { HrisGatewayModule } from '../hris-gateway/hris-gateway.module';
+import { AppCacheModule } from '../../shared/core/cache/cache.module';
+import { RefreshSessionStore } from './infrastructure/refresh-session.store';
 
 // Fail fast if JWT_SECRET is not configured or too short
 const logger = new Logger('AuthModule');
@@ -33,6 +35,7 @@ if (jwtSecret.length < 32) {
         ConfigModule,
         AuditModule,
         HrisGatewayModule,
+        AppCacheModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             useFactory: (configService: ConfigService) => {
@@ -50,7 +53,7 @@ if (jwtSecret.length < 32) {
             inject: [ConfigService],
         }),
     ],
-    providers: [AuthService, JwtStrategy, LocalStrategy],
+    providers: [AuthService, JwtStrategy, LocalStrategy, RefreshSessionStore],
     controllers: [AuthController],
     exports: [AuthService, PassportModule, JwtModule],
 })

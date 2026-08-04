@@ -6,6 +6,7 @@ import { AuditService } from '../../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
+import { RefreshSessionStore } from '../infrastructure/refresh-session.store';
 
 // Mock bcrypt
 jest.mock('bcrypt');
@@ -46,6 +47,7 @@ describe('AuthService', () => {
                     useValue: {
                         sign: jest.fn(),
                         verify: jest.fn(),
+                        decode: jest.fn(),
                     },
                 },
                 {
@@ -61,6 +63,15 @@ describe('AuthService', () => {
                 {
                     provide: HrisSyncService,
                     useValue: { provisionEmployee: jest.fn() },
+                },
+                {
+                    provide: RefreshSessionStore,
+                    useValue: {
+                        create: jest.fn(),
+                        consume: jest.fn(),
+                        invalidateFamily: jest.fn(),
+                        invalidateUserSessions: jest.fn(),
+                    },
                 },
             ],
         }).compile();
