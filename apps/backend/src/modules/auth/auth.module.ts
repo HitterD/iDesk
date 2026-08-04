@@ -11,6 +11,8 @@ import { AuditModule } from '../audit/audit.module';
 import { HrisGatewayModule } from '../hris-gateway/hris-gateway.module';
 import { AppCacheModule } from '../../shared/core/cache/cache.module';
 import { RefreshSessionStore } from './infrastructure/refresh-session.store';
+import { TokenService } from './application/token.service';
+import { SessionService } from './application/session.service';
 import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
 // Fail fast if JWT_SECRET is not configured or too short
@@ -59,7 +61,7 @@ assertRefreshSessionConfig();
             inject: [ConfigService],
         }),
     ],
-    providers: [AuthService, JwtStrategy, LocalStrategy, RefreshSessionStore],
+    providers: [AuthService, JwtStrategy, LocalStrategy, RefreshSessionStore, TokenService, SessionService],
     controllers: [AuthController],
     exports: [AuthService, PassportModule, JwtModule],
 })

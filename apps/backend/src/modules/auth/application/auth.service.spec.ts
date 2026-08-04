@@ -1,14 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../../users/users.service';
 import { AuditService } from '../../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import { HrisGatewayAdapter } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
-import { RefreshSessionStore } from '../infrastructure/refresh-session.store';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { ValidatedUser } from './auth-user.types';
+import { IssuedTokens, TokenService } from './token.service';
+import { SessionService } from './session.service';
+import { RefreshTokenClaims } from './refresh-session.types';
+import { User } from '../../users/entities/user.entity';
 
 
 // Mock bcrypt
@@ -17,8 +19,19 @@ jest.mock('bcrypt');
 describe('AuthService', () => {
     let service: AuthService;
     let usersService: jest.Mocked<UsersService>;
-    let jwtService: jest.Mocked<JwtService>;
+    let tokenService: jest.Mocked<TokenService>;
+    let sessionService: jest.Mocked<SessionService>;
     let auditService: jest.Mocked<AuditService>;
+
+    const issuedTokens: IssuedTokens = {
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+        tokenId: 'token-id',
+        familyId: 'family-id',
+        expiresIn: '1h',
+        refreshExpiresIn: '7d',
+        refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    };
 
     const mockUser: ValidatedUser = {
         id: 'user-123',
@@ -27,6 +40,36 @@ describe('AuthService', () => {
         role: UserRole.USER,
         isActive: true,
         mustChangePassword: false,
+    };
+
+    const persistedUser = {
+        ...mockUser,
+        password: 'hashed-password',
+    } as User;
+
+    const refreshClaims: RefreshTokenClaims = {
+        sub: mockUser.id,
+        tokenId: 'old-token-id',
+        familyId: 'old-family-id',
+        type: 'refresh',
+        rememberMe: true,
+        iat: 1,
+        exp: 2,
+    };
+
+    const issueTokens = (overrides: Partial<IssuedTokens> = {}): IssuedTokens => ({
+        ...issuedTokens,
+        ...overrides,
+    });
+
+    const mockPersistenceUser = (user: ValidatedUser = mockUser): User => ({
+        ...user,
+        password: 'hashed-password',
+    } as User);
+
+    const mockSession = () => {
+        tokenService.issueRefreshToken.mockReturnValue(issueTokens());
+        sessionService.persist.mockResolvedValue(undefined);
     };
 
     beforeEach(async () => {
@@ -47,11 +90,18 @@ describe('AuthService', () => {
                     },
                 },
                 {
-                    provide: JwtService,
+                    provide: TokenService,
                     useValue: {
-                        sign: jest.fn(),
-                        verify: jest.fn(),
-                        decode: jest.fn(),
+                        issueRefreshToken: jest.fn(),
+                        verifyRefreshToken: jest.fn(),
+                    },
+                },
+                {
+                    provide: SessionService,
+                    useValue: {
+                        persist: jest.fn(),
+                        rotate: jest.fn(),
+                        invalidateUser: jest.fn(),
                     },
                 },
                 {
@@ -68,21 +118,13 @@ describe('AuthService', () => {
                     provide: HrisSyncService,
                     useValue: { provisionEmployee: jest.fn() },
                 },
-                {
-                    provide: RefreshSessionStore,
-                    useValue: {
-                        create: jest.fn(),
-                        consume: jest.fn(),
-                        invalidateFamily: jest.fn(),
-                        invalidateUserSessions: jest.fn(),
-                    },
-                },
             ],
         }).compile();
 
         service = module.get<AuthService>(AuthService);
         usersService = module.get(UsersService);
-        jwtService = module.get(JwtService);
+        tokenService = module.get(TokenService);
+        sessionService = module.get(SessionService);
         auditService = module.get(AuditService);
     });
 
@@ -168,9 +210,8 @@ describe('AuthService', () => {
 
     describe('login', () => {
         it('login meneruskan mustChangePassword ke response', async () => {
-            jwtService.sign.mockReturnValue('token');
+            mockSession();
             usersService.update.mockResolvedValue({} as any);
-            usersService.setCurrentRefreshToken = jest.fn();
 
             const result = await service.login({
                 id: 'u1', email: 'a@b.com', role: 'USER', fullName: 'A', mustChangePassword: true,
@@ -181,21 +222,13 @@ describe('AuthService', () => {
 
         it('should generate JWT token with correct payload', async () => {
             const mockToken = 'mock.jwt.token';
-            jwtService.sign.mockReturnValue(mockToken);
+            mockSession();
+            tokenService.issueRefreshToken.mockReturnValue(issueTokens({ access_token: mockToken }));
             usersService.update.mockResolvedValue(mockUser as any);
 
             const result = await service.login(mockUser);
 
-            expect(jwtService.sign).toHaveBeenCalledWith(
-                {
-                    username: mockUser.email,
-                    sub: mockUser.id,
-                    role: mockUser.role,
-                    type: 'access',
-                    fullName: mockUser.fullName,
-                },
-                expect.any(Object)
-            );
+            expect(tokenService.issueRefreshToken).toHaveBeenCalledWith(mockUser, undefined, undefined, false);
             expect(result.access_token).toBe(mockToken);
             expect(result.user).toBe(mockUser);
         });
@@ -204,7 +237,8 @@ describe('AuthService', () => {
             'should set 8h expiration for %s users',
             async (role) => {
                 const staffUser: ValidatedUser = { ...mockUser, role: role as UserRole };
-                jwtService.sign.mockReturnValue('token');
+                mockSession();
+                tokenService.issueRefreshToken.mockReturnValue(issueTokens({ expiresIn: '8h' }));
                 usersService.update.mockResolvedValue(staffUser as any);
 
                 const result = await service.login(staffUser);
@@ -214,7 +248,7 @@ describe('AuthService', () => {
         );
 
         it('should set 1h expiration for USER role', async () => {
-            jwtService.sign.mockReturnValue('token');
+            mockSession();
             usersService.update.mockResolvedValue(mockUser as any);
 
             const result = await service.login(mockUser);
@@ -223,7 +257,7 @@ describe('AuthService', () => {
         });
 
         it('should update lastActiveAt on login', async () => {
-            jwtService.sign.mockReturnValue('token');
+            mockSession();
             usersService.update.mockResolvedValue(mockUser as any);
 
             await service.login(mockUser);
@@ -235,7 +269,7 @@ describe('AuthService', () => {
         });
 
         it('should log audit for successful login', async () => {
-            jwtService.sign.mockReturnValue('token');
+            mockSession();
             usersService.update.mockResolvedValue(mockUser as any);
 
             await service.login(mockUser);
@@ -251,7 +285,7 @@ describe('AuthService', () => {
 
         describe('rememberMe', () => {
             it('defaults refreshExpiresIn to 7d when rememberMe is not passed', async () => {
-                jwtService.sign.mockReturnValue('token');
+                mockSession();
                 usersService.update.mockResolvedValue(mockUser as any);
 
                 const result = await service.login(mockUser);
@@ -260,7 +294,8 @@ describe('AuthService', () => {
             });
 
             it('sets refreshExpiresIn to 90d when rememberMe is true', async () => {
-                jwtService.sign.mockReturnValue('token');
+                mockSession();
+                tokenService.issueRefreshToken.mockReturnValue(issueTokens({ refreshExpiresIn: '90d' }));
                 usersService.update.mockResolvedValue(mockUser as any);
 
                 const result = await service.login(mockUser, undefined, true);
@@ -268,30 +303,25 @@ describe('AuthService', () => {
                 expect(result.refreshExpiresIn).toBe('90d');
             });
 
-            it('embeds rememberMe in the refresh token payload', async () => {
-                jwtService.sign.mockReturnValue('token');
+            it('passes rememberMe to token issuance', async () => {
+                mockSession();
                 usersService.update.mockResolvedValue(mockUser as any);
 
                 await service.login(mockUser, undefined, true);
 
-                expect(jwtService.sign).toHaveBeenCalledWith(
-                    expect.objectContaining({ type: 'refresh', rememberMe: true }),
-                    expect.objectContaining({ expiresIn: '90d' }),
-                );
+                expect(tokenService.issueRefreshToken).toHaveBeenCalledWith(mockUser, undefined, undefined, true);
             });
 
             it('preserves rememberMe across refresh token rotation', async () => {
-                jwtService.sign.mockReturnValue('new-token');
-                jwtService.verify.mockReturnValue({
-                    type: 'refresh',
-                    sub: mockUser.id,
-                    rememberMe: true,
-                });
-                usersService.getUserIfRefreshTokenMatches.mockResolvedValue(mockUser as any);
+                tokenService.verifyRefreshToken.mockReturnValue(refreshClaims);
+                sessionService.rotate.mockResolvedValue(persistedUser);
+                mockSession();
+                tokenService.issueRefreshToken.mockReturnValue(issueTokens({ refreshExpiresIn: '90d' }));
                 usersService.update.mockResolvedValue(mockUser as any);
 
                 const result = await service.refreshToken('old-refresh-token');
 
+                expect(sessionService.rotate).toHaveBeenCalledWith('old-refresh-token', refreshClaims);
                 expect(result.refreshExpiresIn).toBe('90d');
             });
         });

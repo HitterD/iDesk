@@ -1,5 +1,4 @@
 import { Injectable, UnauthorizedException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from '../presentation/dto/register.dto';
 import { ChangePasswordDto } from '../presentation/dto/change-password.dto';
 import { UsersService } from '../../users/users.service';
@@ -7,13 +6,9 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
-import { randomUUID } from 'crypto';
-import { BCRYPT_ROUNDS, resolveRefreshSessionMode } from '../../../shared/core/config/security.config';
-import { RefreshSessionStore } from '../infrastructure/refresh-session.store';
-import { RefreshTokenClaims } from './refresh-session.types';
-
-const REFRESH_SESSION_MODE = resolveRefreshSessionMode();
-const REFRESH_EXPIRY_SECONDS = { '7d': 7 * 24 * 60 * 60, '90d': 90 * 24 * 60 * 60 } as const;
+import { BCRYPT_ROUNDS } from '../../../shared/core/config/security.config';
+import { TokenService } from './token.service';
+import { SessionService } from './session.service';
 import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { ValidatedUser } from './auth-user.types';
@@ -32,12 +27,12 @@ export interface LoginValidationResult {
 @Injectable()
 export class AuthService {
     constructor(
-        private jwtService: JwtService,
         private usersService: UsersService,
         private auditService: AuditService,
         private hrisGateway: HrisGatewayAdapter,
         private hrisSync: HrisSyncService,
-        private readonly refreshSessionStore: RefreshSessionStore,
+        private readonly tokenService: TokenService,
+        private readonly sessionService: SessionService,
     ) { }
 
     async changePassword(userId: string, dto: ChangePasswordDto, request?: Request) {
@@ -65,7 +60,7 @@ export class AuthService {
 
         // A changed password must not leave old refresh families usable. Synchronous:
         // if the store is unavailable the change fails rather than leaving live sessions.
-        await this.invalidateUserSessions(userId);
+        await this.sessionService.invalidateUser(userId);
 
         // Audit log for password change
         this.auditService.logAsync({
@@ -223,58 +218,10 @@ export class AuthService {
         return null;
     }
 
-    private static readonly STAFF_ROLES = new Set([
-        'ADMIN',
-        'AGENT',
-        'AGENT_OPERATIONAL_SUPPORT',
-        'AGENT_ORACLE',
-        'MANAGER',
-    ]);
-
-    /**
-     * Access token expiry by role: staff roles get 8h for extended work
-     * sessions, USER (and any unrecognized role) gets 1h.
-     */
-    private getExpirationByRole(role: string): string {
-        return AuthService.STAFF_ROLES.has(role) ? '8h' : '1h';
-    }
-
-    async login(user: ValidatedUser, request?: Request, rememberMe = false, familyId: string = randomUUID(), parentId?: string) {
-        const payload = { username: user.email, sub: user.id, role: user.role, type: 'access', fullName: user.fullName };
-        const tokenId = randomUUID();
-        const refreshPayload = {
-            username: user.email,
-            sub: user.id,
-            role: user.role,
-            type: 'refresh' as const,
-            fullName: user.fullName,
-            rememberMe,
-            tokenId,
-            familyId,
-            ...(parentId ? { parentId } : {}),
-        };
-        const expiresIn = this.getExpirationByRole(user.role);
-        const refreshExpiresIn = rememberMe ? '90d' : '7d';
-
+    async login(user: ValidatedUser, request?: Request, rememberMe = false, familyId?: string, parentId?: string) {
         await this.usersService.update(user.id, { lastActiveAt: new Date() });
-
-        const access_token = this.jwtService.sign(payload, { expiresIn: expiresIn as `${number}${'s' | 'm' | 'h' | 'd'}` });
-        const refresh_token = this.jwtService.sign(refreshPayload, { expiresIn: refreshExpiresIn as `${number}${'s' | 'm' | 'h' | 'd'}` });
-        const refreshTtl = REFRESH_EXPIRY_SECONDS[refreshExpiresIn];
-
-        if (REFRESH_SESSION_MODE === 'redis' || REFRESH_SESSION_MODE === 'dual') {
-            await this.refreshSessionStore.create({
-                token: refresh_token,
-                tokenId,
-                familyId,
-                parentId,
-                userId: user.id,
-                expiresAt: Date.now() + refreshTtl * 1000,
-            });
-        }
-        if (REFRESH_SESSION_MODE !== 'redis') {
-            await this.usersService.setCurrentRefreshToken(refresh_token, user.id);
-        }
+        const tokens = this.tokenService.issueRefreshToken(user, familyId, parentId, rememberMe);
+        await this.sessionService.persist(user, tokens);
 
         this.auditService.logAsync({
             userId: user.id,
@@ -286,38 +233,19 @@ export class AuthService {
             request,
         });
 
-        return { access_token, refresh_token, user, expiresIn, refreshExpiresIn };
+        return {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            user,
+            expiresIn: tokens.expiresIn,
+            refreshExpiresIn: tokens.refreshExpiresIn,
+        };
     }
 
     async refreshToken(token: string, request?: Request) {
         try {
-            const decoded = this.jwtService.verify(token) as RefreshTokenClaims;
-            if (decoded.type !== 'refresh') {
-                throw new UnauthorizedException('Invalid token type');
-            }
-            // A token without rotation claims was issued before cutover. `dual` still honours
-            // it so the rollout does not log everyone out; `redis` refuses it outright.
-            const isRotationToken = Boolean(decoded.tokenId && decoded.familyId);
-            if (REFRESH_SESSION_MODE === 'redis' && !isRotationToken) {
-                throw new UnauthorizedException('Invalid token type');
-            }
-
-            let user;
-            if (REFRESH_SESSION_MODE !== 'legacy' && isRotationToken) {
-                const consumed = await this.refreshSessionStore.consume(decoded.familyId, decoded.tokenId);
-                if (consumed.status === 'reused') {
-                    await this.refreshSessionStore.invalidateFamily(decoded.familyId);
-                    throw new UnauthorizedException('Invalid refresh token');
-                }
-                if (consumed.status !== 'valid' || consumed.session.userId !== decoded.sub) {
-                    throw new UnauthorizedException('Invalid refresh token');
-                }
-                user = await this.usersService.findById(decoded.sub);
-            } else {
-                user = await this.usersService.getUserIfRefreshTokenMatches(token, decoded.sub);
-            }
-            if (!user) throw new UnauthorizedException('Invalid refresh token');
-
+            const decoded = this.tokenService.verifyRefreshToken(token);
+            const user = await this.sessionService.rotate(token, decoded);
             return this.login(
                 toValidatedUser(user),
                 request,
@@ -327,25 +255,14 @@ export class AuthService {
             );
         } catch (error) {
             if (error instanceof UnauthorizedException) throw error;
-            // A store outage is not an invalid token. Mapping it to 401 would log every
-            // user out and send them all to the login endpoint during the outage.
             if (error instanceof ServiceUnavailableException) throw error;
             throw new UnauthorizedException('Refresh token is invalid or expired');
         }
     }
 
-    async invalidateUserSessions(userId: string): Promise<void> {
-        if (REFRESH_SESSION_MODE === 'redis' || REFRESH_SESSION_MODE === 'dual') {
-            await this.refreshSessionStore.invalidateUserSessions(userId);
-        }
-        if (REFRESH_SESSION_MODE !== 'redis') {
-            await this.usersService.removeRefreshToken(userId);
-        }
-    }
-
     async logout(user: { userId: string } | null | undefined, request?: Request) {
         if (user?.userId) {
-            await this.invalidateUserSessions(user.userId);
+            await this.sessionService.invalidateUser(user.userId);
             this.auditService.logAsync({
                 userId: user.userId,
                 action: AuditAction.USER_LOGOUT,
