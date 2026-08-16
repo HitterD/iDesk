@@ -7,6 +7,7 @@ import { Toaster } from 'sonner';
 import { LoadingScreen } from '../components/ui/LoadingScreen';
 import { ScreenReaderProvider } from '../components/ui/ScreenReaderAnnounce';
 import { LazyMotion } from 'framer-motion';
+import { useSessionTimeout } from '../hooks/useSessionTimeout';
 
 // Lazy load Framer Motion features to drastically reduce main bundle size
 const loadFramerFeatures = () => import('../lib/animations').then(res => res.default);
@@ -157,6 +158,7 @@ const LazyRoute = ({ component: Component, featureName, requiredPageAccess, allo
 };
 
 export default function AppRoutes() {
+    useSessionTimeout();
     return (
         <Routes>
             {/* Public Routes */}

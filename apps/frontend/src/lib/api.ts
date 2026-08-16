@@ -23,7 +23,7 @@ axiosRetry(api, {
         error.response?.status === 503,
     onRetry: (retryCount, error) => {
         if (import.meta.env.DEV) {
-            console.warn(`🔄 Retry attempt ${retryCount} for ${error.config?.url}`);
+            console.warn(`Retry attempt ${retryCount} for ${error.config?.url}`);
         }
     },
 });
@@ -53,7 +53,7 @@ api.interceptors.request.use(
 
         // Dev-only request logging (4.4.1)
         if (import.meta.env.DEV) {
-            console.group(`🌐 ${config.method?.toUpperCase()} ${config.url} [${requestId}]`);
+            console.group(`${config.method?.toUpperCase()} ${config.url} [${requestId}]`);
             if (config.params) console.log('Params:', config.params);
             if (config.data && !(config.data instanceof FormData)) console.log('Data:', config.data);
             console.groupEnd();
@@ -95,12 +95,42 @@ const processQueue = (error: AxiosError | null) => {
     failedQueue = [];
 };
 
+let hasRedirectedToLogin = false;
+
+function forceLogout(): void {
+    if (hasRedirectedToLogin) return;
+    hasRedirectedToLogin = true;
+    try {
+        // Avoid static import to break circular dep useAuth -> api -> useAuth
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { useAuth } = require('../stores/useAuth') as typeof import('../stores/useAuth');
+        useAuth.getState().logout();
+    } catch {
+        try { localStorage.removeItem('auth-storage'); } catch {}
+    }
+    const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const base = next && next !== '/login' ? `/login?next=${encodeURIComponent(next)}` : '/login';
+    const target = base.includes('?') ? `${base}&reason=expired` : `${base}?reason=expired`;
+    toast.error(getErrorMessage('SESSION_EXPIRED'));
+    window.location.replace(target);
+}
+
 // Response Interceptor with Dev Logging and Auto-Refresh
 api.interceptors.response.use(
     (response) => {
         // Dev-only response logging (4.4.1)
         if (import.meta.env.DEV) {
-            console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+            console.log(`${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+        }
+        // Keep local session expiry in sync when backend rotates tokens.
+        const expiresAt: unknown = (response.data as Record<string, unknown> | undefined)?.expiresAt;
+        if (typeof expiresAt === 'string' && response.config?.url?.includes('/auth/')) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const { useAuth: _useAuth } = require('../stores/useAuth') as typeof import('../stores/useAuth');
+                const iso = Date.parse(expiresAt) ? expiresAt : null;
+                if (iso) _useAuth.getState().setExpiresAt(iso);
+            } catch {}
         }
         return response;
     },
@@ -110,17 +140,20 @@ api.interceptors.response.use(
 
         // Dev-only error logging
         if (import.meta.env.DEV) {
-            console.error(`❌ ${originalRequest?.method?.toUpperCase()} ${originalRequest?.url} - ${response?.status || 'Network Error'}`);
+            console.error(`${originalRequest?.method?.toUpperCase()} ${originalRequest?.url} - ${response?.status || 'Network Error'}`);
         }
 
         const isLoginRequest = originalRequest?.url?.includes('/auth/login');
         const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
 
         if (response) {
-            // === Token Auto-Refresh Handling ===
-            if (response.status === 401 && !isLoginRequest && !isRefreshRequest && !originalRequest._retry) {
+            // Single 401 handler: try refresh once, otherwise force logout (no duplicate block).
+            if (response.status === 401 && !isLoginRequest && !isRefreshRequest) {
+                if (originalRequest._retry) {
+                    forceLogout();
+                    return Promise.reject(error);
+                }
                 if (isRefreshing) {
-                    // Queue concurrent requests while refreshing
                     return new Promise(function(resolve, reject) {
                         failedQueue.push({ resolve, reject });
                     }).then(() => {
@@ -134,29 +167,25 @@ api.interceptors.response.use(
                 isRefreshing = true;
 
                 try {
-                    // Call refresh endpoint - HttpOnly cookies handle token exchange automatically
-                    await api.post('/auth/refresh');
+                    const refreshRes = await api.post('/auth/refresh');
+                    const nextExpiresAt: unknown = (refreshRes.data as Record<string, unknown> | undefined)?.expiresAt;
+                    if (typeof nextExpiresAt === 'string') {
+                        try {
+                            // eslint-disable-next-line @typescript-eslint/no-require-imports
+                            const { useAuth: _useAuth2 } = require('../stores/useAuth') as typeof import('../stores/useAuth');
+                            const iso = Date.parse(nextExpiresAt) ? nextExpiresAt : null;
+                            if (iso) _useAuth2.getState().setExpiresAt(iso);
+                        } catch {}
+                    }
                     processQueue(null);
-                    
-                    // Retry original request
                     return api(originalRequest);
                 } catch (refreshError) {
                     processQueue(refreshError as AxiosError);
-                    localStorage.removeItem('auth-storage');
-                    window.location.href = '/login';
-                    toast.error(getErrorMessage('SESSION_EXPIRED'));
+                    forceLogout();
                     return Promise.reject(refreshError);
                 } finally {
                     isRefreshing = false;
                 }
-            }
-
-            // Fallback for 401: e.g., refresh token is expired/invalid
-            if (response.status === 401 && !isLoginRequest && !isRefreshRequest) {
-                localStorage.removeItem('auth-storage');
-                window.location.href = '/login';
-                toast.error(getErrorMessage('SESSION_EXPIRED'));
-                return Promise.reject(error);
             }
 
             // Don't show toast for login errors (let login page handle it with detailed messages)
@@ -166,7 +195,6 @@ api.interceptors.response.use(
                 const isForbidden = response.status === 403;
 
                 if (isGetRequest && isForbidden) {
-                    // Silently reject
                     return Promise.reject(error);
                 }
 

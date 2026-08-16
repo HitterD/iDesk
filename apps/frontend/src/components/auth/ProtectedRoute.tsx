@@ -30,8 +30,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     permissionAction = 'view',
     requiredPageAccess,
 }) => {
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, user, isSessionExpired } = useAuth();
     const location = useLocation();
+
+    // Proactive session check: redirect to login if local expiry has passed.
+    // Handles idle tabs that never trigger a 401 request.
+    if (isAuthenticated && user && isSessionExpired()) {
+        const next = `${location.pathname}${location.search}${location.hash}`;
+        const base = next && next !== '/login' ? `/login?next=${encodeURIComponent(next)}` : '/login';
+        const target = base.includes('?') ? `${base}&reason=expired` : `${base}?reason=expired`;
+        return <Navigate to={target} replace />;
+    }
 
     // Check feature permission if specified
     const { hasPermission, isLoading: permissionLoading } = useHasPermission(
