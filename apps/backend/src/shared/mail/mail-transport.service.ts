@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { MailerService, ISendMailOptions } from '@nestjs-modules/mailer';
 import { MailConfigService } from './mail-config.service';
 import { MailConfig } from './mail-config.types';
+import { describeSenderDomainMismatch } from './sender-domain.util';
 
 /** Name of the dynamically registered nodemailer transporter. */
 const RUNTIME_TRANSPORTER = 'runtime';
@@ -78,17 +79,29 @@ export class MailTransportService implements OnModuleInit {
         }
 
         try {
+            // `from` is applied after the spread: an explicit `from: undefined`
+            // on the caller's options would otherwise wipe out the configured
+            // sender and leave the message without a From header.
             const info = await this.mailerService.sendMail({
-                from: options.from ?? config.fromAddress,
                 ...options,
+                from: options.from ?? config.fromAddress,
                 transporterName: RUNTIME_TRANSPORTER,
             });
             return { success: true, messageId: info?.messageId };
         } catch (error) {
             const message = this.messageOf(error);
+            // A rejection of the From header reads as a plain auth failure, so
+            // append the likely cause instead of leaving the admin guessing.
+            const hint = /(550|553|5\.7\.\d)/.test(message)
+                ? describeSenderDomainMismatch(
+                      String(options.from ?? config.fromAddress ?? ''),
+                      config.username,
+                  )
+                : null;
+            const detail = hint ? `${message} - ${hint}` : message;
             // Recipients are logged; credentials and message bodies are not.
-            this.logger.error(`Failed to send email to ${this.describeRecipient(options)}: ${message}`);
-            return { success: false, error: message };
+            this.logger.error(`Failed to send email to ${this.describeRecipient(options)}: ${detail}`);
+            return { success: false, error: detail };
         }
     }
 

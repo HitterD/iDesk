@@ -176,7 +176,12 @@ export class AuditLog {
     @Column({ type: 'varchar', length: 50 })
     entityType: string;
 
-    @Column({ type: 'uuid', nullable: true })
+    /**
+     * Identifier of the audited entity. Usually a uuid, but settings and report
+     * events use a logical key ("mail.smtp", "storage.retention"), so the column
+     * is varchar rather than uuid.
+     */
+    @Column({ type: 'varchar', length: 255, nullable: true })
     entityId: string;
 
     @Column({ type: 'jsonb', nullable: true })

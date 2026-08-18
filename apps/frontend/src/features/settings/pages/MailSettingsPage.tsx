@@ -22,7 +22,6 @@ export const MailSettingsPage = () => {
     const [verifyError, setVerifyError] = useState<string | null>(null);
     const [testTo, setTestTo] = useState('');
     const [form, setForm] = useState<Partial<MailConfig & { password: string }>>({});
-    const [initialized, setInitialized] = useState(false);
 
     const { data: config, isLoading } = useQuery({
         queryKey: ['mail-settings'],
@@ -32,12 +31,14 @@ export const MailSettingsPage = () => {
         },
     });
 
+    // Resync setiap kali server mengirim config baru (mis. setelah Simpan
+    // meng-invalidate query). Sebelumnya sinkronisasi hanya terjadi sekali,
+    // sehingga form direset ke {} dan tampil kosong sampai halaman dimuat ulang.
     useEffect(() => {
-        if (config && !initialized) {
+        if (config) {
             setForm({ ...config, password: '' });
-            setInitialized(true);
         }
-    }, [config, initialized]);
+    }, [config]);
 
     const effective: Partial<MailConfig & { password: string }> =
         Object.keys(form).length ? form : config ? { ...config, password: '' } : {};
@@ -71,8 +72,6 @@ export const MailSettingsPage = () => {
         },
         onSuccess: (res) => {
             qc.invalidateQueries({ queryKey: ['mail-settings'] });
-            setForm({});
-            setInitialized(false);
             if (res.verifyFailed) {
                 setVerifyError(res.verifyError || 'Koneksi SMTP gagal diverifikasi');
                 toast.warning('Tersimpan, tapi verifikasi SMTP gagal: ' + (res.verifyError || 'unknown'));
@@ -131,6 +130,17 @@ export const MailSettingsPage = () => {
     }
 
     const set = (k: string, v: unknown) => setForm((p) => ({ ...p, [k]: v }));
+
+    // Relay menolak From dari domain yang bukan milik akun SMTP dengan
+    // "550 5.7.0 Authentication rejected" - padahal verifikasi koneksi lolos.
+    const domainOf = (value?: string) => {
+        const addr = (value || '').match(/<([^>]+)>/)?.[1] ?? value ?? '';
+        const at = addr.trim().toLowerCase().lastIndexOf('@');
+        return at === -1 ? '' : addr.trim().toLowerCase().slice(at + 1);
+    };
+    const fromDomain = domainOf(effective.fromAddress);
+    const authDomain = domainOf(effective.username);
+    const domainMismatch = !!fromDomain && !!authDomain && fromDomain !== authDomain;
 
     return (
         <div className="space-y-6 max-w-3xl">
@@ -244,6 +254,17 @@ export const MailSettingsPage = () => {
                         placeholder={'"iDesk" <noreply@kapalapi.co.id>'}
                         className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                     />
+                    {domainMismatch && (
+                        <p className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            <span>
+                                Domain From (<strong>{fromDomain}</strong>) berbeda dari akun SMTP (
+                                <strong>{authDomain}</strong>). Sebagian besar relay menolak kiriman seperti ini
+                                dengan <em>550 Authentication rejected</em> walaupun verifikasi koneksi berhasil.
+                                Gunakan alamat berdomain <strong>{authDomain}</strong>.
+                            </span>
+                        </p>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2">
