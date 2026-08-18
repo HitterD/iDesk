@@ -6,6 +6,7 @@ import { NotificationCenterService } from '../../notifications/notification-cent
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { EFormRequest } from '../entities/eform-request.entity';
 import { User } from '../../users/entities/user.entity';
+import { Site } from '../../sites/entities/site.entity';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 
@@ -16,7 +17,28 @@ export class EFormNotificationListener {
     private readonly notificationCenter: NotificationCenterService,
     private readonly mailDispatch: MailDispatchService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
   ) {}
+
+  /**
+   * Ubah siteId (uuid) menjadi label pendek untuk subject email, mis. "[SPJ] ".
+   * Mengembalikan string kosong bila site tidak diketahui agar subject tetap rapi.
+   */
+  private async resolveSiteLabel(siteId?: string | null): Promise<string> {
+    if (!siteId) return '';
+    try {
+      const site = await this.siteRepo.findOne({ where: { id: siteId } });
+      const label = site?.code || site?.name;
+      if (!label) {
+        this.logger.warn('Site not found for siteId ' + siteId + ', email label omitted');
+        return '';
+      }
+      return '[' + label + '] ';
+    } catch (error: any) {
+      this.logger.warn('Failed to resolve site label for ' + siteId + ': ' + error.message);
+      return '';
+    }
+  }
   @OnEvent('eform.submitted')
   async handleEFormSubmitted(payload: { request: EFormRequest; managerId: string }) {
     try {
@@ -25,7 +47,7 @@ export class EFormNotificationListener {
     try {
       const mgr: any = await this.userRepo.findOne({ where: { id: payload.managerId } as any });
       const to = mgr?.email; if (to) {
-        const siteLabel = (payload.request as any).siteId ? '[' + (payload.request as any).siteId + '] ' : '';
+        const siteLabel = await this.resolveSiteLabel((payload.request as any).siteId);
         await this.mailDispatch.send({ to, subject: siteLabel + 'Permintaan Akses Baru - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: mgr.fullName || mgr.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
       }
     } catch (e: any) { this.logger.warn('Email for eform.submitted failed: ' + e.message); }
@@ -38,7 +60,7 @@ export class EFormNotificationListener {
       await this.notificationCenter.sendToRoleAtSite('AGENT_ADMIN', siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title: 'Provisioning Akses Diperlukan', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' telah disetujui dan siap diproses.', referenceId: payload.request.id });
     } catch (error: any) { this.logger.error('Failed to notify ICT for eform.manager-approved: ' + error.message); }
     try {
-      const siteLabel = siteId ? '[' + siteId + '] ' : '';
+      const siteLabel = await this.resolveSiteLabel(siteId);
       let ictUsers: any[] = [];
       if (siteId) ictUsers = await this.userRepo.find({ where: [{ role: 'ADMIN' as any, siteId } as any, { role: 'AGENT_ADMIN' as any, siteId } as any] } as any);
       if (!ictUsers.length) ictUsers = await this.userRepo.find({ where: [{ role: 'ADMIN' as any }, { role: 'AGENT_ADMIN' as any }] } as any);

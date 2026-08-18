@@ -42,6 +42,28 @@ export const MailSettingsPage = () => {
     const effective: Partial<MailConfig & { password: string }> =
         Object.keys(form).length ? form : config ? { ...config, password: '' } : {};
 
+    // Backend memakai ValidationPipe forbidNonWhitelisted, jadi payload harus
+    // dibatasi tepat pada field yang dideklarasikan DTO-nya.
+    const buildSavePayload = (): Record<string, unknown> => {
+        const payload: Record<string, unknown> = {
+            enabled: !!effective.enabled,
+            host: effective.host ?? '',
+            port: Number(effective.port ?? 465),
+            secure: !!effective.secure,
+            authRequired: !!effective.authRequired,
+            username: effective.username ?? '',
+            fromAddress: effective.fromAddress ?? '',
+            allowSelfSignedCert: !!effective.allowSelfSignedCert,
+        };
+        if (effective.password) payload.password = effective.password;
+        return payload;
+    };
+
+    const buildVerifyPayload = (): Record<string, unknown> => {
+        const { enabled: _enabled, fromAddress: _fromAddress, ...rest } = buildSavePayload();
+        return rest;
+    };
+
     const saveMut = useMutation({
         mutationFn: async (payload: Record<string, unknown>) => {
             const { data } = await api.patch('/settings/mail', payload);
@@ -67,9 +89,7 @@ export const MailSettingsPage = () => {
 
     const verifyMut = useMutation({
         mutationFn: async () => {
-            const payload: Record<string, unknown> = { ...effective };
-            if (!payload.password) delete payload.password;
-            const { data } = await api.post('/settings/mail/verify', payload);
+            const { data } = await api.post('/settings/mail/verify', buildVerifyPayload());
             return data as { success: boolean; error?: string };
         },
         onSuccess: (res) => {
@@ -241,7 +261,7 @@ export const MailSettingsPage = () => {
                         {verifyMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />} Verifikasi Koneksi
                     </button>
                     <button
-                        onClick={() => saveMut.mutate({ ...effective })}
+                        onClick={() => saveMut.mutate(buildSavePayload())}
                         disabled={saveMut.isPending}
                         className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 ml-auto"
                     >

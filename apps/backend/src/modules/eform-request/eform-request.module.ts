@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationModule } from '../notifications/notification.module';
 import { SettingsModule } from '../settings/settings.module';
 import { User } from '../users/entities/user.entity';
+import { Site } from '../sites/entities/site.entity';
 import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormRequestService } from './eform-request.service';
 import { EFormCredentialService } from './eform-credential.service';
@@ -20,6 +21,7 @@ import { AuditModule } from '../audit/audit.module';
       EFormSignature,
       EFormCredential,
       User,
+      Site,
     ]),
     NotificationModule,
     SettingsModule,
