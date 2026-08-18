@@ -123,7 +123,7 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
                     </p>
                   </div>
                   {response.shortcut && (
-                    <kbd className="px-1.5 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-700 rounded font-mono">
+                    <kbd className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-slate-700 rounded font-mono">
                       {response.shortcut}
                     </kbd>
                   )}
@@ -337,7 +337,7 @@ export const CannedResponsesManager: React.FC = () => {
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="font-medium text-slate-800 dark:text-white">{response.title}</h4>
                   {response.shortcut && (
-                    <kbd className="px-1.5 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-700 rounded font-mono">
+                    <kbd className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-slate-700 rounded font-mono">
                       {response.shortcut}
                     </kbd>
                   )}

@@ -45,7 +45,7 @@ export const StatusTimeline = ({ logs, className }: StatusTimelineProps) => {
                     </div>
                     <div className="pb-4 flex-1 min-w-0">
                         <StatusBadge status={log.toStatus} showIcon={false} className="mb-1" />
-                        <p className="text-[10px] text-slate-400 font-medium">
+                        <p className="text-xs text-slate-400 font-medium">
                             {format(new Date(log.timestamp), 'dd MMM yyyy, HH:mm', { locale: localeId })}
                             {log.changedBy ? ` · ${log.changedBy.fullName}` : ' · System'}
                         </p>

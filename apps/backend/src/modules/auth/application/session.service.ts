@@ -9,6 +9,12 @@ import { resolveRefreshSessionMode } from '../../../shared/core/config/security.
 
 const REFRESH_SESSION_MODE = resolveRefreshSessionMode();
 
+export class RefreshTokenReuseException extends UnauthorizedException {
+    constructor() {
+        super('Refresh token reuse detected');
+    }
+}
+
 @Injectable()
 export class SessionService {
     constructor(
@@ -43,7 +49,7 @@ export class SessionService {
             const consumed: RefreshConsumeResult = await this.refreshSessionStore.consume(claims.familyId!, claims.tokenId!);
             if (consumed.status === 'reused') {
                 await this.refreshSessionStore.invalidateFamily(claims.familyId!);
-                throw new UnauthorizedException('Invalid refresh token');
+                throw new RefreshTokenReuseException();
             }
             if (consumed.status !== 'valid' || consumed.session.userId !== claims.sub) {
                 throw new UnauthorizedException('Invalid refresh token');

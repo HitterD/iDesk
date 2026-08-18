@@ -78,7 +78,7 @@ export function AccountSidebar({
                                             : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                     )}
                                 >
-                                    <span className={cn("text-[10px] font-semibold mb-0.5", dayIsToday ? "text-primary-foreground/90" : "text-slate-500")}>
+                                    <span className={cn("text-xs font-semibold mb-0.5", dayIsToday ? "text-primary-foreground/90" : "text-slate-500")}>
                                         {format(day, 'EEE', { locale: idLocale })}
                                     </span>
                                     <span className="text-sm font-bold">
@@ -94,10 +94,10 @@ export function AccountSidebar({
             {/* Account List */}
             <div className="flex-1 overflow-y-auto p-3">
                 <div className="flex items-center justify-between px-2 mb-3">
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
                         <span>Zoom Accounts</span>
                     </div>
-                    <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-[10px] font-mono font-medium rounded-full py-0">
+                    <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-xs font-mono font-medium rounded-full py-0">
                         {accounts.length}
                     </Badge>
                 </div>
@@ -142,7 +142,7 @@ export function AccountSidebar({
 
                                             {/* Selected indicator or count */}
                                             {count > 0 && (
-                                                <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 text-[10px] font-mono shrink-0 rounded-md">
+                                                <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 text-xs font-mono shrink-0 rounded-md">
                                                     {count}
                                                 </Badge>
                                             )}
@@ -162,7 +162,7 @@ export function AccountSidebar({
 
             {/* Status indicator */}
             <div className="p-3 border-t border-[hsl(var(--border))] bg-slate-50 dark:bg-slate-900/40">
-                <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
                     <span>{accounts.filter(a => a.isActive).length} accounts active</span>
                 </div>

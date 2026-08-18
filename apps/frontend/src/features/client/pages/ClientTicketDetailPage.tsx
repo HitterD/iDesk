@@ -71,7 +71,7 @@ const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel
                         <span className="text-xs font-mono font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                             #{ticket.ticketNumber || ticket.id.split('-')[0]}
                         </span>
-                        <div className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 bg-slate-100 dark:bg-slate-800", statusConfig.color)}>
+                        <div className={cn("px-2 py-0.5 rounded-md text-xs font-bold flex items-center gap-1 bg-slate-100 dark:bg-slate-800", statusConfig.color)}>
                             {statusConfig.icon && React.createElement(statusConfig.icon as any, { className: "w-3 h-3" })}
                             {statusConfig.label}
                         </div>
@@ -183,7 +183,7 @@ const UserStatusPipeline = ({ status }: { status: string }) => {
                                 {isCompleted ? <CheckCircle className="w-4 h-4" aria-hidden="true" /> : (idx + 1)}
                             </div>
                             <span className={cn(
-                                "text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-center leading-tight",
+                                "text-xs sm:text-xs font-bold uppercase tracking-wider text-center leading-tight",
                                 isCurrent ? config?.color || "text-slate-900 dark:text-white" :
                                 isCompleted ? "text-slate-600 dark:text-slate-300" :
                                 "text-slate-400"
@@ -201,7 +201,7 @@ const UserStatusPipeline = ({ status }: { status: string }) => {
 /** Rendered in the desktop sidebar and again in the mobile strip — same markup, one source. */
 const InstallationSchedule = ({ ticket, className }: { ticket: TicketDetail; className?: string }) => (
     <div className={cn("p-5 border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/10 shrink-0", className)}>
-        <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <p className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <HardDrive className="w-3 h-3" aria-hidden="true" />
             Installation Schedule
         </p>
@@ -214,13 +214,13 @@ const InstallationSchedule = ({ ticket, className }: { ticket: TicketDetail; cla
             </div>
             <div className="grid grid-cols-2 gap-2">
                 <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
-                    <p className="text-[10px] text-slate-500 uppercase">Date</p>
+                    <p className="text-xs text-slate-500 uppercase">Date</p>
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                         {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '-'}
                     </p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
-                    <p className="text-[10px] text-slate-500 uppercase">Time</p>
+                    <p className="text-xs text-slate-500 uppercase">Time</p>
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                         {ticket.scheduledTime ? `${ticket.scheduledTime}` : '-'}
                     </p>
@@ -242,7 +242,7 @@ const MobileTicketMeta = ({ ticket }: { ticket: TicketDetail }) => {
         <div className="lg:hidden border-b border-slate-200 dark:border-slate-800">
             <div className="flex flex-wrap items-center gap-2 px-5 py-3 text-xs">
                 <span className="inline-flex items-center gap-1.5 text-slate-500">
-                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
                         {ticket.assignedTo?.fullName?.charAt(0) || '?'}
                     </span>
                     {ticket.assignedTo?.fullName || 'Unassigned'}
@@ -275,7 +275,7 @@ const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
     return (
         <div className="w-64 border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-col overflow-y-auto custom-scrollbar shrink-0 hidden lg:flex">
             <div className="p-5 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Assigned Agent</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Assigned Agent</p>
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
                         {ticket.assignedTo?.fullName?.charAt(0) || '?'}
@@ -291,7 +291,7 @@ const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
 
             <div className="p-5 space-y-4">
                 <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Priority</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Priority</p>
                     <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700", priorityConfig.color)}>
                         <div className="w-2 h-2 rounded-full bg-current opacity-50" />
                         {priorityConfig.label}
@@ -300,7 +300,7 @@ const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
 
                 {ticket.category && (
                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Category</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Category</p>
                         <div className="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                             {ticket.category}
                         </div>
@@ -309,7 +309,7 @@ const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
                 
                 {ticket.device && (
                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Device / Asset</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Device / Asset</p>
                         <div className="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                             {ticket.device}
                         </div>

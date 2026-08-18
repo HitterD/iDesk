@@ -86,7 +86,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                     onClick={action.onClick}
                     className={cn(
                         "mt-4 inline-flex items-center gap-2 font-medium rounded-xl transition-[opacity,transform,colors] duration-200 ease-out",
-                        "bg-primary text-slate-900 hover:bg-primary/90",
+                        "bg-primary text-primary-foreground hover:bg-primary/90",
                         "shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30",
                         "hover:-translate-y-0.5 active:translate-y-0",
                         size === 'sm' && "px-3 py-1.5 text-xs",

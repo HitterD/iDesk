@@ -43,7 +43,7 @@ function MiniPipeline({ current }: { current: RequestStatus }) {
                 })}
             </div>
             <div className="flex justify-end">
-                <span className="text-[10px] font-bold" style={{ color: STATUS_META[current]?.hex || '#64748b' }}>
+                <span className="text-xs font-bold" style={{ color: STATUS_META[current]?.hex || '#64748b' }}>
                     {STATUS_META[current]?.label || current}
                 </span>
             </div>
@@ -100,7 +100,7 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
             <Link to={`${basePath}/${r.id}`} className="flex flex-col flex-1 pl-5 pr-4 py-4 hover:opacity-100 transition-opacity group">
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2">
-                    <span className="font-mono text-[11px] font-semibold text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                    <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
                         {r.requestNumber}
                     </span>
                     <StatusBadge status={r.status} />
@@ -116,11 +116,11 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
                     {r.items?.slice(0, 2).map(item => (
                         <div key={item.id} className="text-[12px] font-medium text-slate-700 dark:text-slate-300 line-clamp-1 flex items-center justify-between">
                             <span className="truncate">{item.categorySnapshot?.name ?? item.name ?? 'Item'}</span>
-                            <span className="text-slate-400 dark:text-slate-500 text-[11px] ml-2 shrink-0">×{item.quantity}</span>
+                            <span className="text-slate-400 dark:text-slate-500 text-xs ml-2 shrink-0">×{item.quantity}</span>
                         </div>
                     ))}
                     {(r.items?.length ?? 0) > 2 && (
-                        <div className="text-[10px] text-slate-400 font-medium">
+                        <div className="text-xs text-slate-400 font-medium">
                             + {r.items!.length - 2} item lainnya
                         </div>
                     )}
@@ -132,12 +132,12 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
                         <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">
                             {r.requester?.fullName ?? '—'}
                         </span>
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium line-clamp-1">
+                        <span className="text-xs text-slate-400 dark:text-slate-500 font-medium line-clamp-1">
                             {r.site?.name ?? '—'}
                         </span>
                     </div>
                     {r.justification?.toLowerCase().includes('urgent') && (
-                        <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                        <span className="text-xs font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider">
                             Urgent
                         </span>
                     )}
@@ -149,7 +149,7 @@ export function RequestCard({ r }: { r: HardwareRequest }) {
                 {needsConfirmation && (
                     <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
                         <AlertCircle className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
-                        <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                        <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
                             Konfirmasi instalasi diperlukan
                         </span>
                     </div>

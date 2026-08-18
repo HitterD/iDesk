@@ -178,7 +178,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                 role="status"
                                 aria-label={isConnected ? 'Live updates connected' : 'Connecting to live updates'}
                                 className={cn(
-                                    "flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
+                                    "flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider",
                                     isConnected ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                                 )}
                             >
@@ -191,7 +191,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                 </div>
                 <Link
                     to="/client/create"
-                    className="flex items-center gap-2 min-h-[44px] bg-primary text-slate-900 px-6 py-3 rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 motion-reduce:transform-none"
+                    className="flex items-center gap-2 min-h-[44px] bg-primary text-primary-foreground px-6 py-3 rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 motion-reduce:transform-none"
                 >
                     <Plus className="w-5 h-5" aria-hidden="true" />
                     New Ticket
@@ -261,7 +261,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                 onKeyDown={(e) => handleFilterKeyDown(e, index)}
                                 aria-pressed={statusFilter === filter.value}
                                 className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-bold transition-[transform,box-shadow,border-color,opacity,background-color] duration-150 motion-reduce:transition-none flex items-center gap-2 ${statusFilter === filter.value
-                                    ? 'bg-primary text-slate-900 shadow-lg shadow-primary/20 scale-105 motion-reduce:transform-none'
+                                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105 motion-reduce:transform-none'
                                     : 'bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-white/40 dark:border-white/10 hover:bg-white dark:hover:bg-slate-700 hover:scale-105 motion-reduce:transform-none'
                                     }`}
                             >
@@ -275,7 +275,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                 </div>
 
                 {/* List Header */}
-                <div className="hidden md:flex items-center px-6 py-3 bg-slate-50/50 dark:bg-slate-900/30 border-b border-white/20 dark:border-white/10 text-[10px] font-bold text-slate-500 uppercase tracking-wider backdrop-blur-sm">
+                <div className="hidden md:flex items-center px-6 py-3 bg-slate-50/50 dark:bg-slate-900/30 border-b border-white/20 dark:border-white/10 text-xs font-bold text-slate-500 uppercase tracking-wider backdrop-blur-sm">
                     <div className="w-48 xl:w-56">Status / ID</div>
                     <div className="flex-1">Details</div>
                     <div className="w-32 xl:w-40">Priority</div>
@@ -299,7 +299,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                             </p>
                             <Link
                                 to="/client/create"
-                                className="inline-flex items-center gap-2 min-h-[44px] bg-primary text-slate-900 px-6 py-3 rounded-xl font-bold hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 motion-reduce:transform-none"
+                                className="inline-flex items-center gap-2 min-h-[44px] bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 motion-reduce:transform-none"
                             >
                                 <Plus className="w-5 h-5" aria-hidden="true" />
                                 Create Ticket
@@ -328,7 +328,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                             <div className="font-mono text-xs text-slate-500 font-medium tabular-nums">
                                                 #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                             </div>
-                                            <div className={cn("text-[10px] font-bold uppercase tracking-wider", statusConfig.textColor)}>
+                                            <div className={cn("text-xs font-bold uppercase tracking-wider", statusConfig.textColor)}>
                                                 {statusConfig.label}
                                             </div>
                                         </div>
@@ -340,7 +340,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                         </h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             {ticket.category && (
-                                                <span className="text-[10px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                                <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                                                     {ticket.category}
                                                 </span>
                                             )}
@@ -348,7 +348,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                     </div>
 
                                     <div className="md:w-32 xl:w-40 flex items-center">
-                                        <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900", priorityConfig.color)}>
+                                        <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900", priorityConfig.color)}>
                                             <div className="w-1.5 h-1.5 rounded-full bg-current opacity-50" aria-hidden="true" />
                                             {priorityConfig.label}
                                         </span>
@@ -363,7 +363,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                                 </span>
                                             </div>
                                         ) : (
-                                            <span className="text-[10px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">Unassigned</span>
+                                            <span className="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">Unassigned</span>
                                         )}
                                     </div>
 
@@ -373,7 +373,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                     </div>
 
                                     <div className="hidden md:flex md:w-24 items-center justify-end gap-1 text-primary opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-[transform,opacity] duration-200 motion-reduce:transition-none transform translate-x-[-10px] group-hover:translate-x-0 group-focus-visible:translate-x-0">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider">Open</span>
+                                        <span className="text-xs font-bold uppercase tracking-wider">Open</span>
                                         <ChevronRight className="w-4 h-4" aria-hidden="true" />
                                     </div>
                                     <div className="md:hidden absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">

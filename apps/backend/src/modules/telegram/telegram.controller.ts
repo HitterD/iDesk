@@ -5,6 +5,7 @@ import { TelegramService } from './telegram.service';
 import { InjectBot } from 'nestjs-telegraf';
 import { Telegraf, Context } from 'telegraf';
 import { Response } from 'express';
+import { TelegramWebhookGuard } from './middleware/auth.middleware';
 
 @ApiTags('Telegram')
 @Controller('telegram')
@@ -75,6 +76,7 @@ export class TelegramController {
      * - TELEGRAM_WEBHOOK_DOMAIN=https://api.yourapp.com
      */
     @Post('webhook')
+    @UseGuards(TelegramWebhookGuard)
     @HttpCode(200)
     @ApiExcludeEndpoint() // Hide from Swagger
     async handleWebhook(@Body() update: any, @Res() res: Response) {

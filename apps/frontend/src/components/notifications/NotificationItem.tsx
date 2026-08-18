@@ -85,7 +85,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     )}>
                         {stripEmoji(notification.title)}
                     </h4>
-                    <span className="text-[10px] font-medium text-slate-500 whitespace-nowrap">
+                    <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
                         {formatTimeAgo(notification.createdAt)}
                     </span>
                 </div>
@@ -103,7 +103,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         <button
                             onClick={() => onAcknowledge(notification.id)}
                             disabled={isAcknowledgePending}
-                            className="text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-2.5 py-1 rounded-md transition-colors flex items-center gap-1"
+                            className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-2.5 py-1 rounded-md transition-colors flex items-center gap-1"
                         >
                             {isAcknowledgePending ? (
                                 <span className="inline-block w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />

@@ -170,7 +170,7 @@ export const PresetManagementDialog: React.FC<PresetManagementDialogProps> = ({ 
                         {/* Create New */}
                         <button
                             onClick={handleCreateNew}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                         >
                             <Plus className="w-4 h-4" />
                             Create Preset

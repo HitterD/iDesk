@@ -23,6 +23,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { PASSWORD_POLICY, getPasswordRequirements, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
 
 
 
@@ -36,12 +37,13 @@ const createUserSchema = z.object({
     autoGeneratePassword: z.boolean(),
     password: z.string().optional(),
 }).refine((data) => {
-    if (!data.autoGeneratePassword && (!data.password || data.password.length < 6)) {
-        return false;
+    if (!data.autoGeneratePassword) {
+        const r = validatePasswordLocal(data.password || '');
+        if (!r.valid) return false;
     }
     return true;
 }, {
-    message: "Password must be at least 6 characters if not auto-generated",
+    message: `Password minimal ${PASSWORD_POLICY.minLength} karakter — wajib huruf besar, huruf kecil, dan angka.`,
     path: ["password"],
 });
 

@@ -1,19 +1,30 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Download, Check, PenLine } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { Eraser, Check, PenLine } from 'lucide-react';
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void;
   signerName: string;
 }
 
+const CANVAS_HEIGHT = 200;
+
+/**
+ * Ink colour is fixed rather than theme-derived: the canvas is exported as a PNG
+ * and archived with the request, so the stroke must stay legible on the white
+ * signature sheet in the PDF regardless of the theme it was drawn in.
+ */
+const INK_COLOR = '#1e293b';
+
 const applyCtxStyles = (ctx: CanvasRenderingContext2D) => {
   ctx.lineWidth = 2;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#2D4A8C';
+  ctx.strokeStyle = INK_COLOR;
 };
+
+const formatToday = () =>
+  new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
 export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,7 +43,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
       const parent = canvas.parentElement;
       if (parent) {
         canvas.width = parent.clientWidth;
-        canvas.height = 200;
+        canvas.height = CANVAS_HEIGHT;
         // Re-apply after resize — resizing clears canvas context state
         applyCtxStyles(ctx);
       }
@@ -100,20 +111,28 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
   };
 
   return (
-    <Card className="p-4 border-2 border-dashed border-primary/20 bg-card/50 overflow-hidden relative group">
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60 flex items-center gap-2">
-          <PenLine size={12} className="text-primary" />
-          Tanda Tangan Digital
-        </label>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm" onClick={clear} className="h-7 text-[10px] uppercase font-bold tracking-tighter opacity-60 hover:opacity-100">
-            <Eraser size={12} className="mr-1" /> Bersihkan
-          </Button>
-        </div>
+    <div className="rounded-2xl border border-dashed border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <PenLine size={14} className="text-primary" aria-hidden="true" />
+          Tanda tangan digital
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clear}
+          disabled={!hasSignature}
+          className="h-8 rounded-lg text-xs font-semibold"
+        >
+          <Eraser size={13} className="mr-1.5" aria-hidden="true" /> Bersihkan
+        </Button>
       </div>
 
-      <div className={`relative bg-white rounded-lg border border-border/50 h-[200px] cursor-crosshair touch-none ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div
+        className={`relative h-[200px] cursor-crosshair touch-none rounded-xl border border-border bg-white ${
+          isLocked ? 'pointer-events-none opacity-60' : ''
+        }`}
+      >
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}
@@ -123,53 +142,36 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
           onTouchStart={startDrawing}
           onTouchEnd={stopDrawing}
           onTouchMove={draw}
-          className="w-full h-full"
+          className="h-full w-full"
         />
         {!hasSignature && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 italic text-sm">
-            Tanda tangan di sini...
-          </div>
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-400">
+            Tanda tangan di sini
+          </p>
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-[10px] leading-tight opacity-60">
-          <p className="font-bold text-foreground">Disetujui Oleh:</p>
-          <p className="uppercase tracking-wider">{signerName}</p>
-          <p>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-        </div>
-        
-        {!isLocked && (
-          <Button 
-            onClick={handleSave} 
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+        <dl className="text-sm leading-tight">
+          <dt className="text-xs font-semibold text-muted-foreground">Ditandatangani oleh</dt>
+          <dd className="mt-0.5 font-bold text-foreground">{signerName || '—'}</dd>
+          <dd className="mt-0.5 text-xs text-muted-foreground">{formatToday()}</dd>
+        </dl>
+
+        {!isLocked ? (
+          <Button
+            onClick={handleSave}
             disabled={!hasSignature}
-            className="rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-colors duration-150 h-9 px-4 text-xs font-bold"
+            className="h-10 rounded-xl px-4 text-sm font-bold"
           >
-            <Check size={14} className="mr-2" /> Simpan & Kunci
+            <Check size={15} className="mr-2" aria-hidden="true" /> Simpan &amp; kunci
           </Button>
+        ) : (
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+            <Check size={15} aria-hidden="true" /> Terkunci
+          </p>
         )}
       </div>
-
-      {hasSignature && (
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <div className="space-y-1">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">
-              Nama Terang
-            </label>
-            <div className="h-10 rounded-xl bg-muted border border-border/30 px-3 flex items-center font-bold text-sm text-muted-foreground">
-              {signerName}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">
-              Tanggal TTD
-            </label>
-            <div className="h-10 rounded-xl bg-muted border border-border/30 px-3 flex items-center font-bold text-sm text-muted-foreground">
-              {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
-            </div>
-          </div>
-        </div>
-      )}
-    </Card>
+    </div>
   );
 };

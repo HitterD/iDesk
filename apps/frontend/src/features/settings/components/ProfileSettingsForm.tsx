@@ -131,7 +131,7 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                     </div>
                     <div className="absolute inset-0 bg-black/40 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
                         <Camera className="w-6 h-6 text-white mb-1" />
-                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">Ubah</span>
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Ubah</span>
                     </div>
                 </div>
                 <input

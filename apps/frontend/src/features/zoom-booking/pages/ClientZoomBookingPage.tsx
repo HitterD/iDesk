@@ -4,7 +4,7 @@ export function ClientZoomBookingPage() {
     return (
         <main className="mx-auto max-w-7xl space-y-6 p-4 lg:p-6 animate-fade-in-up">
             <header className="space-y-1 px-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
                     Zoom
                 </p>
                 <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
@@ -21,7 +21,7 @@ export function ClientZoomBookingPage() {
                     className="sticky top-6 rounded-2xl bg-card p-5 shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none lg:col-span-5"
                 >
                     <div className="mb-5">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                             Detail meeting
                         </p>
                         <h2 id="booking-form-heading" className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">

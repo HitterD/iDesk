@@ -18,14 +18,16 @@ const sizeConfig = {
 
 export const Logo: React.FC<LogoProps> = ({
   size = 'md',
+  variant = 'full',
   className,
   animated = false
 }) => {
   return (
     <div
       className={cn(
-        "relative inline-flex items-center justify-center transition-transform duration-300",
+        "relative inline-flex items-center justify-center transition-transform duration-200",
         sizeConfig[size],
+        variant === 'icon' ? "w-10 h-10" : "",
         animated && "hover:scale-105 transition-transform duration-200 ease-out",
         className
       )}
@@ -33,10 +35,15 @@ export const Logo: React.FC<LogoProps> = ({
       <img
         src="/idesk-logo.png"
         alt="iDesk Logo"
-        className="h-full w-auto object-contain filter drop-shadow-sm"
+        className={cn(
+          "h-full w-auto object-contain filter drop-shadow-xs",
+          variant === 'icon' ? "max-h-9 max-w-full" : ""
+        )}
       />
     </div>
   );
 };
 
 export default Logo;
+
+

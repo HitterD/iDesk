@@ -68,7 +68,7 @@ export const NotificationPopover: React.FC = () => {
                 <button className="relative p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
                     <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors" />
                     {unreadCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
+                        <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-xs font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
                             {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                     )}
@@ -128,7 +128,7 @@ export const NotificationPopover: React.FC = () => {
                                                 <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
                                                     {notification.message}
                                                 </p>
-                                                <span className="text-[10px] text-slate-400 mt-1 block">
+                                                <span className="text-xs text-slate-400 mt-1 block">
                                                     {formatTimeAgo(notification.createdAt)}
                                                 </span>
                                             </div>

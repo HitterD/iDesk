@@ -74,7 +74,7 @@ export function AuditStatsCards() {
                     <div className="flex items-start justify-between">
                         <div>
                             <p className={cn(
-                                "text-[11px] font-semibold uppercase tracking-wider mb-1.5",
+                                "text-xs font-semibold uppercase tracking-wider mb-1.5",
                                 card.highlight
                                     ? "text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-400))]"
                                     : "text-slate-500 dark:text-slate-400"

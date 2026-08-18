@@ -26,36 +26,32 @@ export const SortableHeader: React.FC<SortableHeaderProps> = ({
 
     return (
         <button
+            type="button"
             onClick={() => onSort(field)}
             className={cn(
-                "flex items-center gap-1 hover:text-primary transition-colors group",
-                isActive && "text-primary font-semibold",
+                "inline-flex items-center gap-1.5 hover:text-primary transition-colors group cursor-pointer text-xs font-bold uppercase tracking-wider",
+                isActive ? "text-primary font-bold" : "text-muted-foreground",
                 className
             )}
         >
             <span>{label}</span>
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className={cn(
+                "transition-all duration-150",
+                isActive ? "opacity-100 text-primary" : "opacity-0 group-hover:opacity-60 text-muted-foreground"
+            )}>
                 {isActive ? (
                     currentSortOrder === 'ASC' ? (
-                        <ArrowUp className="w-3 h-3" />
+                        <ArrowUp className="w-3.5 h-3.5" />
                     ) : (
-                        <ArrowDown className="w-3 h-3" />
+                        <ArrowDown className="w-3.5 h-3.5" />
                     )
                 ) : (
-                    <ArrowUpDown className="w-3 h-3" />
+                    <ArrowUpDown className="w-3.5 h-3.5" />
                 )}
             </span>
-            {isActive && (
-                <span className="opacity-100">
-                    {currentSortOrder === 'ASC' ? (
-                        <ArrowUp className="w-3 h-3" />
-                    ) : (
-                        <ArrowDown className="w-3 h-3" />
-                    )}
-                </span>
-            )}
         </button>
     );
+
 };
 
 // Non-sortable header for consistency

@@ -165,7 +165,7 @@ export function UpcomingMeetingsPanel({ className, maxItems = 5, compact = false
                 className
             )}>
                 <div className="flex items-center gap-1.5 shrink-0 relative">
-                    <Badge variant="default" className={cn("h-6 px-2 text-[11px] uppercase font-bold tracking-wider rounded-md", showPulse && "animate-pulse bg-[hsl(var(--primary))]")}>NEXT</Badge>
+                    <Badge variant="default" className={cn("h-6 px-2 text-xs uppercase font-bold tracking-wider rounded-md", showPulse && "animate-pulse bg-[hsl(var(--primary))]")}>NEXT</Badge>
                 </div>
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-sm font-bold text-[hsl(var(--foreground))] truncate animate-[slideInLeft_0.3s_ease-out_forwards]">{next.title}</span>

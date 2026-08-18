@@ -47,7 +47,7 @@ export function ZoomOverflowPopover({
                         <strong className="text-[13px] text-slate-800 dark:text-slate-200">
                             {bookings.length} Meeting · {timeRange}
                         </strong>
-                        <div className="text-[10px] text-slate-500 mt-0.5">{date}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{date}</div>
                     </div>
                     <Button
                         size="sm"
@@ -75,10 +75,10 @@ export function ZoomOverflowPopover({
                                 aria-hidden="true"
                             />
                             <div className="flex-1 min-w-0">
-                                <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
                                     {b.title}
                                 </div>
-                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                                     <span>
                                         {b.startTime} – {b.endTime}
                                     </span>
@@ -94,7 +94,7 @@ export function ZoomOverflowPopover({
                                 </div>
                             </div>
                             {b.isMine && (
-                                <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                                <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-semibold px-1.5 py-0.5 rounded">
                                     SAYA
                                 </span>
                             )}
@@ -107,12 +107,12 @@ export function ZoomOverflowPopover({
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="text-[10px] text-blue-600 font-semibold gap-1 h-7"
+                        className="text-xs text-blue-600 font-semibold gap-1 h-7"
                         onClick={onBookSlot}
                     >
                         <Zap className="h-3 w-3" aria-hidden="true" /> Book slot kosong
                     </Button>
-                    <span className="text-[9px] text-slate-400">
+                    <span className="text-xs text-slate-400">
                         klik meeting untuk detail
                     </span>
                 </div>

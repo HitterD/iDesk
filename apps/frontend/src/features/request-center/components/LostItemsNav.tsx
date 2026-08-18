@@ -51,7 +51,7 @@ export const LostItemsNav = () => {
                         <Icon className="w-4 h-4" />
                         {tab.label}
                         {tab.badge && tab.badge > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-xs font-black rounded-full flex items-center justify-center">
                                 {tab.badge > 9 ? '9+' : tab.badge}
                             </span>
                         )}

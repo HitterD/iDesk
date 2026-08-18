@@ -4,6 +4,7 @@ import * as Collapsible from '@radix-ui/react-collapsible';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
 import { PermissionPreset, ROLE_CONFIG, SITE_COLORS, type UserRoleKey } from './agent-types';
+import { PresenceDot } from '@/components/ui/PresenceDot';
 import { PresetDropdown } from './PresetDropdown';
 
 export const RoleSection: React.FC<{
@@ -62,8 +63,13 @@ export const RoleSection: React.FC<{
                                 <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                     <td className="px-3 py-3">
                                         <div className="flex items-center gap-2">
-                                            <div className={cn("w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center font-bold text-sm", config.bgColor, config.color)}>
-                                                {user.fullName.charAt(0).toUpperCase()}
+                                            <div className="relative flex-shrink-0">
+                                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm", config.bgColor, config.color)}>
+                                                    {user.fullName.charAt(0).toUpperCase()}
+                                                </div>
+                                                {/* Announced here: unlike UnifiedUserTable this view has no
+                                                    Presence column to state the status in words. */}
+                                                <PresenceDot userId={user.id} userName={user.fullName} size="sm" ringed className="absolute -bottom-0.5 -right-0.5" />
                                             </div>
                                             <span className="font-medium text-slate-800 dark:text-white truncate max-w-[130px]">{user.fullName}</span>
                                         </div>

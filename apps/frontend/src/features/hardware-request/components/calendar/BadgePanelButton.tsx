@@ -20,7 +20,7 @@ export function BadgePanelButton({ label, count, variant, open, onToggle, childr
         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${s.pill}`}
       >
         {label}
-        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${s.badge}`}>{count}</span>
+        <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${s.badge}`}>{count}</span>
       </button>
       {open && (
         <div className={`absolute right-0 top-full z-30 mt-1 w-72 rounded-lg border border-slate-200 bg-white shadow-xl ${s.border}`}>

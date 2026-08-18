@@ -181,7 +181,7 @@ export const NotificationBadge: React.FC<NotificationBadgeProps> = ({
     return (
         <span className={cn(
             "absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full",
-            "text-[10px] font-bold text-white flex items-center justify-center px-1",
+            "text-xs font-bold text-white flex items-center justify-center px-1",
             showPulse && count > 0 && "animate-pulse-ring",
             className
         )}>

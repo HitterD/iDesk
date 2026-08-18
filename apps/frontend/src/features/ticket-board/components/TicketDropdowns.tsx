@@ -10,7 +10,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
-// Custom filter dropdown with search capability
+// Custom filter dropdown with Portal rendering to prevent header overlap
 interface CustomDropdownProps {
     value: string;
     onChange: (value: string) => void;
@@ -26,60 +26,38 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
     icon: Icon = Filter,
     placeholder = 'Filter'
 }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const selectedLabel = options.find(opt => opt.value === value)?.label || placeholder;
+    const selectedValue = value === '' ? 'ALL' : value;
+    const selectedOption = options.find(opt => opt.value === selectedValue) || options.find(opt => opt.value === value);
 
     return (
-        <div className="relative" ref={dropdownRef}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 font-medium rounded-xl shadow-sm transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out min-w-[150px] h-10 justify-between text-sm"
-            >
+        <Select
+            value={selectedValue}
+            onValueChange={(val) => {
+                onChange(val === 'ALL' ? '' : val);
+            }}
+        >
+            <SelectTrigger className="h-10 w-auto min-w-[130px] shrink-0 border border-border/80 bg-card hover:bg-muted/50 text-foreground font-medium rounded-xl shadow-xs px-3.5 gap-2 transition-all cursor-pointer">
                 <div className="flex items-center gap-2 truncate">
-                    <Icon className="w-3.5 h-3.5 opacity-70" />
-                    <span>{selectedLabel}</span>
+                    <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold">{selectedOption?.label || placeholder}</span>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-            </button>
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="p-1">
-                        {options.map((option) => (
-                            <button
-                                key={option.value}
-                                onClick={() => {
-                                    onChange(option.value);
-                                    setIsOpen(false);
-                                }}
-                                className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors",
-                                    value === option.value
-                                        ? "bg-primary/10 text-primary font-medium dark:bg-primary/20"
-                                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                )}
-                            >
-                                <span>{option.label}</span>
-                                {value === option.value && <Check className="w-3.5 h-3.5" />}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-border bg-popover shadow-xl z-50 min-w-[160px]">
+                {options.map((option) => (
+                    <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="text-xs sm:text-sm font-medium py-2 rounded-lg cursor-pointer"
+                    >
+                        {option.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     );
 };
+
+
 
 // Priority dropdown with colored badges
 interface PriorityDropdownProps {

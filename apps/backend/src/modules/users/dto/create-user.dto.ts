@@ -3,6 +3,9 @@ import { Transform } from 'class-transformer';
 import { UserRole } from '../enums/user-role.enum';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize, NormalizeEmail } from '../../../shared/core/validators/input-sanitizer';
+import { PASSWORD_POLICY } from '../../auth/application/password-policy';
+
+const { minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH } = PASSWORD_POLICY;
 
 export class CreateUserDto {
     @ApiProperty({ example: 'john.doe@example.com' })
@@ -26,11 +29,11 @@ export class CreateUserDto {
     @IsNotEmpty()
     role: UserRole;
 
-    @ApiPropertyOptional({ example: 'Password123!', minLength: 8, maxLength: 72 })
+    @ApiPropertyOptional({ example: 'Password123!', minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH })
     @IsString()
     @IsOptional()
-    @MinLength(8, { message: 'Password must be at least 8 characters' })
-    @MaxLength(72, { message: 'Password cannot exceed 72 characters' })
+    @MinLength(PASSWORD_MIN_LENGTH, { message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` })
+    @MaxLength(PASSWORD_MAX_LENGTH, { message: `Password cannot exceed ${PASSWORD_MAX_LENGTH} characters` })
     password?: string;
 
     @ApiPropertyOptional({ example: 'dept-uuid-here' })

@@ -33,11 +33,16 @@ export class EFormRequestService {
 
   async getVpnTerms() {
     return this.settingsService.getSetting<string>('eform.vpn.terms', `
-      <p><strong>1. KEBIJAKAN PENGGUNAAN</strong><br/>Layanan VPN hanya digunakan untuk kepentingan pekerjaan PT. Santos Jaya Abadi.</p>
-      <p><strong>2. KERAHASIAAN KREDENSIAL</strong><br/>User dilarang memberikan username dan password kepada pihak lain.</p>
-      <p><strong>3. KEAMANAN PERANGKAT</strong><br/>Pastikan perangkat yang digunakan bebas dari malware/virus.</p>
+      <ol style="list-style-type: decimal; padding-left: 1.25rem; margin: 0; line-height: 1.6;">
+        <li style="margin-bottom: 0.75rem;">Divisi ICT tidak bertanggung jawab terhadap pelanggaran keamanan maupun upaya perusakan komputer dan/atau perangkat lain yang anda gunakan selama terhubung dengan menggunakan VPN. Semua masalah lisensi yang mungkin akan menimbulkan biaya karena penggunaan aplikasi ilegal saat terhubung ke VPN merupakan tanggung jawab pemohon sepenuhnya. Akses ke VPN PT.SANTOS JAYA ABADI hanya boleh digunakan untuk hal-hal yang berkaitan dengan pekerjaan. Software VPN beserta kredensialnya tidak boleh dibagikan oleh pemohon kepada pihak lain dalam kondisi apapun. Pemohon tidak diperkenankan menggunakan aplikasi remote service pihak ketiga (Misal: TeamViewer, LogMeIn, GoToMyPC, peer-to-peer networking, dll) saat terhubung ke VPN PT.SANTOS JAYA ABADI.</li>
+        <li style="margin-bottom: 0.75rem;">Semua akses ke jaringan VPN PT.SANTOS JAYA ABADI tercatat dan diawasi.</li>
+        <li style="margin-bottom: 0.75rem;">Komputer yang digunakan untuk terhubung ke VPN wajib terpasang antivirus dan memiliki database up to date.</li>
+        <li style="margin-bottom: 0.75rem;">Pemohon yang diberi akses VPN berkewajiban untuk menjaga kerahasiaan data dan/atau informasi milik perusahaan, apabila terbukti dengan sengaja dan/atau karena kelalaian menyebabkan kerugian dan/atau potensi kerugian bagi perusahaan,maka dengan ini pemohon menyatakan bersedia diberi sangsi sesuai peraturan perusahaan yang berlaku.</li>
+        <li style="margin-bottom: 0.75rem;">Semua insiden terkait keamanan informasi yang terjadi selama menggunakan dan atau memiliki akses VPN wajib dilaporkan kepada pihak ICT. Contoh: kehilangan laptop yang terpasang akses VPN, laptop yang digunakan terkena malware, dsb.</li>
+      </ol>
     `);
   }
+
 
   async setVpnTerms(terms: string, userId: string) {
     return this.settingsService.setSetting('eform.vpn.terms', terms, userId, 'VPN E-Form Terms & Conditions');
@@ -232,9 +237,37 @@ export class EFormRequestService {
   async generatePdf(id: string) {
     const request = await this.eformRequestRepository.findOne({
       where: { id },
-      relations: ['signatures'],
+      relations: ['signatures', 'approvals', 'requester', 'currentApprover'],
     });
     if (!request) throw new NotFoundException('Request not found');
-    return this.pdfService.generatePdf(request);
+
+    let credentialData: any = null;
+    const rawCred = await this.eformCredentialRepository.findOne({
+      where: { eformRequestId: id },
+      relations: ['provisionedBy'],
+    });
+
+    if (rawCred) {
+      try {
+        const username = this.credentialService.decrypt(rawCred.encryptedUsername, rawCred.iv, rawCred.authTag);
+        const password = this.credentialService.decrypt(rawCred.encryptedPassword, rawCred.passwordIv, rawCred.passwordAuthTag);
+        credentialData = {
+          username,
+          password,
+          vpnServer: rawCred.vpnServer,
+          notes: rawCred.notes,
+          provisionedAt: rawCred.provisionedAt,
+          accessCreatedAt: rawCred.accessCreatedAt,
+          accessExpiresAt: rawCred.accessExpiresAt,
+          provisionedByName: rawCred.provisionedBy?.fullName || rawCred.provisionedBy?.email || 'Admin ICT',
+        };
+      } catch {
+        // Continue if credential decryption fails
+      }
+    }
+
+
+    return this.pdfService.generatePdf(request, credentialData);
   }
 }
+

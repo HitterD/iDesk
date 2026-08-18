@@ -19,7 +19,6 @@ import {
     Flame,
     RefreshCw,
     Plus,
-    Ticket as TicketIcon,
     Loader2
 } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -422,22 +421,17 @@ export const BentoTicketListPage: React.FC = () => {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-[hsl(var(--primary))]/10 flex items-center justify-center shrink-0">
-                        <TicketIcon className="w-6 h-6 text-primary" />
+                <div>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">All Tickets</h1>
+                        {isConnected && (
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Live
+                            </span>
+                        )}
                     </div>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">All Tickets</h1>
-                            {isConnected && (
-                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
-                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-icon-pulse" />
-                                    <span className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase tracking-wider">Live</span>
-                                </div>
-                            )}
-                        </div>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">View and manage all support requests</p>
-                    </div>
+                    <p className="text-muted-foreground text-sm font-medium mt-1">View and manage all support requests</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* New Ticket Button */}
@@ -504,12 +498,12 @@ export const BentoTicketListPage: React.FC = () => {
 
             {/* Search & Filters */}
             <div
-                className="flex flex-col lg:flex-row lg:items-center gap-3 p-2 bg-white dark:bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] relative z-20 shadow-sm"
+                className="flex flex-col lg:flex-row lg:items-center gap-3 p-2 bg-card rounded-2xl border border-border relative z-20 shadow-xs"
                 role="search"
                 aria-label="Ticket search and filters"
             >
-                <div className="relative flex-1 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
+                <div className="relative flex-1 bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
                     <input
                         type="search"
                         id="ticket-search"
@@ -520,17 +514,27 @@ export const BentoTicketListPage: React.FC = () => {
                         aria-label="Search tickets"
                         aria-describedby="search-hint"
                         autoComplete="off"
-                        className="w-full pl-10 pr-4 py-2 bg-transparent border-none outline-none text-slate-800 dark:text-white placeholder:text-slate-400 text-sm font-medium"
+                        className="w-full pl-10 pr-10 py-2.5 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
                     />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded transition-colors cursor-pointer"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                     <span id="search-hint" className="sr-only">
                         Type to search tickets. Results will update automatically.
                     </span>
                 </div>
 
-                <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 hidden lg:block mx-1" />
+                <div className="w-px h-8 bg-border hidden lg:block mx-1" />
 
-                {/* Primary Filters */}
-                <div className="flex flex-wrap items-center gap-2 px-1 pb-1 lg:pb-0">
+
+                {/* Primary Filters - Horizontal row */}
+                <div className="flex items-center gap-2 px-1 pb-1 lg:pb-0 shrink-0 overflow-x-auto">
                     <CustomDropdown
                         value={statusFilter}
                         onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
@@ -564,11 +568,11 @@ export const BentoTicketListPage: React.FC = () => {
                             selectedSiteIds={selectedSites}
                             onSelectionChange={setSelectedSites}
                             mode="multi"
-                            className="h-9"
+                            className="h-10"
                         />
                     )}
 
-                    <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+                    <div className="w-[1px] h-6 bg-border mx-1 hidden sm:block" />
 
                     {/* Secondary Filters Menu - Saved Filters, Export */}
                     <SecondaryFiltersMenu
@@ -591,6 +595,7 @@ export const BentoTicketListPage: React.FC = () => {
                         onClearFilters={clearFilters}
                     />
                 </div>
+
             </div>
 
             {/* Active Filter Chips - P3 MEDIUM: Removable filter badges */}
@@ -636,7 +641,6 @@ export const BentoTicketListPage: React.FC = () => {
                         <div
                             className={cn(
                                 "sticky top-0 z-20 hidden lg:grid items-center gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-[hsl(var(--border))]",
-                                "border-l-4 border-l-transparent", // Fix the 4px shifter bug
                                 showSiteColumn
                                     ? "lg:grid-cols-[32px_minmax(280px,2fr)_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
                                     : "lg:grid-cols-[32px_minmax(280px,2fr)_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"

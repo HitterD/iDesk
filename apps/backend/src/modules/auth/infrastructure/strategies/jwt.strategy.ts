@@ -1,6 +1,7 @@
 import { Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException, Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { AuthenticatedClaims, AuthenticatedUser } from '../../application/auth-user.types';
 import { toAuthenticatedUser } from '../../application/auth-user.mapper';
@@ -32,12 +33,8 @@ const cookieOrHeaderExtractor = (req: Request): string | null => {
 export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly logger = new Logger(JwtStrategy.name);
 
-    constructor() {
-        // Fail fast if JWT_SECRET is not configured
-        const jwtSecret = process.env.JWT_SECRET;
-        if (!jwtSecret) {
-            throw new Error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
-        }
+    constructor(@Inject(ConfigService) config: ConfigService) {
+        const jwtSecret = config.getOrThrow<string>('JWT_SECRET');
 
         super({
             jwtFromRequest: cookieOrHeaderExtractor,
@@ -47,7 +44,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: AuthenticatedClaims): Promise<AuthenticatedUser> {
-        if (!payload?.sub || !payload.username || !payload.role || !payload.fullName) {
+        if (!payload?.sub || !payload.username || !payload.role || !payload.fullName || payload.type !== 'access') {
             throw new UnauthorizedException('Invalid token payload');
         }
 

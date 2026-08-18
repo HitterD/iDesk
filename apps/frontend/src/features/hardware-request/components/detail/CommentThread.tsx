@@ -23,7 +23,7 @@ export function CommentThread({ requestId, canComment }: { requestId: string; ca
                         className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-800/50">
                         <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                             <span className="font-semibold text-slate-900 dark:text-slate-200">{c.author?.fullName ?? 'Unknown'}</span>
-                            {c.author?.role && <span className="text-[10px] rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5">{c.author.role}</span>}
+                            {c.author?.role && <span className="text-xs rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5">{c.author.role}</span>}
                             <span>· {fmtRelative(c.createdAt)}</span>
                             {c.editedAt && <span className="italic text-slate-400 dark:text-slate-500">(edited)</span>}
                         </div>

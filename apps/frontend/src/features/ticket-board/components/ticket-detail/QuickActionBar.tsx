@@ -86,7 +86,7 @@ export const QuickActionBar: React.FC<QuickActionBarProps> = ({
                             title={action.label}
                         >
                             <Icon className="w-5 h-5" />
-                            <span className="text-[10px] font-medium">{action.label}</span>
+                            <span className="text-xs font-medium">{action.label}</span>
                         </button>
                     );
                 })}

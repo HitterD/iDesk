@@ -62,7 +62,7 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
             <div className="flex items-center gap-4 px-6 py-3 bg-slate-900 dark:bg-[hsl(var(--card))] rounded-full shadow-2xl border border-slate-800 dark:border-[hsl(var(--border))]">
                 {/* Count */}
                 <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-7 h-7 bg-primary rounded-full text-slate-900 text-sm font-bold">
+                    <span className="flex items-center justify-center w-7 h-7 bg-primary rounded-full text-primary-foreground text-sm font-bold">
                         {count}
                     </span>
                     <span className="text-white text-sm font-bold">selected</span>

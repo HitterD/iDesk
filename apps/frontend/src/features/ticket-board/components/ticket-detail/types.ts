@@ -17,10 +17,16 @@ export interface TicketDetail {
     hardwareType?: string;
     userAcknowledged?: boolean;
     user: {
+        /** Present in the findOne payload via the `user` relation; drives the presence dot. */
+        id?: string;
         fullName: string;
         email: string;
         department?: {
             name: string;
+        };
+        site?: {
+            name: string;
+            code?: string;
         };
         telegramChatId?: string;
     };

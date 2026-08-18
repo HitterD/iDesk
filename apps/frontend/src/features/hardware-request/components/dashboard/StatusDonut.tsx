@@ -10,7 +10,7 @@ export function StatusDonut({ data, loading }: { data?: Slice[]; loading?: boole
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[hsl(var(--card))] p-4 shadow-sm">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Distribusi Status</h3>
+      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Distribusi Status</h3>
       <ResponsiveContainer width="100%" height={240}>
         <PieChart>
           <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={85} paddingAngle={2}>

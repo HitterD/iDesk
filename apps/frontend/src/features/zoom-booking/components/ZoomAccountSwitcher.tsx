@@ -52,7 +52,7 @@ export function ZoomAccountSwitcher({
                             aria-label="Cari akun Zoom"
                             className="flex-1 bg-transparent outline-none text-sm"
                         />
-                        <kbd className="text-[10px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-slate-500">
+                        <kbd className="text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-slate-500">
                             ESC
                         </kbd>
                     </div>
@@ -75,19 +75,19 @@ export function ZoomAccountSwitcher({
                             <div className="text-xs font-bold text-blue-700 dark:text-blue-300">
                                 Gabungan (Semua Akun)
                             </div>
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-xs text-slate-500">
                                 Lihat & book di semua akun · auto-pilih paling kosong
                             </div>
                         </div>
                         {currentAccountId === GABUNGAN_ID ? (
-                            <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                            <span className="bg-blue-600 text-white text-xs font-bold px-1.5 py-0.5 rounded">
                                 DEFAULT
                             </span>
                         ) : null}
                     </button>
                 </div>
 
-                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50 dark:bg-slate-800/50">
+                <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 bg-slate-50 dark:bg-slate-800/50">
                     Akun Individual ({accounts.length})
                 </div>
 
@@ -111,10 +111,10 @@ export function ZoomAccountSwitcher({
                                 aria-hidden="true"
                             />
                             <div className="flex-1 min-w-0">
-                                <div className="text-[11px] font-semibold truncate text-slate-800 dark:text-slate-200">
+                                <div className="text-xs font-semibold truncate text-slate-800 dark:text-slate-200">
                                     {acc.name}
                                 </div>
-                                <div className="text-[10px] text-slate-500">
+                                <div className="text-xs text-slate-500">
                                     {acc.meetingsAtTime} mtg · load {Math.min(100, acc.meetingsAtTime * 4)}%
                                 </div>
                             </div>
@@ -122,7 +122,7 @@ export function ZoomAccountSwitcher({
                     ))}
                 </div>
 
-                <div className="p-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between text-[10px] text-slate-500">
+                <div className="p-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between text-xs text-slate-500">
                     <span>↑↓ navigasi · ↵ pilih · ESC tutup</span>
                 </div>
             </DialogContent>

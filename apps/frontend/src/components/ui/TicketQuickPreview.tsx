@@ -65,7 +65,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
 export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
     ticket,
     children,
-    side = 'right',
+    side = 'left',
     disabled = false,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -104,15 +104,16 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
                         <PopoverPrimitive.Content
                             asChild
                             side={side}
-                            align="start"
-                            sideOffset={8}
-                            collisionPadding={12}
+                            align="center"
+                            sideOffset={10}
+                            avoidCollisions={true}
+                            collisionPadding={16}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
                             className="z-50 outline-none pointer-events-auto"
                         >
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: side === 'bottom' ? -4 : side === 'top' ? 4 : 0, x: side === 'left' ? 4 : side === 'right' ? -4 : 0 }}
+                                initial={{ opacity: 0, scale: 0.95, y: side === 'bottom' ? -4 : side === 'top' ? 4 : 0, x: side === 'left' ? 6 : side === 'right' ? -6 : 0 }}
                                 animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ duration: 0.15, ease: 'easeOut' }}
@@ -191,7 +192,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
                                                     <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
                                                         {ticket.user?.fullName || 'Unknown'}
                                                     </p>
-                                                    <p className="text-[10px] text-slate-400 truncate">
+                                                    <p className="text-xs text-slate-400 truncate">
                                                         {ticket.user?.department?.name || 'No department'}
                                                     </p>
                                                 </div>
@@ -199,7 +200,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
                                             
                                             {/* Created Date */}
                                             <div className="text-right">
-                                                <p className="text-[10px] text-slate-400">Created</p>
+                                                <p className="text-xs text-slate-400">Created</p>
                                                 <p className="text-xs text-slate-600 dark:text-slate-400">
                                                     {format(new Date(ticket.createdAt), 'dd MMM yyyy')}
                                                 </p>
@@ -209,7 +210,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
                                         {/* Assigned To */}
                                         {ticket.assignedTo && (
                                             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                                <span className="text-[10px] text-slate-400">Assigned to:</span>
+                                                <span className="text-xs text-slate-400">Assigned to:</span>
                                                 <UserAvatar user={ticket.assignedTo} size="xs" />
                                                 <span className="text-xs text-slate-600 dark:text-slate-400">
                                                     {ticket.assignedTo.fullName}

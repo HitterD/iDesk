@@ -186,7 +186,7 @@ export const PresetDropdown: React.FC<{
                                                 )} aria-hidden="true" />
                                                 <span className="truncate font-medium">{preset.name}</span>
                                                 {preset.isDefault && (
-                                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 leading-none flex-shrink-0">
+                                                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 leading-none flex-shrink-0">
                                                         default
                                                     </span>
                                                 )}

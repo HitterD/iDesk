@@ -216,7 +216,7 @@ export const IpWhitelistSettings: React.FC = () => {
                 </div>
                 <button
                     onClick={() => openModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-slate-900 font-medium rounded-xl hover:bg-primary/90 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
                 >
                     <Plus className="w-4 h-4" />
                     Add Rule
@@ -508,7 +508,7 @@ export const IpWhitelistSettings: React.FC = () => {
                                 <button
                                     type="submit"
                                     disabled={createMutation.isPending || updateMutation.isPending}
-                                    className="flex-1 px-4 py-2 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {(createMutation.isPending || updateMutation.isPending) && (
                                         <Loader2 className="w-4 h-4 animate-spin" />

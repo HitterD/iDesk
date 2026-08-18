@@ -140,7 +140,7 @@ export const InlineSiteEditor: React.FC<InlineSiteEditorProps> = ({
                                         : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                                 )}
                             >
-                                <div className={cn("w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold", colors)}>
+                                <div className={cn("w-4 h-4 rounded flex items-center justify-center text-xs font-bold", colors)}>
                                     {site.code.charAt(0)}
                                 </div>
                                 <span className="flex-1 text-left">{site.code}</span>

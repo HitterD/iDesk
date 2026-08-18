@@ -208,7 +208,7 @@ export const BentoTopbar = () => {
                         </button>
                     ) : (
                         <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none select-none">
-                            <kbd className="px-2 py-0.5 text-[11px] font-mono font-medium text-muted-foreground bg-muted border border-border rounded-md shadow-2xs">
+                            <kbd className="px-2 py-0.5 text-xs font-mono font-medium text-muted-foreground bg-muted border border-border rounded-md shadow-2xs">
                                 {isMac ? '⌘K' : 'Ctrl+K'}
                             </kbd>
                         </div>

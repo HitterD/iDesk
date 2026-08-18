@@ -1,43 +1,84 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Plus,
     Search,
-    ShieldCheck,
     Clock,
     CheckCircle2,
     ChevronRight,
     FileText,
-    Loader2,
-    Filter,
-    ShieldAlert,
-    Bell,
+    Database,
+    Ban,
+    Inbox,
+    Download,
 } from 'lucide-react';
-import { useEformRequests, usePendingApprovals } from '../api/eform-request.api';
-import { EFormStatus } from '../components/eform/EformStatusPipeline';
 import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
+import { useEformRequests, usePendingApprovals, downloadEformPdf, EFormRequest } from '../api/eform-request.api';
+
+import { EFormStatus } from '../components/eform/EformStatusPipeline';
+import {
+    EformStatusBadge,
+    EformTypeBadge,
+    getStatusConfig,
+    getTypeConfig,
+    EFORM_TYPES,
+} from '../components/eform/eform-vocabulary';
 
 type TabView = 'my-requests' | 'pending-approvals';
+
+const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
+
+const STATUS_FILTERS = [
+    { value: 'ALL', label: 'Semua status' },
+    ...Object.values(EFormStatus).map(status => ({
+        value: status as string,
+        label: getStatusConfig(status).label,
+    })),
+];
+
+const SkeletonCard = () => (
+    <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-start justify-between gap-4">
+            <div className="space-y-2">
+                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+            </div>
+            <div className="h-6 w-28 animate-pulse rounded-full bg-muted" />
+        </div>
+        <div className="mb-5 flex items-center gap-3">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-muted" />
+            <div className="space-y-1.5">
+                <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+            </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+            <div className="h-14 animate-pulse rounded-xl bg-muted" />
+            <div className="h-14 animate-pulse rounded-xl bg-muted" />
+        </div>
+    </div>
+);
 
 export const EformAccessListPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('ALL');
-    const [typeFilter, setTypeFilter] = useState<string>('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [typeFilter, setTypeFilter] = useState('ALL');
     const [tab, setTab] = useState<TabView>('my-requests');
     const hasAutoSwitched = useRef(false);
 
-    const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
     const isIct = ICT_ROLES.includes(user?.role || '');
 
     const { data: requestsData, isLoading: loadingRequests } = useEformRequests(isIct);
     const { data: pendingData, isLoading: loadingPending } = usePendingApprovals();
 
-    const myRequests = Array.isArray(requestsData) ? requestsData : [];
-    const pendingApprovals = Array.isArray(pendingData) ? pendingData : [];
+    const myRequests = useMemo(() => (Array.isArray(requestsData) ? requestsData : []), [requestsData]);
+    const pendingApprovals = useMemo(() => (Array.isArray(pendingData) ? pendingData : []), [pendingData]);
 
     // Only auto-switch to pending tab once on initial load — not on every re-render
     React.useEffect(() => {
@@ -47,32 +88,37 @@ export const EformAccessListPage: React.FC = () => {
         }
     }, [pendingApprovals.length]);
 
-    const activeList = tab === 'pending-approvals' ? pendingApprovals : myRequests;
-    const isLoading = tab === 'pending-approvals' ? loadingPending : loadingRequests;
+    const isApprovalTab = tab === 'pending-approvals';
+    const activeList = isApprovalTab ? pendingApprovals : myRequests;
+    const isLoading = isApprovalTab ? loadingPending : loadingRequests;
 
-    const filteredRequests = activeList.filter(req => {
-        const matchesSearch = (req.requesterName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter;
-        const matchesType = typeFilter === 'ALL' || req.formType === typeFilter;
-        return matchesSearch && matchesStatus && matchesType;
-    });
+    const filteredRequests = useMemo(
+        () =>
+            activeList.filter(req => {
+                const query = searchTerm.trim().toLowerCase();
+                const matchesSearch =
+                    !query ||
+                    (req.requesterName?.toLowerCase() || '').includes(query) ||
+                    req.id.toLowerCase().startsWith(query);
+                const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter;
+                const matchesType = typeFilter === 'ALL' || req.formType === typeFilter;
+                return matchesSearch && matchesStatus && matchesType;
+            }),
+        [activeList, searchTerm, statusFilter, typeFilter],
+    );
 
-    const getStatusStyles = (status: string) => {
-        if (status === EFormStatus.PENDING_MANAGER) return 'bg-amber-100 text-amber-700 border-amber-200';
-        if (status === EFormStatus.PENDING_ICT) return 'bg-blue-100 text-blue-700 border-blue-200';
-        if (status === EFormStatus.CONFIRMED) return 'bg-green-100 text-green-700 border-green-200';
-        if (status === EFormStatus.REJECTED) return 'bg-red-100 text-red-700 border-red-200';
-        return 'bg-muted text-muted-foreground border-border';
-    };
+    const counts = useMemo(
+        () => ({
+            total: activeList.length,
+            pendingManager: activeList.filter(r => r.status === EFormStatus.PENDING_MANAGER).length,
+            pendingIct: activeList.filter(r => r.status === EFormStatus.PENDING_ICT).length,
+            confirmed: activeList.filter(r => r.status === EFormStatus.CONFIRMED).length,
+            rejected: activeList.filter(r => r.status === EFormStatus.REJECTED).length,
+        }),
+        [activeList],
+    );
 
-    const getTypeStyles = (type: string) => {
-        switch (type) {
-            case 'VPN': return 'bg-primary/10 text-primary border-primary/20';
-            case 'WEBSITE': return 'bg-purple-100 text-purple-700 border-purple-200';
-            case 'NETWORK': return 'bg-orange-100 text-orange-700 border-orange-200';
-            default: return 'bg-slate-100 text-slate-700 border-slate-200';
-        }
-    };
+    const isFiltered = statusFilter !== 'ALL' || typeFilter !== 'ALL' || searchTerm.trim() !== '';
 
     const basePath = location.pathname.startsWith('/client') ? '/client'
         : location.pathname.startsWith('/manager') ? '/manager'
@@ -81,209 +127,173 @@ export const EformAccessListPage: React.FC = () => {
     const handleCreateNew = () => navigate(`${basePath}/eform-access/new`);
     const handleViewDetail = (id: string) => navigate(`${basePath}/eform-access/${id}`);
 
+    const resetFilters = () => {
+        setSearchTerm('');
+        setStatusFilter('ALL');
+        setTypeFilter('ALL');
+    };
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-extrabold uppercase tracking-widest mb-2 shadow-sm">
-                        <ShieldCheck className="w-3 h-3" />
-                        Digital Security Portal
+        <div className="space-y-6 animate-fade-in-up">
+            {/* Header */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                        <FileText className="h-6 w-6 text-primary" />
                     </div>
-                    <h1 className="text-4xl font-extrabold text-foreground tracking-tighter flex items-center gap-4 uppercase">
-                        E-Form Access
-                    </h1>
-                    <p className="text-muted-foreground text-sm font-medium opacity-70">
-                        Digitalized access request workflow (VPN, Website, Network) with automated approvals.
-                    </p>
+                    <div>
+                        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">E-Form Access</h1>
+                        <p className="text-sm font-medium text-muted-foreground">
+                            Pengajuan akses VPN, website, dan jaringan beserta persetujuannya
+                        </p>
+                    </div>
                 </div>
                 <button
                     onClick={handleCreateNew}
-                    className="flex items-center justify-center gap-3 px-8 py-4 bg-primary text-white font-extrabold rounded-2xl hover:brightness-110 hover:shadow-xl hover:shadow-primary/20 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out text-xs uppercase tracking-widest active:scale-95 group shadow-lg"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                    New Access Request
+                    <Plus className="h-4 w-4" />
+                    Ajukan Akses
                 </button>
             </div>
 
-            {/* Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
-                <StatCard label="Total Requests" value={activeList.length.toString()} icon={<FileText className="w-5 h-5" />} variant="default" />
-                <StatCard label="Pending Approval" value={activeList.filter(r => r.status === EFormStatus.PENDING_MANAGER).length.toString()} icon={<Clock className="w-5 h-5" />} variant="warning" />
-                <StatCard label="In Provisioning" value={activeList.filter(r => r.status === EFormStatus.PENDING_ICT).length.toString()} icon={<Filter className="w-5 h-5" />} variant="info" />
-                <StatCard label="Ready / Confirmed" value={activeList.filter(r => r.status === EFormStatus.CONFIRMED).length.toString()} icon={<CheckCircle2 className="w-5 h-5" />} variant="success" />
-                <StatCard label="Rejected" value={activeList.filter(r => r.status === EFormStatus.REJECTED).length.toString()} icon={<ShieldAlert className="w-5 h-5" />} variant="error" />
+            {/* Counts — clickable status filters */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+                <CountTile
+                    label="Total"
+                    value={counts.total}
+                    icon={FileText}
+                    isActive={statusFilter === 'ALL'}
+                    onClick={() => setStatusFilter('ALL')}
+                />
+                <CountTile
+                    label="Menunggu Atasan"
+                    value={counts.pendingManager}
+                    icon={Clock}
+                    accent="text-amber-600 dark:text-amber-400"
+                    isActive={statusFilter === EFormStatus.PENDING_MANAGER}
+                    onClick={() => setStatusFilter(EFormStatus.PENDING_MANAGER)}
+                />
+                <CountTile
+                    label="Diproses ICT"
+                    value={counts.pendingIct}
+                    icon={Database}
+                    accent="text-primary"
+                    isActive={statusFilter === EFormStatus.PENDING_ICT}
+                    onClick={() => setStatusFilter(EFormStatus.PENDING_ICT)}
+                />
+                <CountTile
+                    label="Akses Siap"
+                    value={counts.confirmed}
+                    icon={CheckCircle2}
+                    accent="text-emerald-600 dark:text-emerald-400"
+                    isActive={statusFilter === EFormStatus.CONFIRMED}
+                    onClick={() => setStatusFilter(EFormStatus.CONFIRMED)}
+                />
+                <CountTile
+                    label="Ditolak"
+                    value={counts.rejected}
+                    icon={Ban}
+                    accent="text-destructive"
+                    isActive={statusFilter === EFormStatus.REJECTED}
+                    onClick={() => setStatusFilter(EFormStatus.REJECTED)}
+                />
             </div>
 
-            {/* Tabs — always visible so managers can switch views */}
-            <div className="flex gap-2 p-1 bg-muted/50 rounded-2xl border border-border w-fit">
+            {/* Tabs */}
+            <div role="tablist" aria-label="Tampilan permintaan" className="flex w-fit gap-1 rounded-xl border border-border bg-muted/50 p-1">
                 <button
+                    role="tab"
+                    aria-selected={!isApprovalTab}
                     onClick={() => setTab('my-requests')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-150 ${
-                        tab === 'my-requests'
-                            ? 'bg-background shadow-sm border border-border text-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={cn(
+                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        !isApprovalTab
+                            ? 'bg-card text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground',
+                    )}
                 >
-                    <FileText size={13} /> Permintaan Saya
+                    <FileText className="h-4 w-4" />
+                    Permintaan Saya
                 </button>
                 <button
+                    role="tab"
+                    aria-selected={isApprovalTab}
                     onClick={() => setTab('pending-approvals')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-150 ${
-                        tab === 'pending-approvals'
-                            ? 'bg-background shadow-sm border border-border text-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={cn(
+                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        isApprovalTab
+                            ? 'bg-card text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground',
+                    )}
                 >
-                    <Bell size={13} />
-                    {loadingPending ? 'Approval Inbox' : 'Menunggu Approval'}
+                    <Inbox className="h-4 w-4" />
+                    Perlu Persetujuan
                     {pendingApprovals.length > 0 && (
-                        <span className="ml-1 h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
                             {pendingApprovals.length}
                         </span>
                     )}
                 </button>
             </div>
 
-            {/* Filters & Search */}
-            <div className="bg-card border border-border rounded-3xl p-6 flex flex-col md:flex-row gap-5 shadow-sm">
-                <div className="flex-1 relative group">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
+            {/* Filters */}
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row">
+                <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <input
-                        type="text"
-                        placeholder="Cari nama pemohon..."
+                        type="search"
+                        aria-label="Cari permintaan"
+                        placeholder="Cari nama pemohon atau ID permintaan"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-14 pr-6 py-4 bg-muted/50 border border-border rounded-2xl text-sm font-semibold focus:ring-2 focus:ring-primary/30 outline-none transition-colors duration-150"
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm font-medium text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                 </div>
-                <div className="flex gap-3 flex-col sm:flex-row">
-                    <select
-                        value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
-                        className="px-6 py-4 bg-muted/50 border border-border rounded-2xl text-xs font-extrabold uppercase tracking-widest text-muted-foreground focus:ring-2 focus:ring-primary/30 outline-none transition-colors duration-150 min-w-[150px] cursor-pointer appearance-none"
-                    >
-                        <option value="ALL">All Types</option>
-                        <option value="VPN">VPN Access</option>
-                        <option value="WEBSITE">Website Access</option>
-                        <option value="NETWORK">Network Access</option>
-                    </select>
-                    {tab !== 'pending-approvals' && (
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-6 py-4 bg-muted/50 border border-border rounded-2xl text-xs font-extrabold uppercase tracking-widest text-muted-foreground focus:ring-2 focus:ring-primary/30 outline-none transition-colors duration-150 min-w-[150px] cursor-pointer appearance-none"
-                        >
-                            <option value="ALL">All Status</option>
-                            {Object.values(EFormStatus).map(status => (
-                                <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
-                            ))}
-                        </select>
-                    )}
-                </div>
+                <select
+                    aria-label="Saring jenis akses"
+                    value={typeFilter}
+                    onChange={e => setTypeFilter(e.target.value)}
+                    className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[170px]"
+                >
+                    <option value="ALL">Semua jenis</option>
+                    {EFORM_TYPES.map(({ id, label }) => (
+                        <option key={id} value={id}>{label}</option>
+                    ))}
+                </select>
+                <select
+                    aria-label="Saring status"
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[190px]"
+                >
+                    {STATUS_FILTERS.map(({ value, label }) => (
+                        <option key={value} value={value}>{label}</option>
+                    ))}
+                </select>
             </div>
 
-            {/* List Section */}
+            {/* Results */}
             {isLoading ? (
-                <div className="py-32 flex flex-col items-center justify-center space-y-4">
-                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                    <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Synchronizing forms...</p>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)}
                 </div>
             ) : filteredRequests.length === 0 ? (
-                <div className="py-24 flex flex-col items-center justify-center text-center space-y-6 bg-muted/20 border border-dashed border-border rounded-[3rem]">
-                    <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center text-muted-foreground opacity-40">
-                        <FileText size={40} />
-                    </div>
-                    <div className="space-y-2">
-                        <h3 className="text-xl font-bold uppercase tracking-tight">
-                            {tab === 'pending-approvals' ? 'Tidak ada permintaan menunggu' : 'Belum ada pengajuan'}
-                        </h3>
-                        <p className="text-xs font-medium text-muted-foreground max-w-sm mx-auto leading-relaxed opacity-60 uppercase tracking-widest px-8">
-                            {tab === 'pending-approvals'
-                                ? 'Semua permintaan sudah diproses.'
-                                : 'Submit a new access request to see it appear here in your portal.'}
-                        </p>
-                    </div>
-                </div>
+                <EmptyState
+                    isFiltered={isFiltered}
+                    isApprovalTab={isApprovalTab}
+                    onReset={resetFilters}
+                    onCreate={handleCreateNew}
+                />
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredRequests.map((req) => (
-                        <div
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {filteredRequests.map(req => (
+                        <RequestCard
                             key={req.id}
-                            onClick={() => handleViewDetail(req.id)}
-                            className="bg-card border border-border rounded-[2rem] p-7 cursor-pointer group hover:shadow-xl hover:shadow-primary/5 hover:border-primary/30 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out flex flex-col relative overflow-hidden active:scale-[0.98]"
-                        >
-                            {/* Left Accent Bar */}
-                            <div className={`absolute left-0 top-0 bottom-0 w-2 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group-hover:w-3 ${
-                                req.status === EFormStatus.PENDING_MANAGER ? 'bg-amber-500' :
-                                req.status === EFormStatus.REJECTED ? 'bg-red-500' :
-                                req.status === EFormStatus.CONFIRMED ? 'bg-green-500' :
-                                'bg-primary'
-                            }`} />
-
-                            {tab === 'pending-approvals' && (
-                                <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 border border-amber-200">
-                                    <Clock size={10} className="text-amber-600" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-700">Perlu Review</span>
-                                </div>
-                            )}
-
-                            <div className="flex justify-between items-start mb-5 pl-2">
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest opacity-60">FORM ID #{req.id.slice(0, 8)}</span>
-                                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter border ${getTypeStyles(req.formType)}`}>
-                                            {req.formType}
-                                        </span>
-                                    </div>
-                                    <h3 className="text-lg font-extrabold text-foreground group-hover:text-primary transition-colors leading-tight uppercase tracking-tight">
-                                        {req.formType} Access Request
-                                    </h3>
-                                </div>
-                                {tab !== 'pending-approvals' && (
-                                    <span className={`px-3 py-1.5 rounded-xl text-[9px] font-extrabold uppercase tracking-widest border shadow-sm ${getStatusStyles(req.status)}`}>
-                                        {req.status.replace(/_/g, ' ')}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="space-y-4 pl-2">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                                        <ShieldCheck size={18} className="text-muted-foreground" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60 leading-none mb-1">Pemohon</p>
-                                        <p className="text-sm font-bold text-foreground truncate">{req.requesterName}</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-3 rounded-2xl bg-muted/30">
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-60 mb-1">Dibuat</p>
-                                        <p className="text-[11px] font-bold">{format(new Date(req.createdAt), 'dd MMM yyyy')}</p>
-                                    </div>
-                                    <div className="p-3 rounded-2xl bg-muted/30">
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-60 mb-1">Berlaku</p>
-                                        <p className="text-[11px] font-bold truncate">{req.formData?.dariTanggal || '-'}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 pt-6 border-t border-border flex items-center justify-between pl-2">
-                                <div className="flex items-center -space-x-2 overflow-hidden">
-                                    <div className="w-6 h-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[8px] font-black uppercase">
-                                        {req.requesterName?.charAt(0)}
-                                    </div>
-                                    <div className={`w-6 h-6 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-black ${req.status === EFormStatus.CONFIRMED ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}>
-                                        <ShieldCheck size={10} />
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {tab === 'pending-approvals' ? 'Review' : 'View Details'} <ChevronRight size={14} />
-                                </div>
-                            </div>
-                        </div>
+                            request={req}
+                            isApprovalTab={isApprovalTab}
+                            onOpen={() => handleViewDetail(req.id)}
+                        />
                     ))}
                 </div>
             )}
@@ -291,34 +301,180 @@ export const EformAccessListPage: React.FC = () => {
     );
 };
 
-interface StatCardProps {
+interface CountTileProps {
     label: string;
-    value: string;
-    icon: React.ReactNode;
-    variant: 'default' | 'warning' | 'info' | 'success' | 'error';
+    value: number;
+    icon: React.ElementType;
+    accent?: string;
+    isActive: boolean;
+    onClick: () => void;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon, variant }) => {
-    const variants = {
-        default: 'border-border group-hover:border-primary/30',
-        warning: 'border-amber-500/20 group-hover:border-amber-500/40',
-        info: 'border-blue-500/20 group-hover:border-blue-500/40',
-        success: 'border-green-500/20 group-hover:border-green-500/40',
-        error: 'border-red-500/20 group-hover:border-red-500/40',
-    };
+const CountTile: React.FC<CountTileProps> = ({ label, value, icon: Icon, accent, isActive, onClick }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        className={cn(
+            'flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            isActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40',
+        )}
+    >
+        <Icon className={cn('h-5 w-5 shrink-0', accent ?? 'text-muted-foreground')} aria-hidden="true" />
+        <div className="min-w-0">
+            <div className="text-2xl font-extrabold leading-none tracking-tight text-foreground">{value}</div>
+            <div className="mt-1 truncate text-xs font-semibold text-muted-foreground">{label}</div>
+        </div>
+    </button>
+);
+
+interface RequestCardProps {
+    request: EFormRequest;
+    isApprovalTab: boolean;
+    onOpen: () => void;
+}
+
+const RequestCard: React.FC<RequestCardProps> = ({ request, isApprovalTab, onOpen }) => {
+    const status = getStatusConfig(request.status);
+    const type = getTypeConfig(request.formType);
+    const TypeIcon = type.icon;
 
     return (
-        <div className={`bg-card border rounded-3xl p-5 group transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:shadow-lg relative overflow-hidden ${variants[variant]}`}>
-            <div className="relative z-10 space-y-3">
-                <div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group-hover:scale-110 group-hover:bg-primary group-hover:text-white">
-                    {icon}
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpen();
+                }
+            }}
+            className="group flex flex-col rounded-2xl border border-border bg-card p-6 text-left cursor-pointer transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+            <div className="mb-5 flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1.5">
+                    <span className="font-mono text-xs font-medium text-muted-foreground">
+                        #{request.id.slice(0, 8).toUpperCase()}
+                    </span>
+                    <h3 className="truncate text-base font-bold leading-tight text-foreground group-hover:text-primary">
+                        {type.label}
+                    </h3>
                 </div>
-                <div className="space-y-1">
-                    <h4 className="text-2xl font-black tracking-tighter">{value}</h4>
-                    <p className="text-[9px] font-black uppercase tracking-widest opacity-60 leading-tight">{label}</p>
+                <EformStatusBadge status={request.status} className="shrink-0" />
+            </div>
+
+            <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                    <TypeIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold text-muted-foreground">Pemohon</p>
+                    <p className="truncate text-sm font-bold text-foreground">{request.requesterName}</p>
                 </div>
             </div>
-            <div className="absolute -right-4 -bottom-4 w-16 h-16 bg-muted opacity-20 rounded-full group-hover:scale-150 transition-transform duration-700" />
+
+            <dl className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-muted/50 p-3">
+                    <dt className="text-xs font-semibold text-muted-foreground">Diajukan</dt>
+                    <dd className="mt-0.5 text-sm font-bold text-foreground">
+                        {format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale })}
+                    </dd>
+                </div>
+                <div className="rounded-xl bg-muted/50 p-3">
+                    <dt className="text-xs font-semibold text-muted-foreground">Berlaku dari</dt>
+                    <dd className="mt-0.5 truncate text-sm font-bold text-foreground">
+                        {request.formData?.dariTanggal || '—'}
+                    </dd>
+                </div>
+            </dl>
+
+            <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">{status.hint}</span>
+                    {request.status === EFormStatus.CONFIRMED && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                downloadEformPdf(request.id, `F-ICT-04-${request.requesterName.replace(/\s+/g, '_')}.pdf`);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
+                            title="Unduh Formulir Resmi PDF"
+                        >
+                            <Download size={11} /> PDF F-ICT-04
+                        </button>
+                    )}
+                </div>
+                <span className="inline-flex items-center gap-1 text-sm font-bold text-primary">
+                    {isApprovalTab ? 'Tinjau' : 'Lihat detail'}
+                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+            </div>
+        </div>
+    );
+
+};
+
+interface EmptyStateProps {
+    isFiltered: boolean;
+    isApprovalTab: boolean;
+    onReset: () => void;
+    onCreate: () => void;
+}
+
+const EmptyState: React.FC<EmptyStateProps> = ({ isFiltered, isApprovalTab, onReset, onCreate }) => {
+    if (isFiltered) {
+        return (
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
+                <Search className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-foreground">Tidak ada yang cocok</h3>
+                    <p className="text-sm text-muted-foreground">
+                        Tidak ada permintaan yang sesuai dengan pencarian atau saringan ini.
+                    </p>
+                </div>
+                <button
+                    onClick={onReset}
+                    className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-bold text-foreground transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                    Hapus saringan
+                </button>
+            </div>
+        );
+    }
+
+    if (isApprovalTab) {
+        return (
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-foreground">Semua sudah ditinjau</h3>
+                    <p className="text-sm text-muted-foreground">
+                        Tidak ada permintaan yang menunggu persetujuan Anda saat ini.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
+            <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+            <div className="max-w-sm space-y-1">
+                <h3 className="text-lg font-bold text-foreground">Belum ada pengajuan</h3>
+                <p className="text-sm text-muted-foreground">
+                    Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda,
+                    lalu ke tim ICT untuk disiapkan.
+                </p>
+            </div>
+            <button
+                onClick={onCreate}
+                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+                <Plus className="h-4 w-4" />
+                Ajukan Akses
+            </button>
         </div>
     );
 };

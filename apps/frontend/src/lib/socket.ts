@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 // Socket URL from environment variable with fallback
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || window.location.origin;
@@ -9,20 +9,9 @@ let socketInstance: Socket | null = null;
 
 const getSocket = (): Socket => {
     if (!socketInstance) {
-        // Get auth token from localStorage for WebSocket authentication
-        const getAuthToken = (): string | null => {
-            try {
-                const authStorage = localStorage.getItem('auth-storage');
-                if (authStorage) {
-                    const parsed = JSON.parse(authStorage);
-                    return parsed?.state?.token || null;
-                }
-            } catch {
-                return null;
-            }
-            return null;
-        };
-
+        // Auth travels in the HttpOnly `access_token` cookie, which the browser
+        // attaches to the handshake only when credentials are enabled. The gateway
+        // reads it server-side; no token is ever exposed to JavaScript.
         socketInstance = io(SOCKET_URL, {
             autoConnect: false,
             reconnection: true,
@@ -30,43 +19,36 @@ const getSocket = (): Socket => {
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 10000,
-            auth: {
-                token: getAuthToken(),
-            },
-        });
-
-        // Update auth token on reconnect
-        socketInstance.on('reconnect_attempt', () => {
-            const token = getAuthToken();
-            if (token && socketInstance) {
-                socketInstance.auth = { token };
-            }
+            withCredentials: true,
         });
     }
     return socketInstance;
 };
 
 /**
- * Disconnect and cleanup socket instance
- * Should be called on user logout to prevent memory leaks
+ * Disconnect and cleanup socket instance.
+ * Called on logout. The instance is reused rather than discarded so that
+ * long-lived consumers holding a reference keep talking to the live socket.
  */
 export const disconnectSocket = (): void => {
-    if (socketInstance) {
-        socketInstance.removeAllListeners();
-        socketInstance.disconnect();
-        socketInstance = null;
-    }
+    socketInstance?.disconnect();
 };
 
 export const socket: Socket = getSocket();
 
+/**
+ * Open the shared connection. Safe to call repeatedly — socket.io ignores
+ * connect() on an already-open socket.
+ */
+export const connectSocket = (): void => {
+    getSocket().connect();
+};
+
 export const useSocket = (): { socket: Socket; isConnected: boolean } => {
-    const [isConnected, setIsConnected] = useState(false);
-    const connectionRef = useRef(false);
+    const currentSocket = getSocket();
+    const [isConnected, setIsConnected] = useState(currentSocket.connected);
 
     useEffect(() => {
-        const currentSocket = getSocket();
-
         function onConnect() {
             setIsConnected(true);
         }
@@ -78,20 +60,19 @@ export const useSocket = (): { socket: Socket; isConnected: boolean } => {
         currentSocket.on('connect', onConnect);
         currentSocket.on('disconnect', onDisconnect);
 
-        // Only connect if not already connected
-        if (!currentSocket.connected && !connectionRef.current) {
-            connectionRef.current = true;
+        // Reconnect after a logout/login cycle closed the shared socket.
+        if (!currentSocket.connected) {
             currentSocket.connect();
         }
 
-        // Set initial state
+        // Resync in case connect() resolved before the listener was attached.
         setIsConnected(currentSocket.connected);
 
         return () => {
             currentSocket.off('connect', onConnect);
             currentSocket.off('disconnect', onDisconnect);
         };
-    }, []);
+    }, [currentSocket]);
 
-    return { socket: getSocket(), isConnected };
+    return { socket: currentSocket, isConnected };
 };

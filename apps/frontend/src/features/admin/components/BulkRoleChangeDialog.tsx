@@ -152,7 +152,7 @@ export const BulkRoleChangeDialog: React.FC<BulkRoleChangeDialogProps> = ({
                         type="button"
                         onClick={handleConfirm}
                         disabled={!selectedRole || isLoading}
-                        className="flex-1 px-6 py-3 min-h-[44px] bg-primary text-slate-900 rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="flex-1 px-6 py-3 min-h-[44px] bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isLoading ? (
                             <>

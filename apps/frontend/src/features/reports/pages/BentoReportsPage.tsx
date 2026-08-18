@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
     FileSpreadsheet, BarChart3, Clock, AlertCircle,
     Users, FileText, Calendar, TrendingUp, Target, CheckCircle,
-    Loader2, ChevronDown, PieChart, ArrowUpRight, ArrowDownRight
+    Loader2, ChevronDown, PieChart, ArrowUpRight, ArrowDownRight, X
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -76,7 +76,7 @@ const FilterChip: React.FC<{
         style={active && color ? { borderColor: color, backgroundColor: `${color}15`, color } : undefined}
     >
         {label.replace('_', ' ')}
-        {active && <span className="ml-1.5 text-xs">✕</span>}
+        {active && <X className="ml-1 w-3 h-3" aria-hidden="true" />}
     </button>
 );
 
@@ -153,7 +153,7 @@ const ReportCard: React.FC<{
         <div className="p-4 rounded-xl flex flex-col gap-2 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group relative border animate-fade-in-up border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] hover:border-primary/40 hover:shadow-sm">
             <div className="flex justify-between items-start mb-1">
                 <span className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <Icon className={cn("w-4 h-4", color.replace('bg-', 'text-').replace('500', '600 dark:text-400'))} />
+                    <Icon className="w-4 h-4 text-primary" aria-hidden="true" />
                     {title}
                 </span>
                 {sparklineData && sparklineData.length >= 2 && (
@@ -161,7 +161,7 @@ const ReportCard: React.FC<{
                         <Sparkline data={sparklineData} color={trendColor} width={64} height={24} filled showDot={false} />
                         {changePercent !== undefined && (
                             <span className={cn(
-                                "text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded-md",
+                                "text-xs font-bold mt-1 px-1.5 py-0.5 rounded-md",
                                 changePercent > 0 ? "text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400" : 
                                 changePercent < 0 ? "text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400" : 
                                 "text-slate-500 bg-slate-50 dark:bg-slate-800"
@@ -180,9 +180,6 @@ const ReportCard: React.FC<{
                 )}>{value}</div>
                 {subtext && <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate mt-1">{subtext}</p>}
             </div>
-            
-            {/* Accent line on left side */}
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-md transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out bg-slate-200 dark:bg-slate-700 group-hover:bg-primary group-hover:h-3/4" />
         </div>
     );
 };
@@ -521,15 +518,6 @@ export const BentoReportsPage: React.FC = () => {
                                         value={monthlyStats.totalTickets}
                                         icon={FileSpreadsheet}
                                         color="bg-blue-500"
-                                        sparklineData={[
-                                            Math.round(monthlyStats.totalTickets * 0.6),
-                                            Math.round(monthlyStats.totalTickets * 0.7),
-                                            Math.round(monthlyStats.totalTickets * 0.8),
-                                            Math.round(monthlyStats.totalTickets * 0.85),
-                                            Math.round(monthlyStats.totalTickets * 0.9),
-                                            Math.round(monthlyStats.totalTickets * 0.95),
-                                            monthlyStats.totalTickets,
-                                        ]}
                                     />
                                     <ReportCard
                                         title="Resolved"
@@ -537,30 +525,12 @@ export const BentoReportsPage: React.FC = () => {
                                         icon={CheckCircle}
                                         color="bg-green-500"
                                         subtext={`${monthlyStats.totalTickets > 0 ? ((monthlyStats.resolvedTickets / monthlyStats.totalTickets) * 100).toFixed(1) : 0}% Resolution Rate`}
-                                        sparklineData={[
-                                            Math.round(monthlyStats.resolvedTickets * 0.5),
-                                            Math.round(monthlyStats.resolvedTickets * 0.65),
-                                            Math.round(monthlyStats.resolvedTickets * 0.75),
-                                            Math.round(monthlyStats.resolvedTickets * 0.85),
-                                            Math.round(monthlyStats.resolvedTickets * 0.92),
-                                            Math.round(monthlyStats.resolvedTickets * 0.98),
-                                            monthlyStats.resolvedTickets,
-                                        ]}
                                     />
                                     <ReportCard
                                         title="Open Tickets"
                                         value={monthlyStats.openTickets}
                                         icon={AlertCircle}
                                         color="bg-orange-500"
-                                        sparklineData={[
-                                            Math.round(monthlyStats.openTickets * 1.3),
-                                            Math.round(monthlyStats.openTickets * 1.2),
-                                            Math.round(monthlyStats.openTickets * 1.15),
-                                            Math.round(monthlyStats.openTickets * 1.1),
-                                            Math.round(monthlyStats.openTickets * 1.05),
-                                            Math.round(monthlyStats.openTickets * 1.02),
-                                            monthlyStats.openTickets,
-                                        ]}
                                     />
                                     <ReportCard
                                         title="Avg Resolution Time"

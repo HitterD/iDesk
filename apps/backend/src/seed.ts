@@ -15,13 +15,20 @@ async function bootstrap() {
     // Check if admin exists
     const adminEmail = 'admin@antigravity.com';
     const existingAdmin = await dataSource.getRepository('User').findOne({ where: { email: adminEmail } });
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Seed is disabled in production');
+    }
+    if (!adminPassword || adminPassword.length < 12) {
+        throw new Error('SEED_ADMIN_PASSWORD must be set with at least 12 characters');
+    }
 
     if (!existingAdmin) {
         console.log('Creating Super Admin...');
         const adminDto: CreateAgentDto = {
             email: adminEmail,
             fullName: 'Administrator',
-            password: 'Admin123',
+            password: adminPassword,
         };
 
         // We use createAgent but manually update role to ADMIN afterwards since createAgent defaults to AGENT

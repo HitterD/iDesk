@@ -126,14 +126,14 @@ cd ..\..
 
 :: Start Backend in new window
 echo Starting Backend server...
-start "iDesk Backend" cmd /k "cd /d %~dp0apps\backend && npm run start:dev"
+start "iDesk Backend" cmd /k "pushd "%~dp0apps\backend" && npm run start:dev"
 
 :: Wait a moment for backend to initialize
 timeout /t 5 /nobreak >nul
 
 :: Start Frontend in new window
 echo Starting Frontend server...
-start "iDesk Frontend" cmd /k "cd /d %~dp0apps\frontend && npm run dev"
+start "iDesk Frontend" cmd /k "pushd "%~dp0apps\frontend" && npm run dev"
 
 echo.
 echo ========================================================

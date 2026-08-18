@@ -209,7 +209,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
                                     {getResultIcon(suggestion.type)}
                                     <span className="text-sm text-[hsl(var(--foreground))]">{suggestion.text}</span>
                                     {suggestion.type === 'hardware-request' && (
-                                        <span className="ml-auto text-[10px] font-bold text-amber-400 uppercase tracking-widest">HW Request</span>
+                                        <span className="ml-auto text-xs font-bold text-amber-400 uppercase tracking-widest">HW Request</span>
                                     )}
                                 </button>
                             ))}
@@ -323,16 +323,16 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
                                         >
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs text-[hsl(var(--muted-foreground))]">{req.ticketNumber}</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${getStatusColor(req.status)}`}>
+                                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${getStatusColor(req.status)}`}>
                                                     {req.status}
                                                 </span>
-                                                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                                                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
                                                     {req.budgetCategory}
                                                 </span>
                                             </div>
                                             <div className="text-sm text-[hsl(var(--foreground))] mt-1 font-semibold">{req.title}</div>
                                             {req.userName && (
-                                                <div className="text-[10px] text-muted-foreground mt-0.5">By {req.userName}</div>
+                                                <div className="text-xs text-muted-foreground mt-0.5">By {req.userName}</div>
                                             )}
                                         </button>
                                     ))}

@@ -7,7 +7,7 @@ export function TechnicianWorkload({ data, loading }: { data?: Row[]; loading?: 
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[hsl(var(--card))] p-4 shadow-sm">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Beban Technician</h3>
+      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Beban Technician</h3>
       <ul className="space-y-2">
         {data.map((r) => (
           <li key={r.technicianId}>

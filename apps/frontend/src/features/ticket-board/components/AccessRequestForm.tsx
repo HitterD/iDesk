@@ -150,7 +150,7 @@ export const AccessRequestForm = ({ onSubmit, onCancel }: AccessRequestFormProps
                                             <Icon className="w-5 h-5" />
                                         </div>
                                         <span className={isSelected ? 'font-bold' : ''}>{type.name}</span>
-                                        <Badge className={`mt-1 font-normal text-[10px] ${isSelected ? 'bg-purple-200 text-purple-700 hover:bg-purple-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}`} variant="secondary">
+                                        <Badge className={`mt-1 font-normal text-xs ${isSelected ? 'bg-purple-200 text-purple-700 hover:bg-purple-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}`} variant="secondary">
                                             Berlaku {type.validityDays} hari
                                         </Badge>
                                     </button>
@@ -189,7 +189,7 @@ export const AccessRequestForm = ({ onSubmit, onCancel }: AccessRequestFormProps
                                             />
                                         )}
                                         {errors?.customFormData?.[field.id] && (
-                                            <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.customFormData[field.id]?.message as string}</p>
+                                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.customFormData[field.id]?.message as string}</p>
                                         )}
                                     </div>
                                 ))}
@@ -233,7 +233,7 @@ export const AccessRequestForm = ({ onSubmit, onCancel }: AccessRequestFormProps
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Mulai Pada</label>
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Mulai Pada</label>
                                 <Input
                                     type="date"
                                     {...register('validFrom')}
@@ -241,7 +241,7 @@ export const AccessRequestForm = ({ onSubmit, onCancel }: AccessRequestFormProps
                                 />
                             </div>
                             <div>
-                                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Berakhir Pada</label>
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Berakhir Pada</label>
                                 <Input
                                     type="date"
                                     {...register('validUntil')}

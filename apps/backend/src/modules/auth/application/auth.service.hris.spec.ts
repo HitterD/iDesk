@@ -9,6 +9,8 @@ import { TokenService } from './token.service';
 import { SessionService } from './session.service';
 import { CredentialValidatorService } from './credential-validator.service';
 import { HrisProvisioningService } from './hris-provisioning.service';
+import { AuthEventPublisher } from './auth-events';
+import { AUTH_EVENT } from './auth-events';
 
 jest.mock('bcrypt');
 
@@ -26,7 +28,8 @@ describe('AuthService HRIS NIK login', () => {
     };
     let gateway: { verifyPassword: jest.Mock; getEmployee: jest.Mock };
     let sync: { provisionEmployee: jest.Mock };
-    let audit: { logAsync: jest.Mock };
+    let audit: { log: jest.Mock; logAsync: jest.Mock };
+    let authEvents: { emit: jest.Mock };
 
     const user = {
         id: 'user-1',
@@ -51,7 +54,7 @@ describe('AuthService HRIS NIK login', () => {
         };
         gateway = { verifyPassword: jest.fn(), getEmployee: jest.fn() };
         sync = { provisionEmployee: jest.fn() };
-        audit = { logAsync: jest.fn() };
+        audit = { log: jest.fn().mockResolvedValue({}), logAsync: jest.fn() };
 
         const module = await Test.createTestingModule({
             providers: [
@@ -67,12 +70,14 @@ describe('AuthService HRIS NIK login', () => {
                 },
                 CredentialValidatorService,
                 HrisProvisioningService,
+                { provide: AuthEventPublisher, useValue: { emit: jest.fn() } },
                 { provide: AuditService, useValue: audit },
                 { provide: HrisGatewayAdapter, useValue: gateway },
                 { provide: HrisSyncService, useValue: sync },
             ],
         }).compile();
         service = module.get(AuthService);
+        authEvents = module.get(AuthEventPublisher);
     });
 
     afterEach(() => jest.clearAllMocks());

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationModule } from '../notifications/notification.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -21,6 +22,7 @@ import { AuditModule } from '../audit/audit.module';
     NotificationModule,
     SettingsModule,
     AuditModule,
+    ConfigModule,
   ],
   controllers: [EFormRequestController],
   providers: [

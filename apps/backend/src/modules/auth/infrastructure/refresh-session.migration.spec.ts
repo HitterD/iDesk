@@ -54,7 +54,8 @@ function mocks() {
             removeRefreshToken: jest.fn().mockResolvedValue(undefined),
             getUserIfRefreshTokenMatches: jest.fn().mockResolvedValue(null),
         },
-        audit: { logAsync: jest.fn() },
+        audit: { log: jest.fn().mockResolvedValue({}), logAsync: jest.fn() },
+        authEvents: { emit: jest.fn() },
         store: {
             create: jest.fn().mockResolvedValue(undefined),
             consume: jest.fn().mockResolvedValue({ status: 'missing' }),
@@ -70,7 +71,7 @@ function servicesIn(mode: string, m: Mocks) {
     const { SessionService } = require('../application/session.service');
     const session = new SessionService(m.users, m.store);
     return {
-        auth: new AuthService(m.users, m.audit, m.token, session, { validate: jest.fn() }),
+        auth: new AuthService(m.users, m.audit, m.token, session, { validate: jest.fn() }, m.authEvents),
         session,
     };
 }

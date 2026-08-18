@@ -97,7 +97,7 @@ export const FoundClaimsQueuePage = () => {
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-xs">
                                 <tr>
                                     <th className="px-6 py-4">Finder</th>
                                     <th className="px-6 py-4">Lokasi</th>
@@ -117,7 +117,7 @@ export const FoundClaimsQueuePage = () => {
                                                 <UserAvatar user={{ fullName: claim.finder?.fullName || '?' }} size="sm" />
                                                 <div>
                                                     <p className="font-bold text-slate-800 dark:text-slate-200">{claim.finder?.fullName}</p>
-                                                    <p className="text-[10px] text-slate-400">{claim.finder?.email}</p>
+                                                    <p className="text-xs text-slate-400">{claim.finder?.email}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -126,7 +126,7 @@ export const FoundClaimsQueuePage = () => {
                                             {claim.lostItemReport ? (
                                                 <div>
                                                     <p className="font-bold text-slate-800 dark:text-slate-200 text-xs">{claim.lostItemReport.itemName}</p>
-                                                    <p className="text-[10px] text-slate-400">{claim.lostItemReport.itemType}</p>
+                                                    <p className="text-xs text-slate-400">{claim.lostItemReport.itemType}</p>
                                                 </div>
                                             ) : (
                                                 <span className="text-xs text-amber-500 font-bold flex items-center gap-1">

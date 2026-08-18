@@ -171,7 +171,7 @@ export const RenewalHubPage = () => {
                                     {/* Urgency Badge */}
                                     {badgeCount > 0 && (
                                         <span className={cn(
-                                            "ml-1 px-1.5 py-0.5 text-[10px] font-extrabold rounded-md flex items-center justify-center min-w-[20px]",
+                                            "ml-1 px-1.5 py-0.5 text-xs font-extrabold rounded-md flex items-center justify-center min-w-[20px]",
                                             isActive
                                                 ? "bg-[hsl(var(--error-50))] text-[hsl(var(--error-600))] dark:bg-[hsl(var(--error-900))]/30 dark:text-[hsl(var(--error-400))]"
                                                 : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700"

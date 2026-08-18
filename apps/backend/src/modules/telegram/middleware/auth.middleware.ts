@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 /**
  * Guard for Telegram Webhook verification (17.12)
@@ -11,9 +11,13 @@ export class TelegramWebhookGuard implements CanActivate {
         const secretToken = request.headers['x-telegram-bot-api-secret-token'];
         const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
-        if (webhookSecret && secretToken !== webhookSecret) {
+        if (!webhookSecret || typeof secretToken !== 'string') {
             throw new UnauthorizedException('Invalid webhook secret');
         }
+
+        const matches = secretToken.length === webhookSecret.length &&
+            timingSafeEqual(Buffer.from(secretToken), Buffer.from(webhookSecret));
+        if (!matches) throw new UnauthorizedException('Invalid webhook secret');
 
         return true;
     }

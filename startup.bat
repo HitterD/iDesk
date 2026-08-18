@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: Force working directory to script location
-cd /d "%~dp0"
+pushd "%~dp0"
 
 :: Add Node.js to PATH explicitly
 SET PATH=%PATH%;C:\Program Files\nodejs\
@@ -23,7 +23,7 @@ if not exist "apps\backend\.env" (
 echo ===================================================
 echo Checking Docker containers...
 echo ===================================================
-docker-compose -f docker-compose.db.yml up -d >nul 2>&1
+start /b "" docker-compose -f docker-compose.db.yml up -d >nul 2>&1
 
 :: Detect Local IP Address dynamically (supports English & Indonesian OS)
 set "IP=localhost"
@@ -43,10 +43,10 @@ echo Detected IP Address: !IP!
 echo ===================================================
 
 :: Start Backend
-start "iDesk Backend" cmd /k "cd /d "%~dp0apps\backend" && set FRONTEND_URL=http://!IP!:4050&& (if not exist node_modules\.bin (echo Installing Backend Dependencies... & call npm install)) & npm run start:dev"
+start "iDesk Backend" cmd /k "pushd "%~dp0apps\backend" && set FRONTEND_URL=http://!IP!:4050&& (if not exist node_modules\.bin (echo Installing Backend Dependencies... & call npm install)) & npm run start:dev"
 
 :: Start Frontend
-start "iDesk Frontend" cmd /k "cd /d "%~dp0apps\frontend" && set VITE_API_URL=http://!IP!:5050&& (if not exist node_modules\.bin (echo Installing Frontend Dependencies... & call npm install)) & npm run dev"
+start "iDesk Frontend" cmd /k "pushd "%~dp0apps\frontend" && set VITE_API_URL=http://!IP!:5050&& (if exist node_modules\.vite-temp rmdir /s /q node_modules\.vite-temp 2>nul) && (if not exist node_modules\.bin (echo Installing Frontend Dependencies... & call npm install)) & npm run dev"
 
 :: Wait for services to start (approx 5 seconds)
 timeout /t 5 /nobreak >nul 2>&1

@@ -116,7 +116,7 @@ export function AgentFiltersToolbar({
                                 >
                                     <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
                                     <span title={site.name}>{site.code}</span>
-                                    <span className="px-1.5 py-0.5 text-[10px] rounded-sm bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold">
+                                    <span className="px-1.5 py-0.5 text-xs rounded-sm bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold">
                                         {siteCounts[site.code] || 0}
                                     </span>
                                 </Tabs.Trigger>
@@ -150,7 +150,7 @@ export function AgentFiltersToolbar({
                                     className={cn(
                                         "flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] rounded-lg text-xs font-medium transition-colors duration-150 border",
                                         selectedRole === role
-                                            ? "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent shadow-sm"
+                                            ? "bg-primary text-primary-foreground border-transparent shadow-sm"
                                             : count === 0 && role !== 'ALL'
                                                 ? "bg-slate-50 dark:bg-slate-800/30 text-slate-400 dark:text-slate-600 border-[hsl(var(--border))] cursor-not-allowed"
                                                 : "bg-[hsl(var(--card))] text-slate-600 dark:text-slate-400 border-[hsl(var(--border))] hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -159,7 +159,7 @@ export function AgentFiltersToolbar({
                                     {role !== 'ALL' && <RoleIcon className="w-3 h-3" aria-hidden="true" />}
                                     {role === 'ALL' ? 'All Roles' : getRoleLabel(role)}
                                     <span className={cn(
-                                        "ml-1 px-1.5 py-0.5 text-[10px] rounded-sm font-bold",
+                                        "ml-1 px-1.5 py-0.5 text-xs rounded-sm font-bold",
                                         selectedRole === role
                                             ? "bg-white/20 dark:bg-black/10"
                                             : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"

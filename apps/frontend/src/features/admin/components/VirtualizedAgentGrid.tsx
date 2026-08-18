@@ -2,6 +2,17 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Site } from '@/types/admin.types';
 
+/**
+ * Tall enough for a full AgentCard including a wrapped badge row — a short row
+ * clips the card it holds, and the previous 200px cut off the footer entirely.
+ */
+const DEFAULT_ITEM_HEIGHT = 320;
+/** Minimum, not fixed: columns stretch to fill leftover container width. */
+const DEFAULT_MIN_ITEM_WIDTH = 260;
+const DEFAULT_GAP = 16;
+/** Rows rendered beyond the viewport on each side, so scrolling never shows a gap. */
+const ROW_OVERSCAN = 2;
+
 // GridUser for virtualized display - minimal required fields
 interface GridUser {
     id: string;
@@ -17,6 +28,9 @@ interface GridUser {
     resolvedThisWeek?: number;
     resolvedThisMonth?: number;
     slaCompliance?: number;
+    // Scoring — carried so a virtualized card shows the same numbers as a plain one.
+    appraisalPoints?: number;
+    activeWorkloadPoints?: number;
 }
 
 interface VirtualizedAgentGridProps {
@@ -28,7 +42,8 @@ interface VirtualizedAgentGridProps {
     onDelete?: (user: GridUser) => void;  // Made optional
     renderCard: (user: GridUser, isSelected: boolean) => React.ReactNode;
     itemHeight?: number;
-    itemWidth?: number;
+    /** Narrowest a column may get before the grid drops to fewer columns. */
+    minItemWidth?: number;
     gap?: number;
 }
 
@@ -40,18 +55,22 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = ({
     onEdit,
     onDelete,
     renderCard,
-    itemHeight = 200,
-    itemWidth = 280,
-    gap = 16,
+    itemHeight = DEFAULT_ITEM_HEIGHT,
+    minItemWidth = DEFAULT_MIN_ITEM_WIDTH,
+    gap = DEFAULT_GAP,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
     const [containerWidth, setContainerWidth] = useState(0);
 
-    // Calculate grid dimensions
-    const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
+    // Calculate grid dimensions. Columns divide the container instead of taking a
+    // fixed width, so the last column no longer leaves a dead strip on the right.
+    const columns = Math.max(1, Math.floor((containerWidth + gap) / (minItemWidth + gap)));
+    const itemWidth = containerWidth > 0
+        ? (containerWidth - gap * (columns - 1)) / columns
+        : minItemWidth;
     const rows = Math.ceil(users.length / columns);
-    const totalHeight = rows * (itemHeight + gap) - gap;
+    const totalHeight = Math.max(0, rows * (itemHeight + gap) - gap);
 
     // Calculate visible rows based on scroll position
     const updateVisibleRange = useCallback(() => {
@@ -62,8 +81,8 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = ({
         const viewportHeight = container.clientHeight;
 
         const rowHeight = itemHeight + gap;
-        const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - 2); // Buffer of 2 rows
-        const endRow = Math.min(rows, Math.ceil((scrollTop + viewportHeight) / rowHeight) + 2);
+        const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - ROW_OVERSCAN);
+        const endRow = Math.min(rows, Math.ceil((scrollTop + viewportHeight) / rowHeight) + ROW_OVERSCAN);
 
         const startIndex = startRow * columns;
         const endIndex = Math.min(users.length, endRow * columns);
@@ -79,9 +98,10 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = ({
             }
         });
 
+        // Width comes from contentRect only. `clientWidth` includes the container's
+        // padding, so seeding with it made the first paint lay out 32px too wide.
         if (containerRef.current) {
             observer.observe(containerRef.current);
-            setContainerWidth(containerRef.current.clientWidth);
         }
 
         return () => observer.disconnect();
@@ -108,7 +128,7 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = ({
     return (
         <div
             ref={containerRef}
-            className="overflow-auto h-full"
+            className="h-full overflow-auto p-4"
             style={{ contain: 'strict' }}
         >
             <div

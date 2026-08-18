@@ -478,7 +478,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                         <button
                             type="submit"
                             disabled={updateMutation.isPending}
-                            className="flex-1 px-4 py-3 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="flex-1 px-4 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {updateMutation.isPending ? (
                                 <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />

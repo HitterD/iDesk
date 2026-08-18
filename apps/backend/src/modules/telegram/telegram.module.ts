@@ -22,6 +22,7 @@ import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { TicketingModule } from '../ticketing/ticketing.module';
 import { AppCacheModule } from '../../shared/core/cache';
+import { TelegramWebhookGuard } from './middleware/auth.middleware';
 
 /**
  * Telegram Bot Configuration
@@ -68,6 +69,9 @@ import { AppCacheModule } from '../../shared/core/cache';
                 logger.log(`Mode: ${useWebhook ? 'Webhook' : 'Polling'}`);
 
                 if (useWebhook && webhookDomain) {
+                    if (!configService.get<string>('TELEGRAM_WEBHOOK_SECRET')) {
+                        throw new Error('TELEGRAM_WEBHOOK_SECRET is required in webhook mode');
+                    }
                     // Webhook mode for production
                     const webhookUrl = `${webhookDomain}${webhookPath}`;
                     logger.log(`Setting webhook to: ${webhookUrl}`);
@@ -124,6 +128,7 @@ import { AppCacheModule } from '../../shared/core/cache';
         SettingsHandler,
         AgentHandler,
         InlineHandler,
+        TelegramWebhookGuard,
     ],
     controllers: [TelegramController, WebAppController],
     exports: [

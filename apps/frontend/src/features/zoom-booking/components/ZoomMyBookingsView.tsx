@@ -253,7 +253,7 @@ function BookingCard({ booking, onView, onReschedule, onCancel }: BookingCardPro
                             {booking.title}
                         </h4>
                         <span className={cn(
-                            "shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide border",
+                            "shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tracking-wide border",
                             cfg.color
                         )}>
                             <StatusIcon className="h-3 w-3" />

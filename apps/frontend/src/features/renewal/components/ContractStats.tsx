@@ -133,7 +133,7 @@ export const ContractStats: React.FC<ContractStatsProps> = ({
                                         "w-2 h-2 rounded-full animate-pulse", 
                                         card.key === ContractStatus.EXPIRED ? "bg-[hsl(var(--error-500))]" : "bg-[hsl(var(--warning-500))]"
                                     )} />
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Action Req</span>
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Action Req</span>
                                 </div>
                             )}
                         </div>

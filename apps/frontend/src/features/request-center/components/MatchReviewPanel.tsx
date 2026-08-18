@@ -74,7 +74,7 @@ export const MatchReviewPanel = ({ claim, onClose }: MatchReviewPanelProps) => {
                     <div className="grid grid-cols-[1fr_auto_1fr] gap-4 mb-6">
                         {/* Left: Lost Item */}
                         <div className="bg-red-50/50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl p-5">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider mb-3">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-xs font-extrabold uppercase tracking-wider mb-3">
                                 Barang Hilang
                             </div>
                             <h3 className="font-black text-slate-900 dark:text-white text-base mb-1">{report?.itemName || '—'}</h3>
@@ -113,7 +113,7 @@ export const MatchReviewPanel = ({ claim, onClose }: MatchReviewPanelProps) => {
 
                         {/* Right: Found Claim */}
                         <div className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-5">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider mb-3">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-extrabold uppercase tracking-wider mb-3">
                                 Barang Temuan
                             </div>
                             <h3 className="font-black text-slate-900 dark:text-white text-base mb-1">
@@ -132,7 +132,7 @@ export const MatchReviewPanel = ({ claim, onClose }: MatchReviewPanelProps) => {
                                 {serialMatch && (
                                     <div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
                                         <CheckCircle2 className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 shrink-0" />
-                                        <span className="text-[11px] font-bold text-yellow-700 dark:text-yellow-400">Serial number cocok ✓</span>
+                                        <span className="text-xs font-bold text-yellow-700 dark:text-yellow-400">Serial number cocok ✓</span>
                                     </div>
                                 )}
                             </div>

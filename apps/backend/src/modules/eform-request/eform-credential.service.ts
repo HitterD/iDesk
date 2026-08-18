@@ -1,12 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class EFormCredentialService {
   private readonly algorithm = 'aes-256-gcm';
 
+  constructor(private readonly config: ConfigService) {}
+
   private getKey(): Buffer {
-    const secret = process.env.EFORM_ENCRYPTION_KEY || '0'.repeat(64);
+    const secret = this.config.get<string>('EFORM_ENCRYPTION_KEY');
+    if (!secret || !/^[0-9a-fA-F]{64}$/.test(secret)) {
+      throw new Error('EFormCredentialService requires a 32-byte EFORM_ENCRYPTION_KEY');
+    }
     return Buffer.from(secret, 'hex');
   }
 

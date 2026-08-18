@@ -153,7 +153,7 @@ export const ClientNotificationCenter: React.FC = () => {
                                 {filter}
                                 {filter === 'unread' && totalUnread > 0 && (
                                     <span className={cn(
-                                        "px-1.5 py-0.5 rounded-md text-[10px] bg-slate-100 dark:bg-slate-800",
+                                        "px-1.5 py-0.5 rounded-md text-xs bg-slate-100 dark:bg-slate-800",
                                         readFilter === filter ? "text-slate-900 dark:text-white font-black" : "text-slate-400"
                                     )}>
                                         {totalUnread}
@@ -178,7 +178,7 @@ export const ClientNotificationCenter: React.FC = () => {
                                 items.length > 0 && (
                                     <div key={dateGroup} className="space-y-3">
                                         <div className="flex items-center gap-4 px-2">
-                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                            <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                                                 {dateGroup}
                                             </span>
                                             <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />

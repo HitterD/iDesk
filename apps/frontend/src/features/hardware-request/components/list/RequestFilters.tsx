@@ -96,7 +96,7 @@ export function RequestFilters({
                             <button
                                 key={s}
                                 onClick={() => onChangeRef.current({ ...valueRef.current, scope: s })}
-                                className={`px-3.5 py-1.5 rounded-[9px] text-[11px] font-bold uppercase tracking-wider transition-all duration-200
+                                className={`px-3.5 py-1.5 rounded-[9px] text-xs font-bold uppercase tracking-wider transition-all duration-200
                                     ${value.scope === s
                                         ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
@@ -120,7 +120,7 @@ export function RequestFilters({
                 >
                     Filter
                     {totalActive > 0 && (
-                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-white text-[9px] font-black">
+                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-white text-xs font-black">
                             {totalActive}
                         </span>
                     )}
@@ -135,7 +135,7 @@ export function RequestFilters({
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             onClick={clearAll}
-                            className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 transition-colors shrink-0"
+                            className="flex items-center gap-1 text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors shrink-0"
                         >
                             <X className="size-3" />
                             Reset
@@ -160,7 +160,7 @@ export function RequestFilters({
                                 <button
                                     key={s}
                                     onClick={() => toggle('status', s)}
-                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:opacity-80"
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition-all hover:opacity-80"
                                     style={{ backgroundColor: `${m.hex}15`, borderColor: `${m.hex}40`, color: m.hex }}
                                 >
                                     {m.label}
@@ -172,7 +172,7 @@ export function RequestFilters({
                             <button
                                 key={c}
                                 onClick={() => toggle('category', c)}
-                                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/30 transition-all hover:opacity-80"
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/30 transition-all hover:opacity-80"
                             >
                                 {CAT_ICON[c] ?? ''} {c}
                                 <X className="size-2.5" />
@@ -195,7 +195,7 @@ export function RequestFilters({
                         <div className="border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 p-3 flex flex-col gap-3">
                             {/* Status */}
                             <div className="flex items-start gap-3">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pt-1 shrink-0 w-14">
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pt-1 shrink-0 w-14">
                                     Status
                                 </span>
                                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter status">
@@ -206,7 +206,7 @@ export function RequestFilters({
                                             <button
                                                 key={s}
                                                 onClick={() => toggle('status', s)}
-                                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all duration-150
+                                                className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-all duration-150
                                                     ${on ? 'shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}
                                                 style={on ? { backgroundColor: meta.hex, color: '#fff', borderColor: meta.hex } : {}}
                                             >
@@ -222,7 +222,7 @@ export function RequestFilters({
 
                             {/* Kategori */}
                             <div className="flex items-start gap-3">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pt-1 shrink-0 w-14">
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pt-1 shrink-0 w-14">
                                     Kategori
                                 </span>
                                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter kategori">
@@ -232,7 +232,7 @@ export function RequestFilters({
                                             <button
                                                 key={c}
                                                 onClick={() => toggle('category', c)}
-                                                className={`flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all duration-150
+                                                className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border transition-all duration-150
                                                     ${on
                                                         ? 'bg-primary text-white border-primary shadow-sm'
                                                         : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-primary/50'

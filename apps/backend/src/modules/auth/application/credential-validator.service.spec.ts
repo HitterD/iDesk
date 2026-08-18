@@ -18,7 +18,8 @@ describe('CredentialValidatorService', () => {
     const gateway = { verifyPassword: jest.fn() } as any;
     const sync = {} as HrisSyncService;
     const provisioning = { provision: jest.fn() } as any;
-    const service = new CredentialValidatorService(users, audit, gateway, sync, provisioning);
+    const authEvents = { emit: jest.fn() } as any;
+    const service = new CredentialValidatorService(users, audit, gateway, sync, provisioning, authEvents);
 
     beforeEach(() => jest.clearAllMocks());
 

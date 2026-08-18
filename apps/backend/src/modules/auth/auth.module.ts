@@ -1,4 +1,4 @@
-import { Module, Logger, Injectable } from '@nestjs/common';
+import { Module, Injectable } from '@nestjs/common';
 import { AuthService } from './application/auth.service';
 import { AuthController } from './presentation/auth.controller';
 import { JwtModule } from '@nestjs/jwt';
@@ -19,39 +19,31 @@ import { AuthEventPublisher } from './application/auth-events';
 import { AuthMetricsService } from './monitoring/auth-metrics.service';
 import { AUTH_EVENT } from './application/auth-events';
 import { OnEvent } from '@nestjs/event-emitter';
+import { AuthEventPayload } from './application/auth-events';
 
 @Injectable()
 export class AuthMetricsListener {
     constructor(private readonly metrics: AuthMetricsService) {}
 
     @OnEvent(AUTH_EVENT.LOGIN_SUCCEEDED)
-    onLogin(payload: any) { this.metrics.recordEvent(AUTH_EVENT.LOGIN_SUCCEEDED, payload); }
+    onLogin(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.LOGIN_SUCCEEDED, payload); }
 
     @OnEvent(AUTH_EVENT.LOGIN_FAILED)
-    onFailure(payload: any) { this.metrics.recordEvent(AUTH_EVENT.LOGIN_FAILED, payload); }
+    onFailure(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.LOGIN_FAILED, payload); }
+
+    @OnEvent(AUTH_EVENT.LOGOUT)
+    onLogout(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.LOGOUT, payload); }
+
+    @OnEvent(AUTH_EVENT.PASSWORD_CHANGED)
+    onPasswordChanged(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.PASSWORD_CHANGED, payload); }
 
     @OnEvent(AUTH_EVENT.REFRESH_REUSED)
-    onReuse(payload: any) { this.metrics.recordEvent(AUTH_EVENT.REFRESH_REUSED, payload); }
+    onReuse(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.REFRESH_REUSED, payload); }
 }
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
 // Fail fast if JWT_SECRET is not configured or too short
-const logger = new Logger('AuthModule');
-const jwtSecret = process.env.JWT_SECRET;
-
-if (!jwtSecret) {
-    logger.error('FATAL: JWT_SECRET environment variable is not set!');
-    logger.error('Please set JWT_SECRET in your .env file');
-    throw new Error('JWT_SECRET must be set. Server cannot start without it.');
-}
-
-if (jwtSecret.length < 32) {
-    logger.error('FATAL: JWT_SECRET is too short!');
-    logger.error('JWT_SECRET must be at least 32 characters for security');
-    throw new Error('JWT_SECRET must be at least 32 characters long.');
-}
-
 // Refuse to boot a refresh-session mode this deployment cannot serve: Redis security
 // state has no in-memory fallback, so `dual`/`redis` without Redis would accept every
 // login and then reject every refresh.
@@ -73,12 +65,8 @@ assertRefreshSessionConfig();
                 if (!secret) {
                     throw new Error('JWT_SECRET is required');
                 }
-                return {
-                    secret,
-                    signOptions: {
-                        expiresIn: configService.get<string>('JWT_EXPIRES_IN', '60m') as `${number}${'s' | 'm' | 'h' | 'd'}`,
-                    },
-                };
+                // TokenService supplies role-based access expiry explicitly.
+                return { secret };
             },
             inject: [ConfigService],
         }),
@@ -93,6 +81,8 @@ assertRefreshSessionConfig();
         CredentialValidatorService,
         HrisProvisioningService,
         AuthEventPublisher,
+        AuthMetricsService,
+        AuthMetricsListener,
     ],
     controllers: [AuthController],
     exports: [AuthService, PassportModule, JwtModule, AuthEventPublisher],

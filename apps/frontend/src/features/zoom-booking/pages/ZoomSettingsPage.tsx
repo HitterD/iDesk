@@ -642,7 +642,7 @@ export function ZoomSettingsPage() {
                                                             {booking.status}
                                                         </Badge>
                                                         {booking.isExternal && (
-                                                            <Badge variant="outline" className="border-slate-200 text-slate-500 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[10px] h-5 px-1.5 font-medium shadow-none">
+                                                            <Badge variant="outline" className="border-slate-200 text-slate-500 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs h-5 px-1.5 font-medium shadow-none">
                                                                 Ext
                                                             </Badge>
                                                         )}

@@ -292,7 +292,7 @@ export const ClientArticleDetailPage: React.FC = () => {
                 </p>
                 <Link
                     to="/client/create"
-                    className="inline-flex items-center gap-2 bg-primary text-slate-900 px-6 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
                 >
                     Contact Support
                 </Link>

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
 import { PermissionPreset } from './agent-types';
 import { SITE_COLORS, getAvatarColor, getRoleConfig, getRoleLabel, highlightText, formatLastActive } from './agent-utils';
+import { PresenceDot, PresenceBadge } from '@/components/ui/PresenceDot';
 import { PresetDropdown } from './PresetDropdown';
 import { RoleDropdown } from './RoleDropdown';
 
@@ -34,7 +35,7 @@ export const UnifiedUserTable: React.FC<{
                         <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[60px]">Site</th>
                         <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[80px]">Status</th>
                         <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[140px]">Preset</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[110px]">Last Active</th>
+                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[130px]">Presence</th>
                         <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Actions</th>
                         <th scope="col" className="px-2 py-3 w-10">
                             <button
@@ -57,8 +58,12 @@ export const UnifiedUserTable: React.FC<{
                         <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="px-3 py-3">
                                 <div className="flex items-center gap-2">
-                                    <div className={cn("w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center text-white font-bold text-sm", getAvatarColor(user.fullName))}>
-                                        {user.fullName.charAt(0).toUpperCase()}
+                                    <div className="relative flex-shrink-0">
+                                        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm", getAvatarColor(user.fullName))}>
+                                            {user.fullName.charAt(0).toUpperCase()}
+                                        </div>
+                                        {/* The Presence column states this in words for screen readers. */}
+                                        <PresenceDot userId={user.id} size="sm" ringed decorative className="absolute -bottom-0.5 -right-0.5" />
                                     </div>
                                     <div className="min-w-0">
                                         <p className="font-medium text-slate-800 dark:text-white truncate max-w-[160px]">
@@ -111,7 +116,10 @@ export const UnifiedUserTable: React.FC<{
                                 />
                             </td>
                             <td className="px-3 py-3 text-xs">
-                                {formatLastActive(user.lastActiveAt)}
+                                <PresenceBadge userId={user.id} />
+                                <span className="block mt-0.5 text-slate-400">
+                                    {formatLastActive(user.lastActiveAt)}
+                                </span>
                             </td>
                             <td className="px-3 py-3">
                                 <div className="flex items-center gap-1">

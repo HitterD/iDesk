@@ -133,7 +133,14 @@ export async function runSeed(dataSource: DataSource): Promise<void> {
     // 6. DEFAULT USERS
     // ============================================
     const userRepo = dataSource.getRepository(User);
-    const hashedPassword = await bcrypt.hash('Admin123', 10);
+    const seedPassword = process.env.SEED_DEFAULT_PASSWORD;
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Seed is disabled in production');
+    }
+    if (!seedPassword || seedPassword.length < 12) {
+        throw new Error('SEED_DEFAULT_PASSWORD must be set with at least 12 characters');
+    }
+    const hashedPassword = await bcrypt.hash(seedPassword, 10);
 
     const users = [
         {
@@ -187,9 +194,7 @@ export async function runSeed(dataSource: DataSource): Promise<void> {
             await userRepo.save(user);
             console.log(`✅ Created user: ${user.email} (${user.role})`);
         } else {
-            user.password = userData.password;
-            await userRepo.save(user);
-            console.log(`✅ Updated password for user: ${user.email}`);
+            console.log(`⏭️  User already exists: ${user.email}`);
         }
     }
 

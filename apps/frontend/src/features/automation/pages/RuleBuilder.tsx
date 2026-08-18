@@ -354,7 +354,7 @@ export const RuleBuilder = ({ rule, onClose, onSave }: RuleBuilderProps) => {
                 <button
                     onClick={handleSave}
                     disabled={saveMutation.isPending || !name.trim() || actions.length === 0}
-                    className="px-6 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-6 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     <Save className="w-4 h-4" />
                     {saveMutation.isPending ? 'Saving...' : isEditing ? 'Update Rule' : 'Create Rule'}

@@ -7,6 +7,7 @@ import api from '../../../lib/api';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { PASSWORD_POLICY, getPasswordRequirements, translatePasswordPolicyError } from '@/lib/passwordPolicy';
 
 interface SecurityFormValues {
     currentPassword: string;
@@ -16,9 +17,12 @@ interface SecurityFormValues {
 
 const getPasswordStrength = (pwd: string): { level: number; label: string; colorBar: string; colorText: string } => {
     if (!pwd) return { level: 0, label: '', colorBar: '', colorText: '' };
-    const hasNumberOrSymbol = /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd);
-    if (pwd.length < 8) return { level: 1, label: 'Lemah', colorBar: 'bg-red-500', colorText: 'text-red-500' };
-    if (!hasNumberOrSymbol) return { level: 2, label: 'Sedang', colorBar: 'bg-yellow-500', colorText: 'text-yellow-500' };
+    const hasLower = /[a-z]/.test(pwd);
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasDigit = /\d/.test(pwd);
+    const meetsAll = pwd.length >= PASSWORD_POLICY.minLength && hasLower && hasUpper && hasDigit;
+    if (pwd.length < PASSWORD_POLICY.minLength) return { level: 1, label: 'Lemah', colorBar: 'bg-red-500', colorText: 'text-red-500' };
+    if (!meetsAll) return { level: 2, label: 'Sedang', colorBar: 'bg-yellow-500', colorText: 'text-yellow-500' };
     return { level: 3, label: 'Kuat', colorBar: 'bg-green-500', colorText: 'text-green-500' };
 };
 
@@ -40,7 +44,10 @@ export const SecuritySettingsForm: React.FC = () => {
             reset();
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to change password');
+            const raw: string = error.response?.data?.message || '';
+            const friendly = typeof raw === 'string' ? translatePasswordPolicyError(raw) : null;
+            const msg = friendly || (Array.isArray(raw) ? raw[0] : raw) || 'Failed to change password';
+            toast.error(msg as string);
         },
     });
 
@@ -71,7 +78,7 @@ export const SecuritySettingsForm: React.FC = () => {
                             placeholder="Masukkan kata sandi lama Anda"
                         />
                         {errors.currentPassword && (
-                            <p className="text-red-500 text-[11px] font-medium mt-1">{errors.currentPassword.message as string}</p>
+                            <p className="text-red-500 text-xs font-medium mt-1">{errors.currentPassword.message as string}</p>
                         )}
                     </div>
 
@@ -81,13 +88,17 @@ export const SecuritySettingsForm: React.FC = () => {
                             type="password"
                             {...register('newPassword', {
                                 required: 'Kata sandi baru wajib diisi',
-                                minLength: { value: 8, message: 'Kata sandi minimal 8 karakter' }
+                                minLength: { value: PASSWORD_POLICY.minLength, message: `Kata sandi minimal ${PASSWORD_POLICY.minLength} karakter` },
+                                validate: (val: string) => {
+                                    if (!/[a-z]/.test(val) || !/[A-Z]/.test(val) || !/\d/.test(val)) return 'Harus mengandung huruf besar, huruf kecil, dan angka.';
+                                    return true;
+                                }
                             })}
                             className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 h-11"
                             placeholder="Masukkan kata sandi baru"
                         />
                         {errors.newPassword && (
-                            <p className="text-red-500 text-[11px] font-medium mt-1">{errors.newPassword.message as string}</p>
+                            <p className="text-red-500 text-xs font-medium mt-1">{errors.newPassword.message as string}</p>
                         )}
                         {newPassword && (
                             <div className="space-y-1.5 mt-2">
@@ -103,9 +114,16 @@ export const SecuritySettingsForm: React.FC = () => {
                                         />
                                     ))}
                                 </div>
-                                <p className={`text-[11px] font-medium ${passwordStrength.colorText}`}>
+                                <p className={`text-xs font-medium ${passwordStrength.colorText}`}>
                                     Kekuatan kata sandi: {passwordStrength.label}
                                 </p>
+                                <ul className="space-y-1 pt-1">
+                                    {getPasswordRequirements(newPassword).map((r) => (
+                                        <li key={r.label} className={`text-xs flex items-center gap-1.5 ${r.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                                            <span aria-hidden="true">{r.met ? '✓' : '○'}</span> {r.label}
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         )}
                     </div>
@@ -122,7 +140,7 @@ export const SecuritySettingsForm: React.FC = () => {
                             placeholder="Ulangi kata sandi baru"
                         />
                         {errors.confirmPassword && (
-                            <p className="text-red-500 text-[11px] font-medium mt-1">{errors.confirmPassword.message as string}</p>
+                            <p className="text-red-500 text-xs font-medium mt-1">{errors.confirmPassword.message as string}</p>
                         )}
                     </div>
                 </div>

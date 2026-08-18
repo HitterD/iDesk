@@ -41,7 +41,7 @@ export const NotificationStatCard: React.FC<NotificationStatCardProps> = ({
                 
                 {unreadCount > 0 && (
                     <span className={cn(
-                        "px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide animate-in zoom-in duration-300",
+                        "px-2 py-0.5 rounded-full text-xs font-bold tracking-wide animate-in zoom-in duration-300",
                         isActive ? "bg-rose-500 text-white shadow-md shadow-rose-500/20" : "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"
                     )}>
                         {unreadCount} NEW

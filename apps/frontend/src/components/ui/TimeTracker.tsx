@@ -202,7 +202,7 @@ export const TimeTracker: React.FC<TimeTrackerProps> = ({ ticketId, disabled = f
                             <button
                                 onClick={() => startMutation.mutate()}
                                 disabled={disabled || startMutation.isPending}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                             >
                                 <Play className="w-4 h-4" />
                                 Mulai Timer
@@ -241,7 +241,7 @@ export const TimeTracker: React.FC<TimeTrackerProps> = ({ ticketId, disabled = f
                             <button
                                 onClick={handleAddManual}
                                 disabled={addMutation.isPending}
-                                className="px-3 py-1.5 bg-primary text-slate-900 rounded-lg text-sm font-medium"
+                                className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
                             >
                                 Tambah
                             </button>

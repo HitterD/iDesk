@@ -203,7 +203,7 @@ export const AutomationRulesPage = () => {
                     </button>
                     <button
                         onClick={handleCreateNew}
-                        className="px-4 py-2.5 bg-primary text-slate-900 rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
+                        className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
                     >
                         <Plus className="w-4 h-4" />
                         Create Rule
@@ -230,7 +230,7 @@ export const AutomationRulesPage = () => {
                         </button>
                         <button
                             onClick={handleCreateNew}
-                            className="px-4 py-2 bg-primary text-slate-900 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
                         >
                             Create from Scratch
                         </button>

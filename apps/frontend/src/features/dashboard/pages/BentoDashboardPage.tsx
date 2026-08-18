@@ -2,23 +2,12 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-    Ticket,
-    CheckCircle,
-    Clock,
-    AlertCircle,
     TrendingUp,
     TrendingDown,
     Plus,
     ListTodo,
     Users,
-    BarChart3,
-    PieChart,
-    AlertTriangle,
-    Hourglass,
-    CalendarDays,
     ArrowRight,
-    CircleDot,
-    Activity,
     RefreshCcw,
     ServerCrash,
     Trophy,
@@ -29,7 +18,6 @@ import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
-import { Sparkline } from '@/components/ui/Sparkline';
 import { cn } from '@/lib/utils';
 import { ActivityFeed } from '@/components/ui/ActivityFeed';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
@@ -86,7 +74,7 @@ const MiniBarChart: React.FC<{ data: { date: string; created: number; resolved: 
                                 title={`Resolved: ${day.resolved}`}
                             />
                         </div>
-                        <span className="text-[10px] text-slate-400 font-medium group-hover:text-slate-600 dark:group-hover:text-slate-300 cursor-default">{day.date}</span>
+                        <span className="text-xs text-muted-foreground font-medium group-hover:text-foreground cursor-default transition-colors">{day.date}</span>
                     </div>
                 ))}
             </div>
@@ -94,75 +82,62 @@ const MiniBarChart: React.FC<{ data: { date: string; created: number; resolved: 
     );
 };
 
-// Donut Chart Component
+// Donut Chart Component — stroke-based ring segments with rounded caps
 const DonutChart: React.FC<{ data: { label: string; value: number; color: string }[] }> = ({ data }) => {
     const total = data.reduce((sum, d) => sum + d.value, 0);
-    let currentAngle = 0;
+    const R = 40;
+    const CIRC = 2 * Math.PI * R;
+    const GAP = data.filter(d => d.value > 0).length > 1 ? 2 : 0; // degrees of separation between segments
 
     if (total === 0) {
         return (
             <div className="relative">
-                <svg viewBox="0 0 100 100" className="w-28 h-28">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="20" className="text-slate-200 dark:text-slate-700" />
+                <svg viewBox="0 0 100 100" className="w-32 h-32">
+                    <circle cx="50" cy="50" r={R} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/60" />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-bold text-slate-400">0</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-extrabold tracking-tight text-muted-foreground">0</span>
                 </div>
             </div>
         );
     }
 
+    let offset = 0;
     const segments = data.map((d, i) => {
         if (d.value === 0) return null;
-
-        const angle = (d.value / total) * 360;
-
-        // Handle full circle case
-        if (angle === 360) {
-            return (
-                <circle
-                    key={i}
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    fill={d.color}
-                    className="transition-all hover:opacity-80"
-                />
-            );
-        }
-
-        const startAngle = currentAngle;
-        currentAngle += angle;
-
-        // Calculate arc path
-        const startRad = (startAngle - 90) * Math.PI / 180;
-        const endRad = (startAngle + angle - 90) * Math.PI / 180;
-        const largeArc = angle > 180 ? 1 : 0;
-
-        const x1 = 50 + 40 * Math.cos(startRad);
-        const y1 = 50 + 40 * Math.sin(startRad);
-        const x2 = 50 + 40 * Math.cos(endRad);
-        const y2 = 50 + 40 * Math.sin(endRad);
-
-        return (
-            <path
+        const fraction = d.value / total;
+        const segDeg = fraction * 360;
+        const visibleDeg = Math.max(segDeg - GAP, 0.5);
+        const dash = (visibleDeg / 360) * CIRC;
+        const seg = (
+            <circle
                 key={i}
-                d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                fill={d.color}
-                className="transition-all hover:opacity-80"
+                cx="50"
+                cy="50"
+                r={R}
+                fill="none"
+                stroke={d.color}
+                strokeWidth="10"
+                strokeLinecap={GAP > 0 ? 'round' : 'butt'}
+                strokeDasharray={`${dash} ${CIRC - dash}`}
+                strokeDashoffset={-offset}
+                transform="rotate(-90 50 50)"
+                className="transition-opacity hover:opacity-70"
             />
         );
+        offset += (segDeg / 360) * CIRC;
+        return seg;
     });
 
     return (
         <div className="relative">
-            <svg viewBox="0 0 100 100" className="w-28 h-28">
-                <circle cx="50" cy="50" r="40" fill="currentColor" className="text-slate-100 dark:text-slate-800" />
+            <svg viewBox="0 0 100 100" className="w-32 h-32">
+                <circle cx="50" cy="50" r={R} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/50" />
                 {segments}
-                <circle cx="50" cy="50" r="25" fill="currentColor" className="text-white dark:text-[hsl(var(--card))]" />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-extrabold tracking-tight text-slate-800 dark:text-white">{total}</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-extrabold tracking-tight text-foreground leading-none">{total}</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-0.5">tickets</span>
             </div>
         </div>
     );
@@ -174,60 +149,50 @@ const StatCard: React.FC<{
     value: number | string;
     subtitle?: string;
     trend?: 'up' | 'down' | null;
+    trendLabel?: string;
     highlight?: boolean;
     onClick?: () => void;
-    sparklineData?: number[];
-}> = ({ title, value, subtitle, trend, highlight, onClick, sparklineData }) => (
+}> = ({ title, value, subtitle, trend, trendLabel, highlight, onClick }) => (
     <div
         onClick={onClick}
         className={cn(
-            "p-4 rounded-xl flex flex-col gap-2 transition-all group relative border animate-fade-in-up",
-            highlight ? "border-[hsl(var(--error-500))] bg-[hsl(var(--error-50))] dark:bg-[hsl(var(--error-900))]/10" : "border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))]",
-            onClick && "cursor-pointer hover:border-primary/40 hover:shadow-sm"
+            "p-6 rounded-2xl flex flex-col justify-between gap-3 transition-all border animate-fade-in-up min-h-[120px]",
+            highlight
+                ? "border-[hsl(var(--error-500))]/40 bg-[hsl(var(--error-50))] dark:bg-[hsl(var(--error-900))]/10"
+                : "border-border bg-card",
+            onClick && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_12px_32px_-8px_rgba(40,45,51,0.12)] hover:border-primary/40"
         )}
         role={onClick ? "button" : undefined}
         tabIndex={onClick ? 0 : undefined}
         onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
     >
-        <div className="flex justify-between items-start mb-1">
+        <div className="flex justify-between items-center">
             <span className={cn(
-                "text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400",
+                "text-xs font-semibold tracking-wider uppercase text-muted-foreground",
                 highlight && "text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-400))]"
             )}>
                 {title}
             </span>
             {trend && (
-                <div className={cn(
-                    "flex items-center text-xs font-bold px-2 py-0.5 rounded-full",
+                <span className={cn(
+                    "flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full",
                     trend === 'up'
-                        ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400'
+                        ? 'text-emerald-700 bg-emerald-500/10 dark:text-emerald-400'
+                        : 'text-[hsl(var(--error-600))] bg-[hsl(var(--error-500))]/10 dark:text-[hsl(var(--error-400))]'
                 )}>
                     {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                </div>
+                    {trendLabel}
+                </span>
             )}
         </div>
         <div>
-            <div className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-none mb-1">
+            <div className="text-4xl font-extrabold tracking-tight text-foreground leading-none">
                 {typeof value === 'number' ? <AnimatedNumber value={value} duration={800} /> : value}
             </div>
             {subtitle && (
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">{subtitle}</p>
+                <p className="text-sm font-medium text-muted-foreground mt-1.5 truncate">{subtitle}</p>
             )}
         </div>
-        
-        {/* Mini Sparkline to fill void */}
-        {sparklineData && sparklineData.length > 0 && (
-            <div className="h-8 mt-auto pt-2">
-                <Sparkline data={sparklineData} height={32} width={100} showDot={false} color={highlight ? 'danger' : 'primary'} />
-            </div>
-        )}
-        
-        {/* Accent line on left side */}
-        <div className={cn(
-            "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-md transition-all duration-300 group-hover:h-3/4",
-            highlight ? "bg-[hsl(var(--error-500))]" : "bg-slate-200 dark:bg-slate-700 group-hover:bg-primary"
-        )} />
     </div>
 );
 
@@ -270,7 +235,7 @@ export const BentoDashboardPage = () => {
     // Handle new ticket notification for admins/agents
     const handleNewTicket = useCallback((ticket: any) => {
         if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-            toast.info('🎫 New Ticket Received', {
+            toast.info('New ticket received', {
                 description: `${ticket.ticketNumber || ''}: ${ticket.title}`,
                 action: {
                     label: 'View',
@@ -284,7 +249,7 @@ export const BentoDashboardPage = () => {
         }
     }, [user, navigate]);
 
-    const handleTicketUpdate = useCallback((data: { ticketId: string, updates: any }) => {
+    const handleTicketUpdate = useCallback(() => {
         refetchTickets();
         refetchStats();
     }, []);
@@ -590,67 +555,68 @@ export const BentoDashboardPage = () => {
                             value={liveStats.total}
                             subtitle={`${liveStats.thisWeekTickets} this week`}
                             trend={liveStats.trends.thisWeek}
+                            trendLabel="vs last week"
                             onClick={() => navigate('/tickets/list')}
-                            sparklineData={liveStats.last7Days.map(d => d.created)}
                         />
                         <StatCard
                             title="Open & Active"
                             value={liveStats.open + liveStats.inProgress}
                             subtitle={`${liveStats.todayTickets} new today`}
                             trend={liveStats.todayTickets > 0 ? 'up' : null}
+                            trendLabel={`${liveStats.todayTickets} today`}
                             onClick={() => navigate('/tickets/list?status=TODO,IN_PROGRESS')}
                             highlight={liveStats.open + liveStats.inProgress > 10}
-                            sparklineData={liveStats.last7Days.map(d => Math.max(0, d.created - d.resolved))}
                         />
                         <StatCard
                             title="Resolved"
                             value={liveStats.resolved}
                             subtitle={`${liveStats.resolvedToday} resolved today`}
                             trend={liveStats.trends.resolved}
+                            trendLabel="vs last week"
                             onClick={() => navigate('/tickets/list?status=RESOLVED')}
-                            sparklineData={liveStats.last7Days.map(d => d.resolved)}
                         />
                     </div>
                     
-                    {/* 3 Compact Panels (Overdue, AvgRes, SLA) */}
-                    <div className="xl:col-span-1 flex flex-col gap-4">
+                    {/* Health Panel: Overdue, Avg Resolution, SLA — one card, three rows */}
+                    <div className="xl:col-span-1 bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
                         <button
                             type="button"
                             aria-label={`View ${liveStats.overdue} overdue tickets`}
-                            className="flex-1 bg-card border border-border rounded-2xl p-4 flex items-center justify-between text-left cursor-pointer hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all group"
+                            className="flex items-center justify-between text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg -m-1 p-1 group"
                             onClick={() => navigate('/tickets/list?overdue=true')}
                         >
-                            <div className="flex items-center gap-3">
-                                <div className={cn("p-2 rounded-lg transition-colors", liveStats.overdue > 0 ? "bg-destructive/10 text-destructive group-hover:bg-destructive/20" : "bg-secondary text-muted-foreground")}>
-                                    <AlertTriangle className="w-5 h-5" aria-hidden="true" />
-                                </div>
-                                <div>
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overdue</p>
-                                    <p className={cn("text-xl font-bold leading-none mt-0.5", liveStats.overdue > 0 ? "text-destructive" : "text-foreground")}>{liveStats.overdue}</p>
-                                </div>
+                            <div>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overdue</p>
+                                <p className={cn("text-2xl font-extrabold tracking-tight leading-none mt-1", liveStats.overdue > 0 ? "text-destructive" : "text-foreground")}>{liveStats.overdue}</p>
                             </div>
-                            {liveStats.overdue > 0 && <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-md">Action Req</span>}
+                            {liveStats.overdue > 0 && (
+                                <span className="text-xs font-bold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full group-hover:bg-destructive/20 transition-colors">
+                                    Action required
+                                </span>
+                            )}
                         </button>
-                        
-                        <div className="flex-1 bg-card border border-border rounded-2xl p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                                    <Clock className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg Res Time</p>
-                                    <p className="text-xl font-bold leading-none mt-0.5 text-foreground">{stats?.avgResolutionTime || '-'}</p>
-                                </div>
+
+                        <div className="border-t border-border/60" />
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg Resolution</p>
+                                <p className="text-2xl font-extrabold tracking-tight leading-none mt-1 text-foreground">{stats?.avgResolutionTime || '-'}</p>
                             </div>
                         </div>
 
-                        <div className="flex-1 bg-card border border-border rounded-2xl p-4 flex flex-col justify-center gap-2">
+                        <div className="border-t border-border/60" />
+
+                        <div className="flex flex-col gap-2">
                             <div className="flex items-center justify-between">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> SLA</p>
-                                <span className="font-bold text-sm text-foreground">{liveStats.slaCompliance}%</span>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SLA Compliance</p>
+                                <span className="text-sm font-extrabold text-foreground">{liveStats.slaCompliance}%</span>
                             </div>
                             <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${liveStats.slaCompliance}%` }} />
+                                <div
+                                    className={cn("h-full rounded-full transition-all", liveStats.slaCompliance >= 90 ? "bg-emerald-500" : liveStats.slaCompliance >= 70 ? "bg-[hsl(var(--chart-3))]" : "bg-destructive")}
+                                    style={{ width: `${liveStats.slaCompliance}%` }}
+                                />
                             </div>
                         </div>
                     </div>
@@ -662,10 +628,9 @@ export const BentoDashboardPage = () => {
                     <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 flex flex-col min-h-0">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                             <div>
-                                <h2 className="font-bold text-foreground flex items-center gap-2">
-                                    <BarChart3 className="w-5 h-5 text-primary" />
+                                <h2 className="font-bold text-foreground text-lg tracking-tight flex items-center gap-2">
                                     Activity Overview
-                                    <span className="live-indicator ml-2" title="Live data" />
+                                    <span className="live-indicator" title="Live data" />
                                 </h2>
                                 <p className="text-sm text-muted-foreground mt-0.5">Tickets created vs resolved (last {chartDateRange} days)</p>
                             </div>
@@ -770,15 +735,13 @@ export const BentoDashboardPage = () => {
                                                         <span className="text-muted-foreground font-medium group-hover:text-foreground transition-colors truncate">
                                                             {cat.replace(/_/g, ' ')}
                                                         </span>
+                                                        <span className="font-bold text-foreground shrink-0 ml-2">{count}</span>
                                                     </div>
-                                                    <div className="relative h-2 w-full bg-muted rounded-full overflow-hidden">
+                                                    <div className="relative h-1.5 w-full bg-muted rounded-full overflow-hidden">
                                                         <div
                                                             className={`h-full rounded-full ${categoryColors[index % categoryColors.length]} transition-all`}
                                                             style={{ width: `${Math.max(percentage, 8)}%` }}
                                                         />
-                                                        <span className="absolute inset-y-0 right-1.5 flex items-center text-[9px] font-bold text-foreground">
-                                                            {count}
-                                                        </span>
                                                     </div>
                                                 </div>
                                             );
@@ -850,7 +813,7 @@ export const BentoDashboardPage = () => {
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-1.5">
                                                         <PriorityDot priority={ticket.priority} />
-                                                        <span className="font-mono text-[10px] text-muted-foreground font-medium">#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
+                                                        <span className="font-mono text-xs text-muted-foreground font-medium">#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
                                                     </div>
                                                     <h4 className="font-semibold text-sm text-foreground truncate mb-0.5">{ticket.title}</h4>
                                                     <p className="text-xs text-muted-foreground">
@@ -876,8 +839,7 @@ export const BentoDashboardPage = () => {
                     {/* Top Agents */}
                     <div className="bg-card border border-border rounded-2xl p-6 flex flex-col min-h-0">
                         <div className="flex items-center justify-between mb-5 shrink-0">
-                            <h2 className="font-bold text-foreground text-sm tracking-tight flex items-center gap-2">
-                                <Users className="w-4 h-4 text-primary" />
+                            <h2 className="font-bold text-foreground text-lg tracking-tight">
                                 Top Agents
                             </h2>
                             <button

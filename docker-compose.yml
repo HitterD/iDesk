@@ -6,9 +6,9 @@ services:
     image: postgres:15-alpine
     container_name: idesk-postgres
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_DATABASE:-idesk_db}
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set and non-empty}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set and non-empty}
+      POSTGRES_DB: ${DB_DATABASE:?DB_DATABASE must be set and non-empty}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
@@ -64,10 +64,17 @@ services:
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_DATABASE: ${DB_DATABASE:-idesk_db}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set and non-empty}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-60m}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set and non-empty}
+      EFORM_ENCRYPTION_KEY: ${EFORM_ENCRYPTION_KEY:?EFORM_ENCRYPTION_KEY must be set and non-empty}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      FRONTEND_URL: ${FRONTEND_URL}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set and non-empty}
+      WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:?WS_CORS_ORIGIN must be set and non-empty}
+      # Defaults to false: this service also publishes 5050 directly, so a client
+      # that skips nginx could forge X-Forwarded-For. Only enable once the port
+      # is unpublished or firewalled to the proxy.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       REDIS_ENABLED: "true"
       REDIS_HOST: redis
       REDIS_PORT: 6379

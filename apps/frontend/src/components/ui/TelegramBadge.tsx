@@ -10,7 +10,7 @@ interface TelegramBadgeProps {
  */
 export const TelegramBadge: React.FC<TelegramBadgeProps> = ({ size = 'sm' }) => {
     const sizeClasses = size === 'sm' 
-        ? 'text-[10px] px-1.5 py-0.5' 
+        ? 'text-xs px-1.5 py-0.5' 
         : 'text-xs px-2 py-1';
     
     const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
@@ -38,7 +38,7 @@ export const MessageSourceBadge: React.FC<{ source?: string }> = ({ source }) =>
 
     if (source === 'EMAIL') {
         return (
-            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">
+            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">
                 Email
             </span>
         );

@@ -133,7 +133,7 @@ export const BulkSiteChangeDialog: React.FC<BulkSiteChangeDialogProps> = ({
                         <button
                             onClick={handleConfirm}
                             disabled={!selectedSiteId || mutation.isPending}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                             Assign to Site

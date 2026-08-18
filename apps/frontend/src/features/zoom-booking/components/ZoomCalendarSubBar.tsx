@@ -1,4 +1,4 @@
-import { Globe, Settings, Keyboard, CircleDot } from 'lucide-react';
+import { Globe, Settings, Keyboard } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -43,30 +43,30 @@ export function ZoomCalendarSubBar({
             {isGabungan ? (
                 <div
                     data-testid="gabungan-indicator"
-                    className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-primary"
                 >
                     <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Gabungan</span>
-                    <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>
+                    <span className="text-muted-foreground" aria-hidden="true">·</span>
                     <span
-                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 pl-1 pr-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground"
                         data-testid="gabungan-active-chip"
                     >
                         <span
-                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: activeAccountColor }}
                             aria-hidden="true"
                         />
                         {activeAccountName}
                     </span>
                     {showAutoPickHint && (
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                        <span className="text-xs text-muted-foreground font-normal">
                             (auto-pilih)
                         </span>
                     )}
                 </div>
             ) : (
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                     <span
                         className="w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: activeAccountColor }}
@@ -77,26 +77,23 @@ export function ZoomCalendarSubBar({
             )}
 
             <div className="ml-auto flex items-center gap-3">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    Legend:
-                </span>
-                <LegendChip color="linear-gradient(135deg, #3b82f6, #2563eb)" label="Saya" />
-                <LegendChip color="linear-gradient(135deg, #fbbf24, #f59e0b)" label="Tim" />
-                <LegendChip color="#cbd5e1" label="External" />
-                <LegendChip color="linear-gradient(135deg, #ef4444, #dc2626)" label="Blokir" />
+                <LegendChip color="hsl(var(--primary))" label="Saya" />
+                <LegendChip color="#f59e0b" label="Tim" />
+                <LegendChip color="#94a3b8" label="External" />
+                <LegendChip color="#ef4444" label="Blokir" />
 
                 <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
 
-                <div className="flex items-center gap-1 text-[11px]">
-                    <CircleDot
+                <div className="flex items-center gap-1.5 text-xs">
+                    <span
                         className={cn(
-                            'h-3 w-3',
-                            isLive ? 'text-emerald-500 fill-emerald-500' : 'text-slate-400'
+                            'w-1.5 h-1.5 rounded-full',
+                            isLive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
                         )}
                         aria-hidden="true"
                     />
                     <span
-                        className="text-slate-600 dark:text-slate-400"
+                        className="text-muted-foreground"
                         title={lastSyncAt?.toLocaleString()}
                     >
                         {isLive && lastSyncAt
@@ -130,10 +127,10 @@ export function ZoomCalendarSubBar({
 
 function LegendChip({ color, label }: { color: string; label: string }) {
     return (
-        <span className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span
-                className="w-2.5 h-2.5 rounded-sm border-l-2"
-                style={{ background: color, borderLeftColor: 'rgba(255,255,255,0.4)' }}
+                className="w-2 h-2 rounded-full"
+                style={{ background: color }}
                 aria-hidden="true"
             />
             {label}

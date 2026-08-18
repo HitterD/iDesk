@@ -14,6 +14,11 @@ const VALID_TARGET_ROLES = ['USER', 'AGENT', 'MANAGER', 'ADMIN'] as const;
 
 import { isValidPageKey } from '../../../shared/core/types/page-access.types';
 
+const LEGACY_PAGE_KEY_ALIASES: Record<string, string> = {
+    eform: 'eform_access',
+    users: 'agents',
+};
+
 // Custom validator for pageAccess object
 @ValidatorConstraint({ name: 'isValidPageAccess', async: false })
 class IsValidPageAccessConstraint implements ValidatorConstraintInterface {
@@ -23,7 +28,8 @@ class IsValidPageAccessConstraint implements ValidatorConstraintInterface {
 
         // Check all keys are valid and values are booleans
         for (const [key, value] of Object.entries(pageAccess as Record<string, unknown>)) {
-            if (!isValidPageKey(key) || typeof value !== 'boolean') {
+            const normalizedKey = LEGACY_PAGE_KEY_ALIASES[key] || key;
+            if (!isValidPageKey(normalizedKey) || typeof value !== 'boolean') {
                 return false;
             }
         }
@@ -31,7 +37,7 @@ class IsValidPageAccessConstraint implements ValidatorConstraintInterface {
     }
 
     defaultMessage(args: ValidationArguments): string {
-        return `pageAccess must only contain boolean values`;
+        return `pageAccess contains invalid page keys or non-boolean values`;
     }
 }
 

@@ -131,7 +131,7 @@ export const IctBudgetForm = ({ onSubmit, onCancel }: IctBudgetFormProps) => {
                             className="h-9 text-sm"
                         />
                         {errors.itemName && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.itemName.message}</p>
+                            <p className="text-xs text-red-500 mt-0.5">{errors.itemName.message}</p>
                         )}
                     </div>
 
@@ -151,7 +151,7 @@ export const IctBudgetForm = ({ onSubmit, onCancel }: IctBudgetFormProps) => {
                             }}
                         />
                         {errors.justification && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.justification.message}</p>
+                            <p className="text-xs text-red-500 mt-0.5">{errors.justification.message}</p>
                         )}
                     </div>
                 </div>
@@ -174,7 +174,7 @@ export const IctBudgetForm = ({ onSubmit, onCancel }: IctBudgetFormProps) => {
                             </SelectContent>
                         </Select>
                         {errors.budgetCategory && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.budgetCategory.message}</p>
+                            <p className="text-xs text-red-500 mt-0.5">{errors.budgetCategory.message}</p>
                         )}
                     </div>
 
@@ -246,7 +246,7 @@ export const IctBudgetForm = ({ onSubmit, onCancel }: IctBudgetFormProps) => {
                             className="h-9 text-sm"
                         />
                         {errors.estimatedAmount && (
-                            <p className="text-[10px] text-red-500 mt-0.5">{errors.estimatedAmount.message}</p>
+                            <p className="text-xs text-red-500 mt-0.5">{errors.estimatedAmount.message}</p>
                         )}
                     </div>
 
@@ -281,7 +281,7 @@ export const IctBudgetForm = ({ onSubmit, onCancel }: IctBudgetFormProps) => {
                     {watchRequiresInstallation && (
                         <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
                             <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                            <p className="text-[10px] text-blue-600 dark:text-blue-300">
+                            <p className="text-xs text-blue-600 dark:text-blue-300">
                                 Tiket Hardware Installation akan otomatis dibuat setelah pengadaan.
                             </p>
                         </div>

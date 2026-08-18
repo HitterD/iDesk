@@ -9,6 +9,7 @@ import { UserRole } from '../users/enums/user-role.enum';
 import { FeaturePermissionDto } from './dto/update-permissions.dto';
 import { CacheService, CacheKeys } from '../../shared/core/cache/cache.service';
 import { PermissionsGateway } from './permissions.gateway';
+import { isValidPageKey } from '../../shared/core/types/page-access.types';
 
 // ============================================
 // NEW: SIMPLIFIED PAGE-BASED ACCESS SYSTEM
@@ -906,6 +907,18 @@ export class PermissionsService implements OnModuleInit {
         return preset;
     }
 
+    private sanitizePresetPageAccess(pageAccess?: PageAccess): PageAccess | undefined {
+        if (!pageAccess) return pageAccess;
+        const sanitized: Record<string, boolean> = {};
+        for (const [key, value] of Object.entries(pageAccess)) {
+            const normalizedKey = key === 'eform' ? 'eform_access' : key === 'users' ? 'agents' : key;
+            if (isValidPageKey(normalizedKey)) {
+                sanitized[normalizedKey] = Boolean(value);
+            }
+        }
+        return sanitized as PageAccess;
+    }
+
     // Create new preset
     async createPreset(data: {
         name: string;
@@ -928,7 +941,7 @@ export class PermissionsService implements OnModuleInit {
             isDefault: data.isDefault || false,
             isSystem: false, // Custom presets are not system presets
             targetRole: data.targetRole || 'USER',
-            pageAccess: data.pageAccess || {},
+            pageAccess: this.sanitizePresetPageAccess(data.pageAccess) || {},
             permissions: data.permissions || {},
         });
 
@@ -967,7 +980,7 @@ export class PermissionsService implements OnModuleInit {
         if (data.sortOrder !== undefined) preset.sortOrder = data.sortOrder;
         if (data.isDefault !== undefined) preset.isDefault = data.isDefault;
         if (data.targetRole !== undefined) preset.targetRole = data.targetRole;
-        if (data.pageAccess !== undefined) preset.pageAccess = data.pageAccess;
+        if (data.pageAccess !== undefined) preset.pageAccess = this.sanitizePresetPageAccess(data.pageAccess) || {};
         if (data.permissions !== undefined) preset.permissions = data.permissions;
 
         const savedPreset = await this.presetRepo.save(preset);

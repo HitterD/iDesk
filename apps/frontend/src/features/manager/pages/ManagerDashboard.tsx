@@ -214,7 +214,7 @@ export const ManagerDashboard = () => {
                                 <div className="text-3xl font-bold text-slate-800 dark:text-white">{stats?.openTickets?.total || 0}</div>
                                 <div className="flex gap-1.5 mt-2 flex-wrap">
                                     {stats?.openTickets?.bySite && Object.entries(stats.openTickets.bySite).map(([code, count]) => (
-                                        <Badge key={code} style={{ backgroundColor: SITE_COLORS[code] }} className="text-[10px] px-1.5 py-0.5">
+                                        <Badge key={code} style={{ backgroundColor: SITE_COLORS[code] }} className="text-xs px-1.5 py-0.5">
                                             {code}: {count}
                                         </Badge>
                                     ))}
@@ -332,7 +332,7 @@ export const ManagerDashboard = () => {
                                                 </div>
                                                 <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mb-2">{ticket.title}</p>
                                                 <div className="flex items-center gap-2">
-                                                    <Badge variant="outline" className="text-[10px] bg-[hsl(var(--card))]">
+                                                    <Badge variant="outline" className="text-xs bg-[hsl(var(--card))]">
                                                         {ticket.site?.code || 'N/A'}
                                                     </Badge>
                                                     {getStatusBadge(ticket.status)}
@@ -367,7 +367,7 @@ export const ManagerDashboard = () => {
                                                 <div className="min-w-0">
                                                     <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{agent.agentName}</p>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <Badge style={{ backgroundColor: SITE_COLORS[agent.siteCode] }} className="text-[9px] px-1 py-0 h-4">
+                                                        <Badge style={{ backgroundColor: SITE_COLORS[agent.siteCode] }} className="text-xs px-1 py-0 h-4">
                                                             {agent.siteCode}
                                                         </Badge>
                                                         <span className="text-xs text-muted-foreground">{agent.avgResolutionHours}h avg</span>
@@ -376,7 +376,7 @@ export const ManagerDashboard = () => {
                                             </div>
                                             <div className="flex flex-col items-end shrink-0 ml-2">
                                                 <span className="text-lg font-bold text-green-600 dark:text-green-500">{agent.resolvedToday}</span>
-                                                <span className="text-[10px] text-muted-foreground uppercase font-medium">Resolved</span>
+                                                <span className="text-xs text-muted-foreground uppercase font-medium">Resolved</span>
                                             </div>
                                         </div>
                                     ))

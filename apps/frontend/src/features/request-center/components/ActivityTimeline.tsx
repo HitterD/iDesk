@@ -48,7 +48,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ activities, 
                                     <span className="text-sm font-extrabold text-[hsl(var(--foreground))] uppercase tracking-tight">
                                         {activity.action.replace(/_/g, ' ')}
                                     </span>
-                                    <time className="text-[10px] font-bold text-muted-foreground bg-[hsl(var(--muted))] px-2.5 py-1 rounded-full uppercase tracking-widest border border-[hsl(var(--border))]">
+                                    <time className="text-xs font-bold text-muted-foreground bg-[hsl(var(--muted))] px-2.5 py-1 rounded-full uppercase tracking-widest border border-[hsl(var(--border))]">
                                         {format(new Date(activity.createdAt), 'dd MMM yyyy, HH:mm')}
                                     </time>
                                 </div>
@@ -62,13 +62,13 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ activities, 
                                     {(activity.fromStatus || activity.toStatus) && (
                                         <div className="flex items-center gap-2.5 bg-muted/50 px-3 py-1.5 rounded-xl border border-[hsl(var(--border))]">
                                             {activity.fromStatus && (
-                                                <span className="text-muted-foreground font-mono text-[9px] font-medium uppercase tracking-tighter opacity-70">{activity.fromStatus}</span>
+                                                <span className="text-muted-foreground font-mono text-xs font-medium uppercase tracking-tighter opacity-70">{activity.fromStatus}</span>
                                             )}
                                             {activity.fromStatus && activity.toStatus && (
                                                 <ChevronRight className="w-3 h-3 text-muted-foreground opacity-40" />
                                             )}
                                             {activity.toStatus && (
-                                                <span className="text-[hsl(var(--primary))] font-mono text-[10px] font-extrabold uppercase tracking-tight">{activity.toStatus}</span>
+                                                <span className="text-[hsl(var(--primary))] font-mono text-xs font-extrabold uppercase tracking-tight">{activity.toStatus}</span>
                                             )}
                                         </div>
                                     )}

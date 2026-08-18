@@ -219,9 +219,8 @@ export const BentoLoginPage = () => {
     const isRateLimitError = loginError?.message === 'Rate limit exceeded';
 
     return (
-        <div className="relative min-h-[100dvh] flex flex-col overflow-hidden" onKeyDown={handleKeyDown}>
-            {/* Background slideshow — full-bleed di belakang card. Napas zoom in → out (breathe), base gelap anti flicker putih, durasi sinkron interval */}
-            <style>{`@keyframes breathe{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1.01)}}`}</style>
+        <div className="relative min-h-[100dvh] flex flex-col justify-between overflow-hidden" onKeyDown={handleKeyDown}>
+            {/* Background slideshow — smooth crossfade without jarring bounce */}
             <div className="fixed inset-0 overflow-hidden bg-[#090e1c] dark:bg-[#060a14]" aria-hidden="true">
                 {PLANTS.map((p, i) => {
                     const isActive = i === active;
@@ -234,55 +233,50 @@ export const BentoLoginPage = () => {
                             decoding="async"
                             // @ts-ignore - fetchPriority is valid for eager first image
                             fetchPriority={i === 0 ? 'high' : 'auto'}
-                            className="absolute inset-0 w-full h-full object-cover will-change-[opacity,transform]"
+                            className={cn(
+                                'absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out',
+                                isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                            )}
                             style={{
-                                opacity: isActive ? 1 : 0,
                                 zIndex: isActive ? 1 : 0,
-                                transformOrigin: 'center center',
-                                animation: !reducedMotion && isActive ? `breathe 5200ms cubic-bezier(0.4,0,0.2,1) both` : undefined,
-                                transition: 'opacity 1800ms cubic-bezier(0.4,0,0.2,1)',
                             }}
                         />
                     );
                 })}
-                {/* Veil tipis — card tetap legible, blend gelap jadi transisi tidak bocor putih */}
-                <div className="absolute inset-0 z-[2] bg-background/22 dark:bg-background/38" />
-                <div className="absolute inset-0 z-[2] bg-gradient-to-b from-background/10 via-transparent to-background/28 dark:from-background/15 dark:via-transparent dark:to-background/40" />
+                {/* Veil tipis — memastikan kontras teks & card tetap tajam dan nyaman */}
+                <div className="absolute inset-0 z-[2] bg-background/25 dark:bg-background/45 backdrop-blur-[0.5px]" />
+                <div className="absolute inset-0 z-[2] bg-gradient-to-b from-background/30 via-transparent to-background/50 dark:from-background/50 dark:via-transparent dark:to-background/70" />
             </div>
 
-            {/* Topbar — 1:1 mockup */}
-            <header className="flex items-center justify-between px-6 sm:px-9 py-5 animate-fade-down shrink-0 relative z-10">
+            {/* Topbar */}
+            <header className="flex items-center justify-between px-6 sm:px-9 py-5 shrink-0 relative z-10 animate-fade-down">
                 <div className="w-8" aria-hidden />
-                <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
-                    <span className="tabular-nums" ref={clockRef} aria-hidden="true">--:--:-- WIB</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/80 dark:bg-background/90 backdrop-blur-md border border-border text-foreground shadow-sm">
+                    <span className="text-xs font-mono font-medium tabular-nums text-foreground/85" ref={clockRef} aria-hidden="true">--:--:-- WIB</span>
+                    <div className="w-px h-3 bg-border" aria-hidden />
                     <button
                         type="button"
                         onClick={toggleTheme}
                         aria-label="Toggle theme"
-                        className="w-8 h-8 grid place-items-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-border-strong transition-colors"
+                        className="w-6 h-6 grid place-items-center rounded-full hover:bg-muted text-foreground/80 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-700" />}
                     </button>
                 </div>
             </header>
 
-            {/* Stage — 1:1 mockup (centered card) */}
+            {/* Stage (centered card) */}
             <main className="flex-1 grid place-items-center px-4 py-6 relative z-10">
-                <div className="w-full max-w-[440px] bg-card border border-border rounded-2xl shadow-2xl p-8 relative animate-rise">
-                    <span className="absolute top-0 left-0 w-3 h-3 border-t-[1.5px] border-l-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.1s' }} />
-                    <span className="absolute top-0 right-0 w-3 h-3 border-t-[1.5px] border-r-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.16s' }} />
-                    <span className="absolute bottom-0 left-0 w-3 h-3 border-b-[1.5px] border-l-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.22s' }} />
-                    <span className="absolute bottom-0 right-0 w-3 h-3 border-b-[1.5px] border-r-[1.5px] border-primary animate-scale-in" style={{ animationDelay: '0.28s' }} />
-
-                    <div className="card-header flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-muted-foreground mb-5">
+                <div className="w-full max-w-[440px] bg-card/95 dark:bg-card/95 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl p-8 relative animate-rise">
+                    <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-muted-foreground mb-5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
                         <span>iDesk · Operations</span>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center mb-6 animate-logo-entrance animate-logo-float">
-                        <img src="/idesk-logo.png" alt="iDesk" className="w-48 sm:w-56 h-auto object-contain transition-transform duration-300 hover:scale-105" />
+                    <div className="flex flex-col items-center justify-center mb-6">
+                        <img src="/idesk-logo.png" alt="iDesk" className="w-48 sm:w-52 h-auto object-contain transition-transform duration-200 hover:scale-[1.02]" />
                     </div>
-                    <hr className="border-border mb-6 animate-hairline" style={{ animationDelay: '0.28s' as unknown as string }} />
+                    <hr className="border-border mb-6" />
 
                     {expiredNotice && !loginError && rateLimitSeconds === 0 && (
                         <div role="status" className="flex items-start gap-3 p-3 mb-4 rounded-lg border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400">
@@ -331,7 +325,7 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} noValidate className={cn('space-y-4 animate-rise', loginError && 'animate-shake')} style={{ animationDelay: '0.34s' }}>
+                    <form onSubmit={handleSubmit} noValidate className={cn('space-y-4', loginError && 'animate-shake')}>
                         <div className="space-y-2">
                             <label htmlFor="login-email" className="block text-xs font-bold tracking-widest text-muted-foreground uppercase">NIK / Email</label>
                             <input id="login-email" ref={emailRef} type="text" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} aria-invalid={loginError?.type === 'error' || undefined} aria-describedby={loginError ? 'login-error' : undefined} className={cn('w-full px-4 py-3 bg-background/50 border border-border/50 rounded-lg text-foreground font-medium shadow-sm', 'placeholder:text-muted-foreground/60 transition-colors duration-150', 'focus:outline-none focus:border-primary/60 focus:bg-background focus:ring-2 focus:ring-primary/20', 'hover:border-border', loginError?.type === 'error' && 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20')} placeholder="NIK atau email" autoComplete="username" disabled={isLoading || rateLimitSeconds > 0} />
@@ -357,13 +351,13 @@ export const BentoLoginPage = () => {
                             </label>
                         </div>
 
-                        <button type="submit" disabled={isLoading || !isOnline || rateLimitSeconds > 0} className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors animate-rise flex items-center justify-center gap-2" style={{ animationDelay: '0.52s' }}>
+                        <button type="submit" disabled={isLoading || !isOnline || rateLimitSeconds > 0} className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
                             {isLoading && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                             {rateLimitSeconds > 0 ? `Wait (${rateLimitSeconds}s)` : 'Continue'}
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-3 text-xs font-mono text-muted-foreground animate-rise" style={{ animationDelay: '0.66s' }}>
+                    <div className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-3 text-xs font-mono text-muted-foreground">
                         <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-foreground/5">↵</kbd> Enter to continue</span>
                         <span className="text-border-strong">·</span>
                         <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-foreground/5">Esc</kbd> Clear</span>
@@ -371,12 +365,12 @@ export const BentoLoginPage = () => {
                 </div>
             </main>
 
-            <footer className="px-6 sm:px-9 pb-6 animate-fade-up shrink-0 relative z-10" style={{ animationDelay: '0.7s' }}>
-                <hr className="border-border mb-4 animate-hairline" style={{ animationDelay: '0.85s' as unknown as string }} />
-                <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse-dot" />
-                    <span>v3.18.2</span>
-                    <span className="text-border-strong">·</span>
+            {/* Footer */}
+            <footer className="px-6 sm:px-9 pb-6 shrink-0 relative z-10 flex justify-center animate-fade-up">
+                <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-background/80 dark:bg-background/90 backdrop-blur-md border border-border text-[11px] text-muted-foreground font-mono shadow-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="font-medium text-foreground/80">v3.18.2</span>
+                    <span className="text-border-strong opacity-60">·</span>
                     <span>© 2026 iDesk</span>
                 </div>
             </footer>

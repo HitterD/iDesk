@@ -102,7 +102,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     return (
         <div
             className={cn(
-                "bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl relative overflow-hidden group p-4 transition-[colors,transform,box-shadow] duration-300 ease-out hover:bg-slate-50/50 dark:hover:bg-slate-800/20 card-interactive",
+                "bg-card border border-border rounded-xl relative p-4 transition-[colors,transform,box-shadow] duration-300 ease-out hover:bg-slate-50/50 dark:hover:bg-slate-800/20",
                 // Interactive styles
                 onClick && "cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md hover:-translate-y-0.5",
                 // Active filter state
@@ -116,24 +116,14 @@ export const StatsCard: React.FC<StatsCardProps> = ({
             tabIndex={onClick ? 0 : undefined}
             onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
         >
-            {/* Accent Line for highlights */}
-            {highlight && (
-                <div className={cn("absolute left-0 top-0 bottom-0 w-1", color.replace('text-', 'bg-'))} />
-            )}
-
-            <div className="flex items-center gap-3">
-                <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-200",
-                    bgColor
-                )}>
-                    <Icon className={cn("w-5 h-5", color)} />
-                </div>
-                <div className="min-w-0 pr-2">
-                    <p className={cn("text-2xl font-extrabold tracking-tight tabular-nums", color)}>
+            <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{label}</p>
+                    <p className={cn("text-3xl font-extrabold tracking-tight tabular-nums mt-1", color)}>
                         <AnimatedNumber value={value} />
                     </p>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{label}</p>
                 </div>
+                <Icon className={cn("w-5 h-5 shrink-0 opacity-60", color)} aria-hidden="true" />
             </div>
         </div>
     );

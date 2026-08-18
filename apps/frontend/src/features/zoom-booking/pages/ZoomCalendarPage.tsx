@@ -28,6 +28,8 @@ import { ZoomRightSidebar } from '../components/ZoomRightSidebar';
 import { ZoomShortcutsModal } from '../components/ZoomShortcutsModal';
 import { ZoomBookingModal } from '../components/ZoomBookingModal';
 import { ZoomMonthView } from '../components/ZoomMonthView';
+import { ZoomAccountsMatrix } from '../components/ZoomAccountsMatrix';
+import { LayoutGrid, CalendarDays as CalendarDaysIcon } from 'lucide-react';
 import { ZoomWeekView } from '../components/ZoomWeekView';
 import { ZoomDayView } from '../components/ZoomDayView';
 import { ZoomMyBookingsView } from '../components/ZoomMyBookingsView';
@@ -80,6 +82,10 @@ export function ZoomCalendarPage() {
 
     // Shortcuts modal
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+    // Month display mode: classic calendar vs all-accounts matrix (see every
+    // Zoom account's schedule at once). Local UI state; URL view stays 'month'.
+    const [monthMode, setMonthMode] = useState<'calendar' | 'matrix'>('calendar');
 
     // Search filter (debounced via simple useState; React batches updates)
     const [searchQuery, setSearchQuery] = useState('');
@@ -328,15 +334,72 @@ export function ZoomCalendarPage() {
                 />
             );
         } else if (view === 'month') {
+            const showMatrix = monthMode === 'matrix' && useGabungan;
             content = (
-                <ZoomMonthView
-                    currentDate={currentDate}
-                    calendar={filteredCalendar}
-                    canBook={canBook}
-                    onSlotClick={(day, slot) => handleSlotClick(day, slot)}
-                    onDateDoubleClick={handleDateDoubleClick}
-                    onBookingClick={handleMonthBookingClick}
-                />
+                <div className="flex flex-col h-full min-h-0">
+                    {/* Month display-mode toggle — matrix needs merged (Gabungan) data */}
+                    {useGabungan && (
+                        <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-border bg-white dark:bg-slate-900">
+                            <div className="flex bg-muted p-0.5 border border-border rounded-lg">
+                                <button
+                                    onClick={() => setMonthMode('calendar')}
+                                    className={
+                                        monthMode === 'calendar'
+                                            ? 'flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md bg-card text-primary shadow-sm'
+                                            : 'flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md text-muted-foreground hover:text-foreground'
+                                    }
+                                >
+                                    <CalendarDaysIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                                    Calendar
+                                </button>
+                                <button
+                                    onClick={() => setMonthMode('matrix')}
+                                    className={
+                                        monthMode === 'matrix'
+                                            ? 'flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md bg-card text-primary shadow-sm'
+                                            : 'flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md text-muted-foreground hover:text-foreground'
+                                    }
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" />
+                                    All Accounts
+                                </button>
+                            </div>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                                {monthMode === 'matrix'
+                                    ? 'Every Zoom account at a glance — click an empty cell to book'
+                                    : 'One row per day — switch to All Accounts to compare schedules'}
+                            </span>
+                        </div>
+                    )}
+                    <div className="flex-1 min-h-0">
+                        {showMatrix ? (
+                            <ZoomAccountsMatrix
+                                currentDate={currentDate}
+                                mergedDays={(mergedCalendar.data as MergedCalendarDay[] | undefined) ?? []}
+                                accounts={safeAccounts}
+                                canBook={canBook}
+                                onBookingClick={(id) => panel.openDetail(id)}
+                                onCellClick={(accountId, date) => {
+                                    if (!canBook) return;
+                                    panel.openBooking({
+                                        date,
+                                        time: format(new Date(), 'HH:00'),
+                                        zoomAccountId: accountId,
+                                    });
+                                }}
+                            />
+                        ) : (
+                            <ZoomMonthView
+                                currentDate={currentDate}
+                                calendar={filteredCalendar}
+                                canBook={canBook}
+                                onSlotClick={(day, slot) => handleSlotClick(day, slot)}
+                                onDateDoubleClick={handleDateDoubleClick}
+                                onBookingClick={handleMonthBookingClick}
+                            />
+                        )}
+                    </div>
+                </div>
             );
         } else if (view === 'week') {
             content = (

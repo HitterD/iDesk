@@ -97,7 +97,7 @@ export function UserInstallationCalendar() {
                       <span className="font-semibold text-cyan-900 truncate">
                         {e.requestNumber} · {e.siteName}
                       </span>
-                      <span className="text-[10px] font-bold text-cyan-700 shrink-0">
+                      <span className="text-xs font-bold text-cyan-700 shrink-0">
                         {isConfirm ? 'Konfirmasi instalasi →' : 'Pilih slot →'}
                       </span>
                     </Link>
@@ -115,14 +115,14 @@ export function UserInstallationCalendar() {
                 <Calendar className="size-4" />
                 Kalender Instalasi
               </h2>
-              {isLoading && <span className="text-[10px] font-medium text-slate-500">Memuat...</span>}
+              {isLoading && <span className="text-xs font-medium text-slate-500">Memuat...</span>}
             </header>
             
             {!isLoading && events.length === 0 ? (
               <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-slate-500">
                 <CalendarX2 className="mb-2 size-6 text-slate-400" />
                 <p className="text-xs font-semibold text-slate-600">Tidak ada jadwal</p>
-                <p className="text-[10px]">Belum ada jadwal instalasi di rentang waktu ini.</p>
+                <p className="text-xs">Belum ada jadwal instalasi di rentang waktu ini.</p>
               </div>
             ) : (
               <FullCalendar
@@ -148,7 +148,7 @@ export function UserInstallationCalendar() {
             )}
             
             <div className="mt-4 border-t border-slate-100 pt-3">
-              <p className="mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Keterangan Warna</p>
+              <p className="mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Warna</p>
               <div className="flex flex-wrap gap-2">
                 {userVisibleStatuses.map(({ key, label }) => {
                   const chip =
@@ -158,7 +158,7 @@ export function UserInstallationCalendar() {
                   return (
                     <div
                       key={key}
-                      className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${chip.bg} ${chip.border} ${chip.text}`}
+                      className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-semibold ${chip.bg} ${chip.border} ${chip.text}`}
                     >
                       <span className={`size-1.5 rounded-full ${chip.dot}`} />
                       {label}
@@ -187,11 +187,11 @@ export function UserInstallationCalendar() {
                         className={`block rounded-lg border-y border-r border-l-4 p-2.5 bg-white shadow-sm hover:bg-slate-50 transition-colors ${chip.border.replace('border-', 'border-l-')} border-y-slate-100 border-r-slate-100`}
                       >
                         <div className="mb-1 flex items-center justify-between">
-                          <span className={`text-[10px] font-bold ${chip.text}`}>{e.requestNumber}</span>
+                          <span className={`text-xs font-bold ${chip.text}`}>{e.requestNumber}</span>
                           <span className={`text-[8px] rounded-full border px-1 font-semibold ${chip.bg} ${chip.border} ${chip.text}`}>{chip.badge}</span>
                         </div>
                         <p className="text-xs font-semibold text-slate-800 line-clamp-1">{e.siteName}</p>
-                        <p className="mt-0.5 text-[10px] text-slate-500">{format(parseISO(e.scheduledAt), 'dd MMM, HH:mm', { locale: id })}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{format(parseISO(e.scheduledAt), 'dd MMM, HH:mm', { locale: id })}</p>
                       </Link>
                     );
                   })

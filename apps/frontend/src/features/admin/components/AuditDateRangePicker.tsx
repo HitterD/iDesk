@@ -161,14 +161,14 @@ export function AuditDateRangePicker({
                         </div>
 
                         {/* Selection hint */}
-                        <div className="px-4 py-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 text-center uppercase tracking-wider border-b border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-800/20">
+                        <div className="px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center uppercase tracking-wider border-b border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-800/20">
                             {selectingEnd ? 'Select end date' : 'Select start date'}
                         </div>
 
                         {/* Day headers */}
                         <div className="grid grid-cols-7 gap-1 px-2 py-2">
                             {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                                <div key={day} className="text-center text-[10px] font-bold text-slate-400 uppercase">
+                                <div key={day} className="text-center text-xs font-bold text-slate-400 uppercase">
                                     {day}
                                 </div>
                             ))}
@@ -188,7 +188,7 @@ export function AuditDateRangePicker({
                                         key={i}
                                         onClick={() => handleDateClick(date)}
                                         className={`
-                                            w-8 h-8 text-[11px] font-medium rounded-lg flex items-center justify-center
+                                            w-8 h-8 text-xs font-medium rounded-lg flex items-center justify-center
                                             transition-[opacity,transform,colors] duration-200 ease-out
                                             ${!isCurrentMonth ? 'text-slate-300 dark:text-slate-600' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}
                                             ${isToday && !isStart && !isEnd ? 'ring-1 ring-primary/50 text-primary' : ''}
@@ -211,7 +211,7 @@ export function AuditDateRangePicker({
                                     onEndDateChange(today);
                                     setIsOpen(false);
                                 }}
-                                className="flex-1 px-2 py-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white dark:hover:text-white dark:hover:bg-[hsl(var(--card))] border border-transparent hover:border-[hsl(var(--border))] rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm shadow-transparent hover:shadow-[hsl(var(--border))]"
+                                className="flex-1 px-2 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white dark:hover:text-white dark:hover:bg-[hsl(var(--card))] border border-transparent hover:border-[hsl(var(--border))] rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm shadow-transparent hover:shadow-[hsl(var(--border))]"
                             >
                                 Today
                             </button>
@@ -223,7 +223,7 @@ export function AuditDateRangePicker({
                                     onEndDateChange(today.toISOString().split('T')[0]);
                                     setIsOpen(false);
                                 }}
-                                className="flex-1 px-2 py-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white dark:hover:text-white dark:hover:bg-[hsl(var(--card))] border border-transparent hover:border-[hsl(var(--border))] rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm shadow-transparent hover:shadow-[hsl(var(--border))]"
+                                className="flex-1 px-2 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white dark:hover:text-white dark:hover:bg-[hsl(var(--card))] border border-transparent hover:border-[hsl(var(--border))] rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm shadow-transparent hover:shadow-[hsl(var(--border))]"
                             >
                                 Last 7 Days
                             </button>
@@ -235,7 +235,7 @@ export function AuditDateRangePicker({
                                     onEndDateChange(today.toISOString().split('T')[0]);
                                     setIsOpen(false);
                                 }}
-                                className="flex-1 px-2 py-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white dark:hover:text-white dark:hover:bg-[hsl(var(--card))] border border-transparent hover:border-[hsl(var(--border))] rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm shadow-transparent hover:shadow-[hsl(var(--border))]"
+                                className="flex-1 px-2 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white dark:hover:text-white dark:hover:bg-[hsl(var(--card))] border border-transparent hover:border-[hsl(var(--border))] rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm shadow-transparent hover:shadow-[hsl(var(--border))]"
                             >
                                 Last 30 Days
                             </button>

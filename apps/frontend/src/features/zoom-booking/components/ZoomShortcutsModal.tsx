@@ -50,7 +50,7 @@ export function ZoomShortcutsModal({ open, onClose }: ZoomShortcutsModalProps) {
                                 key={s.key}
                                 className="flex items-center justify-between gap-3 text-sm py-1"
                             >
-                                <kbd className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-[11px] font-mono shrink-0 min-w-[3.5rem] text-center">
+                                <kbd className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-xs font-mono shrink-0 min-w-[3.5rem] text-center">
                                     {s.key}
                                 </kbd>
                                 <span className="text-slate-700 dark:text-slate-300 text-right flex-1">

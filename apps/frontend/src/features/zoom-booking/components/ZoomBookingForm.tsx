@@ -393,11 +393,11 @@ export function ZoomBookingForm({
                     <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-2">
                         <div className="flex items-center gap-2">
                             <Sparkles className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                                 Auto-picked
                             </span>
                             {startTime && accountsFreeAtPick !== null && (
-                                <span className="text-[10px] text-emerald-700 dark:text-emerald-300">
+                                <span className="text-xs text-emerald-700 dark:text-emerald-300">
                                     · {accountsFreeAtPick}/{accounts.length} akun kosong di {startTime}
                                 </span>
                             )}
@@ -453,13 +453,13 @@ export function ZoomBookingForm({
                                                     style={{ backgroundColor: acc.colorHex }}
                                                 />
                                                 <span className="flex-1 truncate font-semibold">{acc.name}</span>
-                                                <span className="text-[10px] text-slate-500">{acc.meetingsAtTime} mtg</span>
+                                                <span className="text-xs text-slate-500">{acc.meetingsAtTime} mtg</span>
                                             </button>
                                         </li>
                                     ))}
                             </ul>
                         )}
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-xs text-slate-500">
                             Sistem otomatis memilih akun kosong. Klik untuk override.
                         </p>
                     </div>

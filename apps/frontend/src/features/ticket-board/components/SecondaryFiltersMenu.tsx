@@ -72,7 +72,7 @@ export const SecondaryFiltersMenu: React.FC<SecondaryFiltersMenuProps> = ({
                         <MoreHorizontal className="w-4 h-4" />
                         <span className="hidden sm:inline">More</span>
                         {hasActiveFilters && (
-                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-primary text-slate-900 rounded-full text-[10px] font-bold flex items-center justify-center px-1 shadow-sm">
+                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center justify-center px-1 shadow-sm">
                                 {[
                                     currentFilters.status?.length ? 1 : 0,
                                     currentFilters.priority?.length ? 1 : 0,

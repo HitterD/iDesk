@@ -43,7 +43,7 @@ function TodayPanelContent() {
                 <span className="text-xs font-bold text-green-700">{format(parseISO(s.scheduledAt), 'HH:mm')}</span>
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-slate-800 truncate">{s.siteName}</div>
-                  <div className="text-[10px] text-slate-500 font-mono">{s.requestNumber}</div>
+                  <div className="text-xs text-slate-500 font-mono">{s.requestNumber}</div>
                 </div>
               </Link>
             </li>
@@ -83,7 +83,7 @@ function UnscheduledPanelContent() {
                   <div className={`text-xs font-semibold truncate ${overdue ? 'text-red-800' : 'text-amber-800'}`}>
                     {r.requestNumber}{overdue ? ' ⚠' : ''}
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">{r.siteName}</div>
+                  <div className="text-xs text-slate-500 truncate">{r.siteName}</div>
                 </Link>
               </li>
             );

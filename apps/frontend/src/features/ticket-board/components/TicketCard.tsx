@@ -62,13 +62,13 @@ const TicketCardComponent: React.FC<TicketCardProps> = ({ ticket, onClick }) => 
             <div className="flex justify-between items-start mb-2 relative z-10">
                 <div className="flex gap-2">
                     <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${priorityColors[ticket.priority]
+                        className={`text-xs font-bold px-2 py-0.5 rounded border ${priorityColors[ticket.priority]
                             }`}
                     >
                         {ticket.priority}
                     </span>
                     {isOverdue && (
-                        <span className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded border bg-red-600 text-white border-red-500 animate-bounce">
+                        <span className="flex items-center text-xs font-bold px-2 py-0.5 rounded border bg-red-600 text-white border-red-500 animate-bounce">
                             <Flame className="w-3 h-3 mr-1" /> OVERDUE
                         </span>
                     )}
@@ -83,13 +83,13 @@ const TicketCardComponent: React.FC<TicketCardProps> = ({ ticket, onClick }) => 
             <div className="flex items-center justify-between text-xs text-slate-400 relative z-10">
                 <div className="flex flex-col">
                     <div className="flex items-center mb-1">
-                        <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-white mr-2">
+                        <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white mr-2">
                             {ticket.user.fullName.charAt(0)}
                         </div>
                         <span className="font-medium text-white">{ticket.user.fullName.split(' ')[0]}</span>
                     </div>
                     {(ticket.user.jobTitle || ticket.user.department) && (
-                        <div className="text-[10px] text-slate-500 ml-7">
+                        <div className="text-xs text-slate-500 ml-7">
                             {ticket.user.jobTitle}
                             {ticket.user.jobTitle && ticket.user.department && ' • '}
                             {ticket.user.department?.code}

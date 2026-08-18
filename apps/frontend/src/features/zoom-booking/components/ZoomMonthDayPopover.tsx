@@ -92,7 +92,7 @@ export function ZoomMonthDayPopover({
                                 <Video className="h-3 w-3 shrink-0" />
                                 <span className="truncate">{event.title}</span>
                                 {event.startTime && (
-                                    <span className="ml-auto text-[10px] opacity-80 shrink-0 mr-1">
+                                    <span className="ml-auto text-xs opacity-80 shrink-0 mr-1">
                                         {event.startTime}
                                     </span>
                                 )}
@@ -105,7 +105,7 @@ export function ZoomMonthDayPopover({
                                     onClose();
                                 }}
                                 className={cn(
-                                    "shrink-0 px-2 py-0.5 rounded text-[10px] font-bold transition-colors ml-auto shadow-sm",
+                                    "shrink-0 px-2 py-0.5 rounded text-xs font-bold transition-colors ml-auto shadow-sm",
                                     "bg-white/20 hover:bg-white/30 text-current"
                                 )}
                             >

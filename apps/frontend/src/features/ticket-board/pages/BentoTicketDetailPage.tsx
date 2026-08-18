@@ -1,35 +1,37 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useTicketSocket } from '@/hooks/useTicketSocket';
-import { usePresence } from '@/hooks/usePresence';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
-import { TicketInfoCard } from '../components/ticket-detail/TicketInfoCard';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
 import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
 import { useTicketShortcuts, TICKET_SHORTCUTS } from '@/hooks/useTicketShortcuts';
-import { Keyboard, X } from 'lucide-react';
+import { Keyboard, X, MessageSquare, History } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { TicketAttributes } from '../types';
 import { validateFiles, FILE_SIZE_LIMITS } from '@/lib/file-validation';
+import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+    const [mainTab, setMainTab] = useState<'chat' | 'activity'>('chat');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const chatSectionRef = useRef<HTMLDivElement>(null);
     const shortcutsModalRef = useRef<HTMLDivElement>(null);
+    const pdfPreview = usePDFPreview();
 
     // Focus trap for shortcuts modal
     useFocusTrap(shortcutsModalRef, {
@@ -41,8 +43,7 @@ export const BentoTicketDetailPage: React.FC = () => {
     // Use authenticated user from auth store
     const currentUser = user ? { id: user.id, fullName: user.fullName } : { id: '', fullName: '' };
 
-    // Presence hook
-    usePresence(currentUser.id);
+    // Presence is subscribed app-wide by PresenceProvider; this page only reads it.
 
     // Real-time socket connection for live chat
     const { isConnected, typingUsers, sendTypingStart, sendTypingStop } = useTicketSocket({
@@ -52,14 +53,14 @@ export const BentoTicketDetailPage: React.FC = () => {
         },
     });
 
-    // Fetch ticket attributes using useQuery instead of useEffect
+    // Fetch ticket attributes
     const { data: attributes = { categories: [], priorities: [], devices: [], software: [] } } = useQuery<TicketAttributes>({
         queryKey: ['ticket-attributes'],
         queryFn: async () => {
             const res = await api.get('/ticket-attributes');
             return res.data;
         },
-        staleTime: 5 * 60 * 1000, // cache for 5 minutes
+        staleTime: 5 * 60 * 1000,
     });
 
     const { data: ticket, isLoading } = useQuery<TicketDetail>({
@@ -169,8 +170,14 @@ export const BentoTicketDetailPage: React.FC = () => {
         cancelMutation.mutate(undefined);
     };
 
+    const handleResolveTicket = () => {
+        if (ticket && ticket.status !== 'RESOLVED') {
+            handleFieldChange('status', 'RESOLVED');
+            toast.success('Ticket marked as resolved');
+        }
+    };
+
     const handleSendMessage = async (content: string, files?: FileList | null, isInternal: boolean = false) => {
-        // Validate files before upload
         if (files && files.length > 0) {
             const validation = validateFiles(Array.from(files), {
                 maxSize: FILE_SIZE_LIMITS.ATTACHMENT,
@@ -182,7 +189,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             }
         }
 
-        // Optimistic update - add message immediately
+        // Optimistic update
         const optimisticMessage = {
             id: `temp-${Date.now()}`,
             content,
@@ -196,7 +203,6 @@ export const BentoTicketDetailPage: React.FC = () => {
             attachments: files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [],
         };
 
-        // Optimistically update the cache
         queryClient.setQueryData(['ticket', id], (oldData: TicketDetail | undefined) => {
             if (!oldData) return oldData;
             return {
@@ -223,10 +229,8 @@ export const BentoTicketDetailPage: React.FC = () => {
             if (!isInternal) {
                 toast.success('Message sent');
             }
-            // Refetch to get the actual message with real IDs
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
         } catch (error) {
-            // Rollback optimistic update on error
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             toast.error('Failed to send message');
         }
@@ -235,45 +239,73 @@ export const BentoTicketDetailPage: React.FC = () => {
     if (isLoading) {
         return <TicketDetailSkeleton />;
     }
-    if (!ticket) return <div className="p-8 text-center text-red-500">Ticket not found</div>;
+    if (!ticket) return <div className="p-8 text-center text-rose-500 font-medium">Ticket not found</div>;
 
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden animate-fade-in-up text-slate-900 dark:text-slate-200">
-            {/* Compact Header with SLA + Cancel */}
+        <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/50 dark:bg-slate-950 text-slate-900 dark:text-slate-200">
+            {/* ── Top Header with SLA + Quick Actions ── */}
             <TicketHeader
                 ticket={ticket}
                 onCancel={!isClosed ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
+                onResolve={!isClosed ? handleResolveTicket : undefined}
+                isSidebarOpen={isSidebarOpen}
+                onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
             />
 
-            {/* 2-Section Layout: Sidebar + Main */}
+            {/* ── Main Work Area: Left (Main Conversation) + Right (Properties Inspector) ── */}
             <div className="flex flex-1 overflow-hidden">
-                <div className="w-64 flex flex-col border-r border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] overflow-y-auto custom-scrollbar">
-                    <TicketSidebar
-                        ticket={ticket}
-                        agents={agents}
-                        slaConfigs={slaConfigs}
-                        attributes={attributes}
-                        onAssigneeChange={(v) => handleFieldChange('assignee', v)}
-                        onStatusChange={(v) => handleFieldChange('status', v)}
-                        onPriorityChange={(v) => handleFieldChange('priority', v)}
-                        onCategoryChange={(v) => handleFieldChange('category', v)}
-                        onDeviceChange={(v) => handleFieldChange('device', v)}
-                    />
-                </div>
 
-                {/* RIGHT: Main Content Area */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="shrink-0 border-b border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))]">
-                        <TicketInfoCard ticket={ticket} />
+                {/* LEFT & CENTER: Conversation Timeline Taking Full Height */}
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80">
+
+                    {/* Navigation Tabs Header */}
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 shrink-0 bg-slate-50/50 dark:bg-slate-900/80">
+                        <div className="flex gap-6">
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('chat')}
+                                className={cn(
+                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
+                                    mainTab === 'chat'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Conversation</span>
+                                <span className={cn(
+                                    "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                                    mainTab === 'chat'
+                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                )}>
+                                    {messageCount}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('activity')}
+                                className={cn(
+                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
+                                    mainTab === 'activity'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <History className="w-3.5 h-3.5" />
+                                <span>Activity Logs</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Chat + Activity Side by Side */}
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Chat Area */}
-                        <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-transparent" ref={chatSectionRef}>
+                    {/* Tab Content — Large Full Height View */}
+                    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900" ref={chatSectionRef}>
+                        {mainTab === 'chat' ? (
                             <TicketChat
                                 ticket={ticket}
                                 isConnected={isConnected}
@@ -283,16 +315,33 @@ export const BentoTicketDetailPage: React.FC = () => {
                                 onTypingStart={() => sendTypingStart({ fullName: currentUser.fullName })}
                                 onTypingStop={sendTypingStop}
                             />
-                        </div>
-
-                        <div className="w-56 border-l border-[hsl(var(--border))] bg-slate-50 dark:bg-slate-900/40 overflow-y-auto custom-scrollbar hidden lg:block">
-                            <TicketHistory ticket={ticket} />
-                        </div>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 dark:bg-slate-900/40">
+                                <TicketHistory ticket={ticket} />
+                            </div>
+                        )}
                     </div>
                 </div>
+
+                {/* RIGHT: Ticket Inspector & Properties Sidebar */}
+                {isSidebarOpen && (
+                    <aside className="w-80 lg:w-88 shrink-0 flex flex-col bg-slate-50/70 dark:bg-slate-900/50 overflow-y-auto custom-scrollbar">
+                        <TicketSidebar
+                            ticket={ticket}
+                            agents={agents}
+                            slaConfigs={slaConfigs}
+                            attributes={attributes}
+                            onAssigneeChange={(v) => handleFieldChange('assignee', v)}
+                            onStatusChange={(v) => handleFieldChange('status', v)}
+                            onPriorityChange={(v) => handleFieldChange('priority', v)}
+                            onCategoryChange={(v) => handleFieldChange('category', v)}
+                            onDeviceChange={(v) => handleFieldChange('device', v)}
+                        />
+                    </aside>
+                )}
             </div>
 
-            {/* Image Lightbox */}
+            {/* Lightbox for Images */}
             {lightboxImage && (
                 <ImageLightbox
                     src={lightboxImage}
@@ -300,44 +349,55 @@ export const BentoTicketDetailPage: React.FC = () => {
                 />
             )}
 
-            {/* Keyboard Shortcuts Button */}
+            {/* PDF Preview Modal */}
+            <PDFPreviewModal
+                isOpen={pdfPreview.isOpen}
+                onClose={pdfPreview.closePreview}
+                pdfUrl={pdfPreview.previewConfig?.url || ''}
+                filename={pdfPreview.previewConfig?.filename || ''}
+                title={pdfPreview.previewConfig?.title || ''}
+            />
+
+            {/* Keyboard Shortcuts Trigger */}
             <button
+                type="button"
                 onClick={() => setShowShortcutsModal(true)}
-                className="fixed bottom-4 right-4 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-none hover:border-primary/50 hover:text-primary transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out z-40 group"
+                className="fixed bottom-4 right-4 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg hover:border-blue-500/50 hover:text-blue-600 transition-all z-40 cursor-pointer group"
                 title="Keyboard shortcuts (Shift+?)"
             >
-                <Keyboard className="w-4 h-4 text-slate-500 group-hover:text-primary transition-colors" />
+                <Keyboard className="w-4 h-4 text-slate-500 group-hover:text-blue-600 transition-colors" />
             </button>
 
             {/* Keyboard Shortcuts Modal */}
             {showShortcutsModal && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowShortcutsModal(false)}>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={() => setShowShortcutsModal(false)}>
                     <div
                         ref={shortcutsModalRef}
-                        className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl shadow-smxl max-w-md w-full overflow-hidden"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
-                                <Keyboard className="w-4 h-4 text-primary" />
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+                            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm">
+                                <Keyboard className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                                 Keyboard Shortcuts
                             </h3>
                             <button
+                                type="button"
                                 onClick={() => setShowShortcutsModal(false)}
-                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                             >
-                                <X className="w-4 h-4 text-slate-500" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
-                        <div className="p-3 space-y-1 max-h-[50vh] overflow-y-auto">
+                        <div className="p-4 space-y-1.5 max-h-[50vh] overflow-y-auto">
                             {TICKET_SHORTCUTS.map((shortcut, i) => (
-                                <div key={i} className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg">
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">{shortcut.description}</span>
+                                <div key={i} className="flex items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors">
+                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{shortcut.description}</span>
                                     <div className="flex items-center gap-1">
                                         {shortcut.keys.map((key, j) => (
                                             <kbd
                                                 key={j}
-                                                className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-600"
+                                                className="px-2 py-0.5 text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs"
                                             >
                                                 {key}
                                             </kbd>
@@ -346,13 +406,12 @@ export const BentoTicketDetailPage: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 text-[10px] text-slate-500 text-center">
-                            Press <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Esc</kbd> to close
+                        <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-400 text-center">
+                            Press <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded font-mono">Esc</kbd> to close
                         </div>
                     </div>
                 </div>
             )}
-
         </div>
     );
 };

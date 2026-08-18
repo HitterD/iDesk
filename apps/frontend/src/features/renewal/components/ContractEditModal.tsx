@@ -174,7 +174,7 @@ export const ContractEditModal: React.FC<ContractEditModalProps> = ({ isOpen, co
                         <Button
                             onClick={handleSave}
                             disabled={updateMutation.isPending}
-                            className="flex-1 bg-primary text-slate-900 font-bold py-6 rounded-xl hover:bg-primary/90"
+                            className="flex-1 bg-primary text-primary-foreground font-bold py-6 rounded-xl hover:bg-primary/90"
                         >
                             {updateMutation.isPending ? (
                                 <>

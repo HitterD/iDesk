@@ -13,6 +13,7 @@ import { CredentialValidatorService } from './credential-validator.service';
 import { HrisProvisioningService } from './hris-provisioning.service';
 import { RefreshTokenClaims } from './refresh-session.types';
 import { User } from '../../users/entities/user.entity';
+import { AuthEventPublisher } from './auth-events';
 
 
 // Mock bcrypt
@@ -24,6 +25,7 @@ describe('AuthService', () => {
     let tokenService: jest.Mocked<TokenService>;
     let sessionService: jest.Mocked<SessionService>;
     let auditService: jest.Mocked<AuditService>;
+    let authEvents: { emit: jest.Mock };
 
     const issuedTokens: IssuedTokens = {
         access_token: 'access-token',
@@ -108,12 +110,17 @@ describe('AuthService', () => {
                 },
                 CredentialValidatorService,
                 {
+                    provide: AuthEventPublisher,
+                    useValue: { emit: jest.fn() },
+                },
+                {
                     provide: HrisProvisioningService,
                     useValue: { provision: jest.fn() },
                 },
                 {
                     provide: AuditService,
                     useValue: {
+                        log: jest.fn().mockResolvedValue({}),
                         logAsync: jest.fn(),
                     },
                 },
@@ -133,6 +140,7 @@ describe('AuthService', () => {
         tokenService = module.get(TokenService);
         sessionService = module.get(SessionService);
         auditService = module.get(AuditService);
+        authEvents = module.get(AuthEventPublisher);
     });
 
     afterEach(() => {
@@ -281,7 +289,7 @@ describe('AuthService', () => {
 
             await service.login(mockUser);
 
-            expect(auditService.logAsync).toHaveBeenCalledWith(
+            expect(auditService.log).toHaveBeenCalledWith(
                 expect.objectContaining({
                     userId: mockUser.id,
                     action: 'USER_LOGIN',

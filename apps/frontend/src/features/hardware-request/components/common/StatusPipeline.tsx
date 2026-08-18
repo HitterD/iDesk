@@ -65,16 +65,16 @@ export function StatusPipeline({ current }: { current: RequestStatus }) {
                                     ) : done ? (
                                         <Check className="size-3 text-white" />
                                     ) : active ? (
-                                        <span className="text-[10px] font-black text-white">{i + 1}</span>
+                                        <span className="text-xs font-black text-white">{i + 1}</span>
                                     ) : (
-                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600">{i + 1}</span>
+                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-600">{i + 1}</span>
                                     )}
                                 </div>
                             </div>
 
                             {/* Label */}
                             <span
-                                className="text-[9px] font-bold text-center leading-tight tracking-tight whitespace-nowrap"
+                                className="text-xs font-bold text-center leading-tight tracking-tight whitespace-nowrap"
                                 style={{ color: active ? meta.hex : done ? meta.hex : undefined }}
                                 aria-current={active ? 'step' : undefined}
                             >

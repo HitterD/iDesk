@@ -16,26 +16,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import * as path from 'path';
 import { join } from 'path';
 import * as express from 'express';
+import { validateAuthEnvironment } from './config/auth.config';
 
-// Environment validation - fail fast if critical vars are missing
-function validateEnvironment() {
-    const logger = new Logger('Bootstrap');
-    const requiredEnvVars = ['JWT_SECRET', 'DB_HOST', 'DB_PASSWORD', 'DB_DATABASE'];
-    const missingVars: string[] = [];
-
-    requiredEnvVars.forEach(envVar => {
-        if (!process.env[envVar]) {
-            missingVars.push(envVar);
-        }
-    });
-
-    if (missingVars.length > 0) {
-        logger.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-        logger.error('Please check your .env file and ensure all required variables are set.');
-        process.exit(1);
-    }
-
-    logger.log('Environment validation passed ✓');
+function validateEnvironment(): void {
+    validateAuthEnvironment(process.env);
 }
 
 async function bootstrap() {

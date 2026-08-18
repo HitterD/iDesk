@@ -17,6 +17,49 @@ import { UserRole } from '../../../users/enums/user-role.enum';
 import { TicketRepository } from '../../repositories/ticket.repository';
 import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
 
+const ACCESS_COOKIE_NAME = 'access_token';
+
+/** Connections per resolved client IP per minute. Sized for NAT/proxy-shared IPs and multi-tab clients. */
+const MAX_CONNECTIONS_PER_WINDOW = 30;
+/** Inbound events per socket per minute. Keyed per socket, so one abuser cannot lock out an office. */
+const MAX_MESSAGES_PER_WINDOW = 60;
+const RATE_LIMIT_WINDOW_MS = 60000;
+
+/**
+ * Extract a cookie value from a raw `Cookie` header.
+ * Mirrors the HTTP-side extractor in jwt.strategy.ts without pulling in a
+ * transitive dependency that is not declared in package.json.
+ */
+export function readCookie(header: string | undefined, name: string): string | undefined {
+    if (!header) return undefined;
+    for (const part of header.split(';')) {
+        const separator = part.indexOf('=');
+        if (separator === -1) continue;
+        if (part.slice(0, separator).trim() !== name) continue;
+        try {
+            return decodeURIComponent(part.slice(separator + 1).trim()) || undefined;
+        } catch {
+            return part.slice(separator + 1).trim() || undefined;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Resolve the originating client IP for rate limiting.
+ * `X-Forwarded-For` is only honoured when TRUST_PROXY is enabled, because the
+ * header is client-controlled on a directly exposed deployment.
+ */
+export function resolveClientIp(handshake: { address?: string; headers?: Record<string, unknown> }): string {
+    const directAddress = handshake.address || 'unknown';
+    if (process.env.TRUST_PROXY !== 'true') return directAddress;
+    const forwarded = handshake.headers?.['x-forwarded-for'];
+    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    if (typeof raw !== 'string') return directAddress;
+    const clientIp = raw.split(',')[0]?.trim();
+    return clientIp || directAddress;
+}
+
 export function buildCorsOrigin() {
     return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         const allowedOrigins = (process.env.WS_CORS_ORIGIN || process.env.FRONTEND_URL || '')
@@ -45,8 +88,8 @@ export class EventsGateway
     private connectedUsers: Map<string, string> = new Map();
 
     // Rate limiters for connection abuse prevention
-    private connectionLimiter = new RateLimiter(5, 60000); // 5 connections per minute per IP
-    private messageLimiter = new RateLimiter(30, 60000); // 30 messages per minute per IP
+    private connectionLimiter = new RateLimiter(MAX_CONNECTIONS_PER_WINDOW, RATE_LIMIT_WINDOW_MS);
+    private messageLimiter = new RateLimiter(MAX_MESSAGES_PER_WINDOW, RATE_LIMIT_WINDOW_MS);
 
     constructor(
         private readonly jwtService: JwtService,
@@ -62,11 +105,13 @@ export class EventsGateway
     }
 
     handleDisconnect(client: Socket) {
+        // Release the per-socket message budget so the map does not grow unbounded.
+        this.messageLimiter.reset(client.id);
         const userId = this.connectedUsers.get(client.id);
         if (userId) {
             this.connectedUsers.delete(client.id);
             // Check if user has other active connections
-            const isStillOnline = Array.from(this.connectedUsers.values()).includes(userId);
+            const isStillOnline = this.isUserOnline(userId);
             if (!isStillOnline) {
                 this.server.emit('user:offline', { userId });
                 this.logger.log(`User offline: ${userId}`);
@@ -76,7 +121,7 @@ export class EventsGateway
     }
 
     handleConnection(client: Socket) {
-        const clientIp = client.handshake.address || 'unknown';
+        const clientIp = resolveClientIp(client.handshake);
         if (!this.connectionLimiter.isAllowed(clientIp)) {
             client.emit('error', { message: 'Connection rate limit exceeded. Try again later.' });
             client.disconnect(true);
@@ -84,35 +129,50 @@ export class EventsGateway
         }
 
         try {
-            const token = client.handshake.auth?.token
+            // Browsers cannot set headers on a WebSocket handshake, so the HttpOnly
+            // access_token cookie is the primary credential for in-app clients.
+            const token = readCookie(client.handshake.headers?.cookie, ACCESS_COOKIE_NAME)
+                || client.handshake.auth?.token
                 || client.handshake.headers?.authorization?.split(' ')[1]
                 || client.handshake.query?.token;
             if (!token) throw new Error('Missing token');
-            const payload = this.jwtService.verify<{ sub: string; role: UserRole }>(token, {
+            const payload = this.jwtService.verify<{ sub: string; role: UserRole; fullName?: string }>(token, {
                 secret: this.configService.get('JWT_SECRET'),
             });
             if (!payload.sub || !payload.role) throw new Error('Invalid claims');
             client.data.userId = payload.sub;
             client.data.role = payload.role;
+            client.data.fullName = payload.fullName;
             client.data.clientIp = clientIp;
+            const wasOnline = this.isUserOnline(payload.sub);
             this.connectedUsers.set(client.id, payload.sub);
             client.join(`user:${payload.sub}`);
-            this.server.emit('user:online', { userId: payload.sub });
+            // Mirror handleDisconnect: one event per user, not per tab.
+            if (!wasOnline) {
+                this.server.emit('user:online', { userId: payload.sub });
+            }
         } catch {
             this.logger.warn(`Rejected unauthenticated socket ${client.id}`);
             client.disconnect(true);
         }
     }
 
+    private isUserOnline(userId: string): boolean {
+        for (const connectedUserId of this.connectedUsers.values()) {
+            if (connectedUserId === userId) return true;
+        }
+        return false;
+    }
+
     /**
-     * Helper to check message rate limit
+     * Helper to check message rate limit.
+     * Keyed per socket so one noisy client cannot exhaust the budget of everyone
+     * sharing its NAT or reverse-proxy address.
      * @returns true if allowed, false if rate limited
      */
     private checkMessageRateLimit(client: Socket): boolean {
-        const clientIp = client.data.clientIp || client.handshake.address || 'unknown';
-
-        if (!this.messageLimiter.isAllowed(clientIp)) {
-            this.logger.warn(`Message rate limit exceeded for IP: ${clientIp}`);
+        if (!this.messageLimiter.isAllowed(client.id)) {
+            this.logger.warn(`Message rate limit exceeded for socket: ${client.id}`);
             client.emit('error', { message: 'Message rate limit exceeded. Slow down.' });
             return false;
         }
@@ -127,26 +187,41 @@ export class EventsGateway
         if (!authenticatedUserId || (userId && userId !== authenticatedUserId)) {
             return { status: 'error', message: 'Unauthorized' };
         }
+        if (!this.checkMessageRateLimit(client)) {
+            return { status: 'error', message: 'Rate limited' };
+        }
         const onlineUserIds = Array.from(new Set(this.connectedUsers.values()));
         client.emit('users:online', onlineUserIds);
         return { status: 'ok', userId: authenticatedUserId };
     }
 
     @SubscribeMessage('typing:start')
-    handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string; user: { fullName: string } }) {
-        client.to(`ticket:${data.ticketId}`).emit('typing:start', {
-            ticketId: data.ticketId,
-            user: data.user,
-            socketId: client.id
+    handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId?: unknown; user?: unknown }) {
+        const ticketId = this.authorizedTypingTicket(client, data?.ticketId);
+        if (!ticketId) return { status: 'error', message: 'Forbidden' };
+        client.to(`ticket:${ticketId}`).emit('typing:start', {
+            ticketId,
+            user: { fullName: client.data.fullName || 'User' },
+            socketId: client.id,
         });
+        return { status: 'ok' };
     }
 
     @SubscribeMessage('typing:stop')
-    handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string }) {
-        client.to(`ticket:${data.ticketId}`).emit('typing:stop', {
-            ticketId: data.ticketId,
-            socketId: client.id
+    handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId?: unknown }) {
+        const ticketId = this.authorizedTypingTicket(client, data?.ticketId);
+        if (!ticketId) return { status: 'error', message: 'Forbidden' };
+        client.to(`ticket:${ticketId}`).emit('typing:stop', {
+            ticketId,
+            socketId: client.id,
         });
+        return { status: 'ok' };
+    }
+
+    private authorizedTypingTicket(client: Socket, rawTicketId: unknown): string | undefined {
+        if (typeof rawTicketId !== 'string' || !rawTicketId.trim() || !client.data.userId) return undefined;
+        const ticketId = rawTicketId.trim();
+        return client.rooms?.has(`ticket:${ticketId}`) ? ticketId : undefined;
     }
 
     // Join a ticket room for real-time updates
@@ -155,6 +230,8 @@ export class EventsGateway
         const userId = client.data.userId as string | undefined;
         const role = client.data.role as UserRole | undefined;
         if (!userId || !ticketId || !role) return { status: 'error', message: 'Unauthorized' };
+        // Throttled before the DB round-trip: this handler is the only one that queries.
+        if (!this.checkMessageRateLimit(client)) return { status: 'error', message: 'Rate limited' };
         const ticket = await this.ticketRepository.findById(ticketId, ['user', 'assignedTo']);
         if (!ticket) return { status: 'error', message: 'Not found' };
         if (role === UserRole.USER && ticket.userId !== userId) return { status: 'error', message: 'Forbidden' };

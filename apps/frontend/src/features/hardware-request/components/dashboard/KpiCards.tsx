@@ -17,7 +17,7 @@ export function KpiCards({ data, loading }: { data?: KpiData; loading?: boolean 
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {cards.map((c) => (
         <div key={c.key} className={`rounded-xl border p-4 shadow-sm ${c.accent}`}>
-          <div className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-2">{c.label}</div>
+          <div className="text-xs font-bold uppercase tracking-widest opacity-70 mb-2">{c.label}</div>
           <div className="text-3xl font-mono font-black tracking-tight">
             {loading || !data ? '—' : data[c.key].toLocaleString('id-ID')}
           </div>

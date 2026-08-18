@@ -26,10 +26,10 @@ export function EventChipMedium({ event }: Props) {
     >
       <div className="flex items-center gap-1 mb-0.5">
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${chip.dot}`} />
-        <span className={`text-[10px] font-semibold truncate flex-1 ${chip.text}`}>{event.requestNumber}</span>
+        <span className={`text-xs font-semibold truncate flex-1 ${chip.text}`}>{event.requestNumber}</span>
         <span className={`text-[8px] px-1 rounded-full border font-semibold ${chip.bg} ${chip.border} ${chip.text}`}>{chip.badge}</span>
       </div>
-      <div className="text-[9px] text-slate-500 pl-2.5 truncate">{event.technicianName} · {time}</div>
+      <div className="text-xs text-slate-500 pl-2.5 truncate">{event.technicianName} · {time}</div>
     </div>
   );
 }

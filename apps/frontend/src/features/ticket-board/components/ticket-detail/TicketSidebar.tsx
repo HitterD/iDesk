@@ -1,5 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { UserCheck, Activity, AlertCircle, Hash, Monitor, Building, Calendar, Wrench, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+    UserCheck,
+    Activity,
+    AlertCircle,
+    Hash,
+    Monitor,
+    Building,
+    Calendar,
+    Wrench,
+    CheckCircle2,
+    Loader2,
+    Mail,
+    Copy,
+    Clock,
+    Shield,
+    Check,
+    MapPin,
+    Tag,
+} from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -8,8 +26,11 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail, Agent } from './types';
-import { STATUS_OPTIONS } from './constants';
+import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
+import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -25,22 +46,24 @@ interface TicketSidebarProps {
 
 type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
 
-const FieldRow: React.FC<{
+const PropertyRow: React.FC<{
     icon: React.ElementType;
     label: string;
     saving: boolean;
     saved: boolean;
     children: React.ReactNode;
 }> = ({ icon: Icon, label, saving, saved, children }) => (
-    <div className="group/prop p-2 flex flex-col">
-        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
-            <Icon className="w-3 h-3" />
-            {label}
-            {saving && <Loader2 className="w-3 h-3 ml-auto animate-spin text-primary" />}
+    <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+                <Icon className="w-3.5 h-3.5 text-slate-400" />
+                {label}
+            </span>
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
             {!saving && saved && (
-                <CheckCircle2 className="w-3 h-3 ml-auto text-green-500 animate-in fade-in zoom-in duration-200" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in zoom-in duration-200" />
             )}
-        </label>
+        </div>
         {children}
     </div>
 );
@@ -57,6 +80,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     onDeviceChange,
 }) => {
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const [copiedEmail, setCopiedEmail] = useState(false);
 
     // Local optimistic state per field
     const [localAssigneeId, setLocalAssigneeId] = useState(ticket.assignedTo?.id || '');
@@ -73,7 +97,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         assignee: false, status: false, priority: false, category: false, device: false,
     });
 
-    // Sync from server when ticket changes (after invalidation)
+    // Sync from server when ticket changes
     useEffect(() => { setLocalAssigneeId(ticket.assignedTo?.id || ''); }, [ticket.assignedTo?.id]);
     useEffect(() => { setLocalStatus(ticket.status); }, [ticket.status]);
     useEffect(() => { setLocalPriority(ticket.priority); }, [ticket.priority]);
@@ -100,57 +124,155 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         }
     };
 
-    const handleAssigneeChange = makeHandler('assignee', setLocalAssigneeId, onAssigneeChange);
+    const handleAssigneeChange = async (value: string) => {
+        const actualVal = value === 'unassigned' ? '' : value;
+        setLocalAssigneeId(actualVal);
+        setSaving(prev => ({ ...prev, assignee: true }));
+        try {
+            await onAssigneeChange(actualVal);
+            showSaved('assignee');
+        } finally {
+            setSaving(prev => ({ ...prev, assignee: false }));
+        }
+    };
+
     const handleStatusChange = makeHandler('status', setLocalStatus, onStatusChange);
     const handlePriorityChange = makeHandler('priority', setLocalPriority, onPriorityChange);
     const handleCategoryChange = makeHandler('category', setLocalCategory, onCategoryChange);
-    const handleDeviceChange = makeHandler('device', setLocalDevice, onDeviceChange);
+
+    const handleDeviceChange = async (value: string) => {
+        const actualVal = value === 'none' ? '' : value;
+        setLocalDevice(actualVal);
+        setSaving(prev => ({ ...prev, device: true }));
+        try {
+            await onDeviceChange(actualVal);
+            showSaved('device');
+        } finally {
+            setSaving(prev => ({ ...prev, device: false }));
+        }
+    };
+
+    const handleCopyEmail = () => {
+        if (ticket.user.email) {
+            navigator.clipboard.writeText(ticket.user.email);
+            setCopiedEmail(true);
+            toast.success('Email copied to clipboard');
+            setTimeout(() => setCopiedEmail(false), 2000);
+        }
+    };
+
+    const assignedAgent = agents.find(a => a.id === localAssigneeId) || ticket.assignedTo;
 
     return (
-        <div className="p-4 space-y-4">
-            {/* Requester */}
-            <div className="p-3 bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))]">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                        {ticket.user.fullName.charAt(0)}
+        <div className="p-4 space-y-5">
+
+            {/* 1. Requester Profile Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Requester Profile
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                        User
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                        <div className="w-11 h-11 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-sm shadow-xs">
+                            {ticket.user.fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <PresenceDot userId={ticket.user.id} userName={ticket.user.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{ticket.user.fullName}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{ticket.user.email}</p>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {ticket.user.fullName}
+                        </h4>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
+                            <span className="truncate">{ticket.user.email}</span>
+                            <button
+                                type="button"
+                                onClick={handleCopyEmail}
+                                className="p-0.5 hover:text-blue-600 transition-colors shrink-0 cursor-pointer"
+                                title="Copy Email"
+                            >
+                                {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-1.5 mt-3 text-[10px] font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-2 py-1.5">
-                    <Building className="w-3 h-3 text-slate-400" />
-                    <span className="truncate">{ticket.user.department?.name || 'No Department'}</span>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+                    <div className="flex items-center justify-between">
+                        <span className="text-slate-400 flex items-center gap-1.5">
+                            <Building className="w-3.5 h-3.5" /> Department
+                        </span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
+                            {ticket.user.department?.name || 'No Department'}
+                        </span>
+                    </div>
+
+                    {ticket.user.site?.name && (
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5" /> Site / Branch
+                            </span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
+                                {ticket.user.site.name}
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Properties List */}
-            <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] divide-y divide-slate-100 dark:divide-slate-800/60">
-                {/* Assigned To */}
-                <FieldRow icon={UserCheck} label="Assigned To" saving={saving.assignee} saved={saved.assignee}>
-                    <Select value={localAssigneeId} onValueChange={handleAssigneeChange} disabled={isClosed || saving.assignee}>
-                        <SelectTrigger className={cn(
-                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
-                            saving.assignee && "opacity-60"
-                        )}>
-                            <SelectValue placeholder="Unassigned" />
+            {/* 2. Ticket Properties & Assignment Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Ticket Properties
+                    </span>
+                    {isClosed && (
+                        <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                            Ticket Closed (Locked)
+                        </span>
+                    )}
+                </div>
+
+                {/* Assigned Agent */}
+                <PropertyRow icon={UserCheck} label="Assigned Agent" saving={saving.assignee} saved={saved.assignee}>
+                    <Select value={localAssigneeId || 'unassigned'} onValueChange={handleAssigneeChange} disabled={isClosed || saving.assignee}>
+                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
+                            <SelectValue placeholder="Unassigned">
+                                {assignedAgent ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center font-bold">
+                                            {assignedAgent.fullName.charAt(0)}
+                                        </div>
+                                        <span className="truncate">{assignedAgent.fullName}</span>
+                                        {/* Decorative: this sits inside the select trigger, whose accessible
+                                            name must stay the agent, not a status. Hover reveals the title. */}
+                                        <PresenceDot userId={assignedAgent.id} size="sm" decorative />
+                                    </div>
+                                ) : (
+                                    <span className="text-slate-400">Unassigned</span>
+                                )}
+                            </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="unassigned" className="text-xs text-slate-400">Unassigned</SelectItem>
                             {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id} className="text-xs">{agent.fullName}</SelectItem>
+                                <SelectItem key={agent.id} value={agent.id} className="text-xs">
+                                    {agent.fullName}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                </FieldRow>
+                </PropertyRow>
 
                 {/* Status */}
-                <FieldRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
+                <PropertyRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
                     <Select value={localStatus} onValueChange={handleStatusChange} disabled={isClosed || saving.status}>
-                        <SelectTrigger className={cn(
-                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
-                            saving.status && "opacity-60"
-                        )}>
+                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -161,40 +283,34 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-                </FieldRow>
+                </PropertyRow>
 
                 {/* Priority */}
-                <FieldRow icon={AlertCircle} label="Priority" saving={saving.priority} saved={saved.priority}>
+                <PropertyRow icon={AlertCircle} label="Priority" saving={saving.priority} saved={saved.priority}>
                     {ticket.priority === 'HARDWARE_INSTALLATION' ? (
-                        <div className="h-8 flex items-center px-2 bg-amber-900/10 dark:bg-amber-900/30 border border-transparent text-[11px] font-medium text-amber-600 dark:text-amber-400 rounded">
-                            HW Install
+                        <div className="h-9 flex items-center px-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-xs font-bold text-amber-700 dark:text-amber-400 rounded-xl">
+                            Hardware Installation
                         </div>
                     ) : (
                         <Select value={localPriority} onValueChange={handlePriorityChange} disabled={isClosed || saving.priority}>
-                            <SelectTrigger className={cn(
-                                "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
-                                saving.priority && "opacity-60"
-                            )}>
+                            <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 {slaConfigs.map((sla) => (
                                     <SelectItem key={sla.id} value={sla.priority} className="text-xs">
-                                        {sla.priority}
+                                        {sla.priority} ({Math.round(sla.resolutionTimeMinutes / 60)}h SLA)
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     )}
-                </FieldRow>
+                </PropertyRow>
 
                 {/* Category */}
-                <FieldRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
+                <PropertyRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
                     <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
-                        <SelectTrigger className={cn(
-                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
-                            saving.category && "opacity-60"
-                        )}>
+                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -207,47 +323,90 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             ))}
                         </SelectContent>
                     </Select>
-                </FieldRow>
+                </PropertyRow>
 
                 {/* Device */}
-                <FieldRow icon={Monitor} label="Device" saving={saving.device} saved={saved.device}>
-                    <Select value={localDevice} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
-                        <SelectTrigger className={cn(
-                            "w-full h-8 text-[11px] font-medium border-transparent bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-1 focus:ring-primary/50 shadow-none px-2 rounded-xl transition-colors [&>svg]:hidden lg:group-hover/prop:[&>svg]:block",
-                            saving.device && "opacity-60"
-                        )}>
-                            <SelectValue placeholder="-" />
+                <PropertyRow icon={Monitor} label="Device / Hardware" saving={saving.device} saved={saved.device}>
+                    <Select value={localDevice || 'none'} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
+                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
+                            <SelectValue placeholder="No device assigned" />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="none" className="text-xs text-slate-400">None</SelectItem>
                             {attributes.devices.map((dev: any) => (
                                 <SelectItem key={dev.id} value={dev.value} className="text-xs">{dev.value}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                </FieldRow>
+                </PropertyRow>
             </div>
 
-            {/* Hardware Installation Info */}
-            {ticket.isHardwareInstallation && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-200 dark:border-amber-900/40">
-                    <div className="flex items-center gap-1.5 mb-2.5">
-                        <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">Installation</span>
+            {/* 3. SLA & Timeline Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        SLA & Tracking
+                    </span>
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-slate-400">Created At</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {formatDateTimeID(ticket.createdAt)}
+                        </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs mb-3 font-medium">
-                        <Wrench className="w-3 h-3 text-slate-400" />
-                        <span className="text-slate-800 dark:text-slate-200">{ticket.hardwareType || 'N/A'}</span>
+
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-slate-400">Last Activity</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {formatRelativeTime(ticket.updatedAt)}
+                        </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <div className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl px-2 py-1.5 flex flex-col gap-0.5">
-                            <span className="text-slate-400 uppercase tracking-wider text-[8px] font-bold">Date</span>
-                            <span className="text-slate-800 dark:text-white font-medium">
-                                {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
+
+                    {ticket.slaTarget && (
+                        <div className="flex items-center justify-between py-1">
+                            <span className="text-slate-400">SLA Resolution Target</span>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                {formatDateTimeID(ticket.slaTarget)}
                             </span>
                         </div>
-                        <div className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl px-2 py-1.5 flex flex-col gap-0.5">
-                            <span className="text-slate-400 uppercase tracking-wider text-[8px] font-bold">Time</span>
-                            <span className="text-slate-800 dark:text-white font-medium">{ticket.scheduledTime || '-'}</span>
+                    )}
+                </div>
+            </div>
+
+            {/* 4. Hardware Installation Schedule (if applicable) */}
+            {ticket.isHardwareInstallation && (
+                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 shadow-2xs space-y-3">
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-amber-200/60 dark:border-amber-900/40">
+                        <Wrench className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                            Hardware Installation
+                        </span>
+                    </div>
+
+                    <div className="text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-amber-700/80 dark:text-amber-400/80">Hardware Item:</span>
+                            <span className="font-bold text-slate-900 dark:text-white">
+                                {ticket.hardwareType || 'N/A'}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Date</span>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                </span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Time</span>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {ticket.scheduledTime || '-'}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>

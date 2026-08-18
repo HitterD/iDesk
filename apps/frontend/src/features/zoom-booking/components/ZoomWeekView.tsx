@@ -159,13 +159,13 @@ export function ZoomWeekView({
                             {(() => {
                                 const meetingCount = calDay ? new Set(calDay.slots.filter(s => s.booking).map(s => s.booking!.id)).size : 0;
                                 return meetingCount > 0 && (
-                                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
+                                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
                                         {meetingCount} meetings
                                     </span>
                                 );
                             })()}
                             {calDay?.isBlocked && (
-                                <span className="text-[9px] text-red-500 font-medium bg-red-50 dark:bg-red-950/30 px-1 rounded">Blokir</span>
+                                <span className="text-xs text-red-500 font-medium bg-red-50 dark:bg-red-950/30 px-1 rounded">Blokir</span>
                             )}
                         </div>
                     );
@@ -187,7 +187,7 @@ export function ZoomWeekView({
                                     "sticky left-0 z-10 flex items-start justify-end pr-3 border-r border-slate-200 dark:border-slate-700",
                                     isHour
                                         ? "text-xs font-bold text-slate-700 dark:text-slate-300 pt-1"
-                                        : "text-[10px] text-slate-400 dark:text-slate-500 pt-1"
+                                        : "text-xs text-slate-400 dark:text-slate-500 pt-1"
                                 )}
                                 style={{ height: SLOT_HEIGHT }}
                             >
@@ -218,7 +218,7 @@ export function ZoomWeekView({
                                     >
                                         {slot?.status === 'available' && canBook && (
                                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-0.5 bg-blue-50/50 dark:bg-blue-950/30 z-10 pointer-events-none">
-                                                <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                                                <span className="text-xs font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
                                                     <Video className="h-3 w-3" /> Book {time}
                                                 </span>
                                             </div>
@@ -290,10 +290,10 @@ export function ZoomWeekView({
                                         className="w-1.5 h-1.5 rounded-full bg-white/90 ring-1 ring-black/20 shrink-0"
                                         aria-hidden="true"
                                     />
-                                    <span className="text-[9px] font-semibold opacity-95 truncate max-w-[60px]">
+                                    <span className="text-xs font-semibold opacity-95 truncate max-w-[60px]">
                                         {booking.accountName}
                                     </span>
-                                    <span className="text-[10px] font-bold truncate">{booking.title}</span>
+                                    <span className="text-xs font-bold truncate">{booking.title}</span>
                                 </div>,
                             );
                         });
@@ -309,7 +309,7 @@ export function ZoomWeekView({
                                     type="button"
                                     key={`overflow-${dateStr}-${rowStart}`}
                                     data-testid="overflow-pill"
-                                    className="absolute h-4 rounded-sm bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center hover:bg-slate-900 z-40 cursor-pointer pointer-events-auto"
+                                    className="absolute h-4 rounded-sm bg-slate-800 text-white text-xs font-semibold flex items-center justify-center hover:bg-slate-900 z-40 cursor-pointer pointer-events-auto"
                                     style={{ top: pillTopPx, left: cellLeft, width: cellWidth }}
                                     onClick={(e) => {
                                         e.stopPropagation();

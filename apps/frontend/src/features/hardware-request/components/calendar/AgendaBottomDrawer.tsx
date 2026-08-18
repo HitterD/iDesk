@@ -20,16 +20,16 @@ function ExpandedCard({ event, basePath }: { event: CalendarEventData; basePath:
     <div className={`min-w-[220px] flex-shrink-0 rounded-xl border-2 border-blue-400 p-3 bg-white shadow-md`}>
       <div className="flex items-center gap-2 mb-2">
         <span className={`text-xs font-bold ${chip.text}`}>{event.requestNumber}</span>
-        <span className={`text-[9px] rounded-full border px-1.5 font-semibold ${chip.bg} ${chip.border} ${chip.text}`}>{chip.badge}</span>
+        <span className={`text-xs rounded-full border px-1.5 font-semibold ${chip.bg} ${chip.border} ${chip.text}`}>{chip.badge}</span>
       </div>
-      <div className="text-[10px] text-slate-600 space-y-0.5 mb-3">
+      <div className="text-xs text-slate-600 space-y-0.5 mb-3">
         <div>🏢 {event.siteName}</div>
         <div>👷 {event.technicianName} · {format(parseISO(event.scheduledAt), 'HH:mm')}</div>
         {event.recipientName && <div>👤 {event.recipientName}{event.division ? ` / ${event.division}` : ''}</div>}
       </div>
       <Link
         to={`${basePath}/${event.requestId}`}
-        className="block w-full rounded-md border border-slate-200 bg-slate-50 py-1 text-center text-[10px] font-semibold text-slate-600 hover:bg-slate-100"
+        className="block w-full rounded-md border border-slate-200 bg-slate-50 py-1 text-center text-xs font-semibold text-slate-600 hover:bg-slate-100"
       >
         Detail →
       </Link>
@@ -47,13 +47,13 @@ function CompactCard({ event, onSelect }: { event: CalendarEventData; onSelect: 
     >
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${chip.dot}`} />
-        <span className="text-[10px] font-semibold text-slate-800">{event.requestNumber}</span>
+        <span className="text-xs font-semibold text-slate-800">{event.requestNumber}</span>
       </div>
-      <div className="text-[9px] text-slate-500 pl-3.5 space-y-0.5">
+      <div className="text-xs text-slate-500 pl-3.5 space-y-0.5">
         <div>{event.technicianName}</div>
         <div>{format(parseISO(event.scheduledAt), 'HH:mm')} · {event.siteName}</div>
       </div>
-      <div className="mt-2 text-[9px] text-blue-500 pl-3.5">Klik untuk detail ▸</div>
+      <div className="mt-2 text-xs text-blue-500 pl-3.5">Klik untuk detail ▸</div>
     </button>
   );
 }

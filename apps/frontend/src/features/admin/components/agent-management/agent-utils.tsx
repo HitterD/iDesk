@@ -40,16 +40,21 @@ export const PRESET_COLORS = [
     { dot: 'bg-teal-500', text: 'text-teal-700 dark:text-teal-300', ring: 'ring-teal-200 dark:ring-teal-800', bg: 'bg-teal-50 dark:bg-teal-900/30', hover: 'hover:bg-teal-50 dark:hover:bg-teal-900/20' },
 ];
 
+/**
+ * Renders how long ago a user was last seen.
+ *
+ * Deliberately says nothing about *online*: `lastActiveAt` is only stamped at
+ * login, so a recent value proves the session started recently, not that the
+ * user is connected. Live status comes from `PresenceDot` / `PresenceBadge`,
+ * which read the WebSocket roster.
+ */
 export const formatLastActive = (date: string | undefined): React.ReactNode => {
     if (!date) return <span className="text-slate-400 italic">Not yet logged in</span>;
-    const d = new Date(date);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 5) return <span className="text-green-600 font-medium">Online</span>;
-    if (diffMins < 60) return <span className="text-green-500">{diffMins}m ago</span>;
+    const diffMins = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
+    if (diffMins < 1) return <span className="text-slate-500">Just now</span>;
+    if (diffMins < 60) return <span className="text-slate-500">{diffMins}m ago</span>;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return <span className="text-amber-500">{diffHours}h ago</span>;
+    if (diffHours < 24) return <span className="text-slate-500">{diffHours}h ago</span>;
     const diffDays = Math.floor(diffHours / 24);
     return <span className="text-slate-500">{diffDays}d ago</span>;
 };

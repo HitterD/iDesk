@@ -17,7 +17,7 @@ export function ItemsCard({ r, children }: { r: HardwareRequest; children?: Reac
                         <li key={it.id} className="py-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between group">
                             <div className="space-y-1.5">
                                 <div className="text-sm font-bold text-slate-900 dark:text-slate-200">{String(snap.name ?? '—')}</div>
-                                <div className="text-[10px] text-slate-400 dark:text-slate-600 font-mono tracking-tight">{String(snap.code ?? '')}</div>
+                                <div className="text-xs text-slate-400 dark:text-slate-600 font-mono tracking-tight">{String(snap.code ?? '')}</div>
                                 {recipientName && (
                                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                         👤 <span className="font-medium">{recipientName}</span>
@@ -26,7 +26,7 @@ export function ItemsCard({ r, children }: { r: HardwareRequest; children?: Reac
                                 {assets.length > 0 && (
                                     <div className="mt-2 flex flex-wrap gap-1.5">
                                         {assets.map(a => (
-                                            <span key={a.id} className="text-[9px] font-black font-mono rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 px-2 py-0.5 shadow-sm">
+                                            <span key={a.id} className="text-xs font-black font-mono rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 px-2 py-0.5 shadow-sm">
                                                 {a.barcode}
                                             </span>
                                         ))}
@@ -35,9 +35,9 @@ export function ItemsCard({ r, children }: { r: HardwareRequest; children?: Reac
                             </div>
                             <div className="text-right shrink-0">
                                 <div className="text-sm font-black text-slate-900 dark:text-white">× {it.quantity}</div>
-                                {it.actualCost != null && <div className="text-[10px] font-bold text-slate-500 dark:text-slate-500 mt-1 uppercase tracking-wider">{fmtIDR(it.actualCost)}/unit</div>}
-                                {it.vendor && <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600 mt-0.5">{it.vendor}</div>}
-                                {it.invoiceNumber && <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600">Inv {it.invoiceNumber} · {fmtDate(it.invoiceDate)}</div>}
+                                {it.actualCost != null && <div className="text-xs font-bold text-slate-500 dark:text-slate-500 mt-1 uppercase tracking-wider">{fmtIDR(it.actualCost)}/unit</div>}
+                                {it.vendor && <div className="text-xs font-bold text-slate-400 dark:text-slate-600 mt-0.5">{it.vendor}</div>}
+                                {it.invoiceNumber && <div className="text-xs font-bold text-slate-400 dark:text-slate-600">Inv {it.invoiceNumber} · {fmtDate(it.invoiceDate)}</div>}
                             </div>
                         </li>
                     );

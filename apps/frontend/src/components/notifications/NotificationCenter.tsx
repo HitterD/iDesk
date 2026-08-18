@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-    Bell, CheckCheck, Settings, Search, X, Volume2, VolumeX, 
-    ChevronLeft, ChevronRight, Inbox, HelpCircle
+    Bell, CheckCheck, Settings, Search, X, Volume2, VolumeX,
+    ChevronLeft, ChevronRight, Inbox, ListChecks
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,14 +21,14 @@ const CriticalBanner: React.FC<{
     return (
         <div className="flex items-center gap-3 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl shrink-0">
             <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-white">{count > 9 ? '9+' : count}</span>
+                <span className="text-xs font-bold text-white">{count > 9 ? '9+' : count}</span>
             </div>
-            <p className="flex-1 text-[12px] font-medium text-red-700 dark:text-red-300">
+            <p className="flex-1 text-xs font-medium text-red-700 dark:text-red-300">
                 {count} notifikasi kritis perlu konfirmasi
             </p>
             <button
                 onClick={onViewClick}
-                className="text-[11px] font-semibold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors"
+                className="text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors"
             >
                 Lihat
             </button>
@@ -204,7 +204,7 @@ export const NotificationCenter: React.FC = () => {
                         
                         {totalUnread > 0 && (
                             <span className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide animate-in zoom-in duration-300",
+                                "px-2 py-0.5 rounded-full text-xs font-bold tracking-wide animate-in zoom-in duration-300",
                                 activeTab === 'all' 
                                     ? "bg-rose-500 text-white shadow-md shadow-rose-500/20" 
                                     : "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"
@@ -278,7 +278,7 @@ export const NotificationCenter: React.FC = () => {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
+            <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
                 {/* Toolbar */}
                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
                     <div className="flex items-center gap-3 flex-1">
@@ -294,7 +294,7 @@ export const NotificationCenter: React.FC = () => {
                                 isSelectionMode ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-slate-100 dark:hover:bg-slate-800"
                             )}
                         >
-                            <CheckCheck className="w-5 h-5" />
+                            <ListChecks className="w-5 h-5" />
                         </Button>
 
                         <div className="relative flex-1 max-w-md">
@@ -330,7 +330,7 @@ export const NotificationCenter: React.FC = () => {
                                 >
                                     {filter}
                                     <span className={cn(
-                                        "px-1.5 py-0.5 rounded-md text-[10px] bg-slate-100 dark:bg-slate-800",
+                                        "px-1.5 py-0.5 rounded-md text-xs bg-slate-100 dark:bg-slate-800",
                                         readFilter === filter ? "text-slate-900 dark:text-white font-black" : "text-slate-400"
                                     )}>
                                         {count}
@@ -355,7 +355,7 @@ export const NotificationCenter: React.FC = () => {
                                 items.length > 0 && (
                                     <div key={dateGroup} className="space-y-3">
                                         <div className="flex items-center gap-4 px-2">
-                                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                                            <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                                                 {dateGroup}
                                             </span>
                                             <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />
@@ -446,51 +446,42 @@ export const NotificationCenter: React.FC = () => {
 
             {/* Bulk Action Bar */}
             {isSelectionMode && selectedIds.size > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-6 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-3xl shadow-2xl animate-in slide-in-from-bottom-10">
-                    <div className="pr-4 border-r border-white/10 dark:border-slate-900/10">
-                        <span className="text-sm font-black uppercase tracking-widest">
-                            {selectedIds.size} Selected
-                        </span>
-                    </div>
-                    
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-5 py-3 bg-card text-foreground border border-border rounded-2xl shadow-xl animate-in slide-in-from-bottom-10">
+                    <span className="text-sm font-bold pr-4 border-r border-border">
+                        {selectedIds.size} selected
+                    </span>
+
                     <div className="flex items-center gap-2">
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
+                        <Button
+                            variant="outline"
+                            size="sm"
                             onClick={handleBulkMarkAsRead}
-                            className="text-white dark:text-slate-900 hover:bg-white/10 dark:hover:bg-slate-900/10 font-bold rounded-xl h-10 px-4"
+                            className="font-semibold rounded-lg h-9 px-4"
                         >
-                            Mark Read
+                            Mark read
                         </Button>
-                        <Button 
-                            variant="destructive" 
-                            size="sm" 
+                        <Button
+                            variant="destructive"
+                            size="sm"
                             onClick={handleBulkDelete}
-                            className="bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl h-10 px-4"
+                            className="font-semibold rounded-lg h-9 px-4"
                         >
                             Delete
                         </Button>
                     </div>
 
-                    <button 
+                    <button
                         onClick={() => {
                             setIsSelectionMode(false);
                             handleSelectAll();
                         }}
-                        className="ml-2 p-1 hover:rotate-90 transition-transform"
+                        aria-label="Clear selection"
+                        className="ml-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
             )}
-
-            {/* Shortcut Help Hint */}
-            <div className="flex items-center justify-center gap-2 text-slate-400">
-                <HelpCircle className="w-4 h-4" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">
-                    Pro tip: use <span className="text-slate-900 dark:text-slate-300 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded mx-0.5">J</span> and <span className="text-slate-900 dark:text-slate-300 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded mx-0.5">K</span> to navigate
-                </span>
-            </div>
         </div>
     );
 };

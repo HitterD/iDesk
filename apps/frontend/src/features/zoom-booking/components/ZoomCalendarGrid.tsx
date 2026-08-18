@@ -368,7 +368,7 @@ export function ZoomCalendarGrid({
                                     {format(new Date(day.date), 'MMM')}
                                 </span>
                                 {dayIsToday && (
-                                    <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                                    <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
                                         TODAY
                                     </span>
                                 )}
@@ -376,13 +376,13 @@ export function ZoomCalendarGrid({
                             {(() => {
                                 const meetingCount = new Set(day.slots.filter(s => s.booking).map(s => s.booking!.id)).size;
                                 return meetingCount > 0 && (
-                                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
+                                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
                                         {meetingCount} meetings
                                     </span>
                                 );
                             })()}
                             {day.isBlocked && (
-                                <span className="text-[10px] text-red-500 font-medium bg-red-500/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                <span className="text-xs text-red-500 font-medium bg-red-500/10 px-2 py-0.5 rounded-full mt-1 inline-block">
                                     Blocked
                                 </span>
                             )}
@@ -402,7 +402,7 @@ export function ZoomCalendarGrid({
                                     'pr-3 flex items-start justify-end sticky left-0 z-10 transition-colors border-r border-slate-200 dark:border-slate-700',
                                     hourStart
                                         ? 'text-xs font-bold text-slate-700 dark:text-slate-300 pt-1'
-                                        : 'text-[10px] text-slate-400 dark:text-slate-500 pt-1'
+                                        : 'text-xs text-slate-400 dark:text-slate-500 pt-1'
                                 )}
                             >
                                 {isHour ? displayTime : <span className="opacity-75">{displayTime}</span>}
@@ -451,7 +451,7 @@ export function ZoomCalendarGrid({
                                         )}
                                         {slot?.status === 'available' && !canBook && (
                                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <span className="text-[9px] text-slate-400 font-medium">View only</span>
+                                                <span className="text-xs text-slate-400 font-medium">View only</span>
                                             </div>
                                         )}
                                     </div>
@@ -503,16 +503,16 @@ export function ZoomCalendarGrid({
                                 "h-full flex flex-col min-w-0 flex-1 overflow-hidden",
                                 booking.rowSpan === 1 ? "p-1.5" : "p-2"
                             )}>
-                                <div className="font-bold text-[11px] truncate flex items-center gap-1">
+                                <div className="font-bold text-xs truncate flex items-center gap-1">
                                     <Video className="h-3 w-3 shrink-0" />
                                     <span className="truncate">{booking.title}</span>
                                 </div>
                                 {booking.rowSpan >= 2 && (
                                     <div className="flex flex-col min-h-0 mt-0.5">
-                                        <div className="text-[11px] font-medium opacity-90 truncate">
+                                        <div className="text-xs font-medium opacity-90 truncate">
                                             {booking.startTime} - {booking.endTime}
                                         </div>
-                                        <div className="text-[10px] opacity-75 truncate">
+                                        <div className="text-xs opacity-75 truncate">
                                             {booking.bookedBy}
                                         </div>
                                     </div>
@@ -531,7 +531,7 @@ export function ZoomCalendarGrid({
                 >
                     <div className="w-3 h-3 -ml-1.5 rounded-full bg-red-500 shadow-lg shadow-red-500/50 animate-pulse" />
                     <div className="flex-1 h-0.5 bg-gradient-to-r from-red-500 to-red-400 shadow-sm" />
-                    <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-l-md shadow-lg">
+                    <div className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-l-md shadow-lg">
                         {format(currentTime, 'HH:mm')}
                     </div>
                 </div>

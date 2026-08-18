@@ -108,7 +108,7 @@ export const KeyboardShortcutsHelp: React.FC<{ isOpen: boolean; onClose: () => v
                 </div>
                 <button
                     onClick={onClose}
-                    className="mt-6 w-full py-2 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90"
+                    className="mt-6 w-full py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90"
                 >
                     Close
                 </button>

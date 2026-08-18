@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -13,6 +13,7 @@ import {
     CheckCircle2,
     Flame,
     ChevronLeft,
+    ChevronRight,
     Eye,
     UserPlus,
     X,
@@ -20,14 +21,16 @@ import {
     ArrowRight,
     TrendingUp,
     Plus,
-    Ticket,
+    Ticket as TicketIcon,
+    Search,
+    Filter,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
-import { AgentSelectList } from './AgentSelectList';
+import { AgentSelectList, Agent } from './AgentSelectList';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
@@ -40,28 +43,12 @@ import {
 } from '@/components/ui/select';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { KanbanBoardSkeleton } from './KanbanSkeleton';
+import { UserAvatar } from '@/components/ui/UserAvatar';
+import { SiteSelector } from '@/components/site/SiteSelector';
 
-// Helper function to generate consistent color from name hash
-const getAvatarGradient = (name: string): string => {
-    if (!name) return 'from-slate-400 to-slate-500';
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const gradients = [
-        'from-blue-400 to-blue-600',
-        'from-purple-400 to-purple-600',
-        'from-emerald-400 to-emerald-600',
-        'from-rose-400 to-rose-600',
-        'from-amber-400 to-amber-600',
-        'from-cyan-400 to-cyan-600',
-        'from-indigo-400 to-indigo-600',
-        'from-pink-400 to-pink-600',
-    ];
-    return gradients[Math.abs(hash) % gradients.length];
-};
+// SLA warning threshold: 4 hours in milliseconds
+const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
 
-// Proper types for messages and attachments
 interface Message {
     id: string;
     content: string;
@@ -87,38 +74,50 @@ interface Ticket {
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
     slaTarget?: string;
-    assignedTo?: { id: string; fullName: string };
-    user?: { fullName: string; department?: { name: string } };
+    assignedTo?: { id: string; fullName: string; email?: string; avatarUrl?: string; role?: string };
+    user?: { id?: string; fullName: string; avatarUrl?: string; department?: { name: string } };
+    site?: { id: string; code: string; name: string };
     messages?: Message[];
     attachments?: Attachment[];
     createdAt: string;
 }
 
-interface Agent {
-    id: string;
-    fullName: string;
-    email: string;
-    role: string;
-    avatarUrl?: string;
-    site?: { code: string; name: string };
-}
-
-// SLA warning threshold: 4 hours in milliseconds
-const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
-
-// Helper function to get column accent color
-const getColumnAccentColor = (columnId: string): string => {
-    const colors: Record<string, string> = {
-        'TODO': '#64748b',        // slate-500
-        'IN_PROGRESS': '#3b82f6', // blue-500
-        'WAITING_VENDOR': '#f97316', // orange-500
-        'RESOLVED': '#22c55e',    // green-500
-        'CANCELLED': '#ef4444',   // red-500
-    };
-    return colors[columnId] || '#64748b';
+// Column accent indicator colors
+const COLUMN_ACCENTS: Record<string, { dot: string; border: string; bg: string; text: string }> = {
+    TODO: {
+        dot: 'bg-slate-500',
+        border: 'border-slate-500/30',
+        bg: 'bg-slate-500/10',
+        text: 'text-slate-700 dark:text-slate-300',
+    },
+    IN_PROGRESS: {
+        dot: 'bg-blue-500',
+        border: 'border-blue-500/30',
+        bg: 'bg-blue-500/10',
+        text: 'text-blue-600 dark:text-blue-400',
+    },
+    WAITING_VENDOR: {
+        dot: 'bg-amber-500',
+        border: 'border-amber-500/30',
+        bg: 'bg-amber-500/10',
+        text: 'text-amber-600 dark:text-amber-400',
+    },
+    RESOLVED: {
+        dot: 'bg-emerald-500',
+        border: 'border-emerald-500/30',
+        bg: 'bg-emerald-500/10',
+        text: 'text-emerald-600 dark:text-emerald-400',
+    },
+    CANCELLED: {
+        dot: 'bg-destructive',
+        border: 'border-destructive/30',
+        bg: 'bg-destructive/10',
+        text: 'text-destructive',
+    },
 };
 
-const StatsCard: React.FC<{
+// Compact modern Stats metric tile
+const StatsMetricTile: React.FC<{
     icon: React.ElementType;
     label: string;
     value: number;
@@ -126,208 +125,187 @@ const StatsCard: React.FC<{
     bgColor: string;
     highlight?: boolean;
     onClick?: () => void;
-    active?: boolean;
-}> = ({ icon: Icon, label, value, color, bgColor, highlight, onClick, active }) => (
+    isActive?: boolean;
+}> = ({ icon: Icon, label, value, color, bgColor, highlight, onClick, isActive }) => (
     <button
+        type="button"
         onClick={onClick}
         className={cn(
-            "bg-white dark:bg-slate-800 rounded-xl px-5 py-4 border transition-colors duration-150",
-            "hover:shadow-lg hover:-translate-y-0.5",
-            active ? "border-primary ring-2 ring-primary/30 shadow-primary/10 shadow-lg" : "border-slate-200 dark:border-slate-700",
-            highlight && value > 0 && "border-red-300 dark:border-red-800 animate-pulse"
+            "flex items-center justify-between p-3 rounded-xl border bg-card text-left transition-all duration-200 cursor-pointer shadow-xs",
+            "hover:bg-muted/50 hover:shadow-xs",
+            isActive
+                ? "ring-1 ring-primary border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
+                : "border-border",
+            highlight && value > 0 && !isActive && "border-destructive/40 bg-destructive/5"
         )}
     >
-        <div className="flex items-center gap-3">
-            <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shadow-sm", bgColor)}>
-                <Icon className={cn("w-5 h-5", color)} />
-            </div>
-            <div className="text-left">
-                <p className={cn("text-2xl font-bold", color)}>{value}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{label}</p>
-            </div>
+        <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate">{label}</p>
+            <p className={cn("text-xl font-extrabold tracking-tight tabular-nums mt-0.5", color)}>
+                {value}
+            </p>
+        </div>
+        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ml-2", bgColor)}>
+            <Icon className={cn("w-4 h-4", color)} />
         </div>
     </button>
 );
 
+// Enhanced Linear-style Kanban card
 const EnhancedKanbanCard: React.FC<{
     ticket: Ticket;
     index: number;
     onSelect: () => void;
     onQuickAssign: () => void;
 }> = ({ ticket, index, onSelect, onQuickAssign }) => {
-    const [showActions, setShowActions] = useState(false);
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const PriorityIcon = priorityConfig.icon;
 
-    // Memoize date calculations to avoid creating new Date objects on every render
     const { isOverdue, isApproaching } = useMemo(() => {
-        if (!ticket.slaTarget) return { isOverdue: false, isApproaching: false };
+        if (!ticket.slaTarget || ticket.status === 'RESOLVED') return { isOverdue: false, isApproaching: false };
         const slaTime = new Date(ticket.slaTarget).getTime();
         const now = Date.now();
         return {
             isOverdue: slaTime < now,
-            isApproaching: slaTime >= now && (slaTime - now) < SLA_WARNING_THRESHOLD_MS
+            isApproaching: slaTime >= now && (slaTime - now) < SLA_WARNING_THRESHOLD_MS,
         };
-    }, [ticket.slaTarget]);
+    }, [ticket.slaTarget, ticket.status]);
 
     return (
         <Draggable draggableId={ticket.id} index={index}>
-            {(provided: any, snapshot: any) => (
+            {(provided, snapshot) => (
                 <div
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    onMouseEnter={() => setShowActions(true)}
-                    onMouseLeave={() => setShowActions(false)}
                     style={{
                         ...provided.draggableProps.style,
-                        // Remove any transforms that might cause offset issues
                     }}
                     className={cn(
-                        "bg-white dark:bg-slate-800 rounded-xl border transition-[opacity,transform,colors] duration-200 ease-out",
-                        "hover:shadow-lg hover:shadow-black/5 cursor-grab group",
-                        snapshot.isDragging && "shadow-2xl ring-2 ring-primary/50 cursor-grabbing scale-[1.02]",
-                        // Resolved tickets get success border, NOT urgency styling
-                        ticket.status === 'RESOLVED' && "border-green-300 dark:border-green-700",
-                        // Only show urgency for non-resolved tickets
-                        ticket.status !== 'RESOLVED' && isOverdue && "border-red-300 dark:border-red-800 animate-overdue",
-                        ticket.status !== 'RESOLVED' && isApproaching && !isOverdue && "border-orange-300 dark:border-orange-800 animate-sla-warning",
-                        ticket.status !== 'RESOLVED' && !isOverdue && !isApproaching && "border-slate-200 dark:border-slate-700",
-                        ticket.status !== 'RESOLVED' && ticket.priority === 'CRITICAL' && !isOverdue && "animate-critical-pulse ring-2 ring-red-500/20",
-                        ticket.status !== 'RESOLVED' && ticket.priority === 'HIGH' && !isOverdue && !isApproaching && "animate-high-priority"
+                        "rounded-xl border bg-card p-3 transition-all duration-150 group relative select-none cursor-grab active:cursor-grabbing",
+                        "hover:shadow-md hover:border-primary/40",
+                        snapshot.isDragging
+                            ? "shadow-2xl ring-2 ring-primary border-primary scale-[1.02] z-50 bg-card/95 backdrop-blur-sm"
+                            : "border-border/90 shadow-xs",
+                        isOverdue && "!border-destructive/50 bg-destructive/5",
+                        ticket.priority === 'CRITICAL' && !isOverdue && "border-destructive/40"
                     )}
                 >
-                    {/* Priority Bar - Enhanced with gradient */}
-                    <div className={cn(
-                        "h-1.5 rounded-t-xl bg-gradient-to-r shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]",
-                        priorityConfig.barColor,
-                        ticket.priority === 'CRITICAL' && "from-red-500 to-red-600 shadow-[0_2px_8px_rgba(239,68,68,0.4)]",
-                        ticket.priority === 'HIGH' && "from-orange-400 to-orange-500 shadow-[0_2px_6px_rgba(251,146,60,0.3)]",
-                        ticket.priority === 'MEDIUM' && "from-yellow-400 to-yellow-500",
-                        ticket.priority === 'LOW' && "from-slate-300 to-slate-400",
-                        ticket.status === 'RESOLVED' && "from-green-400 to-green-500"
-                    )} />
+                    {/* Top Meta Row */}
+                    <div className="flex items-center justify-between gap-1.5 mb-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono text-[11px] font-bold text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border/50 truncate">
+                                #{ticket.ticketNumber || ticket.id.slice(0, 8)}
+                            </span>
 
-                    <div className="p-3">
-                        {/* Header */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
-                                    #{ticket.ticketNumber || ticket.id.slice(0, 8)}
-                                </span>
-                                {ticket.priority === 'CRITICAL' && (
-                                    <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse-red" />
-                                )}
-                            </div>
-
-                            {/* Quick Actions */}
-                            <div className={cn(
-                                "flex items-center gap-0.5 transition-opacity",
-                                showActions ? "opacity-100" : "opacity-0"
-                            )}>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onSelect(); }}
-                                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                                    title="View Details"
-                                >
-                                    <Eye className="w-3.5 h-3.5 text-slate-400" />
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onQuickAssign(); }}
-                                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                                    title="Assign"
-                                >
-                                    <UserPlus className="w-3.5 h-3.5 text-slate-400" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Title with Quick Preview */}
-                        <TicketQuickPreview ticket={ticket} side="right">
-                            <h4
-                                onClick={onSelect}
-                                className="font-semibold text-slate-800 dark:text-white text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors"
-                            >
-                                {ticket.title}
-                            </h4>
-                        </TicketQuickPreview>
-
-                        {/* Category & Priority */}
-                        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                             {ticket.category && (
-                                <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-500">
+                                <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded truncate max-w-[90px]">
                                     {ticket.category}
                                 </span>
                             )}
+                        </div>
+
+                        {/* Priority Badge & Quick Action Buttons */}
+                        <div className="flex items-center gap-1 shrink-0">
                             <span className={cn(
-                                "text-[10px] px-1.5 py-0.5 rounded font-medium inline-flex items-center gap-1",
-                                priorityConfig.badgeColor
+                                "text-[10px] px-1.5 py-0.5 rounded font-semibold inline-flex items-center gap-1 border",
+                                priorityConfig.badgeColor || 'bg-muted text-muted-foreground border-border'
                             )}>
                                 {PriorityIcon && <PriorityIcon className="w-2.5 h-2.5" />}
-                                {priorityConfig.label}
+                                <span>{priorityConfig.label}</span>
                             </span>
-                        </div>
 
-                        {/* SLA Target */}
-                        {ticket.slaTarget && ticket.status !== 'RESOLVED' && (
-                            <div className={cn(
-                                "flex items-center gap-1.5 text-[10px] mb-2 px-2 py-1 rounded",
-                                isOverdue && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                                isApproaching && !isOverdue && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-                                !isOverdue && !isApproaching && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                            )}>
-                                {isOverdue ? (
-                                    <AlertTriangle className="w-3 h-3 animate-pulse-red" />
-                                ) : (
-                                    <Clock className="w-3 h-3" />
-                                )}
-                                <span className="font-medium">
-                                    {isOverdue ? 'Overdue' : format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}
-                                </span>
-                            </div>
-                        )}
-
-                        {/* Footer */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center gap-1.5">
-                                {/* Requester Avatar with dynamic gradient */}
-                                <div
-                                    className={cn(
-                                        "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-800 shadow-sm",
-                                        getAvatarGradient(ticket.user?.fullName || '')
-                                    )}
-                                    title={ticket.user?.fullName}
+                            {/* Quick Actions (visible on hover) */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 ml-1">
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onSelect(); }}
+                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                                    title="Detail & Pratinjau"
                                 >
-                                    {ticket.user?.fullName?.charAt(0) || '?'}
-                                </div>
-                                {ticket.assignedTo ? (
-                                    <>
-                                        <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
-                                        {/* Assignee Avatar with dynamic gradient */}
-                                        <div
-                                            className={cn(
-                                                "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-800 shadow-sm",
-                                                getAvatarGradient(ticket.assignedTo.fullName)
-                                            )}
-                                            title={ticket.assignedTo.fullName}
-                                        >
-                                            {ticket.assignedTo.fullName.charAt(0)}
-                                        </div>
-                                    </>
-                                ) : (
-                                    <span className="text-[10px] text-orange-500 dark:text-orange-400 font-medium bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded">Unassigned</span>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-2 text-slate-400">
-                                {ticket.messages && ticket.messages.length > 0 && (
-                                    <span className="flex items-center gap-0.5 text-[10px]">
-                                        <MessageSquare className="w-3 h-3" />
-                                        {ticket.messages.length}
-                                    </span>
-                                )}
+                                    <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onQuickAssign(); }}
+                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                                    title="Tugaskan Agent"
+                                >
+                                    <UserPlus className="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Ticket Title */}
+                    <TicketQuickPreview ticket={ticket as any} side="right">
+                        <h4
+                            onClick={onSelect}
+                            className="font-bold text-xs sm:text-sm text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors cursor-pointer leading-snug"
+                        >
+                            {ticket.title}
+                        </h4>
+                    </TicketQuickPreview>
+
+                    {/* SLA / Target Date Pill if active */}
+                    {ticket.slaTarget && ticket.status !== 'RESOLVED' && (
+                        <div className="mb-2.5">
+                            {isOverdue ? (
+                                <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
+                                    <AlertTriangle className="w-3 h-3 animate-pulse" />
+                                    <span>Overdue: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
+                                </div>
+                            ) : isApproaching ? (
+                                <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                    <Clock className="w-3 h-3" />
+                                    <span>Due soon: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
+                                </div>
+                            ) : (
+                                <div className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                                    <Clock className="w-3 h-3" />
+                                    <span>Target: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Bottom Footer Row */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                        {/* Users: Requester -> Assignee */}
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <UserAvatar
+                                user={ticket.user}
+                                size="xs"
+                                className="ring-1 ring-border shrink-0"
+                            />
+
+                            <ArrowRight className="w-2.5 h-2.5 text-muted-foreground/60 shrink-0" />
+
+                            {ticket.assignedTo ? (
+                                <div className="flex items-center gap-1 min-w-0 max-w-[120px]" title={`PIC: ${ticket.assignedTo.fullName}`}>
+                                    <UserAvatar
+                                        user={ticket.assignedTo}
+                                        size="xs"
+                                        className="ring-1 ring-border shrink-0"
+                                    />
+                                    <span className="text-[11px] font-semibold text-foreground truncate">
+                                        {ticket.assignedTo.fullName}
+                                    </span>
+                                </div>
+                            ) : (
+                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                    Unassigned
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Messages Counter */}
+                        {ticket.messages && ticket.messages.length > 0 && (
+                            <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground shrink-0 ml-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span>{ticket.messages.length}</span>
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
@@ -335,6 +313,7 @@ const EnhancedKanbanCard: React.FC<{
     );
 };
 
+// Kanban Column with independent vertical scroll
 const KanbanColumn: React.FC<{
     column: typeof KANBAN_COLUMNS[number];
     tickets: Ticket[];
@@ -343,21 +322,20 @@ const KanbanColumn: React.FC<{
     onCardSelect: (ticket: Ticket) => void;
     onQuickAssign: (ticketId: string) => void;
 }> = ({ column, tickets, isCollapsed, onToggleCollapse, onCardSelect, onQuickAssign }) => {
-    const Icon = column.icon;
+    const accent = COLUMN_ACCENTS[column.id] || COLUMN_ACCENTS.TODO;
 
     if (isCollapsed) {
         return (
             <div
-                className="w-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex flex-col items-center py-4 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0"
                 onClick={onToggleCollapse}
+                className="w-12 h-full bg-card border border-border rounded-2xl flex flex-col items-center py-4 cursor-pointer hover:bg-muted/60 transition-colors shrink-0 select-none shadow-xs"
+                title={`Buka kolom ${column.title}`}
             >
-                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3", column.columnColor)}>
-                    <Icon className="w-4 h-4 text-white" />
-                </div>
-                <span className="[writing-mode:vertical-rl] text-xs font-bold text-slate-500 dark:text-slate-400 rotate-180">
+                <div className={cn("w-2.5 h-2.5 rounded-full mb-3", accent.dot)} />
+                <span className="[writing-mode:vertical-rl] text-xs font-bold text-foreground rotate-180 tracking-wider">
                     {column.title}
                 </span>
-                <span className="mt-3 bg-white dark:bg-slate-700 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 shadow-sm">
+                <span className="mt-auto bg-muted border border-border w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">
                     {tickets.length}
                 </span>
             </div>
@@ -365,41 +343,35 @@ const KanbanColumn: React.FC<{
     }
 
     return (
-        <div className="flex-1 min-w-[300px] flex flex-col bg-slate-50 dark:bg-slate-900/50 rounded-2xl overflow-hidden shadow-sm">
-            {/* Column Header - Enhanced with accent border using actual color */}
-            <div
-                className="p-4 bg-white dark:bg-slate-800"
-                style={{ borderBottom: `3px solid ${getColumnAccentColor(column.id)}` }}
-            >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-md", column.columnColor)}>
-                            <Icon className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-base text-slate-800 dark:text-white">{column.title}</h3>
-                            <p className="text-xs text-slate-500 font-medium">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onToggleCollapse}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:scale-105"
-                        title="Collapse column"
-                    >
-                        <ChevronLeft className="w-4 h-4 text-slate-400" />
-                    </button>
+        <div className="flex-1 min-w-[290px] max-w-[370px] h-full flex flex-col rounded-2xl border border-border bg-card/60 dark:bg-card/40 shadow-xs overflow-hidden">
+            {/* Pinned Column Header */}
+            <div className="shrink-0 px-3.5 py-3 bg-card border-b border-border/80 flex items-center justify-between select-none">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", accent.dot)} />
+                    <h3 className="font-bold text-sm text-foreground truncate">{column.title}</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono text-xs font-bold border border-border/60">
+                        {tickets.length}
+                    </span>
                 </div>
+                <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                    title="Ciutkan kolom"
+                >
+                    <ChevronLeft className="w-4 h-4" />
+                </button>
             </div>
 
-            {/* Cards Area */}
+            {/* Independent Scrollable Cards Container */}
             <Droppable droppableId={column.id}>
-                {(provided: any, snapshot: any) => (
+                {(provided, snapshot) => (
                     <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                            "flex-1 overflow-y-auto p-2 space-y-2",
-                            snapshot.isDraggingOver && "bg-primary/5 ring-2 ring-primary/30 ring-inset"
+                            "flex-1 min-h-0 overflow-y-auto p-2 space-y-2.5 custom-scrollbar transition-colors",
+                            snapshot.isDraggingOver && "bg-primary/5 ring-2 ring-primary/30 ring-inset rounded-xl"
                         )}
                     >
                         {tickets.map((ticket, index) => (
@@ -413,19 +385,19 @@ const KanbanColumn: React.FC<{
                         ))}
                         {provided.placeholder}
 
-                        {column.id === 'RESOLVED' && tickets.length === 50 && (
-                            <div className="text-center p-2 text-[11px] font-semibold text-slate-400 bg-white dark:bg-slate-800 rounded-xl mt-3 shadow-sm border border-slate-100 dark:border-slate-700">
-                                🔒 Showing 50 most recent tickets
+                        {column.id === 'RESOLVED' && tickets.length >= 50 && (
+                            <div className="text-center p-2 text-[11px] font-semibold text-muted-foreground bg-muted/60 rounded-xl mt-2 border border-border/50">
+                                🔒 Menampilkan 50 tiket terselesaikan terbaru
                             </div>
                         )}
 
                         {tickets.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                                <div className="w-16 h-16 mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center shadow-inner">
-                                    <Inbox className="w-8 h-8 opacity-40" />
+                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                                <div className="w-12 h-12 mb-2 rounded-2xl bg-muted/60 flex items-center justify-center border border-border/40">
+                                    <Inbox className="w-6 h-6 opacity-40" />
                                 </div>
-                                <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">No tickets here</span>
-                                <span className="text-xs opacity-70">Drag cards here to update status</span>
+                                <span className="text-xs font-bold text-foreground mb-0.5">Tidak ada tiket</span>
+                                <span className="text-[11px] text-muted-foreground text-center">Tarik tiket ke sini untuk memindahkan status</span>
                             </div>
                         )}
                     </div>
@@ -435,6 +407,7 @@ const KanbanColumn: React.FC<{
     );
 };
 
+// Side Drawer Quick Preview Panel
 const TicketPreviewPanel: React.FC<{
     ticket: Ticket;
     agents: Agent[];
@@ -453,42 +426,49 @@ const TicketPreviewPanel: React.FC<{
     const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
 
     return (
-        <div className="w-[380px] bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col shrink-0">
+        <div className="w-[380px] max-w-full h-full bg-card border-l border-border flex flex-col shrink-0 shadow-2xl z-20 overflow-hidden animate-in slide-in-from-right duration-200">
             {/* Header */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm text-slate-500">#{ticket.ticketNumber}</span>
+            <div className="p-4 border-b border-border flex items-center justify-between shrink-0 bg-muted/30">
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                        #{ticket.ticketNumber || ticket.id.slice(0, 8)}
+                    </span>
                     {ticket.priority === 'CRITICAL' && (
-                        <Flame className="w-4 h-4 text-red-500 animate-pulse" />
+                        <Flame className="w-4 h-4 text-destructive animate-pulse" />
                     )}
                 </div>
                 <div className="flex items-center gap-1">
                     <button
+                        type="button"
                         onClick={onOpenFull}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                        title="Open Full View"
+                        className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors cursor-pointer"
+                        title="Buka Halaman Lengkap"
                     >
-                        <Maximize2 className="w-4 h-4 text-slate-400" />
+                        <Maximize2 className="w-4 h-4" />
                     </button>
                     <button
+                        type="button"
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                        className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors cursor-pointer"
+                        title="Tutup"
                     >
-                        <X className="w-4 h-4 text-slate-400" />
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">
-                    {ticket.title}
-                </h2>
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                <div>
+                    <h2 className="text-base font-bold text-foreground leading-snug">
+                        {ticket.title}
+                    </h2>
+                </div>
 
-                {/* Quick Actions */}
+                {/* Quick Status & Priority */}
                 <div className="flex flex-wrap gap-2">
                     <Select value={ticket.status} onValueChange={onStatusChange}>
-                        <SelectTrigger className={cn("h-8 w-[130px] border-0 text-xs", statusConfig.color)}>
+                        <SelectTrigger className={cn("h-8 w-auto min-w-[125px] text-xs font-semibold rounded-lg", statusConfig.color)}>
                             <SelectValue>
                                 <span className="flex items-center gap-1.5">
                                     <StatusIcon className="w-3 h-3" />
@@ -496,13 +476,13 @@ const TicketPreviewPanel: React.FC<{
                                 </span>
                             </SelectValue>
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border bg-popover shadow-xl z-50">
                             {Object.entries(STATUS_CONFIG).filter(([k]) => k !== 'CANCELLED').map(([key, cfg]) => {
                                 const SIcon = cfg.icon;
                                 return (
-                                    <SelectItem key={key} value={key}>
+                                    <SelectItem key={key} value={key} className="text-xs py-2 rounded-lg cursor-pointer">
                                         <span className="flex items-center gap-1.5">
-                                            <SIcon className="w-3 h-3" />
+                                            <SIcon className="w-3.5 h-3.5" />
                                             {cfg.label}
                                         </span>
                                     </SelectItem>
@@ -511,15 +491,14 @@ const TicketPreviewPanel: React.FC<{
                         </SelectContent>
                     </Select>
 
-                    {/* Priority - show static badge if system-locked, otherwise dropdown */}
                     {priorityConfig.isSystemLocked ? (
-                        <span className={cn("inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium", priorityConfig.badgeColor)}>
+                        <span className={cn("inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border", priorityConfig.badgeColor)}>
                             {PriorityIcon && <PriorityIcon className="w-3 h-3" />}
                             {priorityConfig.label}
                         </span>
                     ) : (
                         <Select value={ticket.priority} onValueChange={onPriorityChange}>
-                            <SelectTrigger className={cn("h-8 w-[110px] border-0 text-xs", priorityConfig.badgeColor)}>
+                            <SelectTrigger className={cn("h-8 w-auto min-w-[110px] text-xs font-semibold rounded-lg", priorityConfig.badgeColor)}>
                                 <SelectValue>
                                     <span className="flex items-center gap-1.5">
                                         {PriorityIcon && <PriorityIcon className="w-3 h-3" />}
@@ -527,43 +506,45 @@ const TicketPreviewPanel: React.FC<{
                                     </span>
                                 </SelectValue>
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="rounded-xl border-border bg-popover shadow-xl z-50">
                                 {Object.entries(PRIORITY_CONFIG)
                                     .filter(([, cfg]) => !cfg.isSystemLocked)
                                     .map(([key, cfg]) => {
                                         const PIcon = cfg.icon;
                                         return (
-                                            <SelectItem key={key} value={key}>
+                                            <SelectItem key={key} value={key} className="text-xs py-2 rounded-lg cursor-pointer">
                                                 <span className="flex items-center gap-1.5">
-                                                    {PIcon && <PIcon className="w-3 h-3" />}
+                                                    {PIcon && <PIcon className="w-3.5 h-3.5" />}
                                                     {cfg.label}
                                                 </span>
                                             </SelectItem>
                                         );
-                                    })
-                                }
+                                    })}
                             </SelectContent>
                         </Select>
                     )}
                 </div>
 
-                {/* Assignee */}
-                <div>
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Assigned To</label>
+                {/* Assigned To Section */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-muted-foreground block">PIC Agent (Assigned To)</label>
                     <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
                         <PopoverTrigger asChild>
                             <button
                                 type="button"
-                                className="h-9 w-full flex items-center gap-2 px-3 text-sm border border-[hsl(var(--border))] rounded-md bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                                className="h-9 w-full flex items-center justify-between gap-2 px-3 text-xs border border-border rounded-xl bg-background hover:bg-muted/50 transition-colors cursor-pointer"
                             >
                                 {ticket.assignedTo ? (
-                                    <span className="flex-1 text-left font-medium">{ticket.assignedTo.fullName}</span>
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <UserAvatar user={ticket.assignedTo} size="xs" />
+                                        <span className="truncate font-semibold text-foreground">{ticket.assignedTo.fullName}</span>
+                                    </div>
                                 ) : (
-                                    <span className="flex-1 text-left text-slate-400">Unassigned</span>
+                                    <span className="text-muted-foreground italic">Unassigned (Belum Ditugaskan)</span>
                                 )}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent className="p-0 w-72" align="start">
+                        <PopoverContent className="p-0 w-80 shadow-2xl border-border bg-card overflow-hidden rounded-xl" align="start" sideOffset={4}>
                             <AgentSelectList
                                 agents={agents}
                                 selectedId={ticket.assignedTo?.id}
@@ -577,23 +558,23 @@ const TicketPreviewPanel: React.FC<{
                     </Popover>
                 </div>
 
-                {/* Info */}
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                {/* Metadata Grid */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-muted/40 rounded-xl border border-border/60 text-xs">
                     <div>
-                        <p className="text-xs text-slate-500">Requester</p>
-                        <p className="font-medium text-slate-800 dark:text-white">{ticket.user?.fullName}</p>
+                        <p className="text-[11px] font-medium text-muted-foreground">Pemohon</p>
+                        <p className="font-bold text-foreground truncate mt-0.5">{ticket.user?.fullName || '-'}</p>
                     </div>
                     <div>
-                        <p className="text-xs text-slate-500">Category</p>
-                        <p className="font-medium text-slate-800 dark:text-white">{ticket.category || '-'}</p>
+                        <p className="text-[11px] font-medium text-muted-foreground">Kategori</p>
+                        <p className="font-bold text-foreground truncate mt-0.5">{ticket.category || '-'}</p>
                     </div>
                     <div>
-                        <p className="text-xs text-slate-500">Created</p>
-                        <p className="font-medium text-slate-800 dark:text-white">{format(new Date(ticket.createdAt), 'dd MMM yyyy')}</p>
+                        <p className="text-[11px] font-medium text-muted-foreground">Dibuat</p>
+                        <p className="font-bold text-foreground truncate mt-0.5">{format(new Date(ticket.createdAt), 'dd MMM yyyy')}</p>
                     </div>
                     <div>
-                        <p className="text-xs text-slate-500">Target</p>
-                        <p className={cn("font-medium", ticket.isOverdue ? "text-red-500" : "text-slate-800 dark:text-white")}>
+                        <p className="text-[11px] font-medium text-muted-foreground">Target SLA</p>
+                        <p className={cn("font-bold truncate mt-0.5", ticket.isOverdue ? "text-destructive" : "text-foreground")}>
                             {ticket.slaTarget ? format(new Date(ticket.slaTarget), 'dd MMM HH:mm') : '-'}
                         </p>
                     </div>
@@ -601,39 +582,38 @@ const TicketPreviewPanel: React.FC<{
 
                 {/* Description */}
                 {ticket.description && (
-                    <div>
-                        <p className="text-xs text-slate-500 mb-1">Description</p>
-                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                    <div className="space-y-1">
+                        <p className="text-xs font-bold text-muted-foreground">Deskripsi</p>
+                        <div className="p-3 bg-muted/30 rounded-xl border border-border text-xs text-foreground whitespace-pre-wrap leading-relaxed">
                             {ticket.description}
-                        </p>
+                        </div>
                     </div>
                 )}
 
-                {/* Messages Preview */}
+                {/* Messages Count */}
                 {ticket.messages && ticket.messages.length > 0 && (
-                    <div>
-                        <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            {ticket.messages.length} messages
-                        </p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <MessageSquare className="w-4 h-4 text-primary" />
+                        <span className="font-semibold">{ticket.messages.length} Pesan diskusi pada tiket</span>
                     </div>
                 )}
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+            {/* Fixed Footer */}
+            <div className="p-3 border-t border-border shrink-0 bg-muted/20">
                 <button
+                    type="button"
                     onClick={onOpenFull}
-                    className="w-full py-2.5 bg-primary text-slate-900 font-medium rounded-xl hover:bg-primary/90 transition-colors"
+                    className="w-full py-2.5 bg-primary text-primary-foreground font-bold text-xs rounded-xl hover:bg-primary/90 transition-colors shadow-xs cursor-pointer"
                 >
-                    Open Full Details
+                    Buka Detail Lengkap Tiket
                 </button>
             </div>
         </div>
     );
 };
 
-export const BentoTicketKanban = () => {
+export const BentoTicketKanban: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();
@@ -641,6 +621,8 @@ export const BentoTicketKanban = () => {
     const [collapsedColumns, setCollapsedColumns] = useState<string[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [filter, setFilter] = useState<'all' | 'my' | 'overdue' | 'critical'>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedSites, setSelectedSites] = useState<string[]>([]);
 
     const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
         queryKey: ['tickets'],
@@ -648,6 +630,7 @@ export const BentoTicketKanban = () => {
             const res = await api.get('/tickets');
             return res.data;
         },
+        refetchInterval: 30000,
     });
 
     const isAdmin = user?.role === 'ADMIN';
@@ -668,36 +651,28 @@ export const BentoTicketKanban = () => {
             await api.patch(`/tickets/${id}/status`, { status });
         },
         onMutate: async ({ id, status }) => {
-            // Cancel any outgoing refetches
             await queryClient.cancelQueries({ queryKey: ['tickets'] });
-
-            // Snapshot the previous value
             const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
 
-            // Optimistically update to the new value
             queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
                 old?.map(t => t.id === id ? { ...t, status: status as Ticket['status'] } : t) ?? []
             );
 
-            // Update selected ticket if it's the one being moved
             if (selectedTicket?.id === id) {
                 setSelectedTicket(prev => prev ? { ...prev, status: status as Ticket['status'] } : null);
             }
 
-            // Return context with the snapshotted value
             return { previousTickets };
         },
         onError: (_, __, context) => {
-            // Rollback on error
             queryClient.setQueryData(['tickets'], context?.previousTickets);
-            toast.error('Failed to update status');
+            toast.error('Gagal memperbarui status');
         },
         onSettled: () => {
-            // Always refetch after error or success to ensure consistency
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
-        onSuccess: () => toast.success('Status updated'),
+        onSuccess: () => toast.success('Status tiket diperbarui'),
     });
 
     const updatePriorityMutation = useMutation({
@@ -705,7 +680,6 @@ export const BentoTicketKanban = () => {
             await api.patch(`/tickets/${id}/priority`, { priority });
         },
         onMutate: async ({ id, priority }) => {
-            // Optimistic update
             await queryClient.cancelQueries({ queryKey: ['tickets'] });
             const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
 
@@ -713,7 +687,6 @@ export const BentoTicketKanban = () => {
                 old?.map(t => t.id === id ? { ...t, priority: priority as Ticket['priority'] } : t) ?? []
             );
 
-            // Update selected ticket if it's the one being modified
             if (selectedTicket?.id === id) {
                 setSelectedTicket(prev => prev ? { ...prev, priority: priority as Ticket['priority'] } : null);
             }
@@ -722,13 +695,13 @@ export const BentoTicketKanban = () => {
         },
         onError: (_, __, context) => {
             queryClient.setQueryData(['tickets'], context?.previousTickets);
-            toast.error('Failed to update priority');
+            toast.error('Gagal memperbarui prioritas');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
-        onSuccess: () => toast.success('Priority updated'),
+        onSuccess: () => toast.success('Prioritas diperbarui'),
     });
 
     const assignMutation = useMutation({
@@ -736,7 +709,6 @@ export const BentoTicketKanban = () => {
             await api.patch(`/tickets/${id}/assign`, { assigneeId });
         },
         onMutate: async ({ id, assigneeId }) => {
-            // Optimistic update
             await queryClient.cancelQueries({ queryKey: ['tickets'] });
             const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
             const assignee = agents.find(a => a.id === assigneeId);
@@ -745,8 +717,7 @@ export const BentoTicketKanban = () => {
                 old?.map(t => t.id === id ? { ...t, assignedTo: assignee } : t) ?? []
             );
 
-            // Update selected ticket if it's the one being assigned
-            if (selectedTicket?.id === id && assignee) {
+            if (selectedTicket?.id === id) {
                 setSelectedTicket(prev => prev ? { ...prev, assignedTo: assignee } : null);
             }
 
@@ -754,24 +725,45 @@ export const BentoTicketKanban = () => {
         },
         onError: (_, __, context) => {
             queryClient.setQueryData(['tickets'], context?.previousTickets);
-            toast.error('Failed to assign');
+            toast.error('Gagal menugaskan agent');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
-        onSuccess: () => toast.success('Ticket assigned'),
+        onSuccess: () => toast.success('Agent berhasil ditugaskan'),
     });
 
+    // Client-side filtering for Kanban
     const filteredTickets = useMemo(() => {
         let result = tickets;
+
+        // Quick filter pills
         if (filter === 'my') result = result.filter(t => t.assignedTo?.id === user?.id);
         if (filter === 'overdue') result = result.filter(t => t.isOverdue);
         if (filter === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
-        return result;
-    }, [tickets, filter, user]);
 
-    // Single-pass stats computation - O(n) instead of O(6n)
+        // Site filter
+        if (selectedSites.length > 0) {
+            result = result.filter(t => t.site?.id && selectedSites.includes(t.site.id));
+        }
+
+        // Live search filter
+        if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            result = result.filter(t =>
+                t.title.toLowerCase().includes(q) ||
+                (t.ticketNumber && t.ticketNumber.toLowerCase().includes(q)) ||
+                (t.user?.fullName && t.user.fullName.toLowerCase().includes(q)) ||
+                (t.assignedTo?.fullName && t.assignedTo.fullName.toLowerCase().includes(q)) ||
+                (t.category && t.category.toLowerCase().includes(q))
+            );
+        }
+
+        return result;
+    }, [tickets, filter, user?.id, selectedSites, searchQuery]);
+
+    // Compute live stats for top cards
     const stats = useMemo(() => {
         return tickets.reduce(
             (acc, t) => {
@@ -805,135 +797,213 @@ export const BentoTicketKanban = () => {
         if (ticket) setSelectedTicket(ticket);
     }, [tickets]);
 
-    // Use imported skeleton component instead of defining inline
     if (isLoading) {
         return <KanbanBoardSkeleton />;
     }
 
     return (
-        <div className="h-full flex flex-col space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-                        <Ticket className="w-6 h-6 text-slate-900" />
+        <div className="h-full flex flex-col min-h-0 space-y-4 select-none">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                <div>
+                    <div className="flex items-center gap-2.5">
+                        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Kanban Board</h1>
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live
+                        </span>
                     </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Kanban Board</h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Drag and drop to update status</p>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Geser dan lepas kartu tiket untuk memperbarui status secara instan</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* New Ticket Button - Enhanced with gradient */}
+
+                <div className="flex items-center gap-2.5 shrink-0">
                     <button
+                        type="button"
                         onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary via-primary to-primary/90 text-slate-900 rounded-xl font-semibold hover:from-primary/90 hover:to-primary transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/35 hover:-translate-y-0.5 active:scale-95"
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-bold text-xs hover:bg-primary/90 transition-all shadow-xs cursor-pointer"
                     >
-                        <Plus className="w-4 h-4" />
-                        <span className="hidden sm:inline">New Ticket</span>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>New Ticket</span>
                     </button>
 
-                    {/* Quick Filters - Enhanced with active ring and better transitions */}
-                    <div className="hidden md:flex items-center gap-1 bg-white dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <button
-                            onClick={() => setFilter('all')}
-                            className={cn(
-                                "px-3 py-1.5 text-xs rounded-lg transition-colors duration-150",
-                                filter === 'all'
-                                    ? "bg-primary/10 text-primary font-semibold ring-2 ring-primary/20 shadow-sm"
-                                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
-                            )}
-                        >
-                            All
-                        </button>
-                        <button
-                            onClick={() => setFilter('my')}
-                            className={cn(
-                                "px-3 py-1.5 text-xs rounded-lg transition-colors duration-150 flex items-center gap-1",
-                                filter === 'my'
-                                    ? "bg-primary/10 text-primary font-semibold ring-2 ring-primary/20 shadow-sm"
-                                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
-                            )}
-                        >
-                            <UserCheck className="w-3 h-3" />
-                            My Tasks
-                        </button>
-                        <button
-                            onClick={() => setFilter('overdue')}
-                            className={cn(
-                                "px-3 py-1.5 text-xs rounded-lg transition-colors duration-150 flex items-center gap-1",
-                                filter === 'overdue'
-                                    ? "bg-red-100 text-red-600 font-semibold ring-2 ring-red-200 shadow-sm dark:bg-red-900/30 dark:ring-red-800"
-                                    : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            )}
-                        >
-                            <AlertTriangle className="w-3 h-3" />
-                            Overdue
-                            {stats.overdue > 0 && (
-                                <span className="ml-0.5 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
-                                    {stats.overdue}
-                                </span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setFilter('critical')}
-                            className={cn(
-                                "px-3 py-1.5 text-xs rounded-lg transition-colors duration-150 flex items-center gap-1",
-                                filter === 'critical'
-                                    ? "bg-red-100 text-red-600 font-semibold ring-2 ring-red-200 shadow-sm dark:bg-red-900/30 dark:ring-red-800"
-                                    : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            )}
-                        >
-                            <Flame className="w-3 h-3" />
-                            Critical
-                            {stats.critical > 0 && (
-                                <span className="ml-0.5 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
-                                    {stats.critical}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-
                     {/* View Toggle */}
-                    <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="flex bg-card p-1 rounded-xl border border-border shadow-xs">
                         <button
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-medium"
+                            type="button"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold"
                             title="Kanban Board"
                         >
-                            <Columns3 className="w-4 h-4" />
-                            <span className="text-xs font-medium hidden md:inline">Kanban</span>
+                            <Columns3 className="w-3.5 h-3.5" />
+                            <span className="hidden md:inline">Kanban</span>
                         </button>
                         <button
+                            type="button"
                             onClick={() => navigate('/tickets/list')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground hover:text-foreground rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                             title="Table View"
                         >
-                            <TableProperties className="w-4 h-4" />
-                            <span className="text-xs font-medium hidden md:inline">Table</span>
+                            <TableProperties className="w-3.5 h-3.5" />
+                            <span className="hidden md:inline">Table</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-slate-600 dark:text-slate-300" bgColor="bg-slate-100 dark:bg-slate-700" />
-                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-blue-600 dark:text-blue-400" bgColor="bg-blue-100 dark:bg-blue-900/30" />
-                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-100 dark:bg-amber-900/30" />
-                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-green-600 dark:text-green-400" bgColor="bg-green-100 dark:bg-green-900/30" />
-                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-red-600 dark:text-red-400" bgColor="bg-red-100 dark:bg-red-900/30" highlight onClick={() => setFilter('overdue')} active={filter === 'overdue'} />
-                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-red-600 dark:text-red-400" bgColor="bg-red-100 dark:bg-red-900/30" highlight onClick={() => setFilter('critical')} active={filter === 'critical'} />
+            {/* Interactive Stats Metric Tiles */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 shrink-0">
+                <StatsMetricTile
+                    icon={TrendingUp}
+                    label="Total"
+                    value={stats.total}
+                    color="text-primary"
+                    bgColor="bg-primary/10"
+                    onClick={() => setFilter('all')}
+                    isActive={filter === 'all'}
+                />
+                <StatsMetricTile
+                    icon={Inbox}
+                    label="Open"
+                    value={stats.open}
+                    color="text-blue-500"
+                    bgColor="bg-blue-500/10"
+                    onClick={() => setFilter('all')}
+                />
+                <StatsMetricTile
+                    icon={CircleDot}
+                    label="In Progress"
+                    value={stats.inProgress}
+                    color="text-amber-500"
+                    bgColor="bg-amber-500/10"
+                    onClick={() => setFilter('all')}
+                />
+                <StatsMetricTile
+                    icon={CheckCircle2}
+                    label="Resolved"
+                    value={stats.resolved}
+                    color="text-emerald-500"
+                    bgColor="bg-emerald-500/10"
+                    onClick={() => setFilter('all')}
+                />
+                <StatsMetricTile
+                    icon={AlertTriangle}
+                    label="Overdue"
+                    value={stats.overdue}
+                    color="text-destructive"
+                    bgColor="bg-destructive/10"
+                    highlight
+                    onClick={() => setFilter(filter === 'overdue' ? 'all' : 'overdue')}
+                    isActive={filter === 'overdue'}
+                />
+                <StatsMetricTile
+                    icon={Flame}
+                    label="Critical"
+                    value={stats.critical}
+                    color="text-destructive"
+                    bgColor="bg-destructive/10"
+                    highlight
+                    onClick={() => setFilter(filter === 'critical' ? 'all' : 'critical')}
+                    isActive={filter === 'critical'}
+                />
             </div>
 
-            {/* Main Content */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Kanban Columns */}
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2 bg-card rounded-2xl border border-border shrink-0 shadow-xs">
+                {/* Search Input */}
+                <div className="relative flex-1 max-w-md bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Cari tiket, pemohon, nomor, atau PIC..."
+                        className="w-full pl-9 pr-8 py-2 bg-transparent text-xs font-medium text-foreground placeholder:text-muted-foreground outline-none"
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto shrink-0 py-0.5">
+                    <button
+                        type="button"
+                        onClick={() => setFilter('all')}
+                        className={cn(
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                            filter === 'all'
+                                ? "bg-primary text-primary-foreground shadow-xs"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        )}
+                    >
+                        Semua ({tickets.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilter('my')}
+                        className={cn(
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                            filter === 'my'
+                                ? "bg-primary text-primary-foreground shadow-xs"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        )}
+                    >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>Tugas Saya</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilter('overdue')}
+                        className={cn(
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                            filter === 'overdue'
+                                ? "bg-destructive text-destructive-foreground shadow-xs"
+                                : "text-destructive hover:bg-destructive/10"
+                        )}
+                    >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Overdue ({stats.overdue})</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilter('critical')}
+                        className={cn(
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                            filter === 'critical'
+                                ? "bg-destructive text-destructive-foreground shadow-xs"
+                                : "text-destructive hover:bg-destructive/10"
+                        )}
+                    >
+                        <Flame className="w-3.5 h-3.5" />
+                        <span>Critical ({stats.critical})</span>
+                    </button>
+
+                    {/* Site Selector for Admin */}
+                    {isAdmin && (
+                        <div className="ml-1 pl-1 border-l border-border">
+                            <SiteSelector
+                                selectedSiteIds={selectedSites}
+                                onSelectionChange={setSelectedSites}
+                                mode="multi"
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Kanban Columns Board Area (Independent Vertical Scroll per Column) */}
+            <div className="flex-1 min-h-0 flex overflow-hidden">
                 <DragDropContext onDragEnd={onDragEnd}>
-                    <div className="flex-1 flex gap-3 p-4 overflow-x-auto">
+                    <div className="flex-1 min-h-0 flex gap-3.5 overflow-x-auto pb-1 items-stretch">
                         {KANBAN_COLUMNS.map((column) => {
                             let columnTickets = filteredTickets.filter(t => t.status === column.id);
 
-                            // Prevent DOM Overload: Limit Resolved array length
                             if (column.id === 'RESOLVED') {
                                 columnTickets = columnTickets.slice(0, 50);
                             }
@@ -953,7 +1023,7 @@ export const BentoTicketKanban = () => {
                     </div>
                 </DragDropContext>
 
-                {/* Preview Panel */}
+                {/* Right Quick Preview Drawer Panel */}
                 {selectedTicket && (
                     <TicketPreviewPanel
                         ticket={selectedTicket}

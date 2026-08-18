@@ -12,7 +12,7 @@ import { validatePasswordPolicy } from '../auth/application/password-policy';
 function assertPasswordPolicy(password: string, user: Pick<User, 'email' | 'fullName' | 'employeeId'>): void {
     const result = validatePasswordPolicy(password, user);
     if (!result.valid) {
-        throw new BadRequestException(`Password policy violation: ${result.reason}`);
+        throw new BadRequestException(result.message || `Password policy violation: ${result.reason}`);
     }
 }
 

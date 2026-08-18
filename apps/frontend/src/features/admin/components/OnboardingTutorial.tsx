@@ -194,7 +194,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                     <button
                         onClick={handleNext}
                         type="button"
-                        className="flex items-center gap-1 px-6 py-2 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-colors"
+                        className="flex items-center gap-1 px-6 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors"
                     >
                         {isLastStep ? 'Get Started' : 'Next'}
                         {!isLastStep && <ChevronRight className="w-4 h-4" />}

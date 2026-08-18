@@ -1,6 +1,8 @@
 import React from 'react';
-import { Edit2, Mail, CheckSquare, Square, CheckCircle, AlertCircle, Key, ArrowRight } from 'lucide-react';
+import { Edit2, Mail, CheckSquare, Square, CheckCircle, AlertCircle, Key, ArrowRight, MoreHorizontal, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { PresenceDot } from '@/components/ui/PresenceDot';
 import { AgentStats, SITE_COLORS, getAvatarColor, getRoleConfig, getRoleLabel } from './agent-types';
 
 /** Workload points an agent is expected to carry before the bar reads "full". */
@@ -9,6 +11,121 @@ const LOAD_CRITICAL_PERCENT = 80;
 const LOAD_WARNING_PERCENT = 50;
 const SLA_GOOD_PERCENT = 90;
 const SLA_WARNING_PERCENT = 70;
+
+/** Sites without a colour mapping still need a dark variant, or the badge goes white-on-navy. */
+const SITE_BADGE_FALLBACK = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+
+/** One badge geometry for every chip in the meta row, so the row keeps a single height. */
+const BADGE_BASE = 'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold uppercase tracking-wide';
+
+type Tone = 'good' | 'warn' | 'bad';
+
+const TONE_TEXT: Record<Tone, string> = {
+    good: 'text-[hsl(var(--success-500))]',
+    warn: 'text-[hsl(var(--accent))]',
+    bad: 'text-[hsl(var(--error-500))]',
+};
+
+const TONE_BAR: Record<Tone, string> = {
+    good: 'bg-[hsl(var(--success-500))]',
+    warn: 'bg-[hsl(var(--accent))]',
+    bad: 'bg-[hsl(var(--error-500))]',
+};
+
+const TONE_SURFACE: Record<Tone, string> = {
+    good: 'bg-[hsl(var(--success-50))] border-[hsl(var(--success-500))]/20 dark:bg-[hsl(var(--success-500))]/10 dark:border-[hsl(var(--success-500))]/25',
+    warn: 'bg-[hsl(var(--accent))]/10 border-[hsl(var(--accent))]/25',
+    bad: 'bg-[hsl(var(--error-50))] border-[hsl(var(--error-500))]/20 dark:bg-[hsl(var(--error-500))]/10 dark:border-[hsl(var(--error-500))]/25',
+};
+
+const toneForLoad = (percent: number): Tone =>
+    percent >= LOAD_CRITICAL_PERCENT ? 'bad' : percent >= LOAD_WARNING_PERCENT ? 'warn' : 'good';
+
+const toneForSla = (percent: number): Tone =>
+    percent >= SLA_GOOD_PERCENT ? 'good' : percent >= SLA_WARNING_PERCENT ? 'warn' : 'bad';
+
+interface CardStatProps {
+    label: string;
+    value: React.ReactNode;
+    /** Surface classes; omitted stats sit on the neutral tile. */
+    surfaceClassName?: string;
+    valueClassName?: string;
+}
+
+/** One tile in the four-up metric strip. Deliberately quieter than the agent name. */
+function CardStat({ label, value, surfaceClassName, valueClassName }: CardStatProps) {
+    return (
+        <div className={cn(
+            'rounded-lg border px-1 py-2 text-center',
+            surfaceClassName ?? 'bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))]',
+        )}>
+            <p className={cn('text-sm font-bold leading-none tabular-nums', valueClassName ?? 'text-slate-800 dark:text-slate-100')}>
+                {value}
+            </p>
+            <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {label}
+            </p>
+        </div>
+    );
+}
+
+interface AgentActionsMenuProps {
+    agentName: string;
+    email: string;
+    isActive: boolean;
+    onEdit?: () => void;
+    onResetPassword?: () => void;
+    onToggleActive?: () => void;
+}
+
+/**
+ * Secondary actions live in one menu instead of a four-icon row. The old row was
+ * laid out beside the name and, at 44px per icon, left the name no width at all.
+ */
+function AgentActionsMenu({ agentName, email, isActive, onEdit, onResetPassword, onToggleActive }: AgentActionsMenuProps) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label={`More actions for ${agentName}`}
+                    className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                >
+                    <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" variant="compact">
+                {onEdit && (
+                    <DropdownMenuItem onClick={onEdit}>
+                        <Edit2 aria-hidden="true" />
+                        Edit user
+                    </DropdownMenuItem>
+                )}
+                {onResetPassword && (
+                    <DropdownMenuItem onClick={onResetPassword}>
+                        <Key aria-hidden="true" />
+                        Reset password
+                    </DropdownMenuItem>
+                )}
+                <DropdownMenuItem asChild>
+                    <a href={`mailto:${email}`}>
+                        <Mail aria-hidden="true" />
+                        Send email
+                    </a>
+                </DropdownMenuItem>
+                {onToggleActive && (
+                    <DropdownMenuItem
+                        onClick={onToggleActive}
+                        variant={isActive ? 'destructive' : 'default'}
+                    >
+                        <Power aria-hidden="true" />
+                        {isActive ? 'Deactivate account' : 'Activate account'}
+                    </DropdownMenuItem>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
 
 interface AgentCardProps {
     agent: AgentStats;
@@ -37,138 +154,117 @@ export const AgentCard: React.FC<AgentCardProps> = ({
 }) => {
     const roleConfig = getRoleConfig(agent.role);
     const roleLabel = getRoleLabel(agent.role);
+    const nameId = `agent-card-name-${agent.id}`;
 
     // E4: Workload calculation
     const currentLoad = agent.activeWorkloadPoints ?? (agent.openTickets + agent.inProgressTickets);
     const loadPercent = Math.min((currentLoad / MAX_CAPACITY) * 100, 100);
-    const loadColor = loadPercent >= LOAD_CRITICAL_PERCENT ? 'bg-[hsl(var(--error-500))]' : loadPercent >= LOAD_WARNING_PERCENT ? 'bg-[hsl(var(--accent))]' : 'bg-[hsl(var(--success-500))]';
+    const loadTone = toneForLoad(loadPercent);
+    const slaTone = toneForSla(agent.slaCompliance);
+    const isBusy = agent.inProgressTickets > 0;
 
     return (
-        // Not `cursor-pointer` any more: the card itself was never clickable, only the
-        // View Details button was, so the pointer promised an action that never fired.
-        <div className={cn(
-            "p-5 rounded-2xl border transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:shadow-md hover:scale-[1.01] hover:-translate-y-0.5 motion-reduce:transform-none group",
-            "bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]",
-            isSelected && "ring-2 ring-primary border-primary"
-        )}>
-            {/* Header with Avatar and Quick Actions */}
-            <div className="flex items-start justify-between mb-4 gap-2">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {/* Avatar with U3: Activity Indicator */}
-                    <div className="relative shrink-0">
-                        <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center font-extrabold text-lg text-white", getAvatarColor(agent.fullName))}>
-                            {agent.fullName.charAt(0)}
-                        </div>
-                        {/* U3: Activity indicator - green pulse for active, gray for idle */}
-                        <div
-                            className={cn(
-                                "absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-[hsl(var(--card))]",
-                                agent.inProgressTickets > 0
-                                    ? "bg-[hsl(var(--success-500))] animate-pulse motion-reduce:animate-none"
-                                    : "bg-slate-300 dark:bg-slate-600"
-                            )}
-                            role="img"
-                            aria-label={agent.inProgressTickets > 0 ? 'Working on tickets' : 'No active tickets'}
-                            title={agent.inProgressTickets > 0 ? 'Working on tickets' : 'No active tickets'}
-                        />
+        // The whole card opens the agent. It is a "stretched link": the View details
+        // button owns the click via an ::after overlay covering the card, so there is
+        // still exactly one focusable element for the action and no button nested
+        // inside another interactive element. Controls that do something else
+        // (select, overflow menu) are lifted above the overlay with `relative z-10`.
+        <article
+            aria-labelledby={nameId}
+            className={cn(
+                "group relative flex h-full cursor-pointer flex-col rounded-2xl border p-4 transition-[box-shadow,border-color,transform] duration-200 ease-out",
+                "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:translate-y-0 active:scale-[0.99] motion-reduce:transform-none",
+                // Scoped to the card action: an unscoped `has-[:focus-visible]` would
+                // also fire for the select box and overflow menu, which draw their own
+                // rings, stacking two rings for one focus.
+                "has-[[data-card-action]:focus-visible]:ring-2 has-[[data-card-action]:focus-visible]:ring-primary",
+                "bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]",
+                isSelected && "ring-2 ring-primary border-primary"
+            )}
+        >
+            {/* Identity — the name owns the row. Only the select box shares it. */}
+            <div className="flex items-start gap-3">
+                <div className="relative shrink-0">
+                    <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl text-base font-extrabold text-white", getAvatarColor(agent.fullName))}>
+                        {agent.fullName.charAt(0)}
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="font-extrabold text-slate-900 dark:text-white truncate tracking-tight text-sm" title={agent.fullName}>{agent.fullName}</p>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5" title={agent.email}>{agent.email}</p>
-                    </div>
+                    {/* Live connection status. This used to colour itself from
+                        `inProgressTickets`, which read as "online" to everyone looking
+                        at it — a logged-out agent stayed green as long as a ticket sat
+                        in progress. Workload now says so in words in the meta row. */}
+                    <PresenceDot
+                        userId={agent.id}
+                        userName={agent.fullName}
+                        className="absolute -right-0.5 -top-0.5 h-3 w-3 border-2 border-white dark:border-[hsl(var(--card))]"
+                    />
                 </div>
 
-                {/* U1: Quick Actions Row. Hover-only on desktop; always visible on touch,
-                    where there is no hover to reveal them, and on keyboard focus. */}
-                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity shrink-0">
-                    {onEdit && (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                            className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Edit User"
-                            aria-label={`Edit ${agent.fullName}`}
-                        >
-                            <Edit2 className="w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
-                        </button>
-                    )}
-                    {onResetPassword && (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onResetPassword(); }}
-                            className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
-                            title="Reset Password"
-                            aria-label={`Reset password for ${agent.fullName}`}
-                        >
-                            <Key className="w-4 h-4 text-[hsl(var(--accent))] dark:text-amber-400" aria-hidden="true" />
-                        </button>
-                    )}
-                    <a
-                        href={`mailto:${agent.email}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                        title="Send Email"
-                        aria-label={`Email ${agent.fullName}`}
+                <div className="min-w-0 flex-1">
+                    <h4
+                        id={nameId}
+                        className="truncate text-base font-bold leading-tight text-foreground"
+                        title={agent.fullName}
                     >
-                        <Mail className="w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
-                    </a>
-                    <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onSelect(); }}
-                        role="checkbox"
-                        aria-checked={isSelected}
-                        aria-label={`Select ${agent.fullName}`}
-                        className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors ml-1"
-                    >
-                        {isSelected ? <CheckSquare className="w-4 h-4 text-primary" aria-hidden="true" /> : <Square className="w-4 h-4 text-slate-400" aria-hidden="true" />}
-                    </button>
+                        {agent.fullName}
+                    </h4>
+                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" title={agent.email}>
+                        {agent.email}
+                    </p>
                 </div>
+
+                {/* Selection stays visible: on touch there is no hover to reveal it, and
+                    bulk actions are the reason this grid supports selection at all. */}
+                <button
+                    type="button"
+                    onClick={onSelect}
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    aria-label={`Select ${agent.fullName}`}
+                    className="relative z-10 -mr-1.5 -mt-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:hover:bg-slate-800"
+                >
+                    {isSelected
+                        ? <CheckSquare className="h-4 w-4 text-primary" aria-hidden="true" />
+                        : <Square className="h-4 w-4 text-slate-400" aria-hidden="true" />}
+                </button>
             </div>
 
-            {/* Badges Row */}
-            <div className="flex items-center flex-wrap gap-1.5 mb-4">
+            {/* Meta row: where, what role, and whether the account is usable at all. */}
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
                 {agent.site && (
-                    <span className={cn("px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider shrink-0", SITE_COLORS[agent.site.code] || 'bg-slate-100 text-slate-600 border border-slate-200')}>
+                    <span className={cn(BADGE_BASE, SITE_COLORS[agent.site.code] || SITE_BADGE_FALLBACK)}>
                         {agent.site.code}
                     </span>
                 )}
-                <span className={cn("px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider", roleConfig.badgeColor)}>
-                    {roleLabel}
-                </span>
-                {/* U2: Active/Inactive Toggle */}
-                {onToggleActive && (
-                    <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onToggleActive(); }}
-                        aria-pressed={isActive}
-                        aria-label={`${isActive ? 'Deactivate' : 'Activate'} ${agent.fullName}`}
-                        className={cn(
-                            "px-2 py-1 min-h-[44px] rounded-md text-[10px] uppercase font-bold flex items-center gap-1 transition-colors tracking-wider border shrink-0 ml-auto",
-                            isActive
-                                ? "bg-[hsl(var(--success-50))] text-[hsl(var(--success-600))] border-[hsl(var(--success-500))]/20 dark:bg-[hsl(var(--success-500))]/10 dark:text-[hsl(var(--success-500))] hover:bg-[hsl(var(--success-100))]"
-                                : "bg-[hsl(var(--error-50))] text-[hsl(var(--error-600))] border-[hsl(var(--error-500))]/20 dark:bg-[hsl(var(--error-500))]/10 dark:text-[hsl(var(--error-500))] hover:bg-[hsl(var(--error-100))]"
-                        )}
-                        title={isActive ? 'Click to deactivate' : 'Click to activate'}
-                    >
-                        {isActive ? <CheckCircle className="w-3 h-3" aria-hidden="true" /> : <AlertCircle className="w-3 h-3" aria-hidden="true" />}
-                        {isActive ? 'Active' : 'Inactive'}
-                    </button>
+                <span className={cn(BADGE_BASE, roleConfig.badgeColor)}>{roleLabel}</span>
+                {isBusy && (
+                    <span className={cn(BADGE_BASE, 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400')}>
+                        {agent.inProgressTickets} in progress
+                    </span>
                 )}
+                <span
+                    className={cn(
+                        BADGE_BASE,
+                        'ml-auto border',
+                        isActive
+                            ? 'bg-[hsl(var(--success-50))] text-[hsl(var(--success-600))] border-[hsl(var(--success-500))]/20 dark:bg-[hsl(var(--success-500))]/10 dark:text-[hsl(var(--success-500))]'
+                            : 'bg-[hsl(var(--error-50))] text-[hsl(var(--error-600))] border-[hsl(var(--error-500))]/20 dark:bg-[hsl(var(--error-500))]/10 dark:text-[hsl(var(--error-500))]'
+                    )}
+                >
+                    {isActive
+                        ? <CheckCircle className="h-3 w-3" aria-hidden="true" />
+                        : <AlertCircle className="h-3 w-3" aria-hidden="true" />}
+                    {isActive ? 'Active' : 'Inactive'}
+                </span>
             </div>
 
             {/* E4: Workload Capacity Bar */}
-            <div className="mb-4">
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">Workload</span>
-                    <span className={cn(
-                        "font-bold text-[10px] tabular-nums",
-                        loadPercent >= LOAD_CRITICAL_PERCENT ? "text-[hsl(var(--error-500))]" :
-                            loadPercent >= LOAD_WARNING_PERCENT ? "text-[hsl(var(--accent))]" :
-                                "text-[hsl(var(--success-500))]"
-                    )}>{currentLoad}/{MAX_CAPACITY}</span>
+            <div className="mt-4">
+                <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                    <span className="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Workload</span>
+                    <span className={cn('font-bold tabular-nums', TONE_TEXT[loadTone])}>{currentLoad}/{MAX_CAPACITY}</span>
                 </div>
                 <div
-                    className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"
+                    className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
                     role="progressbar"
                     aria-valuenow={currentLoad}
                     aria-valuemin={0}
@@ -176,55 +272,54 @@ export const AgentCard: React.FC<AgentCardProps> = ({
                     aria-label={`Workload for ${agent.fullName}`}
                 >
                     <div
-                        className={cn("h-full rounded-full origin-left transition-transform duration-200 ease-out motion-reduce:transition-none", loadColor)}
+                        className={cn('h-full origin-left rounded-full transition-transform duration-200 ease-out motion-reduce:transition-none', TONE_BAR[loadTone])}
                         style={{ transform: `scaleX(${loadPercent / 100})`, width: '100%' }}
                     />
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2.5 flex flex-col items-center justify-center border border-[hsl(var(--border))]">
-                    <p className="text-lg font-extrabold text-[hsl(var(--accent))] leading-none">{agent.appraisalPoints || 0}</p>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mt-1.5">Appraisal</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2.5 flex flex-col items-center justify-center border border-[hsl(var(--border))]">
-                    <p className="text-lg font-extrabold text-blue-500 dark:text-blue-400 leading-none">{agent.inProgressTickets}</p>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mt-1.5">Active</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2.5 flex flex-col items-center justify-center border border-[hsl(var(--border))]">
-                    <p className="text-lg font-extrabold text-[hsl(var(--success-500))] leading-none">{agent.resolvedThisMonth}</p>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mt-1.5">Month</p>
-                </div>
-                <div className={cn(
-                    "rounded-lg p-2.5 flex flex-col items-center justify-center border",
-                    agent.slaCompliance >= SLA_GOOD_PERCENT ? "bg-[hsl(var(--success-50))] border-[hsl(var(--success-500))]/20 dark:bg-[hsl(var(--success-500))]/10 dark:border-[hsl(var(--success-500))]/20" :
-                        agent.slaCompliance >= SLA_WARNING_PERCENT ? "bg-[hsl(var(--accent))]/10 border-[hsl(var(--accent))]/20 dark:bg-[hsl(var(--accent))]/10 dark:border-[hsl(var(--accent))]/20" :
-                            "bg-[hsl(var(--error-50))] border-[hsl(var(--error-500))]/20 dark:bg-[hsl(var(--error-500))]/10 dark:border-[hsl(var(--error-500))]/20"
-                )}>
-                    <p className={cn(
-                        "text-lg font-extrabold leading-none tabular-nums",
-                        agent.slaCompliance >= SLA_GOOD_PERCENT ? "text-[hsl(var(--success-500))]" :
-                            agent.slaCompliance >= SLA_WARNING_PERCENT ? "text-[hsl(var(--accent))]" :
-                                "text-[hsl(var(--error-500))]"
-                    )}>{agent.slaCompliance}%</p>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mt-1.5">SLA</p>
-                </div>
+            {/* Stats Grid — `mb-4` guarantees breathing room above the footer rule even
+                when `mt-auto` below has no leftover space to distribute. */}
+            <div className="mt-4 mb-4 grid grid-cols-4 gap-1.5">
+                <CardStat label="Score" value={agent.appraisalPoints || 0} valueClassName="text-[hsl(var(--accent))]" />
+                <CardStat label="Active" value={agent.inProgressTickets} valueClassName="text-blue-600 dark:text-blue-400" />
+                <CardStat label="Month" value={agent.resolvedThisMonth} valueClassName="text-[hsl(var(--success-500))]" />
+                <CardStat
+                    label="SLA"
+                    value={`${agent.slaCompliance}%`}
+                    surfaceClassName={TONE_SURFACE[slaTone]}
+                    valueClassName={TONE_TEXT[slaTone]}
+                />
             </div>
 
-            {/* View Details Button */}
-            <div className="mt-4 pt-4 border-t border-[hsl(var(--border))] -mx-5 px-5">
+            {/* Footer actions — `mt-auto` keeps every card's footer on the same baseline
+                even when a missing site badge makes a neighbouring card shorter. */}
+            <div className="-mx-4 mt-auto flex items-center gap-2 border-t border-[hsl(var(--border))] px-4 pt-3">
+                {/* `after:` overlay makes the entire card this button's hit area.
+                    `focus-visible:outline-none` is safe: the card draws the focus ring
+                    for it via `has-[:focus-visible]` above, so keyboard focus is never
+                    invisible. Text stays selectable outside the footer because the
+                    overlay sits below the raised controls but above nothing else. */}
                 <button
                     type="button"
                     onClick={onView}
+                    data-card-action
                     aria-label={`View details for ${agent.fullName}`}
-                    className="w-full py-2.5 min-h-[44px] text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors flex items-center justify-center gap-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 group/btn"
+                    className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-primary transition-colors after:absolute after:inset-0 after:rounded-2xl after:content-[''] hover:bg-primary/10 focus-visible:outline-none"
                 >
-                    VIEW DETAILS
-                    <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform motion-reduce:transition-none" aria-hidden="true" />
+                    View details
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" aria-hidden="true" />
                 </button>
+                <AgentActionsMenu
+                    agentName={agent.fullName}
+                    email={agent.email}
+                    isActive={isActive}
+                    onEdit={onEdit}
+                    onResetPassword={onResetPassword}
+                    onToggleActive={onToggleActive}
+                />
             </div>
-        </div>
+        </article>
     );
 };
 

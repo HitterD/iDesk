@@ -10,6 +10,7 @@ import { LoginValidationResult } from './auth-validation.types';
 import { toValidatedUser } from './auth-user.mapper';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from './password-verifier';
 import { maskIdentifier } from '../../../shared/security/sensitive-data';
+import { AuthEventPublisher, AUTH_EVENT } from './auth-events';
 
 @Injectable()
 export class CredentialValidatorService {
@@ -19,6 +20,7 @@ export class CredentialValidatorService {
         private readonly hrisGateway: HrisGatewayAdapter,
         private readonly hrisSync: HrisSyncService,
         private readonly hrisProvisioning: HrisProvisioningService,
+        private readonly authEvents: AuthEventPublisher,
     ) {}
 
     async validate(identifier: string, pass: string, request?: Request): Promise<LoginValidationResult> {
@@ -39,6 +41,7 @@ export class CredentialValidatorService {
                 description: `Login failed: User not found for email ${maskedEmail}`,
                 newValue: { email: maskedEmail, reason: 'USER_NOT_FOUND' }, request,
             });
+            this.emitLoginFailure('email', 'USER_NOT_FOUND');
             return { success: false, errorCode: 'USER_NOT_FOUND' };
         }
         if (user.isActive === false) {
@@ -47,6 +50,7 @@ export class CredentialValidatorService {
                 description: `Login failed: Account disabled for ${user.fullName}`,
                 newValue: { email: maskedEmail, reason: 'ACCOUNT_DISABLED' }, request,
             });
+            this.emitLoginFailure('email', 'ACCOUNT_DISABLED');
             return { success: false, errorCode: 'ACCOUNT_DISABLED' };
         }
         if (!valid) {
@@ -55,6 +59,7 @@ export class CredentialValidatorService {
                 description: `Login failed: Wrong password for ${user.fullName}`,
                 newValue: { email: maskedEmail, reason: 'WRONG_PASSWORD' }, request,
             });
+            this.emitLoginFailure('email', 'WRONG_PASSWORD');
             return { success: false, errorCode: 'WRONG_PASSWORD' };
         }
         return { success: true, user: toValidatedUser(user) };
@@ -90,7 +95,12 @@ export class CredentialValidatorService {
             description: `Login failed for NIK ${maskedNik}: ${reason}`,
             newValue: { nik: maskedNik, reason: errorCode }, request,
         });
+        this.emitLoginFailure('nik', errorCode);
         return { success: false, errorCode };
+    }
+
+    private emitLoginFailure(method: 'email' | 'nik', reason: string): void {
+        this.authEvents.emit(AUTH_EVENT.LOGIN_FAILED, { method, reason, outcome: 'failed' });
     }
 
     private maskEmail(email: string): string {

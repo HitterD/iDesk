@@ -11,10 +11,18 @@ const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu
 
 const PILL_BG: Record<string, string> = {
     available:  'bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400',
-    booked:     'bg-gradient-to-r from-amber-400 to-amber-500 text-white shadow-sm shadow-amber-200',
-    my_booking: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm shadow-blue-200',
-    blocked:    'bg-gradient-to-r from-red-400 to-red-500 text-white shadow-sm',
-    external:   'bg-slate-300 dark:bg-slate-600 text-slate-700 dark:text-slate-300',
+    booked:     'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
+    my_booking: 'bg-primary/10 text-primary dark:bg-primary/20',
+    blocked:    'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
+    external:   'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
+};
+
+const PILL_DOT: Record<string, string> = {
+    available:  'bg-slate-400',
+    booked:     'bg-amber-500',
+    my_booking: 'bg-primary',
+    blocked:    'bg-red-500',
+    external:   'bg-slate-400',
 };
 
 interface ZoomMonthViewProps {
@@ -149,25 +157,18 @@ export function ZoomMonthView({
                         >
                             {/* Day number */}
                             <div className="flex items-center justify-between mb-1 px-0.5">
-                                <div className="flex items-center gap-1">
-                                    <span className={cn(
-                                        "text-xs font-semibold inline-flex items-center justify-center w-6 h-6 rounded-full",
-                                        today
-                                            ? "bg-blue-600 text-white"
-                                            : inMonth
-                                                ? "text-slate-800 dark:text-slate-200"
-                                                : "text-slate-400 dark:text-slate-600"
-                                    )}>
-                                        {format(day, 'd')}
-                                    </span>
-                                    {events.length > 0 && (
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
-                                            {events.length} meetings
-                                        </span>
-                                    )}
-                                </div>
+                                <span className={cn(
+                                    "text-xs font-semibold inline-flex items-center justify-center w-6 h-6 rounded-full",
+                                    today
+                                        ? "bg-blue-600 text-white"
+                                        : inMonth
+                                            ? "text-slate-800 dark:text-slate-200"
+                                            : "text-slate-400 dark:text-slate-600"
+                                )}>
+                                    {format(day, 'd')}
+                                </span>
                                 {isBlocked && (
-                                    <span className="text-[9px] text-red-500 font-medium">Blokir</span>
+                                    <span className="text-xs text-red-500 font-medium">Blokir</span>
                                 )}
                             </div>
 
@@ -177,7 +178,7 @@ export function ZoomMonthView({
                                     <div
                                         key={`${event.bookingId ?? idx}`}
                                         className={cn(
-                                            "text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium cursor-pointer animate-[pillSlideIn_0.3s_ease-out_forwards] opacity-0",
+                                            "text-xs px-1.5 py-0.5 rounded-md truncate font-medium cursor-pointer animate-[pillSlideIn_0.3s_ease-out_forwards] opacity-0",
                                             PILL_BG[event.status] ?? PILL_BG.available
                                         )}
                                         style={{ animationDelay: `${idx * 50}ms` }}
@@ -188,14 +189,11 @@ export function ZoomMonthView({
                                             }
                                         }}
                                     >
-                                        <span className="flex items-center gap-1">
+                                        <span className="flex items-center gap-1.5">
                                             <span
-                                                className="w-1.5 h-1.5 rounded-full bg-white/90 ring-1 ring-black/20 shrink-0"
+                                                className={cn("w-1.5 h-1.5 rounded-full shrink-0", PILL_DOT[event.status] ?? PILL_DOT.available)}
                                                 aria-hidden="true"
                                             />
-                                            <span className="font-semibold opacity-95 truncate max-w-[55px]">
-                                                {event.accountName}
-                                            </span>
                                             <span className="truncate">{event.title}</span>
                                         </span>
                                     </div>
@@ -203,7 +201,7 @@ export function ZoomMonthView({
                                 {overflow > 0 && (
                                     <div className="relative mt-1">
                                         <button
-                                            className="text-[10px] text-blue-600 dark:text-blue-400 px-1 font-semibold hover:underline w-full text-left"
+                                            className="text-xs text-primary px-1 font-semibold hover:underline w-full text-left"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setPopoverDate(popoverDate === dateStr ? null : dateStr);

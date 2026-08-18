@@ -108,7 +108,7 @@ const AttachmentPreview: React.FC<{
                                     {filename}
                                 </span>
                             </div>
-                            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white">Preview</span>
+                            <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">Preview</span>
                         </button>
                     );
                 } else {
@@ -303,7 +303,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticketId }) 
                                 {!msg.isSystemMessage && (
                                     <div className="flex items-center justify-between mt-2 gap-2">
                                         <MessageSourceBadge source={msg.source} />
-                                        <span className="text-[10px] opacity-50">
+                                        <span className="text-xs opacity-50">
                                             {formatDate(msg.createdAt)}
                                         </span>
                                     </div>

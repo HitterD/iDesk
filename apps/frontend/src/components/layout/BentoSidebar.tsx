@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
@@ -21,15 +21,11 @@ import {
     FolderOpen,
     Briefcase,
     ShieldCheck,
-    DollarSign,
-    KeyRound,
     MonitorSmartphone,
     FileText,
     PackageSearch,
-    PackageCheck,
     Database,
-    LucideIcon,
-    Wrench
+    LucideIcon
 } from 'lucide-react';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
@@ -39,6 +35,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMyPermissions } from '@/hooks/usePermissions';
 import { usePermissions as useIctPermissions } from '@/features/hardware-request/hooks/usePermissions';
 import { usePendingApprovals } from '@/features/request-center/api/eform-request.api';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 
 // Types for navigation structure
 interface NavItem {
@@ -59,94 +57,137 @@ type NavEntry = NavItem | NavGroup;
 
 const isGroup = (entry: NavEntry): entry is NavGroup => 'items' in entry;
 
+interface BadgeInfo {
+    count: number;
+    variant?: 'destructive' | 'primary';
+}
+
 // Collapsible Nav Group Component
 const NavGroupComponent: React.FC<{
     group: NavGroup;
     isExpanded: boolean;
     onToggle: () => void;
     isCollapsed: boolean;
-    pendingCount?: number;
-}> = ({ group, isExpanded, onToggle, isCollapsed, pendingCount }) => {
+    groupBadge: BadgeInfo | null;
+    getItemBadge: (key: string) => BadgeInfo | null;
+}> = ({ group, isExpanded, onToggle, isCollapsed, groupBadge, getItemBadge }) => {
     const location = useLocation();
     const hasActiveChild = group.items.some(item => location.pathname.startsWith(item.path));
 
-    // When sidebar is collapsed, show only first item's icon as group representative
+    // When sidebar is collapsed (icon-only mode)
     if (isCollapsed) {
         return (
             <div className="relative group/nav">
                 <button
+                    type="button"
                     onClick={onToggle}
-                    title={group.label}
+                    aria-label={group.label}
+                    aria-expanded={isExpanded}
                     className={cn(
-                        "w-full flex items-center justify-center p-3 rounded-lg transition-[opacity,transform,colors] duration-200 ease-out relative",
+                        "w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-150 relative",
                         hasActiveChild
-                            ? 'bg-primary text-primary-foreground font-semibold shadow-md dark:bg-primary'
-                            : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground dark:hover:bg-secondary/20 hover:translate-x-0.5'
+                            ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                            : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
                     )}
                 >
-                    <group.icon className="w-5 h-5" />
-                    {pendingCount && pendingCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border-2 border-background" />
-                    )}
+                    <group.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                    {groupBadge && groupBadge.count > 0 ? (
+                        <span className={cn(
+                            "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-background shadow-xs pointer-events-none tabular-nums",
+                            groupBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
+                        )}>
+                            {groupBadge.count > 99 ? '99+' : groupBadge.count}
+                        </span>
+                    ) : null}
                 </button>
-                {/* Tooltip with group items */}
-                <div className="absolute left-full ml-2 top-0 hidden group-hover/nav:block group-focus-within/nav:block z-50">
-                    <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border py-2 min-w-[180px]">
-                        <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                            {group.label}
+
+                {/* Floating Flyout Menu on hover */}
+                <div className="absolute left-full ml-2.5 top-0 hidden group-hover/nav:flex group-focus-within/nav:flex flex-col z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border/80 p-2 min-w-[210px] backdrop-blur-xl">
+                        <div className="px-3 py-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between border-b border-border/50 mb-1">
+                            <span>{group.label}</span>
+                            {groupBadge && groupBadge.count > 0 ? (
+                                <span className={cn(
+                                    "text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums",
+                                    groupBadge.variant === 'destructive' ? 'bg-destructive/15 text-destructive' : 'bg-primary/20 text-primary'
+                                )}>
+                                    {groupBadge.count}
+                                </span>
+                            ) : null}
                         </div>
-                        {group.items.map((item) => (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                className={({ isActive }) =>
-                                    cn(
-                                        "flex items-center gap-2 px-3 py-2 text-sm transition-colors rounded-lg relative",
-                                        isActive
-                                            ? 'bg-primary text-primary-foreground font-medium shadow-sm'
-                                            : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:hover:bg-secondary/30 hover:translate-x-0.5'
-                                    )
-                                }
-                            >
-                                <item.icon className="w-4 h-4" />
-                                {item.label}
-                                {item.key === 'eform_access' && pendingCount && pendingCount > 0 && (
-                                    <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                                        {pendingCount}
-                                    </span>
-                                )}
-                            </NavLink>
-                        ))}
+                        <div className="flex flex-col gap-0.5">
+                            {group.items.map((item) => {
+                                const itemBadge = getItemBadge(item.key);
+                                return (
+                                    <NavLink
+                                        key={item.path}
+                                        to={item.path}
+                                        className={({ isActive }) =>
+                                            cn(
+                                                "flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors relative",
+                                                isActive
+                                                    ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                                                    : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
+                                            )
+                                        }
+                                    >
+                                        <item.icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                                        <span className="truncate flex-1">{item.label}</span>
+                                        {itemBadge && itemBadge.count > 0 ? (
+                                            <span className={cn(
+                                                "text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums",
+                                                itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary/20 text-primary'
+                                            )}>
+                                                {itemBadge.count}
+                                            </span>
+                                        ) : null}
+                                    </NavLink>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>
         );
     }
 
+    // Expanded Sidebar Mode
     return (
-        <div className="space-y-1">
-            {/* Group Header */}
+        <div className="flex flex-col">
+            {/* Group Header Button */}
             <button
+                type="button"
                 onClick={onToggle}
                 className={cn(
-                    "w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors duration-150 group relative",
+                    "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors duration-150 group relative shrink-0 mt-1 first:mt-0 cursor-pointer",
                     hasActiveChild
                         ? 'text-foreground font-semibold'
                         : 'text-muted-foreground hover:text-foreground'
                 )}
             >
-                <div className={cn("w-0.5 h-3 rounded-full mr-1 transition-colors", hasActiveChild ? "bg-primary" : "bg-primary/40")} />
-                <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/75">
+                <span className={cn(
+                    "flex-1 text-left text-xs font-bold uppercase tracking-[0.08em] transition-colors",
+                    hasActiveChild ? "text-foreground" : "text-muted-foreground/75"
+                )}>
                     {group.label}
                 </span>
-                {!isExpanded && pendingCount && pendingCount > 0 && (
-                    <span className="mr-2 w-2 h-2 bg-destructive rounded-full" />
-                )}
+
+                {/* If group is collapsed and has items with badges, show summary badge */}
+                {!isExpanded && groupBadge && groupBadge.count > 0 ? (
+                    <span className={cn(
+                        "mr-1.5 px-2 py-0.5 min-w-[20px] rounded-full text-[10px] font-bold text-center tabular-nums shadow-xs",
+                        groupBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary/20 text-primary'
+                    )}>
+                        {groupBadge.count > 99 ? '99+' : groupBadge.count}
+                    </span>
+                ) : null}
+
                 <ChevronDown
                     className={cn(
-                        "w-4 h-4 transition-transform duration-200 text-muted-foreground/60",
+                        "w-4 h-4 transition-transform duration-200 text-muted-foreground/60 shrink-0",
                         isExpanded ? 'rotate-0' : '-rotate-90'
                     )}
+                    aria-hidden="true"
                 />
             </button>
 
@@ -157,37 +198,122 @@ const NavGroupComponent: React.FC<{
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                         className="overflow-hidden"
                     >
-                        <div className="pl-4 space-y-1">
-                            {group.items.map((item) => (
-                                <NavLink
-                                    key={item.path}
-                                    to={item.path}
-                                    className={({ isActive }) =>
-                                        cn(
-                                            "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors duration-150 group/item relative",
-                                            isActive
-                                                ? 'bg-primary text-primary-foreground font-semibold shadow-md dark:bg-primary'
-                                                : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground dark:hover:bg-secondary/25 hover:translate-x-0.5'
-                                        )
-                                    }
-                                >
-                                    <item.icon className="w-4 h-4 shrink-0" />
-                                    <span className="font-medium text-sm">{item.label}</span>
-                                    {item.key === 'eform_access' && pendingCount && pendingCount > 0 && (
-                                        <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                                            {pendingCount}
-                                        </span>
-                                    )}
-                                </NavLink>
-                            ))}
+                        <div className="pl-2 flex flex-col gap-0.5 py-1">
+                            {group.items.map((item) => {
+                                const itemBadge = getItemBadge(item.key);
+                                return (
+                                    <NavLink
+                                        key={item.path}
+                                        to={item.path}
+                                        className={({ isActive }) =>
+                                            cn(
+                                                "flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150 group/item relative text-sm",
+                                                isActive
+                                                    ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                                                    : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+                                            )
+                                        }
+                                    >
+                                        <item.icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                                        <span className="font-medium truncate">{item.label}</span>
+                                        {itemBadge && itemBadge.count > 0 ? (
+                                            <span className={cn(
+                                                "ml-auto px-2 py-0.5 min-w-[20px] rounded-full text-[11px] font-bold text-center tabular-nums shadow-xs",
+                                                itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary/20 text-primary'
+                                            )}>
+                                                {itemBadge.count}
+                                            </span>
+                                        ) : null}
+                                    </NavLink>
+                                );
+                            })}
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
         </div>
+    );
+};
+
+// Standalone Nav Link Component (Used for Dashboard & Settings)
+const StandaloneNavLink: React.FC<{
+    entry: NavItem;
+    isCollapsed: boolean;
+    itemBadge: BadgeInfo | null;
+}> = ({ entry, isCollapsed, itemBadge }) => {
+    if (isCollapsed) {
+        return (
+            <div className="relative group/nav">
+                <NavLink
+                    to={entry.path}
+                    aria-label={entry.label}
+                    className={({ isActive }) =>
+                        cn(
+                            "w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-150 relative",
+                            isActive
+                                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                                : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
+                        )
+                    }
+                >
+                    <entry.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                    {itemBadge && itemBadge.count > 0 ? (
+                        <span className={cn(
+                            "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-background shadow-xs pointer-events-none tabular-nums",
+                            itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
+                        )}>
+                            {itemBadge.count > 99 ? '99+' : itemBadge.count}
+                        </span>
+                    ) : null}
+                </NavLink>
+
+                {/* Floating Tooltip */}
+                <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 hidden group-hover/nav:flex group-focus-within/nav:flex z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                    <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-1.5 text-xs font-semibold whitespace-nowrap flex items-center gap-2">
+                        <span>{entry.label}</span>
+                        {itemBadge && itemBadge.count > 0 ? (
+                            <span className={cn(
+                                "text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums",
+                                itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary/20 text-primary'
+                            )}>
+                                {itemBadge.count}
+                            </span>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <NavLink
+            to={entry.path}
+            aria-label={entry.label}
+            className={({ isActive }) =>
+                cn(
+                    "flex items-center gap-3 rounded-xl transition-all duration-150 px-3.5 py-2.5 text-sm",
+                    isActive
+                        ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                        : 'text-muted-foreground font-medium hover:bg-secondary/60 hover:text-foreground'
+                )
+            }
+        >
+            <entry.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+            <span className="font-medium animate-in fade-in duration-200 whitespace-nowrap">
+                {entry.label}
+            </span>
+            {itemBadge && itemBadge.count > 0 ? (
+                <span className={cn(
+                    "ml-auto px-2 py-0.5 min-w-[20px] rounded-full text-[11px] font-bold text-center tabular-nums shadow-xs",
+                    itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary/20 text-primary'
+                )}>
+                    {itemBadge.count}
+                </span>
+            ) : null}
+        </NavLink>
     );
 };
 
@@ -223,18 +349,54 @@ export const BentoSidebar = () => {
     // Fetch pending approvals for managers/admins to show badge count
     const isManagerOrAdmin = ['MANAGER', 'ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(user?.role || '');
     const { data: pendingApprovals } = usePendingApprovals();
-    const pendingCount = isManagerOrAdmin ? pendingApprovals?.length : 0;
+    const pendingCount = isManagerOrAdmin && pendingApprovals ? pendingApprovals.length : 0;
+
+    // Fetch unread notifications count
+    const { data: notificationCountData } = useQuery<{ count: number }>({
+        queryKey: ['notifications', 'count'],
+        queryFn: async () => {
+            const res = await api.get('/notifications/count');
+            return res.data;
+        },
+        enabled: !!user,
+        staleTime: 30000,
+    });
+    const unreadNotificationsCount = notificationCountData?.count || 0;
 
     // Fetch user's feature permissions for sidebar filtering (only if user has custom preset)
     const { data: myPermissions, isLoading: permissionsLoading } = useMyPermissions();
     const { isIctRole, isIctLead } = useIctPermissions();
 
-    // ============================================
-    // DATA-DRIVEN NAVIGATION FROM pageAccess
-    // ============================================
+    // Badge resolution helper for navigation items
+    const getItemBadge = (key: string): BadgeInfo | null => {
+        if (key === 'eform_access' && pendingCount > 0) {
+            return { count: pendingCount, variant: 'destructive' };
+        }
+        if (key === 'notifications' && unreadNotificationsCount > 0) {
+            return { count: unreadNotificationsCount, variant: 'destructive' };
+        }
+        return null;
+    };
 
-    // Navigation configuration - ALL menu items defined here
-    const NAVIGATION_CONFIG = [
+    // Group badge resolution helper
+    const getGroupBadge = (group: NavGroup): BadgeInfo | null => {
+        let total = 0;
+        let isDestructive = false;
+        for (const item of group.items) {
+            const badge = getItemBadge(item.key);
+            if (badge && badge.count > 0) {
+                total += badge.count;
+                if (badge.variant === 'destructive') isDestructive = true;
+            }
+        }
+        if (total > 0) {
+            return { count: total, variant: isDestructive ? 'destructive' : 'primary' };
+        }
+        return null;
+    };
+
+    // Navigation configuration - Core items and groups
+    const NAVIGATION_CONFIG = useMemo(() => [
         // Core items
         { type: 'item', key: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
 
@@ -293,10 +455,7 @@ export const BentoSidebar = () => {
                 { key: 'system_health', icon: Activity, label: 'System Health', path: '/system-health' },
             ]
         },
-
-        // Settings (Admin only, standalone item)
-        { type: 'item', key: 'settings', icon: Settings, label: 'Settings', path: '/settings', adminOnly: true },
-    ] as const;
+    ] as const, []);
 
     // Page access check - uses pageAccess from applied preset
     const canAccessPage = (pageKey: string): boolean => {
@@ -308,8 +467,7 @@ export const BentoSidebar = () => {
             return myPermissions.pageAccess[pageKey] === true;
         }
 
-        // Fallback: role-based defaults (minimal access - preset overrides this)
-        // MUST match permissions.service.ts page definitions (USER_PAGES, AGENT_PAGES, MANAGER_PAGES)
+        // Fallback: role-based defaults
         const roleDefaults: Record<string, string[]> = {
             USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
             AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
@@ -323,30 +481,22 @@ export const BentoSidebar = () => {
         return allowedPages.includes(pageKey);
     };
 
-    // Build navigation from config + pageAccess (fully dynamic)
+    // Build upper navigation from config + pageAccess
     const buildNavigation = (): NavEntry[] => {
         const nav: NavEntry[] = [];
 
         for (const entry of NAVIGATION_CONFIG) {
             if (entry.type === 'item') {
-                // Admin-only items
-                if ('adminOnly' in entry && entry.adminOnly && user?.role !== 'ADMIN') {
-                    continue;
-                }
-                // Check page access
                 if (canAccessPage(entry.key)) {
                     nav.push({ key: entry.key, icon: entry.icon, label: entry.label, path: entry.path });
                 }
             } else if (entry.type === 'group') {
-                // Admin-only groups
                 if ('adminOnly' in entry && entry.adminOnly && user?.role !== 'ADMIN') {
                     continue;
                 }
 
-                // Filter group items by pageAccess
                 const visibleItems = entry.items.filter(item => {
                     if ('adminOnly' in entry && entry.adminOnly) {
-                        // Admin group - all items visible for admin
                         return user?.role === 'ADMIN';
                     }
                     if ('ictOnly' in item && item.ictOnly) {
@@ -377,28 +527,46 @@ export const BentoSidebar = () => {
         return nav;
     };
 
-    // Load expanded groups from localStorage
+    // Settings item (Admin only, anchored at bottom)
+    const settingsItem: NavItem | null = useMemo(() => {
+        if (canAccessPage('settings') || user?.role === 'ADMIN') {
+            return { key: 'settings', icon: Settings, label: 'Settings', path: '/settings' };
+        }
+        return null;
+    }, [user?.role, myPermissions?.pageAccess]);
+
+    // Find active group based on current route
+    const getActiveGroupId = (): string | null => {
+        const allGroups = buildNavigation();
+        const activeGroup = allGroups.find(
+            (entry): entry is NavGroup =>
+                isGroup(entry) && entry.items.some(item => location.pathname.startsWith(item.path)),
+        );
+        return activeGroup ? activeGroup.id : null;
+    };
+
+    // Accordion state: remembers which groups are expanded
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-        const saved = localStorage.getItem('sidebar-expanded-groups');
-        return saved ? JSON.parse(saved) : { resources: true, management: true, administration: true };
+        const saved = localStorage.getItem('sidebar-expanded-groups-v2');
+        if (saved) {
+            try { return JSON.parse(saved); } catch { return {}; }
+        }
+        return {};
     });
 
-    // Save expanded groups to localStorage
     useEffect(() => {
-        localStorage.setItem('sidebar-expanded-groups', JSON.stringify(expandedGroups));
+        localStorage.setItem('sidebar-expanded-groups-v2', JSON.stringify(expandedGroups));
     }, [expandedGroups]);
 
     // Auto-expand group containing active route
     useEffect(() => {
-        const allGroups = buildNavigation();
-        allGroups.forEach(entry => {
-            if (isGroup(entry)) {
-                const hasActiveChild = entry.items.some(item => location.pathname.startsWith(item.path));
-                if (hasActiveChild && !expandedGroups[entry.id]) {
-                    setExpandedGroups(prev => ({ ...prev, [entry.id]: true }));
-                }
-            }
-        });
+        const activeId = getActiveGroupId();
+        if (activeId) {
+            setExpandedGroups(prev => ({
+                ...prev,
+                [activeId]: true,
+            }));
+        }
     }, [location.pathname]);
 
     const handleLogout = async () => {
@@ -406,18 +574,39 @@ export const BentoSidebar = () => {
         window.location.href = '/login';
     };
 
+    // Smart accordion toggle:
+    // - Active group (containing current page) stays open
+    // - Opening another secondary group closes other secondary groups
+    // - Clicking an already open group toggles it closed
     const toggleGroup = (groupId: string) => {
-        setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+        const activeGroupId = getActiveGroupId();
+        setExpandedGroups(prev => {
+            const isCurrentlyOpen = !!prev[groupId];
+            if (isCurrentlyOpen) {
+                return {
+                    ...prev,
+                    [groupId]: false,
+                };
+            } else {
+                const nextState: Record<string, boolean> = {};
+                if (activeGroupId && prev[activeGroupId] !== false) {
+                    nextState[activeGroupId] = true;
+                }
+                nextState[groupId] = true;
+                return nextState;
+            }
+        });
     };
+
 
     const navigation = buildNavigation();
 
     return (
         <aside
             className={cn(
-                "h-screen flex flex-col transition-[opacity,transform,colors] duration-200 ease-out relative z-10",
-                "sidebar-frosted",
-                isCollapsed ? "w-20 p-4" : "w-64 p-6"
+                "h-screen flex flex-col transition-[width,padding] duration-200 ease-out relative z-10",
+                "sidebar-frosted select-none",
+                isCollapsed ? "w-20 p-3" : "w-64 px-4 py-5"
             )}
         >
             {/* Toggle Button */}
@@ -426,106 +615,122 @@ export const BentoSidebar = () => {
                 aria-label={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
                 title={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
                 aria-expanded={!isCollapsed}
-                className="absolute -right-3 top-10 w-7 h-7 bg-card border border-border rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors shadow-sm z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex"
+                className="absolute -right-3 top-6 w-6 h-6 bg-card border border-border rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors shadow-md z-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden lg:flex cursor-pointer"
             >
-                {isCollapsed ? <ChevronRight className="w-4 h-4" aria-hidden="true" /> : <ChevronLeft className="w-4 h-4" aria-hidden="true" />}
+                {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />}
             </button>
 
             {/* Logo */}
-            <div className={cn("flex items-center gap-3 mb-6", isCollapsed ? "justify-center px-0" : "px-2")}>
+            <div className={cn("flex items-center mb-4 shrink-0", isCollapsed ? "justify-center px-0" : "px-2")}>
                 {isCollapsed ? (
                     <Logo size="md" variant="icon" animated />
                 ) : (
-                    <Logo size="md" variant="full" animated className="animate-in fade-in duration-300" />
+                    <Logo size="md" variant="full" animated className="animate-in fade-in duration-200" />
                 )}
             </div>
 
-            {/* Navigation */}
-            <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
+            {/* Main Upper Navigation (Scrollable) */}
+            <nav aria-label="Main navigation" className="flex-1 flex flex-col gap-1 overflow-y-auto custom-scrollbar min-h-0 py-1">
                 {/* Loading skeleton while permissions are being fetched */}
                 {permissionsLoading && !myPermissions && user?.role !== 'ADMIN' && (
                     <div className="space-y-1" aria-hidden="true">
                         {[1, 2, 3, 4, 5].map(i => (
                             <div
                                 key={i}
-                                className={`h-11 bg-muted/70 rounded-2xl animate-pulse ${isCollapsed ? 'w-11 mx-auto' : 'w-full'
-                                    }`}
+                                className={`h-10 bg-muted/70 rounded-xl animate-pulse ${isCollapsed ? 'w-11 mx-auto' : 'w-full'}`}
                                 style={{ animationDelay: `${i * 60}ms` }}
                             />
                         ))}
                     </div>
                 )}
-                {(!permissionsLoading || myPermissions || user?.role === 'ADMIN') && navigation.map((entry, index) => {
+                {(!permissionsLoading || myPermissions || user?.role === 'ADMIN') && navigation.map((entry) => {
                     if (isGroup(entry)) {
                         return (
                             <NavGroupComponent
                                 key={entry.id}
                                 group={entry}
-                                isExpanded={expandedGroups[entry.id] ?? true}
+                                isExpanded={expandedGroups[entry.id] ?? false}
                                 onToggle={() => toggleGroup(entry.id)}
                                 isCollapsed={isCollapsed}
-                                pendingCount={entry.id === 'request_center' ? pendingCount : undefined}
+                                groupBadge={getGroupBadge(entry)}
+                                getItemBadge={getItemBadge}
                             />
                         );
                     }
 
-                    // Regular nav item (ungrouped)
+                    // Standalone nav item (e.g. Dashboard)
                     return (
-                        <NavLink
+                        <StandaloneNavLink
                             key={entry.path}
-                            to={entry.path}
-                            title={isCollapsed ? entry.label : undefined}
-                            aria-label={entry.label}
-                            className={({ isActive }) =>
-                                cn(
-                                    "flex items-center gap-3 rounded-lg transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 glass-hover-scale",
-                                    isCollapsed ? "justify-center p-3" : "px-4 py-3",
-                                    isActive
-                                        ? 'bg-primary text-primary-foreground font-semibold shadow-md dark:bg-primary'
-                                        : 'text-muted-foreground font-medium hover:bg-secondary/60 hover:text-foreground dark:hover:bg-secondary/25 transition-colors hover:translate-x-0.5'
-                                )
-                            }
-                        >
-                            <entry.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
-                            {!isCollapsed && (
-                                <span className="font-medium animate-in fade-in duration-300 whitespace-nowrap">
-                                    {entry.label}
-                                </span>
-                            )}
-                            {!isCollapsed && entry.key === 'eform_access' && pendingCount && pendingCount > 0 && (
-                                <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                                    {pendingCount}
-                                </span>
-                            )}
-                        </NavLink>
+                            entry={entry}
+                            isCollapsed={isCollapsed}
+                            itemBadge={getItemBadge(entry.key)}
+                        />
                     );
                 })}
             </nav>
 
-            {/* Footer / User Profile */}
-            <div className="pt-3 pb-2 mt-2 border-t border-border">
-                <div className={cn("flex items-center gap-2.5", isCollapsed ? "justify-center px-0" : "px-3 py-1.5")}>
-                    <UserAvatar useCurrentUser size="md" />
-                    {!isCollapsed && (
-                        <div className="flex-1 min-w-0 animate-in fade-in duration-300">
+            {/* Bottom Section: Settings + User Profile */}
+            <div className="pt-2 pb-1 mt-auto border-t border-border/70 flex flex-col gap-1 shrink-0">
+                {/* Settings pinned above user profile */}
+                {settingsItem && (
+                    <StandaloneNavLink
+                        entry={settingsItem}
+                        isCollapsed={isCollapsed}
+                        itemBadge={getItemBadge('settings')}
+                    />
+                )}
+
+                {/* User Profile & Logout */}
+                {isCollapsed ? (
+                    <div className="flex flex-col items-center gap-2 pt-2">
+                        <div className="relative group/avatar cursor-pointer">
+                            <UserAvatar useCurrentUser size="md" />
+                            {/* Hover tooltip for user name */}
+                            <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 hidden group-hover/avatar:flex z-50 pointer-events-none animate-in fade-in duration-150">
+                                <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-2 text-xs whitespace-nowrap">
+                                    <p className="font-semibold">{user?.fullName}</p>
+                                    <p className="text-[10px] text-muted-foreground capitalize">{user?.role?.toLowerCase()}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative group/logout">
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                aria-label="Logout"
+                                className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer"
+                            >
+                                <LogOut className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                            <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 hidden group-hover/logout:flex z-50 pointer-events-none animate-in fade-in duration-150">
+                                <div className="bg-popover text-destructive rounded-lg shadow-lg border border-border/80 px-2.5 py-1 text-xs font-semibold whitespace-nowrap">
+                                    Logout
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-secondary/30 border border-border/40 mt-1">
+                        <UserAvatar useCurrentUser size="md" />
+                        <div className="flex-1 min-w-0 animate-in fade-in duration-200">
                             <p className="text-sm font-semibold text-foreground truncate">{user?.fullName}</p>
                             <p className="text-xs text-muted-foreground font-medium truncate capitalize">{user?.role?.toLowerCase()}</p>
                         </div>
-                    )}
-                    {/* Logout Button - Inline with profile */}
-                    <button
-                        onClick={handleLogout}
-                        title="Logout"
-                        aria-label="Logout"
-                        className={cn(
-                            "p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-200 group focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive shrink-0",
-                            isCollapsed && "mt-2"
-                        )}
-                    >
-                        <LogOut className="w-5 h-5 transition-transform" aria-hidden="true" />
-                    </button>
-                </div>
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            title="Logout"
+                            aria-label="Logout"
+                            className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-150 group focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive shrink-0 cursor-pointer"
+                        >
+                            <LogOut className="w-4 h-4 transition-transform group-hover:scale-110" aria-hidden="true" />
+                        </button>
+                    </div>
+                )}
             </div>
         </aside>
     );
 };
+

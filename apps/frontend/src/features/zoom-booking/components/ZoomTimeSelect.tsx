@@ -160,10 +160,10 @@ export function ZoomTimeSelect({
                                 </span>
                                 {unavailable ? (
                                     <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                        <span className="text-[10px] text-red-400 shrink-0">Terpakai</span>
+                                        <span className="text-xs text-red-400 shrink-0">Terpakai</span>
                                         {opt.bookingTitle && (
                                             <span
-                                                className="text-[10px] text-slate-500 truncate"
+                                                className="text-xs text-slate-500 truncate"
                                                 title={opt.bookingTitle}
                                             >
                                                 · {opt.bookingTitle}
@@ -171,7 +171,7 @@ export function ZoomTimeSelect({
                                         )}
                                     </div>
                                 ) : (
-                                    <span className="ml-auto text-[10px] text-slate-400">Tersedia</span>
+                                    <span className="ml-auto text-xs text-slate-400">Tersedia</span>
                                 )}
                             </li>
                         );
@@ -189,7 +189,7 @@ export function ZoomTimeSelect({
                 >
                     <div className="flex items-center gap-1.5">
                         <Video className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" aria-hidden="true" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                             Jam {selected.time} sudah terisi
                         </span>
                     </div>
@@ -199,7 +199,7 @@ export function ZoomTimeSelect({
                         </div>
                     )}
                     {selected.accountName && (
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                             Akun: {selected.accountName}
                         </div>
                     )}
@@ -207,7 +207,7 @@ export function ZoomTimeSelect({
                         <>
                             <code
                                 data-testid={`${testId}-join-url`}
-                                className="block text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded font-mono truncate"
+                                className="block text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded font-mono truncate"
                             >
                                 {selected.joinUrl}
                             </code>
@@ -216,7 +216,7 @@ export function ZoomTimeSelect({
                                     type="button"
                                     onClick={() => copyJoinUrl(selected.joinUrl!)}
                                     data-testid={`${testId}-copy`}
-                                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
+                                    className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
                                 >
                                     {copied ? <Check className="h-3 w-3" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
                                     {copied ? 'Tersalin' : 'Copy'}
@@ -225,7 +225,7 @@ export function ZoomTimeSelect({
                                     type="button"
                                     onClick={() => window.open(selected.joinUrl, '_blank', 'noopener,noreferrer')}
                                     data-testid={`${testId}-join`}
-                                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white"
+                                    className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     <ExternalLink className="h-3 w-3" aria-hidden="true" />
                                     Join Zoom
@@ -235,7 +235,7 @@ export function ZoomTimeSelect({
                                         type="button"
                                         onClick={() => onViewBookedTime(selected)}
                                         data-testid={`${testId}-view`}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
+                                        className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
                                     >
                                         Lihat detail
                                     </button>
@@ -243,7 +243,7 @@ export function ZoomTimeSelect({
                             </div>
                         </>
                     ) : (
-                        <div className="text-[10px] text-slate-500 italic">
+                        <div className="text-xs text-slate-500 italic">
                             Link Zoom akan tersedia setelah meeting dibuat.
                         </div>
                     )}

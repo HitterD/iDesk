@@ -126,12 +126,12 @@ export const RoleDropdown: React.FC<RoleDropdownProps> = ({
                         }}
                     >
                         {bulkCount > 1 && (
-                            <div className="mb-1 px-2 py-1.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800/60 text-[11px] text-blue-700 dark:text-blue-300 font-medium">
+                            <div className="mb-1 px-2 py-1.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800/60 text-xs text-blue-700 dark:text-blue-300 font-medium">
                                 Ubah role untuk <b>{bulkCount} user</b> terpilih
                             </div>
                         )}
 
-                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2 py-1">
+                        <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2 py-1">
                             PILIH ROLE USER
                         </div>
 
@@ -163,7 +163,7 @@ export const RoleDropdown: React.FC<RoleDropdownProps> = ({
                                                 <div className="font-semibold text-slate-900 dark:text-white leading-tight">
                                                     {conf.label}
                                                 </div>
-                                                <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                                <div className="text-xs text-slate-400 dark:text-slate-500 truncate">
                                                     {conf.description}
                                                 </div>
                                             </div>

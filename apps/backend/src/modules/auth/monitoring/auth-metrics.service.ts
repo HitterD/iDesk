@@ -14,7 +14,7 @@ export class AuthMetricsService {
     }
 
     recordEvent(event: string, payload: AuthEventPayload): void {
-        if (event === AUTH_EVENT.LOGIN_SUCCEEDED) this.record('login', { outcome: payload.outcome || 'success', method: payload.identifier?.includes('@') ? 'email' : 'nik' });
+        if (event === AUTH_EVENT.LOGIN_SUCCEEDED) this.record('login', { outcome: payload.outcome || 'success', method: payload.method || 'unknown' });
         if (event === AUTH_EVENT.LOGIN_FAILED) this.record('login_failure', { outcome: payload.reason || 'failed' });
         if (event === AUTH_EVENT.REFRESH_REUSED) this.record('refresh_reuse', { outcome: 'reused' });
         if (event === AUTH_EVENT.PASSWORD_CHANGED) this.record('password_change', { outcome: 'success' });

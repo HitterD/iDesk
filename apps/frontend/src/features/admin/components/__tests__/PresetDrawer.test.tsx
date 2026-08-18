@@ -54,4 +54,34 @@ describe('PresetDrawer', () => {
         await user.click(screen.getByRole('button', { name: /^Discard$/i }));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
+
+    it('allows toggling permissions and editing description on system presets while keeping name locked', async () => {
+        const user = userEvent.setup();
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={qc}>
+                <PresetDrawer isOpen={true} onClose={vi.fn()} />
+            </QueryClientProvider>
+        );
+
+        // Name input is disabled for system presets
+        const nameInput = await screen.findByRole('textbox', { name: /Preset Name/i });
+        expect(nameInput).toBeDisabled();
+
+        // Permission toggle switch is enabled
+        const ticketsSwitch = screen.getByRole('switch', { name: /Access to tickets/i });
+        expect(ticketsSwitch).not.toBeDisabled();
+
+        // Save button is initially disabled (no unsaved changes)
+        const saveButton = screen.getByRole('button', { name: /Save/i });
+        expect(saveButton).toBeDisabled();
+
+        // Toggle the permission switch
+        await user.click(ticketsSwitch);
+
+        // Save button should now be enabled
+        expect(saveButton).not.toBeDisabled();
+        expect(screen.getByRole('status')).toHaveTextContent(/Unsaved changes/i);
+    });
 });
+

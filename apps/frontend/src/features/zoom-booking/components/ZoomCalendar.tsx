@@ -186,7 +186,7 @@ export function ZoomCalendar() {
                                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
                                     {format(currentWeek, 'MMM yyyy', { locale: idLocale })}
                                 </span>
-                                <span className="text-slate-400 font-mono font-semibold text-[11px] ml-1">
+                                <span className="text-slate-400 font-mono font-semibold text-xs ml-1">
                                     W{format(currentWeek, 'w')}
                                 </span>
                             </div>
@@ -198,7 +198,7 @@ export function ZoomCalendar() {
 
                     <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
                         {/* Compact Status Legend */}
-                        <div className="hidden xl:flex items-center gap-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-[hsl(var(--border))]">
+                        <div className="hidden xl:flex items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-[hsl(var(--border))]">
                             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500/40 ring-1 ring-emerald-500/60" /> Avail</div>
                             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> My Booking</div>
                             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /> Others</div>

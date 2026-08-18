@@ -182,12 +182,12 @@ export function AuditUserFilter({ value, onChange, placeholder = 'Filter by user
                                         )}
                                     >
                                         {/* Avatar placeholder - token based */}
-                                        <div className="w-8 h-8 rounded-lg bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[10px] font-bold text-primary flex-shrink-0">
+                                        <div className="w-8 h-8 rounded-lg bg-[hsl(var(--primary))]/10 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
                                             {user.fullName.charAt(0).toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-semibold truncate">{user.fullName}</p>
-                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{user.email}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{user.email}</p>
                                         </div>
                                         {user.id === selectedUser?.id && (
                                             <Check className="w-4 h-4 text-primary flex-shrink-0" />

@@ -55,7 +55,7 @@ export function HardwareRequestsTabs() {
               <tab.icon className="size-3.5" />
               <span>{tab.label}</span>
               {tab.showBadge && openCount > 0 && (
-                <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                <span className={`ml-1 rounded-full px-1.5 py-0.5 text-xs font-bold ${
                   isActive ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                 }`}>
                   {openCount}

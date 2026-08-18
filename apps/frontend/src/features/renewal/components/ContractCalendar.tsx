@@ -250,7 +250,7 @@ export const ContractCalendar: React.FC<ContractCalendarProps> = ({
                                         key={contract.id}
                                         onClick={() => onContractClick?.(contract)}
                                         className={cn(
-                                            "text-[10px] px-1 py-0.5 rounded truncate text-white font-medium cursor-pointer hover:opacity-80",
+                                            "text-xs px-1 py-0.5 rounded truncate text-white font-medium cursor-pointer hover:opacity-80",
                                             getStatusColor(contract.status)
                                         )}
                                         title={`${contract.poNumber || 'No PO'} - ${contract.vendorName || 'Unknown'}`}
@@ -259,7 +259,7 @@ export const ContractCalendar: React.FC<ContractCalendarProps> = ({
                                     </div>
                                 ))}
                                 {day.contracts.length > 3 && (
-                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                         +{day.contracts.length - 3} more
                                     </div>
                                 )}

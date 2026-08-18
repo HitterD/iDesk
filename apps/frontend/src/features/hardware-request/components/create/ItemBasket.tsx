@@ -18,7 +18,7 @@ export function ItemBasket({ catalog }: { catalog: HardwareCatalog[] }) {
         <div className="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-8 text-center transition-all duration-300">
             <div className="text-3xl mb-2 opacity-20">🛒</div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-500">Keranjang masih kosong</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-600 mt-1">Pilih item dari katalog untuk memulai</p>
+            <p className="text-xs text-slate-400 dark:text-slate-600 mt-1">Pilih item dari katalog untuk memulai</p>
         </div>
     );
 
@@ -30,10 +30,10 @@ export function ItemBasket({ catalog }: { catalog: HardwareCatalog[] }) {
                     <div key={i} className="p-4 flex items-start gap-4 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors duration-200">
                         <div className="flex-1 min-w-0">
                             <div className="text-sm font-bold text-slate-900 dark:text-slate-200 truncate">{cat?.name ?? '—'}</div>
-                            <div className="text-[10px] text-slate-400 dark:text-slate-600 font-mono tracking-tight">{cat?.code}</div>
+                            <div className="text-xs text-slate-400 dark:text-slate-600 font-mono tracking-tight">{cat?.code}</div>
                             
                             <div className="mt-3 space-y-1">
-                                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Penerima (Opsional)</label>
+                                <label className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Penerima (Opsional)</label>
                                 <input
                                     type="text"
                                     placeholder="Nama penerima spesifik untuk item ini..."
@@ -74,11 +74,11 @@ function DynamicFields({ index, schema }: { index: number; schema: Record<string
         <div className="mt-3 grid grid-cols-1 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/50">
             {Object.entries(schema).map(([key, field]) => (
                 <div key={key} className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{field.label}</label>
+                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{field.label}</label>
                     {field.type === 'select' ? (
                         <select 
                             {...register(`items.${index}.specs.${key}` as any)} 
-                            className="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-primary outline-none"
+                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-primary outline-none"
                         >
                             <option value="">Pilih {field.label}...</option>
                             {field.options?.map(o => <option key={o} value={o}>{o}</option>)}
@@ -88,7 +88,7 @@ function DynamicFields({ index, schema }: { index: number; schema: Record<string
                             type={field.type === 'number' ? 'number' : 'text'}
                             {...register(`items.${index}.specs.${key}` as any)}
                             placeholder={`Isi ${field.label}...`}
-                            className="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-primary outline-none" 
+                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-primary outline-none" 
                         />
                     )}
                 </div>

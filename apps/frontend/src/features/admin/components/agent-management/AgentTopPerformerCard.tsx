@@ -9,7 +9,7 @@ export const TopPerformerCard: React.FC<{ name: string; tickets: number }> = ({ 
 
         <div className="flex items-center justify-between relative z-10 pl-1">
             <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--accent))] mb-1 flex items-center gap-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--accent))] mb-1 flex items-center gap-1.5">
                     <Crown className="w-3.5 h-3.5" aria-hidden="true" />
                     Top Performer
                 </p>

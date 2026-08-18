@@ -2,16 +2,23 @@ import React from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, FileText, Download, Calendar, ShieldCheck,
-  Activity, CheckCircle2, Loader2, ClipboardCheck, Database,
+  Activity, CheckCircle2, ClipboardCheck, Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { useEformDetail, useGetEformPdf } from '../api/eform-request.api';
 import { EformStatusPipeline, EFormStatus } from '../components/eform/EformStatusPipeline';
+import { EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
 import { useAuth } from '@/stores/useAuth';
 import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
 
 const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
+
+const SIGNER_ROLE_LABELS: Record<string, string> = {
+  REQUESTER: 'Pemohon',
+  MANAGER: 'Atasan',
+  ICT: 'Tim ICT',
+};
 
 export const EformAccessDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,162 +36,221 @@ export const EformAccessDetailPage: React.FC = () => {
     : location.pathname.startsWith('/manager') ? '/manager'
     : '';
 
-  const getTypeStyles = (type: string) => {
-    switch (type) {
-      case 'VPN': return 'bg-primary/10 text-primary border-primary/20';
-      case 'WEBSITE': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'NETWORK': return 'bg-orange-100 text-orange-700 border-orange-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
+  if (isPending) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
+        <div className="flex items-center justify-between">
+          <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
+          <div className="h-9 w-36 animate-pulse rounded-xl bg-muted" />
+        </div>
+        <div className="h-36 animate-pulse rounded-2xl bg-muted" />
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="h-80 animate-pulse rounded-2xl bg-muted lg:col-span-2" />
+          <div className="h-56 animate-pulse rounded-2xl bg-muted" />
+        </div>
+      </div>
+    );
+  }
 
-  if (isPending) return (
-    <div className="flex flex-col items-center justify-center py-32 space-y-4">
-      <Loader2 className="h-10 w-10 text-primary animate-spin" />
-      <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Memuat data...</p>
-    </div>
-  );
-
-  if (isError || !request) return <div className="p-8 text-center text-muted-foreground">Permintaan tidak ditemukan</div>;
-
-  return (
-    <div className="max-w-4xl mx-auto py-8 px-4 space-y-8 animate-fade-in-up">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl">
+  if (isError || !request) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 px-4 py-16 text-center">
+        <FileText size={40} className="mx-auto text-muted-foreground" aria-hidden="true" />
+        <h2 className="text-xl font-bold text-foreground">Permintaan tidak ditemukan</h2>
+        <p className="text-sm text-muted-foreground">Permintaan ini mungkin sudah dihapus.</p>
+        <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl font-semibold">
           <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
         </Button>
-        <Button variant="outline" onClick={downloadPdf} className="rounded-xl border-2">
-          <Download className="mr-2 h-4 w-4" /> Download PDF
+      </div>
+    );
+  }
+
+  const type = getTypeConfig(request.formType);
+
+  const detailBlocks = [
+    request.formType === 'VPN' && request.formData?.kebutuhanAkses
+      ? { label: 'Kebutuhan akses VPN', value: request.formData.kebutuhanAkses }
+      : null,
+    request.formType === 'WEBSITE' && request.requestedWebsites
+      ? { label: 'Website yang diminta', value: request.requestedWebsites }
+      : null,
+    request.formType === 'NETWORK' && request.networkPurpose
+      ? { label: 'Tujuan akses jaringan', value: request.networkPurpose }
+      : null,
+    { label: 'Alasan pengajuan', value: request.formData?.alasan || '—' },
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 animate-fade-in-up">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl font-semibold">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+        </Button>
+        <Button
+          variant={request.status === EFormStatus.CONFIRMED ? 'default' : 'outline'}
+          onClick={downloadPdf}
+          className="rounded-xl font-bold shadow-xs"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          {request.status === EFormStatus.CONFIRMED ? 'Export PDF Resmi (F-ICT-04)' : 'Unduh Draft PDF'}
         </Button>
       </div>
 
-      {/* Status Pipeline */}
-      <Card className="p-8 rounded-[3rem] border-2 border-primary/5 shadow-xl shadow-primary/5">
+      {/* Confirmed / ACC Banner */}
+      {request.status === EFormStatus.CONFIRMED && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-foreground">Pengajuan Akses Telah Terealisasi (ACC)</p>
+              <p className="text-xs text-muted-foreground">
+                Dokumen resmi F-ICT-04 telah lengkap dengan tanda tangan pemohon, atasan, dan verifikasi ICT.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={downloadPdf}
+            className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" /> Unduh PDF Resmi
+          </Button>
+        </div>
+      )}
+
+      {/* Status pipeline */}
+      <div className="rounded-2xl border border-border bg-card p-8">
         <EformStatusPipeline
           currentStatus={request.status as EFormStatus}
           formType={request.formType}
           rejectionReason={request.rejectionReason}
         />
-      </Card>
+      </div>
 
-      {/* Contextual Action Buttons */}
+
+      {/* Contextual action */}
       {isCurrentApprover && request.status === EFormStatus.PENDING_MANAGER && (
         <Button
           onClick={() => navigate(`${basePath}/eform-access/${id}/approve`)}
-          className="w-full rounded-2xl h-14 bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/20 font-black uppercase tracking-widest text-[10px]"
+          className="h-12 w-full rounded-xl text-sm font-bold"
         >
-          <ClipboardCheck className="mr-2" size={18} /> Review & Setujui Permintaan
+          <ClipboardCheck className="mr-2 h-4 w-4" /> Tinjau &amp; setujui permintaan
         </Button>
       )}
       {isICT && request.status === EFormStatus.PENDING_ICT && (
         <Button
           onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
-          className="w-full rounded-2xl h-14 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 font-black uppercase tracking-widest text-[10px]"
+          className="h-12 w-full rounded-xl text-sm font-bold"
         >
-          <Database className="mr-2" size={18} /> Input Kredensial Akses
+          <Database className="mr-2 h-4 w-4" /> Siapkan kredensial akses
         </Button>
       )}
       {isRequester && request.status === EFormStatus.CONFIRMED && (
         <Button
           onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
-          className="w-full rounded-2xl h-14 bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20 font-black uppercase tracking-widest text-[10px]"
+          className="h-12 w-full rounded-xl text-sm font-bold"
         >
-          <ShieldCheck className="mr-2" size={18} /> Lihat Kredensial Akses
+          <ShieldCheck className="mr-2 h-4 w-4" /> Lihat kredensial akses
         </Button>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-8">
-          <Card className="p-8 rounded-[2.5rem] border-2 border-primary/10 space-y-6">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {/* Main content */}
+        <div className="space-y-6 lg:col-span-2">
+          <div className="space-y-6 rounded-2xl border border-border bg-card p-8">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                <FileText size={20} />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <FileText size={20} aria-hidden="true" />
               </div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-primary">Informasi Pengajuan</h3>
+              <h2 className="text-base font-bold text-foreground">Informasi pengajuan</h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter">Nama Pemohon</label>
-                <p className="text-sm font-bold uppercase">{request.requesterName}</p>
+            <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-semibold text-muted-foreground">Nama pemohon</dt>
+                <dd className="mt-1 text-sm font-bold text-foreground">{request.requesterName}</dd>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter">ID Transaksi</label>
-                <p className="text-sm font-bold font-mono text-primary">#{request.id.slice(0, 8)}</p>
+              <div>
+                <dt className="text-xs font-semibold text-muted-foreground">ID transaksi</dt>
+                <dd className="mt-1 font-mono text-sm font-bold text-primary">
+                  #{request.id.slice(0, 8).toUpperCase()}
+                </dd>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter">Masa Berlaku</label>
-                <p className="text-sm font-bold flex items-center gap-2">
-                  <Calendar size={14} className="text-primary" />
-                  {request.formData?.dariTanggal} - {request.formData?.sampaiTanggal || 'Selamanya'}
-                </p>
+              <div>
+                <dt className="text-xs font-semibold text-muted-foreground">Masa berlaku</dt>
+                <dd className="mt-1 flex items-center gap-2 text-sm font-bold text-foreground">
+                  <Calendar size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {request.formData?.dariTanggal || '—'} — {request.formData?.sampaiTanggal || 'Selamanya'}
+                </dd>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter">Form Type</label>
-                <div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${getTypeStyles(request.formType)}`}>
-                    {request.formType}
-                  </span>
+              <div>
+                <dt className="text-xs font-semibold text-muted-foreground">Jenis akses</dt>
+                <dd className="mt-1">
+                  <EformTypeBadge type={request.formType} />
+                </dd>
+              </div>
+            </dl>
+
+            <dl className="space-y-3 border-t border-border pt-6">
+              {detailBlocks.map(({ label, value }) => (
+                <div key={label} className="rounded-xl border border-border bg-muted/30 p-4">
+                  <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 text-sm leading-relaxed text-foreground">{value}</dd>
                 </div>
-              </div>
-            </div>
-
-            {request.formType === 'VPN' && request.formData?.kebutuhanAkses && (
-              <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter block mb-2">Kebutuhan Akses VPN</label>
-                <p className="text-sm font-medium leading-relaxed">{request.formData.kebutuhanAkses}</p>
-              </div>
-            )}
-            {request.formType === 'WEBSITE' && request.requestedWebsites && (
-              <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter block mb-2">Requested Websites</label>
-                <p className="text-sm font-medium leading-relaxed">{request.requestedWebsites}</p>
-              </div>
-            )}
-            {request.formType === 'NETWORK' && request.networkPurpose && (
-              <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
-                <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter block mb-2">Network Purpose</label>
-                <p className="text-sm font-medium leading-relaxed">{request.networkPurpose}</p>
-              </div>
-            )}
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
-              <label className="text-[9px] font-black uppercase opacity-40 tracking-tighter block mb-2">Alasan Pengajuan</label>
-              <p className="text-sm font-medium leading-relaxed">{request.formData?.alasan}</p>
-            </div>
-          </Card>
+              ))}
+            </dl>
+          </div>
         </div>
 
-        {/* Sidebar / Audit Trail */}
-        <div className="space-y-8">
-          <Card className="p-6 rounded-[2.5rem] border-2 border-primary/5 bg-muted/10 space-y-6">
-            <div className="flex items-center gap-2">
-              <Activity size={16} className="text-primary" />
-              <h4 className="text-[10px] font-black uppercase tracking-widest">Audit Trail</h4>
-            </div>
+        {/* Sidebar / audit trail */}
+        <aside className="space-y-6">
+          <div className="space-y-5 rounded-2xl border border-border bg-card p-6">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <Activity size={16} className="text-primary" aria-hidden="true" />
+              Riwayat persetujuan
+            </h2>
 
-            {(!request.signatures || request.signatures.length === 0) ? (
-              <p className="text-[10px] text-muted-foreground opacity-50">Belum ada tanda tangan.</p>
+            {!request.signatures || request.signatures.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Belum ada tanda tangan pada permintaan ini.
+              </p>
             ) : (
-              <div className="space-y-6 relative">
-                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-border/50 -z-10" />
+              <ol className="relative space-y-5">
+                <div
+                  className="absolute bottom-2 left-[11px] top-2 w-px bg-border"
+                  aria-hidden="true"
+                />
                 {request.signatures.map((sig, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <div className="h-6 w-6 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 relative z-10">
-                      <CheckCircle2 size={12} />
+                  <li key={i} className="flex items-start gap-4">
+                    <span className="relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                      <CheckCircle2 size={12} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="truncate text-sm font-bold leading-tight text-foreground">
+                        {sig.signerName}
+                      </p>
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        {SIGNER_ROLE_LABELS[sig.signerRole] ?? sig.signerRole}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {sig.signedAt
+                          ? format(new Date(sig.signedAt), 'd MMM yyyy, HH:mm', { locale: idLocale })
+                          : '—'}
+                      </p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-bold leading-none">{sig.signerName}</p>
-                      <p className="text-[9px] font-black uppercase tracking-tighter opacity-40">{sig.signerRole}</p>
-                      <p className="text-[8px] opacity-60">{sig.signedAt ? format(new Date(sig.signedAt), 'dd MMM yyyy HH:mm') : '-'}</p>
-                    </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ol>
             )}
-          </Card>
-        </div>
+          </div>
+
+          <p className="px-1 text-xs leading-relaxed text-muted-foreground">
+            {type.description}. Permintaan diteruskan ke atasan Anda, lalu ke tim ICT untuk disiapkan.
+          </p>
+        </aside>
       </div>
     </div>
   );

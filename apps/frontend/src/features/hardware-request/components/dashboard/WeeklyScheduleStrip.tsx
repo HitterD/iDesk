@@ -9,11 +9,11 @@ export function WeeklyScheduleStrip({ data, loading }: { data?: Slot[]; loading?
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[hsl(var(--card))] p-4 shadow-sm">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Jadwal Instalasi 7 Hari</h3>
+      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Jadwal Instalasi 7 Hari</h3>
       <div className="grid grid-cols-7 gap-2">
         {data.map((d) => (
           <div key={d.date} className="rounded-md border p-2 text-center">
-            <div className="text-[10px] uppercase text-slate-500">
+            <div className="text-xs uppercase text-slate-500">
               {format(parseISO(d.date), 'EEE', { locale: idLocale })}
             </div>
             <div className="text-xs text-slate-700">

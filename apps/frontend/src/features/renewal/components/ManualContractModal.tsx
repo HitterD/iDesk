@@ -171,7 +171,7 @@ export const ManualContractModal: React.FC<ManualContractModalProps> = ({ isOpen
                         <Button
                             onClick={handleSubmit}
                             disabled={createMutation.isPending}
-                            className="flex-1 bg-primary text-slate-900 font-bold py-6 rounded-xl hover:bg-primary/90"
+                            className="flex-1 bg-primary text-primary-foreground font-bold py-6 rounded-xl hover:bg-primary/90"
                         >
                             {createMutation.isPending ? (
                                 <>

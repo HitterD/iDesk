@@ -135,7 +135,6 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
         <div
             className={cn(
                 "flex flex-col lg:grid lg:items-center gap-2 lg:gap-4 px-4 py-3 transition-colors duration-150 cursor-pointer group animate-fade-in-up border-b border-[hsl(var(--border))] last:border-0",
-                "border-l-4 border-l-transparent", // the 4px shifter fix
                 showSiteColumn
                     ? "lg:grid-cols-[32px_minmax(280px,2fr)_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
                     : "lg:grid-cols-[32px_minmax(280px,2fr)_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]",
@@ -143,11 +142,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-[hsl(var(--background))] dark:bg-slate-800/40",
                 // Subtle hover effect
                 "hover:bg-slate-50 dark:hover:bg-[hsl(var(--muted))]/10 transition-colors relative z-0 hover:z-10",
-                ticket.isOverdue && "animate-overdue !bg-[hsl(var(--error-500))]/5 dark:!bg-[hsl(var(--error-500))]/10 !border-l-[hsl(var(--error-500))]",
-                ticket.priority === 'CRITICAL' && !ticket.isOverdue && "animate-critical-pulse !border-l-[hsl(var(--warning-500))] !bg-[hsl(var(--warning-500))]/5 dark:!bg-[hsl(var(--warning-500))]/10",
-                ticket.priority === 'HIGH' && !ticket.isOverdue && "animate-high-priority",
-                ticket.isHardwareInstallation && !ticket.isOverdue && "!bg-purple-50/70 dark:!bg-purple-900/10 !border-l-purple-600",
-                isSelected && "!bg-[hsl(var(--primary))]/10 dark:!bg-[hsl(var(--primary))]/10 !border-l-[hsl(var(--primary))]"
+                ticket.isOverdue && "!bg-[hsl(var(--error-500))]/5 dark:!bg-[hsl(var(--error-500))]/10",
+                ticket.isHardwareInstallation && !ticket.isOverdue && "!bg-purple-50/70 dark:!bg-purple-900/10",
+                isSelected && "!bg-[hsl(var(--primary))]/10 dark:!bg-[hsl(var(--primary))]/10"
             )}
             style={rowStyle}
         >
@@ -165,7 +162,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
             )}
 
             {/* Ticket Info with Quick Preview */}
-            <TicketQuickPreview ticket={ticket} side="right" disabled={false}>
+            <TicketQuickPreview ticket={ticket} side="left" disabled={false}>
                 <div className="flex items-center gap-3 min-w-0">
                     <div
                         className="flex items-center gap-3 min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -175,7 +172,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         tabIndex={0}
                         aria-label={`Open ticket ${ticket.ticketNumber || ticket.id.slice(0, 8)}: ${ticket.title}`}
                     >
-                        <div className={cn("w-1.5 h-12 rounded-full shrink-0", priorityConfig.barColor)} />
+                        <div className={cn("w-2 h-2 rounded-full shrink-0 mt-1.5 self-start", priorityConfig.barColor)} aria-hidden="true" />
                         <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
                             <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-[hsl(var(--muted))] dark:bg-slate-800 px-1.5 py-0.5 rounded font-medium">
@@ -191,7 +188,6 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <div className="flex items-center gap-2 min-w-0">
                             <h3
                                 className="font-semibold text-base text-slate-800 dark:text-white group-hover:text-[hsl(var(--primary))] transition-colors truncate"
-                                title={ticket.title}
                             >
                                 {ticket.title}
                             </h3>
@@ -211,7 +207,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 e.stopPropagation();
                                 navigate(`/hardware-requests/${ticket.ictBudgetRequestId}?highlight=installation`);
                             }}
-                            className="flex items-center gap-1 mt-1 px-2 py-0.5 w-fit rounded-md bg-purple-50 hover:bg-purple-100 text-[11px] font-medium text-purple-700 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:text-purple-400 transition-colors"
+                            className="flex items-center gap-1 mt-1 px-2 py-0.5 w-fit rounded-md bg-purple-50 hover:bg-purple-100 text-xs font-medium text-purple-700 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:text-purple-400 transition-colors"
                         >
                             <Wrench className="w-3 h-3" aria-hidden="true" />
                             <span>Lihat di Hardware Requests</span>
@@ -261,7 +257,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
 
             {/* Requester */}
             <div
-                className="flex items-center gap-2 min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="flex items-center gap-2.5 min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={handleRowClick}
                 onKeyDown={handleRowKeyDown}
                 role="button"
@@ -273,8 +269,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     size="sm"
                 />
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{ticket.user?.fullName || 'Unknown'}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate hidden md:block">{ticket.user?.department?.name || '-'}</p>
+                    <p className="text-xs font-bold text-foreground truncate">{ticket.user?.fullName || 'Unknown'}</p>
+                    <p className="text-[11px] font-medium text-muted-foreground truncate hidden md:block">{ticket.user?.department?.name || '-'}</p>
                 </div>
             </div>
 
@@ -285,19 +281,25 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <PopoverTrigger asChild>
                             <button
                                 type="button"
-                                className="h-8 w-full min-w-[140px] flex items-center gap-2 px-2 text-sm border border-slate-200 bg-white dark:border-slate-700/60 dark:bg-slate-800/40 shadow-sm hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-1 focus:ring-primary/50 transition-all duration-200 ease-out rounded-md font-medium"
+                                className="h-8 w-full min-w-[140px] flex items-center justify-between gap-1.5 px-2.5 text-xs border border-border/80 bg-background shadow-xs hover:border-primary/40 hover:bg-muted/40 focus:ring-1 focus:ring-primary/50 transition-all rounded-lg font-medium cursor-pointer"
                             >
                                 {ticket.assignedTo ? (
-                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                         <UserAvatar user={ticket.assignedTo} size="xs" />
-                                        <span className="truncate">{ticket.assignedTo.fullName}</span>
+                                        <span className="truncate text-xs font-semibold text-foreground">{ticket.assignedTo.fullName}</span>
                                     </div>
                                 ) : (
-                                    <span className="text-slate-400 flex-1 text-left">Unassigned</span>
+                                    <span className="text-muted-foreground/70 text-xs flex-1 text-left italic">Unassigned</span>
                                 )}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent className="p-0 w-72" align="start">
+                        <PopoverContent
+                            className="p-0 w-80 shadow-2xl border-border bg-card overflow-hidden rounded-xl"
+                            align="end"
+                            side="bottom"
+                            sideOffset={6}
+                            collisionPadding={16}
+                        >
                             <AgentSelectList
                                 agents={agents}
                                 selectedId={ticket.assignedTo?.id}
@@ -317,16 +319,17 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                     user={ticket.assignedTo}
                                     size="xs"
                                 />
-                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
+                                <span className="text-xs font-semibold text-foreground truncate">
                                     {ticket.assignedTo.fullName}
                                 </span>
                             </>
                         ) : (
-                            <span className="text-sm text-slate-400 italic font-medium">Unassigned</span>
+                            <span className="text-xs text-muted-foreground/70 italic font-medium">Unassigned</span>
                         )}
                     </div>
                 )}
             </StopPropagationWrapper>
+
 
             {/* Target Date */}
             <div
@@ -369,7 +372,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <StopPropagationWrapper>
                             <button
                                 onClick={() => onUpdateStatus(ticket.id, 'RESOLVED')}
-                                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-150"
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 hover:text-green-700 dark:hover:text-green-300 transition-colors duration-150"
                                 title="Mark as resolved"
                             >
                                 <CheckCircle2 className="w-4 h-4" />

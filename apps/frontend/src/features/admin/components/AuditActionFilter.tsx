@@ -95,7 +95,7 @@ export function AuditActionFilter({ value, onChange }: AuditActionFilterProps) {
                             {/* Grouped Actions */}
                             {Object.entries(actionGroups).map(([group, actions]) => (
                                 <div key={group}>
-                                    <div className="px-3 py-2 mt-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    <div className="px-3 py-2 mt-1 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                         {group}
                                     </div>
                                     {actions.map(action => {

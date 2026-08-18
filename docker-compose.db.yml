@@ -6,9 +6,9 @@ services:
     image: postgres:15-alpine
     container_name: idesk-postgres
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_DATABASE:-idesk_db}
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set and non-empty}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set and non-empty}
+      POSTGRES_DB: ${DB_DATABASE:?DB_DATABASE must be set and non-empty}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:

@@ -11,7 +11,7 @@ export const AUTH_EVENT = {
 
 export interface AuthEventPayload {
     userId?: string;
-    identifier?: string;
+    method?: 'email' | 'nik';
     role?: string;
     outcome?: string;
     reason?: string;

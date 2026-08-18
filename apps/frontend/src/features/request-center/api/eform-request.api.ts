@@ -190,15 +190,21 @@ export const useRejectRequest = () => {
   });
 };
 
+export const downloadEformPdf = async (id: string, fileName?: string) => {
+  const response = await api.get(`${API_BASE}/${id}/pdf`, { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([response.data as any]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', fileName || `EForm-VPN-${id}.pdf`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 export const useGetEformPdf = (id: string) => {
   return async () => {
-    const response = await api.get(`${API_BASE}/${id}/pdf`, { responseType: 'blob' });
-    const url = window.URL.createObjectURL(new Blob([response.data as any]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `EForm-VPN-${id}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    await downloadEformPdf(id);
   };
 };
+

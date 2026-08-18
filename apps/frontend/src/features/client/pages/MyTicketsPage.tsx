@@ -170,7 +170,7 @@ export const MyTicketsPage: React.FC = () => {
                 </div>
                 <Link
                     to="/client/create"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-slate-900 rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out font-medium shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out font-medium shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
                 >
                     <Plus className="w-5 h-5" />
                     New Ticket
@@ -297,7 +297,7 @@ export const MyTicketsPage: React.FC = () => {
                         {!hasActiveFilters && (
                             <Link
                                 to="/client/create"
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-slate-900 rounded-xl hover:bg-primary/90 transition-colors duration-150 font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors duration-150 font-medium"
                             >
                                 <Plus className="w-5 h-5" />
                                 Create Ticket
@@ -333,16 +333,16 @@ export const MyTicketsPage: React.FC = () => {
                                             <div className={cn("w-1 h-12 rounded-full shrink-0", priority.bar)} />
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="font-mono text-[11px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                                    <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
                                                         #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                                     </span>
                                                     {ticket.category && (
-                                                        <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium">
+                                                        <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium">
                                                             {ticket.category}
                                                         </span>
                                                     )}
                                                     {ticket.messages && ticket.messages.length > 0 && (
-                                                        <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded lg:hidden">
+                                                        <span className="flex items-center gap-1 text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded lg:hidden">
                                                             <MessageSquare className="w-3 h-3" />
                                                             {ticket.messages.length}
                                                         </span>
@@ -403,7 +403,7 @@ export const MyTicketsPage: React.FC = () => {
                                                 <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                                                     {format(new Date(ticket.createdAt), 'dd MMM')}
                                                 </div>
-                                                <div className="text-[10px] text-slate-400">
+                                                <div className="text-xs text-slate-400">
                                                     {format(new Date(ticket.createdAt), 'HH:mm')}
                                                 </div>
                                             </div>

@@ -37,7 +37,7 @@ export const BentoSettingsPage: React.FC = () => {
 
                         {/* Personal Settings Section */}
                         <div className="space-y-1">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2">
                                 Personal
                             </h3>
                             <Tabs.List className="flex flex-col w-full gap-1">
@@ -65,7 +65,7 @@ export const BentoSettingsPage: React.FC = () => {
                         {/* Administration Settings Section */}
                         {user?.role === 'ADMIN' && (
                             <div className="space-y-1">
-                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2">
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2">
                                     Administration
                                 </h3>
                                 <Tabs.List className="flex flex-col w-full gap-1">

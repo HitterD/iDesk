@@ -110,7 +110,7 @@ export function AuditTimelineView({ date }: AuditTimelineViewProps) {
                                         );
                                     })}
                                     {group.logs.length > 4 && (
-                                        <span className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                        <span className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">
                                             +{group.logs.length - 4}
                                         </span>
                                     )}
@@ -165,7 +165,7 @@ export function AuditTimelineView({ date }: AuditTimelineViewProps) {
                                                 <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5">
                                                     {log.description || `${log.entityType} ${log.entityId || ''}`}
                                                 </p>
-                                                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                                <div className="flex items-center gap-2 mt-1 text-xs text-slate-400 dark:text-slate-500">
                                                     <User className="w-3 h-3" />
                                                     {log.user?.fullName || 'System'}
                                                 </div>

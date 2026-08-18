@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { getPasswordRequirements, translatePasswordPolicyError, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
 
 interface MustChangePasswordDialogProps {
     currentPassword: string;
@@ -16,7 +17,8 @@ export const MustChangePasswordDialog: React.FC<MustChangePasswordDialogProps> =
     const [submitting, setSubmitting] = useState(false);
 
     const validate = (): string | null => {
-        if (newPassword.length < 8) return 'Password minimal 8 karakter.';
+        const local = validatePasswordLocal(newPassword);
+        if (!local.valid && local.reason) return passwordPolicyMessage(local.reason);
         if (newPassword === '123456') return 'Password baru tidak boleh 123456.';
         if (newPassword !== confirm) return 'Konfirmasi password tidak cocok.';
         return null;
@@ -33,7 +35,9 @@ export const MustChangePasswordDialog: React.FC<MustChangePasswordDialogProps> =
             toast.success('Password berhasil diganti');
             onSuccess();
         } catch (err: any) {
-            setError(err?.response?.data?.message || 'Gagal mengganti password.');
+            const raw: string = err?.response?.data?.message || '';
+            const msg = raw ? (translatePasswordPolicyError(raw) || (Array.isArray(raw) ? raw[0] : raw)) : 'Gagal mengganti password.';
+            setError(msg as string);
         } finally {
             setSubmitting(false);
         }
@@ -82,7 +86,16 @@ export const MustChangePasswordDialog: React.FC<MustChangePasswordDialogProps> =
                                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Panjang minimum 8 karakter, tidak boleh 123456.</p>
+                        <p className="text-xs text-slate-400 mt-1">Minimal 12 karakter, wajib huruf besar, huruf kecil, dan angka. Tidak boleh mengandung nama/email/NIK Anda.</p>
+                        {newPassword.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                                {getPasswordRequirements(newPassword).map((r) => (
+                                    <li key={r.label} className={`text-xs flex items-center gap-1.5 ${r.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                                        <span aria-hidden="true">{r.met ? '✓' : '○'}</span> {r.label}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
 
                     <div>

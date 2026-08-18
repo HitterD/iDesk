@@ -229,7 +229,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                                                 onChange={handleFileSelect}
                                                 className="hidden"
                                             />
-                                            <span className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-xl cursor-pointer hover:bg-primary/90 transition-colors">
+                                            <span className="px-6 py-2 bg-primary text-primary-foreground font-bold rounded-xl cursor-pointer hover:bg-primary/90 transition-colors">
                                                 Browse Files
                                             </span>
                                         </label>
@@ -264,7 +264,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                             <Button
                                 onClick={() => handleUpload(false)}
                                 disabled={!file || uploadMutation.isPending}
-                                className="w-full bg-primary text-slate-900 font-bold py-6 rounded-xl hover:bg-primary/90"
+                                className="w-full bg-primary text-primary-foreground font-bold py-6 rounded-xl hover:bg-primary/90"
                             >
                                 {uploadMutation.isPending ? (
                                     <>
@@ -458,7 +458,7 @@ export const ContractUploadModal: React.FC<ContractUploadModalProps> = ({ isOpen
                                 <Button
                                     onClick={handleSave}
                                     disabled={updateMutation.isPending}
-                                    className="flex-1 bg-primary text-slate-900 font-bold py-6 rounded-xl hover:bg-primary/90"
+                                    className="flex-1 bg-primary text-primary-foreground font-bold py-6 rounded-xl hover:bg-primary/90"
                                 >
                                     {updateMutation.isPending ? (
                                         <>

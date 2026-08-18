@@ -76,7 +76,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
                 
                 <div className="flex-1 min-w-0">
                     {article.category && (
-                        <span className="inline-block px-2 py-0.5 text-[10px] font-medium bg-primary/10 text-primary rounded-full mb-1">
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full mb-1">
                             {article.category}
                         </span>
                     )}

@@ -165,7 +165,7 @@ export function ZoomDayView({
                                         "sticky left-0 z-10 flex items-start justify-end pr-3 border-r border-slate-200 dark:border-slate-700",
                                         isHour
                                             ? "text-xs font-bold text-slate-700 dark:text-slate-300 pt-1"
-                                            : "text-[10px] text-slate-400 dark:text-slate-500 pt-1"
+                                            : "text-xs text-slate-400 dark:text-slate-500 pt-1"
                                     )}
                                     style={{ height: SLOT_HEIGHT }}
                                 >
@@ -188,7 +188,7 @@ export function ZoomDayView({
                                 >
                                     {slot?.status === 'available' && canBook && (
                                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-0.5 bg-blue-50/50 dark:bg-blue-950/30 z-10 pointer-events-none">
-                                            <span className="text-[10px] font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                                            <span className="text-xs font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
                                                 <Video className="h-3 w-3" /> Book {time}
                                             </span>
                                         </div>
@@ -278,13 +278,13 @@ export function ZoomDayView({
                                                 <span className="truncate">{booking.title}</span>
                                             </div>
                                             {(isLarge || booking.rowSpan >= 2) && (
-                                                <div className="flex items-center gap-1 text-[10px] opacity-90">
+                                                <div className="flex items-center gap-1 text-xs opacity-90">
                                                     <Clock className="h-3 w-3 shrink-0" />
                                                     <span>{booking.startTime} – {booking.endTime}</span>
                                                 </div>
                                             )}
                                             {isLarge && (
-                                                <div className="flex items-center gap-1 text-[10px] opacity-80">
+                                                <div className="flex items-center gap-1 text-xs opacity-80">
                                                     <User className="h-3 w-3 shrink-0" />
                                                     <span className="truncate">{booking.bookedBy}</span>
                                                 </div>
@@ -303,7 +303,7 @@ export function ZoomDayView({
                                         type="button"
                                         key={`overflow-${rowStart}`}
                                         data-testid="overflow-pill"
-                                        className="absolute h-5 rounded-md bg-slate-800 text-white text-[10px] font-semibold flex items-center justify-center hover:bg-slate-900 z-20"
+                                        className="absolute h-5 rounded-md bg-slate-800 text-white text-xs font-semibold flex items-center justify-center hover:bg-slate-900 z-20"
                                         style={{
                                             top: pillTop,
                                             left: `calc(${TIME_COL_WIDTH}px + 4px)`,
@@ -334,7 +334,7 @@ export function ZoomDayView({
                                 style={{ marginLeft: TIME_COL_WIDTH - 6 }}
                             />
                             <div className="flex-1 h-0.5 bg-red-500" />
-                            <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-l-md">
+                            <div className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-l-md">
                                 {format(currentTime, 'HH:mm')}
                             </div>
                         </div>

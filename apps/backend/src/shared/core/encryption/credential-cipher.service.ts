@@ -11,8 +11,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypt
  * Format: `v1:<base64(iv)>:<base64(authTag)>:<base64(ciphertext)>`
  *   - iv:      12 random bytes (GCM standard)
  *   - authTag: 16 bytes (GCM authentication tag)
- *   - key:     32 bytes derived from `ENCRYPTION_KEY` (preferred) or
- *              `JWT_SECRET` (fallback) via scrypt with a static salt
+ *   - key:     32 bytes derived from `ENCRYPTION_KEY` via scrypt with a static salt
  *
  * The static salt is acceptable here because the secret is itself high-entropy;
  * scrypt still raises the cost of brute-force vs. raw key usage.
@@ -28,9 +27,9 @@ export class CredentialCipherService implements OnModuleInit {
     constructor(private readonly config: ConfigService) {}
 
     onModuleInit(): void {
-        const secret = this.config.get<string>('ENCRYPTION_KEY') ?? this.config.get<string>('JWT_SECRET');
+        const secret = this.config.get<string>('ENCRYPTION_KEY');
         if (!secret) {
-            throw new Error('CredentialCipherService requires ENCRYPTION_KEY (preferred) or JWT_SECRET');
+            throw new Error('CredentialCipherService requires ENCRYPTION_KEY');
         }
         this.key = scryptSync(secret, CredentialCipherService.SALT, 32);
         this.logger.log('CredentialCipherService initialized (AES-256-GCM)');

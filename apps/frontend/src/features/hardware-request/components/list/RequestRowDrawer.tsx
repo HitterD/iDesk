@@ -60,13 +60,13 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
                             <div className="flex items-center justify-between gap-3 px-4 py-2 bg-cyan-50 dark:bg-cyan-900/20 border-b border-cyan-200 dark:border-cyan-800">
                                 <div className="flex items-center gap-2">
                                     <AlertCircle className="size-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
-                                    <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                                    <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
                                         Konfirmasi instalasi diperlukan
                                     </span>
                                 </div>
                                 <Link
                                     to={`${basePath}/${r.id}`}
-                                    className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300 hover:underline underline-offset-2 shrink-0"
+                                    className="text-xs font-bold text-cyan-700 dark:text-cyan-300 hover:underline underline-offset-2 shrink-0"
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     Buka detail →
@@ -107,7 +107,7 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
                             {/* Full detail link — pushed right */}
                             <Link
                                 to={`${basePath}/${r.id}`}
-                                className="ml-auto flex items-center gap-1.5 text-[11px] font-bold bg-primary text-white hover:bg-primary/90 shadow-sm hover:shadow-md transition-all px-3.5 py-1.5 rounded-lg"
+                                className="ml-auto flex items-center gap-1.5 text-xs font-bold bg-primary text-white hover:bg-primary/90 shadow-sm hover:shadow-md transition-all px-3.5 py-1.5 rounded-lg"
                             >
                                 Buka Full Detail
                                 <ExternalLink className="size-3" />
@@ -178,7 +178,7 @@ function DrawerDetail({ r }: { r: HardwareRequest }) {
                         </span>
                     ))}
                     {(r.items?.length ?? 0) > 3 && (
-                        <span className="text-[11px] text-slate-400 ml-4">+{r.items.length - 3} lagi</span>
+                        <span className="text-xs text-slate-400 ml-4">+{r.items.length - 3} lagi</span>
                     )}
                 </div>
             </InfoBlock>
@@ -186,7 +186,7 @@ function DrawerDetail({ r }: { r: HardwareRequest }) {
             {/* Justifikasi — full width */}
             {r.justification && (
                 <div className="sm:col-span-2 lg:col-span-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-1">
+                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-1">
                         Justifikasi
                     </span>
                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">
@@ -209,7 +209,7 @@ function InfoBlock({
 }) {
     return (
         <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                 <Icon className="size-3" />
                 {label}
             </div>

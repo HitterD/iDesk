@@ -185,7 +185,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                                     attachments={msg.attachments || []}
                                     onImageClick={setSelectedImage}
                                 />
-                                <span className="text-[10px] opacity-50 mt-1 block">
+                                <span className="text-xs opacity-50 mt-1 block">
                                     {formatDate(msg.createdAt)}
                                 </span>
                             </div>

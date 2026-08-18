@@ -8,12 +8,14 @@ import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
 import { BCRYPT_ROUNDS } from '../../../shared/core/config/security.config';
 import { TokenService } from './token.service';
-import { SessionService } from './session.service';
+import { SessionService, RefreshTokenReuseException } from './session.service';
 import { ValidatedUser } from './auth-user.types';
 import { toValidatedUser } from './auth-user.mapper';
 import { validatePasswordPolicy } from './password-policy';
 import { CredentialValidatorService } from './credential-validator.service';
+import { AuthEventPublisher, AUTH_EVENT } from './auth-events';
 import { LoginValidationResult } from './auth-validation.types';
+import { RefreshTokenClaims } from './refresh-session.types';
 
 export type { LoginValidationResult } from './auth-validation.types';
 
@@ -26,6 +28,7 @@ export class AuthService {
         private readonly tokenService: TokenService,
         private readonly sessionService: SessionService,
         private readonly credentialValidator: CredentialValidatorService,
+        private readonly authEvents: AuthEventPublisher,
     ) { }
 
     async changePassword(userId: string, dto: ChangePasswordDto, request?: Request) {
@@ -44,7 +47,7 @@ export class AuthService {
             nik: user.employeeId,
         });
         if (!passwordPolicy.valid) {
-            throw new BadRequestException(`Password policy violation: ${passwordPolicy.reason}`);
+            throw new BadRequestException(passwordPolicy.message || `Password policy violation: ${passwordPolicy.reason}`);
         }
 
         const newPasswordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
@@ -55,8 +58,8 @@ export class AuthService {
         // if the store is unavailable the change fails rather than leaving live sessions.
         await this.sessionService.invalidateUser(userId);
 
-        // Audit log for password change
-        this.auditService.logAsync({
+        // Security audit must finish before confirming password change.
+        await this.auditService.log({
             userId,
             action: AuditAction.PASSWORD_CHANGE,
             entityType: 'user',
@@ -64,6 +67,7 @@ export class AuthService {
             description: `User ${user.fullName} changed their password`,
             request,
         });
+        this.authEvents.emit(AUTH_EVENT.PASSWORD_CHANGED, { userId, outcome: 'success' });
 
         return { message: 'Password updated successfully' };
     }
@@ -84,8 +88,14 @@ export class AuthService {
         await this.usersService.update(user.id, { lastActiveAt: new Date() });
         const tokens = this.tokenService.issueRefreshToken(user, familyId, parentId, rememberMe);
         await this.sessionService.persist(user, tokens);
+        this.authEvents.emit(AUTH_EVENT.LOGIN_SUCCEEDED, {
+            userId: user.id,
+            role: user.role,
+            method: user.email.includes('@') ? 'email' : 'nik',
+            outcome: 'success',
+        });
 
-        this.auditService.logAsync({
+        await this.auditService.log({
             userId: user.id,
             action: AuditAction.USER_LOGIN,
             entityType: 'auth',
@@ -105,8 +115,9 @@ export class AuthService {
     }
 
     async refreshToken(token: string, request?: Request) {
+        let decoded: RefreshTokenClaims | undefined;
         try {
-            const decoded = this.tokenService.verifyRefreshToken(token);
+            decoded = this.tokenService.verifyRefreshToken(token);
             const user = await this.sessionService.rotate(token, decoded);
             return this.login(
                 toValidatedUser(user),
@@ -116,6 +127,9 @@ export class AuthService {
                 decoded.tokenId,
             );
         } catch (error) {
+            if (error instanceof RefreshTokenReuseException) {
+                this.authEvents.emit(AUTH_EVENT.REFRESH_REUSED, { userId: decoded?.sub, outcome: 'reused' });
+            }
             if (error instanceof UnauthorizedException) throw error;
             if (error instanceof ServiceUnavailableException) throw error;
             throw new UnauthorizedException('Refresh token is invalid or expired');
@@ -125,7 +139,7 @@ export class AuthService {
     async logout(user: { userId: string } | null | undefined, request?: Request) {
         if (user?.userId) {
             await this.sessionService.invalidateUser(user.userId);
-            this.auditService.logAsync({
+            await this.auditService.log({
                 userId: user.userId,
                 action: AuditAction.USER_LOGOUT,
                 entityType: 'auth',
@@ -133,6 +147,7 @@ export class AuthService {
                 description: `User logged out`,
                 request,
             });
+            this.authEvents.emit(AUTH_EVENT.LOGOUT, { userId: user.userId, outcome: 'success' });
         }
     }
 

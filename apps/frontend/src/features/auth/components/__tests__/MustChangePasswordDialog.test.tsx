@@ -11,30 +11,40 @@ describe('MustChangePasswordDialog', () => {
     const setup = (props = {}) =>
         render(<MustChangePasswordDialog currentPassword="123456" onSuccess={vi.fn()} {...props} />);
 
-    it('menolak password 123456', async () => {
+    it('menolak password 123456 (terlalu pendek → ditangkap policy)', async () => {
         setup();
         fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: '123456' } });
         fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: '123456' } });
         fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
-        expect(await screen.findByText(/tidak boleh 123456/i)).toBeInTheDocument();
+        // 123456 gagal di minimal 12 karakter sebelum cek khusus 123456
+        expect((await screen.findAllByText(/minimal 12/i)).length).toBeGreaterThan(0);
         expect(api.post).not.toHaveBeenCalled();
     });
 
     it('menolak konfirmasi tidak cocok', async () => {
         setup();
-        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'newpass88' } });
-        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'different8' } });
+        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'Str0ngPass99!!' } });
+        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'Str0ngPass99!x' } });
         fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
         expect(await screen.findByText(/tidak cocok/i)).toBeInTheDocument();
         expect(api.post).not.toHaveBeenCalled();
     });
 
-    it('menolak kurang dari 8 karakter', async () => {
+    it('menolak kurang dari 12 karakter', async () => {
         setup();
-        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'short7x' } });
-        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'short7x' } });
+        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'Short7xAb1' } });
+        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'Short7xAb1' } });
         fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
-        expect(await screen.findByText(/minimal 8/i)).toBeInTheDocument();
+        expect((await screen.findAllByText(/minimal 12/i)).length).toBeGreaterThan(0);
+        expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it('menolak tanpa huruf besar/kecil/angka', async () => {
+        setup();
+        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'alllowercase12' } });
+        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'alllowercase12' } });
+        fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
+        expect((await screen.findAllByText(/huruf besar/i)).length).toBeGreaterThan(0);
         expect(api.post).not.toHaveBeenCalled();
     });
 
@@ -42,13 +52,13 @@ describe('MustChangePasswordDialog', () => {
         (api.post as any).mockResolvedValue({ data: {} });
         const onSuccess = vi.fn();
         setup({ onSuccess });
-        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'newpass88' } });
-        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'newpass88' } });
+        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'Str0ngPass99!!' } });
+        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'Str0ngPass99!!' } });
         fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
         await waitFor(() =>
             expect(api.post).toHaveBeenCalledWith('/auth/change-password', {
                 currentPassword: '123456',
-                newPassword: 'newpass88',
+                newPassword: 'Str0ngPass99!!',
             }),
         );
         await waitFor(() => expect(onSuccess).toHaveBeenCalled());

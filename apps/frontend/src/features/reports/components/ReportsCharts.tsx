@@ -470,7 +470,7 @@ export const MiniBarChart: React.FC<MiniBarProps> = ({
                         }}
                         title={`${item.label}: ${item.value}`}
                     />
-                    <span className="text-[9px] text-slate-500 truncate w-full text-center">
+                    <span className="text-xs text-slate-500 truncate w-full text-center">
                         {item.label}
                     </span>
                 </div>

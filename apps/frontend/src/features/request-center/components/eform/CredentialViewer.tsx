@@ -62,14 +62,14 @@ export const CredentialViewer: React.FC<CredentialViewerProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-primary">Kredensial VPN</h3>
-                <p className="text-[10px] opacity-60 font-bold uppercase tracking-tighter">Akses Anda telah siap</p>
+                <p className="text-xs opacity-60 font-bold uppercase tracking-tighter">Akses Anda telah siap</p>
               </div>
             </div>
 
             <div className="space-y-4">
               {/* Username Field */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-40">Username</label>
+                <label className="text-xs font-extrabold uppercase tracking-widest opacity-40">Username</label>
                 <div className="flex gap-2">
                   <div className="flex-1 h-11 bg-muted/50 rounded-xl border border-border/50 flex items-center px-4 font-mono text-sm font-bold overflow-hidden">
                     {showUsername ? username : '••••••••••••'}
@@ -85,7 +85,7 @@ export const CredentialViewer: React.FC<CredentialViewerProps> = ({
 
               {/* Password Field */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-40">Password</label>
+                <label className="text-xs font-extrabold uppercase tracking-widest opacity-40">Password</label>
                 <div className="flex gap-2">
                   <div className="flex-1 h-11 bg-muted/50 rounded-xl border border-border/50 flex items-center px-4 font-mono text-sm font-bold overflow-hidden">
                     {showPassword ? password : '••••••••••••'}
@@ -101,7 +101,7 @@ export const CredentialViewer: React.FC<CredentialViewerProps> = ({
             </div>
 
             <div className="mt-8 pt-4 border-t border-border/30 space-y-3">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest opacity-60">
+              <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-60">
                 <span className="flex items-center gap-1"><Clock size={12} /> Auto-hide dalam</span>
                 <span>{timeLeft}s</span>
               </div>
@@ -109,7 +109,7 @@ export const CredentialViewer: React.FC<CredentialViewerProps> = ({
               
               <div className="p-3 rounded-2xl bg-amber-500/5 flex items-start gap-2 border border-amber-500/10">
                 <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                <p className="text-[9px] font-bold leading-tight text-amber-700/70 uppercase tracking-tight">
+                <p className="text-xs font-bold leading-tight text-amber-700/70 uppercase tracking-tight">
                   Kredensial ini bersifat rahasia. Harap simpan di tempat yang aman dan jangan bagikan kepada siapa pun.
                 </p>
               </div>
@@ -126,8 +126,8 @@ export const CredentialViewer: React.FC<CredentialViewerProps> = ({
             <ShieldCheck size={24} />
           </div>
           <h3 className="text-sm font-black uppercase tracking-widest opacity-40">Kredensial Tersembunyi</h3>
-          <p className="text-[10px] font-bold uppercase tracking-tighter opacity-30 mb-4">Waktu tampilan telah habis demi keamanan</p>
-          <Button variant="outline" size="sm" onClick={() => { setTimeLeft(60); setIsVisible(true); }} className="rounded-xl h-9 text-[10px] font-extrabold uppercase tracking-widest">
+          <p className="text-xs font-bold uppercase tracking-tighter opacity-30 mb-4">Waktu tampilan telah habis demi keamanan</p>
+          <Button variant="outline" size="sm" onClick={() => { setTimeLeft(60); setIsVisible(true); }} className="rounded-xl h-9 text-xs font-extrabold uppercase tracking-widest">
             Tampilkan Lagi
           </Button>
         </motion.div>

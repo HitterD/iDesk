@@ -29,4 +29,5 @@ export interface AuthenticatedClaims {
     username: string;
     role: UserRole;
     fullName: string;
+    type: 'access';
 }

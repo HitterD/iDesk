@@ -326,7 +326,7 @@ export const SystemHealthPage: React.FC = () => {
                         <div className="bg-[hsl(var(--card))] rounded-xl p-5 border border-[hsl(var(--border))]">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-base font-bold text-slate-800 dark:text-white">System Metrics</h3>
-                                <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                                     {health.system.platform} | {health.system.arch} | Node {health.system.nodeVersion}
                                 </div>
                             </div>
@@ -581,7 +581,7 @@ export const SystemHealthPage: React.FC = () => {
                                         )}>
                                             {service.status === 'operational' ? 'Operational' : service.status === 'degraded' ? 'Degraded' : 'Down'}
                                         </span>
-                                        <span className="text-[10px] text-slate-400 mt-0.5">
+                                        <span className="text-xs text-slate-400 mt-0.5">
                                             {service.latency}ms
                                         </span>
                                     </div>
@@ -638,25 +638,25 @@ export const SystemHealthPage: React.FC = () => {
                         <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">System Information</h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
-                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Environment</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Environment</p>
                                 <p className="text-sm font-semibold text-slate-800 dark:text-white mt-1">
                                     {import.meta.env.MODE || 'production'}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">API Version</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">API Version</p>
                                 <p className="text-sm font-semibold text-slate-800 dark:text-white mt-1">
                                     {health?.version || '1.5.0'}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Timezone</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Timezone</p>
                                 <p className="text-sm font-semibold text-slate-800 dark:text-white mt-1">
                                     {Intl.DateTimeFormat().resolvedOptions().timeZone}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Server Time</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Server Time</p>
                                 <p className="text-sm font-semibold text-slate-800 dark:text-white mt-1">
                                     {health?.timestamp ? new Date(health.timestamp).toLocaleTimeString() : '-'}
                                 </p>

@@ -31,8 +31,15 @@ Required, no default:
 
 | Variable | Notes |
 |---|---|
+| `DB_USERNAME` | Required for PostgreSQL and backend connection. |
+| `DB_PASSWORD` | Required; no known-password fallback. |
+| `DB_DATABASE` | Required database name. |
 | `REDIS_PASSWORD` | Compose fails to start if unset or empty. |
-| `JWT_SECRET` | Compose passes it through with no default. |
+| `JWT_SECRET` | Compose fails to start if unset or empty. |
+| `ENCRYPTION_KEY` | Required 32-byte hex credential key. |
+| `EFORM_ENCRYPTION_KEY` | Required 32-byte hex E-Form key. |
+| `FRONTEND_URL` | Required production CORS origin. |
+| `WS_CORS_ORIGIN` | Required production WebSocket origin. |
 
 Relevant defaults: `REDIS_ENABLED=true` (fixed in the production file),
 `AUTH_REFRESH_SESSION_MODE=legacy`.
@@ -97,8 +104,8 @@ crash. An explicit `docker compose stop redis` stays stopped until you start it 
 Application probes:
 
 ```bash
-curl -fsS localhost:3001/health/live     # liveness, no dependencies
-curl -isS localhost:3001/health/ready    # 200 when ready, 503 when a required dep is down
+curl -fsS localhost:5050/v1/health/live     # liveness, no dependencies
+curl -isS localhost:5050/v1/health/ready    # 200 when ready, 503 when a required dep is down
 ```
 
 `/health/ready` requires PostgreSQL always, and Redis only when
@@ -176,7 +183,7 @@ Order matters — restore the database first, then Redis, then start the applica
    ```bash
    docker compose exec redis sh -lc 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping'
    docker compose up -d backend frontend
-   curl -isS localhost:3001/health/ready
+   curl -isS localhost:5050/v1/health/ready
    ```
 
 Restoring a Redis snapshot that predates the current tokens invalidates any refresh
@@ -201,7 +208,7 @@ docker compose stop backend frontend
 git checkout <previous-tag>
 docker compose build backend frontend
 docker compose up -d backend frontend
-curl -isS localhost:3001/health/ready
+curl -isS localhost:5050/v1/health/ready
 ```
 
 Migrations run at backend startup in production (`migrationsRun`), so a rollback across a
@@ -218,5 +225,5 @@ Redis-only sessions:
 ```bash
 # edit AUTH_REFRESH_SESSION_MODE in .env
 docker compose up -d backend
-curl -isS localhost:3001/health/ready
+curl -isS localhost:5050/v1/health/ready
 ```

@@ -23,6 +23,7 @@ import {
     Settings2
 } from 'lucide-react';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { format, parseISO } from 'date-fns';
 import * as Tabs from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
@@ -132,13 +133,13 @@ const SlaRow: React.FC<SlaRowProps> = ({ config, onUpdate, onDelete, isPending }
                 </div>
                 <div className="flex items-center gap-2">
                     {hasChanges && (
-                        <Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 px-2 text-xs bg-primary text-slate-900">
+                        <Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 px-2 text-xs bg-primary text-primary-foreground">
                             <Save className="w-3 h-3 mr-1" />
                             Save
                         </Button>
                     )}
                     {!isDefault && (
-                        <button onClick={() => onDelete(config.id)} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+                        <button onClick={() => onDelete(config.id)} className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
                             <Trash2 className="w-3.5 h-3.5" />
                         </button>
                     )}
@@ -172,7 +173,7 @@ const SlaRow: React.FC<SlaRowProps> = ({ config, onUpdate, onDelete, isPending }
                             placeholder="M"
                         />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">{formatDuration(timeInputToMinutes(resolutionTime))}</p>
+                    <p className="text-xs text-slate-400 mt-1">{formatDuration(timeInputToMinutes(resolutionTime))}</p>
                 </div>
 
                 {/* Response Time */}
@@ -200,7 +201,7 @@ const SlaRow: React.FC<SlaRowProps> = ({ config, onUpdate, onDelete, isPending }
                             placeholder="M"
                         />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">{formatDuration(timeInputToMinutes(responseTime))}</p>
+                    <p className="text-xs text-slate-400 mt-1">{formatDuration(timeInputToMinutes(responseTime))}</p>
                 </div>
             </div>
         </div>
@@ -238,6 +239,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState('priority');
     const [isAdding, setIsAdding] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'reset' | 'holiday'; id?: string } | null>(null);
     const [newPriority, setNewPriority] = useState('');
     const [newResolutionDays, setNewResolutionDays] = useState(1);
     const [newResponseHours, setNewResponseHours] = useState(4);
@@ -358,15 +360,11 @@ export const BentoSlaSettingsPage: React.FC = () => {
     };
 
     const handleDelete = (id: string) => {
-        if (confirm('Delete this SLA configuration?')) {
-            deleteSlaMutation.mutate(id);
-        }
+        setConfirmAction({ type: 'delete', id });
     };
 
     const handleReset = () => {
-        if (confirm('Reset all SLA configurations to defaults?')) {
-            resetSlaMutation.mutate();
-        }
+        setConfirmAction({ type: 'reset' });
     };
 
     if (isLoading) {
@@ -449,7 +447,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
                 <Tabs.Content value="priority" className="mt-4 space-y-4 animate-in fade-in-50 duration-200">
                     {/* Add New Button */}
                     <div className="flex justify-end">
-                        <Button onClick={() => setIsAdding(!isAdding)} size="sm" className="bg-primary text-slate-900">
+                        <Button onClick={() => setIsAdding(!isAdding)} size="sm" className="bg-primary text-primary-foreground">
                             <Plus className="w-3.5 h-3.5 mr-1" />
                             {isAdding ? 'Cancel' : 'Add Custom'}
                         </Button>
@@ -474,7 +472,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
                                     onChange={(e) => setNewResponseHours(parseInt(e.target.value) || 0)}
                                     className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
                                 />
-                                <Button onClick={handleAdd} disabled={createSlaMutation.isPending} className="bg-primary text-slate-900">
+                                <Button onClick={handleAdd} disabled={createSlaMutation.isPending} className="bg-primary text-primary-foreground">
                                     <CheckCircle2 className="w-4 h-4 mr-1" />
                                     Add
                                 </Button>
@@ -637,8 +635,8 @@ export const BentoSlaSettingsPage: React.FC = () => {
                                                     {date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                                                 </p>
                                             </div>
-                                            <button onClick={() => confirm(`Remove ${holiday}?`) && removeHolidayMutation.mutate(holiday)}
-                                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                                            <button onClick={() => setConfirmAction({ type: 'holiday', id: holiday })}
+                                                className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
@@ -654,6 +652,36 @@ export const BentoSlaSettingsPage: React.FC = () => {
                     </div>
                 </Tabs.Content>
             </Tabs.Root>
+
+            {/* Destructive action confirmation — replaces native confirm() */}
+            <ConfirmationDialog
+                isOpen={confirmAction !== null}
+                title={
+                    confirmAction?.type === 'delete' ? 'Delete SLA Configuration' :
+                    confirmAction?.type === 'reset' ? 'Reset SLA Configurations' :
+                    'Remove Holiday'
+                }
+                description={
+                    confirmAction?.type === 'delete' ? 'Delete this SLA configuration? This action cannot be undone.' :
+                    confirmAction?.type === 'reset' ? 'Reset all SLA configurations to defaults? Your custom values will be lost.' :
+                    `Remove ${confirmAction?.id ?? 'this holiday'}?`
+                }
+                confirmText={
+                    confirmAction?.type === 'reset' ? 'Reset to Defaults' : 'Delete'
+                }
+                variant="destructive"
+                onConfirm={() => {
+                    if (confirmAction?.type === 'delete' && confirmAction.id) {
+                        deleteSlaMutation.mutate(confirmAction.id);
+                    } else if (confirmAction?.type === 'reset') {
+                        resetSlaMutation.mutate();
+                    } else if (confirmAction?.type === 'holiday' && confirmAction.id) {
+                        removeHolidayMutation.mutate(confirmAction.id);
+                    }
+                    setConfirmAction(null);
+                }}
+                onCancel={() => setConfirmAction(null)}
+            />
         </div>
     );
 };

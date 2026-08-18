@@ -1,9 +1,6 @@
-import { useState } from 'react';
-import { ListChecks, CheckCircle2, Keyboard, User as UserIcon, Plus, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { CheckCircle2, Keyboard, User as UserIcon } from 'lucide-react';
 import type { ZoomBooking } from '../types';
 import type { AccountLoad } from '../utils/autoPickAccount';
-import { useMyTasks } from '../hooks/useMyTasks';
 
 export interface ZoomRightSidebarProps {
     accounts: AccountLoad[];
@@ -24,48 +21,36 @@ export function ZoomRightSidebar({
         .sort((a, b) => b.meetingsAtTime - a.meetingsAtTime)
         .slice(0, 5);
 
-    const { tasks, addTask, toggleTask, removeTask } = useMyTasks();
-    const [newTaskText, setNewTaskText] = useState('');
-
-    const commitTask = () => {
-        if (!newTaskText.trim()) return;
-        addTask(newTaskText);
-        setNewTaskText('');
-    };
-
     return (
         <aside
             data-testid="zoom-right-sidebar"
             className="w-[280px] shrink-0 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 flex flex-col min-h-0"
         >
-            {/* D1 · Account Load */}
-            <section className="p-3 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 mb-2">
+            {/* Account Load */}
+            <section className="p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
                     Account Load
                 </h3>
                 {top5.length === 0 ? (
-                    <p className="text-xs text-slate-500">No accounts</p>
+                    <p className="text-xs text-muted-foreground">No accounts</p>
                 ) : (
-                    <ul className="space-y-1.5">
+                    <ul className="space-y-2.5">
                         {top5.map((acc) => (
-                            <li
-                                key={acc.id}
-                                className="flex items-center gap-2 text-[11px]"
-                            >
+                            <li key={acc.id} className="flex items-center gap-2 text-xs">
                                 <span
                                     className="w-2 h-2 rounded-full shrink-0"
                                     style={{ backgroundColor: acc.colorHex }}
                                     aria-hidden="true"
                                 />
-                                <span className="flex-1 truncate text-slate-700 dark:text-slate-200">
+                                <span className="flex-1 truncate text-foreground font-medium">
                                     {acc.name}
                                 </span>
-                                <span className="text-slate-500 font-semibold">
+                                <span className="text-muted-foreground font-bold tabular-nums">
                                     {acc.meetingsAtTime}
                                 </span>
-                                <span className="w-12 h-1 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
+                                <span className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
                                     <span
-                                        className="block h-full"
+                                        className="block h-full rounded-full"
                                         style={{
                                             width: `${Math.min(100, (acc.meetingsAtTime / 25) * 100)}%`,
                                             backgroundColor: acc.colorHex,
@@ -78,29 +63,29 @@ export function ZoomRightSidebar({
                 )}
             </section>
 
-            {/* D2 · Upcoming */}
-            <section className="p-3 border-b border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+            {/* Upcoming */}
+            <section className="p-4 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                         Upcoming
                     </h3>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                         {upcomingBookings.length}
                     </span>
                 </div>
                 {upcomingBookings.length === 0 ? (
-                    <p className="text-xs text-slate-500">No upcoming meetings</p>
+                    <p className="text-xs text-muted-foreground">No upcoming meetings</p>
                 ) : (
-                    <ul className="space-y-1.5">
+                    <ul className="space-y-2">
                         {upcomingBookings.slice(0, 3).map((b) => (
                             <li
                                 key={b.id}
-                                className="px-2 py-1.5 rounded text-[11px] bg-blue-50 dark:bg-blue-950/30 border-l-2 border-blue-500"
+                                className="px-3 py-2 rounded-lg text-xs bg-primary/5 dark:bg-primary/10"
                             >
-                                <div className="font-semibold truncate text-slate-800 dark:text-slate-200">
+                                <div className="font-semibold truncate text-foreground">
                                     {b.title}
                                 </div>
-                                <div className="text-[10px] text-slate-500">
+                                <div className="text-xs text-muted-foreground mt-0.5">
                                     {b.bookingDate} · {b.startTime}
                                 </div>
                             </li>
@@ -109,89 +94,26 @@ export function ZoomRightSidebar({
                 )}
             </section>
 
-            {/* D3 · My Tasks */}
-            <section className="p-3 border-b border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                        My Tasks
-                    </h3>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0"
-                        onClick={commitTask}
-                        aria-label="Add task"
-                        data-testid="add-task-btn"
-                    >
-                        <Plus className="h-3 w-3" aria-hidden="true" />
-                    </Button>
-                </div>
-                <input
-                    value={newTaskText}
-                    onChange={(e) => setNewTaskText(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') commitTask();
-                    }}
-                    placeholder="Add a task…"
-                    aria-label="New task text"
-                    className="w-full text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 mb-2"
-                />
-                {tasks.length === 0 ? (
-                    <p className="text-[10px] text-slate-500 italic">No tasks yet</p>
-                ) : (
-                    <ul className="space-y-1" data-testid="task-list">
-                        {tasks.map((t) => (
-                            <li
-                                key={t.id}
-                                className="flex items-center gap-1.5 text-[11px]"
-                                data-testid={`task-row-${t.id}`}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={t.done}
-                                    onChange={() => toggleTask(t.id)}
-                                    className="h-3 w-3"
-                                    aria-label={`Toggle ${t.text}`}
-                                />
-                                <span
-                                    className={`flex-1 ${t.done ? 'line-through opacity-60' : ''}`}
-                                >
-                                    {t.text}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => removeTask(t.id)}
-                                    className="text-slate-400 hover:text-red-500"
-                                    aria-label={`Delete ${t.text}`}
-                                >
-                                    <Trash2 className="h-3 w-3" aria-hidden="true" />
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </section>
-
-            {/* D5 · System (pinned to bottom) */}
-            <section className="p-3 mt-auto">
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 mb-2">
+            {/* System (pinned to bottom) */}
+            <section className="p-4 mt-auto">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
                     System
                 </h3>
                 <button
                     type="button"
                     onClick={onSync}
-                    className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 mb-1 hover:underline"
+                    className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 mb-2 hover:underline"
                 >
-                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                     {lastSyncAt ? `Sync OK · ${formatRelative(lastSyncAt)}` : 'Never synced'}
                 </button>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-1">
-                    <UserIcon className="h-3 w-3" aria-hidden="true" />
-                    Logged in as <strong className="text-slate-800 dark:text-slate-200">{userName}</strong>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                    <UserIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    Logged in as <strong className="text-foreground">{userName}</strong>
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <Keyboard className="h-3 w-3" aria-hidden="true" />
-                    Tekan <kbd className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1 rounded text-[10px] font-mono">?</kbd> untuk shortcuts
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Keyboard className="h-3.5 w-3.5" aria-hidden="true" />
+                    Press <kbd className="bg-muted border border-border px-1.5 py-0.5 rounded text-xs font-mono">?</kbd> for shortcuts
                 </div>
             </section>
         </aside>

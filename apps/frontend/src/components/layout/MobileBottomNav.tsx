@@ -65,7 +65,7 @@ export const MobileBottomNav: React.FC = () => {
               aria-current={isActive ? 'page' : undefined}
             >
               <item.icon className={cn("w-5 h-5", isActive && "scale-110")} />
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <span className="text-xs font-medium">{item.label}</span>
             </NavLink>
           );
         })}

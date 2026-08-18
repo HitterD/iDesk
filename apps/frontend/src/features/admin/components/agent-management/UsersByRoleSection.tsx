@@ -99,7 +99,7 @@ export function UsersByRoleSection({
                     <button
                         type="button"
                         onClick={onAddUser}
-                        className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
                     >
                         <Plus className="w-4 h-4" aria-hidden="true" />
                         Add User

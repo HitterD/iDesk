@@ -56,7 +56,7 @@ export const PhotoGrid = ({ urls, editable = false, maxDisplay = 5, onUpload, on
                 {editable && urls.length < maxDisplay && (
                     <label className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex flex-col items-center justify-center cursor-pointer hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-colors">
                         <Plus className="w-4 h-4 text-slate-400" />
-                        <span className="text-[9px] text-slate-400 mt-0.5">Foto</span>
+                        <span className="text-xs text-slate-400 mt-0.5">Foto</span>
                         <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
                     </label>
                 )}

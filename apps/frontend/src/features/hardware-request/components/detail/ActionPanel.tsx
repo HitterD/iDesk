@@ -49,7 +49,7 @@ export function ActionPanel({ r }: { r: HardwareRequest }) {
             <SectionCard title="Aksi Tersedia">
                 {visible.length === 0 ? (
                     <div className="flex flex-col items-center gap-1 py-4">
-                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 italic text-center">
+                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500 italic text-center">
                             Tidak ada aksi tersedia untuk role Anda saat ini.
                         </span>
                     </div>

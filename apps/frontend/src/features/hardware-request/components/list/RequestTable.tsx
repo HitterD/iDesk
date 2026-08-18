@@ -20,7 +20,7 @@ export function RequestTable({ rows }: { rows: HardwareRequest[] }) {
                         {['Nomor', 'Requester', 'Items', 'Site', 'Status', 'Updated', ''].map((h) => (
                             <th
                                 key={h}
-                                className="text-left font-bold text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 px-4 py-3 first:pl-5"
+                                className="text-left font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 px-4 py-3 first:pl-5"
                             >
                                 {h}
                             </th>
@@ -68,7 +68,7 @@ export function RequestTable({ rows }: { rows: HardwareRequest[] }) {
 
                                     {/* Items */}
                                     <td className="px-4 py-3.5">
-                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
+                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
                                             {r.items?.length ?? 0} item
                                         </span>
                                     </td>
@@ -137,7 +137,7 @@ function Avatar({ name, src }: { name: string; src?: string | null }) {
         .join('')
         .toUpperCase();
     return (
-        <span className="size-8 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold grid place-items-center text-slate-600 dark:text-slate-400 ring-2 ring-white dark:ring-[hsl(var(--card))] shrink-0">
+        <span className="size-8 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-bold grid place-items-center text-slate-600 dark:text-slate-400 ring-2 ring-white dark:ring-[hsl(var(--card))] shrink-0">
             {initials}
         </span>
     );

@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not } from 'typeorm';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { ZoomBooking, ZoomAccount, ZoomMeeting } from '../entities';
 import { ZoomApiAdapter, ZoomMeetingListItem } from '../adapters/zoom-api.adapter';
 import { BookingStatus } from '../enums/booking-status.enum';
@@ -19,12 +18,6 @@ export class ZoomSyncService {
         private readonly zoomApi: ZoomApiAdapter,
         private readonly eventEmitter: EventEmitter2,
     ) { }
-
-    @Cron('0 */5 * * * *') // Run every 5 minutes
-    async cronSyncAllAccounts() {
-        this.logger.log('Starting automated Zoom Meeting Sync...');
-        await this.syncAllAccounts();
-    }
 
     async syncAllAccounts() {
         if (!this.zoomApi.isConfigured()) {

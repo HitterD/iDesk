@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { TelegramSettingsForm } from '../../settings/components/TelegramSettingsForm';
+import { PASSWORD_POLICY, getPasswordRequirements, translatePasswordPolicyError, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
 import { useTheme } from '@/components/theme-provider';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -114,7 +115,10 @@ export const ClientProfilePage: React.FC = () => {
             setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to change password');
+            const raw: string = error.response?.data?.message || '';
+            const friendly = typeof raw === 'string' ? translatePasswordPolicyError(raw) : null;
+            const msg = friendly || (Array.isArray(raw) ? raw[0] : raw) || 'Failed to change password';
+            toast.error(msg as string);
         },
     });
 
@@ -129,8 +133,9 @@ export const ClientProfilePage: React.FC = () => {
             toast.error('Passwords do not match');
             return;
         }
-        if (passwordForm.newPassword.length < 6) {
-            toast.error('Password must be at least 6 characters');
+        const local = validatePasswordLocal(passwordForm.newPassword);
+        if (!local.valid && local.reason) {
+            toast.error(passwordPolicyMessage(local.reason));
             return;
         }
         changePasswordMutation.mutate({
@@ -196,7 +201,7 @@ export const ClientProfilePage: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('profile')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'profile'
-                                ? 'bg-primary text-slate-900'
+                                ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                             }`}
                     >
@@ -208,7 +213,7 @@ export const ClientProfilePage: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('password')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'password'
-                                ? 'bg-primary text-slate-900'
+                                ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                             }`}
                     >
@@ -220,7 +225,7 @@ export const ClientProfilePage: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('telegram')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'telegram'
-                                ? 'bg-primary text-slate-900'
+                                ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                             }`}
                     >
@@ -232,7 +237,7 @@ export const ClientProfilePage: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('appearance')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'appearance'
-                                ? 'bg-primary text-slate-900'
+                                ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                             }`}
                     >
@@ -313,7 +318,7 @@ export const ClientProfilePage: React.FC = () => {
                         <button
                             type="submit"
                             disabled={updateProfileMutation.isPending}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                             {updateProfileMutation.isPending ? (
                                 <>
@@ -356,8 +361,17 @@ export const ClientProfilePage: React.FC = () => {
                                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-slate-800 dark:text-white"
                                 required
-                                minLength={6}
+                                minLength={PASSWORD_POLICY.minLength}
                             />
+                            {passwordForm.newPassword.length > 0 && (
+                                <ul className="mt-2 space-y-1">
+                                    {getPasswordRequirements(passwordForm.newPassword).map((r) => (
+                                        <li key={r.label} className={`text-xs flex items-center gap-1.5 ${r.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                                            <span aria-hidden="true">{r.met ? '✓' : '○'}</span> {r.label}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
 
                         <div>
@@ -376,7 +390,7 @@ export const ClientProfilePage: React.FC = () => {
                         <button
                             type="submit"
                             disabled={changePasswordMutation.isPending}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-slate-900 font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                             {changePasswordMutation.isPending ? (
                                 <>

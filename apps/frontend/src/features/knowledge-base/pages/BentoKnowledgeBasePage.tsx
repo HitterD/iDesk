@@ -84,7 +84,7 @@ export const BentoKnowledgeBasePage: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in-up">
             {/* Hero Section */}
-            <div className="relative overflow-hidden glass-card p-8 md:p-12 text-center border-t-2 border-t-primary/20">
+            <div className="relative overflow-hidden glass-card p-8 md:p-12 text-center">
                 {/* Action Buttons */}
                 <div className="absolute top-4 right-4 md:top-6 md:right-6 flex items-center gap-2 z-20">
                     <Link
@@ -133,10 +133,10 @@ export const BentoKnowledgeBasePage: React.FC = () => {
                         key={category}
                         onClick={() => setSelectedCategory(category)}
                         className={cn(
-                            "px-4 py-2 rounded-t-lg text-sm font-medium whitespace-nowrap transition-colors duration-150 border-b-2",
+                            "px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors duration-150 border-b-2 -mb-px",
                             selectedCategory === category
-                                ? "border-primary text-primary bg-primary/5"
-                                : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                ? "border-primary text-primary"
+                                : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                     >
                         {category}

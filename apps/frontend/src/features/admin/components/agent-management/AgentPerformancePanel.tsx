@@ -1,5 +1,7 @@
-import { BarChart3, Eye, Info } from 'lucide-react';
+import { useState } from 'react';
+import { BarChart3, Eye, Info, ChevronUp, ChevronDown } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import * as Collapsible from '@radix-ui/react-collapsible';
 import { cn } from '@/lib/utils';
 import type { User, AgentStats } from '@/types/admin.types';
 import { VirtualizedAgentGrid } from '../VirtualizedAgentGrid';
@@ -32,7 +34,12 @@ function SortHeader({ label, sortKey, sortConfig, onSort, align = 'center' }: So
                 onClick={() => onSort(sortKey)}
                 className="min-h-[44px] -my-3 px-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-                {label} {isSorted && (sortConfig.dir === 'asc' ? '↑' : '↓')}
+                <span className="inline-flex items-center gap-1">
+                    {label}
+                    {isSorted && (sortConfig.dir === 'asc'
+                        ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+                        : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />)}
+                </span>
             </button>
         </th>
     );
@@ -73,6 +80,25 @@ export function AgentPerformancePanel({
     onToggleActive,
     onResetPassword,
 }: AgentPerformancePanelProps) {
+    const [isOpen, setIsOpen] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        try {
+            const saved = localStorage.getItem('idesk_agent_cards_expanded');
+            return saved !== null ? JSON.parse(saved) : true;
+        } catch {
+            return true;
+        }
+    });
+
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open);
+        try {
+            localStorage.setItem('idesk_agent_cards_expanded', JSON.stringify(open));
+        } catch {
+            // Ignore storage errors
+        }
+    };
+
     if (displayedAgentStats.length === 0) return null;
 
     // Grid callbacks previously scanned all users for every card and every action.
@@ -80,32 +106,67 @@ export function AgentPerformancePanel({
     const usersById = new Map(users.map(user => [user.id, user]));
 
     return (
-        <div className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-[hsl(var(--border))] flex items-center justify-between">
-                <h3 className="min-w-0 font-bold text-slate-800 dark:text-white flex flex-wrap items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary shrink-0" aria-hidden="true" />
-                    {viewMode === 'grid' ? 'Agent Cards' : 'Agent Performance'}
-                    <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                        ({displayedAgentStats.length}{statsFilter !== 'all' ? ` of ${filteredAgentStats.length}` : ''} agents)
-                    </span>
-                    {selectedSite !== 'ALL' && (
-                        <span className={cn("text-sm px-2 py-0.5 rounded-lg font-normal", SITE_COLORS[selectedSite])}>
-                            {selectedSite}
-                        </span>
-                    )}
-                    {selectedRole !== 'ALL' && ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG] && (
-                        <span className={cn("text-sm px-2 py-0.5 rounded-lg font-normal", ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG]?.badgeColor || 'bg-slate-100 text-slate-600')}>
-                            {selectedRole}
-                        </span>
-                    )}
-                </h3>
+        <Collapsible.Root
+            open={isOpen}
+            onOpenChange={handleOpenChange}
+            className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl overflow-hidden shadow-xs transition-shadow"
+        >
+            <div className={cn(
+                "px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 transition-colors",
+                isOpen && "border-b border-[hsl(var(--border))]"
+            )}>
+                <Collapsible.Trigger asChild>
+                    <button
+                        type="button"
+                        className="flex-1 flex items-center justify-between text-left group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg -m-1.5 p-1.5"
+                    >
+                        <h3 className="min-w-0 font-bold text-slate-800 dark:text-white flex flex-wrap items-center gap-2">
+                            <span className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0 transition-transform group-hover:scale-105">
+                                <BarChart3 className="w-4 h-4" aria-hidden="true" />
+                            </span>
+                            <span className="group-hover:text-primary transition-colors">
+                                {viewMode === 'grid' ? 'Agent Cards' : 'Agent Performance'}
+                            </span>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                {displayedAgentStats.length}{statsFilter !== 'all' ? ` of ${filteredAgentStats.length}` : ''} agents
+                            </span>
+                            {selectedSite !== 'ALL' && (
+                                <span className={cn("text-xs px-2 py-0.5 rounded-md font-semibold", SITE_COLORS[selectedSite])}>
+                                    {selectedSite}
+                                </span>
+                            )}
+                            {selectedRole !== 'ALL' && ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG] && (
+                                <span className={cn("text-xs px-2 py-0.5 rounded-md font-semibold", ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG]?.badgeColor || 'bg-slate-100 text-slate-600')}>
+                                    {selectedRole}
+                                </span>
+                            )}
+                        </h3>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 hidden sm:inline-block">
+                                {isOpen ? 'Hide' : 'Show'}
+                            </span>
+                            <span className="w-7 h-7 grid place-items-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 transition-all">
+                                {isOpen ? (
+                                    <ChevronUp className="w-4 h-4" aria-hidden="true" />
+                                ) : (
+                                    <ChevronDown className="w-4 h-4" aria-hidden="true" />
+                                )}
+                            </span>
+                        </div>
+                    </button>
+                </Collapsible.Trigger>
             </div>
+
+            <Collapsible.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200">
 
             {/* P1-1: Grid View - B1: Now using VirtualizedAgentGrid for performance */}
             {viewMode === 'grid' ? (
                 displayedAgentStats.length > 50 ? (
-                    /* B1: Virtualized grid for 50+ agents - only renders visible cards */
-                    <div className="h-[600px]">
+                    /* B1: Virtualized grid for 50+ agents - only renders visible cards.
+                       Viewport-relative height so tall screens show more than two rows,
+                       with a floor that still fits two full cards on a laptop. */
+                    <div className="h-[min(78vh,1040px)] min-h-[680px]">
                         <VirtualizedAgentGrid
                             users={displayedAgentStats.map(agent => ({
                                 id: agent.id,
@@ -116,8 +177,13 @@ export function AgentPerformancePanel({
                                 isActive: usersById.get(agent.id)?.isActive,
                                 openTickets: agent.openTickets,
                                 inProgressTickets: agent.inProgressTickets,
+                                resolvedThisWeek: agent.resolvedThisWeek,
                                 resolvedThisMonth: agent.resolvedThisMonth,
                                 slaCompliance: agent.slaCompliance,
+                                // Carried through so a card past the 50-agent threshold
+                                // shows the same score and workload as one below it.
+                                appraisalPoints: agent.appraisalPoints,
+                                activeWorkloadPoints: agent.activeWorkloadPoints,
                             }))}
                             selectedIds={selectedUserIds}
                             onSelect={onToggleSelection}
@@ -147,7 +213,9 @@ export function AgentPerformancePanel({
                                             resolvedThisWeek: user.resolvedThisWeek || 0,
                                             resolvedThisMonth: user.resolvedThisMonth || 0,
                                             resolvedTotal: 0,
-                                            slaCompliance: user.slaCompliance || 100,
+                                            slaCompliance: user.slaCompliance ?? 100,
+                                            appraisalPoints: user.appraisalPoints,
+                                            activeWorkloadPoints: user.activeWorkloadPoints,
                                         }}
                                         onView={() => onViewDetail({
                                             id: user.id,
@@ -180,8 +248,10 @@ export function AgentPerformancePanel({
                         />
                     </div>
                 ) : (
-                    /* Standard grid for <50 agents - keeps animations */
-                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                    /* Standard grid for <50 agents - keeps animations.
+                       Capped at 4 columns: the old 5-up made each card ~250px, which is
+                       narrower than the name plus its four metric tiles can survive. */
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
                         {displayedAgentStats.map((agent, index) => (
                             <div key={agent.id} className="animate-fade-in-up motion-reduce:animate-none" style={{ animationDelay: `${index * 30}ms` }}>
                                 <AgentCardErrorBoundary>
@@ -343,6 +413,7 @@ export function AgentPerformancePanel({
                     </table>
                 </div>
             )}
-        </div>
+            </Collapsible.Content>
+        </Collapsible.Root>
     );
 }

@@ -59,10 +59,9 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60 flex items-center gap-2">
-        <User size={12} className="text-primary" />
-        Pilih Atasan Persetujuan
-      </label>
+      <span id="manager-selector-label" className="block text-sm font-semibold text-foreground">
+        Atasan yang menyetujui <span className="text-destructive">*</span>
+      </span>
 
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -70,43 +69,49 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between rounded-xl border-border/50 h-11 px-4 hover:border-primary/30 transition-colors duration-150"
+            aria-labelledby="manager-selector-label"
+            className="h-auto min-h-11 w-full justify-between rounded-xl px-4 py-2 transition-colors hover:border-primary/30"
           >
             {selectedManager ? (
-              <div className="flex flex-col items-start overflow-hidden">
-                <span className="text-sm font-bold truncate w-full text-left">
+              <span className="flex flex-col items-start overflow-hidden">
+                <span className="w-full truncate text-left text-sm font-bold text-foreground">
                   {selectedManager.fullName}
                 </span>
-                <span className="text-[10px] opacity-60 truncate w-full text-left font-medium">
+                <span className="w-full truncate text-left text-xs text-muted-foreground">
                   {selectedManager.jobTitle}
                   {selectedManager.department?.name
                     ? ` • ${selectedManager.department.name}`
                     : ''}
                 </span>
-              </div>
+              </span>
             ) : (
-              <span className="text-sm opacity-60">Pilih atasan...</span>
+              <span className="text-sm text-muted-foreground">Pilih atasan…</span>
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
 
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 rounded-2xl border-border/40 shadow-2xl">
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] rounded-xl border-border p-2 shadow-lg">
           <Input
-            placeholder="Cari nama atau jabatan..."
+            placeholder="Cari nama atau jabatan…"
+            aria-label="Cari atasan"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="h-9 mb-2 rounded-xl"
+            className="mb-2 h-9 rounded-xl"
             autoFocus
           />
 
-          <div className="overflow-y-auto max-h-60">
+          <div className="max-h-60 overflow-y-auto">
             {isLoading && (
-              <p className="text-xs text-center opacity-50 py-4">Memuat...</p>
+              <div className="space-y-1 p-1">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="h-14 animate-pulse rounded-xl bg-muted" />
+                ))}
+              </div>
             )}
             {!isLoading && filtered.length === 0 && (
-              <p className="text-xs text-center opacity-50 py-4">
-                Tidak ditemukan.
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {search ? 'Tidak ada atasan yang cocok.' : 'Belum ada atasan terdaftar.'}
               </p>
             )}
             {filtered.map(manager => (
@@ -118,20 +123,20 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
                   setOpen(false);
                   setSearch('');
                 }}
-                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-primary/10 transition-colors text-left"
+                className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <div className="h-8 w-8 rounded-full bg-primary/5 flex items-center justify-center text-primary shrink-0">
-                  <User size={16} />
-                </div>
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <span className="text-sm font-bold">{manager.fullName}</span>
-                  <span className="text-[10px] opacity-60 font-medium">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <User size={16} aria-hidden="true" />
+                </span>
+                <span className="flex flex-1 flex-col overflow-hidden">
+                  <span className="truncate text-sm font-bold text-foreground">{manager.fullName}</span>
+                  <span className="truncate text-xs text-muted-foreground">
                     {manager.jobTitle}
                     {manager.department?.name
                       ? ` • ${manager.department.name}`
                       : ''}
                   </span>
-                </div>
+                </span>
                 <Check
                   className={cn(
                     'ml-auto h-4 w-4 text-primary',

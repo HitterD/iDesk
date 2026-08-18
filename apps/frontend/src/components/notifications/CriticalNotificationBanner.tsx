@@ -208,13 +208,13 @@ export const CriticalNotificationBanner: React.FC = () => {
                     <div className="flex-1 overflow-hidden relative flex flex-col justify-center py-5 px-2 min-h-[5rem]">
                         <div className="flex items-center gap-2 mb-1.5">
                             <span className={cn(
-                                "text-[10px] font-black tracking-[0.2em] uppercase px-2 py-0.5 rounded-md",
+                                "text-xs font-black tracking-[0.2em] uppercase px-2 py-0.5 rounded-md",
                                 isUrgent ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                             )}>
                                 {isUrgent ? 'URGENT ACTION REQUIRED' : 'ATTENTION NEEDED'}
                             </span>
                             {notifications.length > 1 && (
-                                <span className="bg-slate-200/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums">
+                                <span className="bg-slate-200/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 text-xs px-2 py-0.5 rounded-full font-bold tabular-nums">
                                     {currentIndex + 1} of {notifications.length}
                                 </span>
                             )}

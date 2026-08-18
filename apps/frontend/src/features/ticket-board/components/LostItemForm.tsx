@@ -133,7 +133,7 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
                                         </SelectContent>
                                     </Select>
                                     {errors.itemType && (
-                                        <p className="text-[10px] text-red-500 mt-1">{errors.itemType.message}</p>
+                                        <p className="text-xs text-red-500 mt-1">{errors.itemType.message}</p>
                                     )}
                                 </div>
                                 <div>
@@ -146,7 +146,7 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
                                         className="h-10 text-sm bg-white dark:bg-slate-900"
                                     />
                                     {errors.itemName && (
-                                        <p className="text-[10px] text-red-500 mt-1">{errors.itemName.message}</p>
+                                        <p className="text-xs text-red-500 mt-1">{errors.itemName.message}</p>
                                     )}
                                 </div>
                             </div>
@@ -184,7 +184,7 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
                                     className="min-h-[100px] text-sm resize-none bg-white dark:bg-slate-900"
                                 />
                                 {errors.circumstances && (
-                                    <p className="text-[10px] text-red-500 mt-1">{errors.circumstances.message}</p>
+                                    <p className="text-xs text-red-500 mt-1">{errors.circumstances.message}</p>
                                 )}
                             </div>
                         </div>
@@ -210,7 +210,7 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
                                     className="h-10 text-sm bg-white dark:bg-slate-900"
                                 />
                                 {errors.lastSeenLocation && (
-                                    <p className="text-[10px] text-red-500 mt-1">{errors.lastSeenLocation.message}</p>
+                                    <p className="text-xs text-red-500 mt-1">{errors.lastSeenLocation.message}</p>
                                 )}
                             </div>
 
@@ -233,7 +233,7 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
                                         )}
                                     />
                                     {errors.lastSeenDate && (
-                                        <p className="text-[10px] text-red-500 mt-1">{errors.lastSeenDate?.message}</p>
+                                        <p className="text-xs text-red-500 mt-1">{errors.lastSeenDate?.message}</p>
                                     )}
                                 </div>
                                 <div>
@@ -249,7 +249,7 @@ export const LostItemForm = ({ onSubmit, onCancel }: LostItemFormProps) => {
                                         <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                                     </div>
                                     {errors.lastSeenTime && (
-                                        <p className="text-[10px] text-red-500 mt-1">{errors.lastSeenTime.message}</p>
+                                        <p className="text-xs text-red-500 mt-1">{errors.lastSeenTime.message}</p>
                                     )}
                                 </div>
                             </div>

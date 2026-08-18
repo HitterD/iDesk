@@ -251,7 +251,7 @@ export const AuditLogPage: React.FC = () => {
                         <Filter className="w-3.5 h-3.5" />
                         <span>Filters</span>
                         {activeFilterCount > 0 && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-primary text-primary-foreground rounded-md">
+                            <span className="px-1.5 py-0.5 text-xs font-bold bg-primary text-primary-foreground rounded-md">
                                 {activeFilterCount}
                             </span>
                         )}
@@ -353,23 +353,23 @@ export const AuditLogPage: React.FC = () => {
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-[hsl(var(--border))]">
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-10"></th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-10"></th>
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             Timestamp
                                         </th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             User
                                         </th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             Action
                                         </th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             Entity
                                         </th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             Description
                                         </th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             IP Address
                                         </th>
                                     </tr>
@@ -405,7 +405,7 @@ export const AuditLogPage: React.FC = () => {
                                                             <p className="text-xs font-semibold text-slate-800 dark:text-white leading-tight">
                                                                 {log.user?.fullName || 'System'}
                                                             </p>
-                                                            <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-tight">
+                                                            <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">
                                                                 {log.user?.email || '-'}
                                                             </p>
                                                         </div>
@@ -421,7 +421,7 @@ export const AuditLogPage: React.FC = () => {
                                                 </td>
                                                 <td className="px-5 py-3.5">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="px-2 py-0.5 text-[11px] font-semibold bg-[hsl(var(--primary))]/10 text-primary rounded-md capitalize">
+                                                        <span className="px-2 py-0.5 text-xs font-semibold bg-[hsl(var(--primary))]/10 text-primary rounded-md capitalize">
                                                             {log.entityType}
                                                         </span>
                                                         {log.entityId && (
@@ -444,13 +444,13 @@ export const AuditLogPage: React.FC = () => {
                                                                     <Link
                                                                         to={link}
                                                                         onClick={(e) => e.stopPropagation()}
-                                                                        className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 bg-slate-100 dark:bg-slate-800 hover:bg-[hsl(var(--primary))]/10 px-2 py-0.5 rounded-md font-mono transition-colors group/link"
+                                                                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 bg-slate-100 dark:bg-slate-800 hover:bg-[hsl(var(--primary))]/10 px-2 py-0.5 rounded-md font-mono transition-colors group/link"
                                                                     >
                                                                         #{log.entityId.slice(0, 8)}
                                                                         <ExternalLink className="w-3 h-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                                                                     </Link>
                                                                 ) : (
-                                                                    <code className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-mono">
+                                                                    <code className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-mono">
                                                                         #{log.entityId.slice(0, 8)}
                                                                     </code>
                                                                 );
@@ -472,7 +472,7 @@ export const AuditLogPage: React.FC = () => {
                                                         <div className="grid grid-cols-2 gap-4">
                                                             {log.oldValue && (
                                                                 <div>
-                                                                    <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                                                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                                                                         Previous Value
                                                                     </h4>
                                                                     <pre className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] p-3 rounded-lg overflow-auto max-h-40 border border-[hsl(var(--border))] font-mono">
@@ -482,7 +482,7 @@ export const AuditLogPage: React.FC = () => {
                                                             )}
                                                             {log.newValue && (
                                                                 <div>
-                                                                    <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                                                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                                                                         New Value
                                                                     </h4>
                                                                     <pre className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] p-3 rounded-lg overflow-auto max-h-40 border border-[hsl(var(--border))] font-mono">
@@ -491,7 +491,7 @@ export const AuditLogPage: React.FC = () => {
                                                                 </div>
                                                             )}
                                                             <div className="col-span-2">
-                                                                <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                                                <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                                                                     Full Description
                                                                 </h4>
                                                                 <p className="text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] p-3 rounded-lg border border-[hsl(var(--border))]">

@@ -144,12 +144,11 @@ export class ZoomBookingController {
             // console.log(`[ZoomController] getMyUpcomingBookings called by ${user?.userId} (${user?.role})`);
 
             if (!user || !user.userId) {
-                console.error('[ZoomController] User ID missing in request');
-                return [];
+                throw new BadRequestException('Authenticated user is required');
             }
 
             return await this.bookingService.getMyUpcomingBookings(user.userId);
-        } catch (error: any) {
+        } catch (error: unknown) {
             throw error;
         }
     }

@@ -232,7 +232,7 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                                             </div>
                                             {field.label}
                                             {field.required && (
-                                                <span className="ml-auto text-[9px] font-bold text-blue-500 uppercase">req</span>
+                                                <span className="ml-auto text-xs font-bold text-blue-500 uppercase">req</span>
                                             )}
                                         </button>
                                     );
@@ -297,12 +297,12 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                                                         <div className="text-xs text-slate-500">{user.email}</div>
                                                         <div className="flex gap-2 mt-1.5">
                                                             {selectedFields.has('role') && (
-                                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                                     {user.role}
                                                                 </span>
                                                             )}
                                                             {selectedFields.has('siteCode') && user.siteCode && (
-                                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                                     {user.siteCode}
                                                                 </span>
                                                             )}
@@ -310,7 +310,7 @@ export const ExportPreviewDialog: React.FC<ExportPreviewDialogProps> = ({
                                                     </td>
                                                     <td className="px-4 py-3 align-top">
                                                         <span className={cn(
-                                                            "px-2 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase border",
+                                                            "px-2 py-1 rounded-md text-xs font-bold tracking-wide uppercase border",
                                                             user.isActive
                                                                 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-500/20"
                                                                 : "bg-red-50 dark:bg-red-500/10 text-red-600 border-red-200 dark:border-red-500/20"

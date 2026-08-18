@@ -79,7 +79,7 @@ export function CreateWizard() {
                                 onClick={() => i < step && setStep(i)}
                                 className={`flex items-center gap-2 ${i < step ? 'cursor-pointer' : 'cursor-default'}`}
                                 aria-current={i === step ? 'step' : undefined}>
-                                <span className={`size-7 rounded-full grid place-items-center text-[11px] font-semibold ring-2 transition-all duration-200
+                                <span className={`size-7 rounded-full grid place-items-center text-xs font-semibold ring-2 transition-all duration-200
                                     ${i < step ? 'bg-emerald-600 text-white ring-emerald-600'
                                     : i === step ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 ring-slate-900 dark:ring-white'
                                     : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-500 ring-slate-200 dark:ring-slate-700'}`}>{i + 1}</span>

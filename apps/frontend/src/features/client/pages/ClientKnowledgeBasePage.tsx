@@ -88,7 +88,7 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                         />
                         <button
                             type="submit"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-slate-900 font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors"
                         >
                             Search
                         </button>
@@ -103,7 +103,7 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                         onClick={() => setSearchTerm('')}
                         aria-pressed={searchTerm === ''}
                         className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${searchTerm === ''
-                            ? 'bg-primary text-slate-900'
+                            ? 'bg-primary text-primary-foreground'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                             }`}
                     >
@@ -118,7 +118,7 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                             }}
                             aria-pressed={searchTerm === category}
                             className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${searchTerm === category
-                                ? 'bg-primary text-slate-900'
+                                ? 'bg-primary text-primary-foreground'
                                 : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                         >
@@ -242,7 +242,7 @@ export const ClientKnowledgeBasePage: React.FC = () => {
                     </p>
                     <Link
                         to="/client/create"
-                        className="inline-flex items-center justify-center gap-2 bg-primary text-slate-900 px-6 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                        className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
                     >
                         Create Support Ticket
                     </Link>

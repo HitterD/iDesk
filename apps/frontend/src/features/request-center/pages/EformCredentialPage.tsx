@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, Copy, CheckCircle2, Lock } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Copy, CheckCircle2, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEformDetail, useGetCredentials, useSubmitCredentials } from '../api/eform-request.api';
+import { EFormStatus } from '../components/eform/EformStatusPipeline';
+import { EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
 
 const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
+
+const MASK = '••••••••••';
 
 export const EformCredentialPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,7 +23,10 @@ export const EformCredentialPage: React.FC = () => {
   const isRequester = eform?.requesterId === user?.id;
   const canView = isICT || isRequester;
 
-  const { data: credentials, refetch: fetchCredentials, isFetching } = useGetCredentials(id!, eform?.status === 'CONFIRMED' && (isRequester || isICT));
+  const { data: credentials, refetch: fetchCredentials, isFetching } = useGetCredentials(
+    id!,
+    eform?.status === EFormStatus.CONFIRMED && (isRequester || isICT),
+  );
   const submitMutation = useSubmitCredentials();
 
   const [username, setUsername] = useState('');
@@ -48,162 +55,265 @@ export const EformCredentialPage: React.FC = () => {
     toast.success(`${label} disalin`);
   };
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Memuat...</div>;
-  if (!eform) return <div className="p-8 text-center text-muted-foreground">Permintaan tidak ditemukan</div>;
+  const backButton = (
+    <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl font-semibold">
+      <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+    </Button>
+  );
 
-  if (!canView) {
+  if (isLoading) {
     return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center space-y-4">
-        <Lock size={48} className="mx-auto text-muted-foreground/40" />
-        <h2 className="text-xl font-black uppercase tracking-tighter">Akses Ditolak</h2>
-        <p className="text-sm text-muted-foreground">Halaman ini hanya dapat diakses oleh tim ICT dan pemohon.</p>
-        <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl font-bold uppercase tracking-widest text-[10px]">
-          <ArrowLeft className="mr-2 w-4 h-4" /> Kembali
-        </Button>
+      <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+        <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
+        <div className="space-y-4 rounded-2xl border border-border bg-card p-8">
+          <div className="h-6 w-48 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-64 animate-pulse rounded bg-muted" />
+          <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
+          <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl font-bold uppercase tracking-widest text-[10px]">
-          <ArrowLeft className="mr-2 w-4 h-4" /> Kembali
-        </Button>
+  if (!eform) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 px-4 py-16 text-center">
+        <h2 className="text-xl font-bold text-foreground">Permintaan tidak ditemukan</h2>
+        <p className="text-sm text-muted-foreground">Permintaan ini mungkin sudah dihapus.</p>
+        {backButton}
       </div>
+    );
+  }
 
-      <div className="rounded-[2rem] overflow-hidden border border-primary/10 shadow-xl">
-        <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 px-8 py-6">
-          <h1 className="text-xl font-black tracking-tighter uppercase text-white">
-            {isICT && eform.status === 'PENDING_ICT' ? 'Buat Akses' : 'Kredensial Akses'}
-          </h1>
-          <p className="text-[11px] text-white/60 mt-1">{eform.requesterName} — {eform.formType}</p>
+  if (!canView) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 px-4 py-16 text-center">
+        <Lock size={40} className="mx-auto text-muted-foreground" aria-hidden="true" />
+        <h2 className="text-xl font-bold text-foreground">Akses ditolak</h2>
+        <p className="text-sm text-muted-foreground">
+          Halaman ini hanya dapat diakses oleh tim ICT dan pemohon.
+        </p>
+        {backButton}
+      </div>
+    );
+  }
+
+  const type = getTypeConfig(eform.formType);
+  const isIctInput = isICT && eform.status === EFormStatus.PENDING_ICT;
+
+  const credentialRows = credentials
+    ? [
+        { label: 'Username', value: credentials.username, sensitive: false },
+        { label: 'Password Awal', value: credentials.password, sensitive: true },
+        ...(credentials.vpnServer
+          ? [{ label: 'VPN Server', value: credentials.vpnServer, sensitive: false }]
+          : []),
+      ]
+    : [];
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 animate-fade-in-up">
+      {backButton}
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-6 py-5">
+          <div>
+            <h1 className="text-xl font-extrabold tracking-tight text-foreground">
+              {isIctInput ? 'Siapkan Akses' : 'Kredensial Akses'}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {eform.requesterName} — {type.label}
+            </p>
+          </div>
+          <EformTypeBadge type={eform.formType} />
         </div>
 
-        <div className="px-8 py-6 bg-background space-y-5">
+        <div className="space-y-5 px-6 py-6">
           {/* ICT input form */}
-          {isICT && eform.status === 'PENDING_ICT' && (
+          {isIctInput && (
             <>
-              <div className="grid grid-cols-2 gap-3 bg-muted/40 rounded-2xl p-4">
+              <dl className="grid grid-cols-2 gap-3 rounded-xl bg-muted/50 p-4">
                 <div>
-                  <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-50">Pemohon</div>
-                  <div className="text-sm font-bold mt-1">{eform.requesterName}</div>
+                  <dt className="text-xs font-semibold text-muted-foreground">Pemohon</dt>
+                  <dd className="mt-0.5 text-sm font-bold text-foreground">{eform.requesterName}</dd>
                 </div>
                 <div>
-                  <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-50">Jenis</div>
-                  <div className="text-sm font-bold mt-1">{eform.formType}</div>
+                  <dt className="text-xs font-semibold text-muted-foreground">Jenis akses</dt>
+                  <dd className="mt-0.5 text-sm font-bold text-foreground">{type.label}</dd>
                 </div>
-              </div>
+              </dl>
 
-              <div className="border-t border-dashed border-border/40 pt-4 space-y-4">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-violet-500">
-                  Input Kredensial
-                </div>
+              <div className="space-y-4 border-t border-border pt-5">
+                <h2 className="text-sm font-bold text-foreground">Input kredensial</h2>
+
                 <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">Username *</label>
-                  <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="nama.user@company.vpn" className="h-11 rounded-xl font-mono" />
+                  <label htmlFor="cred-username" className="block text-sm font-semibold text-foreground">
+                    Username <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    id="cred-username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="nama.user@company.vpn"
+                    className="h-11 rounded-xl font-mono"
+                  />
                 </div>
+
                 <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">Password Awal *</label>
+                  <label htmlFor="cred-password" className="block text-sm font-semibold text-foreground">
+                    Password awal <span className="text-destructive">*</span>
+                  </label>
                   <div className="relative">
                     <Input
+                      id="cred-password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Password awal untuk user"
-                      className="h-11 rounded-xl font-mono pr-12"
+                      className="h-11 rounded-xl pr-12 font-mono"
                     />
                     <button
+                      type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
+
                 <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">VPN Server / Host</label>
-                  <Input value={vpnServer} onChange={e => setVpnServer(e.target.value)} placeholder="vpn.company.com:1194" className="h-11 rounded-xl font-mono" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold uppercase tracking-widest opacity-60">Catatan ICT (Opsional)</label>
-                  <textarea
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Instruksi tambahan untuk user..."
-                    className="w-full min-h-[70px] p-4 rounded-2xl border-2 border-border/50 bg-background text-sm font-medium outline-none resize-none focus:border-primary/30 transition-colors"
+                  <label htmlFor="cred-server" className="block text-sm font-semibold text-foreground">
+                    VPN server / host
+                  </label>
+                  <Input
+                    id="cred-server"
+                    value={vpnServer}
+                    onChange={e => setVpnServer(e.target.value)}
+                    placeholder="vpn.company.com:1194"
+                    className="h-11 rounded-xl font-mono"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="cred-notes" className="block text-sm font-semibold text-foreground">
+                    Catatan ICT <span className="font-normal text-muted-foreground">(opsional)</span>
+                  </label>
+                  <textarea
+                    id="cred-notes"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Instruksi tambahan untuk user…"
+                    className="min-h-[80px] w-full resize-none rounded-xl border border-border bg-background p-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+
                 <Button
                   onClick={handleSubmit}
                   disabled={!username || !password || submitMutation.isPending}
-                  className="w-full rounded-2xl h-12 bg-violet-600 hover:bg-violet-700 font-black uppercase tracking-widest text-[10px] text-white shadow-lg shadow-violet-500/20"
+                  className="h-12 w-full rounded-xl text-sm font-bold"
                 >
-                  <CheckCircle2 className="mr-2 w-4 h-4" />
-                  {submitMutation.isPending ? 'Menyimpan...' : 'Selesai — Kirim Kredensial ke User'}
+                  {submitMutation.isPending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan…</>
+                  ) : (
+                    <><CheckCircle2 className="mr-2 h-4 w-4" /> Kirim kredensial ke pemohon</>
+                  )}
                 </Button>
               </div>
             </>
           )}
 
-          {/* User/ICT view after CONFIRMED */}
-          {eform.status === 'CONFIRMED' && (
+          {/* Reveal after CONFIRMED */}
+          {eform.status === EFormStatus.CONFIRMED && (
             <div className="space-y-4">
               {!credentials && !credsFetched ? (
-                <Button
-                  onClick={async () => { await fetchCredentials(); setCredsFetched(true); }}
-                  disabled={isFetching}
-                  variant="outline"
-                  className="w-full rounded-2xl h-11 font-black uppercase tracking-widest text-[10px]"
-                >
-                  <Eye className="mr-2 w-4 h-4" /> {isFetching ? 'Memuat...' : 'Tampilkan Kredensial'}
-                </Button>
+                <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center">
+                  <Lock size={22} className="mx-auto text-muted-foreground" aria-hidden="true" />
+                  <p className="text-sm text-muted-foreground">
+                    Kredensial disembunyikan sampai Anda memintanya.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      await fetchCredentials();
+                      setCredsFetched(true);
+                    }}
+                    disabled={isFetching}
+                    variant="outline"
+                    className="h-11 w-full rounded-xl text-sm font-bold"
+                  >
+                    {isFetching ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat…</>
+                    ) : (
+                      <><Eye className="mr-2 h-4 w-4" /> Tampilkan kredensial</>
+                    )}
+                  </Button>
+                </div>
               ) : credentials ? (
-                <div className="bg-slate-950 border border-blue-500/20 rounded-2xl p-5 space-y-3">
-                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                    <Lock size={11} /> Kredensial Akses {eform.formType}
-                  </div>
-                  {[
-                    { label: 'Username', value: credentials.username },
-                    { label: 'Password Awal', value: credentials.password, mono: true, sensitive: true },
-                    ...(credentials.vpnServer ? [{ label: 'VPN Server', value: credentials.vpnServer, mono: true }] : []),
-                  ].map(({ label, value, mono, sensitive }) => (
-                    <div key={label} className="flex items-center justify-between bg-slate-900 rounded-xl px-4 py-3">
-                      <div>
-                        <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">{label}</div>
-                        <div className={`text-sm font-bold text-blue-300 mt-0.5 ${mono ? 'font-mono' : ''}`}>
-                          {sensitive && !showPassword ? '••••••••••' : value}
+                <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-5">
+                  <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Lock size={14} className="text-primary" aria-hidden="true" />
+                    Kredensial {type.label}
+                  </h2>
+
+                  <dl className="space-y-2">
+                    {credentialRows.map(({ label, value, sensitive }) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+                          <dd className="mt-0.5 truncate font-mono text-sm font-bold text-foreground">
+                            {sensitive && !showPassword ? MASK : value}
+                          </dd>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          {sensitive && (
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(value, label)}
+                            aria-label={`Salin ${label}`}
+                            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Copy size={15} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        {sensitive && (
-                          <button onClick={() => setShowPassword(!showPassword)} className="text-slate-500 hover:text-slate-300">
-                            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        )}
-                        <button onClick={() => handleCopy(value, label)} className="text-slate-500 hover:text-slate-300">
-                          <Copy size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </dl>
+
                   {credentials.notes && (
-                    <div className="bg-amber-950/30 border border-amber-500/20 rounded-xl px-4 py-3">
-                      <div className="text-[9px] font-extrabold uppercase tracking-widest text-amber-500 mb-1">Catatan ICT</div>
-                      <p className="text-xs text-amber-300/80">{credentials.notes}</p>
+                    <div className="rounded-xl border border-border bg-card px-4 py-3">
+                      <h3 className="text-xs font-semibold text-muted-foreground">Catatan ICT</h3>
+                      <p className="mt-1 text-sm leading-relaxed text-foreground">{credentials.notes}</p>
                     </div>
                   )}
-                  <div className="bg-amber-950/20 rounded-xl px-4 py-2 text-[10px] text-amber-400 font-bold">
-                    ⚠ Segera ganti password setelah login pertama
-                  </div>
+
+                  <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300">
+                    <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    Segera ganti password setelah login pertama.
+                  </p>
                 </div>
               ) : null}
             </div>
           )}
 
-          {eform.status !== 'PENDING_ICT' && eform.status !== 'CONFIRMED' && (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              Kredensial belum tersedia. Status: {eform.status}
+          {eform.status !== EFormStatus.PENDING_ICT && eform.status !== EFormStatus.CONFIRMED && (
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-foreground">Kredensial belum tersedia</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Akses baru disiapkan setelah permintaan disetujui atasan dan diproses tim ICT.
+              </p>
             </div>
           )}
         </div>

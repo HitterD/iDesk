@@ -23,17 +23,6 @@ export const StatCard: React.FC<StatCardProps> = ({
     onClick,
     isActive
 }) => {
-    // Generate accent color based on variant for the left line
-    const getAccentColor = () => {
-        switch (variant) {
-            case 'blue': return 'bg-blue-500 dark:bg-blue-600';
-            case 'green': return 'bg-[hsl(var(--success-500))]';
-            case 'purple': return 'bg-purple-500 dark:bg-purple-600';
-            case 'amber': return 'bg-[hsl(var(--accent))]';
-            default: return 'bg-slate-200 dark:bg-slate-700 group-hover:bg-primary';
-        }
-    };
-
     const Component = onClick ? 'button' : 'div';
 
     return (
@@ -67,12 +56,6 @@ export const StatCard: React.FC<StatCardProps> = ({
                     <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate mt-2">{subtitle}</p>
                 )}
             </div>
-
-            {/* Accent line on left side */}
-            <div className={cn(
-                "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-md transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out group-hover:h-3/4",
-                getAccentColor()
-            )} aria-hidden="true" />
         </Component>
     );
 };

@@ -28,7 +28,7 @@ export const StatusBadge = ({ status, showIcon = true, className }: StatusBadgeP
     const cfg = STATUS_MAP[status] || STATUS_MAP.REPORTED;
     const Icon = cfg.icon;
     return (
-        <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider', cfg.color, className)}>
+        <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider', cfg.color, className)}>
             {showIcon && <Icon className="w-3 h-3" />}
             {cfg.label}
         </span>

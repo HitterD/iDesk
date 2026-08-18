@@ -177,13 +177,13 @@ export const AdminWorkloadDashboard = () => {
                             <Table>
                                 <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
                                     <TableRow className="border-[hsl(var(--border))] hover:bg-transparent">
-                                        <TableHead className="w-[250px] text-[11px] font-semibold text-slate-500 uppercase tracking-wider h-10">Agen Operasional</TableHead>
-                                        <TableHead className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider h-10">Fungsi Peran</TableHead>
-                                        <TableHead className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-center h-10">Poin Beban</TableHead>
-                                        <TableHead className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-center h-10">Skor Evaluasi</TableHead>
-                                        <TableHead className="w-[300px] text-[11px] font-semibold text-slate-500 uppercase tracking-wider h-10">Tiket Aktif</TableHead>
-                                        <TableHead className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider h-10">Penugasan Terakhir</TableHead>
-                                        <TableHead className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider h-10">Aksi</TableHead>
+                                        <TableHead className="w-[250px] text-xs font-semibold text-slate-500 uppercase tracking-wider h-10">Agen Operasional</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider h-10">Fungsi Peran</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center h-10">Poin Beban</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center h-10">Skor Evaluasi</TableHead>
+                                        <TableHead className="w-[300px] text-xs font-semibold text-slate-500 uppercase tracking-wider h-10">Tiket Aktif</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider h-10">Penugasan Terakhir</TableHead>
+                                        <TableHead className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider h-10">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -244,16 +244,16 @@ export const AdminWorkloadDashboard = () => {
                                                 <TableCell className="py-3">
                                                     {agent.activeTickets && agent.activeTickets.length > 0 ? (
                                                         <div className="space-y-1.5">
-                                                            <Badge variant="outline" className="font-medium bg-[hsl(var(--card))] text-slate-600 dark:text-slate-400 border-[hsl(var(--border))] text-[10px] px-1.5 py-0 h-5">
+                                                            <Badge variant="outline" className="font-medium bg-[hsl(var(--card))] text-slate-600 dark:text-slate-400 border-[hsl(var(--border))] text-xs px-1.5 py-0 h-5">
                                                                 {agent.activeTickets.length} Aktif
                                                             </Badge>
                                                             <div className="flex flex-col gap-1 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
                                                                 {agent.activeTickets.map(t => (
-                                                                    <div key={t.id} className="text-[10px] border border-[hsl(var(--border))] rounded p-1.5 bg-[hsl(var(--card))] flex items-center gap-2">
+                                                                    <div key={t.id} className="text-xs border border-[hsl(var(--border))] rounded p-1.5 bg-[hsl(var(--card))] flex items-center gap-2">
                                                                         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.priority === 'CRITICAL' ? 'bg-red-500' : t.priority === 'HIGH' ? 'bg-orange-500' : 'bg-slate-500'}`} />
                                                                         <div className="flex-1 min-w-0">
-                                                                            <div className="font-medium text-[11px] truncate text-slate-800 dark:text-slate-200">{t.ticketNumber}</div>
-                                                                            <div className="text-[10px] text-slate-500 truncate" title={t.title}>{t.title}</div>
+                                                                            <div className="font-medium text-xs truncate text-slate-800 dark:text-slate-200">{t.ticketNumber}</div>
+                                                                            <div className="text-xs text-slate-500 truncate" title={t.title}>{t.title}</div>
                                                                         </div>
                                                                     </div>
                                                                 ))}
@@ -271,7 +271,7 @@ export const AdminWorkloadDashboard = () => {
                                                         {agent.lastAssignedAt ? (
                                                             <div className="flex flex-col">
                                                                 <span>{new Date(agent.lastAssignedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                <span className="text-[10px] text-muted-foreground">{new Date(agent.lastAssignedAt).toLocaleDateString()}</span>
+                                                                <span className="text-xs text-muted-foreground">{new Date(agent.lastAssignedAt).toLocaleDateString()}</span>
                                                             </div>
                                                         ) : (
                                                             <Badge variant="secondary" className="opacity-50">Belum Ada</Badge>

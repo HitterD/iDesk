@@ -12,7 +12,7 @@ export function CatalogTable({ items, onEdit, onToggleActive, onDelete }: Props)
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50/50 dark:bg-slate-800/30 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+        <thead className="bg-slate-50/50 dark:bg-slate-800/30 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
           <tr>
             <th className="px-5 py-3.5 text-left font-semibold">Kode</th>
             <th className="px-5 py-3.5 text-left font-semibold">Nama Item</th>
@@ -28,7 +28,7 @@ export function CatalogTable({ items, onEdit, onToggleActive, onDelete }: Props)
               <td className="px-5 py-3.5 font-mono text-[12px] font-semibold text-slate-900 dark:text-slate-200">{i.code}</td>
               <td className="px-5 py-3.5 font-medium text-slate-800 dark:text-slate-200">{i.name}</td>
               <td className="px-5 py-3.5">
-                <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300">
                   {i.category}
                 </span>
               </td>

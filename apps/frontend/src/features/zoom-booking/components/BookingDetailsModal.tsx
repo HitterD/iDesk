@@ -81,11 +81,11 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
                 <div className="space-y-5 p-6">
                     <header className="space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                                 Detail meeting
                             </p>
                             {booking.zoomAccount && (
-                                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
                                     {formatZoomAccountName(booking.zoomAccount.name)}
                                 </span>
                             )}
@@ -114,7 +114,7 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
 
                     {booking.meeting ? (
                         <section className="space-y-4 rounded-2xl bg-blue-50/70 p-4 dark:bg-blue-950/25">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">Akses meeting</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">Akses meeting</p>
                             <div className="flex items-center gap-2">
                                 <Input value={booking.meeting.joinUrl} readOnly className="h-9 min-w-0 bg-white text-xs dark:bg-slate-900" />
                                 <Button size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-full" aria-label="Salin link" onClick={() => copyToClipboard(booking.meeting!.joinUrl, 'Link')}>
@@ -186,7 +186,7 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
 function Metadata({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{label}</dt>
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{label}</dt>
             <dd className="mt-1 font-medium text-slate-800 dark:text-slate-200">{children}</dd>
         </div>
     );
@@ -195,7 +195,7 @@ function Metadata({ label, children }: { label: string; children: React.ReactNod
 function CopyValue({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
     return (
         <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{label}</dt>
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{label}</dt>
             <dd className="mt-1 flex items-center justify-between gap-2 font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
                 {value}
                 <button type="button" className="rounded p-1 text-slate-400 transition-colors duration-200 [transition-timing-function:var(--ease-out)] hover:text-blue-700 dark:hover:text-blue-300" aria-label={`Salin ${label}`} onClick={onCopy}>

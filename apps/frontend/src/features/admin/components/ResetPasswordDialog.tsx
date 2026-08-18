@@ -7,9 +7,14 @@ import api from '@/lib/api';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 import { generateSecurePassword } from '@/lib/crypto';
+import {
+    MIN_PASSWORD_LENGTH,
+    getPasswordRequirements,
+    validatePasswordLocal,
+    passwordPolicyMessage,
+    translatePasswordPolicyError,
+} from '@/lib/passwordPolicy';
 
-/** Mirrors backend `ResetPasswordDto` (@MinLength(8)). */
-const MIN_PASSWORD_LENGTH = 8;
 const GENERATED_PASSWORD_LENGTH = 16;
 
 interface ResetPasswordDialogProps {
@@ -37,7 +42,10 @@ export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({ isOpen
             forceClose();
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to reset password');
+            const raw: string = error.response?.data?.message || '';
+            const friendly = typeof raw === 'string' ? translatePasswordPolicyError(raw) : null;
+            const msg = friendly || (Array.isArray(raw) ? raw[0] : raw) || 'Failed to reset password';
+            toast.error(msg as string);
         },
     });
 
@@ -70,8 +78,9 @@ export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({ isOpen
         e.preventDefault();
         if (!user || !newPassword) return;
 
-        if (newPassword.length < MIN_PASSWORD_LENGTH) {
-            toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+        const local = validatePasswordLocal(newPassword);
+        if (!local.valid && local.reason) {
+            toast.error(passwordPolicyMessage(local.reason));
             return;
         }
 
@@ -174,8 +183,17 @@ export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({ isOpen
                             </div>
                         </div>
                         <p id="reset-password-hint" className="text-xs text-slate-400 mt-1">
-                            Minimum {MIN_PASSWORD_LENGTH} characters
+                            Minimal {MIN_PASSWORD_LENGTH} karakter — huruf besar, huruf kecil, dan angka wajib.
                         </p>
+                        {newPassword.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                                {getPasswordRequirements(newPassword).map((r) => (
+                                    <li key={r.label} className={`text-xs flex items-center gap-1.5 ${r.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                                        <span aria-hidden="true">{r.met ? '✓' : '○'}</span> {r.label}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                         {justGenerated && showPassword && (
                             <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                                 Password is visible — copy it now, then hide it before sharing your screen.

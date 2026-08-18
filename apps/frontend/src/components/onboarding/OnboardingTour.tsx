@@ -274,7 +274,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                         )}
                         <button
                             onClick={handleNext}
-                            className="flex items-center gap-1 px-4 py-1.5 text-sm font-bold bg-primary text-slate-900 rounded-lg hover:bg-primary/90 transition-colors"
+                            className="flex items-center gap-1 px-4 py-1.5 text-sm font-bold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                         >
                             {isLastStep ? (
                                 <>

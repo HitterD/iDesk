@@ -2,7 +2,7 @@
   /* Primary button with press effect */
   @apply inline-flex items-center justify-center gap-2 px-4 py-2;
   @apply font-medium rounded-xl transition-[opacity,transform,colors] duration-200 ease-out;
-  @apply bg-primary text-slate-900;
+  @apply bg-primary text-primary-foreground;
   @apply hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5;
   @apply active:scale-[0.97] active:translate-y-0;
   @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;

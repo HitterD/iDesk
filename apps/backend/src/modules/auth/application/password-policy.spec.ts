@@ -11,7 +11,7 @@ describe('validatePasswordPolicy', () => {
         ['Password123456', 'COMMON_PASSWORD'],
         ['UserName-Secret7!', 'USER_INFO'],
     ])('rejects invalid password (%s)', (password, reason) => {
-        expect(validatePasswordPolicy(password, { fullName: 'User Name' })).toEqual({ valid: false, reason });
+        expect(validatePasswordPolicy(password, { fullName: 'User Name' })).toMatchObject({ valid: false, reason });
     });
 
     it('rejects overlong passwords', () => {

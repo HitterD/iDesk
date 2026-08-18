@@ -107,12 +107,11 @@ export const BentoLayout = () => {
 
                     {/* Main content area - conditionally remove padding and scroll for full-screen pages */}
                     {(() => {
-                        // Pages that need full control of their own layout (no padding, no outer scroll)
-                        // Match only ticket detail pages with UUID: /tickets/{uuid}
-                        const isFullScreenPage = location.pathname.match(/^\/tickets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) !== null;
+                        const isKanban = location.pathname === '/kanban';
+                        const isTicketDetail = location.pathname.match(/^\/tickets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) !== null;
 
-                        if (isFullScreenPage) {
-                            // Full-screen mode: child controls its own height and scrolling
+                        if (isTicketDetail) {
+                            // Full-screen detail mode: child controls its own height and scrolling
                             return (
                                 <main id="main-content" className="flex-1 overflow-hidden">
                                     <AnimatePresence mode="wait">
@@ -123,6 +122,29 @@ export const BentoLayout = () => {
                                             animate="animate"
                                             exit="exit"
                                             className="w-full h-full"
+                                        >
+                                            <Outlet />
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </main>
+                            );
+                        }
+
+                        if (isKanban) {
+                            // Kanban board mode: fit full height so each column scrolls independently
+                            return (
+                                <main
+                                    id="main-content"
+                                    className="flex-1 overflow-hidden p-4 lg:px-8 lg:pt-3 lg:pb-4 flex flex-col min-h-0"
+                                >
+                                    <AnimatePresence mode="wait">
+                                        <motion.div
+                                            key={location.pathname}
+                                            variants={pageVariants}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            className="w-full h-full flex flex-col min-h-0"
                                         >
                                             <Outlet />
                                         </motion.div>
@@ -152,6 +174,7 @@ export const BentoLayout = () => {
                             </main>
                         );
                     })()}
+
                 </div>
 
                 {/* Mobile Bottom Navigation */}

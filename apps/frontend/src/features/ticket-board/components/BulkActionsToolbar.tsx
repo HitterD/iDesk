@@ -219,7 +219,7 @@ export const BulkActionsToolbar = ({ selectedIds, agents, onClear }: BulkActions
                                     agents.map(agent => (
                                         <SelectItem key={agent.id} value={agent.id}>
                                             <span className="flex items-center gap-2">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary/30 to-primary/50 flex items-center justify-center text-[10px] font-bold text-primary">
+                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary/30 to-primary/50 flex items-center justify-center text-xs font-bold text-primary">
                                                     {agent.fullName.charAt(0)}
                                                 </div>
                                                 {agent.fullName}
@@ -246,7 +246,7 @@ export const BulkActionsToolbar = ({ selectedIds, agents, onClear }: BulkActions
                             disabled={!selectedValue || bulkMutation.isPending}
                             className={cn(
                                 "flex-1 py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center gap-2",
-                                "bg-primary text-slate-900 hover:bg-primary/90",
+                                "bg-primary text-primary-foreground hover:bg-primary/90",
                                 "disabled:opacity-50 disabled:cursor-not-allowed"
                             )}
                         >
