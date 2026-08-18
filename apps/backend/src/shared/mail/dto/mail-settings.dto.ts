@@ -48,6 +48,15 @@ export class UpdateMailSettingsDto {
     @MaxLength(320)
     fromAddress?: string;
 
+    @ApiPropertyOptional({
+        description: 'SMTP MAIL FROM when the relay only accepts the login mailbox; empty = use From',
+        example: 'noreply@kapalapi.co.id',
+    })
+    @IsOptional()
+    @IsString()
+    @MaxLength(320)
+    envelopeFrom?: string;
+
     @ApiPropertyOptional({ description: 'Skip TLS cert verification (self-signed relays)' })
     @IsOptional()
     @IsBoolean()

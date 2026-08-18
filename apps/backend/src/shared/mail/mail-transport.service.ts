@@ -82,9 +82,17 @@ export class MailTransportService implements OnModuleInit {
             // `from` is applied after the spread: an explicit `from: undefined`
             // on the caller's options would otherwise wipe out the configured
             // sender and leave the message without a From header.
+            const from = options.from ?? config.fromAddress;
             const info = await this.mailerService.sendMail({
                 ...options,
-                from: options.from ?? config.fromAddress,
+                from,
+                // nodemailer derives the SMTP `MAIL FROM` from the From header.
+                // Relays that only accept the authenticated mailbox as envelope
+                // sender reject that, so send the envelope separately and leave
+                // the human-readable From header intact.
+                ...(config.envelopeFrom
+                    ? { envelope: { from: config.envelopeFrom, to: this.envelopeRecipients(options) } }
+                    : {}),
                 transporterName: RUNTIME_TRANSPORTER,
             });
             return { success: true, messageId: info?.messageId };
@@ -92,10 +100,11 @@ export class MailTransportService implements OnModuleInit {
             const message = this.messageOf(error);
             // A rejection of the From header reads as a plain auth failure, so
             // append the likely cause instead of leaving the admin guessing.
-            const hint = /(550|553|5\.7\.\d)/.test(message)
+            const hint = /\b(550|553|5\.7\.\d)/.test(message)
                 ? describeSenderDomainMismatch(
                       String(options.from ?? config.fromAddress ?? ''),
                       config.username,
+                      config.envelopeFrom,
                   )
                 : null;
             const detail = hint ? `${message} - ${hint}` : message;
@@ -137,6 +146,23 @@ export class MailTransportService implements OnModuleInit {
             `SMTP transport ready (host=${config.host}, port=${config.port}, secure=${config.secure}, auth=${config.authRequired})`,
         );
         return config;
+    }
+
+    /**
+     * Flattens to/cc/bcc into the recipient list an explicit envelope needs.
+     * Supplying `envelope` replaces nodemailer's header-derived one entirely,
+     * so every recipient must be repeated here or the message is delivered to
+     * nobody.
+     */
+    private envelopeRecipients(options: ISendMailOptions): string[] {
+        const flatten = (value: unknown): string[] => {
+            if (!value) return [];
+            if (Array.isArray(value)) return value.flatMap(flatten);
+            if (typeof value === 'string') return [value];
+            const address = (value as { address?: string }).address;
+            return address ? [address] : [];
+        };
+        return [...flatten(options.to), ...flatten(options.cc), ...flatten(options.bcc)];
     }
 
     /** Maps the stored configuration onto nodemailer SMTP transport options. */

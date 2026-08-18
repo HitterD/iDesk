@@ -20,6 +20,15 @@ export interface MailConfig {
     /** RFC 5322 From header, e.g. `iDesk Support <noreply@kapalapi.co.id>`. */
     fromAddress: string;
     /**
+     * Envelope sender (SMTP `MAIL FROM`) when the relay refuses to send on
+     * behalf of the From address. mail.kapalapi.co.id answers
+     * `550 5.7.0 Authentication rejected` for any envelope sender other than
+     * the authenticated mailbox, even within its own domain. Leave empty to use
+     * the From address; set it to the login mailbox to satisfy such a relay
+     * while keeping a friendly From header.
+     */
+    envelopeFrom: string;
+    /**
      * Skips TLS certificate verification. Defaults to false and must stay false
      * unless the relay uses a self-signed certificate — enabling it exposes the
      * SMTP session to man-in-the-middle attacks.
@@ -48,5 +57,6 @@ export const DEFAULT_MAIL_CONFIG: MailConfig = {
     username: '',
     password: '',
     fromAddress: 'iDesk Support <noreply@kapalapi.co.id>',
+    envelopeFrom: '',
     allowSelfSignedCert: false,
 };

@@ -13,6 +13,7 @@ interface MailConfig {
     username: string;
     passwordSet: boolean;
     fromAddress: string;
+    envelopeFrom: string;
     allowSelfSignedCert: boolean;
 }
 
@@ -54,6 +55,7 @@ export const MailSettingsPage = () => {
             authRequired: !!effective.authRequired,
             username: effective.username ?? '',
             fromAddress: effective.fromAddress ?? '',
+            envelopeFrom: effective.envelopeFrom ?? '',
             allowSelfSignedCert: !!effective.allowSelfSignedCert,
         };
         if (effective.password) payload.password = effective.password;
@@ -131,16 +133,17 @@ export const MailSettingsPage = () => {
 
     const set = (k: string, v: unknown) => setForm((p) => ({ ...p, [k]: v }));
 
-    // Relay menolak From dari domain yang bukan milik akun SMTP dengan
-    // "550 5.7.0 Authentication rejected" - padahal verifikasi koneksi lolos.
-    const domainOf = (value?: string) => {
-        const addr = (value || '').match(/<([^>]+)>/)?.[1] ?? value ?? '';
-        const at = addr.trim().toLowerCase().lastIndexOf('@');
-        return at === -1 ? '' : addr.trim().toLowerCase().slice(at + 1);
-    };
-    const fromDomain = domainOf(effective.fromAddress);
-    const authDomain = domainOf(effective.username);
-    const domainMismatch = !!fromDomain && !!authDomain && fromDomain !== authDomain;
+    // mail.kapalapi.co.id menolak pengirim apa pun selain mailbox yang login
+    // dengan "550 5.7.0 Authentication rejected" walau domainnya sama, dan
+    // memeriksanya di dua tahap terpisah: MAIL FROM (envelope) lalu header
+    // From saat DATA. Verifikasi koneksi tetap lolos karena AUTH-nya berhasil.
+    const addressOf = (value?: string) =>
+        ((value || '').match(/<([^>]+)>/)?.[1] ?? value ?? '').trim().toLowerCase();
+    const account = addressOf(effective.username);
+    const headerFrom = addressOf(effective.fromAddress);
+    const envelope = addressOf(effective.envelopeFrom) || headerFrom;
+    const envelopeMismatch = !!account && !!envelope && envelope !== account;
+    const headerMismatch = !!account && !!headerFrom && headerFrom !== account;
 
     return (
         <div className="space-y-6 max-w-3xl">
@@ -251,19 +254,60 @@ export const MailSettingsPage = () => {
                     <input
                         value={effective.fromAddress || ''}
                         onChange={(e) => set('fromAddress', e.target.value)}
-                        placeholder={'"iDesk" <noreply@kapalapi.co.id>'}
+                        placeholder={account ? '"iDesk Support" <' + account + '>' : '"iDesk Support" <akun@domain>'}
                         className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                     />
-                    {domainMismatch && (
-                        <p className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                    {headerMismatch && (
+                        <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
                             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                            <span>
-                                Domain From (<strong>{fromDomain}</strong>) berbeda dari akun SMTP (
-                                <strong>{authDomain}</strong>). Sebagian besar relay menolak kiriman seperti ini
-                                dengan <em>550 Authentication rejected</em> walaupun verifikasi koneksi berhasil.
-                                Gunakan alamat berdomain <strong>{authDomain}</strong>.
-                            </span>
-                        </p>
+                            <div>
+                                Header From memakai <strong>{headerFrom}</strong>, sedangkan akun SMTP adalah{' '}
+                                <strong>{account}</strong>. Relay seperti mail.kapalapi.co.id menolak pesannya dengan{' '}
+                                <em>550 Authentication rejected</em> pada tahap DATA meski verifikasi koneksi berhasil.
+                                Nama tampilan bebas, alamatnya yang harus sama.
+                                <button
+                                    type="button"
+                                    onClick={() => set('fromAddress', 'iDesk Support <' + account + '>')}
+                                    className="ml-1 underline font-medium hover:no-underline"
+                                >
+                                    Pakai iDesk Support &lt;{account}&gt;
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div>
+                    <label className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                        Envelope sender <span className="font-normal text-slate-400">(opsional)</span>
+                    </label>
+                    <input
+                        value={effective.envelopeFrom || ''}
+                        onChange={(e) => set('envelopeFrom', e.target.value)}
+                        placeholder={account || 'kosongkan untuk memakai From address'}
+                        className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">
+                        Alamat pada perintah SMTP <code>MAIL FROM</code>. Isi hanya bila relay menolak
+                        pengiriman atas nama From address.
+                    </p>
+                    {envelopeMismatch && (
+                        <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            <div>
+                                Pengiriman memakai <strong>{envelope}</strong> sebagai envelope sender, sedangkan akun
+                                SMTP adalah <strong>{account}</strong>. Relay seperti mail.kapalapi.co.id menolaknya
+                                dengan <em>550 Authentication rejected</em> pada perintah MAIL FROM meski verifikasi
+                                koneksi berhasil.
+                                <button
+                                    type="button"
+                                    onClick={() => set('envelopeFrom', account)}
+                                    className="ml-1 underline font-medium hover:no-underline"
+                                >
+                                    Pakai {account}
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
 
