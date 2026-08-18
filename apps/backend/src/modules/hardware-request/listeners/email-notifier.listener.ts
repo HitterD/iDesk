@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
+import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
 import { PermissionsService } from '../../permissions/permissions.service';
 import {
@@ -12,14 +13,14 @@ export class EmailNotifierListener {
     private readonly logger = new Logger(EmailNotifierListener.name);
 
     constructor(
-        private readonly mailer: MailerService,
+        private readonly mailDispatch: MailDispatchService,
         private readonly perm: PermissionsService,
         private readonly q: HardwareRequestQueryService,
     ) {}
 
     private async send(to: string, subject: string, context: any) {
         try {
-            await this.mailer.sendMail({
+            await this.mailDispatch.send({
                 to,
                 subject,
                 template: 'hardware-request-status',
@@ -40,7 +41,7 @@ export class EmailNotifierListener {
             title: 'Permintaan Hardware Baru',
             status: 'Menunggu Persetujuan',
             message: `Ada permintaan hardware baru dari ${r.requester?.fullName} yang menunggu persetujuan Anda.`,
-            link: `${process.env.APP_URL}/hardware-requests/${r.id}`
+            link: buildAppUrl(`/hardware-requests/${r.id}`)
         };
         await Promise.all(leads.map(l => this.send(l.email, `Permintaan Hardware: ${r.requestNumber}`, context)));
     }
@@ -54,7 +55,7 @@ export class EmailNotifierListener {
             title: 'Permintaan Disetujui',
             status: 'Proses Procurement',
             message: `Permintaan hardware Anda telah disetujui dan sedang dalam proses pengadaan.`,
-            link: `${process.env.APP_URL}/hardware-requests/${r.id}`
+            link: buildAppUrl(`/hardware-requests/${r.id}`)
         };
         if (r.requester?.email) {
             await this.send(r.requester.email, `Update Permintaan Hardware: ${r.requestNumber}`, context);
@@ -70,7 +71,7 @@ export class EmailNotifierListener {
             title: 'Permintaan Ditolak',
             status: 'Ditolak',
             message: `Lembaga menolak permintaan hardware Anda dengan alasan: ${e.reason}`,
-            link: `${process.env.APP_URL}/hardware-requests/${r.id}`
+            link: buildAppUrl(`/hardware-requests/${r.id}`)
         };
         if (r.requester?.email) {
             await this.send(r.requester.email, `Update Permintaan Hardware: ${r.requestNumber}`, context);
@@ -86,7 +87,7 @@ export class EmailNotifierListener {
             title: 'Instalasi Selesai',
             status: 'Selesai',
             message: `Instalasi hardware untuk permintaan Anda telah selesai dilaksanakan.`,
-            link: `${process.env.APP_URL}/hardware-requests/${r.id}`
+            link: buildAppUrl(`/hardware-requests/${r.id}`)
         };
         if (r.requester?.email) {
             await this.send(r.requester.email, `Permintaan Selesai: ${r.requestNumber}`, context);

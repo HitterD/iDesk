@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketSurvey } from './entities/ticket-survey.entity';
 import { v4 as uuidv4 } from 'uuid';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Ticket } from './entities/ticket.entity';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class SurveysService {
     constructor(
         @InjectRepository(TicketSurvey)
         private readonly surveyRepo: Repository<TicketSurvey>,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
     ) { }
 
     async createSurvey(ticket: Ticket) {

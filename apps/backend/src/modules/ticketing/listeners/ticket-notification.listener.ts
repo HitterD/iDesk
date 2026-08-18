@@ -9,7 +9,8 @@ import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
+import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { TelegramService } from '../../telegram/telegram.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketStatus } from '../entities/ticket.entity';
@@ -24,7 +25,7 @@ export class TicketNotificationListener {
     constructor(
         private readonly notificationService: NotificationService,
         private readonly notificationCenterService: NotificationCenterService,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
         private readonly telegramService: TelegramService,
         private readonly telegramChatBridge: TelegramChatBridgeService,
         @InjectRepository(User)
@@ -110,7 +111,7 @@ export class TicketNotificationListener {
         // 2. Email Notification
         if (ticket.user && ticket.user.email) {
             try {
-                await this.mailerService.sendMail({
+                await this.mailDispatch.send({
                     to: ticket.user.email,
                     subject: `Ticket Updated: #${ticketNumber}`,
                     template: 'ticket-update',
@@ -159,7 +160,7 @@ export class TicketNotificationListener {
         // 2. Email Notification
         if (event.assigneeEmail) {
             try {
-                await this.mailerService.sendMail({
+                await this.mailDispatch.send({
                     to: event.assigneeEmail,
                     subject: `Ticket Assigned to You: #${event.ticketNumber}`,
                     template: 'ticket-update',
@@ -203,7 +204,7 @@ export class TicketNotificationListener {
                     // Email notification
                     if (mentionedUser.email) {
                         try {
-                            await this.mailerService.sendMail({
+                            await this.mailDispatch.send({
                                 to: mentionedUser.email,
                                 subject: `You were mentioned in Ticket #${event.ticketNumber}`,
                                 template: 'mention-notification',
@@ -211,7 +212,7 @@ export class TicketNotificationListener {
                                     name: mentionedUser.fullName,
                                     ticketId: event.ticketId,
                                     mentionedBy: event.senderName,
-                                    link: `http://localhost:5173/admin/tickets/${event.ticketId}`,
+                                    link: buildAppUrl(`/admin/tickets/${event.ticketId}`),
                                 },
                             });
                         } catch (error) {
@@ -280,7 +281,7 @@ export class TicketNotificationListener {
         if (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) {
             if (event.ticketOwnerEmail && (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketOwnerId))) {
                 try {
-                    await this.mailerService.sendMail({
+                    await this.mailDispatch.send({
                         to: event.ticketOwnerEmail,
                         subject: `New Reply on Ticket #${event.ticketNumber}`,
                         template: 'ticket-update',

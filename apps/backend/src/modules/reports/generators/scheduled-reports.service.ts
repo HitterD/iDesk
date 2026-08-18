@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { User } from '../../users/entities/user.entity';
 import { AgentPerformanceReport, DateRange } from './agent-performance.report';
 import { TicketVolumeReport } from './ticket-volume.report';
@@ -31,7 +31,7 @@ export class ScheduledReportsService {
     constructor(
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
         private readonly agentPerformanceReport: AgentPerformanceReport,
         private readonly ticketVolumeReport: TicketVolumeReport,
     ) {
@@ -318,7 +318,7 @@ export class ScheduledReportsService {
         attachmentPath: string,
     ): Promise<void> {
         try {
-            await this.mailerService.sendMail({
+            await this.mailDispatch.send({
                 to,
                 subject,
                 text,

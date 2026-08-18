@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { Notification, NotificationType, NotificationCategory } from '../../notifications/entities/notification.entity';
 import { ZoomGateway } from '../gateways/zoom.gateway';
 import { ZoomBooking } from '../entities';
@@ -32,7 +32,7 @@ export class ZoomNotificationService {
         @InjectRepository(Notification)
         private readonly notificationRepo: Repository<Notification>,
         private readonly zoomGateway: ZoomGateway,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
     ) { }
 
     /**
@@ -165,7 +165,7 @@ export class ZoomNotificationService {
         const formattedDate = formatDateIndonesian(booking.bookingDate);
 
         try {
-            await this.mailerService.sendMail({
+            await this.mailDispatch.send({
                 to: recipientEmail,
                 subject: `✅ Zoom Meeting Confirmed: ${booking.title}`,
                 template: 'zoom-booking',
@@ -208,7 +208,7 @@ export class ZoomNotificationService {
         const formattedDate = formatDateIndonesian(booking.bookingDate);
 
         try {
-            await this.mailerService.sendMail({
+            await this.mailDispatch.send({
                 to: recipientEmail,
                 subject: `📅 Zoom Meeting Rescheduled: ${booking.title}`,
                 template: 'zoom-booking',
@@ -250,7 +250,7 @@ export class ZoomNotificationService {
         const formattedDate = formatDateIndonesian(booking.bookingDate);
 
         try {
-            await this.mailerService.sendMail({
+            await this.mailDispatch.send({
                 to: recipientEmail,
                 subject: `❌ Zoom Meeting Cancelled: ${booking.title}`,
                 template: 'zoom-booking',

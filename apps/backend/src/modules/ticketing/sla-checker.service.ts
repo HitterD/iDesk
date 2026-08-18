@@ -4,7 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 
 import { CustomerSession } from '../users/entities/customer-session.entity';
 import { SlaConfigService } from './sla-config.service';
@@ -19,7 +19,7 @@ export class SlaCheckerService {
         private ticketRepo: Repository<Ticket>,
         @InjectRepository(CustomerSession)
         private sessionRepo: Repository<CustomerSession>,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
         private readonly slaConfigService: SlaConfigService,
         private readonly configService: ConfigService,
         @Optional() @Inject(forwardRef(() => TelegramService))
@@ -156,7 +156,7 @@ export class SlaCheckerService {
         // 1. Email to Admin (externalized configuration)
         const adminEmail = this.configService.get<string>('SLA_ADMIN_EMAIL', 'admin@idesk.com');
         try {
-            await this.mailerService.sendMail({
+            await this.mailDispatch.send({
                 to: adminEmail,
                 subject,
                 html: `

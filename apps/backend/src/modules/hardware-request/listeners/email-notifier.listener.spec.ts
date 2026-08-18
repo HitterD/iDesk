@@ -1,12 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { EmailNotifierListener } from './email-notifier.listener';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { PermissionsService } from '../../permissions/permissions.service';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
 
 describe('EmailNotifierListener', () => {
     let listener: EmailNotifierListener;
-    const mailer = { sendMail: jest.fn().mockResolvedValue(undefined) };
+    const mailer = { send: jest.fn().mockResolvedValue({ success: true }) };
     const perm = { listUsersWithRole: jest.fn().mockResolvedValue([{ id: 'lead1', email: 'lead1@x.com', fullName: 'Lead 1' }]) };
     const q = { findById: jest.fn().mockResolvedValue({
         id: 'r1',
@@ -21,7 +21,7 @@ describe('EmailNotifierListener', () => {
         const mod = await Test.createTestingModule({
             providers: [
                 EmailNotifierListener,
-                { provide: MailerService, useValue: mailer },
+                { provide: MailDispatchService, useValue: mailer },
                 { provide: PermissionsService, useValue: perm },
                 { provide: HardwareRequestQueryService, useValue: q },
             ],
@@ -32,7 +32,7 @@ describe('EmailNotifierListener', () => {
 
     it('onSubmitted sends to ICT_STAFF via sendMail', async () => {
         await listener.onSubmitted({ requestId: 'r1', actorId: 'u1', requesterId: 'u1', occurredAt: new Date() } as any);
-        expect(mailer.sendMail).toHaveBeenCalledWith(expect.objectContaining({
+        expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'lead1@x.com',
         }));
     });
@@ -42,7 +42,7 @@ describe('EmailNotifierListener', () => {
             requestId: 'r1', actorId: 'lead1', requesterId: 'u1', reason: 'Tidak sesuai',
             occurredAt: new Date(),
         } as any);
-        expect(mailer.sendMail).toHaveBeenCalledWith(expect.objectContaining({
+        expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({
             context: expect.objectContaining({ message: expect.stringContaining('Tidak sesuai') }),
         }));
     });

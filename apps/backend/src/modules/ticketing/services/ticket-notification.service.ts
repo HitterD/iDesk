@@ -1,7 +1,8 @@
 import { Injectable, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
+import { buildAppUrl } from '../../../shared/mail/app-url.util';
 
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
@@ -27,7 +28,7 @@ export class TicketNotificationService {
         private readonly sessionRepo: Repository<CustomerSession>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
         @Optional() @Inject(forwardRef(() => TelegramService))
         private readonly telegramService: TelegramService,
         @Optional() @Inject(forwardRef(() => TelegramChatBridgeService))
@@ -297,7 +298,7 @@ export class TicketNotificationService {
                         name: mentionedUser.fullName,
                         ticketId: ticket.id,
                         mentionedBy: sender.fullName,
-                        link: `http://localhost:5173/admin/tickets/${ticket.id}`,
+                        link: buildAppUrl(`/admin/tickets/${ticket.id}`),
                     },
                 );
             }
@@ -331,7 +332,7 @@ export class TicketNotificationService {
         context: Record<string, any>,
     ): Promise<void> {
         try {
-            await this.mailerService.sendMail({ to, subject, template, context });
+            await this.mailDispatch.send({ to, subject, template, context });
         } catch (error) {
             this.logger.error(`Failed to send email to ${to}:`, error);
         }

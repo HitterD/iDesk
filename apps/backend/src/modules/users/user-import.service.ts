@@ -9,7 +9,7 @@ import { BCRYPT_ROUNDS } from '../../shared/core/config/security.config';
 import * as crypto from 'crypto';
 import * as ExcelJS from 'exceljs';
 
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from './entities/department.entity';
 
@@ -37,7 +37,7 @@ export class UserImportService {
         private readonly siteRepo: Repository<Site>,
         @InjectRepository(Department)
         private readonly departmentRepo: Repository<Department>,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
     ) {}
 
     async importUsers(file: Express.Multer.File, upsert = false): Promise<any> {
@@ -202,7 +202,7 @@ export class UserImportService {
 
                         // Send Welcome Email
                         try {
-                            await this.mailerService.sendMail({
+                            await this.mailDispatch.send({
                                 to: newUser.email,
                                 subject: 'Welcome to iDesk Helpdesk',
                                 template: 'welcome-user',

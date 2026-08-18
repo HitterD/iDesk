@@ -10,7 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { BCRYPT_ROUNDS } from '../../shared/core/config/security.config';
 import * as crypto from 'crypto';
 
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from './entities/department.entity';
@@ -44,7 +44,7 @@ export class UserCrudService implements OnModuleInit {
         private readonly siteRepo: Repository<Site>,
         @InjectRepository(Department)
         private readonly departmentRepo: Repository<Department>,
-        private readonly mailerService: MailerService,
+        private readonly mailDispatch: MailDispatchService,
         private readonly auditService: AuditService,
         private readonly permissionsService: PermissionsService,
     ) { }
@@ -264,7 +264,7 @@ export class UserCrudService implements OnModuleInit {
 
         // Send Welcome Email
         try {
-            await this.mailerService.sendMail({
+            await this.mailDispatch.send({
                 to: savedUser.email,
                 subject: 'Welcome to iDesk Helpdesk',
                 template: 'welcome-user',
