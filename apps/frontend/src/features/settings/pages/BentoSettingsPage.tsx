@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, CalendarClock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay } from 'lucide-react';
+import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, CalendarClock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail } from 'lucide-react';
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
@@ -16,6 +16,8 @@ const ZoomSettingsTab = lazy(() => import('../../zoom-booking/pages/ZoomSettings
 const BusinessHoursTab = lazy(() => import('../components/BusinessHoursSettings').then(m => ({ default: m.BusinessHoursSettings })));
 const SoundSettingsTab = lazy(() => import('./SoundSettingsPage').then(m => ({ default: m.SoundSettingsPage })));
 const TvBoardSettingsTab = lazy(() => import('../components/TvBoardSettings').then(m => ({ default: m.TvBoardSettings })));
+const MailSettingsTab = lazy(() => import('./MailSettingsPage').then(m => ({ default: m.MailSettingsPage })));
+
 
 export const BentoSettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -76,6 +78,7 @@ export const BentoSettingsPage: React.FC = () => {
                                         { value: 'sound', icon: Volume2, label: 'Sound Settings' },
                                         { value: 'ip-whitelist', icon: Shield, label: 'IP Whitelist' },
                                         { value: 'zoom', icon: Video, label: 'Zoom Settings' },
+                                        { value: 'mail', icon: Mail, label: 'Email' },
                                         { value: 'tv-board', icon: MonitorPlay, label: 'TV Board' },
                                     ].map((tab) => (
                                         <Tabs.Trigger
@@ -251,6 +254,21 @@ export const BentoSettingsPage: React.FC = () => {
                                     </div>
                                 }>
                                     <ZoomSettingsTab />
+                                </Suspense>
+                            </Tabs.Content>
+                        )}
+
+                        {user?.role === 'ADMIN' && (
+                            <Tabs.Content value="mail" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <Suspense fallback={
+                                    <div className="flex items-center justify-center h-64">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                                            <p className="text-sm text-slate-400">Memuat...</p>
+                                        </div>
+                                    </div>
+                                }>
+                                    <MailSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}

@@ -63,6 +63,9 @@ export class EFormRequest {
   rejectionReason: string;
 
   @Column({ type: 'varchar', nullable: true })
+  siteId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
   currentApproverId: string | null;
 
   @ManyToOne(() => User, { nullable: true })

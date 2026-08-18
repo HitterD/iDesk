@@ -9,6 +9,7 @@ import { EFormPdfService } from './eform-pdf.service';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 
 const ICT_ROLES = [UserRole.ADMIN, UserRole.AGENT_ADMIN];
@@ -29,6 +30,8 @@ export class EFormRequestService {
     private readonly pdfService: EFormPdfService,
     private readonly settingsService: SettingsService,
     private readonly eventEmitter: EventEmitter2,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   async getVpnTerms() {
@@ -49,6 +52,8 @@ export class EFormRequestService {
   }
 
   async createRequest(userId: string, userFullName: string, dto: CreateEFormRequestDto) {
+    const requester = await this.userRepo.findOne({ where: { id: userId } as any });
+    const requesterSiteId = (requester as any)?.siteId ?? null;
     const requesterName = dto.requesterName?.trim() || userFullName;
     const request = this.eformRequestRepository.create({
       formType: dto.formType,
@@ -61,6 +66,7 @@ export class EFormRequestService {
       networkPurpose: dto.networkPurpose,
       termsAccepted: dto.termsAccepted,
       currentApproverId: dto.managerId,
+      siteId: requesterSiteId,
       submittedAt: new Date(),
     });
 

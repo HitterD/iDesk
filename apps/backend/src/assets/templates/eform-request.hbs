@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permintaan E-Form</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f5f5f5; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #1a1f36 0%, #0d1117 100%); color: #00ff9d; padding: 24px; text-align: center; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+        .content { padding: 32px 24px; }
+        .info-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .info-box p { margin: 4px 0; font-size: 14px; }
+        .badge { display: inline-block; background: #edf2f7; color: #2d3748; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .button { display: inline-block; background: #1a73e8; color: #ffffff !important; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; margin-top: 16px; }
+        .divider { height: 1px; background-color: #e2e8f0; margin: 24px 0; }
+        .footer { background-color: #f7f8fa; padding: 24px; text-align: center; font-size: 12px; color: #718096; }
+        .footer a { color: #4a5568; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h1>Permintaan Akses E-Form</h1></div>
+        <div class="content">
+            <p>Halo {{recipientName}},</p>
+            {{#if siteLabel}}<p><span class="badge">{{siteLabel}}</span></p>{{/if}}
+            <div class="info-box">
+                <p><strong>Pemohon:</strong> {{request.requesterName}}</p>
+                <p><strong>Jenis Form:</strong> {{request.formType}}</p>
+                <p><strong>Status:</strong> {{request.status}}</p>
+                <p><strong>ID Permintaan:</strong> {{request.id}}</p>
+                {{#if request.rejectionReason}}<p><strong>Alasan Penolakan:</strong> {{request.rejectionReason}}</p>{{/if}}
+            </div>
+            {{#if link}}<a href="{{link}}" class="button">Buka Detail Permintaan</a>{{/if}}
+            <div class="divider"></div>
+            <p style="font-size: 13px; color: #718096;">Anda menerima email ini karena Anda memiliki peran terkait permintaan e-form di site terkait. Kelola preferensi notifikasi di pengaturan iDesk.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{year}} iDesk Helpdesk System</p>
+            {{#if link}}<p><a href="{{link}}">Buka Detail</a></p>{{/if}}
+        </div>
+    </div>
+</body>
+</html>

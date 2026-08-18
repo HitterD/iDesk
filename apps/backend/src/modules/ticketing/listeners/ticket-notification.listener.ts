@@ -17,6 +17,7 @@ import { TicketStatus } from '../entities/ticket.entity';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 import { User } from '../../users/entities/user.entity';
+import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
 
 @Injectable()
 export class TicketNotificationListener {
@@ -30,6 +31,8 @@ export class TicketNotificationListener {
         private readonly telegramChatBridge: TelegramChatBridgeService,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        @InjectRepository(NotificationPreference)
+        private readonly prefRepo: Repository<NotificationPreference>,
     ) { }
 
     @OnEvent('ticket.created')
@@ -157,21 +160,30 @@ export class TicketNotificationListener {
             this.logger.error('Failed to send assignment notification', error);
         }
 
-        // 2. Email Notification
+        // 2. Email Notification (respects prefs, bypass quiet/digest - actionable)
         if (event.assigneeEmail) {
             try {
+                const pref = await this.prefRepo.findOne({ where: { userId: event.assigneeId } as any });
+                const emailAllowed = !pref || (pref.emailEnabled !== false);
+                const typeAllowed = !pref?.typeSettings || (pref.typeSettings?.['TICKET_ASSIGNED']?.['email'] !== false);
+                if (!emailAllowed || !typeAllowed) { this.logger.log(`Skipping assignment email for ${event.assigneeId} (prefs)`); } else {
                 await this.mailDispatch.send({
                     to: event.assigneeEmail,
                     subject: `Ticket Assigned to You: #${event.ticketNumber}`,
-                    template: 'ticket-update',
+                    template: 'ticket-assigned',
                     context: {
                         name: event.assigneeName,
                         ticketId: event.ticketId,
+                        ticketNumber: event.ticketNumber,
                         status: event.ticketStatus,
                         title: event.ticketTitle,
+                        assigneeName: event.assigneeName,
+                        assignerName: event.assignerName,
                         message: `You have been assigned to this ticket by ${event.assignerName}.`,
+                        link: buildAppUrl(`/tickets/${event.ticketId}`),
+                        year: new Date().getFullYear(),
                     },
-                });
+                }); }
             } catch (error) {
                 this.logger.error(`Failed to send assignment email to ${event.assigneeEmail}`, error);
             }
@@ -296,6 +308,37 @@ export class TicketNotificationListener {
                     this.logger.error(`Failed to send reply email to ${event.ticketOwnerEmail}`, error);
                 }
             }
+        }
+    }
+
+    @OnEvent('ticket.auto-assigned')
+    async handleTicketAutoAssignedEvent(event: { ticket: any; agent: any; workloadPoints?: number }) {
+        this.logger.log(`Handling ticket.auto-assigned for ticket ${event.ticket?.id} -> agent ${event.agent?.id}`);
+        // Reuse assignment flow: in-app + email (same preference honoring)
+        const ticket = event.ticket;
+        const agent = event.agent;
+        if (!ticket || !agent) return;
+        try {
+            await this.notificationService.notifyTicketAssigned(agent.id, ticket.id, ticket.ticketNumber || ticket.id.slice(0, 8), 'Auto-assign');
+        } catch (e) { this.logger.error('Auto-assign in-app notify failed', e); }
+        if (agent.email) {
+            try {
+                const pref = await this.prefRepo.findOne({ where: { userId: agent.id } });
+                const emailAllowed = !pref || (pref.emailEnabled !== false);
+                const typeAllowed = !pref?.typeSettings || (pref.typeSettings?.['TICKET_ASSIGNED']?.['email'] !== false);
+                if (emailAllowed && typeAllowed) {
+                    await this.mailDispatch.send({
+                        to: agent.email,
+                        subject: `[Auto] Ticket Assigned: #${ticket.ticketNumber || ticket.id.slice(0, 8)}`,
+                        template: 'ticket-assigned',
+                        context: {
+                            name: agent.fullName, ticketId: ticket.id, ticketNumber: ticket.ticketNumber || ticket.id.slice(0, 8),
+                            status: ticket.status, title: ticket.title, assigneeName: agent.fullName, assignerName: 'Auto-assign',
+                            link: buildAppUrl(`/tickets/${ticket.id}`), year: new Date().getFullYear(),
+                        },
+                    });
+                }
+            } catch (e) { this.logger.error(`Failed auto-assign email to ${agent.email}`, e); }
         }
     }
 

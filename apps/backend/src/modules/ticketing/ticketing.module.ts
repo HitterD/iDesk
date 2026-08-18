@@ -42,6 +42,7 @@ import { TicketMergeService } from './services/ticket-merge.service';
 import { TimeTrackingService } from './services/time-tracking.service';
 import { TimeEntry } from './entities/time-entry.entity';
 import { TimeTrackingController } from './presentation/time-tracking.controller';
+import { NotificationPreference } from '../notifications/entities/notification-preference.entity';
 
 
 // Legacy/Partial refactored services (keeping for safety if used elsewhere)
@@ -52,7 +53,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketTemplate, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute, TimeEntry]),
+        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketTemplate, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute, TimeEntry, NotificationPreference]),
         ReportsModule,
         KnowledgeBaseModule,
         MailerModule,

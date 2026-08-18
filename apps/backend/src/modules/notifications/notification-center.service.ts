@@ -131,6 +131,28 @@ export class NotificationCenterService implements OnModuleInit {
     /**
      * Send notification to all users with a specific role
      */
+    async sendToRoleAtSite(role: string, siteId: string | null | undefined, payload: Omit<NotificationPayload, 'userId'>): Promise<{ sent: number }> {
+        if (!siteId) {
+            await this.sendToRole(role, payload);
+            return { sent: -1 };
+        }
+        const PAGE = 200;
+        let sent = 0; let skip = 0;
+        while (true) {
+            const users = await this.userRepo.find({ where: { role: role as any, siteId } as any, take: PAGE, skip, select: ['id'] });
+            if (users.length === 0) break;
+            await this.sendBulk(users.map(u => u.id), payload);
+            sent += users.length;
+            if (users.length < PAGE) break;
+            skip += PAGE;
+        }
+        if (sent === 0) {
+            this.logger.warn(`No users with role ${role} at site ${siteId}; falling back to all ${role}`);
+            await this.sendToRole(role, payload);
+        }
+        return { sent };
+    }
+
     async sendToRole(role: string, payload: Omit<NotificationPayload, 'userId'>): Promise<void> {
         // P1 perf: original loaded every user with the role in a single
         // unbounded query. For a large USER/AGENT role that meant thousands

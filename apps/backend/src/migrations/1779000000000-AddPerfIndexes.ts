@@ -16,10 +16,13 @@ export class AddPerfIndexes1779000000000 implements MigrationInterface {
         await queryRunner.query(
             `CREATE INDEX IF NOT EXISTS "idx_kb_article_published" ON "articles" ("status", "categoryId", "publishedAt")`,
         );
-        // E-form: per-site recent list
-        await queryRunner.query(
-            `CREATE INDEX IF NOT EXISTS "idx_eform_request_site_created" ON "eform_requests" ("siteId", "createdAt")`,
-        );
+        // E-form: per-site recent list (column may not exist yet if AddSiteId migration has not run)
+        await queryRunner.query(`
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='eform_requests' AND column_name='siteId') THEN
+                    CREATE INDEX IF NOT EXISTS "idx_eform_request_site_created" ON "eform_requests" ("siteId", "createdAt");
+                END IF;
+            END $$`);
         // Zoom-booking: overlap check by technician + window
         await queryRunner.query(
             `CREATE INDEX IF NOT EXISTS "idx_zoom_booking_overlap" ON "zoom_bookings" ("accountId", "startAt", "endAt", "status")`,
