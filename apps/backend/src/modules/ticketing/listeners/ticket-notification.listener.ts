@@ -225,6 +225,7 @@ export class TicketNotificationListener {
                                     ticketId: event.ticketId,
                                     mentionedBy: event.senderName,
                                     link: buildAppUrl(`/admin/tickets/${event.ticketId}`),
+                                    year: new Date().getFullYear(),
                                 },
                             });
                         } catch (error) {

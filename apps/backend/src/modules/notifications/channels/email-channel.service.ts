@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MailTransportService } from '../../../shared/mail/mail-transport.service';
+import { getFrontendBaseUrl } from '../../../shared/mail/app-url.util';
 import {
     INotificationChannel,
     ChannelDeliveryPayload,
@@ -28,6 +29,8 @@ export class EmailChannelService implements INotificationChannel {
                     link: payload.data?.link,
                     ticketId: payload.data?.ticketId,
                     notificationId: payload.notificationId,
+                    baseUrl: getFrontendBaseUrl(),
+                    year: new Date().getFullYear(),
                 },
             });
 

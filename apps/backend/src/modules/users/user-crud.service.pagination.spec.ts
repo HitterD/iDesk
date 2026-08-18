@@ -120,7 +120,7 @@ describe('UserCrudService list filter scopes', () => {
             {} as never,
             {} as never,
             {} as never,
-            { sendMail: jest.fn() } as never,
+            { send: jest.fn() } as never,
             { logAsync: jest.fn() } as never,
             permissionsService as never,
         );

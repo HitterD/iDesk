@@ -23,7 +23,7 @@ describe('UserCrudService Provisioning & Backfill', () => {
             {} as any,
             {} as any,
             {} as any,
-            { sendMail: jest.fn() } as any,
+            { send: jest.fn() } as any,
             { logAsync: jest.fn() } as any,
             permissionsService,
         );

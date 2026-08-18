@@ -163,6 +163,7 @@ export class EmailProcessor {
                     expiryDate,
                     daysUntilExpiry,
                     contractUrl: buildAppUrl(`/renewals/${contractId}`),
+                    year: new Date().getFullYear(),
                 },
             });
 
