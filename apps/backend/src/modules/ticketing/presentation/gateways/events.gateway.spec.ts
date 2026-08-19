@@ -51,8 +51,8 @@ describe('EventsGateway security boundary', () => {
 
     it('allows owner ticket room and rejects another user', async () => {
         const client = socket();
-        client.data = { userId: 'user-1', role: UserRole.USER };
-        tickets.findById.mockResolvedValue({ id: 'ticket-1', userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE' });
+        client.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
+        tickets.findById.mockResolvedValue({ id: 'ticket-1', userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
         await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toMatchObject({ status: 'ok' });
         client.data.userId = 'user-2';
         await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toMatchObject({ status: 'error', message: 'Forbidden' });
