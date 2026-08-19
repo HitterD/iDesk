@@ -18,7 +18,7 @@ export function toValidatedUser(user: User): ValidatedUser {
     };
 }
 
-type AuthenticatedUserSource = Pick<User, 'id' | 'email' | 'role' | 'fullName'>;
+type AuthenticatedUserSource = Pick<User, 'id' | 'email' | 'role' | 'fullName'> & { siteId?: string | null };
 
 export function toAuthenticatedUser(user: AuthenticatedUserSource): AuthenticatedUser {
     return {
@@ -26,5 +26,6 @@ export function toAuthenticatedUser(user: AuthenticatedUserSource): Authenticate
         username: user.email,
         role: user.role,
         fullName: user.fullName,
+        siteId: user.siteId ?? null,
     };
 }

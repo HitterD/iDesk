@@ -31,6 +31,7 @@ export class TokenService {
             role: user.role,
             type: 'access',
             fullName: user.fullName,
+            siteId: user.siteId ?? null,
         };
         return {
             token: this.jwtService.sign(payload, { expiresIn: expiresIn as JwtExpiry }),
@@ -52,6 +53,7 @@ export class TokenService {
             role: user.role,
             type: 'refresh',
             fullName: user.fullName,
+            siteId: user.siteId ?? null,
             rememberMe,
             tokenId,
             familyId,

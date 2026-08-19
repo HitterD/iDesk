@@ -22,6 +22,8 @@ export interface AuthenticatedUser {
     username: string;
     role: UserRole;
     fullName: string;
+    /** Site the user belongs to; null for accounts without a site assignment. */
+    siteId: string | null;
 }
 
 export interface AuthenticatedClaims {
@@ -30,4 +32,6 @@ export interface AuthenticatedClaims {
     role: UserRole;
     fullName: string;
     type: 'access';
+    /** Absent on tokens issued before multi-site isolation shipped. */
+    siteId?: string | null;
 }
