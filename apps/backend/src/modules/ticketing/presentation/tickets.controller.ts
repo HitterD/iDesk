@@ -78,7 +78,7 @@ export class TicketsController {
     @ApiOperation({ summary: 'Get all tickets' })
     @ApiResponse({ status: 200, description: 'Return all tickets.' })
     async findAll(@Request() req: any) {
-        return this.ticketQueryService.findAll(req.user.userId, req.user.role);
+        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null);
     }
 
     @Get('paginated')
@@ -95,8 +95,8 @@ export class TicketsController {
     @ApiQuery({ name: 'siteId', required: false, type: String, description: 'Filter by site ID' })
     @ApiQuery({ name: 'siteIds', required: false, type: [String], description: 'Filter by multiple site IDs (ADMIN/MANAGER only)' })
     async findAllPaginated(@Request() req: any, @Query() pagination: PaginationDto) {
-        // Pass user's siteId for site isolation (USER/AGENT)
-        const userSiteId = req.user.siteId || null;
+        // Pass user's siteId for site isolation (site-locked roles)
+        const userSiteId = req.user.siteId ?? null;
         return this.ticketQueryService.findAllPaginated(req.user.userId, req.user.role, userSiteId, pagination);
     }
 
@@ -106,7 +106,7 @@ export class TicketsController {
     @ApiResponse({ status: 200, description: 'Return paginated Oracle/K2 tickets.' })
     @ApiResponse({ status: 403, description: 'Forbidden — AGENT_ORACLE or ADMIN role required.' })
     async findAllPaginatedOracle(@Request() req: any, @Query() pagination: PaginationDto) {
-        const userSiteId = req.user.siteId || null;
+        const userSiteId = req.user.siteId ?? null;
         return this.ticketQueryService.findAllPaginatedOracle(
             req.user.userId,
             req.user.role,
@@ -125,7 +125,13 @@ export class TicketsController {
         @Query('days') daysQuery?: string
     ) {
         const days = daysQuery ? parseInt(daysQuery, 10) : 7;
-        return this.ticketQueryService.getDashboardStats(req.user.userId, req.user.role, excludeCategory, days);
+        return this.ticketQueryService.getDashboardStats(
+            req.user.userId,
+            req.user.role,
+            req.user.siteId ?? null,
+            excludeCategory,
+            days,
+        );
     }
 
     @Get('hardware-stats')

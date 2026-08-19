@@ -6,6 +6,7 @@ import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
+import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' } as const;
@@ -32,9 +33,10 @@ export class TicketQueryService {
         private readonly cacheService: CacheService,
     ) { }
 
-    private createFilteredTicketQb(role: UserRole, excludeCategory?: string): import('typeorm').SelectQueryBuilder<Ticket> {
+    private createFilteredTicketQb(role: UserRole, userSiteId: string | null, excludeCategory?: string): import('typeorm').SelectQueryBuilder<Ticket> {
         const qb = this.ticketRepo.createQueryBuilder('ticket');
         applyOracleFilter(qb, role);
+        applySiteFilter(qb, role, userSiteId);
         if (excludeCategory) {
             const excludedCategories = excludeCategory.split(',').map((cat) => cat.trim());
             if (excludedCategories.length > 0) {
@@ -44,7 +46,7 @@ export class TicketQueryService {
         return qb;
     }
 
-    async findAll(userId: string, role: UserRole): Promise<Ticket[]> {
+    async findAll(userId: string, role: UserRole, userSiteId: string | null = null): Promise<Ticket[]> {
         const query = this.ticketRepo.createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
@@ -54,6 +56,8 @@ export class TicketQueryService {
             })
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
+
+        applySiteFilter(query, role, userSiteId);
 
         if (role === UserRole.ADMIN) {
             // Admin sees all
@@ -145,23 +149,9 @@ export class TicketQueryService {
             }
         }
 
-        // Site isolation filtering
-        // ADMIN & MANAGER can view cross-site, USER & AGENT are restricted
-        // AGENT_ADMIN can also view cross site if configured, but let's assume they are restricted to their site for now unless specified
-        if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
-            // Cross-site roles: apply optional site filters
-            if (siteIds && siteIds.length > 0) {
-                qb.andWhere('ticket.siteId IN (:...siteIds)', { siteIds });
-            } else if (siteId) {
-                qb.andWhere('ticket.siteId = :siteId', { siteId });
-            }
-            // If no filter, show all sites
-        } else {
-            // USER & AGENT & AGENT_ADMIN: strictly filter by their site
-            if (userSiteId) {
-                qb.andWhere('ticket.siteId = :userSiteId', { userSiteId });
-            }
-        }
+        // Site isolation: cross-site roles may narrow by site, everyone else is
+        // pinned to their own — and fail closed when they have none.
+        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
 
         // Status filter
         if (status) {
@@ -320,16 +310,8 @@ export class TicketQueryService {
             // Strict Oracle/K2 filter — same as the ORACLE_FILTER_PARAMS pattern
             .where('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
 
-        // Site isolation (matches findAllPaginated behaviour for ADMIN/AGENT)
-        if (role === UserRole.ADMIN) {
-            if (siteIds && siteIds.length > 0) {
-                qb.andWhere('ticket.siteId IN (:...siteIds)', { siteIds });
-            } else if (siteId) {
-                qb.andWhere('ticket.siteId = :siteId', { siteId });
-            }
-        } else if (userSiteId) {
-            qb.andWhere('ticket.siteId = :userSiteId', { userSiteId });
-        }
+        // Site isolation (matches findAllPaginated behaviour)
+        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });
@@ -420,15 +402,23 @@ export class TicketQueryService {
         return { ...ticket, slaTarget };
     }
 
-    async getDashboardStats(userId: string, role: UserRole, excludeCategory?: string, days: number = 7) {
-        // Cache stats for 15 seconds to balance real-time accuracy and DB load
-        const cacheKey = `dashboard:stats:${role}:${excludeCategory || 'none'}:${days}`;
+    async getDashboardStats(
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null = null,
+        excludeCategory?: string,
+        days: number = 7,
+    ) {
+        // Cache stats for 15 seconds to balance real-time accuracy and DB load.
+        // The site scope belongs in the key: without it one site would be served
+        // another site's cached numbers.
+        const cacheKey = `dashboard:stats:${role}:${siteScopeKey(role, userSiteId)}:${excludeCategory || 'none'}:${days}`;
         return this.cacheService.getOrSet(cacheKey, async () => {
-            return this.computeDashboardStats(role, excludeCategory, days);
+            return this.computeDashboardStats(role, userSiteId, excludeCategory, days);
         }, 15);
     }
 
-    private async computeDashboardStats(role: UserRole, excludeCategory?: string, chartDays: number = 7) {
+    private async computeDashboardStats(role: UserRole, userSiteId: string | null, excludeCategory?: string, chartDays: number = 7) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const thisWeekStart = new Date(today);
@@ -438,7 +428,7 @@ export class TicketQueryService {
         lastDaysStart.setDate(today.getDate() - (chartDays - 1));
 
         // Use QueryBuilder for efficient aggregations
-        const qb = this.createFilteredTicketQb(role, excludeCategory);
+        const qb = this.createFilteredTicketQb(role, userSiteId, excludeCategory);
 
         // 1. Status counts - single query with CASE statements
         const statusCounts = await qb
@@ -459,7 +449,7 @@ export class TicketQueryService {
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
         // 2. Priority counts - single query
-        const priorityQb = this.createFilteredTicketQb(role, excludeCategory);
+        const priorityQb = this.createFilteredTicketQb(role, userSiteId, excludeCategory);
 
         const priorityCounts = await priorityQb
             .select('ticket.priority', 'priority')
@@ -477,7 +467,7 @@ export class TicketQueryService {
         });
 
         // 3. Category counts - single query
-        const categoryQb = this.createFilteredTicketQb(role, excludeCategory);
+        const categoryQb = this.createFilteredTicketQb(role, userSiteId, excludeCategory);
 
         const categoryCounts = await categoryQb
             .select(`COALESCE(ticket.category, 'GENERAL')`, 'category')
@@ -491,7 +481,7 @@ export class TicketQueryService {
         });
 
         // 4. Time-based counts - single query
-        const timeCounts = await this.createFilteredTicketQb(role, excludeCategory)
+        const timeCounts = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
@@ -507,7 +497,7 @@ export class TicketQueryService {
         const resolvedThisWeek = parseInt(timeCounts.resolvedThisWeek) || 0;
 
         // 5. Last N days - single query with date grouping
-        const dailyStats = await this.createFilteredTicketQb(role, excludeCategory)
+        const dailyStats = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .select(`DATE(ticket."createdAt")`, 'date')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
@@ -541,7 +531,7 @@ export class TicketQueryService {
         }
 
         // 6. Recent tickets - limited query with joins
-        const recentTickets = await this.createFilteredTicketQb(role, excludeCategory)
+        const recentTickets = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .leftJoin('ticket.user', 'user')
             .leftJoin('ticket.assignedTo', 'assignedTo')
             .select([
@@ -566,7 +556,7 @@ export class TicketQueryService {
         }));
 
         // 7. Top agents - SQL aggregation
-        const agentStats = await this.createFilteredTicketQb(role, excludeCategory)
+        const agentStats = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .innerJoin('ticket.assignedTo', 'agent')
             .select('agent.id', 'agentId')
             .addSelect('agent.fullName', 'name')
@@ -585,7 +575,7 @@ export class TicketQueryService {
         }));
 
         // 8. Average resolution time - SQL calculation
-        const avgTimeResult = await this.createFilteredTicketQb(role, excludeCategory)
+        const avgTimeResult = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
             .andWhere(`ticket.status = 'RESOLVED'`)
             .getRawOne();
