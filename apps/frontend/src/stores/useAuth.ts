@@ -7,7 +7,7 @@ interface User {
     id: string;
     email: string;
     fullName: string;
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'USER';
     avatarUrl?: string;
     employeeId?: string;
     jobTitle?: string;

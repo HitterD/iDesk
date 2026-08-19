@@ -63,6 +63,9 @@ import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
 import { SiteSelector } from '@/components/site/SiteSelector';
 
+const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
+const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
+
 interface LocalPaginationMeta {
     total: number;
     page: number;
@@ -410,37 +413,37 @@ export const BentoTicketListPage: React.FC = () => {
     }, [paginationInfo]);
 
     const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || selectedSites.length > 0);
-    const canEdit = user?.role === 'ADMIN' || user?.role === 'AGENT';
-    const showSiteColumn = user?.role === 'ADMIN';
+    const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
+    const showSiteColumn = isCrossSiteRole(user?.role);
 
     if (isLoading) {
         return <TicketListSkeleton />;
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-28 sm:pb-10">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">All Tickets</h1>
+                    <div className="flex items-center gap-2.5">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">All Tickets</h1>
                         {isConnected && (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 Live
                             </span>
                         )}
                     </div>
-                    <p className="text-muted-foreground text-sm font-medium mt-1">View and manage all support requests</p>
+                    <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5 sm:mt-1">View and manage all support requests</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     {/* New Ticket Button */}
                     <button
                         onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
+                        className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-xs active:scale-[0.98]"
                     >
                         <Plus className="w-4 h-4" />
-                        <span className="hidden sm:inline">New Ticket</span>
+                        <span>New Ticket</span>
                     </button>
 
                     {/* My Tasks Filter */}
@@ -454,29 +457,29 @@ export const BentoTicketListPage: React.FC = () => {
                                 }
                             }}
                             className={cn(
-                                "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out font-semibold shadow-sm border",
+                                "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
                                 showAssignedToMe
                                     ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))] hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-200'
+                                    : 'bg-card border-border hover:bg-muted/50 text-foreground'
                             )}
                         >
                             <UserCheck className="w-4 h-4" />
-                            <span className="hidden sm:inline">My Tasks</span>
+                            <span>My Tasks</span>
                         </button>
                     )}
 
                     {/* View Toggle */}
-                    <div className="flex bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] p-1 rounded-xl shadow-sm">
+                    <div className="flex bg-card border border-border p-1 rounded-xl shadow-xs">
                         <button
                             onClick={() => navigate('/kanban')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 dark:text-slate-400 hover:text-primary rounded-lg transition-colors"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-muted-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
                             title="Kanban Board"
                         >
                             <Columns3 className="w-4 h-4" />
                             <span className="text-xs font-semibold hidden md:inline">Kanban</span>
                         </button>
                         <button
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-bold"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-primary/10 text-primary rounded-lg font-bold"
                             title="Table View"
                         >
                             <TableProperties className="w-4 h-4" />
@@ -486,8 +489,8 @@ export const BentoTicketListPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Stats Cards - Click to filter */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
+            <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:gap-3 lg:gap-4 snap-x">
                 <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => { setStatusFilter(''); setPriorityFilter(''); }} isActive={!statusFilter && !priorityFilter} />
                 <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => setStatusFilter('TODO')} isActive={statusFilter === 'TODO'} />
                 <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => setStatusFilter('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS'} />
@@ -534,7 +537,7 @@ export const BentoTicketListPage: React.FC = () => {
 
 
                 {/* Primary Filters - Horizontal row */}
-                <div className="flex items-center gap-2 px-1 pb-1 lg:pb-0 shrink-0 overflow-x-auto">
+                <div className="flex items-center gap-2 px-1 pb-1 lg:pb-0 shrink-0 overflow-x-auto no-scrollbar">
                     <CustomDropdown
                         value={statusFilter}
                         onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
@@ -562,8 +565,8 @@ export const BentoTicketListPage: React.FC = () => {
                         ]}
                     />
 
-                    {/* Site Selector - Visible for Admin */}
-                    {user?.role === 'ADMIN' && (
+                    {/* Site Selector - cross-site roles only */}
+                    {isCrossSiteRole(user?.role) && (
                         <SiteSelector
                             selectedSiteIds={selectedSites}
                             onSelectionChange={setSelectedSites}

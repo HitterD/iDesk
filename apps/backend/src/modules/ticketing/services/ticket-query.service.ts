@@ -370,7 +370,7 @@ export class TicketQueryService {
         };
     }
 
-    async findOne(id: string, user?: { id?: string; role: UserRole | string }): Promise<any> {
+    async findOne(id: string, user?: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<any> {
         const ticket = await this.ticketRepo.findOne({
             where: { id },
             relations: ['user', 'user.department', 'assignedTo', 'messages', 'messages.sender'],
@@ -382,6 +382,7 @@ export class TicketQueryService {
 
         if (user) {
             validateTicketAccess(user, ticket);
+            validateTicketSiteAccess(user.role as UserRole, user.siteId ?? null, (ticket as any).siteId ?? null);
         }
 
         // Use stored SLA Target if available, otherwise calculate it (for backwards compatibility)

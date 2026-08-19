@@ -7,6 +7,7 @@ import { User } from '../../users/entities/user.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { AuditService, AuditAction } from '../../audit';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { validateTicketSiteAccess } from '../utils/site-access.util';
 
 @Injectable()
 export class TicketMergeService {
@@ -63,6 +64,12 @@ export class TicketMergeService {
             assertTicketRoleAccess(primaryTicket, user.role);
             for (const secondaryTicket of secondaryTickets) {
                 assertTicketRoleAccess(secondaryTicket, user.role);
+            }
+
+            // Site isolation: every ticket in the merge set must be from the caller's site.
+            validateTicketSiteAccess(user.role as any, (user as any).siteId ?? null, (primaryTicket as any).siteId ?? null);
+            for (const secondaryTicket of secondaryTickets) {
+                validateTicketSiteAccess(user.role as any, (user as any).siteId ?? null, (secondaryTicket as any).siteId ?? null);
             }
 
             // Pre-validate status before any writes
@@ -134,15 +141,17 @@ export class TicketMergeService {
             description: `Merged ${secondaryTicketIds.length} tickets into primary`,
         });
 
-        this.eventsGateway.server.emit('ticket:updated', { ticketId: primaryTicketId });
-        this.eventsGateway.notifyTicketListUpdate();
-        this.eventsGateway.notifyDashboardStatsUpdate();
-
         const ticket = await this.ticketRepo.findOne({
             where: { id: primaryTicketId },
             relations: ['user', 'assignedTo', 'messages', 'messages.sender'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
+        this.eventsGateway.server.emit('ticket:updated', { ticketId: primaryTicketId });
+        if ((ticket as any).siteId) {
+            this.eventsGateway.server.to(`site:${(ticket as any).siteId}`).emit('ticket:updated', { ticketId: primaryTicketId });
+        }
+        this.eventsGateway.notifyTicketListUpdate((ticket as any).siteId ?? null);
+        this.eventsGateway.notifyDashboardStatsUpdate((ticket as any).siteId ?? null);
         return ticket;
     }
 }

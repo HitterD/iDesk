@@ -10,6 +10,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { validateTicketSiteAccess } from '../utils/site-access.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -37,13 +38,14 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string, userRole?: UserRole): Promise<TicketMessage[]> {
+    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null): Promise<TicketMessage[]> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            select: ['id', 'category', 'ticketType'],
+            select: ['id', 'category', 'ticketType', 'siteId'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         if (userRole) assertTicketRoleAccess(ticket, userRole);
+        if (userRole) validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
 
         return this.messageRepo.find({
             where: {
@@ -65,16 +67,18 @@ export class TicketMessagingService {
         page: number = 1,
         limit: number = 20,
         userRole?: UserRole,
+        userSiteId: string | null = null,
     ): Promise<{
         data: TicketMessage[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            select: ['id', 'category', 'ticketType'],
+            select: ['id', 'category', 'ticketType', 'siteId'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         if (userRole) assertTicketRoleAccess(ticket, userRole);
+        if (userRole) validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
 
         const skip = (page - 1) * limit;
 
@@ -140,6 +144,7 @@ export class TicketMessagingService {
                 throw new NotFoundException('User not found');
             }
             assertTicketRoleAccess(ticket, user.role);
+            validateTicketSiteAccess(user.role as any, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
 
             // Create Message
             const message = manager.create(TicketMessage, {
@@ -215,6 +220,9 @@ export class TicketMessagingService {
         };
         this.eventsGateway.notifyNewMessage(ticketId, messageWithSender);
         this.eventsGateway.server.emit('NEW_MESSAGE', messageWithSender);
+        if ((ticket as any).siteId) {
+            this.eventsGateway.server.to(`site:${(ticket as any).siteId}`).emit('NEW_MESSAGE', messageWithSender);
+        }
 
         // Emit Domain Event
         this.eventEmitter.emit(
@@ -242,7 +250,7 @@ export class TicketMessagingService {
     /**
      * Mark a ticket as read for the current viewing user or agent
      */
-    async markAsRead(ticketId: string, userId: string, role?: string): Promise<void> {
+    async markAsRead(ticketId: string, userId: string, role?: string, _userSiteId: string | null = null): Promise<void> {
         const isAgentSide = role && role !== UserRole.USER;
         const now = new Date();
         const updateData = isAgentSide

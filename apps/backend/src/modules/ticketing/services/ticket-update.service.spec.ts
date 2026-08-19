@@ -27,11 +27,12 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         siteId: 'site-1',
     } as Ticket);
 
-    const buildAssignee = (role: UserRole) => ({
+    const buildAssignee = (role: UserRole, siteId: string | null = 'site-1') => ({
         id: 'assignee-1',
         fullName: 'Test Assignee',
         email: 'assignee@test.com',
         role,
+        siteId,
     } as any);
 
     beforeEach(() => {
@@ -46,8 +47,10 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         mockUserRepo = {
             findOne: jest.fn(),
         };
+        const chainEmit = jest.fn();
+        const siteRoom = { emit: chainEmit };
         mockEventsGateway = {
-            server: { emit: jest.fn() },
+            server: { emit: jest.fn(), to: jest.fn(() => siteRoom) },
             notifyDashboardStatsUpdate: jest.fn(),
             notifyTicketListUpdate: jest.fn(),
         };
@@ -77,7 +80,7 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         const ticket = buildTicket('ORACLE_REQUEST', null);
         mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
         mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.AGENT_OPERATIONAL_SUPPORT));
-        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c' });
+        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.ADMIN, siteId: null });
 
         await expect(service.assignTicket('ticket-1', 'assignee-1', 'assigner-1'))
             .rejects.toBeInstanceOf(ForbiddenException);
@@ -87,7 +90,7 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         const ticket = buildTicket('GENERAL', TicketType.ORACLE_REQUEST);
         mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
         mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.AGENT));
-        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c' });
+        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.ADMIN, siteId: null });
 
         await expect(service.assignTicket('ticket-1', 'assignee-1', 'assigner-1'))
             .rejects.toBeInstanceOf(ForbiddenException);
@@ -97,7 +100,7 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         const ticket = buildTicket('ORACLE_REQUEST', null);
         mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
         mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.AGENT_ORACLE));
-        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c' });
+        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.AGENT_ORACLE, siteId: 'site-1' });
 
         const result = await service.assignTicket('ticket-1', 'assignee-1', 'assigner-1');
         expect(result.assignedTo).toEqual(buildAssignee(UserRole.AGENT_ORACLE));
@@ -107,7 +110,7 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         const ticket = buildTicket('ORACLE_REQUEST', null);
         mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
         mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.ADMIN));
-        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c' });
+        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.ADMIN, siteId: null });
 
         const result = await service.assignTicket('ticket-1', 'assignee-1', 'assigner-1');
         expect(result.assignedTo.role).toBe(UserRole.ADMIN);
@@ -117,9 +120,35 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         const ticket = buildTicket('GENERAL', null);
         mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
         mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.AGENT));
-        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c' });
+        mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.AGENT_ADMIN, siteId: 'site-1' });
 
         const result = await service.assignTicket('ticket-1', 'assignee-1', 'assigner-1');
         expect(result.assignedTo.role).toBe(UserRole.AGENT);
+    });
+
+    describe('Site isolation', () => {
+        it('blocks a site-locked assigner from assigning a foreign-site ticket', async () => {
+            const ticket = buildTicket('GENERAL', null);
+            // ticket site-1, assigner site-2 (site-locked role)
+            mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
+            mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.AGENT_ADMIN, 'site-2'));
+            mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.AGENT_ADMIN, siteId: 'site-2' });
+            await expect(service.assignTicket('ticket-1', 'assignee-1', 'assigner-1')).rejects.toBeInstanceOf(ForbiddenException);
+        });
+        it('blocks assigning a foreign-site assignee to the ticket', async () => {
+            const ticket = buildTicket('GENERAL', null);
+            mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
+            mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.AGENT_ADMIN, 'site-2'));
+            mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.ADMIN, siteId: null });
+            await expect(service.assignTicket('ticket-1', 'assignee-1', 'assigner-1')).rejects.toBeInstanceOf(ForbiddenException);
+        });
+        it('allows cross-site ADMIN to assign across sites', async () => {
+            const ticket = buildTicket('GENERAL', null);
+            mockTicketRepo.findOne.mockResolvedValueOnce(ticket);
+            mockUserRepo.findOne.mockResolvedValueOnce(buildAssignee(UserRole.ADMIN, null));
+            mockUserRepo.findOne.mockResolvedValueOnce({ id: 'assigner-1', fullName: 'Assigner', email: 'a@b.c', role: UserRole.ADMIN, siteId: null });
+            const result = await service.assignTicket('ticket-1', 'assignee-1', 'assigner-1');
+            expect(result.assignedTo.id).toBe('assignee-1');
+        });
     });
 });

@@ -46,6 +46,10 @@ import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
 
+const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
+const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
+
+
 // SLA warning threshold: 4 hours in milliseconds
 const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
 
@@ -422,7 +426,7 @@ const TicketPreviewPanel: React.FC<{
     const StatusIcon = statusConfig.icon;
     const PriorityIcon = priorityConfig.icon;
     const { user } = useAuth();
-    const isAdmin = user?.role === 'ADMIN';
+    const isAdmin = isCrossSiteRole(user?.role);
     const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
 
     return (
@@ -633,7 +637,7 @@ export const BentoTicketKanban: React.FC = () => {
         refetchInterval: 30000,
     });
 
-    const isAdmin = user?.role === 'ADMIN';
+    const isAdmin = isCrossSiteRole(user?.role);
     const { data: agents = [] } = useQuery<Agent[]>({
         queryKey: ['agents', isAdmin ? 'all' : user?.siteId],
         queryFn: async () => {
@@ -983,7 +987,7 @@ export const BentoTicketKanban: React.FC = () => {
                         <span>Critical ({stats.critical})</span>
                     </button>
 
-                    {/* Site Selector for Admin */}
+                    {/* Site Selector - cross-site roles */}
                     {isAdmin && (
                         <div className="ml-1 pl-1 border-l border-border">
                             <SiteSelector
@@ -996,6 +1000,9 @@ export const BentoTicketKanban: React.FC = () => {
                     )}
                 </div>
             </div>
+            {!isCrossSiteRole(user?.role) && !user?.siteId && (
+                <div className="mx-0 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">Akun Anda belum terpasang ke site. Hubungi admin untuk menetapkan site agar tiket dapat ditampilkan.</div>
+            )}
 
             {/* Kanban Columns Board Area (Independent Vertical Scroll per Column) */}
             <div className="flex-1 min-h-0 flex overflow-hidden">

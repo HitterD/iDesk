@@ -147,7 +147,14 @@ export class TicketsController {
     @ApiResponse({ status: 200, description: 'Return ticket details.' })
     async findOne(@Param('id') id: string, @Request() req: any) {
         if (req?.user) {
-            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role);
+            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role, req.user.siteId ?? null);
+        }
+        if (req?.user && (req.user.role || req.user.siteId !== undefined)) {
+            return this.ticketQueryService.findOne(id, {
+                id: req.user.userId || req.user.id,
+                role: req.user.role,
+                siteId: req.user.siteId ?? null,
+            });
         }
         return this.ticketQueryService.findOne(id);
     }
@@ -156,7 +163,7 @@ export class TicketsController {
     @ApiOperation({ summary: 'Get ticket messages' })
     @ApiResponse({ status: 200, description: 'Return ticket messages.' })
     async getMessages(@Param('id') id: string, @Request() req: any) {
-        return this.ticketMessagingService.getMessages(id, req.user.role);
+        return this.ticketMessagingService.getMessages(id, req.user.role, req.user.siteId ?? null);
     }
 
     @Get(':id/messages/paginated')
@@ -170,7 +177,7 @@ export class TicketsController {
         @Query('limit') limit: number = 20,
         @Request() req: any,
     ) {
-        return this.ticketMessagingService.getMessagesPaginated(ticketId, +page || 1, +limit || 20, req.user.role);
+        return this.ticketMessagingService.getMessagesPaginated(ticketId, +page || 1, +limit || 20, req.user.role, req.user.siteId ?? null);
     }
 
     @Post(':id/reply')

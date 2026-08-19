@@ -24,6 +24,9 @@ export class SiteGuard implements CanActivate {
     constructor(private reflector: Reflector) { }
 
     canActivate(context: ExecutionContext): boolean {
+        if (this.reflector.getAllAndOverride<boolean>(SKIP_SITE_GUARD_KEY, [context.getHandler(), context.getClass()])) {
+            return true;
+        }
         const request = context.switchToHttp().getRequest();
         const user = request.user;
 
@@ -32,8 +35,8 @@ export class SiteGuard implements CanActivate {
             return true;
         }
 
-        // ADMIN & MANAGER bypass site isolation completely
-        if ([UserRole.ADMIN, UserRole.MANAGER].includes(user.role)) {
+        // ADMIN, MANAGER and AGENT_ORACLE work cross-site (see site-access.util CROSS_SITE_ROLES).
+        if ([UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ORACLE].includes(user.role)) {
             return true;
         }
 

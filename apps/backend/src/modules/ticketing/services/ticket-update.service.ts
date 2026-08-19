@@ -20,6 +20,7 @@ import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { WorkloadService } from '../../workload/workload.service';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { validateTicketSiteAccess } from '../utils/site-access.util';
 
 @Injectable()
 export class TicketUpdateService {
@@ -69,6 +70,7 @@ export class TicketUpdateService {
                 throw new NotFoundException('User not found');
             }
             validateTicketAccess(user, ticket);
+            validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
 
             const changes: string[] = [];
             const oldStatus = ticket.status;
@@ -187,8 +189,8 @@ export class TicketUpdateService {
             }
         }
 
-        this.eventsGateway.notifyDashboardStatsUpdate();
-        this.eventsGateway.notifyTicketListUpdate();
+        this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
+        this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
 
         if (savedTicket.siteId) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
@@ -246,6 +248,7 @@ export class TicketUpdateService {
 
         if (
             assignee.role !== UserRole.AGENT_OPERATIONAL_SUPPORT &&
+            assignee.role !== UserRole.AGENT_ADMIN &&
             assignee.role !== UserRole.AGENT_ORACLE &&
             assignee.role !== UserRole.AGENT &&
             assignee.role !== UserRole.ADMIN
@@ -281,6 +284,9 @@ export class TicketUpdateService {
         }
         assertTicketRoleAccess(ticket, assigner.role);
         assertTicketRoleAccess(ticket, assignee.role);
+        // Site isolation: assigner and assignee must belong to the ticket's site unless cross-site.
+        validateTicketSiteAccess(assigner.role as UserRole, (assigner as any).siteId ?? null, (ticket as any).siteId ?? null);
+        validateTicketSiteAccess(assignee.role as UserRole, (assignee as any).siteId ?? null, (ticket as any).siteId ?? null);
 
         const oldAssigneeName = ticket.assignedTo ? ticket.assignedTo.fullName : 'Unassigned';
         const oldAssigneeId = ticket.assignedTo ? ticket.assignedTo.id : null;
@@ -300,6 +306,10 @@ export class TicketUpdateService {
 
         this.eventsGateway.server.emit('ticket:updated', { ticketId });
         this.eventsGateway.server.emit('NEW_MESSAGE', systemMessage);
+        if ((savedTicket as any).siteId) {
+            this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+            this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', systemMessage);
+        }
 
         // -------------------------------------------------------------
         // Workload Recalculation (Manual Assignment Handling)
@@ -317,8 +327,8 @@ export class TicketUpdateService {
             }
         }
 
-        this.eventsGateway.notifyDashboardStatsUpdate();
-        this.eventsGateway.notifyTicketListUpdate();
+        this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
+        this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
 
         if (savedTicket.siteId) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
@@ -369,6 +379,8 @@ export class TicketUpdateService {
             throw new ForbiddenException('You can only cancel your own tickets');
         }
 
+        validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+
         // Cannot cancel already resolved or cancelled tickets
         if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
             throw new BadRequestException('Cannot cancel a ticket that is already resolved or cancelled');
@@ -390,7 +402,7 @@ export class TicketUpdateService {
         await this.messageRepo.save(systemMessage);
 
         // Emit WebSocket events
-        this.eventsGateway.notifyStatusChange(ticketId, TicketStatus.CANCELLED, user.fullName);
+        this.eventsGateway.notifyStatusChange(ticketId, TicketStatus.CANCELLED, user.fullName, (savedTicket as any).siteId ?? null);
         
         // Recalculate workload points
         if (savedTicket.assignedToId && savedTicket.siteId) {
@@ -401,8 +413,8 @@ export class TicketUpdateService {
             }
         }
 
-        this.eventsGateway.notifyTicketListUpdate();
-        this.eventsGateway.notifyDashboardStatsUpdate();
+        this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
+        this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
 
         if (savedTicket.siteId) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
@@ -457,6 +469,11 @@ export class TicketUpdateService {
             throw new NotFoundException('No tickets found');
         }
 
+        // Site isolation: every target ticket must belong to the caller's site.
+        for (const ticket of tickets) {
+            validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+        }
+
         let assignee: User | null = null;
         if (updateData.assigneeId) {
             assignee = await this.userRepo.findOne({ where: { id: updateData.assigneeId } });
@@ -465,6 +482,13 @@ export class TicketUpdateService {
             }
             if (assignee.role !== UserRole.AGENT && assignee.role !== UserRole.ADMIN) {
                 throw new BadRequestException('Assignee must be an AGENT or ADMIN');
+            }
+        }
+
+        // If a new assignee is requested, validate that the assignee belongs to every ticket's site.
+        if (assignee) {
+            for (const ticket of tickets) {
+                validateTicketSiteAccess(assignee!.role as UserRole, (assignee as any).siteId ?? null, (ticket as any).siteId ?? null);
             }
         }
 
@@ -538,6 +562,18 @@ export class TicketUpdateService {
         }
 
         if (updated.length > 0) {
+            // Site-scoped list/dashboard fan-out: every affected site, plus cross-site listeners via the global emits.
+            {
+                const distinctSites = Array.from(new Set(tickets.filter(t => updated.includes(t.id)).map(t => (t as any).siteId).filter(Boolean)));
+                for (const sid of distinctSites) {
+                    this.eventsGateway.notifyTicketListUpdate(sid);
+                    this.eventsGateway.notifyDashboardStatsUpdate(sid);
+                }
+                if (distinctSites.length === 0) {
+                    this.eventsGateway.notifyTicketListUpdate();
+                    this.eventsGateway.notifyDashboardStatsUpdate();
+                }
+            }
             // Recalculate workloads for affected agents
             const affectedAgentsMap = new Map<string, string>(); // Map agentId -> siteId
             for (const ticket of tickets) {
@@ -560,8 +596,6 @@ export class TicketUpdateService {
             }
 
             await this.cacheInvalidationService.onTicketChange('bulk');
-            this.eventsGateway.notifyDashboardStatsUpdate();
-            this.eventsGateway.notifyTicketListUpdate();
         }
 
         return { updated: updated.length, failed };

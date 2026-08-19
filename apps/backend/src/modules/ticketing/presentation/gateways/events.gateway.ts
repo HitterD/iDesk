@@ -144,6 +144,11 @@ export class EventsGateway
             client.data.role = payload.role;
             client.data.fullName = payload.fullName;
             client.data.clientIp = clientIp;
+            // Multi-site: carry caller's site and join a per-site room so broadcasts can be scoped.
+            client.data.siteId = (payload as any).siteId ?? null;
+            if ((payload as any).siteId) {
+                client.join(`site:${(payload as any).siteId}`);
+            }
             const wasOnline = this.isUserOnline(payload.sub);
             this.connectedUsers.set(client.id, payload.sub);
             client.join(`user:${payload.sub}`);
@@ -240,6 +245,15 @@ export class EventsGateway
         } catch {
             return { status: 'error', message: 'Forbidden' };
         }
+        // Site isolation for the ticket room.
+        {
+            const userSiteId = (client.data.siteId as string | null) ?? null;
+            const ticketSiteId = (ticket as any).siteId ?? null;
+            const CROSS = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ORACLE] as string[];
+            if (!CROSS.includes(role as string)) {
+                if (!userSiteId || ticketSiteId !== userSiteId) return { status: 'error', message: 'Forbidden' };
+            }
+        }
         client.join(`ticket:${ticketId}`);
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
@@ -253,9 +267,12 @@ export class EventsGateway
     }
 
     // Notify all clients about ticket update
-    notifyTicketUpdate(ticketId: string, data: any) {
+    notifyTicketUpdate(ticketId: string, data: any, siteId?: string | null) {
         this.server.emit('ticket:updated', { ticketId, ...data });
         this.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId, ...data });
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('ticket:updated', { ticketId, ...data });
+        }
     }
 
     // Notify about new message in a ticket
@@ -265,38 +282,58 @@ export class EventsGateway
     }
 
     // Notify about ticket status change
-    notifyStatusChange(ticketId: string, status: string, updatedBy: string) {
+    notifyStatusChange(ticketId: string, status: string, updatedBy: string, siteId?: string | null) {
         this.server.to(`ticket:${ticketId}`).emit('ticket:statusChanged', { ticketId, status, updatedBy });
         this.server.emit('tickets:statusChanged', { ticketId, status });
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('tickets:statusChanged', { ticketId, status });
+        }
     }
 
     // Notify about ticket reassignment
-    notifyTicketAssigned(ticketId: string, assigneeId: string) {
+    notifyTicketAssigned(ticketId: string, assigneeId: string, siteId?: string | null) {
         this.server.emit('ticket:assigned', { ticketId, assigneeId });
         this.server.to(`ticket:${ticketId}`).emit('ticket:assigned', { ticketId, assigneeId });
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('ticket:assigned', { ticketId, assigneeId });
+        }
     }
 
     // Notify about ticket priority change
-    notifyPriorityChanged(ticketId: string, priority: string) {
+    notifyPriorityChanged(ticketId: string, priority: string, siteId?: string | null) {
         this.server.emit('ticket:priority_changed', { ticketId, priority });
         this.server.to(`ticket:${ticketId}`).emit('ticket:priority_changed', { ticketId, priority });
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('ticket:priority_changed', { ticketId, priority });
+        }
     }
 
     // Notify all clients about any ticket list changes
-    notifyTicketListUpdate() {
+    notifyTicketListUpdate(siteId?: string | null) {
         this.server.emit('tickets:listUpdated');
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('tickets:listUpdated');
+        }
     }
 
     // Notify about new ticket created (for admin/agent real-time sync)
     notifyNewTicket(ticket: any) {
+        const siteId = (ticket as any)?.siteId ?? null;
         this.server.emit('ticket:created', ticket);
         this.server.emit('tickets:listUpdated');
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('ticket:created', ticket);
+            this.server.to(`site:${siteId}`).emit('tickets:listUpdated');
+        }
         this.logger.log(`Emitted new ticket: ${ticket.id}`);
     }
 
     // Notify dashboard to update stats
-    notifyDashboardStatsUpdate() {
+    notifyDashboardStatsUpdate(siteId?: string | null) {
         this.server.emit('dashboard:stats:update');
+        if (siteId) {
+            this.server.to(`site:${siteId}`).emit('dashboard:stats:update');
+        }
         this.logger.log('Emitted dashboard stats update');
     }
 
@@ -315,5 +352,18 @@ export class EventsGateway
     notifyAdmins(event: string, data: any) {
         this.server.to('admin:notifications').emit(event, data);
         this.server.emit(event, data); // Also broadcast globally for all admins
+    }
+
+    // Notify about knowledge base article views & engagement in real-time
+    notifyKBArticleView(articleId: string, viewCount: number, viewer?: any) {
+        if (this.server) {
+            this.server.emit('kb:article:viewed', { articleId, viewCount, viewer });
+        }
+    }
+
+    notifyKBArticleHelpful(articleId: string, helpfulCount: number) {
+        if (this.server) {
+            this.server.emit('kb:article:helpful', { articleId, helpfulCount });
+        }
     }
 }

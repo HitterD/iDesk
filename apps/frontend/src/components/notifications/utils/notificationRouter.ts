@@ -1,6 +1,6 @@
 import { NotificationCategory, Notification } from '../types/notification.types';
 
-export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER';
+export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_ADMIN';
 
 /**
  * Get the redirect path for a notification based on its category and user role
