@@ -140,10 +140,6 @@ export class TicketCreateService {
 
                 const savedTicket = await manager.save(ticket);
 
-            // Invalidate caches using centralized service
-            await this.cacheInvalidationService.onTicketChange(ticket.id);
-            this.eventsGateway.notifyDashboardStatsUpdate();
-
                 // Save initial message with attachments inside transaction
                 const message = this.messageRepo.create({
                     content: createTicketDto.description,
@@ -152,26 +148,6 @@ export class TicketCreateService {
                     attachments: files,
                 });
                 await manager.save(message);
-
-            // Emit WebSocket event for real-time sync
-            this.eventsGateway.notifyNewTicket({
-                id: ticket.id,
-                ticketNumber: ticket.ticketNumber,
-                title: ticket.title,
-                status: ticket.status,
-                priority: ticket.priority,
-                category: ticket.category,
-                user: {
-                    id: user.id,
-                    fullName: user.fullName,
-                    email: user.email,
-                },
-                createdAt: ticket.createdAt,
-            });
-
-            if (ticket.siteId) {
-                this.eventEmitter.emit('tv-board.ticket-changed', { siteId: ticket.siteId });
-            }
 
             // Emit Domain Event
             this.eventEmitter.emit(
@@ -202,6 +178,27 @@ export class TicketCreateService {
 
                 return savedTicket;
             }); // End of transaction
+
+            // Site-isolated real-time fan-out (outside transaction, after commit)
+            this.eventsGateway.notifyDashboardStatsUpdate((finalTicket as any).siteId ?? null);
+            this.eventsGateway.notifyNewTicket({
+                id: finalTicket.id,
+                ticketNumber: finalTicket.ticketNumber,
+                title: finalTicket.title,
+                status: finalTicket.status,
+                priority: finalTicket.priority,
+                category: finalTicket.category,
+                siteId: (finalTicket as any).siteId ?? null,
+                user: {
+                    id: user.id,
+                    fullName: user.fullName,
+                    email: user.email,
+                },
+                createdAt: finalTicket.createdAt,
+            });
+            if ((finalTicket as any).siteId) {
+                this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (finalTicket as any).siteId });
+            }
 
             // === Auto-Assignment: Assign to agent with lowest workload ===
             if (!(createTicketDto as any).assignedToId && finalTicket.siteId && user.role !== 'AGENT' && user.role !== 'AGENT_OPERATIONAL_SUPPORT') {

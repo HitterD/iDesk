@@ -266,9 +266,8 @@ export class EventsGateway
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
-    // Notify all clients about ticket update
+    // Notify about ticket update — site-isolated: ticket subscribers + that site only.
     notifyTicketUpdate(ticketId: string, data: any, siteId?: string | null) {
-        this.server.emit('ticket:updated', { ticketId, ...data });
         this.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId, ...data });
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('ticket:updated', { ticketId, ...data });
@@ -281,60 +280,54 @@ export class EventsGateway
         this.logger.log(`Emitted new message to ticket:${ticketId}`);
     }
 
-    // Notify about ticket status change
+    // Notify about ticket status change — site-isolated.
     notifyStatusChange(ticketId: string, status: string, updatedBy: string, siteId?: string | null) {
         this.server.to(`ticket:${ticketId}`).emit('ticket:statusChanged', { ticketId, status, updatedBy });
-        this.server.emit('tickets:statusChanged', { ticketId, status });
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('tickets:statusChanged', { ticketId, status });
         }
     }
 
-    // Notify about ticket reassignment
+    // Notify about ticket reassignment — site-isolated.
     notifyTicketAssigned(ticketId: string, assigneeId: string, siteId?: string | null) {
-        this.server.emit('ticket:assigned', { ticketId, assigneeId });
         this.server.to(`ticket:${ticketId}`).emit('ticket:assigned', { ticketId, assigneeId });
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('ticket:assigned', { ticketId, assigneeId });
+            this.server.to(`user:${assigneeId}`).emit('ticket:assigned', { ticketId, assigneeId });
         }
     }
 
-    // Notify about ticket priority change
+    // Notify about ticket priority change — site-isolated.
     notifyPriorityChanged(ticketId: string, priority: string, siteId?: string | null) {
-        this.server.emit('ticket:priority_changed', { ticketId, priority });
         this.server.to(`ticket:${ticketId}`).emit('ticket:priority_changed', { ticketId, priority });
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('ticket:priority_changed', { ticketId, priority });
         }
     }
 
-    // Notify all clients about any ticket list changes
+    // Notify ticket list refresh — site-isolated (no global fan-out).
     notifyTicketListUpdate(siteId?: string | null) {
-        this.server.emit('tickets:listUpdated');
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('tickets:listUpdated');
         }
     }
 
-    // Notify about new ticket created (for admin/agent real-time sync)
+    // Notify about new ticket — site-isolated: only that site's room receives payload with ticket data.
     notifyNewTicket(ticket: any) {
         const siteId = (ticket as any)?.siteId ?? null;
-        this.server.emit('ticket:created', ticket);
-        this.server.emit('tickets:listUpdated');
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('ticket:created', ticket);
             this.server.to(`site:${siteId}`).emit('tickets:listUpdated');
         }
-        this.logger.log(`Emitted new ticket: ${ticket.id}`);
+        this.logger.log(`Emitted new ticket: ${ticket.id}` + (siteId ? ` to site:${siteId}` : ' (no site — no WS fan-out)'));
     }
 
-    // Notify dashboard to update stats
+    // Notify dashboard stats refresh — site-isolated.
     notifyDashboardStatsUpdate(siteId?: string | null) {
-        this.server.emit('dashboard:stats:update');
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('dashboard:stats:update');
         }
-        this.logger.log('Emitted dashboard stats update');
+        this.logger.log('Emitted dashboard stats update' + (siteId ? ` to site:${siteId}` : ' (no site — no WS fan-out)'));
     }
 
     // Join admin/agent notification room

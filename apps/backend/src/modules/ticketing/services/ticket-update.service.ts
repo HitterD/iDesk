@@ -206,7 +206,9 @@ export class TicketUpdateService {
             });
             await this.messageRepo.save(systemMessage);
 
-            this.eventsGateway.server.emit('ticket:updated', { ticketId });
+            if ((savedTicket as any).siteId) {
+                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+            }
 
             this.eventEmitter.emit(
                 'ticket.updated',
@@ -304,8 +306,6 @@ export class TicketUpdateService {
         });
         await this.messageRepo.save(systemMessage);
 
-        this.eventsGateway.server.emit('ticket:updated', { ticketId });
-        this.eventsGateway.server.emit('NEW_MESSAGE', systemMessage);
         if ((savedTicket as any).siteId) {
             this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
             this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', systemMessage);
@@ -569,10 +569,7 @@ export class TicketUpdateService {
                     this.eventsGateway.notifyTicketListUpdate(sid);
                     this.eventsGateway.notifyDashboardStatsUpdate(sid);
                 }
-                if (distinctSites.length === 0) {
-                    this.eventsGateway.notifyTicketListUpdate();
-                    this.eventsGateway.notifyDashboardStatsUpdate();
-                }
+                // No global WS fan-out — site-less bulk updates emit no ticket realtime (fail-closed).
             }
             // Recalculate workloads for affected agents
             const affectedAgentsMap = new Map<string, string>(); // Map agentId -> siteId

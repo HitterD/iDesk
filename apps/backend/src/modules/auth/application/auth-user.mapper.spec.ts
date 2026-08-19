@@ -60,6 +60,7 @@ describe('auth user mappers', () => {
             username: 'user@example.com',
             role: UserRole.ADMIN,
             fullName: 'Test User',
+            siteId: null,
         });
     });
 });

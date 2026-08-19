@@ -22,6 +22,7 @@ describe('JwtStrategy', () => {
             username: 'user@example.com',
             role: UserRole.USER,
             fullName: 'User',
+            siteId: null,
         });
     });
 
