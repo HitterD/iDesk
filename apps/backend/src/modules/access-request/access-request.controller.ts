@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
+import { SiteActor } from '../../shared/core/utils/site-scope.util';
 
 @ApiTags('Access Request')
 @ApiBearerAuth()
@@ -44,8 +45,10 @@ export class AccessRequestController {
     findAll(
         @Query('siteId') siteId?: string,
         @Query('status') status?: string,
+        @Request() req?: any,
     ) {
-        return this.accessRequestService.findAll({ siteId, status });
+        const actor: SiteActor = { role: req?.user?.role, siteId: req?.user?.siteId ?? null };
+        return this.accessRequestService.findAll(actor, { siteId, status });
     }
 
     @Get('types')
@@ -56,20 +59,26 @@ export class AccessRequestController {
 
     @Get(':id')
     @ApiOperation({ summary: 'Get Access Request by ID' })
-    findOne(@Param('id', ParseUUIDPipe) id: string) {
-        return this.accessRequestService.findOne(id);
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.MANAGER)
+    findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.accessRequestService.findOne(id, actor);
     }
 
     @Get('ticket/:ticketId')
     @ApiOperation({ summary: 'Get Access Request by ticket ID' })
-    findByTicketId(@Param('ticketId', ParseUUIDPipe) ticketId: string) {
-        return this.accessRequestService.findByTicketId(ticketId);
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.MANAGER)
+    findByTicketId(@Param('ticketId', ParseUUIDPipe) ticketId: string, @Request() req: any) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.accessRequestService.findByTicketId(ticketId, actor);
     }
 
     @Patch(':id/download-form')
     @ApiOperation({ summary: 'Mark form as downloaded' })
-    markFormDownloaded(@Param('id', ParseUUIDPipe) id: string) {
-        return this.accessRequestService.markFormDownloaded(id);
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    markFormDownloaded(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.accessRequestService.markFormDownloaded(id, actor);
     }
 
     @Post(':id/upload-signed-form')
@@ -87,9 +96,11 @@ export class AccessRequestController {
     uploadSignedForm(
         @Param('id', ParseUUIDPipe) id: string,
         @UploadedFile() file: Express.Multer.File,
+        @Request() req: any,
     ) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
         const filePath = `/uploads/access-forms/${file.filename}`;
-        return this.accessRequestService.uploadSignedForm(id, filePath);
+        return this.accessRequestService.uploadSignedForm(id, filePath, actor);
     }
 
     @Patch(':id/verify')
@@ -100,7 +111,8 @@ export class AccessRequestController {
         @Request() req: any,
         @Body() dto: VerifyAccessRequestDto,
     ) {
-        return this.accessRequestService.verify(id, req.user.userId, dto);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.accessRequestService.verify(id, req.user.userId, dto, actor);
     }
 
     @Patch(':id/create-access')
@@ -111,7 +123,8 @@ export class AccessRequestController {
         @Request() req: any,
         @Body() dto: CreateAccessCredentialsDto,
     ) {
-        return this.accessRequestService.createAccess(id, req.user.userId, dto);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.accessRequestService.createAccess(id, req.user.userId, dto, actor);
     }
 
     @Patch(':id/reject')
@@ -122,7 +135,8 @@ export class AccessRequestController {
         @Request() req: any,
         @Body() dto: RejectAccessRequestDto,
     ) {
-        return this.accessRequestService.reject(id, req.user.userId, dto);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.accessRequestService.reject(id, req.user.userId, dto, actor);
     }
 
     // ==========================================

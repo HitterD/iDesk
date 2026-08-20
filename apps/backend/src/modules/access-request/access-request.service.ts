@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AccessRequest, AccessRequestStatus } from './entities/access-request.entity';
@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { CredentialCipherService } from '../../shared/core/encryption/credential-cipher.service';
+import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
 @Injectable()
 export class AccessRequestService {
@@ -70,14 +71,22 @@ export class AccessRequestService {
         return saved;
     }
 
-    async findAll(options: { siteId?: string; status?: string } = {}): Promise<AccessRequest[]> {
+    async findAll(actor: SiteActor, options: { siteId?: string; status?: string } = {}): Promise<AccessRequest[]> {
         const qb = this.accessRequestRepo.createQueryBuilder('ar')
             .leftJoinAndSelect('ar.ticket', 'ticket')
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('ar.accessType', 'accessType')
             .leftJoinAndSelect('ar.verifiedBy', 'verifiedBy');
 
-        if (options.siteId) {
+        const scope = resolveSiteScope(actor);
+        if (scope.mode === 'site') {
+            qb.andWhere('ticket.siteId = :userSiteId', { userSiteId: scope.siteId });
+        } else if (scope.mode === 'none') {
+            qb.andWhere('1 = 0');
+        }
+
+        // Cross-site roles can optionally narrow further
+        if (options.siteId && scope.mode === 'all') {
             qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
         }
 
@@ -95,7 +104,7 @@ export class AccessRequestService {
         });
     }
 
-    async findOne(id: string): Promise<AccessRequest> {
+    async findOne(id: string, actor: SiteActor): Promise<AccessRequest> {
         const accessRequest = await this.accessRequestRepo.findOne({
             where: { id },
             relations: ['ticket', 'ticket.user', 'accessType', 'verifiedBy'],
@@ -103,25 +112,49 @@ export class AccessRequestService {
         if (!accessRequest) {
             throw new NotFoundException('Access Request not found');
         }
+        // Enforce site isolation BEFORE decrypting credentials (P0)
+        assertSiteAccess(actor, accessRequest.ticket?.siteId);
         // Decrypt credentials on read so callers always receive plaintext.
         // `decrypt()` is backward-compatible with legacy plaintext rows.
         accessRequest.accessCredentials = this.cipher.decrypt(accessRequest.accessCredentials);
         return accessRequest;
     }
 
-    async findByTicketId(ticketId: string): Promise<AccessRequest | null> {
+    async findByTicketId(ticketId: string, actor: SiteActor): Promise<AccessRequest | null> {
         const found = await this.accessRequestRepo.findOne({
             where: { ticketId },
             relations: ['ticket', 'accessType'],
         });
+        if (found?.ticket) {
+            assertSiteAccess(actor, found.ticket.siteId);
+        }
         if (found?.accessCredentials) {
             found.accessCredentials = this.cipher.decrypt(found.accessCredentials);
         }
         return found;
     }
 
-    async markFormDownloaded(id: string): Promise<AccessRequest> {
-        const accessRequest = await this.findOne(id);
+    /**
+     * Internal loader: fetches with ticket + decrypts credentials.
+     * Does NOT perform site access check — caller must assert if needed.
+     */
+    private async loadAccessRequestWithTicket(id: string): Promise<AccessRequest> {
+        const accessRequest = await this.accessRequestRepo.findOne({
+            where: { id },
+            relations: ['ticket', 'ticket.user', 'accessType', 'verifiedBy'],
+        });
+        if (!accessRequest) {
+            throw new NotFoundException('Access Request not found');
+        }
+        if (accessRequest.accessCredentials) {
+            accessRequest.accessCredentials = this.cipher.decrypt(accessRequest.accessCredentials);
+        }
+        return accessRequest;
+    }
+
+    async markFormDownloaded(id: string, actor: SiteActor): Promise<AccessRequest> {
+        const accessRequest = await this.loadAccessRequestWithTicket(id);
+        assertSiteAccess(actor, accessRequest.ticket?.siteId);
 
         if (accessRequest.status !== AccessRequestStatus.FORM_PENDING) {
             throw new BadRequestException('Form already processed');
@@ -133,8 +166,9 @@ export class AccessRequestService {
         return this.accessRequestRepo.save(accessRequest);
     }
 
-    async uploadSignedForm(id: string, filePath: string): Promise<AccessRequest> {
-        const accessRequest = await this.findOne(id);
+    async uploadSignedForm(id: string, filePath: string, actor: SiteActor): Promise<AccessRequest> {
+        const accessRequest = await this.loadAccessRequestWithTicket(id);
+        assertSiteAccess(actor, accessRequest.ticket?.siteId);
 
         if (accessRequest.status !== AccessRequestStatus.FORM_DOWNLOADED) {
             throw new BadRequestException('Please download the form first');
@@ -150,8 +184,9 @@ export class AccessRequestService {
         return this.accessRequestRepo.save(accessRequest);
     }
 
-    async verify(id: string, agentId: string, dto: VerifyAccessRequestDto): Promise<AccessRequest> {
-        const accessRequest = await this.findOne(id);
+    async verify(id: string, agentId: string, dto: VerifyAccessRequestDto, actor: SiteActor): Promise<AccessRequest> {
+        const accessRequest = await this.loadAccessRequestWithTicket(id);
+        assertSiteAccess(actor, accessRequest.ticket?.siteId);
 
         if (accessRequest.status !== AccessRequestStatus.FORM_UPLOADED) {
             throw new BadRequestException('Form must be uploaded before verification');
@@ -165,7 +200,10 @@ export class AccessRequestService {
         return this.accessRequestRepo.save(accessRequest);
     }
 
-    async createAccess(id: string, agentId: string, dto: CreateAccessCredentialsDto): Promise<AccessRequest> {
+    async createAccess(id: string, agentId: string, dto: CreateAccessCredentialsDto, actor: SiteActor): Promise<AccessRequest> {
+        const existing = await this.loadAccessRequestWithTicket(id);
+        assertSiteAccess(actor, existing.ticket?.siteId);
+
         // P1 fix: accessRequest save + ticket status update were two
         // separate awaits. A crash between them left access granted but
         // the ticket still in IN_PROGRESS, blocking SLA breaches.
@@ -195,8 +233,9 @@ export class AccessRequestService {
         return saved;
     }
 
-    async reject(id: string, agentId: string, dto: RejectAccessRequestDto): Promise<AccessRequest> {
-        const accessRequest = await this.findOne(id);
+    async reject(id: string, agentId: string, dto: RejectAccessRequestDto, actor: SiteActor): Promise<AccessRequest> {
+        const accessRequest = await this.loadAccessRequestWithTicket(id);
+        assertSiteAccess(actor, accessRequest.ticket?.siteId);
 
         accessRequest.status = AccessRequestStatus.REJECTED;
         accessRequest.verifiedById = agentId;
