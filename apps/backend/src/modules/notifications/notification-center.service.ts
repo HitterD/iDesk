@@ -129,12 +129,14 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     /**
-     * Send notification to all users with a specific role
+     * Send notification to all users with a specific role at a site.
+     * Fail-closed: never falls back to global sendToRole.
+     * If no siteId provided, log and return sent:0 (no global fan-out).
      */
     async sendToRoleAtSite(role: string, siteId: string | null | undefined, payload: Omit<NotificationPayload, 'userId'>): Promise<{ sent: number }> {
         if (!siteId) {
-            await this.sendToRole(role, payload);
-            return { sent: -1 };
+            this.logger.warn(`sendToRoleAtSite called without siteId for role ${role}; returning 0 (fail-closed, no global fanout)`);
+            return { sent: 0 };
         }
         const PAGE = 200;
         let sent = 0; let skip = 0;
@@ -146,10 +148,7 @@ export class NotificationCenterService implements OnModuleInit {
             if (users.length < PAGE) break;
             skip += PAGE;
         }
-        if (sent === 0) {
-            this.logger.warn(`No users with role ${role} at site ${siteId}; falling back to all ${role}`);
-            await this.sendToRole(role, payload);
-        }
+        // No fallback to global sendToRole if sent === 0
         return { sent };
     }
 
@@ -284,18 +283,18 @@ export class NotificationCenterService implements OnModuleInit {
         return { ...defaults, ...updated };
     }
 
-    async getActionItems(userId: string, role: string): Promise<any> {
+    async getActionItems(userId: string, role: string, siteId?: string | null): Promise<any> {
         // P0 perf: 30s cache per (user, role) to stop the manager+admin poll
         // from full-table-scanning tickets/renewals/eform/hardware on every
         // request. Cache is invalidated by snooze toggle / category settings
         // mutations via the action-items:refresh event emitted elsewhere.
-        const cacheKey = `action-items:${userId}:${role}`;
+        const cacheKey = `action-items:${userId}:${role}:${siteId ?? 'all'}`;
         return this.cacheService.getOrSet(
             cacheKey,
             async () => {
                 const now = new Date();
                 const [data, activeSnoozes, categorySettings] = await Promise.all([
-                    this.fetchActionItemData(userId, role, now),
+                    this.fetchActionItemData(userId, role, siteId ?? null, now),
                     this.snoozeRepo.find({
                         where: { userId, snoozedUntil: MoreThan(now) },
                     }),
@@ -308,13 +307,18 @@ export class NotificationCenterService implements OnModuleInit {
         );
     }
 
-    private async fetchActionItemData(userId: string, role: string, now: Date) {
+    private async fetchActionItemData(userId: string, role: string, siteId: string | null, now: Date) {
         const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
         const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         const isAgentOrAdmin = role === 'AGENT' || role === 'ADMIN';
         const isManagerOrAdmin = role === 'ADMIN' || role === 'MANAGER';
         const isUser = role === 'USER';
+
+        // Build optional site filter for global-ish queries (e.g. hardware_requests)
+        // For site-locked users we must scope; for cross-site (ADMIN/MANAGER) with no site we leave unfiltered.
+        const siteFilterSql = siteId ? ' AND "siteId" = $2' : '';
+        const siteFilterParams = siteId ? [siteId] : [];
 
         const [slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
@@ -330,11 +334,12 @@ export class NotificationCenterService implements OnModuleInit {
                 [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW') ORDER BY "createdAt" DESC LIMIT 50`
+                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')${siteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
+                siteFilterParams
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT') ORDER BY "createdAt" DESC LIMIT 50`,
-                [userId]
+                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')${siteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
+                siteId ? [userId, siteId] : [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
                 `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL ORDER BY "endDate" ASC LIMIT 50`,

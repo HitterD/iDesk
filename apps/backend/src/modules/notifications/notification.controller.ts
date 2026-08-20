@@ -124,7 +124,8 @@ export class NotificationController {
     @ApiOperation({ summary: 'Get current action items for the user based on their role' })
     @ApiResponse({ status: 200, description: 'Return action items.' })
     async getActionItems(@Request() req: any) {
-        return this.notificationCenterService.getActionItems(req.user.userId, req.user.role);
+        // Pass siteId for scoping; non-cross-site roles will be enforced inside the service
+        return this.notificationCenterService.getActionItems(req.user.userId, req.user.role, req.user.siteId ?? null);
     }
 
     @Post('action-items/snooze')
