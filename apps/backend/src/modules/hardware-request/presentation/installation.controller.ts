@@ -19,6 +19,7 @@ import { ScheduleProposeDto } from '../dto/schedule-propose.dto';
 import { SelectSlotDto } from '../dto/select-slot.dto';
 import { RequestRescheduleDto } from '../dto/request-reschedule.dto';
 import { ApiTags } from '@nestjs/swagger';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 @ApiTags('hardware-requests/installation')
 @Controller('hardware-requests')
@@ -37,6 +38,8 @@ export class InstallationController {
         return {
             id: req.user.userId,
             role: pickRole(req.user),
+            siteId: req.user.siteId ?? null,
+            userRole: req.user.role as UserRole,
         };
     }
 
@@ -143,8 +146,10 @@ export class InstallationController {
         @Param('id', ParseUUIDPipe) id: string,
         @Param('itemId', ParseUUIDPipe) itemId: string,
         @Body() dto: ItemDeliveryDto,
+        @Req() req: any,
     ) {
-        const item = await this.deliveryService.updateDelivery(id, itemId, dto);
+        const user = this.getActingUser(req);
+        const item = await this.deliveryService.updateDelivery(id, itemId, dto, user as any);
         return { success: true, data: item };
     }
 
@@ -156,7 +161,8 @@ export class InstallationController {
         @Body() dto: ScheduleProposeDto,
         @Req() req: any,
     ) {
-        const sched = await this.mutualSchedService.proposeSchedule(id, dto, req.user.userId);
+        const user = this.getActingUser(req);
+        const sched = await this.mutualSchedService.proposeSchedule(id, dto, user as any);
         return { success: true, data: sched };
     }
 
@@ -168,8 +174,9 @@ export class InstallationController {
         @Body() dto: SelectSlotDto,
         @Req() req: any,
     ) {
+        const user = this.getActingUser(req);
         await this.guardOwnerOrIct(id, req.user);
-        const sched = await this.mutualSchedService.selectSlot(id, scheduleId, dto);
+        const sched = await this.mutualSchedService.selectSlot(id, scheduleId, dto, user as any);
         return { success: true, data: sched };
     }
 
@@ -181,14 +188,17 @@ export class InstallationController {
         @Body() dto: RequestRescheduleDto,
         @Req() req: any,
     ) {
+        const user = this.getActingUser(req);
         await this.guardOwnerOrIct(id, req.user);
-        const sched = await this.mutualSchedService.requestReschedule(id, scheduleId, dto);
+        const sched = await this.mutualSchedService.requestReschedule(id, scheduleId, dto, user as any);
         return { success: true, data: sched };
     }
 
     private async guardOwnerOrIct(requestId: string, user: { userId: string; role: string }) {
         if (user.role === 'ICT_STAFF') return;
-        const req = await this.queryService.getById({ id: user.userId, role: HardwareRole.USER }, requestId);
+        const siteId = (user as any).siteId ?? null;
+        const userRole = (user as any).userRole as UserRole;
+        const req = await this.queryService.getById({ id: user.userId, role: HardwareRole.USER, siteId, userRole }, requestId);
         if (req?.requesterId !== user.userId) {
             throw new ForbiddenException('not request owner');
         }

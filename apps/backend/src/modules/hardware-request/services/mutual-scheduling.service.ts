@@ -18,6 +18,8 @@ import {
   ScheduleProposedPayload,
   ScheduleRescheduleRequestedPayload,
 } from '../domain/events/hardware-request.events';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { SiteActor, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 
 const MAX_RESCHEDULE = 3;
 
@@ -39,7 +41,7 @@ export class MutualSchedulingService {
   async proposeSchedule(
     requestId: string,
     dto: ScheduleProposeDto,
-    actorId: string,
+    actor: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<InstallationSchedule> {
     return this.dataSource.transaction(async (mgr) => {
       const reqRepo = mgr.getRepository(HardwareRequest);
@@ -49,6 +51,13 @@ export class MutualSchedulingService {
 
       const req = await reqRepo.findOne({ where: { id: requestId } });
       if (!req) throw new NotFoundException('request not found');
+
+      // Site isolation
+      if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+        const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+        assertSiteAccess(siteActor, req.siteId);
+      }
+
       if (![RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION].includes(req.status as RequestStatus)) {
         throw new BadRequestException(`cannot schedule from status ${req.status}`);
       }
@@ -103,7 +112,7 @@ export class MutualSchedulingService {
         status: InstallStatus.PROPOSED_AWAITING_USER,
         proposedSlots: dto.slots,
         rescheduleCount: 0,
-        proposedBy: actorId,
+        proposedBy: actor.id,
         scheduledStart: new Date(dto.slots[0].start), // dummy
         scheduledEnd: new Date(dto.slots[0].end), // dummy
         // scheduledStart/End will be overwritten when user selects
@@ -132,6 +141,7 @@ export class MutualSchedulingService {
     requestId: string,
     scheduleId: string,
     dto: SelectSlotDto,
+    actor?: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<InstallationSchedule> {
     return this.dataSource.transaction(async (mgr) => {
       const schedRepo = mgr.getRepository(InstallationSchedule);
@@ -143,6 +153,12 @@ export class MutualSchedulingService {
       });
       if (!sched) throw new NotFoundException('schedule not found');
       if (sched.requestId !== requestId) throw new BadRequestException('schedule not in request');
+
+      // Site isolation (derive from request)
+      if (actor && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+        const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+        assertSiteAccess(siteActor, sched.request?.siteId ?? (sched as any).request?.siteId);
+      }
       if (sched.status !== InstallStatus.PROPOSED_AWAITING_USER) {
         throw new BadRequestException('schedule not awaiting user');
       }
@@ -183,12 +199,19 @@ export class MutualSchedulingService {
     requestId: string,
     scheduleId: string,
     dto: RequestRescheduleDto,
+    actor?: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<InstallationSchedule> {
     return this.dataSource.transaction(async (mgr) => {
       const schedRepo = mgr.getRepository(InstallationSchedule);
-      const sched = await schedRepo.findOne({ where: { id: scheduleId } });
+      const sched = await schedRepo.findOne({ where: { id: scheduleId }, relations: ['request'] });
       if (!sched) throw new NotFoundException('schedule not found');
       if (sched.requestId !== requestId) throw new BadRequestException('schedule not in request');
+
+      // Site isolation (derive from request)
+      if (actor && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+        const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+        assertSiteAccess(siteActor, sched.request?.siteId ?? (sched as any).request?.siteId);
+      }
 
       const newCount = sched.rescheduleCount + 1;
       if (newCount > MAX_RESCHEDULE) {

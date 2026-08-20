@@ -70,7 +70,7 @@ describe('MutualSchedulingService', () => {
       const slots = [futureSlot(2), futureSlot(24)];
       const result = await service.proposeSchedule('r1', {
         itemIds: ['i1', 'i2'], technicianId: 't1', slots,
-      }, 'ict-1');
+      }, { id: 'ict-1' });
 
       expect(result.status).toBe(InstallStatus.PROPOSED_AWAITING_USER);
       expect(mockDataSource._linkRepo.save).toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('MutualSchedulingService', () => {
 
       await expect(service.proposeSchedule('r1', {
         itemIds: ['i1'], technicianId: 't1', slots: [futureSlot(2)],
-      }, 'ict-1')).rejects.toThrow(/item not arrived/i);
+      }, { id: 'ict-1' })).rejects.toThrow(/item not arrived/i);
     });
   });
 
@@ -100,7 +100,7 @@ describe('MutualSchedulingService', () => {
         request: { id: 'r1', status: RequestStatus.AWAITING_DELIVERY },
       });
 
-      const result = await service.selectSlot('r1', 'sch-1', { slotIndex: 1 });
+      const result = await service.selectSlot('r1', 'sch-1', { slotIndex: 1 }, { id: 'u1' });
 
       expect(result.status).toBe(InstallStatus.CONFIRMED);
       expect(result.scheduledStart!.toISOString()).toBe(slots[1].start);
@@ -112,7 +112,7 @@ describe('MutualSchedulingService', () => {
         id: 'sch-1', requestId: 'r1', status: InstallStatus.PROPOSED_AWAITING_USER,
         proposedSlots: [futureSlot(2)],
       });
-      await expect(service.selectSlot('r1', 'sch-1', { slotIndex: 2 }))
+      await expect(service.selectSlot('r1', 'sch-1', { slotIndex: 2 }, { id: 'u1' }))
         .rejects.toThrow(/slot index out of range/i);
     });
 
@@ -120,7 +120,7 @@ describe('MutualSchedulingService', () => {
       mockDataSource._schedRepo.findOne.mockResolvedValue({
         id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED,
       });
-      await expect(service.selectSlot('r1', 'sch-1', { slotIndex: 0 }))
+      await expect(service.selectSlot('r1', 'sch-1', { slotIndex: 0 }, { id: 'u1' }))
         .rejects.toThrow(/not awaiting user/i);
     });
   });
@@ -132,7 +132,7 @@ describe('MutualSchedulingService', () => {
         rescheduleCount: 0, technicianId: 't1', requestId: 'r1',
       });
 
-      const result = await service.requestReschedule('r1', 'sch-1', { reason: 'busy' });
+      const result = await service.requestReschedule('r1', 'sch-1', { reason: 'busy' }, { id: 'u1' });
 
       expect(result.status).toBe(InstallStatus.RESCHEDULE_REQUESTED);
       expect(result.rescheduleCount).toBe(1);
@@ -145,7 +145,7 @@ describe('MutualSchedulingService', () => {
         rescheduleCount: 3, requestId: 'r1',
       });
 
-      const result = await service.requestReschedule('r1', 'sch-1', { reason: 'busy again' });
+      const result = await service.requestReschedule('r1', 'sch-1', { reason: 'busy again' }, { id: 'u1' });
 
       expect(result.status).toBe(InstallStatus.CANCELLED);
       expect(mockEmitter.emit).toHaveBeenCalledWith('schedule.cancelled', expect.any(Object));

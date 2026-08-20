@@ -2,10 +2,10 @@ import { Controller, Post, Get, Patch, Body, Param, Request, UseGuards, Res } fr
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
-import { RolesGuard } from '../shared/core/guards/roles.guard';
-import { Roles } from '../shared/core/decorators/roles.decorator';
+import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
-import { SiteActor } from '../shared/core/utils/site-scope.util';
+import { SiteActor } from '../../shared/core/utils/site-scope.util';
 import { EFormRequestService } from './eform-request.service';
 import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto } from './dto';
 

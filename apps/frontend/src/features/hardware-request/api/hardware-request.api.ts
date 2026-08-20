@@ -14,7 +14,7 @@ export const HardwareRequestApi = {
     async byId(id: string) {
         return unwrap((await hrHttp.get<ApiEnvelope<HardwareRequest>>(`/${id}`)).data);
     },
-    async create(payload: { siteId: string; recipientName?: string; justification: string; items: Array<{ catalogId: string; quantity: number; customFields?: Record<string, unknown>; notes?: string }> }) {
+    async create(payload: { recipientName?: string; justification: string; items: Array<{ catalogId: string; quantity: number; customFields?: Record<string, unknown>; notes?: string }> }) {
         return unwrap((await hrHttp.post<ApiEnvelope<HardwareRequest>>('/', payload)).data);
     },
     async update(id: string, payload: Partial<{ justification: string; recipientName: string; items: unknown[] }>) {

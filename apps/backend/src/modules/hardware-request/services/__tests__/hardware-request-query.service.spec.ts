@@ -108,9 +108,10 @@ describe('HardwareRequestQueryService', () => {
             expect(repo.andWhere).toHaveBeenCalledWith('r.status IN (:...statuses)', { statuses: [RequestStatus.DRAFT] });
         });
 
-        it('should apply multiple filters', async () => {
+        it('should apply multiple filters (cross-site caller honors dto.siteId)', async () => {
+            // Cross-site (ADMIN) + dto.siteId -> dto.siteId wins for narrowing
             await service.list(
-                { id: 'a1', role: HardwareRole.ICT_STAFF },
+                { id: 'a1', role: HardwareRole.ICT_STAFF, userRole: 'ADMIN' as any, siteId: null },
                 { siteId: 's1', requesterId: 'u2', search: 'macbook', page: 2, pageSize: 10 }
             );
 

@@ -30,8 +30,15 @@ export class CreateRequestItemDto {
 }
 
 export class CreateRequestDto {
+    /**
+     * siteId is OPTIONAL in the public API.
+     * Backend derives site from the authenticated user (JWT).
+     * Cross-site roles (ADMIN/MANAGER) may provide siteId to narrow/create on behalf of a site.
+     * Non-cross-site roles: any provided siteId is ignored; their own site is used (fail-closed).
+     */
     @IsUUID()
-    siteId: string;
+    @IsOptional()
+    siteId?: string;
 
     @IsUUID()
     @IsOptional()

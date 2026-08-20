@@ -315,10 +315,12 @@ export class NotificationCenterService implements OnModuleInit {
         const isManagerOrAdmin = role === 'ADMIN' || role === 'MANAGER';
         const isUser = role === 'USER';
 
-        // Build optional site filter for global-ish queries (e.g. hardware_requests)
-        // For site-locked users we must scope; for cross-site (ADMIN/MANAGER) with no site we leave unfiltered.
-        const siteFilterSql = siteId ? ' AND "siteId" = $2' : '';
-        const siteFilterParams = siteId ? [siteId] : [];
+        // Build optional site filter per query, with correct parameter indices.
+        // Hardware query has no prior params → site uses $1.
+        // EForm query already has $1 (userId) → site uses $2.
+        const hwSiteFilterSql = siteId ? ' AND "siteId" = $1' : '';
+        const hwSiteFilterParams = siteId ? [siteId] : [];
+        const eformSiteFilterSql = siteId ? ' AND "siteId" = $2' : '';
 
         const [slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
@@ -334,11 +336,11 @@ export class NotificationCenterService implements OnModuleInit {
                 [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')${siteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
-                siteFilterParams
+                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')${hwSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
+                hwSiteFilterParams
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')${siteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
+                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')${eformSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
                 siteId ? [userId, siteId] : [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(

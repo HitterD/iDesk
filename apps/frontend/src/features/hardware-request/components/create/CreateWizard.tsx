@@ -12,7 +12,6 @@ import { HardwareRequestApi } from '../../api/hardware-request.api';
 import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
 
 const schema = z.object({
-    siteId: z.string().uuid(),
     division: z.string().optional(),
     recipientName: z.string().optional(),
     justification: z.string().min(1, 'Justifikasi wajib diisi'),
@@ -33,7 +32,7 @@ export function CreateWizard() {
     const [step, setStep] = useState(0);
     const form = useForm<CreateFormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { siteId: '', justification: '', items: [], recipientName: '', division: '' },
+        defaultValues: { justification: '', items: [], recipientName: '', division: '' },
         mode: 'onBlur',
     });
     const [saving, setSaving] = useState(false);
@@ -59,7 +58,7 @@ export function CreateWizard() {
     };
 
     const next = async () => {
-        const fields: (keyof CreateFormValues)[] = step === 0 ? ['siteId', 'justification'] : step === 1 ? ['items'] : [];
+        const fields: (keyof CreateFormValues)[] = step === 0 ? ['justification'] : step === 1 ? ['items'] : [];
         const ok = await form.trigger(fields);
         if (ok) setStep(s => Math.min(2, s + 1));
     };

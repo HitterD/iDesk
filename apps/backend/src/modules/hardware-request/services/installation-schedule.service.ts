@@ -11,8 +11,15 @@ import { ScheduleInstallDto } from '../dto/schedule-install.dto';
 import { RescheduleInstallDto } from '../dto/reschedule-install.dto';
 import { HardwareActivityService } from './hardware-activity.service';
 import { CalendarQueryDto } from '../dto/calendar-query.dto';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { SiteActor, resolveSiteScope, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 
-export interface ActingUser { id: string; role: 'USER'|'ICT_STAFF' }
+export interface ActingUser {
+  id: string;
+  role: 'USER'|'ICT_STAFF';
+  siteId?: string | null;
+  userRole?: UserRole;
+}
 
 @Injectable()
 export class InstallationScheduleService {
@@ -32,6 +39,12 @@ export class InstallationScheduleService {
         const req = await this.reqRepo.findOne({ where: { id: requestId } });
         if (!req) throw new NotFoundException('request not found');
         if (req.status !== RequestStatus.INSTALLATION) throw new ConflictException('invalid state: must be INSTALLATION');
+
+        // Site isolation: if actor carries site context, enforce it
+        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+            const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+            assertSiteAccess(siteActor, req.siteId);
+        }
 
         const allowed = (actor.role === 'USER' && actor.id === req.requesterId)
             || actor.role === 'ICT_STAFF';
@@ -74,6 +87,12 @@ export class InstallationScheduleService {
         const req = await this.reqRepo.findOne({ where: { id: requestId } });
         if (!req) throw new NotFoundException('request');
 
+        // Site isolation
+        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+            const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+            assertSiteAccess(siteActor, req.siteId);
+        }
+
         const isRequester = actor.role === 'USER' && actor.id === req.requesterId;
         const isTech = actor.role === 'ICT_STAFF';
         if (!isRequester && !isTech) throw new ForbiddenException('HR_PERMISSION_DENIED');
@@ -102,13 +121,19 @@ export class InstallationScheduleService {
             .orderBy('s.createdAt', 'DESC')
             .getMany();
         const oldSched = scheds[0];
-            
+
         if (!oldSched) throw new NotFoundException('schedule');
         if (oldSched.status === InstallStatus.IN_PROGRESS) throw new ConflictException('cannot reschedule while in progress');
         if (INSTALL_TERMINAL.has(oldSched.status)) throw new ConflictException('schedule already terminal');
 
         const req = await this.reqRepo.findOne({ where: { id: requestId } });
         if (!req || req.status !== RequestStatus.INSTALLATION) throw new ConflictException('invalid state');
+
+        // Site isolation
+        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+            const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+            assertSiteAccess(siteActor, req.siteId);
+        }
 
         const allowed = (actor.role === 'USER' && actor.id === req.requesterId) || actor.role === 'ICT_STAFF';
         if (!allowed) throw new ForbiddenException('HR_PERMISSION_DENIED');
@@ -143,6 +168,15 @@ export class InstallationScheduleService {
         if (!sched) throw new ConflictException('no confirmed schedule');
         if (actor.role !== 'ICT_STAFF' || sched.technicianId !== actor.id) throw new ForbiddenException('HR_PERMISSION_DENIED');
 
+        // Site isolation (derive site from request)
+        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+            const req = await this.reqRepo.findOne({ where: { id: requestId } });
+            if (req) {
+                const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+                assertSiteAccess(siteActor, req.siteId);
+            }
+        }
+
         sched.status = InstallStatus.IN_PROGRESS;
         sched.startedAt = new Date();
         const saved = await this.repo.save(sched);
@@ -156,6 +190,15 @@ export class InstallationScheduleService {
     }
 
     async completeInstallation(requestId: string, actor: ActingUser): Promise<InstallationSchedule> {
+        // Site isolation: derive site from request before any state changes
+        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+            const req = await this.reqRepo.findOne({ where: { id: requestId } });
+            if (req) {
+                const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+                assertSiteAccess(siteActor, req.siteId);
+            }
+        }
+
         return this.dataSource.transaction(async (mgr) => {
             const repo = mgr.getRepository(InstallationSchedule);
 

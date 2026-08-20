@@ -5,6 +5,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HardwareRequestItem } from '../domain/entities/hardware-request-item.entity';
 import { ItemDeliveryDto } from '../dto/item-delivery.dto';
 import { HardwareEvents, ItemArrivedPayload } from '../domain/events/hardware-request.events';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { SiteActor, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 
 @Injectable()
 export class DeliveryTrackingService {
@@ -18,6 +20,7 @@ export class DeliveryTrackingService {
     requestId: string,
     itemId: string,
     dto: ItemDeliveryDto,
+    actor?: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<HardwareRequestItem> {
     const item = await this.itemRepo.findOne({
       where: { id: itemId },
@@ -29,6 +32,12 @@ export class DeliveryTrackingService {
     }
     if (item.procurementDecision !== 'APPROVED') {
       throw new BadRequestException('cannot update non-procured item');
+    }
+
+    // Site isolation (derive from item's request)
+    if (actor && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+      const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
+      assertSiteAccess(siteActor, (item as any).request?.siteId ?? (item as any).siteId);
     }
 
     const now = new Date();

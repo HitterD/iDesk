@@ -52,14 +52,14 @@ describe('InstallationController', () => {
         const dto = { scheduledStart: '2026-05-01T09:00:00Z', scheduledEnd: '2026-05-01T10:00:00Z', technicianId: 't1' };
         (scheduleSvc.propose as jest.Mock).mockResolvedValue({ id: 's1' } as any);
         const res = await ctrl.propose('r1', dto as any, mockReq);
-        expect(scheduleSvc.propose).toHaveBeenCalledWith('r1', dto, { id: 'u1', role: expect.any(String) });
+        expect(scheduleSvc.propose).toHaveBeenCalledWith('r1', dto, { id: 'u1', role: 'USER', siteId: null, userRole: 'USER' });
         expect(res.data.id).toBe('s1');
     });
 
     it('confirm calls scheduleSvc', async () => {
         (scheduleSvc.confirm as jest.Mock).mockResolvedValue({ id: 's1' } as any);
         const res = await ctrl.confirm('r1', mockReq);
-        expect(scheduleSvc.confirm).toHaveBeenCalledWith('r1', { id: 'u1', role: expect.any(String) });
+        expect(scheduleSvc.confirm).toHaveBeenCalledWith('r1', { id: 'u1', role: 'USER', siteId: null, userRole: 'USER' });
         expect(res.data.id).toBe('s1');
     });
 
@@ -74,8 +74,8 @@ describe('InstallationController', () => {
     it('complete calls both services', async () => {
         (cmdSvc.completeInstallation as jest.Mock).mockResolvedValue({ id: 'r1' } as any);
         const res = await ctrl.complete('r1', {}, mockReq);
-        expect(scheduleSvc.completeInstallation).toHaveBeenCalledWith('r1', { id: 'u1', role: expect.any(String) });
-        expect(cmdSvc.completeInstallation).toHaveBeenCalledWith('r1', { id: 'u1', role: expect.any(String) });
+        expect(scheduleSvc.completeInstallation).toHaveBeenCalledWith('r1', { id: 'u1', role: 'USER', siteId: null, userRole: 'USER' });
+        expect(cmdSvc.completeInstallation).toHaveBeenCalledWith('r1', { id: 'u1', role: 'USER', siteId: null, userRole: 'USER' });
         expect(res.data.id).toBe('r1');
     });
 

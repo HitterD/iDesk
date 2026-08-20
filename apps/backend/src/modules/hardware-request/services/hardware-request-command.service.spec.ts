@@ -78,7 +78,7 @@ describe('HardwareRequestCommandService', () => {
     });
 
     it('createDraft creates DRAFT request with items and activity', async () => {
-        const result = await service.createDraft('user-1', {
+        const result = await service.createDraft('user-1', 'site-1', 'AGENT' as any, {
             siteId: 'site-1',
             justification: 'Need laptops for new hire onboarding batch',
             items: [{ catalogId: 'cat-1', quantity: 2 }],
@@ -115,7 +115,7 @@ describe('HardwareRequestCommandService', () => {
     it('createDraft rejects inactive catalog item', async () => {
         catalog.ensureActive.mockRejectedValueOnce(new Error('inactive'));
         await expect(
-            service.createDraft('user-1', {
+            service.createDraft('user-1', 'site-1', 'AGENT' as any, {
                 siteId: 'site-1',
                 justification: 'x'.repeat(25),
                 items: [{ catalogId: 'bad', quantity: 1 }],
@@ -132,7 +132,7 @@ describe('HardwareRequestCommandService', () => {
             items: [],
         } as any);
 
-        const updated = await service.updateDraft('user-1', 'req-1', {
+        const updated = await service.updateDraft('user-1', 'site-1', 'AGENT' as any, 'req-1', {
             justification: 'Updated justification with enough characters',
         });
 
@@ -150,7 +150,7 @@ describe('HardwareRequestCommandService', () => {
             id: 'req-1', requesterId: 'user-1', status: RequestStatus.DRAFT, items: [],
         } as any);
         await expect(
-            service.updateDraft('other-user', 'req-1', { justification: 'x'.repeat(25) }),
+            service.updateDraft('other-user', 'site-1', 'AGENT' as any, 'req-1', { justification: 'x'.repeat(25) }),
         ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'HR_PERMISSION_DENIED' }) });
     });
 
@@ -159,7 +159,7 @@ describe('HardwareRequestCommandService', () => {
             id: 'req-1', requesterId: 'user-1', status: RequestStatus.SUBMITTED, items: [],
         } as any);
         await expect(
-            service.updateDraft('user-1', 'req-1', { justification: 'x'.repeat(25) }),
+            service.updateDraft('user-1', 'site-1', 'AGENT' as any, 'req-1', { justification: 'x'.repeat(25) }),
         ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'HR_INVALID_TRANSITION' }) });
     });
 

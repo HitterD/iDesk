@@ -1,26 +1,18 @@
 import { useFormContext } from 'react-hook-form';
 import { useCatalog } from '../../hooks/useCatalog';
-import { useQuery } from '@tanstack/react-query';
-import api from '../../../../lib/api';
 import { SectionCard } from '../common/SectionCard';
 import type { CreateFormValues } from './CreateWizard';
 
 export function ReviewStep() {
     const { watch } = useFormContext<CreateFormValues>();
     const { data: catalog = [] } = useCatalog({ active: true });
-    const { data: sites = [] } = useQuery({ queryKey: ['sites', 'active'], queryFn: async () => (await api.get('/sites/active')).data as { id: string; name: string }[] });
     const v = watch();
-    const site = sites.find((s: any) => s.id === v.siteId);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-6">
                 <SectionCard title="Ringkasan Permintaan">
                     <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                        <div className="space-y-1">
-                            <dt className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Site / Lokasi</dt>
-                            <dd className="text-sm font-semibold text-slate-900 dark:text-slate-200">{site?.name ?? '—'}</dd>
-                        </div>
                         <div className="space-y-1">
                             <dt className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Divisi</dt>
                             <dd className="text-sm font-semibold text-slate-900 dark:text-slate-200">{v.division || '—'}</dd>

@@ -25,6 +25,8 @@ import { InstallStatus } from '../domain/enums/install-status.enum';
 import { HardwareAssetService } from './hardware-asset.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActingUser } from './installation-schedule.service';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { SiteActor, resolveSiteScope, isCrossSiteRole, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 
 @Injectable()
 export class HardwareRequestCommandService {
@@ -44,10 +46,22 @@ export class HardwareRequestCommandService {
         private readonly emitter: EventEmitter2,
     ) {}
 
-    async createDraft(userId: string, dto: CreateRequestDto): Promise<HardwareRequest> {
+    async createDraft(userId: string, siteId: string | null, userRole: UserRole, dto: CreateRequestDto): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
+
+            // P0: Reject client-provided siteId. Source site from authenticated user.
+            // Cross-site roles (ADMIN/MANAGER) may supply siteId via dto (allowed narrowing).
+            // Non-cross-site roles must use their own site; ignore dto.siteId.
+            const actor: SiteActor = { role: userRole, siteId };
+            const scope = resolveSiteScope(actor);
+            const effectiveSiteId = scope.mode === 'all' && dto.siteId ? dto.siteId : siteId;
+
+            if (!effectiveSiteId) {
+                // Fail-closed: cannot create without a site context
+                throw new BadRequestException('siteId is required');
+            }
 
             const itemsWithSnapshot = [];
             for (const i of dto.items) {
@@ -76,7 +90,7 @@ export class HardwareRequestCommandService {
                 recipientId: dto.recipientId ?? null,
                 recipientName: dto.recipientName ?? null,
                 division: dto.division ?? null,
-                siteId: dto.siteId,
+                siteId: effectiveSiteId,
                 justification: dto.justification,
                 status: RequestStatus.DRAFT,
                 items: itemsWithSnapshot as any,
@@ -99,6 +113,8 @@ export class HardwareRequestCommandService {
 
     async updateDraft(
         userId: string,
+        siteId: string | null,
+        userRole: UserRole,
         requestId: string,
         dto: UpdateDraftDto,
     ): Promise<HardwareRequest> {
@@ -119,7 +135,15 @@ export class HardwareRequestCommandService {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.DRAFT);
             }
 
-            if (dto.siteId !== undefined) existing.siteId = dto.siteId;
+            // P0: Reject client-provided siteId. Only cross-site roles may change site.
+            const actor: SiteActor = { role: userRole, siteId };
+            const scope = resolveSiteScope(actor);
+            if (dto.siteId !== undefined) {
+                if (scope.mode === 'all') {
+                    existing.siteId = dto.siteId;
+                }
+                // else: ignore dto.siteId for non-cross-site (keep existing.siteId)
+            }
             if (dto.recipientId !== undefined) existing.recipientId = dto.recipientId ?? null;
             if (dto.recipientName !== undefined) existing.recipientName = dto.recipientName ?? null;
             if (dto.division !== undefined) existing.division = dto.division ?? null;
@@ -441,6 +465,15 @@ export class HardwareRequestCommandService {
     }
 
     async completeInstallation(requestId: string, actor: ActingUser): Promise<HardwareRequest> {
+        // Site isolation: assert before any state changes
+        if (actor.siteId !== undefined && actor.siteId !== null && (actor as any).userRole) {
+            const reqForCheck = await this.requestRepo.findOne({ where: { id: requestId } });
+            if (reqForCheck) {
+                const siteActor: SiteActor = { role: (actor as any).userRole as any, siteId: actor.siteId };
+                assertSiteAccess(siteActor, reqForCheck.siteId);
+            }
+        }
+
         return this.dataSource.transaction(async (mgr) => {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
