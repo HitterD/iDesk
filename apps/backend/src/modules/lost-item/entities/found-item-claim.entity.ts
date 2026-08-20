@@ -36,6 +36,12 @@ export class FoundItemClaim {
     @JoinColumn({ name: 'lost_item_report_id' })
     lostItemReport: LostItemReport | null;
 
+    // Site scoping column (added in Phase 2 isolation).
+    // Backfilled in migration from (a) linked lost_item_report -> ticket.siteId, then (b) finder user.siteId.
+    // Legacy NULL rows are intentionally hidden from site-locked roles (consistent with D4).
+    @Column({ type: 'varchar', nullable: true })
+    siteId: string | null;
+
     @Column('text')
     locationFound: string;
 

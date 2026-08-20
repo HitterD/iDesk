@@ -6,6 +6,7 @@ import { LostItemReport, LostItemStatus } from './entities/lost-item-report.enti
 import { LostItemStatusLog } from './entities/lost-item-status-log.entity';
 import { CreateFoundClaimDto, MatchFoundClaimDto, RejectFoundClaimDto } from './dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
 @Injectable()
 export class FoundClaimService {
@@ -25,7 +26,7 @@ export class FoundClaimService {
         await this.statusLogRepo.save(log);
     }
 
-    async create(finderId: string, dto: CreateFoundClaimDto): Promise<FoundItemClaim> {
+    async create(finderId: string, dto: CreateFoundClaimDto, actor: SiteActor): Promise<FoundItemClaim> {
         const lostItemReportId = dto.lostItemReportId ?? null;
 
         const saved = await this.dataSource.transaction(async (mgr) => {
@@ -36,6 +37,7 @@ export class FoundClaimService {
             const claim = claimRepo.create({
                 finderId,
                 lostItemReportId,
+                siteId: actor.siteId,
                 locationFound: dto.locationFound,
                 foundAt: new Date(dto.foundAt),
                 description: dto.description,
@@ -61,12 +63,20 @@ export class FoundClaimService {
         return saved;
     }
 
-    async findAll(options: { status?: string } = {}): Promise<FoundItemClaim[]> {
+    async findAll(actor: SiteActor, options: { status?: string } = {}): Promise<FoundItemClaim[]> {
         const qb = this.claimRepo.createQueryBuilder('c')
             .leftJoinAndSelect('c.finder', 'finder')
             .leftJoinAndSelect('c.lostItemReport', 'report')
             .leftJoinAndSelect('c.matchedBy', 'matchedBy')
             .orderBy('c.createdAt', 'DESC');
+
+        const scope = resolveSiteScope(actor);
+        if (scope.mode === 'site') {
+            qb.andWhere('c.siteId = :userSiteId', { userSiteId: scope.siteId });
+        } else if (scope.mode === 'none') {
+            qb.andWhere('1 = 0');
+        }
+
         if (options.status) qb.andWhere('c.status = :status', { status: options.status });
         return qb.getMany();
     }
@@ -79,16 +89,17 @@ export class FoundClaimService {
         });
     }
 
-    async findOne(id: string): Promise<FoundItemClaim> {
+    async findOne(id: string, actor: SiteActor): Promise<FoundItemClaim> {
         const claim = await this.claimRepo.findOne({
             where: { id },
             relations: ['finder', 'lostItemReport', 'matchedBy'],
         });
         if (!claim) throw new NotFoundException('Found claim not found');
+        assertSiteAccess(actor, claim.siteId);
         return claim;
     }
 
-    async match(id: string, dto: MatchFoundClaimDto, managerId: string): Promise<FoundItemClaim> {
+    async match(id: string, dto: MatchFoundClaimDto, managerId: string, actor: SiteActor): Promise<FoundItemClaim> {
         // P0 fix: was findOne → check status → save (TOCTOU race between
         // check and save). Two concurrent matches could both pass the check
         // and double-save. Now atomic conditional UPDATE — the DB enforces
@@ -99,6 +110,12 @@ export class FoundClaimService {
         return this.dataSource.transaction(async (mgr) => {
             const claimRepo = mgr.getRepository(FoundItemClaim);
             const reportRepo = mgr.getRepository(LostItemReport);
+
+            // Verify site access before mutation (fail-closed via assert)
+            const claimForCheck = await claimRepo.findOne({ where: { id } });
+            if (claimForCheck) {
+                assertSiteAccess(actor, claimForCheck.siteId);
+            }
 
             // Atomic status guard
             const result = await claimRepo.update(
@@ -125,10 +142,16 @@ export class FoundClaimService {
         });
     }
 
-    async reject(id: string, dto: RejectFoundClaimDto, managerId: string): Promise<FoundItemClaim> {
+    async reject(id: string, dto: RejectFoundClaimDto, managerId: string, actor: SiteActor): Promise<FoundItemClaim> {
         // Same TOCTOU fix as match(): atomic conditional UPDATE.
         return this.dataSource.transaction(async (mgr) => {
             const claimRepo = mgr.getRepository(FoundItemClaim);
+
+            // Verify site access before mutation
+            const claimForCheck = await claimRepo.findOne({ where: { id } });
+            if (claimForCheck) {
+                assertSiteAccess(actor, claimForCheck.siteId);
+            }
 
             const result = await claimRepo.update(
                 { id, status: FoundClaimStatus.PENDING },
@@ -150,11 +173,14 @@ export class FoundClaimService {
         });
     }
 
-    async confirmReturn(id: string, managerId: string): Promise<FoundItemClaim> {
-        const claim = await this.findOne(id);
+    async confirmReturn(id: string, managerId: string, actor: SiteActor): Promise<FoundItemClaim> {
+        const claim = await this.findOne(id, actor);
         if (claim.status !== FoundClaimStatus.MATCHED && claim.status !== FoundClaimStatus.PENDING) {
             throw new BadRequestException('Claim must be MATCHED or PENDING before confirming return');
         }
+
+        // Re-assert site access using the already-loaded claim (defensive)
+        assertSiteAccess(actor, claim.siteId);
 
         const saved = await this.dataSource.transaction(async (mgr) => {
             const claimRepo = mgr.getRepository(FoundItemClaim);

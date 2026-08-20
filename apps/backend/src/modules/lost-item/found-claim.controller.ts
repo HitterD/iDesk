@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
+import { SiteActor } from '../../shared/core/utils/site-scope.util';
 
 @ApiTags('Found Claims')
 @ApiBearerAuth()
@@ -47,21 +48,24 @@ export class FoundClaimController {
         @UploadedFiles() photos: Express.Multer.File[],
     ) {
         const photoUrls = (photos || []).map(f => `/uploads/found-items/${f.filename}`);
-        return this.foundClaimService.create(req.user.userId, { ...dto, photoUrls });
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.foundClaimService.create(req.user.userId, { ...dto, photoUrls }, actor);
     }
 
     @Get()
     @ApiOperation({ summary: 'List all found claims (manager)' })
     @ApiQuery({ name: 'status', required: false })
     @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.MANAGER)
-    findAll(@Query('status') status?: string) {
-        return this.foundClaimService.findAll({ status });
+    findAll(@Query('status') status?: string, @Request() req?: any) {
+        const actor: SiteActor = { role: req?.user?.role, siteId: req?.user?.siteId ?? null };
+        return this.foundClaimService.findAll(actor, { status });
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get found claim by ID' })
-    findOne(@Param('id', ParseUUIDPipe) id: string) {
-        return this.foundClaimService.findOne(id);
+    findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.foundClaimService.findOne(id, actor);
     }
 
     @Patch(':id/match')
@@ -72,7 +76,8 @@ export class FoundClaimController {
         @Body() dto: MatchFoundClaimDto,
         @Request() req: any,
     ) {
-        return this.foundClaimService.match(id, dto, req.user.userId);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.foundClaimService.match(id, dto, req.user.userId, actor);
     }
 
     @Patch(':id/reject')
@@ -83,13 +88,15 @@ export class FoundClaimController {
         @Body() dto: RejectFoundClaimDto,
         @Request() req: any,
     ) {
-        return this.foundClaimService.reject(id, dto, req.user.userId);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.foundClaimService.reject(id, dto, req.user.userId, actor);
     }
 
     @Patch(':id/returned')
     @ApiOperation({ summary: 'Confirm physical handover' })
     @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.MANAGER)
     confirmReturn(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
-        return this.foundClaimService.confirmReturn(id, req.user.userId);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.foundClaimService.confirmReturn(id, req.user.userId, actor);
     }
 }
