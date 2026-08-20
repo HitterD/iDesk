@@ -2,19 +2,15 @@ import { ForbiddenException } from '@nestjs/common';
 import { SelectQueryBuilder } from 'typeorm';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket } from '../entities/ticket.entity';
+import { TICKET_CROSS_SITE_ROLES } from '../../../shared/core/utils/site-scope.util';
 
 /**
  * Roles allowed to see tickets from every site.
  *
- * ADMIN owns the platform, MANAGER needs cross-site reporting, and AGENT_ORACLE
- * handles Oracle/K2 which is a centralised system spanning all sites.
- * Everyone else is confined to their own site.
+ * Source of truth for the list is in shared/core/utils/site-scope.util.ts (TICKET_CROSS_SITE_ROLES).
+ * This module re-exports a ticket-specific isCrossSiteRole for backward compatibility.
  */
-const CROSS_SITE_ROLES: readonly UserRole[] = [
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.AGENT_ORACLE,
-];
+const CROSS_SITE_ROLES: readonly UserRole[] = TICKET_CROSS_SITE_ROLES;
 
 export function isCrossSiteRole(role: UserRole | string | null | undefined): boolean {
     return CROSS_SITE_ROLES.includes(role as UserRole);
