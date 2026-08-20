@@ -18,6 +18,7 @@ import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { WorkloadService } from '../../workload/workload.service';
+import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
@@ -180,10 +181,11 @@ export class TicketUpdateService {
     ): Promise<void> {
         await this.cacheInvalidationService.onTicketChange(savedTicket.id);
 
-        // Ensure workload is recalculated if ticket is assigned
+        // Ensure workload is recalculated if ticket is assigned (internal trusted path)
         if (savedTicket.assignedToId && savedTicket.siteId) {
             try {
-                await this.workloadService.recalculateAgentWorkload(savedTicket.assignedToId, savedTicket.siteId);
+                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
+                await this.workloadService.recalculateAgentWorkload(internalActor, savedTicket.assignedToId, savedTicket.siteId);
             } catch (error) {
                 this.logger.error(`Failed to recalculate workload for ticket ${savedTicket.ticketNumber}: ${error.message}`);
             }
@@ -316,12 +318,13 @@ export class TicketUpdateService {
         // -------------------------------------------------------------
         if (savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) {
             try {
+                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
                 // Remove points from old assignee if there was one
                 if (oldAssigneeId) {
-                    await this.workloadService.recalculateAgentWorkload(oldAssigneeId, savedTicket.siteId);
+                    await this.workloadService.recalculateAgentWorkload(internalActor, oldAssigneeId, savedTicket.siteId);
                 }
                 // Add points to new assignee
-                await this.workloadService.recalculateAgentWorkload(assignee.id, savedTicket.siteId);
+                await this.workloadService.recalculateAgentWorkload(internalActor, assignee.id, savedTicket.siteId);
             } catch (err) {
                 this.logger.error(`Failed to recalculate workload points during manual assignment for ticket ${savedTicket.ticketNumber}: ${err.message}`);
             }
@@ -404,10 +407,11 @@ export class TicketUpdateService {
         // Emit WebSocket events
         this.eventsGateway.notifyStatusChange(ticketId, TicketStatus.CANCELLED, user.fullName, (savedTicket as any).siteId ?? null);
         
-        // Recalculate workload points
+        // Recalculate workload points (internal trusted path)
         if (savedTicket.assignedToId && savedTicket.siteId) {
             try {
-                await this.workloadService.recalculateAgentWorkload(savedTicket.assignedToId, savedTicket.siteId);
+                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
+                await this.workloadService.recalculateAgentWorkload(internalActor, savedTicket.assignedToId, savedTicket.siteId);
             } catch (error) {
                 this.logger.error(`Failed to recalculate workload upon cancellation for ticket ${savedTicket.ticketNumber}: ${error.message}`);
             }
@@ -586,7 +590,8 @@ export class TicketUpdateService {
 
             for (const [agentId, siteId] of affectedAgentsMap.entries()) {
                 try {
-                    await this.workloadService.recalculateAgentWorkload(agentId, siteId);
+                    const internalActor: SiteActor = { role: UserRole.ADMIN, siteId };
+                    await this.workloadService.recalculateAgentWorkload(internalActor, agentId, siteId);
                 } catch (error) {
                     this.logger.error(`Failed to recalculate workload for agent ${agentId} after bulk update: ${error.message}`);
                 }

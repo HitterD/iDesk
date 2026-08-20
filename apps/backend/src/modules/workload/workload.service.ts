@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual, LessThan, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -11,6 +11,7 @@ import { UpdatePriorityWeightDto } from './dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
 @Injectable()
 export class WorkloadService {
@@ -66,20 +67,38 @@ export class WorkloadService {
     // Agent Workload Tracking
     // ==========================================
 
-    async getAgentWorkload(agentId: string, siteId: string, date?: Date): Promise<AgentDailyWorkload> {
+    async getAgentWorkload(actor: SiteActor, agentId: string, siteId?: string, date?: Date): Promise<AgentDailyWorkload> {
+        const scope = resolveSiteScope(actor);
+
+        if (scope.mode === 'none') {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        // For site-locked actors, explicitly provided siteId must match actor's site (defense-in-depth)
+        if (scope.mode === 'site' && siteId && siteId !== scope.siteId) {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        // Non-cross-site always uses actor's site; cross-site may use provided siteId (or undefined for detail path)
+        const targetSiteId = scope.mode === 'site' ? scope.siteId : siteId;
+
+        if (!targetSiteId) {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
         const workDate = date || new Date();
         workDate.setHours(0, 0, 0, 0);
 
         let workload = await this.workloadRepo.findOne({
-            where: { agentId, siteId, workDate },
+            where: { agentId, siteId: targetSiteId, workDate },
             relations: ['agent', 'site'],
         });
 
         if (!workload) {
-            // Create new workload record for today
+            // Create new workload record for today — use the resolved target site
             workload = this.workloadRepo.create({
                 agentId,
-                siteId,
+                siteId: targetSiteId,
                 workDate,
                 totalPoints: 0,
                 activeTickets: 0,
@@ -91,16 +110,34 @@ export class WorkloadService {
         return workload;
     }
 
-    async getAllAgentWorkloads(siteId: string, date?: Date): Promise<any[]> {
+    async getAllAgentWorkloads(actor: SiteActor, siteId?: string, date?: Date): Promise<any[]> {
+        const scope = resolveSiteScope(actor);
+
+        // For non-cross-site actors, force to their own site (ignore any provided siteId)
+        let targetSiteId: string | undefined;
+        if (scope.mode === 'site') {
+            targetSiteId = scope.siteId;
+        } else if (scope.mode === 'all') {
+            targetSiteId = siteId; // cross-site may narrow or omit (omit = all sites)
+        } else {
+            // none scope → fail closed, return empty
+            return [];
+        }
+
         const workDate = date || new Date();
         workDate.setHours(0, 0, 0, 0);
 
+        // Build user query filter
+        const userWhere: any = {
+            role: In([UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT]),
+            isActive: true,
+        };
+        if (targetSiteId) {
+            userWhere.siteId = targetSiteId;
+        }
+
         const agents = await this.userRepo.find({
-            where: {
-                role: In([UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT]),
-                siteId,
-                isActive: true
-            },
+            where: userWhere,
             relations: ['site'],
         });
 
@@ -110,36 +147,46 @@ export class WorkloadService {
 
         const agentIds = agents.map(a => a.id);
 
-        // One query for existing workload rows, then create only what's missing,
-        // instead of a findOne-or-create round trip per agent.
-        const existingWorkloads = await this.workloadRepo.find({
-            where: { agentId: In(agentIds), siteId, workDate },
-        });
+        // Workload query filter
+        const workloadWhere: any = { agentId: In(agentIds), workDate };
+        if (targetSiteId) {
+            workloadWhere.siteId = targetSiteId;
+        }
+
+        const existingWorkloads = await this.workloadRepo.find({ where: workloadWhere });
         const workloadByAgent = new Map(existingWorkloads.map(w => [w.agentId, w]));
 
         const missingAgentIds = agentIds.filter(id => !workloadByAgent.has(id));
         if (missingAgentIds.length > 0) {
             const created = await this.workloadRepo.save(
-                missingAgentIds.map(agentId => this.workloadRepo.create({
-                    agentId,
-                    siteId,
-                    workDate,
-                    totalPoints: 0,
-                    activeTickets: 0,
-                    resolvedTickets: 0,
-                })),
+                missingAgentIds.map(agentId => {
+                    const agent = agents.find(a => a.id === agentId);
+                    return this.workloadRepo.create({
+                        agentId,
+                        siteId: targetSiteId ?? agent?.siteId, // cross-site all: use agent's own site
+                        workDate,
+                        totalPoints: 0,
+                        activeTickets: 0,
+                        resolvedTickets: 0,
+                    });
+                }),
             );
             created.forEach(w => workloadByAgent.set(w.agentId, w));
         }
 
-        // One query for every agent's active tickets instead of one per agent.
+        // Active tickets filter — when cross-site with no target, we still scope per agent's site in the result
+        // but to keep query simple and correct, if no targetSiteId we fetch across those agents' sites.
+        const ticketWhere: any = {
+            assignedToId: In(agentIds),
+            status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR]),
+        };
+        if (targetSiteId) {
+            ticketWhere.siteId = targetSiteId;
+        }
+
         const activeTickets = await this.ticketRepo.find({
-            where: {
-                assignedToId: In(agentIds),
-                siteId,
-                status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR]),
-            },
-            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId'],
+            where: ticketWhere,
+            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId', 'siteId'],
         });
         const activeTicketsByAgent = new Map<string, typeof activeTickets>();
         for (const ticket of activeTickets) {
@@ -168,7 +215,25 @@ export class WorkloadService {
         });
     }
 
-    async recalculateAgentWorkload(agentId: string, siteId: string, userId?: string): Promise<AgentDailyWorkload> {
+    async recalculateAgentWorkload(actor: SiteActor, agentId: string, siteId?: string, userId?: string): Promise<AgentDailyWorkload> {
+        const scope = resolveSiteScope(actor);
+
+        if (scope.mode === 'none') {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        // Defense-in-depth: for site-locked actors, if a siteId is explicitly provided it must match actor's site
+        if (scope.mode === 'site' && siteId && siteId !== scope.siteId) {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        // Force site to actor's site for non-cross-site; for cross-site, accept provided or fail if missing
+        const targetSiteId = scope.mode === 'site' ? scope.siteId : (scope.mode === 'all' ? siteId : undefined);
+
+        if (!targetSiteId) {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -176,7 +241,7 @@ export class WorkloadService {
         const activeTickets = await this.ticketRepo.find({
             where: {
                 assignedToId: agentId,
-                siteId,
+                siteId: targetSiteId,
                 status: MoreThanOrEqual(TicketStatus.TODO) as any,
             },
         });
@@ -198,7 +263,7 @@ export class WorkloadService {
         const resolvedToday = await this.ticketRepo.count({
             where: {
                 assignedToId: agentId,
-                siteId,
+                siteId: targetSiteId,
                 status: TicketStatus.RESOLVED,
                 resolvedAt: MoreThanOrEqual(today),
             },
@@ -206,13 +271,13 @@ export class WorkloadService {
 
         // Update or create workload record
         let workload = await this.workloadRepo.findOne({
-            where: { agentId, siteId, workDate: today },
+            where: { agentId, siteId: targetSiteId, workDate: today },
         });
 
         if (!workload) {
             workload = this.workloadRepo.create({
                 agentId,
-                siteId,
+                siteId: targetSiteId,
                 workDate: today,
             });
         }
@@ -229,7 +294,7 @@ export class WorkloadService {
                 action: AuditAction.WORKLOAD_RECALCULATE,
                 entityType: 'AgentDailyWorkload',
                 entityId: saved.id,
-                description: `Recalculated workload for agent ${agentId} at site ${siteId}`,
+                description: `Recalculated workload for agent ${agentId} at site ${targetSiteId}`,
                 newValue: { totalPoints, activeTickets: openTickets.length },
             });
         }
@@ -322,8 +387,9 @@ export class WorkloadService {
 
     /**
      * Auto-assign a ticket to the best available agent
+     * actor is optional for backward compat with internal callers; when omitted we synthesize an admin actor from ticket.siteId
      */
-    async autoAssignTicket(ticketId: string, userId?: string): Promise<Ticket> {
+    async autoAssignTicket(ticketId: string, userId?: string, actor?: SiteActor): Promise<Ticket> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['assignedTo'],
@@ -337,7 +403,7 @@ export class WorkloadService {
             throw new BadRequestException('Ticket has no site assigned');
         }
 
-        // Find best agent
+        // Find best agent (scoped by ticket.siteId; findBest is site-specific and does not cross sites)
         const bestAgent = await this.findBestAgentForAssignment(ticket.siteId);
 
         if (!bestAgent) {
@@ -350,9 +416,10 @@ export class WorkloadService {
 
         const savedTicket = await this.ticketRepo.save(ticket);
 
-        // Update agent's workload
+        // Update agent's workload using a trusted internal actor derived from the ticket's site
         const priorityPoints = await this.getPriorityWeight(ticket.priority);
-        const workload = await this.getAgentWorkload(bestAgent.id, ticket.siteId);
+        const internalActor: SiteActor = actor ?? { role: UserRole.ADMIN, siteId: ticket.siteId };
+        const workload = await this.getAgentWorkload(internalActor, bestAgent.id, ticket.siteId);
         workload.totalPoints += priorityPoints;
         workload.activeTickets += 1;
         workload.lastAssignedAt = new Date();
@@ -385,7 +452,9 @@ export class WorkloadService {
         }
 
         const priorityPoints = await this.getPriorityWeight(ticket.priority);
-        const workload = await this.getAgentWorkload(ticket.assignedToId, ticket.siteId);
+        // Internal trusted path: use ticket's site as source of truth
+        const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
+        const workload = await this.getAgentWorkload(internalActor, ticket.assignedToId, ticket.siteId);
 
         // If resolved or cancelled, reduce workload
         if (
@@ -476,8 +545,9 @@ export class WorkloadService {
 
             // Create fresh workload records for today
             for (const agent of agents) {
-                // First recalculate based on actual open tickets
-                await this.recalculateAgentWorkload(agent.id, agent.siteId);
+                // First recalculate based on actual open tickets (trusted internal actor)
+                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: agent.siteId ?? null };
+                await this.recalculateAgentWorkload(internalActor, agent.id, agent.siteId ?? undefined);
             }
 
             // Cleanup old workload records (older than 90 days)
