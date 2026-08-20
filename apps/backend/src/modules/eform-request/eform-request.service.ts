@@ -11,6 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
+import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
 const ICT_ROLES = [UserRole.ADMIN, UserRole.AGENT_ADMIN];
 
@@ -47,7 +48,10 @@ export class EFormRequestService {
   }
 
 
-  async setVpnTerms(terms: string, userId: string) {
+  async setVpnTerms(terms: string, userId: string, actor: SiteActor) {
+    // Terms are global but we still assert the actor is allowed to touch settings
+    // (ADMIN only — enforced at controller). We keep the call for consistency.
+    assertSiteAccess(actor, null); // ADMIN/MANAGER pass; others would have been rejected by @Roles
     return this.settingsService.setSetting('eform.vpn.terms', terms, userId, 'VPN E-Form Terms & Conditions');
   }
 
@@ -164,9 +168,12 @@ export class EFormRequestService {
     return savedRequest;
   }
 
-  async getCredentials(requestId: string, userId: string, userRole: UserRole) {
+  async getCredentials(actor: SiteActor, requestId: string, userId: string, userRole: UserRole) {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
+
+    // Enforce site isolation before any credential access
+    assertSiteAccess(actor, request.siteId);
 
     const isICT = ICT_ROLES.includes(userRole);
     const isRequester = request.requesterId === userId;
@@ -201,16 +208,27 @@ export class EFormRequestService {
     });
   }
 
-  async findAll() {
-    return this.eformRequestRepository.find({ order: { createdAt: 'DESC' } });
+  async findAll(actor: SiteActor) {
+    const scope = resolveSiteScope(actor);
+    if (scope.mode === 'all') {
+      return this.eformRequestRepository.find({ order: { createdAt: 'DESC' } });
+    }
+    if (scope.mode === 'none') {
+      return [];
+    }
+    return this.eformRequestRepository.find({
+      where: { siteId: scope.siteId as any },
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  async getDetails(id: string) {
+  async getDetails(actor: SiteActor, id: string) {
     const request = await this.eformRequestRepository.findOne({
       where: { id },
       relations: ['signatures', 'approvals'],
     });
     if (!request) throw new NotFoundException('Request not found');
+    assertSiteAccess(actor, request.siteId);
     return request;
   }
 
@@ -240,12 +258,15 @@ export class EFormRequestService {
     return savedRequest;
   }
 
-  async generatePdf(id: string) {
+  async generatePdf(actor: SiteActor, id: string) {
     const request = await this.eformRequestRepository.findOne({
       where: { id },
       relations: ['signatures', 'approvals', 'requester', 'currentApprover'],
     });
     if (!request) throw new NotFoundException('Request not found');
+
+    // Enforce site isolation BEFORE attempting to decrypt any credentials (P0)
+    assertSiteAccess(actor, request.siteId);
 
     let credentialData: any = null;
     const rawCred = await this.eformCredentialRepository.findOne({

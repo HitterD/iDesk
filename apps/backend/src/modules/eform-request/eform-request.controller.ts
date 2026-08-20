@@ -2,12 +2,16 @@ import { Controller, Post, Get, Patch, Body, Param, Request, UseGuards, Res } fr
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { RolesGuard } from '../shared/core/guards/roles.guard';
+import { Roles } from '../shared/core/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+import { SiteActor } from '../shared/core/utils/site-scope.util';
 import { EFormRequestService } from './eform-request.service';
 import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto } from './dto';
 
 @ApiTags('E-Form Requests')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('eform-request')
 export class EFormRequestController {
   constructor(private readonly eformRequestService: EFormRequestService) {}
@@ -32,8 +36,10 @@ export class EFormRequestController {
 
   @Get('all')
   @ApiOperation({ summary: 'Get all requests (Admin/Agent only)' })
-  async findAll() {
-    return this.eformRequestService.findAll();
+  @Roles(UserRole.ADMIN, UserRole.AGENT_ADMIN)
+  async findAll(@Request() req: any) {
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.findAll(actor);
   }
 
   @Get('terms')
@@ -44,20 +50,26 @@ export class EFormRequestController {
 
   @Patch('terms')
   @ApiOperation({ summary: 'Update VPN Terms & Conditions (Admin only)' })
+  @Roles(UserRole.ADMIN)
   async updateTerms(@Request() req: any, @Body() dto: { terms: string }) {
-    return this.eformRequestService.setVpnTerms(dto.terms, req.user.userId);
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.setVpnTerms(dto.terms, req.user.userId, actor);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get request details' })
-  async getDetails(@Param('id') id: string) {
-    return this.eformRequestService.getDetails(id);
+  @Roles(UserRole.ADMIN, UserRole.AGENT_ADMIN)
+  async getDetails(@Param('id') id: string, @Request() req: any) {
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.getDetails(actor, id);
   }
 
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Download PDF' })
-  async getPdf(@Param('id') id: string, @Res() res: Response) {
-    const buffer = await this.eformRequestService.generatePdf(id);
+  @Roles(UserRole.ADMIN, UserRole.AGENT_ADMIN)
+  async getPdf(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    const buffer = await this.eformRequestService.generatePdf(actor, id);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=EForm-VPN-${id}.pdf`,
@@ -81,7 +93,8 @@ export class EFormRequestController {
   @Get(':id/credentials')
   @ApiOperation({ summary: 'View credentials (ICT or requester)' })
   async getCredentials(@Request() req: any, @Param('id') id: string) {
-    return this.eformRequestService.getCredentials(id, req.user.userId, req.user.role);
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.getCredentials(actor, id, req.user.userId, req.user.role);
   }
 
   @Patch(':id/reject')
