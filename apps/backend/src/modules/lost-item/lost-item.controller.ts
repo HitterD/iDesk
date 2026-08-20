@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
+import { SiteActor } from '../../shared/core/utils/site-scope.util';
 
 @ApiTags('Lost Item')
 @ApiBearerAuth()
@@ -66,20 +67,23 @@ export class LostItemController {
     @ApiQuery({ name: 'siteId', required: false })
     @ApiQuery({ name: 'status', required: false })
     @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.MANAGER)
-    findAll(@Query('siteId') siteId?: string, @Query('status') status?: string) {
-        return this.lostItemService.findAll({ siteId, status });
+    findAll(@Query('siteId') siteId?: string, @Query('status') status?: string, @Request() req?: any) {
+        const actor: SiteActor = { role: req?.user?.role, siteId: req?.user?.siteId ?? null };
+        return this.lostItemService.findAll(actor, { siteId, status });
     }
 
     @Get('ticket/:ticketId')
     @ApiOperation({ summary: 'Get Lost Item report by ticket ID' })
-    findByTicketId(@Param('ticketId', ParseUUIDPipe) ticketId: string) {
-        return this.lostItemService.findByTicketId(ticketId);
+    findByTicketId(@Param('ticketId', ParseUUIDPipe) ticketId: string, @Request() req: any) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.lostItemService.findByTicketId(ticketId, actor);
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get Lost Item report by ID' })
-    findOne(@Param('id', ParseUUIDPipe) id: string) {
-        return this.lostItemService.findOne(id);
+    findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.lostItemService.findOne(id, actor);
     }
 
     @Patch(':id/status')
@@ -90,7 +94,8 @@ export class LostItemController {
         @Body() dto: UpdateLostItemStatusDto,
         @Request() req: any,
     ) {
-        return this.lostItemService.updateStatus(id, dto, req.user.userId);
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        return this.lostItemService.updateStatus(id, dto, req.user.userId, actor);
     }
 
     @Post(':id/police-report')
@@ -106,9 +111,11 @@ export class LostItemController {
         @Param('id', ParseUUIDPipe) id: string,
         @UploadedFiles() files: Express.Multer.File[],
         @Body('reportNumber') reportNumber: string,
+        @Request() req: any,
     ) {
+        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
         const file = files?.[0];
         if (!file) throw new Error('No file uploaded');
-        return this.lostItemService.uploadPoliceReport(id, `/uploads/police-reports/${file.filename}`, reportNumber);
+        return this.lostItemService.uploadPoliceReport(id, `/uploads/police-reports/${file.filename}`, reportNumber, actor);
     }
 }

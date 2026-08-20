@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -11,6 +11,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { ConfigService } from '@nestjs/config';
+import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
 @Injectable()
 export class LostItemService {
@@ -124,13 +125,25 @@ export class LostItemService {
         return saved;
     }
 
-    async findAll(options: { siteId?: string; status?: string } = {}): Promise<LostItemReport[]> {
+    async findAll(actor: SiteActor, options: { siteId?: string; status?: string } = {}): Promise<LostItemReport[]> {
         const qb = this.lostItemRepo.createQueryBuilder('r')
             .leftJoinAndSelect('r.ticket', 'ticket')
             .leftJoinAndSelect('ticket.user', 'user')
             .orderBy('r.createdAt', 'DESC');
+
+        const scope = resolveSiteScope(actor);
+        if (scope.mode === 'site') {
+            qb.andWhere('ticket.siteId = :userSiteId', { userSiteId: scope.siteId });
+        } else if (scope.mode === 'none') {
+            qb.andWhere('1 = 0');
+        }
+
+        // Cross-site may narrow further via explicit siteId param
+        if (options.siteId && scope.mode === 'all') {
+            qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
+        }
+
         if (options.status) qb.andWhere('r.status = :status', { status: options.status });
-        if (options.siteId) qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
         return qb.getMany();
     }
 
@@ -142,12 +155,14 @@ export class LostItemService {
             .getMany();
     }
 
-    async findOne(id: string): Promise<LostItemReport & { statusLogs: LostItemStatusLog[] }> {
+    async findOne(id: string, actor: SiteActor): Promise<LostItemReport & { statusLogs: LostItemStatusLog[] }> {
         const lostItem = await this.lostItemRepo.findOne({
             where: { id },
             relations: ['ticket', 'ticket.user'],
         });
         if (!lostItem) throw new NotFoundException('Lost Item report not found');
+
+        assertSiteAccess(actor, lostItem.ticket?.siteId);
 
         const statusLogs = await this.statusLogRepo.find({
             where: { lostItemReportId: id },
@@ -158,8 +173,12 @@ export class LostItemService {
         return { ...lostItem, statusLogs };
     }
 
-    async findByTicketId(ticketId: string): Promise<LostItemReport | null> {
-        return this.lostItemRepo.findOne({ where: { ticketId }, relations: ['ticket'] });
+    async findByTicketId(ticketId: string, actor: SiteActor): Promise<LostItemReport | null> {
+        const report = await this.lostItemRepo.findOne({ where: { ticketId }, relations: ['ticket'] });
+        if (report?.ticket) {
+            assertSiteAccess(actor, report.ticket.siteId);
+        }
+        return report;
     }
 
     async findByQrToken(token: string): Promise<{
@@ -193,9 +212,12 @@ export class LostItemService {
         };
     }
 
-    async updateStatus(id: string, dto: UpdateLostItemStatusDto, userId?: string): Promise<LostItemReport> {
-        const lostItem = await this.lostItemRepo.findOne({ where: { id } });
+    async updateStatus(id: string, dto: UpdateLostItemStatusDto, userId: string | undefined, actor: SiteActor): Promise<LostItemReport> {
+        const lostItem = await this.lostItemRepo.findOne({ where: { id }, relations: ['ticket'] });
         if (!lostItem) throw new NotFoundException('Lost Item report not found');
+
+        // Enforce site isolation on mutation
+        assertSiteAccess(actor, lostItem.ticket?.siteId);
 
         const prevStatus = lostItem.status;
 
@@ -231,9 +253,12 @@ export class LostItemService {
         return saved;
     }
 
-    async uploadPoliceReport(id: string, filePath: string, reportNumber: string): Promise<LostItemReport> {
-        const lostItem = await this.lostItemRepo.findOne({ where: { id } });
+    async uploadPoliceReport(id: string, filePath: string, reportNumber: string, actor: SiteActor): Promise<LostItemReport> {
+        const lostItem = await this.lostItemRepo.findOne({ where: { id }, relations: ['ticket'] });
         if (!lostItem) throw new NotFoundException('Lost Item report not found');
+
+        assertSiteAccess(actor, lostItem.ticket?.siteId);
+
         lostItem.hasPoliceReport = true;
         lostItem.policeReportNumber = reportNumber;
         lostItem.policeReportFile = filePath;
