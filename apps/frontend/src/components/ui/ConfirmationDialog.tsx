@@ -14,6 +14,8 @@ interface ConfirmationDialogProps {
     onConfirm: () => void;
     onCancel: () => void;
     isLoading?: boolean;
+    /** Blocks confirmation while a precondition is unmet (e.g. an unconfirmed input). */
+    confirmDisabled?: boolean;
     /** Extra input rendered between the description and the action row. */
     children?: React.ReactNode;
 }
@@ -55,6 +57,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
     onConfirm,
     onCancel,
     isLoading = false,
+    confirmDisabled = false,
     children,
 }) => {
     const dialogRef = useRef<HTMLDivElement>(null);
@@ -139,7 +142,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                     <button
                         type="button"
                         onClick={onConfirm}
-                        disabled={isLoading}
+                        disabled={isLoading || confirmDisabled}
                         className={cn(
                             "flex items-center gap-2 px-4 py-2 min-h-[44px] text-sm font-bold rounded-lg transition-colors duration-150",
                             config.confirmBg,
