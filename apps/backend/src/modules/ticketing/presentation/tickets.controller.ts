@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Post,
+    Delete,
     Body,
     Param,
     UseGuards,
@@ -35,7 +36,7 @@ import {
     AssignTicketDto,
     CancelTicketDto
 } from '../dto/update-ticket.dto';
-import { BulkUpdateTicketsDto } from '../dto/bulk-update.dto';
+import { BulkUpdateTicketsDto, BulkDeleteTicketsDto } from '../dto/bulk-update.dto';
 import { MergeTicketsDto } from '../dto/ticket-merge.dto';
 import { TicketMergeService } from '../services/ticket-merge.service';
 import { TicketStatsService } from '../services/ticket-stats.service';
@@ -312,6 +313,18 @@ export class TicketsController {
             },
             req.user.userId,
         );
+    }
+
+    @Delete('bulk')
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Soft-delete multiple tickets (ADMIN only)' })
+    @ApiResponse({ status: 200, description: 'Tickets deleted successfully.' })
+    @ApiResponse({ status: 403, description: 'Forbidden — ADMIN role required.' })
+    async bulkDelete(
+        @Body() dto: BulkDeleteTicketsDto,
+        @Request() req: any,
+    ): Promise<{ deleted: number; failed: string[] }> {
+        return this.ticketUpdateService.bulkSoftDelete(dto.ticketIds, req.user.userId);
     }
 
     @Post('merge')
