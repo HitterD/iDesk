@@ -337,7 +337,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
     // MANAGER - Team lead with approval and reporting
     {
         name: 'Manager',
-        description: 'Team manager. Delete tickets, approve requests, full reports, manage renewals.',
+        description: 'Team manager. Approve requests, full reports, manage renewals.',
         sortOrder: 6,
         isSystem: true,
         targetRole: 'MANAGER',
@@ -356,7 +356,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
             'ticketing.create': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.edit': { canView: true, canCreate: true, canEdit: true, canDelete: false },
-            'ticketing.delete': { canView: true, canCreate: false, canEdit: false, canDelete: true },
+            'ticketing.delete': { canView: true, canCreate: false, canEdit: false, canDelete: false },
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: true },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.escalate': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -792,25 +792,31 @@ export class PermissionsService implements OnModuleInit {
         return { removed: true };
     }
 
-    async listUsersWithRole(role: string): Promise<User[]> {
+    async listUsersWithRole(role: string, siteId?: string | null): Promise<User[]> {
         // ICT_STAFF = semua user ADMIN+MANAGER+AGENT yang bisa akses hardware_requests
+        // When siteId provided, scope to that site only (for site-isolated notifications).
+        // Cross-site callers may pass undefined/null to get all.
         if (role === 'ICT_STAFF') {
-            return this.userRepo.find({
-                where: [
-                    { role: 'ADMIN' as any, isActive: true },
-                    { role: 'MANAGER' as any, isActive: true },
-                    { role: 'AGENT' as any, isActive: true },
-                ],
-            });
+            const baseWhere = [
+                { role: 'ADMIN' as any, isActive: true },
+                { role: 'MANAGER' as any, isActive: true },
+                { role: 'AGENT' as any, isActive: true },
+            ];
+            if (siteId) {
+                return this.userRepo.find({
+                    where: baseWhere.map((w: any) => ({ ...w, siteId })) as any,
+                });
+            }
+            return this.userRepo.find({ where: baseWhere as any });
         }
         // Back-compat aliases — redirect ke ICT_STAFF
         if (['ICT_LEAD', 'ICT_PROCUREMENT', 'ICT_TECHNICIAN'].includes(role)) {
-            return this.listUsersWithRole('ICT_STAFF');
+            return this.listUsersWithRole('ICT_STAFF', siteId);
         }
-        // Fallback untuk role lain
-        return this.userRepo.find({
-            where: { role: role as any, isActive: true },
-        });
+        // Fallback untuk role lain (optionally scoped by site)
+        const where: any = { role: role as any, isActive: true };
+        if (siteId) where.siteId = siteId;
+        return this.userRepo.find({ where });
     }
 
     // Bulk apply preset to multiple users
