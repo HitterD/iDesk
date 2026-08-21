@@ -604,6 +604,68 @@ export class TicketUpdateService {
     }
 
     /**
+     * Soft-deletes tickets in bulk. ADMIN-only — enforced by @Roles on the route.
+     *
+     * Soft, not hard: seven tables reference ticketId, and none of them should be
+     * cascaded away by a delete that an operator may need to undo.
+     */
+    async bulkSoftDelete(
+        ticketIds: string[],
+        userId: string,
+    ): Promise<{ deleted: number; failed: string[] }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const tickets = await this.ticketRepo.find({ where: { id: In(ticketIds) } });
+        if (tickets.length === 0) {
+            throw new NotFoundException('No tickets found');
+        }
+
+        // Site isolation, fail-closed: one out-of-site ticket aborts the whole
+        // batch, before anything is written.
+        for (const ticket of tickets) {
+            validateTicketSiteAccess(
+                user.role as UserRole,
+                (user as any).siteId ?? null,
+                (ticket as any).siteId ?? null,
+            );
+        }
+
+        const found = new Set(tickets.map((t) => t.id));
+        const failed = ticketIds.filter((id) => !found.has(id));
+
+        await this.dataSource.transaction(async (manager) => {
+            for (const ticket of tickets) {
+                await manager.softRemove(ticket);
+            }
+        });
+
+        // Audit after commit: logAsync is fire-and-forget, so a logging failure
+        // must never be able to roll back a delete that already happened.
+        for (const ticket of tickets) {
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.DELETE_TICKET,
+                entityType: 'ticket',
+                entityId: ticket.id,
+                oldValue: {
+                    ticketNumber: ticket.ticketNumber,
+                    title: ticket.title,
+                    status: ticket.status,
+                    siteId: (ticket as any).siteId ?? null,
+                },
+                description: `Ticket "${ticket.ticketNumber}" deleted (soft) by ${user.fullName}`,
+            });
+        }
+
+        this.logger.log(`Soft-deleted ${tickets.length} ticket(s) by user ${userId}`);
+
+        return { deleted: tickets.length, failed };
+    }
+
+    /**
      * Handle WAITING_VENDOR status change
      * - Send Telegram notification with vendor schedule info
      * - Add system message to ticket notes/discussion
