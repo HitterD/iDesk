@@ -324,15 +324,15 @@ export class NotificationCenterService implements OnModuleInit {
 
         const [slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2 ORDER BY "slaTarget" ASC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
                 [userId, now]
             ) : Promise.resolve([]),
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2 ORDER BY "createdAt" ASC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2 AND "deletedAt" IS NULL ORDER BY "createdAt" ASC LIMIT 50`,
                 [userId, oneHourAgo]
             ) : Promise.resolve([]),
             isUser ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' ORDER BY "updatedAt" DESC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
                 [userId]
             ) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
