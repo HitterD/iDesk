@@ -394,7 +394,7 @@ export const BentoTicketListPage: React.FC = () => {
     const selectedTicketNumbers = useMemo(
         () => filteredTickets
             .filter((t) => selectedTickets.has(t.id))
-            .map((t) => t.ticketNumber),
+            .map((t) => t.ticketNumber || t.id.slice(0, 8)),
         [filteredTickets, selectedTickets],
     );
 

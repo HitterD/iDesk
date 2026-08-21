@@ -15,6 +15,7 @@ import {
     Plus,
     TrendingUp,
     UserCheck,
+    Trash2,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
@@ -34,6 +35,7 @@ import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
 import type { Ticket } from '../hooks/useTickets';
 import type { Agent, TicketRowData } from '../components/TicketListRow';
+import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -48,6 +50,8 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
     const [priorityFilter, setPriorityFilter] = useState<string>('');
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const debouncedSearch = useDebounce(searchInput, 300);
 
@@ -228,6 +232,28 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
         }
     }, [selectedTickets, queryClient, clearSelection]);
 
+    const handleBulkDelete = useCallback(async () => {
+        const ticketIds = Array.from(selectedTickets);
+        setIsDeleting(true);
+        try {
+            const res = await api.delete('/tickets/bulk', { data: { ticketIds } });
+            const deleted = res.data?.deleted ?? ticketIds.length;
+            const failed = res.data?.failed?.length ?? 0;
+            toast.success(
+                failed > 0
+                    ? `${deleted} ticket dihapus, ${failed} gagal`
+                    : `${deleted} ticket dihapus`,
+            );
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
+            clearSelection();
+            setDeleteDialogOpen(false);
+        } catch (error) {
+            toast.error('Gagal menghapus ticket');
+        } finally {
+            setIsDeleting(false);
+        }
+    }, [selectedTickets, queryClient, clearSelection]);
+
     const handleClaim = useCallback(async (ticket: Ticket) => {
         try {
             await api.patch(`/tickets/${ticket.id}/assign`, { assigneeId: 'me' });
@@ -245,7 +271,14 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
 
     const isAllSelected = rowData.length > 0 && selectedTickets.size === rowData.length;
     const isIndeterminate = selectedTickets.size > 0 && selectedTickets.size < rowData.length;
-    const canEdit = user?.role === 'ADMIN' || user?.role === 'AGENT';
+    const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
+
+    const selectedTicketNumbers = useMemo(
+        () => rowData
+            .filter((t) => selectedTickets.has(t.id))
+            .map((t) => t.ticketNumber || t.id.slice(0, 8)),
+        [rowData, selectedTickets],
+    );
 
     if (isLoading) {
         return <TicketListSkeleton />;
@@ -495,8 +528,17 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         selectedCount={selectedTickets.size}
                         onClear={clearSelection}
                         onAssign={handleBulkAssignSubmit}
+                        onDelete={isAdmin ? () => setDeleteDialogOpen(true) : undefined}
                     />
                 )}
+
+                <BulkDeleteDialog
+                    isOpen={deleteDialogOpen}
+                    ticketNumbers={selectedTicketNumbers}
+                    isLoading={isDeleting}
+                    onConfirm={handleBulkDelete}
+                    onCancel={() => setDeleteDialogOpen(false)}
+                />
             </div>
         </TicketBoardErrorBoundary>
     );
@@ -537,7 +579,12 @@ const PriorityFilterSelect: React.FC<{ value: string; onChange: (v: string) => v
 
 import { UserCheck as _UserCheck } from 'lucide-react'; void _UserCheck;
 
-const BulkAssignBar: React.FC<{ selectedCount: number; onClear: () => void; onAssign: (id: string) => Promise<void> }> = ({ selectedCount, onClear, onAssign }) => {
+const BulkAssignBar: React.FC<{
+    selectedCount: number;
+    onClear: () => void;
+    onAssign: (id: string) => Promise<void>;
+    onDelete?: () => void;
+}> = ({ selectedCount, onClear, onAssign, onDelete }) => {
     const [open, setOpen] = useState(false);
     const { data: agents = [] } = useQuery<Agent[]>({
         queryKey: ['agents', 'oracle-bar'],
@@ -557,6 +604,15 @@ const BulkAssignBar: React.FC<{ selectedCount: number; onClear: () => void; onAs
                 <UserCheck className="w-4 h-4" />
                 Assign
             </button>
+            {onDelete && (
+                <button
+                    onClick={onDelete}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-bold rounded-lg text-red-300 hover:text-red-200 hover:bg-red-900/30"
+                >
+                    <Trash2 className="w-4 h-4" />
+                    Hapus
+                </button>
+            )}
             <button onClick={onClear} className="px-3 py-1.5 text-sm font-medium rounded-lg hover:bg-slate-700">
                 Clear
             </button>
