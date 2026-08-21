@@ -9,6 +9,7 @@ import {
     JoinColumn,
     Index,
     VersionColumn,
+    DeleteDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from './ticket-message.entity';
@@ -222,5 +223,13 @@ export class Ticket {
     // Note: Default 1 is required for existing data when column is first added
     @VersionColumn({ default: 1 })
     version: number;
+
+    /**
+     * Soft delete marker. Set by TicketUpdateService.bulkSoftDelete (ADMIN only).
+     * TypeORM adds "deletedAt IS NULL" to every repository select and join, so
+     * deleted tickets disappear from every read path without per-query changes.
+     */
+    @DeleteDateColumn()
+    deletedAt: Date;
 }
 
