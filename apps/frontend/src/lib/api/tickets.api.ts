@@ -43,12 +43,6 @@ export const ticketApi = {
         api.patch<Ticket>(`/tickets/${id}`, data),
 
     /**
-     * Delete a ticket
-     */
-    delete: (id: string) =>
-        api.delete(`/tickets/${id}`),
-
-    /**
      * Assign ticket to an agent
      */
     assign: (ticketId: string, agentId: string) =>
