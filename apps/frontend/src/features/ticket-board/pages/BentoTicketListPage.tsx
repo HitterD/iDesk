@@ -52,6 +52,7 @@ import { CustomDropdown, PriorityDropdown, StatusDropdown } from '../components/
 import { TargetDateCell } from '../components/TargetDateCell';
 import { SortableHeader, SortField, SortOrder } from '../components/SortableHeader';
 import { BulkActionsBar, SelectCheckbox } from '../components/BulkActionsBar';
+import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { SecondaryFiltersMenu } from '../components/SecondaryFiltersMenu';
 import { TicketListRow } from '../components/TicketListRow';
 import { VirtualizedTicketList } from '../components/VirtualizedTicketList';
@@ -125,6 +126,8 @@ export const BentoTicketListPage: React.FC = () => {
     // Bulk selection state
     const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
     const [showBulkAssignDialog, setShowBulkAssignDialog] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Debounce search query to avoid excessive API calls
     const debouncedSearch = useDebounce(searchQuery, 300);
@@ -364,6 +367,36 @@ export const BentoTicketListPage: React.FC = () => {
             toast.error('Failed to update tickets');
         }
     }, [selectedTickets, queryClient, clearSelection]);
+
+    const handleBulkDelete = useCallback(async () => {
+        const ticketIds = Array.from(selectedTickets);
+        setIsDeleting(true);
+        try {
+            const res = await api.delete('/tickets/bulk', { data: { ticketIds } });
+            const deleted = res.data?.deleted ?? ticketIds.length;
+            const failed = res.data?.failed?.length ?? 0;
+            toast.success(
+                failed > 0
+                    ? `${deleted} ticket dihapus, ${failed} gagal`
+                    : `${deleted} ticket dihapus`,
+            );
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            clearSelection();
+            setDeleteDialogOpen(false);
+        } catch (error) {
+            toast.error('Gagal menghapus ticket');
+        } finally {
+            setIsDeleting(false);
+        }
+    }, [selectedTickets, queryClient, clearSelection]);
+
+    const selectedTicketNumbers = useMemo(
+        () => filteredTickets
+            .filter((t) => selectedTickets.has(t.id))
+            .map((t) => t.ticketNumber),
+        [filteredTickets, selectedTickets],
+    );
 
     const isAllSelected = filteredTickets.length > 0 && selectedTickets.size === filteredTickets.length;
     const isIndeterminate = selectedTickets.size > 0 && selectedTickets.size < filteredTickets.length;
@@ -741,6 +774,15 @@ export const BentoTicketListPage: React.FC = () => {
                 onAssign={handleBulkAssign}
                 onChangeStatus={handleBulkStatusChange}
                 onClear={clearSelection}
+                onDelete={isAdmin ? () => setDeleteDialogOpen(true) : undefined}
+            />
+
+            <BulkDeleteDialog
+                isOpen={deleteDialogOpen}
+                ticketNumbers={selectedTicketNumbers}
+                isLoading={isDeleting}
+                onConfirm={handleBulkDelete}
+                onCancel={() => setDeleteDialogOpen(false)}
             />
 
             {/* Bulk Assign Dialog */}

@@ -8,6 +8,8 @@ interface BulkActionsBarProps {
     onChangeStatus: (status: string) => void;
     onClear: () => void;
     isLoading?: boolean;
+    /** Rendered only when provided — ADMIN-only in practice. */
+    onDelete?: () => void;
 }
 
 export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
@@ -16,6 +18,7 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
     onChangeStatus,
     onClear,
     isLoading,
+    onDelete,
 }) => {
     if (selectedCount === 0) return null;
 
@@ -58,6 +61,16 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
                         <MoreHorizontal className="w-4 h-4" />
                         <span className="hidden sm:inline">In Progress</span>
                     </button>
+                    {onDelete && (
+                        <button
+                            onClick={onDelete}
+                            disabled={isLoading}
+                            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Clear selection */}
