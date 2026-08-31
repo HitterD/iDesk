@@ -20,7 +20,7 @@ import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { WorkloadService } from '../../workload/workload.service';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
-import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { assertTicketRoleAccess, isOracleTicket } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
 
 @Injectable()
@@ -60,7 +60,7 @@ export class TicketUpdateService {
         const { savedTicket, user, changes, oldStatus } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
-                relations: ['user'],
+                relations: ['user', 'participants'],
             });
             if (!ticket) {
                 throw new NotFoundException('Ticket not found');
@@ -71,7 +71,11 @@ export class TicketUpdateService {
                 throw new NotFoundException('User not found');
             }
             validateTicketAccess(user, ticket);
-            validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+            const isOwner = ticket.userId === userId;
+            const isParticipant = ticket.participants?.some(p => p.userId === userId);
+            if (!isOwner && !isParticipant) {
+                validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+            }
 
             const changes: string[] = [];
             const oldStatus = ticket.status;
@@ -169,11 +173,23 @@ export class TicketUpdateService {
             if (newSlaConfig) {
                 const slaStartedAt = new Date(ticket.slaStartedAt);
                 const pausedMinutes = ticket.totalPausedMinutes || 0;
-                const newSlaTarget = new Date(slaStartedAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
+                // Re-add any previously granted EXTEND minutes so a priority
+                // change never silently wipes a history of extensions.
+                const extendedMinutes = await this.totalExtendedMinutes(ticket.id);
+                const newSlaTarget = new Date(slaStartedAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes + extendedMinutes) * 60000);
                 ticket.slaTarget = newSlaTarget;
-                changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${newPriority})`);
+                changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${newPriority}, +${extendedMinutes} extended)`);
             }
         }
+    }
+
+    /** Sum of EXTEND minutes recorded for the ticket. */
+    private async totalExtendedMinutes(ticketId: string): Promise<number> {
+        const row = await this.dataSource.query(
+            'SELECT COALESCE(SUM(minutes), 0) AS total FROM sla_adjustments WHERE "ticketId" = $1 AND "type" = $2',
+            [ticketId, 'EXTEND'],
+        );
+        return Number(row?.[0]?.total || 0);
     }
 
     private async postUpdateActions(
@@ -239,10 +255,81 @@ export class TicketUpdateService {
         }
     }
 
-    async assignTicket(ticketId: string, assigneeId: string, userId: string): Promise<Ticket> {
+    async assignTicket(ticketId: string, assigneeId: string | undefined | null, userId: string, reason?: string): Promise<Ticket> {
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user', 'assignedTo'] });
         if (!ticket) {
             throw new NotFoundException('Ticket not found');
+        }
+
+        const isOracle = isOracleTicket(ticket);
+        const oldAssigneeName = ticket.assignedTo ? ticket.assignedTo.fullName : 'Unassigned';
+        const oldAssigneeId = ticket.assignedTo ? ticket.assignedTo.id : null;
+        const isUnassign = !assigneeId || assigneeId === 'unassigned';
+
+        if (isUnassign) {
+            const assigner = await this.userRepo.findOne({ where: { id: userId } });
+            if (!assigner) {
+                throw new NotFoundException('Assigner not found');
+            }
+
+            if (isOracle) {
+                if (assigner.role && assigner.role !== UserRole.AGENT_ORACLE && assigner.role !== UserRole.ADMIN) {
+                    throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can assign Oracle/K2 tickets');
+                }
+            } else {
+                if (assigner.role === UserRole.AGENT_ORACLE) {
+                    throw new ForbiddenException('AGENT_ORACLE cannot assign general support tickets');
+                }
+            }
+            assertTicketRoleAccess(ticket, assigner.role);
+            validateTicketSiteAccess(assigner.role as UserRole, (assigner as any).siteId ?? null, (ticket as any).siteId ?? null);
+
+            ticket.assignedTo = null as any;
+            ticket.assignedToId = null as any;
+            const savedTicket = await this.ticketRepo.save(ticket);
+
+            const reasonText = reason ? `. Alasan: ${reason}` : '';
+            const systemMessageContent = `System: Ticket unassigned (was ${oldAssigneeName}) by ${assigner.fullName}${reasonText}`;
+            const systemMessage = this.messageRepo.create({
+                content: systemMessageContent,
+                ticket: savedTicket,
+                senderId: assigner.id,
+                isSystemMessage: true,
+            });
+            await this.messageRepo.save(systemMessage);
+
+            if ((savedTicket as any).siteId) {
+                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', systemMessage);
+            }
+
+            if ((savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) && oldAssigneeId) {
+                try {
+                    const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
+                    await this.workloadService.recalculateAgentWorkload(internalActor, oldAssigneeId, savedTicket.siteId);
+                } catch (err) {
+                    this.logger.error(`Failed to recalculate workload points during unassignment for ticket ${savedTicket.ticketNumber}: ${err.message}`);
+                }
+            }
+
+            this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
+            this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
+
+            if (savedTicket.siteId) {
+                this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
+            }
+
+            this.auditService.logAsync({
+                userId,
+                action: AuditAction.ASSIGN_TICKET,
+                entityType: 'ticket',
+                entityId: ticketId,
+                oldValue: { assignee: oldAssigneeName },
+                newValue: { assignee: 'Unassigned', reason: reason || null },
+                description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} unassigned (was ${oldAssigneeName}) by ${assigner.fullName}${reason ? ` - Alasan: ${reason}` : ''}`,
+            });
+
+            return savedTicket;
         }
 
         const assignee = await this.userRepo.findOne({ where: { id: assigneeId } });
@@ -260,9 +347,7 @@ export class TicketUpdateService {
             throw new BadRequestException('Assignee must be an operational support agent, oracle agent, or admin');
         }
 
-        // Oracle/K2 tickets vs General support tickets assignment role enforcement
-        const isOracleTicket = ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST';
-        if (isOracleTicket) {
+        if (isOracle) {
             if (assignee.role !== UserRole.AGENT_ORACLE && assignee.role !== UserRole.ADMIN) {
                 throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can be assigned to Oracle/K2 tickets');
             }
@@ -277,7 +362,7 @@ export class TicketUpdateService {
             throw new NotFoundException('Assigner not found');
         }
 
-        if (isOracleTicket) {
+        if (isOracle) {
             if (assigner.role && assigner.role !== UserRole.AGENT_ORACLE && assigner.role !== UserRole.ADMIN) {
                 throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can assign Oracle/K2 tickets');
             }
@@ -286,20 +371,20 @@ export class TicketUpdateService {
                 throw new ForbiddenException('AGENT_ORACLE cannot assign general support tickets');
             }
         }
+
         assertTicketRoleAccess(ticket, assigner.role);
         assertTicketRoleAccess(ticket, assignee.role);
-        // Site isolation: assigner and assignee must belong to the ticket's site unless cross-site.
         validateTicketSiteAccess(assigner.role as UserRole, (assigner as any).siteId ?? null, (ticket as any).siteId ?? null);
         validateTicketSiteAccess(assignee.role as UserRole, (assignee as any).siteId ?? null, (ticket as any).siteId ?? null);
 
-        const oldAssigneeName = ticket.assignedTo ? ticket.assignedTo.fullName : 'Unassigned';
-        const oldAssigneeId = ticket.assignedTo ? ticket.assignedTo.id : null;
-
         ticket.assignedTo = assignee;
+        ticket.assignedToId = assignee.id;
         const savedTicket = await this.ticketRepo.save(ticket);
 
-        // Log system message
-        const systemMessageContent = `System: Ticket assigned to ${assignee.fullName} (was ${oldAssigneeName}) by ${assigner.fullName}`;
+        const actionLabel = oldAssigneeId ? 'reassigned to' : 'assigned to';
+        const wasOld = oldAssigneeId ? ` (was ${oldAssigneeName})` : '';
+        const reasonText = reason ? `. Alasan: ${reason}` : '';
+        const systemMessageContent = `System: Ticket ${actionLabel} ${assignee.fullName}${wasOld} by ${assigner.fullName}${reasonText}`;
         const systemMessage = this.messageRepo.create({
             content: systemMessageContent,
             ticket: savedTicket,
@@ -359,8 +444,8 @@ export class TicketUpdateService {
             entityType: 'ticket',
             entityId: ticketId,
             oldValue: { assignee: oldAssigneeName },
-            newValue: { assignee: assignee.fullName },
-            description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} assigned to ${assignee.fullName} by ${assigner.fullName}`,
+            newValue: { assignee: assignee.fullName, reason: reason || null },
+            description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} ${actionLabel} ${assignee.fullName}${wasOld} by ${assigner.fullName}${reason ? ` - Alasan: ${reason}` : ''}`,
         });
 
         return savedTicket;
@@ -456,7 +541,7 @@ export class TicketUpdateService {
 
     async bulkUpdate(
         ticketIds: string[],
-        updateData: { status?: TicketStatus; priority?: string; assigneeId?: string; category?: string },
+        updateData: { status?: TicketStatus; priority?: string; assigneeId?: string; category?: string; reason?: string },
         userId: string,
     ): Promise<{ updated: number; failed: string[] }> {
         const user = await this.userRepo.findOne({ where: { id: userId } });
@@ -529,7 +614,8 @@ export class TicketUpdateService {
                     }
 
                     if (assignee && ticket.assignedTo?.id !== assignee.id) {
-                        changes.push(`Assigned to: ${assignee.fullName}`);
+                        const reasonText = updateData.reason ? ` (Alasan: ${updateData.reason})` : '';
+                        changes.push(`Assigned to: ${assignee.fullName}${reasonText}`);
                         ticket.assignedTo = assignee;
                     }
 

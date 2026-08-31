@@ -9,17 +9,19 @@ import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
-const ORACLE_FILTER_PARAMS = { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST' } as const;
+const ORACLE_FILTER_PARAMS = { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST', oracleTeam: 'ORACLE_DEV' } as const;
 
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
 }
 
 export function applyOracleFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, role: UserRole): void {
+    // handlingTeam is the source of truth; category/ticketType remain as a
+    // fallback for rows that predate the handlingTeam migration.
     if (isNonOracleAgent(role)) {
-        qb.andWhere('(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', ORACLE_FILTER_PARAMS);
+        qb.andWhere('(ticket."handlingTeam" != :oracleTeam AND ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', ORACLE_FILTER_PARAMS);
     } else if (role === UserRole.AGENT_ORACLE) {
-        qb.andWhere('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
+        qb.andWhere('(ticket."handlingTeam" = :oracleTeam OR ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
     }
 }
 
@@ -57,8 +59,6 @@ export class TicketQueryService {
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
 
-        applySiteFilter(query, role, userSiteId);
-
         if (role === UserRole.ADMIN) {
             // Admin sees all
             return query.getMany();
@@ -69,11 +69,12 @@ export class TicketQueryService {
         } else if (isNonOracleAgent(role)) {
             // Normal agents see everything EXCEPT Oracle requests
             applyOracleFilter(query, role);
+            applySiteFilter(query, role, userSiteId);
             return query.getMany();
         } else {
-            // Normal user sees only their own tickets
+            // Normal user sees only their own tickets OR tickets where they are a participant
             // EXCLUDE specialized request types that have their own modules
-            query.andWhere('ticket.userId = :userId', { userId });
+            query.andWhere('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
             query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
                 excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION'] 
             });
@@ -139,7 +140,7 @@ export class TicketQueryService {
 
         // Role-based filtering
         if (role === UserRole.USER) {
-            qb.andWhere('ticket.userId = :userId', { userId });
+            qb.andWhere('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
 
             // Only apply default exclusion if an explicit ticketType filter is not provided
             if (!ticketType) {
@@ -147,11 +148,11 @@ export class TicketQueryService {
                     excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION']
                 });
             }
+        } else {
+            // Site isolation: cross-site roles may narrow by site, everyone else is
+            // pinned to their own — and fail closed when they have none.
+            applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
         }
-
-        // Site isolation: cross-site roles may narrow by site, everyone else is
-        // pinned to their own — and fail closed when they have none.
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
 
         // Status filter
         if (status) {
@@ -241,7 +242,7 @@ export class TicketQueryService {
           const schedules = await this.ticketRepo.manager
             .createQueryBuilder()
             .select('s."ticketId"', 'ticketId')
-            .addSelect('s."ictBudgetRequestId"', 'ictBudgetRequestId')
+            .addSelect('s."requestId"', 'ictBudgetRequestId')
             .from('installation_schedules', 's')
             .where('s."ticketId" IN (:...hwTicketIds)', { hwTicketIds })
             .getRawMany();
@@ -254,6 +255,7 @@ export class TicketQueryService {
           ...ticket,
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
           hasUnreadChat: computeHasUnreadChat(ticket, role),
+          isParticipant: role === UserRole.USER && ticket.userId !== userId,
         }));
 
         return {
@@ -373,7 +375,17 @@ export class TicketQueryService {
     async findOne(id: string, user?: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<any> {
         const ticket = await this.ticketRepo.findOne({
             where: { id },
-            relations: ['user', 'user.department', 'assignedTo', 'messages', 'messages.sender'],
+            relations: [
+                'user',
+                'user.department',
+                'assignedTo',
+                'messages',
+                'messages.sender',
+                'participants',
+                'participants.user',
+                'participants.user.department',
+                'participants.invitedBy',
+            ],
         });
 
         if (!ticket) {
@@ -382,7 +394,11 @@ export class TicketQueryService {
 
         if (user) {
             validateTicketAccess(user, ticket);
-            validateTicketSiteAccess(user.role as UserRole, user.siteId ?? null, (ticket as any).siteId ?? null);
+            const isOwner = ticket.userId === user.id;
+            const isParticipant = ticket.participants?.some((p: any) => p.userId === user.id);
+            if (!isOwner && !isParticipant) {
+                validateTicketSiteAccess(user.role as UserRole, user.siteId ?? null, (ticket as any).siteId ?? null);
+            }
         }
 
         // Use stored SLA Target if available, otherwise calculate it (for backwards compatibility)

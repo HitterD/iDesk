@@ -11,9 +11,11 @@ import { TicketHeader } from '../components/ticket-detail/TicketHeader';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
+import type { ForwardTargetTeam } from '../components/TicketForwardDialog';
 import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
+import { KbSuggestionDialog } from '../components/KbSuggestionDialog';
 import { useTicketShortcuts, TICKET_SHORTCUTS } from '@/hooks/useTicketShortcuts';
-import { Keyboard, X, MessageSquare, History } from 'lucide-react';
+import { Keyboard, X, MessageSquare, History, SlidersHorizontal, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { TicketAttributes } from '../types';
@@ -26,8 +28,9 @@ export const BentoTicketDetailPage: React.FC = () => {
     const { user } = useAuth();
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [showShortcutsModal, setShowShortcutsModal] = useState(false);
-    const [mainTab, setMainTab] = useState<'chat' | 'activity'>('chat');
+    const [mainTab, setMainTab] = useState<'chat' | 'details' | 'activity'>('chat');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [suggestionsOpen, setSuggestionsOpen] = useState(false);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const chatSectionRef = useRef<HTMLDivElement>(null);
     const shortcutsModalRef = useRef<HTMLDivElement>(null);
@@ -39,6 +42,16 @@ export const BentoTicketDetailPage: React.FC = () => {
         escapeDeactivates: true,
         onEscape: () => setShowShortcutsModal(false),
     });
+
+    // Suggest KB articles once per ticket visit (per browser session).
+    useEffect(() => {
+        if (!id) return;
+        const key = `idesk_kb_suggested_${id}`;
+        if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1');
+            setSuggestionsOpen(true);
+        }
+    }, [id]);
 
     // Use authenticated user from auth store
     const currentUser = user ? { id: user.id, fullName: user.fullName } : { id: '', fullName: '' };
@@ -121,7 +134,8 @@ export const BentoTicketDetailPage: React.FC = () => {
     // Auto-save per-field handler
     const handleFieldChange = useCallback(async (
         field: 'assignee' | 'status' | 'priority' | 'category' | 'device',
-        value: string
+        value: string,
+        reason?: string
     ) => {
         const endpointMap = {
             assignee: `/tickets/${id}/assign`,
@@ -131,7 +145,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             device: `/tickets/${id}/device`,
         };
         const bodyMap = {
-            assignee: { assigneeId: value },
+            assignee: { assigneeId: value || undefined, reason },
             status: { status: value },
             priority: { priority: value },
             category: { category: value },
@@ -147,6 +161,19 @@ export const BentoTicketDetailPage: React.FC = () => {
         } catch {
             toast.error(`Failed to update ${field}`);
             throw new Error(`Failed to update ${field}`);
+        }
+    }, [id, queryClient]);
+
+    const handleForwardTicket = useCallback(async (targetTeam: ForwardTargetTeam, reason: string) => {
+        try {
+            await api.post(`/tickets/${id}/forward`, { targetTeam, reason });
+            toast.success('Ticket berhasil diteruskan ke tim lain');
+            queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        } catch (err: any) {
+            toast.error(err?.response?.data?.message || 'Gagal meneruskan tiket');
+            throw err;
         }
     }, [id, queryClient]);
 
@@ -244,6 +271,14 @@ export const BentoTicketDetailPage: React.FC = () => {
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
     const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
+    const handleToggleSidebar = () => {
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            setMainTab(prev => (prev === 'details' ? 'chat' : 'details'));
+        } else {
+            setIsSidebarOpen(prev => !prev);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/50 dark:bg-slate-950 text-slate-900 dark:text-slate-200">
             {/* ── Top Header with SLA + Quick Actions ── */}
@@ -252,19 +287,20 @@ export const BentoTicketDetailPage: React.FC = () => {
                 onCancel={!isClosed ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
                 onResolve={!isClosed ? handleResolveTicket : undefined}
-                isSidebarOpen={isSidebarOpen}
-                onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+                isSidebarOpen={isSidebarOpen || mainTab === 'details'}
+                onToggleSidebar={handleToggleSidebar}
             />
 
-            {/* ── Main Work Area: Left (Main Conversation) + Right (Properties Inspector) ── */}
-            <div className="flex flex-1 overflow-hidden">
+            {/* ── Main Work Area ── */}
+            <div className="flex flex-1 min-h-0 overflow-hidden">
 
-                {/* LEFT & CENTER: Conversation Timeline Taking Full Height */}
+                {/* LEFT & CENTER: Conversation Timeline / Activity / Mobile Details */}
                 <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80">
 
                     {/* Navigation Tabs Header */}
-                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 shrink-0 bg-slate-50/50 dark:bg-slate-900/80">
-                        <div className="flex gap-6">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 shrink-0 bg-slate-50/50 dark:bg-slate-900/80">
+                        {/* Desktop Tabs (>= lg) */}
+                        <div className="hidden lg:flex gap-6">
                             <button
                                 type="button"
                                 onClick={() => setMainTab('chat')}
@@ -301,10 +337,63 @@ export const BentoTicketDetailPage: React.FC = () => {
                                 <span>Activity Logs</span>
                             </button>
                         </div>
+
+                        {/* Mobile Tabs (< lg) */}
+                        <div className="flex lg:hidden items-center justify-around w-full gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('chat')}
+                                className={cn(
+                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+                                    mainTab === 'chat'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Chat</span>
+                                <span className={cn(
+                                    "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                                    mainTab === 'chat'
+                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                )}>
+                                    {messageCount}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('details')}
+                                className={cn(
+                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+                                    mainTab === 'details'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                <span>Properties</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('activity')}
+                                className={cn(
+                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+                                    mainTab === 'activity'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <History className="w-3.5 h-3.5" />
+                                <span>Logs</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Tab Content — Large Full Height View */}
-                    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900" ref={chatSectionRef}>
+                    {/* Tab Content */}
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white dark:bg-slate-900" ref={chatSectionRef}>
                         {mainTab === 'chat' ? (
                             <TicketChat
                                 ticket={ticket}
@@ -315,27 +404,43 @@ export const BentoTicketDetailPage: React.FC = () => {
                                 onTypingStart={() => sendTypingStart({ fullName: currentUser.fullName })}
                                 onTypingStop={sendTypingStop}
                             />
+                        ) : mainTab === 'details' ? (
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 bg-slate-50/70 dark:bg-slate-900/50">
+                                <TicketSidebar
+                                    ticket={ticket}
+                                    agents={agents}
+                                    slaConfigs={slaConfigs}
+                                    attributes={attributes}
+                                    onAssigneeChange={(v, reason) => handleFieldChange('assignee', v, reason)}
+                                    onStatusChange={(v) => handleFieldChange('status', v)}
+                                    onPriorityChange={(v) => handleFieldChange('priority', v)}
+                                    onCategoryChange={(v) => handleFieldChange('category', v)}
+                                    onDeviceChange={(v) => handleFieldChange('device', v)}
+                                    onForward={handleForwardTicket}
+                                />
+                            </div>
                         ) : (
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 dark:bg-slate-900/40">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-900/40">
                                 <TicketHistory ticket={ticket} />
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* RIGHT: Ticket Inspector & Properties Sidebar */}
+                {/* RIGHT: Desktop Ticket Inspector & Properties Sidebar (>= lg only) */}
                 {isSidebarOpen && (
-                    <aside className="w-80 lg:w-88 shrink-0 flex flex-col bg-slate-50/70 dark:bg-slate-900/50 overflow-y-auto custom-scrollbar">
+                    <aside className="hidden lg:flex w-80 lg:w-88 shrink-0 flex-col bg-slate-50/70 dark:bg-slate-900/50 overflow-y-auto custom-scrollbar">
                         <TicketSidebar
                             ticket={ticket}
                             agents={agents}
                             slaConfigs={slaConfigs}
                             attributes={attributes}
-                            onAssigneeChange={(v) => handleFieldChange('assignee', v)}
+                            onAssigneeChange={(v, reason) => handleFieldChange('assignee', v, reason)}
                             onStatusChange={(v) => handleFieldChange('status', v)}
                             onPriorityChange={(v) => handleFieldChange('priority', v)}
                             onCategoryChange={(v) => handleFieldChange('category', v)}
                             onDeviceChange={(v) => handleFieldChange('device', v)}
+                            onForward={handleForwardTicket}
                         />
                     </aside>
                 )}
@@ -412,6 +517,14 @@ export const BentoTicketDetailPage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* KB suggestion popup after visiting a fresh ticket */}
+            <KbSuggestionDialog
+                isOpen={suggestionsOpen}
+                onClose={() => setSuggestionsOpen(false)}
+                ticketId={id || ''}
+                basePath="/kb"
+            />
         </div>
     );
 };

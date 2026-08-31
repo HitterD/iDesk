@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
@@ -15,6 +15,7 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { isOracleK2Category } from '../utils/oracle-ticket-access.util';
 
 @Injectable()
 export class TicketCreateService {
@@ -49,6 +50,10 @@ export class TicketCreateService {
             assertTicketRoleAccess({
                 category: createTicketDto.category || 'GENERAL',
                 ticketType: createTicketDto.ticketType || TicketType.SERVICE,
+                handlingTeam: isOracleK2Category(
+                    createTicketDto.category,
+                    createTicketDto.ticketType,
+                ) ? HandlingTeam.ORACLE_DEV : HandlingTeam.OPS_SUPPORT,
             }, user.role);
 
             const ticket = this.ticketRepo.create({
@@ -57,6 +62,10 @@ export class TicketCreateService {
                 priority: createTicketDto.priority,
                 category: createTicketDto.category || 'GENERAL',
                 ticketType: createTicketDto.ticketType || TicketType.SERVICE,
+                handlingTeam: isOracleK2Category(
+                    createTicketDto.category,
+                    createTicketDto.ticketType,
+                ) ? HandlingTeam.ORACLE_DEV : HandlingTeam.OPS_SUPPORT,
                 source: createTicketDto.source || TicketSource.WEB,
                 device: createTicketDto.device,
                 software: createTicketDto.software,
@@ -153,16 +162,18 @@ export class TicketCreateService {
             this.eventEmitter.emit(
                 'ticket.created',
                 new TicketCreatedEvent(
-                    ticket.id,
-                    ticket.ticketNumber,
-                    ticket.title,
-                    ticket.priority,
-                    ticket.category,
-                    ticket.status,
+                    savedTicket.id,
+                    savedTicket.ticketNumber,
+                    savedTicket.title,
+                    savedTicket.priority,
+                    savedTicket.category,
+                    savedTicket.status,
                     user.id,
                     user.fullName,
                     user.email,
-                    ticket.createdAt,
+                    savedTicket.createdAt,
+                    savedTicket.siteId,
+                    savedTicket.ticketType,
                 ),
             );
 
@@ -201,8 +212,8 @@ export class TicketCreateService {
             }
 
             // === Auto-Assignment: Assign to agent with lowest workload ===
-            if (!(createTicketDto as any).assignedToId && finalTicket.siteId && user.role !== 'AGENT' && user.role !== 'AGENT_OPERATIONAL_SUPPORT') {
-                const isOracleTicket = createTicketDto.category === 'ORACLE_REQUEST' || createTicketDto.ticketType === TicketType.ORACLE_REQUEST;
+            if (!(createTicketDto as any).assignedToId && finalTicket.siteId) {
+                const isOracleTicket = isOracleK2Category(createTicketDto.category, createTicketDto.ticketType);
 
                 if (!isOracleTicket) {
                     try {

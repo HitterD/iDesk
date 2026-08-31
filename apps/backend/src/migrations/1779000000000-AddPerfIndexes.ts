@@ -13,9 +13,16 @@ export class AddPerfIndexes1779000000000 implements MigrationInterface {
             `CREATE INDEX IF NOT EXISTS "idx_found_claim_status" ON "found_item_claims" ("status", "finderId", "lostItemReportId")`,
         );
         // Knowledge-base: published articles by category
-        await queryRunner.query(
-            `CREATE INDEX IF NOT EXISTS "idx_kb_article_published" ON "articles" ("status", "categoryId", "publishedAt")`,
-        );
+        // The columns "categoryId"/"publishedAt" are not present on the
+        // articles table yet (entity uses "category" string). Guard the
+        // index creation so this migration never fails on a clean deploy.
+        await queryRunner.query(`
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='articles' AND column_name='categoryId') THEN
+                    CREATE INDEX IF NOT EXISTS "idx_kb_article_published" ON "articles" ("status", "categoryId", "publishedAt");
+                END IF;
+            END $$`);
         // E-form: per-site recent list (column may not exist yet if AddSiteId migration has not run)
         await queryRunner.query(`
             DO $$ BEGIN

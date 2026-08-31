@@ -17,6 +17,12 @@ import {
     Check,
     MapPin,
     Tag,
+    ChevronDown,
+    UserX,
+    UserPlus,
+    X,
+    ArrowLeftRight,
+    ArrowUpRight,
 } from 'lucide-react';
 import {
     Select,
@@ -25,23 +31,34 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/ui/PresenceDot';
-import { TicketDetail, Agent } from './types';
+import { TicketDetail } from './types';
 import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
+import { AgentSelectList, type Agent } from '../AgentSelectList';
+import { ReassignConfirmDialog, type TargetAgentInfo } from '../ReassignConfirmDialog';
+import { TicketForwardDialog, type ForwardTargetTeam } from '../TicketForwardDialog';
+import { TicketParticipantsSection } from './TicketParticipantsSection';
+import { useAuth } from '@/stores/useAuth';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
     agents: Agent[];
     slaConfigs: { id: string; priority: string; resolutionTimeMinutes: number }[];
     attributes: { categories: { id: string; value: string }[]; devices: { id: string; value: string }[]; software: any[] };
-    onAssigneeChange: (value: string) => Promise<void>;
+    onAssigneeChange: (value: string, reason?: string) => Promise<void>;
     onStatusChange: (value: string) => Promise<void>;
     onPriorityChange: (value: string) => Promise<void>;
     onCategoryChange: (value: string) => Promise<void>;
     onDeviceChange: (value: string) => Promise<void>;
+    onForward?: (targetTeam: ForwardTargetTeam, reason: string) => Promise<void> | void;
 }
 
 type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
@@ -78,9 +95,19 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     onPriorityChange,
     onCategoryChange,
     onDeviceChange,
+    onForward,
 }) => {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ADMIN';
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
     const [copiedEmail, setCopiedEmail] = useState(false);
+    const [agentPickerOpen, setAgentPickerOpen] = useState(false);
+    const [forwardOpen, setForwardOpen] = useState(false);
+
+    const isAgentOracle = user?.role === 'AGENT_ORACLE';
+    const canManageParticipants = isAgentOracle || isAdmin;
+    const isOracleTicket = ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST';
+    const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
 
     // Local optimistic state per field
     const [localAssigneeId, setLocalAssigneeId] = useState(ticket.assignedTo?.id || '');
@@ -124,16 +151,44 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         }
     };
 
-    const handleAssigneeChange = async (value: string) => {
+    const [reassignModalOpen, setReassignModalOpen] = useState(false);
+    const [targetAgentToAssign, setTargetAgentToAssign] = useState<TargetAgentInfo | null>(null);
+
+    const handleAssigneeChange = async (value: string, reason?: string) => {
         const actualVal = value === 'unassigned' ? '' : value;
         setLocalAssigneeId(actualVal);
         setSaving(prev => ({ ...prev, assignee: true }));
         try {
-            await onAssigneeChange(actualVal);
+            await onAssigneeChange(actualVal, reason);
             showSaved('assignee');
         } finally {
             setSaving(prev => ({ ...prev, assignee: false }));
         }
+    };
+
+    const handleAgentSelect = async (agentId: string) => {
+        setAgentPickerOpen(false);
+        const actualVal = agentId === 'unassigned' ? '' : agentId;
+        if (localAssigneeId === actualVal) return;
+
+        const target = actualVal
+            ? (agents.find((a) => a.id === actualVal) || { id: actualVal, fullName: 'Selected Agent' })
+            : null;
+
+        // If ticket already has an assigned PIC, prompt for confirmation and reason
+        if (localAssigneeId) {
+            setTargetAgentToAssign(target);
+            setReassignModalOpen(true);
+        } else {
+            // Unassigned ticket -> assign directly
+            await handleAssigneeChange(actualVal);
+        }
+    };
+
+    const handleConfirmReassign = async (reason: string) => {
+        const val = targetAgentToAssign ? targetAgentToAssign.id : '';
+        await handleAssigneeChange(val, reason);
+        setReassignModalOpen(false);
     };
 
     const handleStatusChange = makeHandler('status', setLocalStatus, onStatusChange);
@@ -161,13 +216,18 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         }
     };
 
-    const assignedAgent = agents.find(a => a.id === localAssigneeId) || ticket.assignedTo;
+    const assignedAgent = agents.find(a => a.id === localAssigneeId) || (ticket.assignedTo as Agent | undefined);
+    const currentStatusConfig = STATUS_CONFIG[localStatus] || STATUS_CONFIG.TODO;
+    const StatusIcon = currentStatusConfig.icon;
+    const currentPriorityConfig = PRIORITY_CONFIG[localPriority] || PRIORITY_CONFIG.MEDIUM;
+    const currentSla = slaConfigs.find(s => s.priority === localPriority);
+    const currentSlaHours = currentSla ? Math.round(currentSla.resolutionTimeMinutes / 60) : null;
 
     return (
-        <div className="p-4 space-y-5">
+        <div className="p-4 space-y-5 select-none">
 
             {/* 1. Requester Profile Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         Requester Profile
@@ -225,8 +285,20 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 </div>
             </div>
 
+            {/* 1.5. Ticket Participants (Oracle Tickets / Multi-user Group) */}
+            {(isOracleTicket || (ticket.participants && ticket.participants.length > 0)) && (
+                <TicketParticipantsSection
+                    ticketId={ticket.id}
+                    creator={ticket.user}
+                    participants={ticket.participants}
+                    canManageUsers={canManageParticipants}
+                    canAddUsers={canAddParticipants}
+                    isClosed={isClosed}
+                />
+            )}
+
             {/* 2. Ticket Properties & Assignment Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         Ticket Properties
@@ -240,47 +312,94 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 {/* Assigned Agent */}
                 <PropertyRow icon={UserCheck} label="Assigned Agent" saving={saving.assignee} saved={saved.assignee}>
-                    <Select value={localAssigneeId || 'unassigned'} onValueChange={handleAssigneeChange} disabled={isClosed || saving.assignee}>
-                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
-                            <SelectValue placeholder="Unassigned">
+                    <Popover open={agentPickerOpen} onOpenChange={setAgentPickerOpen}>
+                        <PopoverTrigger asChild>
+                            <button
+                                type="button"
+                                disabled={isClosed || saving.assignee}
+                                className={cn(
+                                    "w-full min-h-[44px] px-3 py-2 text-left rounded-xl transition-all border shadow-2xs cursor-pointer flex items-center justify-between gap-2.5",
+                                    assignedAgent
+                                        ? "bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 text-foreground"
+                                        : "bg-slate-50/40 dark:bg-slate-900/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 border-dashed border-slate-300 dark:border-slate-700 text-muted-foreground",
+                                    (isClosed || saving.assignee) && "opacity-60 cursor-not-allowed"
+                                )}
+                            >
                                 {assignedAgent ? (
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center font-bold">
-                                            {assignedAgent.fullName.charAt(0)}
+                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                        <div className="relative shrink-0">
+                                            <div className="w-7 h-7 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-xs shadow-2xs">
+                                                {assignedAgent.fullName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <PresenceDot userId={assignedAgent.id} size="sm" className="absolute -bottom-0.5 -right-0.5" />
                                         </div>
-                                        <span className="truncate">{assignedAgent.fullName}</span>
-                                        {/* Decorative: this sits inside the select trigger, whose accessible
-                                            name must stay the agent, not a status. Hover reveals the title. */}
-                                        <PresenceDot userId={assignedAgent.id} size="sm" decorative />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white truncate leading-snug">
+                                                {assignedAgent.fullName}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                                {assignedAgent.site?.code && (
+                                                    <span className="font-mono font-semibold px-1 py-0.2 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-700 dark:text-slate-300 border border-slate-300/50 dark:border-slate-600/50">
+                                                        Site {assignedAgent.site.code}
+                                                    </span>
+                                                )}
+                                                <span className="truncate opacity-75">{assignedAgent.email}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 ) : (
-                                    <span className="text-slate-400">Unassigned</span>
+                                    <div className="flex items-center gap-2 text-xs font-medium text-slate-400 dark:text-slate-500">
+                                        <UserPlus className="w-4 h-4 text-slate-400" />
+                                        <span>Pilih teknisi / agent...</span>
+                                    </div>
                                 )}
-                            </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="unassigned" className="text-xs text-slate-400">Unassigned</SelectItem>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id} className="text-xs">
-                                    {agent.fullName}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150" />
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="p-0 w-[300px] rounded-2xl border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden bg-card" sideOffset={6}>
+                            <AgentSelectList
+                                agents={agents}
+                                selectedId={localAssigneeId}
+                                isAdmin={isAdmin}
+                                onSelect={handleAgentSelect}
+                            />
+                        </PopoverContent>
+                    </Popover>
                 </PropertyRow>
 
                 {/* Status */}
                 <PropertyRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
                     <Select value={localStatus} onValueChange={handleStatusChange} disabled={isClosed || saving.status}>
-                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
-                            <SelectValue />
+                        <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0", currentStatusConfig.color)}>
+                                    <StatusIcon className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{currentStatusConfig.label}</span>
+                                </span>
+                            </div>
                         </SelectTrigger>
-                        <SelectContent>
-                            {STATUS_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                    {opt.label}
-                                </SelectItem>
-                            ))}
+                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[180px]">
+                            {STATUS_OPTIONS.map((opt) => {
+                                const cfg = STATUS_CONFIG[opt.value] || STATUS_CONFIG.TODO;
+                                const OptIcon = cfg.icon;
+                                return (
+                                    <SelectItem key={opt.value} value={opt.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">
+                                        <div className="flex items-center gap-2">
+                                            <span className={cn(
+                                                "w-2 h-2 rounded-full shrink-0",
+                                                opt.value === 'TODO' ? 'bg-slate-400' :
+                                                opt.value === 'IN_PROGRESS' ? 'bg-blue-500' :
+                                                opt.value === 'WAITING_VENDOR' ? 'bg-amber-500' :
+                                                opt.value === 'RESOLVED' ? 'bg-emerald-500' : 'bg-rose-500'
+                                            )} />
+                                            <span className="flex items-center gap-1.5 font-medium">
+                                                <OptIcon className="w-3.5 h-3.5 opacity-70" />
+                                                {opt.label}
+                                            </span>
+                                        </div>
+                                    </SelectItem>
+                                );
+                            })}
                         </SelectContent>
                     </Select>
                 </PropertyRow>
@@ -288,20 +407,41 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 {/* Priority */}
                 <PropertyRow icon={AlertCircle} label="Priority" saving={saving.priority} saved={saved.priority}>
                     {ticket.priority === 'HARDWARE_INSTALLATION' ? (
-                        <div className="h-9 flex items-center px-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-xs font-bold text-amber-700 dark:text-amber-400 rounded-xl">
+                        <div className="h-10 flex items-center px-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-xs font-bold text-amber-700 dark:text-amber-400 rounded-xl">
                             Hardware Installation
                         </div>
                     ) : (
                         <Select value={localPriority} onValueChange={handlePriorityChange} disabled={isClosed || saving.priority}>
-                            <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
-                                <SelectValue />
+                            <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
+                                <div className="flex items-center justify-between w-full min-w-0 pr-1">
+                                    <div className="flex items-center gap-2 truncate">
+                                        <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", currentPriorityConfig.dot)} />
+                                        <span className="font-bold text-slate-900 dark:text-white">{currentPriorityConfig.label}</span>
+                                    </div>
+                                    {currentSlaHours && (
+                                        <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded-md border border-slate-300/40 dark:border-slate-600/40 shrink-0">
+                                            {currentSlaHours}h SLA
+                                        </span>
+                                    )}
+                                </div>
                             </SelectTrigger>
-                            <SelectContent>
-                                {slaConfigs.map((sla) => (
-                                    <SelectItem key={sla.id} value={sla.priority} className="text-xs">
-                                        {sla.priority} ({Math.round(sla.resolutionTimeMinutes / 60)}h SLA)
-                                    </SelectItem>
-                                ))}
+                            <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[200px]">
+                                {slaConfigs.map((sla) => {
+                                    const pCfg = PRIORITY_CONFIG[sla.priority] || PRIORITY_CONFIG.MEDIUM;
+                                    return (
+                                        <SelectItem key={sla.id} value={sla.priority} className="text-xs rounded-lg py-2 cursor-pointer font-medium">
+                                            <div className="flex items-center justify-between w-full gap-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={cn("w-2 h-2 rounded-full shrink-0", pCfg.dot)} />
+                                                    <span className="font-semibold">{pCfg.label}</span>
+                                                </div>
+                                                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                    {Math.round(sla.resolutionTimeMinutes / 60)}h SLA
+                                                </span>
+                                            </div>
+                                        </SelectItem>
+                                    );
+                                })}
                             </SelectContent>
                         </Select>
                     )}
@@ -310,16 +450,19 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 {/* Category */}
                 <PropertyRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
                     <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
-                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
-                            <SelectValue />
+                        <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
+                            <div className="flex items-center gap-2 truncate">
+                                <Tag className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <span className="font-semibold text-slate-900 dark:text-white truncate">{localCategory}</span>
+                            </div>
                         </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="GENERAL" className="text-xs">General</SelectItem>
-                            <SelectItem value="HARDWARE" className="text-xs">Hardware</SelectItem>
-                            <SelectItem value="SOFTWARE" className="text-xs">Software</SelectItem>
-                            <SelectItem value="NETWORK" className="text-xs">Network</SelectItem>
+                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[180px]">
+                            <SelectItem value="GENERAL" className="text-xs rounded-lg py-2 cursor-pointer font-medium">General</SelectItem>
+                            <SelectItem value="HARDWARE" className="text-xs rounded-lg py-2 cursor-pointer font-medium">Hardware</SelectItem>
+                            <SelectItem value="SOFTWARE" className="text-xs rounded-lg py-2 cursor-pointer font-medium">Software</SelectItem>
+                            <SelectItem value="NETWORK" className="text-xs rounded-lg py-2 cursor-pointer font-medium">Network</SelectItem>
                             {attributes.categories.map((attr: any) => (
-                                <SelectItem key={attr.id} value={attr.value} className="text-xs">{attr.value}</SelectItem>
+                                <SelectItem key={attr.id} value={attr.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">{attr.value}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -328,13 +471,18 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 {/* Device */}
                 <PropertyRow icon={Monitor} label="Device / Hardware" saving={saving.device} saved={saved.device}>
                     <Select value={localDevice || 'none'} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
-                        <SelectTrigger className="w-full h-9 text-xs font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 rounded-xl">
-                            <SelectValue placeholder="No device assigned" />
+                        <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
+                            <div className="flex items-center gap-2 truncate">
+                                <Monitor className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <span className={cn("truncate font-semibold", localDevice ? "text-slate-900 dark:text-white" : "text-slate-400")}>
+                                    {localDevice || 'None (Tidak Ada)'}
+                                </span>
+                            </div>
                         </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none" className="text-xs text-slate-400">None</SelectItem>
+                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[180px]">
+                            <SelectItem value="none" className="text-xs text-slate-400 rounded-lg py-2 cursor-pointer">None (Tidak Ada)</SelectItem>
                             {attributes.devices.map((dev: any) => (
-                                <SelectItem key={dev.id} value={dev.value} className="text-xs">{dev.value}</SelectItem>
+                                <SelectItem key={dev.id} value={dev.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">{dev.value}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -342,7 +490,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             </div>
 
             {/* 3. SLA & Timeline Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         SLA & Tracking
@@ -411,6 +559,59 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     </div>
                 </div>
             )}
+
+            {onForward && !isClosed && (
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                    <button
+                        type="button"
+                        onClick={() => setForwardOpen(true)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-2xl text-xs font-bold text-white bg-primary hover:bg-primary/90 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] shadow-2xs cursor-pointer"
+                    >
+                        <span className="flex items-center gap-2">
+                            <ArrowLeftRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+                            Teruskan ke Tim Lain
+                        </span>
+                        <span className="w-5 h-5 rounded-full bg-white/15 flex items-center justify-center">
+                            <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+                        </span>
+                    </button>
+                </div>
+            )}
+
+            {/* Forward Dialog */}
+            <TicketForwardDialog
+                isOpen={forwardOpen}
+                onClose={() => setForwardOpen(false)}
+                ticket={{
+                    id: ticket.id,
+                    ticketNumber: ticket.ticketNumber,
+                    title: ticket.title,
+                    handlingTeam: ticket.handlingTeam,
+                }}
+                onConfirm={async (targetTeam, reason) => {
+                    if (onForward) await onForward(targetTeam, reason);
+                    setForwardOpen(false);
+                }}
+            />
+
+            {/* Reassign Modal */}
+            <ReassignConfirmDialog
+                isOpen={reassignModalOpen}
+                onClose={() => setReassignModalOpen(false)}
+                ticket={{
+                    id: ticket.id,
+                    ticketNumber: ticket.ticketNumber,
+                    title: ticket.title,
+                    assignedTo: ticket.assignedTo
+                        ? {
+                              id: ticket.assignedTo.id,
+                              fullName: ticket.assignedTo.fullName,
+                          }
+                        : null,
+                }}
+                targetAgent={targetAgentToAssign}
+                onConfirm={handleConfirmReassign}
+            />
         </div>
     );
 };

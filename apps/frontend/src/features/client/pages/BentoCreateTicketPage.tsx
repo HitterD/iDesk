@@ -512,11 +512,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                 formDataToSend.append('files', file);
             });
 
-            await api.post('/tickets', formDataToSend, {
+            const createRes = await api.post('/tickets', formDataToSend, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
             });
+            const createdTicketId = createRes?.data?.id;
 
             // Only the service form autosaves a draft, so only a service submit may clear it.
             // Clearing unconditionally would destroy an unrelated service draft when a
@@ -539,10 +540,12 @@ export const BentoCreateTicketPage: React.FC = () => {
                 } else {
                     navigate('/client/my-tickets');
                 }
+            } else if (user?.role === 'AGENT_ORACLE') {
+                navigate('/tickets/oracle-k2');
             } else if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-                navigate('/tickets/list');
+                navigate(createdTicketId ? `/tickets/${createdTicketId}` : '/tickets/list');
             } else {
-                navigate('/client/my-tickets');
+                navigate(createdTicketId ? `/client/tickets/${createdTicketId}` : '/client/my-tickets');
             }
         } catch (error: any) {
             logger.error('Failed to create ticket:', error);
@@ -571,7 +574,8 @@ export const BentoCreateTicketPage: React.FC = () => {
         const roleDefaults: Record<string, string[]> = {
             USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
             AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
+            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
             AGENT_ORACLE: ['oracle_k2_tickets', 'notifications'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
             ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],

@@ -5,11 +5,14 @@ import { TicketsController } from './presentation/tickets.controller';
 import { TicketTemplatesController } from './presentation/ticket-templates.controller';
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
+import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { User } from '../users/entities/user.entity';
 import { CustomerSession } from '../users/entities/customer-session.entity';
 import { EventsGateway } from './presentation/gateways/events.gateway';
 import { SlaCheckerService } from './sla-checker.service';
+import { TicketSlaExtendService } from './services/ticket-sla-extend.service';
+import { TicketForwardService } from './services/ticket-forward.service';
 import { ReportsModule } from '../reports/reports.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { MailerModule } from '@nestjs-modules/mailer';
@@ -23,6 +26,7 @@ import { SlaConfigModule } from '../sla-config/sla-config.module';
 import { WorkloadModule } from '../workload/workload.module';
 
 import { SavedReply } from './entities/saved-reply.entity';
+import { SlaAdjustment } from './entities/sla-adjustment.entity';
 import { SavedRepliesService } from './saved-replies.service';
 import { SavedRepliesController } from './presentation/saved-replies.controller';
 import { TicketSurvey } from './entities/ticket-survey.entity';
@@ -39,6 +43,7 @@ import { TicketMessagingService } from './services/ticket-messaging.service';
 import { TicketQueryService } from './services/ticket-query.service';
 import { TicketTemplateService } from './services/ticket-template.service';
 import { TicketMergeService } from './services/ticket-merge.service';
+import { TicketParticipantService } from './services/ticket-participant.service';
 import { TimeTrackingService } from './services/time-tracking.service';
 import { TimeEntry } from './entities/time-entry.entity';
 import { TimeTrackingController } from './presentation/time-tracking.controller';
@@ -53,7 +58,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketTemplate, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute, TimeEntry, NotificationPreference]),
+        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketParticipant, TicketTemplate, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute, TimeEntry, NotificationPreference, SlaAdjustment]),
         ReportsModule,
         KnowledgeBaseModule,
         MailerModule,
@@ -73,9 +78,14 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketQueryService,
         TicketTemplateService,
         TicketMergeService,
+        TicketParticipantService,
+        TicketSlaExtendService,
+        TicketForwardService,
+        TicketForwardService,
         TimeTrackingService,
 
         SlaCheckerService,
+        TicketSlaExtendService,
         SlaConfigService,
         SavedRepliesService,
         SurveysService,
@@ -94,6 +104,7 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketQueryService,
         TicketTemplateService,
         TicketMergeService,
+        TicketParticipantService,
         TimeTrackingService,
         EventsGateway,
         TicketRepository,

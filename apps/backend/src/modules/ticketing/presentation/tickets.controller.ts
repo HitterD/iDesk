@@ -39,8 +39,15 @@ import {
 import { BulkUpdateTicketsDto, BulkDeleteTicketsDto } from '../dto/bulk-update.dto';
 import { MergeTicketsDto } from '../dto/ticket-merge.dto';
 import { TicketMergeService } from '../services/ticket-merge.service';
+import { TicketSlaExtendService } from '../services/ticket-sla-extend.service';
+import { TicketForwardService } from '../services/ticket-forward.service';
+import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
+import { TicketParticipantService } from '../services/ticket-participant.service';
 import { TicketStatsService } from '../services/ticket-stats.service';
 import { AttachmentMultiInterceptor, getRelativeUploadPath } from './interceptors/attachment-upload.interceptor';
+import { AddParticipantsDto } from '../dto/ticket-participant.dto';
+import { ExtendSlaDto } from '../dto/extend-sla.dto';
+import { ForwardTicketDto } from '../dto/forward-ticket.dto';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -52,7 +59,11 @@ export class TicketsController {
         private readonly ticketMessagingService: TicketMessagingService,
         private readonly ticketQueryService: TicketQueryService,
         private readonly ticketMergeService: TicketMergeService,
+        private readonly ticketParticipantService: TicketParticipantService,
         private readonly ticketStatsService: TicketStatsService,
+        private readonly ticketSlaExtendService: TicketSlaExtendService,
+        private readonly ticketForwardService: TicketForwardService,
+        private readonly kbService: KnowledgeBaseService,
     ) { }
 
     @Post()
@@ -117,7 +128,15 @@ export class TicketsController {
     }
 
     @Get('dashboard/stats')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ADMIN, UserRole.AGENT_ORACLE)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.AGENT,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT_ORACLE,
+        UserRole.MANAGER,
+        UserRole.USER,
+    )
     @ApiOperation({ summary: 'Get dashboard statistics' })
     @ApiResponse({ status: 200, description: 'Return dashboard statistics.' })
     async getDashboardStats(
@@ -160,6 +179,20 @@ export class TicketsController {
         return this.ticketQueryService.findOne(id);
     }
 
+    @Get(':id/kb-suggestions')
+    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @ApiOperation({ summary: 'Suggest most relevant KB articles for a ticket' })
+    @ApiResponse({ status: 200, description: 'Top relevant articles (max 3)' })
+    async getKbSuggestions(@Param('id') id: string, @Request() req: any) {
+        const ticket = await this.ticketQueryService.findOne(id, {
+            id: req.user?.userId || req.user?.id,
+            role: req.user?.role,
+            siteId: req.user?.siteId ?? null,
+        });
+        const text = `${ticket?.title || ''} ${ticket?.description || ''}`.trim();
+        return this.kbService.suggestForTicket(text, req.user);
+    }
+
     @Get(':id/messages')
     @ApiOperation({ summary: 'Get ticket messages' })
     @ApiResponse({ status: 200, description: 'Return ticket messages.' })
@@ -178,7 +211,14 @@ export class TicketsController {
         @Query('limit') limit: number = 20,
         @Request() req: any,
     ) {
-        return this.ticketMessagingService.getMessagesPaginated(ticketId, +page || 1, +limit || 20, req.user.role, req.user.siteId ?? null);
+        return this.ticketMessagingService.getMessagesPaginated(
+            ticketId,
+            +page || 1,
+            +limit || 20,
+            req.user.role,
+            req.user.siteId ?? null,
+            req.user.userId || req.user.id,
+        );
     }
 
     @Post(':id/reply')
@@ -223,6 +263,40 @@ export class TicketsController {
             parsedMentionedUserIds,
             isInternalNote,
         );
+    }
+
+    @Get(':id/participants')
+    @ApiOperation({ summary: 'Get participants of a ticket' })
+    @ApiResponse({ status: 200, description: 'Return participants.' })
+    async getParticipants(@Param('id') id: string) {
+        return this.ticketParticipantService.getParticipants(id);
+    }
+
+    @Post(':id/participants')
+    @ApiOperation({ summary: 'Add participants to a ticket' })
+    @ApiResponse({ status: 200, description: 'Participants added successfully.' })
+    async addParticipants(
+        @Param('id') id: string,
+        @Body() body: AddParticipantsDto,
+        @Request() req: any,
+    ) {
+        const actorUserId = req.user.userId || req.user.id;
+        const actorRole = req.user.role;
+        return this.ticketParticipantService.addParticipants(id, body.userIds, actorUserId, actorRole);
+    }
+
+    @Delete(':id/participants/:userId')
+    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE)
+    @ApiOperation({ summary: 'Remove a participant from a ticket (Oracle Agent / Admin only)' })
+    @ApiResponse({ status: 200, description: 'Participant removed successfully.' })
+    async removeParticipant(
+        @Param('id') id: string,
+        @Param('userId') targetUserId: string,
+        @Request() req: any,
+    ) {
+        const actorUserId = req.user.userId || req.user.id;
+        const actorRole = req.user.role;
+        return this.ticketParticipantService.removeParticipant(id, targetUserId, actorUserId, actorRole);
     }
 
     @Patch(':id/status')
@@ -281,7 +355,7 @@ export class TicketsController {
         @Body() dto: AssignTicketDto,
         @Request() req: any,
     ) {
-        return this.ticketUpdateService.assignTicket(id, dto.assigneeId, req.user.userId);
+        return this.ticketUpdateService.assignTicket(id, dto.assigneeId, req.user.userId, dto.reason);
     }
 
     @Patch(':id/cancel')
@@ -293,6 +367,36 @@ export class TicketsController {
         @Request() req: any,
     ) {
         return this.ticketUpdateService.cancelTicket(id, req.user.userId, req.user.role, dto.reason);
+    }
+
+    @Post(':id/sla/extend')
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @ApiOperation({ summary: 'Extend the SLA target of a ticket, recording the reason' })
+    @ApiResponse({ status: 201, description: 'SLA extended' })
+    async extendSla(
+        @Param('id') id: string,
+        @Body() dto: ExtendSlaDto,
+        @Request() req: any,
+    ) {
+        return this.ticketSlaExtendService.extendSla(id, dto, {
+            userId: req.user.userId,
+            role: req.user.role,
+        });
+    }
+
+    @Post(':id/forward')
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @ApiOperation({ summary: 'Forward a ticket to the other handling team (ops <-> oracle)' })
+    @ApiResponse({ status: 201, description: 'Ticket forwarded' })
+    async forwardTicket(
+        @Param('id') id: string,
+        @Body() dto: ForwardTicketDto,
+        @Request() req: any,
+    ) {
+        return this.ticketForwardService.forwardTicket(id, dto, {
+            userId: req.user.userId,
+            fullName: req.user.fullName || req.user.username,
+        });
     }
 
     @Patch('bulk/update')
@@ -310,6 +414,7 @@ export class TicketsController {
                 priority: dto.priority,
                 assigneeId: dto.assigneeId,
                 category: dto.category,
+                reason: dto.reason,
             },
             req.user.userId,
         );

@@ -3,6 +3,7 @@ import { ArticleView } from './article-view.entity';
 
 export enum ArticleStatus {
     DRAFT = 'draft',
+    PENDING_REVIEW = 'pending_review',
     PUBLISHED = 'published',
     ARCHIVED = 'archived',
 }

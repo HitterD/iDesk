@@ -1,3 +1,24 @@
+export interface TicketParticipant {
+    id: string;
+    ticketId: string;
+    userId: string;
+    role: string;
+    joinedAt: string;
+    user?: {
+        id: string;
+        fullName: string;
+        email: string;
+        avatarUrl?: string | null;
+        department?: {
+            name: string;
+        };
+    };
+    invitedBy?: {
+        id: string;
+        fullName: string;
+    } | null;
+}
+
 export interface TicketDetail {
     id: string;
     ticketNumber?: string;
@@ -6,6 +27,8 @@ export interface TicketDetail {
     status: string;
     priority: string;
     category: string;
+    ticketType?: string;
+    handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | string;
     device?: string;
     createdAt: string;
     updatedAt: string;
@@ -21,6 +44,7 @@ export interface TicketDetail {
         id?: string;
         fullName: string;
         email: string;
+        avatarUrl?: string | null;
         department?: {
             name: string;
         };
@@ -33,6 +57,8 @@ export interface TicketDetail {
     assignedTo?: {
         id: string;
         fullName: string;
+        email?: string;
+        site?: { name?: string; code?: string };
     };
     messages?: {
         id: string;
@@ -44,11 +70,22 @@ export interface TicketDetail {
         sender?: {
             id?: string;
             fullName: string;
+            role?: string;
+            avatarUrl?: string | null;
         };
     }[];
+    participants?: TicketParticipant[];
+    isParticipant?: boolean;
 }
 
 export interface Agent {
     id: string;
     fullName: string;
+    email: string;
+    role: string;
+    avatarUrl?: string;
+    site?: {
+        name?: string;
+        code?: string;
+    };
 }

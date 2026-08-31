@@ -1,324 +1,564 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, CheckCircle, Ban, XCircle, HardDrive, Wrench, AlertTriangle } from 'lucide-react';
+import {
+    ArrowLeft,
+    Clock,
+    CheckCircle2,
+    XCircle,
+    Ban,
+    AlertTriangle,
+    MessageSquare,
+    History,
+    SlidersHorizontal,
+    UserCheck,
+    Activity,
+    AlertCircle,
+    Monitor,
+    Building,
+    Wrench,
+    Copy,
+    Check,
+    MapPin,
+    Tag,
+    PanelRightClose,
+    PanelRightOpen,
+    UserX,
+    Sparkles,
+    Users,
+} from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
 import { useTicketSocket } from '@/hooks/useTicketSocket';
 import { TicketChat } from '../../ticket-board/components/ticket-detail/TicketChat';
+import { TicketHistory } from '../../ticket-board/components/ticket-detail/TicketHistory';
+import { TicketParticipantsSection } from '../../ticket-board/components/ticket-detail/TicketParticipantsSection';
 import { ImageLightbox } from '../../ticket-board/components/ticket-detail/ImageLightbox';
-import { TicketInfoCard } from '../../ticket-board/components/ticket-detail/TicketInfoCard';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
+import { KbSuggestionDialog } from '../../ticket-board/components/KbSuggestionDialog';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '../../ticket-board/components/ticket-detail/constants';
+import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
 
-/** SLA countdown only renders down to the minute, so recomputing faster is wasted work. */
+/** SLA countdown recomputed every minute */
 const SLA_TICK_MS = 60_000;
-/** Mirrors `CancelTicketDto.reason` (`@MaxLength(500)`); a longer body is rejected server-side. */
+/** Max characters for ticket cancellation reason */
 const CANCEL_REASON_MAX = 500;
 
-const UserTicketHeader = ({ ticket, onCancel }: { ticket: TicketDetail, onCancel: () => void }) => {
-    const navigate = useNavigate();
-    const isClosed = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
-    const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
+const formatTimeRemaining = (diffMs: number): string => {
+    if (diffMs <= 0) return 'Overdue';
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    parts.push(`${minutes}m`);
+    return parts.join(' ');
+};
 
-    const [timeLeft, setTimeLeft] = useState<{ d: number, h: number, m: number, isOverdue: boolean } | null>(null);
+interface ClientTicketHeaderProps {
+    ticket: TicketDetail;
+    onCancel: () => void;
+    isSidebarOpen: boolean;
+    onToggleSidebar: () => void;
+}
+
+const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
+    ticket,
+    onCancel,
+    isSidebarOpen,
+    onToggleSidebar,
+}) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const handleBack = () => {
+        if (location.state?.from) {
+            navigate(location.state.from);
+        } else if (window.history.length > 1) {
+            navigate(-1);
+        } else {
+            navigate('/client/my-tickets');
+        }
+    };
+
+    const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
+    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
+    const StatusIcon = statusConfig.icon;
+    const [copied, setCopied] = useState(false);
+    const [resolutionTime, setResolutionTime] = useState<string>('');
+    const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'overdue' | 'resolved' | 'paused'>('ok');
+
+    const isResolved = ticket.status === 'RESOLVED';
+    const isCancelled = ticket.status === 'CANCELLED';
+    const isPaused = ticket.status === 'WAITING_VENDOR';
+    const isTerminal = isResolved || isCancelled;
 
     useEffect(() => {
-        if (!ticket.slaTarget || isClosed) {
-            setTimeLeft(null);
-            return;
-        }
-
-        const calculateTimeLeft = () => {
-            const now = new Date().getTime();
-            const target = new Date(ticket.slaTarget!).getTime();
-            const diff = target - now;
-            
-            if (diff <= 0) {
-                setTimeLeft({ d: 0, h: 0, m: 0, isOverdue: true });
+        const calculateSla = () => {
+            if (isResolved || isCancelled) {
+                setSlaStatus('resolved');
+                setResolutionTime('Done');
                 return;
             }
-            
-            setTimeLeft({
-                d: Math.floor(diff / (1000 * 60 * 60 * 24)),
-                h: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-                m: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
-                isOverdue: false
-            });
+            if (isPaused) {
+                setSlaStatus('paused');
+                setResolutionTime('Paused');
+                return;
+            }
+            if (!ticket.slaTarget) {
+                setResolutionTime('No SLA');
+                return;
+            }
+
+            const now = new Date();
+            const target = new Date(ticket.slaTarget);
+            const diff = target.getTime() - now.getTime();
+
+            if (diff <= 0) {
+                setSlaStatus('overdue');
+                setResolutionTime('Overdue');
+            } else if (diff < 4 * 60 * 60 * 1000) {
+                setSlaStatus('warning');
+                setResolutionTime(formatTimeRemaining(diff));
+            } else {
+                setSlaStatus('ok');
+                setResolutionTime(formatTimeRemaining(diff));
+            }
         };
 
-        calculateTimeLeft();
-        const timer = setInterval(calculateTimeLeft, SLA_TICK_MS);
-        return () => clearInterval(timer);
-    }, [ticket.slaTarget, isClosed]);
+        calculateSla();
+        const interval = setInterval(calculateSla, SLA_TICK_MS);
+        return () => clearInterval(interval);
+    }, [ticket.slaTarget, isResolved, isCancelled, isPaused]);
+
+    const handleCopyNumber = () => {
+        const num = ticket.ticketNumber || ticket.id;
+        navigator.clipboard.writeText(num);
+        setCopied(true);
+        toast.success(`Copied ticket #${num}`);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const getSlaColors = () => {
+        switch (slaStatus) {
+            case 'overdue':
+                return {
+                    bg: 'bg-rose-50 dark:bg-rose-950/40',
+                    text: 'text-rose-700 dark:text-rose-400',
+                    border: 'border-rose-200 dark:border-rose-900/60',
+                    icon: AlertTriangle,
+                };
+            case 'warning':
+                return {
+                    bg: 'bg-amber-50 dark:bg-amber-950/40',
+                    text: 'text-amber-700 dark:text-amber-400',
+                    border: 'border-amber-200 dark:border-amber-900/60',
+                    icon: Clock,
+                };
+            case 'paused':
+                return {
+                    bg: 'bg-orange-50 dark:bg-orange-950/40',
+                    text: 'text-orange-700 dark:text-orange-400',
+                    border: 'border-orange-200 dark:border-orange-900/60',
+                    icon: Clock,
+                };
+            case 'resolved':
+                return {
+                    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+                    text: 'text-emerald-700 dark:text-emerald-400',
+                    border: 'border-emerald-200 dark:border-emerald-900/60',
+                    icon: CheckCircle2,
+                };
+            default:
+                return {
+                    bg: 'bg-blue-50 dark:bg-blue-950/40',
+                    text: 'text-blue-700 dark:text-blue-400',
+                    border: 'border-blue-200 dark:border-blue-900/60',
+                    icon: Clock,
+                };
+        }
+    };
+
+    const slaColors = getSlaColors();
+    const SlaIcon = slaColors.icon;
 
     return (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-4">
-                <button
-                    type="button"
-                    onClick={() => navigate('/client/my-tickets')}
-                    aria-label="Back to my tickets"
-                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors"
-                >
-                    <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-                </button>
-                <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                            #{ticket.ticketNumber || ticket.id.split('-')[0]}
-                        </span>
-                        <div className={cn("px-2 py-0.5 rounded-md text-xs font-bold flex items-center gap-1 bg-slate-100 dark:bg-slate-800", statusConfig.color)}>
-                            {statusConfig.icon && React.createElement(statusConfig.icon as any, { className: "w-3 h-3" })}
-                            {statusConfig.label}
-                        </div>
-                    </div>
-                    <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight break-words">
-                        {ticket.title}
-                    </h1>
-                </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-                {ticket.slaTarget && !isClosed && timeLeft && (
-                    <div className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border",
-                        timeLeft.isOverdue 
-                            ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:border-red-800"
-                            : timeLeft.d === 0 && timeLeft.h < 4
-                                ? "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 animate-pulse"
-                                : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                    )}>
-                        {timeLeft.isOverdue ? <AlertTriangle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                        {timeLeft.isOverdue 
-                            ? 'SLA Overdue' 
-                            : `${timeLeft.d}d ${timeLeft.h}h ${timeLeft.m}m remaining`}
-                    </div>
-                )}
-                {isClosed && (
-                    <div className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border",
-                        ticket.status === 'RESOLVED' 
-                            ? "bg-green-50 text-green-600 border-green-200 dark:bg-green-900/20 dark:border-green-800" 
-                            : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-                    )}>
-                        {ticket.status === 'RESOLVED' ? <CheckCircle className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
-                        {ticket.status === 'RESOLVED' ? 'Resolved' : 'Cancelled'}
-                    </div>
-                )}
-                {!isClosed && (
+        <header className={cn(
+            "px-3.5 py-3 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
+            isTerminal && 'bg-slate-50/50 dark:bg-slate-900/50'
+        )}>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+                {/* Left: Back button + Badges + Title */}
+                <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                     <button
                         type="button"
-                        onClick={onCancel}
-                        className="px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 transition-colors flex items-center gap-1.5"
+                        onClick={handleBack}
+                        className="mt-0.5 sm:mt-1 p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
+                        title="Kembali"
                     >
-                        <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                        Cancel ticket
+                        <ArrowLeft className="w-4 h-4" />
                     </button>
-                )}
-            </div>
-        </div>
-    );
-};
 
-const UserStatusPipeline = ({ status }: { status: string }) => {
-    if (status === 'CANCELLED') {
-        return (
-            <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/50 p-4">
-                <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400 font-medium text-sm">
-                    <Ban className="w-4 h-4" />
-                    This ticket has been cancelled and is now closed.
-                </div>
-            </div>
-        );
-    }
+                    <div className="min-w-0 flex-1 space-y-1 sm:space-y-1.5">
+                        {/* Badges Row */}
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            <button
+                                type="button"
+                                onClick={handleCopyNumber}
+                                className="group inline-flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                title="Click to copy ticket number"
+                            >
+                                <span>#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
+                                {copied ? (
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                ) : (
+                                    <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-colors" />
+                                )}
+                            </button>
 
-    const steps = [
-        { id: 'TODO', label: 'Open' },
-        { id: 'IN_PROGRESS', label: 'In Progress' },
-        { id: 'WAITING_VENDOR', label: 'Waiting' },
-        { id: 'RESOLVED', label: 'Resolved' }
-    ];
-
-    // An unknown status yields -1, which would mark every step "upcoming" — treat it
-    // as freshly opened instead so the pipeline never renders as blank.
-    const foundIndex = steps.findIndex(s => s.id === status);
-    const currentIndex = foundIndex === -1 ? 0 : foundIndex;
-    const progress = currentIndex / (steps.length - 1);
-
-    return (
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sm:p-6">
-            <ol
-                className="flex items-start justify-between max-w-3xl mx-auto relative"
-                aria-label="Ticket progress"
-            >
-                <div className="absolute left-0 top-4 -translate-y-1/2 w-full h-0.5 bg-slate-100 dark:bg-slate-800" aria-hidden="true" />
-                {/* scaleX rather than an animated width: width animation relayouts the row
-                    on every frame, which janks the whole header on low-end devices. */}
-                <div
-                    className="absolute left-0 top-4 -translate-y-1/2 w-full h-0.5 bg-primary origin-left transition-transform duration-500 motion-reduce:transition-none"
-                    style={{ transform: `scaleX(${progress})` }}
-                    aria-hidden="true"
-                />
-
-                {steps.map((step, idx) => {
-                    const isCompleted = idx < currentIndex;
-                    const isCurrent = idx === currentIndex;
-                    const config = STATUS_CONFIG[step.id];
-
-                    return (
-                        <li
-                            key={step.id}
-                            aria-current={isCurrent ? 'step' : undefined}
-                            className="flex flex-col items-center gap-2 relative flex-1 min-w-0 bg-white dark:bg-slate-900 px-1"
-                        >
-                            <div className={cn(
-                                "w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold transition-colors ring-4 ring-white dark:ring-slate-900",
-                                isCompleted ? "bg-primary text-primary-foreground" :
-                                isCurrent ? "bg-white border-2 border-primary text-primary" :
-                                "bg-slate-100 dark:bg-slate-800 text-slate-400"
-                            )}>
-                                {isCompleted ? <CheckCircle className="w-4 h-4" aria-hidden="true" /> : (idx + 1)}
-                            </div>
                             <span className={cn(
-                                "text-xs sm:text-xs font-bold uppercase tracking-wider text-center leading-tight",
-                                isCurrent ? config?.color || "text-slate-900 dark:text-white" :
-                                isCompleted ? "text-slate-600 dark:text-slate-300" :
-                                "text-slate-400"
+                                "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs",
+                                statusConfig.color
                             )}>
-                                {step.label}
+                                <StatusIcon className="w-3.5 h-3.5" />
+                                {statusConfig.label}
                             </span>
-                        </li>
-                    );
-                })}
-            </ol>
-        </div>
+
+                            <span className={cn(
+                                "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700",
+                                priorityConfig.color
+                            )}>
+                                <span className={cn("w-2 h-2 rounded-full", priorityConfig.dot)} />
+                                {priorityConfig.label}
+                            </span>
+
+                            {ticket.category && (
+                                <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
+                                    {ticket.category.replace(/_/g, ' ')}
+                                </span>
+                            )}
+
+                            {ticket.device && (
+                                <span className="hidden sm:inline-flex px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
+                                    {ticket.device}
+                                </span>
+                            )}
+
+                            {ticket.participants && ticket.participants.length > 0 && (
+                                <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 inline-flex items-center gap-1.5 shadow-2xs">
+                                    <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                    <span>{1 + ticket.participants.length} Anggota</span>
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Ticket Title */}
+                        <h1 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                            {ticket.title}
+                        </h1>
+                    </div>
+                </div>
+
+                {/* Right: SLA Pill + Cancel Action + Toggle Sidebar */}
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
+                    {/* SLA Resolution Pill */}
+                    <div className={cn(
+                        "px-3 py-1.5 rounded-xl border inline-flex items-center gap-2 text-xs font-bold shadow-2xs transition-all",
+                        slaColors.bg,
+                        slaColors.text,
+                        slaColors.border
+                    )}>
+                        <SlaIcon className={cn("w-3.5 h-3.5", slaStatus === 'overdue' && "animate-pulse")} />
+                        <span>SLA: {resolutionTime}</span>
+                    </div>
+
+                    {/* Cancel or Resolved Indicator */}
+                    {isTerminal ? (
+                        <div className={cn(
+                            "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs border",
+                            isResolved
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50"
+                                : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50"
+                        )}>
+                            {isResolved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                            <span>{isResolved ? 'Resolved' : 'Cancelled'}</span>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/50 text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Cancel Ticket</span>
+                        </button>
+                    )}
+
+                    {/* Toggle Properties Sidebar Button (Desktop only) */}
+                    <button
+                        type="button"
+                        onClick={onToggleSidebar}
+                        className="hidden lg:flex p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                        title={isSidebarOpen ? "Hide Ticket Properties" : "Show Ticket Properties"}
+                    >
+                        {isSidebarOpen ? (
+                            <PanelRightClose className="w-4 h-4" />
+                        ) : (
+                            <PanelRightOpen className="w-4 h-4" />
+                        )}
+                    </button>
+                </div>
+            </div>
+        </header>
     );
 };
 
-/** Rendered in the desktop sidebar and again in the mobile strip — same markup, one source. */
-const InstallationSchedule = ({ ticket, className }: { ticket: TicketDetail; className?: string }) => (
-    <div className={cn("p-5 border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/10 shrink-0", className)}>
-        <p className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <HardDrive className="w-3 h-3" aria-hidden="true" />
-            Installation Schedule
-        </p>
-        <div className="space-y-3">
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm border border-amber-100 dark:border-amber-800/50">
-                <p className="text-xs text-amber-600 dark:text-amber-500 mb-0.5 flex items-center gap-1.5">
-                    <Wrench className="w-3 h-3" aria-hidden="true" /> Hardware Type
-                </p>
-                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{ticket.hardwareType || 'Not specified'}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-                <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
-                    <p className="text-xs text-slate-500 uppercase">Date</p>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '-'}
-                    </p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm text-center border border-slate-100 dark:border-slate-700">
-                    <p className="text-xs text-slate-500 uppercase">Time</p>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {ticket.scheduledTime ? `${ticket.scheduledTime}` : '-'}
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-);
+const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => {
+    const { user } = useAuth();
+    const [copiedEmail, setCopiedEmail] = useState(false);
+    const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
+    const StatusIcon = statusConfig.icon;
+    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
+    const assignedAgent = ticket.assignedTo;
 
-/**
- * The sidebar is desktop-only, so on a phone the assignee, priority and — for hardware
- * tickets — the whole installation schedule were unreachable. This carries the same
- * facts in a compact strip.
- */
-const MobileTicketMeta = ({ ticket }: { ticket: TicketDetail }) => {
-    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.LOW;
+    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const isAgentOracle = user?.role === 'AGENT_ORACLE';
+    const isAdmin = user?.role === 'ADMIN';
+    const canManageParticipants = isAgentOracle || isAdmin;
+    const isOracleTicket = ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST';
+    const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
+
+    const handleCopyEmail = () => {
+        if (assignedAgent?.email) {
+            navigator.clipboard.writeText(assignedAgent.email);
+            setCopiedEmail(true);
+            toast.success('Agent email copied to clipboard');
+            setTimeout(() => setCopiedEmail(false), 2000);
+        }
+    };
 
     return (
-        <div className="lg:hidden border-b border-slate-200 dark:border-slate-800">
-            <div className="flex flex-wrap items-center gap-2 px-5 py-3 text-xs">
-                <span className="inline-flex items-center gap-1.5 text-slate-500">
-                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                        {ticket.assignedTo?.fullName?.charAt(0) || '?'}
+        <div className="p-4 space-y-4 select-none">
+            {/* 1. Assigned Agent Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Assigned Agent
                     </span>
-                    {ticket.assignedTo?.fullName || 'Unassigned'}
-                </span>
-                <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-bold bg-slate-100 dark:bg-slate-800", priorityConfig.color)}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" aria-hidden="true" />
-                    {priorityConfig.label}
-                </span>
-                {ticket.category && (
-                    <span className="px-2 py-0.5 rounded-md font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                        {ticket.category}
-                    </span>
-                )}
-                {ticket.device && (
-                    <span className="px-2 py-0.5 rounded-md font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                        {ticket.device}
-                    </span>
+                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                {assignedAgent ? (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="relative shrink-0">
+                                <div className="w-11 h-11 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-sm shadow-xs">
+                                    {assignedAgent.fullName.charAt(0).toUpperCase()}
+                                </div>
+                                <PresenceDot userId={assignedAgent.id} userName={assignedAgent.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                    {assignedAgent.fullName}
+                                </h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    IT Support Specialist
+                                </p>
+                            </div>
+                        </div>
+
+                        {assignedAgent.email && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-slate-400">Email</span>
+                                    <div className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[170px]">
+                                        <span className="truncate">{assignedAgent.email}</span>
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyEmail}
+                                            className="p-0.5 hover:text-blue-600 transition-colors shrink-0 cursor-pointer"
+                                            title="Copy Agent Email"
+                                        >
+                                            {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-slate-400" />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {assignedAgent.site?.name && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-slate-400 flex items-center gap-1.5">
+                                            <MapPin className="w-3.5 h-3.5" /> Branch / Site
+                                        </span>
+                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
+                                            {assignedAgent.site.name}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-1">
+                        <div className="w-8 h-8 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-slate-500 mx-auto flex items-center justify-center">
+                            <UserX className="w-4 h-4" />
+                        </div>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Menunggu Teknisi</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Tiket Anda dalam antrean penugasan tim IT Support</p>
+                    </div>
                 )}
             </div>
-            {ticket.isHardwareInstallation && (
-                <InstallationSchedule ticket={ticket} className="border-t pt-4" />
+
+            {/* 1.5. Ticket Participants (Oracle Tickets / Multi-user Group) */}
+            {(isOracleTicket || (ticket.participants && ticket.participants.length > 0)) && (
+                <TicketParticipantsSection
+                    ticketId={ticket.id}
+                    creator={ticket.user}
+                    participants={ticket.participants}
+                    canManageUsers={canManageParticipants}
+                    canAddUsers={canAddParticipants}
+                    isClosed={isClosed}
+                />
             )}
-        </div>
-    );
-};
 
-const UserInfoPanel = ({ ticket }: { ticket: TicketDetail }) => {
-    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.LOW;
+            {/* 2. Ticket Properties Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Ticket Properties
+                    </span>
+                    <Activity className="w-3.5 h-3.5 text-slate-400" />
+                </div>
 
-    return (
-        <div className="w-64 border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-col overflow-y-auto custom-scrollbar shrink-0 hidden lg:flex">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Assigned Agent</p>
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                        {ticket.assignedTo?.fullName?.charAt(0) || '?'}
+                <div className="space-y-3 text-xs">
+                    {/* Status */}
+                    <div className="space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Activity className="w-3.5 h-3.5 text-slate-400" /> Status
+                        </span>
+                        <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center justify-between">
+                            <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold", statusConfig.color)}>
+                                <StatusIcon className="w-3.5 h-3.5" />
+                                {statusConfig.label}
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-400">#{ticket.status}</span>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">
-                            {ticket.assignedTo?.fullName || 'Unassigned'}
-                        </p>
-                        <p className="text-xs text-slate-500">IT Support</p>
+
+                    {/* Priority */}
+                    <div className="space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 text-slate-400" /> Priority
+                        </span>
+                        <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", priorityConfig.dot)} />
+                                <span className="font-bold text-slate-900 dark:text-white">{priorityConfig.label}</span>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Category */}
+                    {ticket.category && (
+                        <div className="space-y-1.5">
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Tag className="w-3.5 h-3.5 text-slate-400" /> Category
+                            </span>
+                            <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                                <Tag className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <span>{ticket.category.replace(/_/g, ' ')}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Device / Hardware */}
+                    {ticket.device && (
+                        <div className="space-y-1.5">
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Monitor className="w-3.5 h-3.5 text-slate-400" /> Device / Asset
+                            </span>
+                            <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+                                <Monitor className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <span>{ticket.device}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            <div className="p-5 space-y-4">
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Priority</p>
-                    <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700", priorityConfig.color)}>
-                        <div className="w-2 h-2 rounded-full bg-current opacity-50" />
-                        {priorityConfig.label}
-                    </div>
+            {/* 3. SLA & Tracking Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        SLA & Tracking
+                    </span>
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
                 </div>
 
-                {ticket.category && (
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Category</p>
-                        <div className="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                            {ticket.category}
-                        </div>
+                <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-slate-400">Created At</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {formatDateTimeID(ticket.createdAt)}
+                        </span>
                     </div>
-                )}
-                
-                {ticket.device && (
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Device / Asset</p>
-                        <div className="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                            {ticket.device}
-                        </div>
+
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-slate-400">Last Activity</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {formatRelativeTime(ticket.updatedAt)}
+                        </span>
                     </div>
-                )}
+
+                    {ticket.slaTarget && (
+                        <div className="flex items-center justify-between py-1">
+                            <span className="text-slate-400">SLA Target</span>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                {formatDateTimeID(ticket.slaTarget)}
+                            </span>
+                        </div>
+                    )}
+                </div>
             </div>
 
+            {/* 4. Hardware Installation Schedule (if applicable) */}
             {ticket.isHardwareInstallation && (
-                <InstallationSchedule ticket={ticket} className="mt-auto border-t" />
+                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 shadow-2xs space-y-3">
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-amber-200/60 dark:border-amber-900/40">
+                        <Wrench className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                            Hardware Installation
+                        </span>
+                    </div>
+
+                    <div className="text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-amber-700/80 dark:text-amber-400/80">Hardware Item:</span>
+                            <span className="font-bold text-slate-900 dark:text-white">
+                                {ticket.hardwareType || 'N/A'}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Date</span>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                </span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Time</span>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {ticket.scheduledTime || '-'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -329,14 +569,27 @@ export const ClientTicketDetailPage: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    
+
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
+    const [mainTab, setMainTab] = useState<'chat' | 'activity' | 'properties'>('chat');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
     const { isConnected, typingUsers, sendTypingStart, sendTypingStop } = useTicketSocket({
-        ticketId: id
+        ticketId: id,
     });
+
+    // Suggest KB articles once per ticket visit (per browser session).
+    useEffect(() => {
+        if (!id) return;
+        const key = `idesk_kb_suggested_${id}`;
+        if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1');
+            setSuggestionsOpen(true);
+        }
+    }, [id]);
 
     const { data: ticket, isLoading } = useQuery<TicketDetail>({
         queryKey: ['ticket', id],
@@ -357,6 +610,7 @@ export const ClientTicketDetailPage: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
         },
         onError: () => toast.error('Failed to send reply'),
     });
@@ -389,67 +643,211 @@ export const ClientTicketDetailPage: React.FC = () => {
                 formData.append('files', file);
             });
         }
-        
+
         await replyMutation.mutateAsync(formData);
     };
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+                <div className="animate-spin w-8 h-8 border-3 border-primary border-t-transparent rounded-full" />
+                <p className="text-xs text-muted-foreground font-medium">Memuat detail tiket...</p>
             </div>
         );
     }
 
     if (!ticket) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-4">
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Ticket not found</h2>
-                <button onClick={() => navigate('/client/my-tickets')} className="text-primary hover:underline">Back to My Tickets</button>
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-6">
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <XCircle className="w-6 h-6" />
+                </div>
+                <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Ticket not found</h2>
+                    <p className="text-xs text-slate-500 mt-1">Tiket yang Anda cari tidak ditemukan atau telah dihapus.</p>
+                </div>
+                <button
+                    onClick={() => navigate('/client/my-tickets')}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer"
+                >
+                    Kembali ke My Tickets
+                </button>
             </div>
         );
     }
 
-    return (
-        <div className="flex flex-col h-full w-full overflow-hidden bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="shrink-0">
-                <UserTicketHeader ticket={ticket} onCancel={() => setIsCancelDialogOpen(true)} />
-            </div>
-            <div className="shrink-0">
-                <UserStatusPipeline status={ticket.status} />
-            </div>
-            <div className="shrink-0">
-                <MobileTicketMeta ticket={ticket} />
-            </div>
+    const isClosed = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
+    const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
+    const handleToggleSidebar = () => {
+        setIsSidebarOpen(prev => !prev);
+    };
+
+    return (
+        <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 rounded-none sm:rounded-2xl border-0 sm:border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
+            {/* ── Top Header with SLA + Quick Badges ── */}
+            <ClientTicketHeader
+                ticket={ticket}
+                onCancel={() => setIsCancelDialogOpen(true)}
+                isSidebarOpen={isSidebarOpen}
+                onToggleSidebar={handleToggleSidebar}
+            />
+
+            {/* ── Main Work Area ── */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 flex flex-col min-w-0 min-h-0 border-r border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <div className="shrink-0 border-b border-slate-100 dark:border-slate-800">
-                        <TicketInfoCard ticket={ticket} />
+
+                {/* LEFT & CENTER: Conversation Timeline / Activity / Mobile Details */}
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80">
+
+                    {/* Navigation Tabs Header */}
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 shrink-0 bg-slate-50/50 dark:bg-slate-900/80">
+                        {/* Desktop Tabs (>= lg) */}
+                        <div className="hidden lg:flex gap-6">
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('chat')}
+                                className={cn(
+                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
+                                    mainTab === 'chat'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Conversation</span>
+                                <span className={cn(
+                                    "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                                    mainTab === 'chat'
+                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                )}>
+                                    {messageCount}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('activity')}
+                                className={cn(
+                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
+                                    mainTab === 'activity'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <History className="w-3.5 h-3.5" />
+                                <span>Activity Logs</span>
+                            </button>
+                        </div>
+
+                        {/* Mobile Tabs (< lg) */}
+                        <div className="flex lg:hidden items-center justify-around w-full gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('chat')}
+                                className={cn(
+                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+                                    mainTab === 'chat'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Chat</span>
+                                <span className={cn(
+                                    "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                                    mainTab === 'chat'
+                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                )}>
+                                    {messageCount}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('properties')}
+                                className={cn(
+                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+                                    mainTab === 'properties'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                <span>Properties</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setMainTab('activity')}
+                                className={cn(
+                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+                                    mainTab === 'activity'
+                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                )}
+                            >
+                                <History className="w-3.5 h-3.5" />
+                                <span>Logs</span>
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900/30">
-                        <TicketChat
-                            ticket={ticket}
-                            isConnected={isConnected}
-                            onSendMessage={handleSendMessage}
-                            onImageClick={setLightboxImage}
-                            typingUsers={typingUsers}
-                            onTypingStart={() => sendTypingStart({ fullName: user?.fullName || 'User' })}
-                            onTypingStop={sendTypingStop}
-                            showCannedResponses={false}
-                        />
+
+                    {/* Tab Content */}
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white dark:bg-slate-900">
+                        {mainTab === 'chat' ? (
+                            <TicketChat
+                                ticket={ticket}
+                                isConnected={isConnected}
+                                onSendMessage={handleSendMessage}
+                                onImageClick={setLightboxImage}
+                                typingUsers={typingUsers}
+                                onTypingStart={() => sendTypingStart({ fullName: user?.fullName || 'User' })}
+                                onTypingStop={sendTypingStop}
+                                showCannedResponses={false}
+                            />
+                        ) : mainTab === 'properties' ? (
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 bg-slate-50/70 dark:bg-slate-900/50 space-y-4 pb-20">
+                                <ClientTicketSidebar ticket={ticket} />
+                                {!isClosed && (
+                                    <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsCancelDialogOpen(true)}
+                                            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                                        >
+                                            <XCircle className="w-4 h-4" />
+                                            Cancel Ticket
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-900/40">
+                                <TicketHistory ticket={ticket} />
+                            </div>
+                        )}
                     </div>
                 </div>
-                <UserInfoPanel ticket={ticket} />
+
+                {/* RIGHT: Desktop Ticket Inspector & Properties Sidebar (>= lg only) */}
+                {isSidebarOpen && (
+                    <aside className="hidden lg:flex w-80 lg:w-88 shrink-0 flex-col bg-slate-50/70 dark:bg-slate-900/50 overflow-y-auto custom-scrollbar">
+                        <ClientTicketSidebar ticket={ticket} />
+                    </aside>
+                )}
             </div>
 
+            {/* Lightbox for Images */}
             {lightboxImage && (
-                <ImageLightbox 
-                    src={lightboxImage} 
-                    onClose={() => setLightboxImage(null)} 
+                <ImageLightbox
+                    src={lightboxImage}
+                    onClose={() => setLightboxImage(null)}
                 />
             )}
 
+            {/* Cancel Confirmation Dialog */}
             <ConfirmationDialog
                 isOpen={isCancelDialogOpen}
                 onCancel={() => { setIsCancelDialogOpen(false); setCancelReason(''); }}
@@ -471,10 +869,18 @@ export const ClientTicketDetailPage: React.FC = () => {
                     maxLength={CANCEL_REASON_MAX}
                     rows={2}
                     disabled={cancelMutation.isPending}
-                    placeholder="Tell the agent why you no longer need this ticket"
+                    placeholder="Tell the IT team why you no longer need this ticket..."
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary resize-none disabled:opacity-50"
                 />
             </ConfirmationDialog>
+
+            {/* KB suggestion popup after visiting a fresh ticket */}
+            <KbSuggestionDialog
+                isOpen={suggestionsOpen}
+                onClose={() => setSuggestionsOpen(false)}
+                ticketId={id || ''}
+                basePath="/client/kb"
+            />
         </div>
     );
 };

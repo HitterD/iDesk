@@ -1,5 +1,5 @@
 import { UserRole } from '../users/enums/user-role.enum';
-import { ArticleVisibility } from './entities/article.entity';
+import { ArticleStatus, ArticleVisibility } from './entities/article.entity';
 
 /**
  * Roles that belong to the internal ICT/agent staff.
@@ -46,3 +46,34 @@ export function canReadArticle(
 
     return allowedVisibilities(user.role).includes(article.visibility);
 }
+
+/**
+ * Publishing is role-gated. Articles marked PUBLIC need an admin review
+ * before they reach the whole company: a non-admin author who asks to
+ * "publish" gets PENDING_REVIEW instead. INTERNAL is staff-facing so
+ * agents may publish it directly. Admins publish anything directly.
+ */
+export function finalPublishStatus(
+    requested: ArticleStatus | undefined,
+    visibility: ArticleVisibility | undefined,
+    actorRole?: UserRole | string | null,
+): ArticleStatus {
+    if (requested !== ArticleStatus.PUBLISHED) {
+        return requested ?? ArticleStatus.DRAFT;
+    }
+
+    if (actorRole === UserRole.ADMIN) {
+        return ArticleStatus.PUBLISHED;
+    }
+
+    return visibility === ArticleVisibility.INTERNAL
+        ? ArticleStatus.PUBLISHED
+        : ArticleStatus.PENDING_REVIEW;
+}
+
+/**
+ * Whether the actor may move an article out of PENDING_REVIEW.
+ * Only an admin may decide the fate of a PENDING_REVIEW article.
+ */
+export const canReviewPending = (actorRole?: UserRole | string | null): boolean =>
+    actorRole === UserRole.ADMIN;

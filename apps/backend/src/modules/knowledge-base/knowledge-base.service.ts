@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject, forwardRef, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef, Optional, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, FindOptionsWhere, In } from 'typeorm';
 import { Article, ArticleStatus, ArticleVisibility } from './entities/article.entity';
@@ -9,7 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { UserRole } from '../users/enums/user-role.enum';
-import { canReadArticle } from './kb-visibility.util';
+import { canReadArticle, finalPublishStatus, canReviewPending, allowedVisibilities } from './kb-visibility.util';
 
 export interface ArticleFilters {
     query?: string;
@@ -19,6 +19,12 @@ export interface ArticleFilters {
     visibilities?: ArticleVisibility[];
     authorId?: string;
 }
+
+/** Threshold for a suggestion to be considered "relevant enough" to show
+ *  to the ticket creator. Lower = more suggestions, more false positives. */
+const SUGGESTION_MIN_RANK = 0.05;
+/** How many suggestions to return at most. */
+const SUGGESTION_LIMIT = 3;
 
 @Injectable()
 export class KnowledgeBaseService {
@@ -37,9 +43,22 @@ export class KnowledgeBaseService {
         private readonly eventsGateway?: EventsGateway,
     ) { }
 
-    async create(createArticleDto: CreateArticleDto, authorId?: string, authorName?: string): Promise<Article> {
+    async create(
+        createArticleDto: CreateArticleDto,
+        authorId?: string,
+        authorName?: string,
+        authorRole?: UserRole | string | null,
+    ): Promise<Article> {
+        // A non-admin asking for PUBLISHED with PUBLIC visibility gets
+        // PENDING_REVIEW: the whole company must not see it before admin review.
+        const status = finalPublishStatus(
+            createArticleDto.status,
+            createArticleDto.visibility,
+            authorRole,
+        );
         const article = this.articleRepo.create({
             ...createArticleDto,
+            status,
             authorId,
             authorName,
         });
@@ -141,9 +160,64 @@ export class KnowledgeBaseService {
         return article;
     }
 
-    async update(id: string, updateArticleDto: UpdateArticleDto, updatedByUserId?: string): Promise<Article> {
+    /**
+     * Suggest the most relevant published articles for a ticket, based on
+     * full-text search over title + content. Ranked by ts_rank; returns at
+     * most SUGGESTION_LIMIT results above SUGGESTION_MIN_RANK. Visibility is
+     * derived from the caller role (staff see INTERNAL too).
+     */
+    async suggestForTicket(
+        ticketText: string,
+        user: { userId?: string; role?: UserRole | string | null },
+    ): Promise<Article[]> {
+        const query = (ticketText || '').trim();
+        if (query.length < 3) return [];
+
+        const results = await this.articleRepo
+            .createQueryBuilder('article')
+            .select()
+            .addSelect(
+                `ts_rank(to_tsvector('indonesian', COALESCE(article.title, '') || ' ' || COALESCE(article.content, '')), plainto_tsquery('indonesian', :q))`,
+                'rank',
+            )
+            .where("article.status = 'published'")
+            .andWhere('article.visibility IN (:...visibilities)', {
+                visibilities: allowedVisibilities(user.role),
+            })
+            .andWhere(
+                `to_tsvector('indonesian', COALESCE(article.title, '') || ' ' || COALESCE(article.content, '')) @@ plainto_tsquery('indonesian', :q)`,
+                { q: query },
+            )
+            .orderBy('rank', 'DESC')
+            .take(SUGGESTION_LIMIT)
+            .getMany();
+
+        return results.filter((article: any) => Number(article.rank) >= SUGGESTION_MIN_RANK);
+    }
+
+    async update(
+        id: string,
+        updateArticleDto: UpdateArticleDto,
+        updatedByUserId?: string,
+        actorRole?: UserRole | string | null,
+    ): Promise<Article> {
         const article = await this.findOne(id, false);
         const oldValue = { title: article.title, category: article.category, status: article.status };
+
+        if (updateArticleDto.status && updateArticleDto.status !== article.status) {
+            if (!canReviewPending(actorRole) && article.status === ArticleStatus.PENDING_REVIEW) {
+                // Non-admin may edit content, but the review status is the
+                // admin's call: content edits set the article back to
+                // PENDING_REVIEW only if it already was, never to PUBLISHED.
+                updateArticleDto.status = ArticleStatus.PENDING_REVIEW;
+            } else {
+                updateArticleDto.status = finalPublishStatus(
+                    updateArticleDto.status,
+                    updateArticleDto.visibility ?? article.visibility,
+                    actorRole,
+                );
+            }
+        }
         Object.assign(article, updateArticleDto);
         const saved = await this.articleRepo.save(article);
 
@@ -161,8 +235,22 @@ export class KnowledgeBaseService {
         return saved;
     }
 
-    async updateStatus(id: string, status: ArticleStatus, updatedByUserId?: string): Promise<Article> {
+    async updateStatus(
+        id: string,
+        status: ArticleStatus,
+        updatedByUserId?: string,
+        actorRole?: UserRole | string | null,
+    ): Promise<Article> {
         const article = await this.findOne(id, false);
+
+        if (status === ArticleStatus.PUBLISHED && !canReviewPending(actorRole)) {
+            // Publish from draft/internal is OK for staff, but moving out of
+            // PENDING_REVIEW is an admin decision only.
+            if (article.status === ArticleStatus.PENDING_REVIEW) {
+                throw new ForbiddenException('Only an admin may approve a pending_review article');
+            }
+            status = finalPublishStatus(status, article.visibility, actorRole);
+        }
         const oldStatus = article.status;
         article.status = status;
         const saved = await this.articleRepo.save(article);

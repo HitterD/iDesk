@@ -10,6 +10,7 @@ import {
     FileText,
     Archive,
     Send,
+    X,
     RotateCcw,
     Filter,
     BarChart3,
@@ -29,7 +30,7 @@ interface Article {
     content: string;
     category: string;
     tags: string[];
-    status: 'draft' | 'published' | 'archived';
+    status: 'draft' | 'pending_review' | 'published' | 'archived';
     visibility: 'public' | 'internal' | 'private';
     viewCount: number;
     helpfulCount: number;
@@ -45,6 +46,7 @@ interface Stats {
     totalHelpful: number;
     byStatus: {
         draft: number;
+        pending_review: number;
         published: number;
         archived: number;
     };
@@ -52,6 +54,7 @@ interface Stats {
 
 const STATUS_STYLES = {
     draft: 'bg-warning/10 text-warning',
+    pending_review: 'bg-primary/10 text-primary',
     published: 'bg-success/10 text-success',
     archived: 'bg-muted text-muted-foreground',
 };
@@ -263,6 +266,7 @@ export const BentoManageArticlesPage = () => {
                     >
                         <option value="">All Status</option>
                         <option value="draft">Draft</option>
+                        <option value="pending_review">Pending Review</option>
                         <option value="published">Published</option>
                         <option value="archived">Archived</option>
                     </select>
@@ -373,9 +377,15 @@ export const BentoManageArticlesPage = () => {
                                         </td>
                                         <td className="px-5 py-4">
                                             <span
-                                                className={`px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-semibold capitalize ${STATUS_STYLES[article.status]}`}
+                                                className={`px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-semibold ${STATUS_STYLES[article.status]}`}
                                             >
-                                                {article.status}
+                                                {article.status === 'pending_review'
+                                                    ? 'Menunggu Review'
+                                                    : article.status === 'published'
+                                                        ? 'Published'
+                                                        : article.status === 'archived'
+                                                            ? 'Archived'
+                                                            : 'Draft'}
                                             </span>
                                         </td>
                                         <td className="px-5 py-4 text-sm text-muted-foreground">
@@ -419,7 +429,18 @@ export const BentoManageArticlesPage = () => {
                                                             Edit Article
                                                         </Link>
                                                         
-                                                        {article.status !== 'published' && (
+                                                        {article.status === 'pending_review' ? (
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleUpdateStatus(article.id, 'published');
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-success/10 text-xs font-medium text-success transition-colors w-full text-left"
+                                                            >
+                                                                <Send className="w-3.5 h-3.5" />
+                                                                Approve (Publish)
+                                                            </button>
+                                                        ) : article.status !== 'published' && (
                                                             <button
                                                                 onClick={() => {
                                                                     handleUpdateStatus(article.id, 'published');
@@ -429,6 +450,19 @@ export const BentoManageArticlesPage = () => {
                                                             >
                                                                 <Send className="w-3.5 h-3.5" />
                                                                 Publish Article
+                                                            </button>
+                                                        )}
+
+                                                        {article.status === 'pending_review' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleUpdateStatus(article.id, 'draft');
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-xs font-medium text-destructive transition-colors w-full text-left"
+                                                            >
+                                                                <X className="w-3.5 h-3.5" />
+                                                                Reject (Back to Draft)
                                                             </button>
                                                         )}
 

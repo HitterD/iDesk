@@ -13,6 +13,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from './ticket-message.entity';
+import { TicketParticipant } from './ticket-participant.entity';
 import { Site } from '../../sites/entities/site.entity';
 
 export enum TicketStatus {
@@ -44,6 +45,17 @@ export enum TicketType {
     ACCESS_REQUEST = 'ACCESS_REQUEST',
     HARDWARE_INSTALLATION = 'HARDWARE_INSTALLATION',
     ORACLE_REQUEST = 'ORACLE_REQUEST',
+}
+
+/**
+ * Which team owns the ticket for access purposes. Replaces the old
+ * category/ticketType sniffing for the Oracle split:
+ * OPS_SUPPORT - general ICT/ops support (agents)
+ * ORACLE_DEV  - Oracle/K2 application tickets (AGENT_ORACLE)
+ */
+export enum HandlingTeam {
+    OPS_SUPPORT = 'OPS_SUPPORT',
+    ORACLE_DEV = 'ORACLE_DEV',
 }
 
 @Entity('tickets')
@@ -124,6 +136,13 @@ export class Ticket {
     })
     ticketType: TicketType;
 
+    @Column({
+        type: 'enum',
+        enum: HandlingTeam,
+        default: HandlingTeam.OPS_SUPPORT,
+    })
+    handlingTeam: HandlingTeam;
+
     // Required reason for CRITICAL priority
     @Column({ nullable: true, type: 'text' })
     criticalReason: string;
@@ -133,6 +152,9 @@ export class Ticket {
 
     @OneToMany(() => TicketMessage, (message) => message.ticket)
     messages: TicketMessage[];
+
+    @OneToMany(() => TicketParticipant, (participant) => participant.ticket)
+    participants: TicketParticipant[];
 
     @Column({ default: false })
     isOverdue: boolean;
@@ -154,6 +176,14 @@ export class Ticket {
     slaTarget: Date | null;
 
     // === SLA Enhancement Fields ===
+
+    /**
+     * Anchor for SLA-extend accounting: the target as first set when the
+     * SLA clock started. Extends sum against this, never against a target
+     * that was already shifted by a previous extend. Null until first set.
+     */
+    @Column({ type: 'timestamp', nullable: true })
+    originalSlaTarget: Date | null;
 
     @Column({ type: 'timestamp', nullable: true })
     slaStartedAt: Date | null;

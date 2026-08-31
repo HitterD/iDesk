@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { Ticket } from '../entities/ticket.entity';
+import { Ticket, HandlingTeam } from '../entities/ticket.entity';
 import { isOracleK2Category } from '../utils/oracle-ticket-access.util';
 
 const NON_ORACLE_AGENT_ROLES = [
@@ -12,11 +12,12 @@ const NON_ORACLE_AGENT_ROLES = [
 export const isNonOracleAgent = (role: UserRole): boolean =>
     (NON_ORACLE_AGENT_ROLES as readonly UserRole[]).includes(role);
 
-export const isOracleTicket = (ticket: Pick<Ticket, 'category' | 'ticketType'>): boolean =>
+export const isOracleTicket = (ticket: Pick<Ticket, 'category' | 'ticketType' | 'handlingTeam'>): boolean =>
+    ticket.handlingTeam === HandlingTeam.ORACLE_DEV ||
     isOracleK2Category(ticket.category, ticket.ticketType);
 
 export const assertTicketRoleAccess = (
-    ticket: Pick<Ticket, 'category' | 'ticketType'>,
+    ticket: Pick<Ticket, 'category' | 'ticketType' | 'handlingTeam'>,
     role: UserRole,
 ): void => {
     if (role === UserRole.ADMIN) return;

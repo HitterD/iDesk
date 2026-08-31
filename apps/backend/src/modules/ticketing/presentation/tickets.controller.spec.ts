@@ -7,9 +7,17 @@ describe('TicketsController', () => {
     let mockTicketMessagingService: any;
     let mockTicketQueryService: any;
     let mockTicketMergeService: any;
+    let mockTicketParticipantService: any;
     let mockTicketStatsService: any;
+    let mockTicketSlaExtendService: any;
+    let mockTicketForwardService: any;
+    let mockKbService: any;
 
     beforeEach(() => {
+        mockTicketParticipantService = {};
+        mockTicketSlaExtendService = { extendSla: jest.fn().mockResolvedValue({}) };
+        mockTicketForwardService = { forwardTicket: jest.fn().mockResolvedValue({}) };
+        mockKbService = { suggestForTicket: jest.fn().mockResolvedValue([]) };
         mockTicketStatsService = {
             getHardwareInstallationStats: jest.fn().mockResolvedValue({
                 total: 10,
@@ -25,7 +33,11 @@ describe('TicketsController', () => {
             mockTicketMessagingService,
             mockTicketQueryService,
             mockTicketMergeService,
-            mockTicketStatsService
+            mockTicketParticipantService,
+            mockTicketStatsService,
+            mockTicketSlaExtendService,
+            mockTicketForwardService,
+            mockKbService
         );
     });
 

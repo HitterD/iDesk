@@ -148,7 +148,7 @@ export class KnowledgeBaseController {
     async create(@Body() createArticleDto: CreateArticleDto, @Request() req: any) {
         const authorId = req.user?.userId;
         const authorName = req.user?.fullName || req.user?.username;
-        return this.kbService.create(createArticleDto, authorId, authorName);
+        return this.kbService.create(createArticleDto, authorId, authorName, req.user?.role);
     }
 
     @Put('articles/:id')
@@ -157,8 +157,12 @@ export class KnowledgeBaseController {
     @Roles(UserRole.ADMIN, UserRole.AGENT)
     @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Update article' })
-    async update(@Param('id') id: string, @Body() updateArticleDto: UpdateArticleDto) {
-        return this.kbService.update(id, updateArticleDto);
+    async update(
+        @Param('id') id: string,
+        @Body() updateArticleDto: UpdateArticleDto,
+        @Request() req: any,
+    ) {
+        return this.kbService.update(id, updateArticleDto, req.user?.userId, req.user?.role);
     }
 
     @Patch('articles/:id/status')
@@ -167,8 +171,8 @@ export class KnowledgeBaseController {
     @Roles(UserRole.ADMIN, UserRole.AGENT)
     @PageAccess('knowledge_base')
     @ApiOperation({ summary: 'Update article status' })
-    async updateStatus(@Param('id') id: string, @Body('status') status: ArticleStatus) {
-        return this.kbService.updateStatus(id, status);
+    async updateStatus(@Param('id') id: string, @Body('status') status: ArticleStatus, @Request() req: any) {
+        return this.kbService.updateStatus(id, status, req.user?.userId, req.user?.role);
     }
 
     @Delete('articles/:id')

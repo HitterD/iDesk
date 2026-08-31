@@ -3,11 +3,13 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useAuth } from '@/stores/useAuth';
 import { ArticleForm, ArticleFormData } from '../components/ArticleForm';
 
 export const BentoEditArticlePage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
     const [initialData, setInitialData] = useState<Partial<ArticleFormData> | null>(null);
@@ -24,6 +26,8 @@ export const BentoEditArticlePage = () => {
                     tags: response.data.tags || [],
                     status: response.data.status,
                     visibility: response.data.visibility,
+                    featuredImage: response.data.featuredImage || '',
+                    images: response.data.images || [],
                 });
             } catch (error) {
                 console.error('Failed to fetch article:', error);
@@ -85,22 +89,23 @@ export const BentoEditArticlePage = () => {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-6 pb-12">
+            <div className="flex items-center justify-between gap-4">
                 <Link
                     to={`/kb/articles/${id}`}
-                    className="inline-flex items-center text-slate-500 dark:text-slate-400 hover:text-primary transition-colors font-medium"
+                    className="inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
                 >
-                    <ArrowLeft className="w-5 h-5 mr-2" />
-                    Back to Article
+                    <ArrowLeft className="w-4 h-4 mr-1.5 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>Kembali ke Detail Artikel</span>
                 </Link>
 
                 <button
+                    type="button"
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-transparent hover:border-destructive/20"
                 >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Article
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Artikel</span>
                 </button>
             </div>
 
@@ -110,31 +115,34 @@ export const BentoEditArticlePage = () => {
                 onCancel={() => navigate(`/kb/articles/${id}`)}
                 isLoading={isLoading}
                 mode="edit"
+                isAdmin={user?.role === 'ADMIN'}
             />
 
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 max-w-md w-full mx-4 shadow-2xl">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">
-                            Delete Article?
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                    <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border shadow-lg space-y-4">
+                        <h3 className="text-base font-bold text-foreground">
+                            Hapus Artikel Ini?
                         </h3>
-                        <p className="text-slate-500 dark:text-slate-400 mb-6">
-                            Are you sure you want to delete this article? This action can be undone by an administrator.
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                            Apakah Anda yakin ingin menghapus artikel ini dari Knowledge Base? Tindakan ini dapat dibatalkan melalui log admin jika diperlukan.
                         </p>
-                        <div className="flex items-center justify-end gap-3">
+                        <div className="flex items-center justify-end gap-2 pt-2">
                             <button
+                                type="button"
                                 onClick={() => setShowDeleteConfirm(false)}
-                                className="px-6 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-medium transition-colors"
+                                className="px-3.5 py-1.5 text-muted-foreground hover:text-foreground text-xs font-semibold rounded-lg hover:bg-muted transition-colors cursor-pointer"
                             >
-                                Cancel
+                                Batal
                             </button>
                             <button
+                                type="button"
                                 onClick={handleDelete}
                                 disabled={isLoading}
-                                className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+                                className="px-4 py-1.5 bg-destructive text-destructive-foreground rounded-lg text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
                             >
-                                {isLoading ? 'Deleting...' : 'Delete'}
+                                {isLoading ? 'Menghapus...' : 'Ya, Hapus'}
                             </button>
                         </div>
                     </div>

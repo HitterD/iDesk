@@ -4,10 +4,12 @@ import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useAuth } from '@/stores/useAuth';
 import { ArticleForm, ArticleFormData } from '../components/ArticleForm';
 
 export const BentoCreateArticlePage = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (data: ArticleFormData) => {
@@ -28,10 +30,10 @@ export const BentoCreateArticlePage = () => {
         <div className="space-y-6">
             <Link
                 to="/kb"
-                className="inline-flex items-center text-slate-500 dark:text-slate-400 hover:text-primary transition-colors font-medium"
+                className="inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
             >
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Knowledge Base
+                <ArrowLeft className="w-4 h-4 mr-1.5 group-hover:-translate-x-0.5 transition-transform" />
+                <span>Kembali ke Knowledge Base</span>
             </Link>
 
             <ArticleForm
@@ -39,6 +41,7 @@ export const BentoCreateArticlePage = () => {
                 onCancel={() => navigate('/kb')}
                 isLoading={isLoading}
                 mode="create"
+                isAdmin={user?.role === 'ADMIN'}
             />
         </div>
     );
