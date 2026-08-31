@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
-import { Article } from '../knowledge-base/entities/article.entity';
+import { Article, ArticleVisibility } from '../knowledge-base/entities/article.entity';
 import { HardwareRequest } from '../hardware-request/domain/entities/hardware-request.entity';
 import { SavedSearch } from './entities/saved-search.entity';
 import { CacheService } from '../../shared/core/cache';
@@ -41,12 +41,15 @@ export class SearchService {
     /**
      * Unified search across multiple entities
      */
-    async search(dto: SearchQueryDto): Promise<SearchResultDto> {
+    async search(
+        dto: SearchQueryDto,
+        visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC],
+    ): Promise<SearchResultDto> {
         const startTime = Date.now();
         const { q: query, limit = 20, page = 1, ...filters } = dto;
         
         // Generate cache key
-        const cacheKey = `search:${JSON.stringify(dto)}`;
+        const cacheKey = `search:${JSON.stringify(dto)}:${visibilities.join(',')}`;
         
         // Check cache
         const cached = await this.cacheService.getAsync<SearchResultDto>(cacheKey);
@@ -95,7 +98,7 @@ export class SearchService {
 
         if (scopes.includes('articles')) {
             searchPromises.push(
-                this.searchArticles(query, filters, limit + 1, offset).then(r => {
+                this.searchArticles(query, filters, limit + 1, offset, visibilities).then(r => {
                     results.articles = r.slice(0, limit);
                     results.totalCount += r.length;
                     if (r.length > limit) results.hasMore = true;
@@ -248,13 +251,15 @@ export class SearchService {
      * Search knowledge base articles
      */
     private async searchArticles(
-        query: string | undefined, 
-        filters: SearchFilterDto, 
+        query: string | undefined,
+        filters: SearchFilterDto,
         limit: number,
-        offset: number
+        offset: number,
+        visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC],
     ): Promise<ArticleSearchResult[]> {
         const qb = this.articleRepo.createQueryBuilder('article')
-            .where('article.status = :status', { status: 'published' });
+            .where('article.status = :status', { status: 'published' })
+            .andWhere('article.visibility IN (:...visibilities)', { visibilities });
 
         if (query && query.trim()) {
             const searchTerm = `%${query.trim().toLowerCase()}%`;
@@ -336,10 +341,14 @@ export class SearchService {
     /**
      * Get search suggestions (autocomplete)
      */
-    async getSuggestions(query: string, limit = 10): Promise<SearchSuggestionDto[]> {
+    async getSuggestions(
+        query: string,
+        limit = 10,
+        visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC],
+    ): Promise<SearchSuggestionDto[]> {
         if (!query || query.length < 2) return [];
 
-        const cacheKey = `suggestions:${query.toLowerCase()}`;
+        const cacheKey = `suggestions:${query.toLowerCase()}:${visibilities.join(',')}`;
         const cached = await this.cacheService.getAsync<SearchSuggestionDto[]>(cacheKey);
         if (cached) return cached;
 
@@ -384,6 +393,7 @@ export class SearchService {
             .createQueryBuilder('article')
             .select(['article.id', 'article.title'])
             .where('article.status = :status', { status: 'published' })
+            .andWhere('article.visibility IN (:...visibilities)', { visibilities })
             .andWhere('LOWER(article.title) LIKE :search', { search: searchTerm })
             .take(3)
             .getMany();

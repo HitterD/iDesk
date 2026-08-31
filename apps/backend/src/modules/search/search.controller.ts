@@ -19,6 +19,7 @@ import {
     ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { allowedVisibilities } from '../knowledge-base/kb-visibility.util';
 import { SearchService } from './search.service';
 import { SearchQueryDto, SearchFilterDto } from './dto/search-filter.dto';
 import { SearchResultDto, SearchSuggestionDto } from './dto/search-result.dto';
@@ -47,46 +48,46 @@ export class SearchController {
     @ApiQuery({ name: 'priority', required: false, isArray: true })
     @ApiQuery({ name: 'limit', required: false, type: Number })
     @ApiQuery({ name: 'page', required: false, type: Number })
-    async search(@Query() query: SearchQueryDto): Promise<SearchResultDto> {
-        return this.searchService.search(query);
+    async search(@Req() req: any, @Query() query: SearchQueryDto): Promise<SearchResultDto> {
+        return this.searchService.search(query, allowedVisibilities(req.user?.role));
     }
 
     @Get('tickets')
     @ApiOperation({ summary: 'Search tickets only' })
     @ApiResponse({ status: 200, description: 'Ticket search results' })
-    async searchTickets(@Query() query: SearchQueryDto): Promise<SearchResultDto> {
+    async searchTickets(@Req() req: any, @Query() query: SearchQueryDto): Promise<SearchResultDto> {
         return this.searchService.search({
             ...query,
             scope: ['tickets'],
-        });
+        }, allowedVisibilities(req.user?.role));
     }
 
     @Get('users')
     @ApiOperation({ summary: 'Search users only' })
     @ApiResponse({ status: 200, description: 'User search results' })
-    async searchUsers(@Query() query: SearchQueryDto): Promise<SearchResultDto> {
+    async searchUsers(@Req() req: any, @Query() query: SearchQueryDto): Promise<SearchResultDto> {
         return this.searchService.search({
             ...query,
             scope: ['users'],
-        });
+        }, allowedVisibilities(req.user?.role));
     }
 
     @Get('articles')
     @ApiOperation({ summary: 'Search knowledge base articles only' })
     @ApiResponse({ status: 200, description: 'Article search results' })
-    async searchArticles(@Query() query: SearchQueryDto): Promise<SearchResultDto> {
+    async searchArticles(@Req() req: any, @Query() query: SearchQueryDto): Promise<SearchResultDto> {
         return this.searchService.search({
             ...query,
             scope: ['articles'],
-        });
+        }, allowedVisibilities(req.user?.role));
     }
 
     @Get('suggestions')
     @ApiOperation({ summary: 'Get search suggestions (autocomplete)' })
     @ApiResponse({ status: 200, description: 'Search suggestions', type: [SearchSuggestionDto] })
     @ApiQuery({ name: 'q', required: true, description: 'Partial query for suggestions' })
-    async getSuggestions(@Query('q') query: string): Promise<SearchSuggestionDto[]> {
-        return this.searchService.getSuggestions(query);
+    async getSuggestions(@Req() req: any, @Query('q') query: string): Promise<SearchSuggestionDto[]> {
+        return this.searchService.getSuggestions(query, 10, allowedVisibilities(req.user?.role));
     }
 
     @Get('popular')

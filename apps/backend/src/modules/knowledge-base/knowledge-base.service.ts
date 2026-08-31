@@ -1,29 +1,40 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, FindOptionsWhere } from 'typeorm';
+import { Repository, ILike, FindOptionsWhere, In } from 'typeorm';
 import { Article, ArticleStatus, ArticleVisibility } from './entities/article.entity';
 import { ArticleView } from './entities/article-view.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
+import { UserRole } from '../users/enums/user-role.enum';
+import { canReadArticle } from './kb-visibility.util';
 
 export interface ArticleFilters {
     query?: string;
     status?: ArticleStatus;
     category?: string;
-    visibility?: ArticleVisibility;
+    /** Visibility levels the caller may read. Derived from the caller's role, never from user input. */
+    visibilities?: ArticleVisibility[];
     authorId?: string;
 }
 
 @Injectable()
 export class KnowledgeBaseService {
+    // 24-Hour In-Memory Deduplication Cache for Unique Views
+    private readonly viewCache = new Map<string, number>();
+    private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 Hours
+
     constructor(
         @InjectRepository(Article)
         private articleRepo: Repository<Article>,
         @InjectRepository(ArticleView)
         private viewRepo: Repository<ArticleView>,
         private readonly auditService: AuditService,
+        @Inject(forwardRef(() => EventsGateway))
+        @Optional()
+        private readonly eventsGateway?: EventsGateway,
     ) { }
 
     async create(createArticleDto: CreateArticleDto, authorId?: string, authorName?: string): Promise<Article> {
@@ -78,8 +89,8 @@ export class KnowledgeBaseService {
             queryBuilder.andWhere('article.category = :category', { category: filters.category });
         }
 
-        if (filters?.visibility) {
-            queryBuilder.andWhere('article.visibility = :visibility', { visibility: filters.visibility });
+        if (filters?.visibilities?.length) {
+            queryBuilder.andWhere('article.visibility IN (:...visibilities)', { visibilities: filters.visibilities });
         }
 
         if (filters?.authorId) {
@@ -95,21 +106,36 @@ export class KnowledgeBaseService {
         return this.findAll({
             query,
             status: ArticleStatus.PUBLISHED,
-            visibility: ArticleVisibility.PUBLIC,
+            visibilities: [ArticleVisibility.PUBLIC],
         });
     }
 
-    async findOne(id: string, incrementView = true): Promise<Article> {
+    async findOne(id: string, incrementView = false): Promise<Article> {
         const article = await this.articleRepo.findOne({ where: { id } });
         if (!article) {
             throw new NotFoundException(`Article with ID ${id} not found`);
         }
 
         if (incrementView) {
-            // Increment view count
-            await this.articleRepo.increment({ id }, 'viewCount', 1);
-            const view = this.viewRepo.create({ articleId: id });
-            await this.viewRepo.save(view);
+            await this.incrementViewCount(id);
+        }
+
+        return article;
+    }
+
+    /**
+     * Read a single article, enforcing visibility for the calling user.
+     * Responds with NotFound (not Forbidden) so the existence of a restricted
+     * article is not disclosed to callers who may not read it.
+     */
+    async findOneForUser(
+        id: string,
+        user: { userId?: string; role?: UserRole | string | null },
+    ): Promise<Article> {
+        const article = await this.findOne(id, false);
+
+        if (!canReadArticle(article, user)) {
+            throw new NotFoundException(`Article with ID ${id} not found`);
         }
 
         return article;
@@ -192,43 +218,167 @@ export class KnowledgeBaseService {
         return article;
     }
 
-    async incrementViewCount(id: string): Promise<{ success: boolean }> {
+    async incrementViewCount(
+        id: string,
+        viewerInfo?: {
+            userId?: string;
+            fullName?: string;
+            avatarUrl?: string;
+            role?: string;
+            ip?: string;
+        },
+    ): Promise<{ success: boolean; viewCount: number; alreadyViewed: boolean }> {
         const article = await this.articleRepo.findOne({ where: { id } });
         if (!article) {
             throw new NotFoundException(`Article with ID ${id} not found`);
         }
+
+        const viewerKey = viewerInfo?.userId || viewerInfo?.ip || 'anonymous';
+        const normalizedKey = `${id}:${viewerKey}`;
+        const lastViewedTimestamp = this.viewCache.get(normalizedKey);
+        const now = Date.now();
+
+        // If viewed within last 24 hours, do not increment
+        if (lastViewedTimestamp && (now - lastViewedTimestamp) < this.CACHE_TTL) {
+            return { success: true, viewCount: article.viewCount, alreadyViewed: true };
+        }
+
+        // Record unique view
+        this.viewCache.set(normalizedKey, now);
+
+        // Prune cache if it grows too large (> 10,000 entries)
+        if (this.viewCache.size > 10000) {
+            for (const [k, timestamp] of this.viewCache.entries()) {
+                if (now - timestamp > this.CACHE_TTL) {
+                    this.viewCache.delete(k);
+                }
+            }
+        }
+
         await this.articleRepo.increment({ id }, 'viewCount', 1);
-        const view = this.viewRepo.create({ articleId: id });
-        await this.viewRepo.save(view);
-        return { success: true };
+        const newCount = article.viewCount + 1;
+
+        // Upsert or create ArticleView record
+        let view: ArticleView;
+        if (viewerInfo?.userId) {
+            const existingView = await this.viewRepo.findOne({
+                where: { articleId: id, userId: viewerInfo.userId },
+            });
+            if (existingView) {
+                existingView.count = (existingView.count || 1) + 1;
+                existingView.userName = viewerInfo.fullName || existingView.userName;
+                existingView.userAvatar = viewerInfo.avatarUrl || existingView.userAvatar;
+                existingView.userRole = viewerInfo.role || existingView.userRole;
+                existingView.lastViewedAt = new Date();
+                view = await this.viewRepo.save(existingView);
+            } else {
+                view = this.viewRepo.create({
+                    articleId: id,
+                    userId: viewerInfo.userId,
+                    userName: viewerInfo.fullName,
+                    userAvatar: viewerInfo.avatarUrl,
+                    userRole: viewerInfo.role,
+                    count: 1,
+                });
+                view = await this.viewRepo.save(view);
+            }
+        } else {
+            view = this.viewRepo.create({
+                articleId: id,
+                userName: 'Pengunjung',
+                count: 1,
+            });
+            view = await this.viewRepo.save(view);
+        }
+
+        // Realtime broadcast via WebSocket
+        try {
+            this.eventsGateway?.notifyKBArticleView(id, newCount, {
+                id: view.id,
+                userId: view.userId,
+                fullName: view.userName || 'Pengguna',
+                avatarUrl: view.userAvatar,
+                role: view.userRole,
+                lastViewedAt: view.lastViewedAt || new Date(),
+            });
+        } catch {
+            // non-blocking
+        }
+
+        return { success: true, viewCount: newCount, alreadyViewed: false };
+    }
+
+    async getViewers(articleId: string, limit = 50): Promise<{
+        totalViewers: number;
+        recentViewers: Array<{
+            id: string;
+            userId?: string;
+            fullName: string;
+            avatarUrl?: string;
+            jobTitle?: string;
+            role?: string;
+            lastViewedAt: Date;
+        }>;
+    }> {
+        const [views, total] = await this.viewRepo.findAndCount({
+            where: { articleId },
+            relations: ['user'],
+            order: { lastViewedAt: 'DESC' },
+            take: limit,
+        });
+
+        const formatted = views.map((v) => ({
+            id: v.id,
+            userId: v.userId,
+            fullName: v.user?.fullName || v.userName || 'Pengguna',
+            avatarUrl: v.user?.avatarUrl || v.userAvatar,
+            jobTitle: v.user?.jobTitle || (v.userRole === 'admin' ? 'System Administrator' : v.userRole === 'agent' ? 'IT Support Staff' : 'Karyawan'),
+            role: v.user?.role || v.userRole || 'user',
+            lastViewedAt: v.lastViewedAt || v.createdAt,
+        }));
+
+        return {
+            totalViewers: total,
+            recentViewers: formatted,
+        };
     }
 
     async markHelpful(id: string): Promise<Article> {
         await this.articleRepo.increment({ id }, 'helpfulCount', 1);
-        return this.findOne(id, false);
+        const updated = await this.findOne(id, false);
+
+        // Realtime broadcast via WebSocket
+        try {
+            this.eventsGateway?.notifyKBArticleHelpful(id, updated.helpfulCount);
+        } catch {
+            // non-blocking
+        }
+
+        return updated;
     }
 
-    async getPopular(limit = 10): Promise<Article[]> {
+    async getPopular(limit = 10, visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC]): Promise<Article[]> {
         return this.articleRepo.find({
-            where: { status: ArticleStatus.PUBLISHED },
+            where: { status: ArticleStatus.PUBLISHED, visibility: In(visibilities) },
             order: { viewCount: 'DESC' },
             take: limit,
         });
     }
 
-    async getRecent(limit = 10): Promise<Article[]> {
+    async getRecent(limit = 10, visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC]): Promise<Article[]> {
         return this.articleRepo.find({
-            where: { status: ArticleStatus.PUBLISHED },
+            where: { status: ArticleStatus.PUBLISHED, visibility: In(visibilities) },
             order: { updatedAt: 'DESC' },
             take: limit,
         });
     }
 
-    async getCategories(): Promise<string[]> {
+    async getCategories(visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC]): Promise<string[]> {
         const result = await this.articleRepo
             .createQueryBuilder('article')
             .select('DISTINCT article.category', 'category')
             .where('article.status = :status', { status: ArticleStatus.PUBLISHED })
+            .andWhere('article.visibility IN (:...visibilities)', { visibilities })
             .getRawMany();
         return result.map(r => r.category);
     }
@@ -237,8 +387,10 @@ export class KnowledgeBaseService {
      * Get KB statistics
      * OPTIMIZED: Uses single GROUP BY query instead of 4 separate COUNT queries
      */
-    async getStats(): Promise<{ totalArticles: number; totalViews: number; totalHelpful: number; byStatus: Record<string, number> }> {
-        // Single query for all stats using SQL aggregations
+    async getStats(visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC]): Promise<{ totalArticles: number; totalViews: number; totalHelpful: number; byStatus: Record<string, number> }> {
+        // Single query for all stats using SQL aggregations.
+        // Counts only articles the caller is allowed to read, so an end user
+        // never sees draft/internal/private article counts.
         const statsResult = await this.articleRepo
             .createQueryBuilder('article')
             .select('COUNT(*)', 'totalArticles')
@@ -247,6 +399,7 @@ export class KnowledgeBaseService {
             .addSelect(`COUNT(*) FILTER (WHERE article.status = '${ArticleStatus.DRAFT}')`, 'draftCount')
             .addSelect(`COUNT(*) FILTER (WHERE article.status = '${ArticleStatus.PUBLISHED}')`, 'publishedCount')
             .addSelect(`COUNT(*) FILTER (WHERE article.status = '${ArticleStatus.ARCHIVED}')`, 'archivedCount')
+            .where('article.visibility IN (:...visibilities)', { visibilities })
             .getRawOne();
 
         return {
