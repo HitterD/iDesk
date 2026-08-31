@@ -2,12 +2,11 @@ import { TicketQueryService } from './ticket-query.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 
 const ORACLE_EXCLUSION =
-    '(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)';
+    '(ticket."handlingTeam" != :oracleTeam)';
 const ORACLE_ONLY =
-    '(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)';
+    '(ticket."handlingTeam" = :oracleTeam)';
 const ORACLE_FILTER_PARAMS = {
-    oracleType: 'ORACLE_REQUEST',
-    oracleCategory: 'ORACLE_REQUEST',
+    oracleTeam: 'ORACLE_DEV',
 };
 
 describe('TicketQueryService', () => {
@@ -57,7 +56,7 @@ describe('TicketQueryService', () => {
         await service.findAllPaginated('user-1', UserRole.USER, 'site-1');
 
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-            'ticket.userId = :userId',
+            '(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))',
             { userId: 'user-1' },
         );
         expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(

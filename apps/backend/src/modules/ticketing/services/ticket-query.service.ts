@@ -9,7 +9,7 @@ import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
-const ORACLE_FILTER_PARAMS = { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST', oracleTeam: 'ORACLE_DEV' } as const;
+const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
 
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);

@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { Ticket, TicketStatus, TicketPriority, TicketType } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
 
 describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
     let service: any;
@@ -20,6 +20,12 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
         description: 'Desc',
         category,
         ticketType: ticketType as any,
+        // handlingTeam is the source of truth for team access: an Oracle
+        // category/ticketType implies the ticket currently belongs to
+        // ORACLE_DEV unless the test explicitly forwards it.
+        handlingTeam: (category === 'ORACLE_REQUEST' || ticketType === TicketType.ORACLE_REQUEST)
+            ? HandlingTeam.ORACLE_DEV
+            : HandlingTeam.OPS_SUPPORT,
         status: TicketStatus.TODO,
         priority: TicketPriority.MEDIUM,
         user: { id: 'user-creator' } as any,
