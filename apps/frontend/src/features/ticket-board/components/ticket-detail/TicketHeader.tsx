@@ -13,12 +13,14 @@ import {
     PanelRightOpen,
     PanelRightClose,
     Sparkles,
+    Users,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { useAuth } from '@/stores/useAuth';
 
 interface TicketHeaderProps {
     ticket: TicketDetail & {
@@ -55,6 +57,22 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     onToggleSidebar,
 }) => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+
+    const handleBack = () => {
+        if (location.state?.from) {
+            navigate(location.state.from);
+        } else if (window.history.length > 1) {
+            navigate(-1);
+        } else {
+            const isOracle = user?.role === 'AGENT_ORACLE' ||
+                ticket.handlingTeam === 'ORACLE_DEV' ||
+                (ticket.handlingTeam == null && (ticket.ticketType === 'ORACLE_REQUEST' || ticket.category === 'ORACLE_REQUEST'));
+            navigate(isOracle ? '/tickets/oracle-k2' : '/tickets/list');
+        }
+    };
+
     const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const StatusIcon = statusConfig.icon;
@@ -174,28 +192,28 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     return (
         <>
             <header className={cn(
-                "px-6 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
+                "px-3.5 py-3 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
                 isTerminal && 'bg-slate-50/50 dark:bg-slate-900/50'
             )}>
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
                     {/* Left: Back + Breadcrumbs + Ticket Title */}
-                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                    <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                         <button
                             type="button"
-                            onClick={() => navigate('/tickets/list')}
-                            className="mt-1 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
-                            title="Back to tickets list"
+                            onClick={handleBack}
+                            className="mt-0.5 sm:mt-1 p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
+                            title="Kembali"
                         >
                             <ArrowLeft className="w-4 h-4" />
                         </button>
 
-                        <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="min-w-0 flex-1 space-y-1 sm:space-y-1.5">
                             {/* Badges & Meta Row */}
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                 <button
                                     type="button"
                                     onClick={handleCopyNumber}
-                                    className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                    className="group inline-flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                     title="Click to copy ticket number"
                                 >
                                     <span>#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
@@ -207,7 +225,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 </button>
 
                                 <span className={cn(
-                                    "px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs",
+                                    "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs",
                                     statusConfig.color
                                 )}>
                                     <StatusIcon className="w-3.5 h-3.5" />
@@ -215,7 +233,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 </span>
 
                                 <span className={cn(
-                                    "px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700",
+                                    "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700",
                                     priorityConfig.color
                                 )}>
                                     <span className={cn("w-2 h-2 rounded-full", priorityConfig.dot)} />
@@ -223,14 +241,21 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 </span>
 
                                 {ticket.category && (
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
+                                    <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
                                         {ticket.category.replace(/_/g, ' ')}
+                                    </span>
+                                )}
+
+                                {ticket.participants && ticket.participants.length > 0 && (
+                                    <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 inline-flex items-center gap-1.5 shadow-2xs">
+                                        <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                        <span>{1 + ticket.participants.length} Anggota</span>
                                     </span>
                                 )}
                             </div>
 
                             {/* Ticket Title */}
-                            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                            <h1 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words">
                                 {ticket.title}
                             </h1>
                         </div>

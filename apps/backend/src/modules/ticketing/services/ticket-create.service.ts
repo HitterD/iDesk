@@ -213,7 +213,9 @@ export class TicketCreateService {
 
             // === Auto-Assignment: Assign to agent with lowest workload ===
             if (!(createTicketDto as any).assignedToId && finalTicket.siteId) {
-                const isOracleTicket = isOracleK2Category(createTicketDto.category, createTicketDto.ticketType);
+                // handlingTeam is the source of truth: only OPS_SUPPORT tickets
+                // get auto-assigned to the workload pool.
+                const isOracleTicket = finalTicket.handlingTeam === HandlingTeam.ORACLE_DEV;
 
                 if (!isOracleTicket) {
                     try {

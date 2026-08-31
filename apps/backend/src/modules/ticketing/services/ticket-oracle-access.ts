@@ -12,9 +12,8 @@ const NON_ORACLE_AGENT_ROLES = [
 export const isNonOracleAgent = (role: UserRole): boolean =>
     (NON_ORACLE_AGENT_ROLES as readonly UserRole[]).includes(role);
 
-export const isOracleTicket = (ticket: Pick<Ticket, 'category' | 'ticketType' | 'handlingTeam'>): boolean =>
-    ticket.handlingTeam === HandlingTeam.ORACLE_DEV ||
-    isOracleK2Category(ticket.category, ticket.ticketType);
+export const isOracleTicket = (ticket: Pick<Ticket, 'handlingTeam'>): boolean =>
+    ticket.handlingTeam === HandlingTeam.ORACLE_DEV;
 
 export const assertTicketRoleAccess = (
     ticket: Pick<Ticket, 'category' | 'ticketType' | 'handlingTeam'>,

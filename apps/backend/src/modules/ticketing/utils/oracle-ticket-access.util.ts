@@ -16,8 +16,7 @@ export function isOracleRole(role?: string | null): boolean {
 export function canAccessTicketObject(user: { id?: string; role: UserRole | string }, ticket: Partial<Ticket>): boolean {
     if (user.role === UserRole.ADMIN || user.role === UserRole.USER) return true;
 
-    const isOracleTicket = ticket.handlingTeam === HandlingTeam.ORACLE_DEV ||
-        isOracleK2Category(ticket.category, ticket.ticketType);
+    const isOracleTicket = ticket.handlingTeam === HandlingTeam.ORACLE_DEV;
     const isOracle = isOracleRole(user.role);
 
     if (isOracle) {

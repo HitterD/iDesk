@@ -106,7 +106,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
     const isAgentOracle = user?.role === 'AGENT_ORACLE';
     const canManageParticipants = isAgentOracle || isAdmin;
-    const isOracleTicket = ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST';
+    const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
+        (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST'));
     const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
 
     // Local optimistic state per field

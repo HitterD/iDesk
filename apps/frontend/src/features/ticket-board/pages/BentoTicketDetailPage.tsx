@@ -86,7 +86,10 @@ export const BentoTicketDetailPage: React.FC = () => {
     });
 
     const isAdmin = user?.role === 'ADMIN';
-    const isOracleTicket = ticket?.category === 'ORACLE_REQUEST';
+    const isOracleTicket = ticket
+        ? (ticket.handlingTeam === 'ORACLE_DEV' ||
+            (ticket.handlingTeam == null && ticket.category === 'ORACLE_REQUEST'))
+        : false;
     const { data: agents = [] } = useQuery<Agent[]>({
         queryKey: ['agents', isOracleTicket ? 'oracle' : 'general', isAdmin ? 'all' : user?.siteId],
         queryFn: async () => {

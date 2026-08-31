@@ -16,12 +16,13 @@ export function isNonOracleAgent(role: UserRole): boolean {
 }
 
 export function applyOracleFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, role: UserRole): void {
-    // handlingTeam is the source of truth; category/ticketType remain as a
-    // fallback for rows that predate the handlingTeam migration.
+    // handlingTeam is the single source of truth for team ownership. A ticket
+    // that was forwarded away from ORACLE_DEV is no longer an Oracle ticket,
+    // even if its category/ticketType still say ORACLE_REQUEST.
     if (isNonOracleAgent(role)) {
-        qb.andWhere('(ticket."handlingTeam" != :oracleTeam AND ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)', ORACLE_FILTER_PARAMS);
+        qb.andWhere('(ticket."handlingTeam" != :oracleTeam)', ORACLE_FILTER_PARAMS);
     } else if (role === UserRole.AGENT_ORACLE) {
-        qb.andWhere('(ticket."handlingTeam" = :oracleTeam OR ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
+        qb.andWhere('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
     }
 }
 
@@ -130,10 +131,12 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.site', 'site');
 
         // Client My Tickets includes every ticket owned by the requester.
-        // Oracle/K2 remains isolated from every non-client general list.
+        // Oracle/K2 remains isolated from every non-client general list, and
+        // ownership is decided by handlingTeam only — forwarding a ticket away
+        // removes it from any list keyed on the other team.
         if (role !== UserRole.USER) {
             qb.andWhere(
-                '(ticket.ticketType != :oracleType AND ticket.category != :oracleCategory)',
+                '(ticket."handlingTeam" != :oracleTeam)',
                 ORACLE_FILTER_PARAMS,
             );
         }
@@ -309,8 +312,9 @@ export class TicketQueryService {
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
             .leftJoinAndSelect('ticket.site', 'site')
-            // Strict Oracle/K2 filter — same as the ORACLE_FILTER_PARAMS pattern
-            .where('(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory)', ORACLE_FILTER_PARAMS);
+            // Strict Oracle/K2 filter — handlingTeam is the source of truth,
+            // so a ticket forwarded to OPS_SUPPORT disappears from this list.
+            .where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
 
         // Site isolation (matches findAllPaginated behaviour)
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
