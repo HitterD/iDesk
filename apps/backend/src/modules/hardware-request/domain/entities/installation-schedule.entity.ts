@@ -49,6 +49,9 @@ export class InstallationSchedule {
     @OneToMany(() => InstallationScheduleItem, (item) => item.schedule, { cascade: true })
     items: InstallationScheduleItem[];
 
+    @Column({ type: 'uuid', nullable: true })
+    ticketId?: string | null;
+
     @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
     @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;
 }

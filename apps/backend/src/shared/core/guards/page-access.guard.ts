@@ -171,16 +171,14 @@ export class PageAccessGuard implements CanActivate {
                     settings: true,
                 };
             case UserRole.MANAGER:
-                // FIXED: renewal and notifications are NOT in MANAGER_PAGES (permissions.service.ts)
-                // Guard was incorrectly granting access to pages not in the MANAGER preset
                 return {
                     dashboard: true,
                     tickets: true,
                     zoom_calendar: true,
                     knowledge_base: true,
-                    notifications: false,  // FIXED: not in MANAGER_PAGES
+                    notifications: true,
                     reports: true,
-                    renewal: false,        // FIXED: not in MANAGER_PAGES
+                    renewal: true,
                     agents: false,
                     automation: false,
                     audit_logs: false,
@@ -188,8 +186,12 @@ export class PageAccessGuard implements CanActivate {
                     settings: false,
                 };
             case UserRole.AGENT_ORACLE:
+            case UserRole.AGENT_WEB_DEV:
+            case UserRole.AGENT_MOBILE_DEV:
                 return {
                     oracle_k2_tickets: true,
+                    web_dev_tickets: true,
+                    mobile_dev_tickets: true,
                     notifications: true,
                     dashboard: false,
                     tickets: false,

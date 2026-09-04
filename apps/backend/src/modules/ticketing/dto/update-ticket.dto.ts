@@ -59,9 +59,17 @@ export class UpdateTicketDeviceDto {
 }
 
 export class AssignTicketDto {
-    @ApiProperty()
-    @IsUUID()
-    assigneeId: string;
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    assigneeId?: string;
+
+    @ApiPropertyOptional({ maxLength: 500 })
+    @IsOptional()
+    @IsString()
+    @MaxLength(500)
+    @Sanitize({ removeHtml: true })
+    reason?: string;
 }
 
 export class CancelTicketDto {

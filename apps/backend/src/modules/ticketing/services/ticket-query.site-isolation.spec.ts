@@ -8,7 +8,6 @@ const SITE_LOCKED_ROLES = [
     UserRole.AGENT_OPERATIONAL_SUPPORT,
     UserRole.AGENT_ADMIN,
     UserRole.AGENT,
-    UserRole.USER,
 ];
 
 const CROSS_SITE_ROLES = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ORACLE];

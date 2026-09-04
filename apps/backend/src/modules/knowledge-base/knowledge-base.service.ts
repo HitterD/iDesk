@@ -9,7 +9,26 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { UserRole } from '../users/enums/user-role.enum';
-import { canReadArticle, finalPublishStatus, canReviewPending, allowedVisibilities } from './kb-visibility.util';
+import { canReadArticle, canSeeUnpublished, finalPublishStatus, canReviewPending, allowedVisibilities, canBeFeatured, shouldDropFeatured } from './kb-visibility.util';
+
+/** Orderings the KB list endpoint accepts. */
+export type ArticleSort = 'popular' | 'recent' | 'newest' | 'title';
+
+/** Column + direction each sort maps to. Kept as a lookup so an unknown
+ *  value from the query string can never reach the SQL builder. */
+const SORT_COLUMNS: Record<ArticleSort, { column: string; direction: 'ASC' | 'DESC' }> = {
+    popular: { column: 'article.viewCount', direction: 'DESC' },
+    recent: { column: 'article.updatedAt', direction: 'DESC' },
+    newest: { column: 'article.createdAt', direction: 'DESC' },
+    title: { column: 'article.title', direction: 'ASC' },
+};
+
+/** Historic ordering of this endpoint. Kept as the default so callers that
+ *  never asked for a sort (command palette, manage screen) are unaffected. */
+export const DEFAULT_ARTICLE_SORT: ArticleSort = 'newest';
+
+/** Upper bound on page size, so a caller cannot ask for the whole table. */
+export const MAX_ARTICLE_PAGE_SIZE = 100;
 
 export interface ArticleFilters {
     query?: string;
@@ -18,6 +37,18 @@ export interface ArticleFilters {
     /** Visibility levels the caller may read. Derived from the caller's role, never from user input. */
     visibilities?: ArticleVisibility[];
     authorId?: string;
+    sort?: ArticleSort;
+    /** Page size. When omitted the endpoint keeps its historic un-paginated shape. */
+    limit?: number;
+    offset?: number;
+    /** Exclude the pinned article; the landing page renders it separately as a hero card. */
+    excludeFeatured?: boolean;
+}
+
+export interface PaginatedArticles {
+    items: Article[];
+    total: number;
+    hasMore: boolean;
 }
 
 /** Threshold for a suggestion to be considered "relevant enough" to show
@@ -77,7 +108,11 @@ export class KnowledgeBaseService {
         return saved;
     }
 
-    async findAll(filters?: ArticleFilters): Promise<Article[]> {
+    /**
+     * Build the WHERE clauses shared by the plain and paginated list queries.
+     * Ordering and paging are applied by the callers.
+     */
+    private buildArticleQuery(filters?: ArticleFilters) {
         const queryBuilder = this.articleRepo.createQueryBuilder('article');
 
         // OPTIMIZED: Use PostgreSQL Full-Text Search for longer queries
@@ -116,9 +151,104 @@ export class KnowledgeBaseService {
             queryBuilder.andWhere('article.authorId = :authorId', { authorId: filters.authorId });
         }
 
-        queryBuilder.orderBy('article.createdAt', 'DESC');
+        // The landing page renders the pinned article as a hero card above the
+        // list; showing it again inside the list reads as a duplication bug.
+        if (filters?.excludeFeatured) {
+            queryBuilder.andWhere('article.isFeatured = false');
+        }
+
+        return queryBuilder;
+    }
+
+    async findAll(filters?: ArticleFilters): Promise<Article[]> {
+        const queryBuilder = this.buildArticleQuery(filters);
+
+        // Sort key is looked up, never interpolated, so an unknown value from
+        // the query string falls back to the default instead of reaching SQL.
+        const sort = SORT_COLUMNS[filters?.sort as ArticleSort] ?? SORT_COLUMNS[DEFAULT_ARTICLE_SORT];
+        queryBuilder.orderBy(sort.column, sort.direction);
+        // Deterministic tie-break: without it, equal viewCounts can shuffle
+        // between pages and the same article shows up twice while paging.
+        queryBuilder.addOrderBy('article.id', 'ASC');
 
         return queryBuilder.getMany();
+    }
+
+    /**
+     * Paginated variant of findAll.
+     *
+     * Kept separate from findAll because the un-paginated array shape is still
+     * consumed elsewhere (command palette, manage screen); changing findAll's
+     * return type would break those callers.
+     */
+    async findAllPaginated(filters: ArticleFilters): Promise<PaginatedArticles> {
+        const limit = Math.min(Math.max(1, filters.limit ?? 20), MAX_ARTICLE_PAGE_SIZE);
+        const offset = Math.max(0, filters.offset ?? 0);
+
+        const queryBuilder = this.buildArticleQuery(filters);
+
+        const sort = SORT_COLUMNS[filters.sort as ArticleSort] ?? SORT_COLUMNS[DEFAULT_ARTICLE_SORT];
+        queryBuilder.orderBy(sort.column, sort.direction);
+        queryBuilder.addOrderBy('article.id', 'ASC');
+
+        const [items, total] = await queryBuilder.skip(offset).take(limit).getManyAndCount();
+
+        return { items, total, hasMore: offset + items.length < total };
+    }
+
+    /**
+     * The single pinned "start here" article, or null when nothing is pinned.
+     * Visibility is still enforced: a caller who may not read the article does
+     * not receive it, even though it is flagged as featured.
+     */
+    async findFeatured(visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC]): Promise<Article | null> {
+        return this.articleRepo.findOne({
+            where: {
+                isFeatured: true,
+                status: ArticleStatus.PUBLISHED,
+                visibility: In(visibilities),
+            },
+        });
+    }
+
+    /**
+     * Pin or unpin the landing-page article. Pinning clears the previous one
+     * in the same transaction, so the "exactly one featured article" rule holds
+     * even if two admins press the button at the same time.
+     */
+    async setFeatured(
+        id: string,
+        featured: boolean,
+        actorUserId?: string,
+    ): Promise<Article> {
+        const article = await this.findOne(id, false);
+
+        if (featured && !canBeFeatured(article)) {
+            throw new ForbiddenException(
+                'Only a published, public article can be set as the featured guide',
+            );
+        }
+
+        await this.articleRepo.manager.transaction(async (manager) => {
+            if (featured) {
+                await manager.update(Article, { isFeatured: true }, { isFeatured: false });
+            }
+            await manager.update(Article, { id }, { isFeatured: featured });
+        });
+
+        this.auditService.logAsync({
+            userId: actorUserId || 'system',
+            action: AuditAction.ARTICLE_UPDATE,
+            entityType: 'article',
+            entityId: id,
+            oldValue: { isFeatured: article.isFeatured },
+            newValue: { isFeatured: featured },
+            description: featured
+                ? `Article "${article.title}" set as featured guide`
+                : `Article "${article.title}" removed from featured guide`,
+        });
+
+        return this.findOne(id, false);
     }
 
     async findPublished(query?: string): Promise<Article[]> {
@@ -154,6 +284,14 @@ export class KnowledgeBaseService {
         const article = await this.findOne(id, false);
 
         if (!canReadArticle(article, user)) {
+            throw new NotFoundException(`Article with ID ${id} not found`);
+        }
+
+        // Status gate: unpublished articles (DRAFT / PENDING_REVIEW) may only
+        // be read by the author, internal staff, or an ADMIN — an arbitrary
+        // logged-in user must not fetch them by id even though the list hides
+        // them. NotFound (not Forbidden) so existence does not leak.
+        if (article.status !== ArticleStatus.PUBLISHED && !canSeeUnpublished(article, user)) {
             throw new NotFoundException(`Article with ID ${id} not found`);
         }
 
@@ -219,6 +357,14 @@ export class KnowledgeBaseService {
             }
         }
         Object.assign(article, updateArticleDto);
+
+        // A featured article that is no longer published+public must lose the
+        // flag, otherwise the landing page hero would point at something the
+        // reader is not allowed to open.
+        if (shouldDropFeatured(article, { status: article.status, visibility: article.visibility })) {
+            article.isFeatured = false;
+        }
+
         const saved = await this.articleRepo.save(article);
 
         // Audit log for article update
@@ -253,6 +399,12 @@ export class KnowledgeBaseService {
         }
         const oldStatus = article.status;
         article.status = status;
+
+        // Unpublishing/archiving the featured article also unpins it.
+        if (shouldDropFeatured(article, { status, visibility: article.visibility })) {
+            article.isFeatured = false;
+        }
+
         const saved = await this.articleRepo.save(article);
 
         // Audit log for status change / publish

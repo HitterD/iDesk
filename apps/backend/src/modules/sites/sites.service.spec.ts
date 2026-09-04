@@ -73,6 +73,10 @@ describe('SitesService — TV token', () => {
     describe('TV ringtone', () => {
         it.each([
             ['newTicket', 'ringtoneNewTicket'],
+            ['newTicketSupport', 'ringtoneNewTicketSupport'],
+            ['newTicketOracle', 'ringtoneNewTicketOracle'],
+            ['newTicketWebDev', 'ringtoneNewTicketWebDev'],
+            ['newTicketMobileDev', 'ringtoneNewTicketMobileDev'],
             ['inProgress', 'ringtoneInProgress'],
             ['closing', 'ringtoneClosing'],
         ])('setTvRingtone(%s) writes to column %s', async (slot, column) => {

@@ -8,7 +8,7 @@ jest.mock('axios', () => ({
     },
 }));
 
-import { HrisGatewayAdapter, resolveRequestTimeoutMs } from './hris-gateway.adapter';
+import { HrisGatewayAdapter, isHrisLoginVerifyEnabled, resolveRequestTimeoutMs } from './hris-gateway.adapter';
 
 describe('resolveRequestTimeoutMs', () => {
     it.each([
@@ -21,6 +21,21 @@ describe('resolveRequestTimeoutMs', () => {
         ['999999', 30_000],
     ])('maps %s to %s ms', (raw, expected) => {
         expect(resolveRequestTimeoutMs(raw)).toBe(expected);
+    });
+});
+
+describe('isHrisLoginVerifyEnabled', () => {
+    it.each([
+        [undefined, true],
+        ['', true],
+        ['true', true],
+        ['anything-else', true],
+    ])('stays enabled for %s (opt-out only)', (raw, expected) => {
+        expect(isHrisLoginVerifyEnabled(raw)).toBe(expected);
+    });
+
+    it.each(['false', 'FALSE', ' false '])('disables on explicit %s', raw => {
+        expect(isHrisLoginVerifyEnabled(raw)).toBe(false);
     });
 });
 

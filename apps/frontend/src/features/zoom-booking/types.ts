@@ -44,6 +44,7 @@ export interface ZoomBooking {
     externalZoomMeetingId?: string;
     seriesId?: string;
     recurrencePattern?: string;
+    isDoubleBooking?: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -118,6 +119,7 @@ export interface CreateBookingDto {
     durationMinutes: number;
     participantEmails?: string[];
     recurrencePattern?: string;
+    allowDoubleBooking?: boolean;
 }
 
 export interface CancelBookingDto {

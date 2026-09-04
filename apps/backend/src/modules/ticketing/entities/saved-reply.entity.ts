@@ -21,6 +21,12 @@ export class SavedReply {
     content: string;
 
     @Column({ type: 'varchar', nullable: true })
+    shortcut: string | null;
+
+    @Column({ type: 'varchar', default: 'General' })
+    category: string;
+
+    @Column({ type: 'varchar', nullable: true })
     userId: string | null;
 
     @ManyToOne(() => User, { nullable: true, onDelete: 'CASCADE' })

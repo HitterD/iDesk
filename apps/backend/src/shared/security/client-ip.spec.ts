@@ -35,4 +35,19 @@ describe('getTrustedClientIp', () => {
         delete process.env.TRUSTED_PROXY_COUNT;
         expect(getTrustedClientIp(request('::ffff:192.0.2.1'))).toBe('192.0.2.1');
     });
+
+    it('takes the Nth-from-the-right XFF entry with a multi-proxy chain', () => {
+        process.env.TRUSTED_PROXY_COUNT = '2';
+        expect(
+            getTrustedClientIp(request('10.0.0.3', '203.0.113.7, 198.51.100.2, 20.0.0.1')),
+        ).toBe('198.51.100.2');
+    });
+
+    it('falls back to the rightmost entry when XFF is shorter than the proxy count', () => {
+        // Proxy that overwrites XFF keeps a single entry; count is still 2.
+        process.env.TRUSTED_PROXY_COUNT = '2';
+        expect(
+            getTrustedClientIp(request('10.0.0.2', '203.0.113.5')),
+        ).toBe('203.0.113.5');
+    });
 });

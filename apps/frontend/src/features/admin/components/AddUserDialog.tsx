@@ -30,7 +30,7 @@ import { PASSWORD_POLICY, getPasswordRequirements, validatePasswordLocal, passwo
 const createUserSchema = z.object({
     fullName: z.string().min(1, 'Full name is required'),
     email: z.string().email('Invalid email address'),
-    role: z.enum(['ADMIN', 'MANAGER', 'AGENT', 'USER', 'AGENT_ORACLE', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT']),
+    role: z.enum(['ADMIN', 'MANAGER', 'AGENT', 'USER', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT']),
     departmentId: z.string().optional(),
     siteId: z.string().optional(),
     presetId: z.string().optional(), // P2: Permission preset
@@ -43,7 +43,7 @@ const createUserSchema = z.object({
     }
     return true;
 }, {
-    message: `Password minimal ${PASSWORD_POLICY.minLength} karakter — wajib huruf besar, huruf kecil, dan angka.`,
+    message: `Password minimal ${PASSWORD_POLICY.minLength} karakter (disarankan 12+ agar lebih aman) — wajib huruf besar, huruf kecil, dan angka.`,
     path: ["password"],
 });
 
@@ -156,6 +156,8 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
         const presetTargetRole = watchedRole?.startsWith('AGENT_') ? 'AGENT' : watchedRole;
         const match = presets.find((preset: any) =>
             watchedRole === 'AGENT_ORACLE' ? preset.name === 'Agent Oracle'
+                : watchedRole === 'AGENT_WEB_DEV' ? preset.name === 'Agent Web Developer'
+                : watchedRole === 'AGENT_MOBILE_DEV' ? preset.name === 'Agent Mobile Developer'
                 : watchedRole === 'AGENT_OPERATIONAL_SUPPORT' ? preset.name === 'Agent Operational Support'
                 : preset.targetRole === presetTargetRole,
         );
@@ -207,6 +209,8 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                                 <SelectItem value="AGENT">Agent</SelectItem>
                                 <SelectItem value="AGENT_ADMIN">Agent Admin</SelectItem>
                                 <SelectItem value="AGENT_ORACLE">Agent Oracle</SelectItem>
+                                <SelectItem value="AGENT_WEB_DEV">Agent Web Dev</SelectItem>
+                                <SelectItem value="AGENT_MOBILE_DEV">Agent Mobile Dev</SelectItem>
                                 <SelectItem value="AGENT_OPERATIONAL_SUPPORT">Agent Ops Support</SelectItem>
                                 <SelectItem value="USER">User</SelectItem>
                             </SelectContent>

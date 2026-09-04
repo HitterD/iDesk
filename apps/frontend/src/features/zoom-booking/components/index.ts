@@ -13,12 +13,14 @@ export { ZoomCalendarHeader } from './ZoomCalendarHeader';
 export { ZoomCalendarShell } from './ZoomCalendarShell';
 export { ZoomBookingPanel } from './ZoomBookingPanel';
 export { ZoomViewSwitcher } from './ZoomViewSwitcher';
+export { SendReminderModal } from './SendReminderModal';
 
 // ── New view components ──────────────────────────────────────────────────────
 export { ZoomMonthView } from './ZoomMonthView';
 export { ZoomWeekView } from './ZoomWeekView';
 export { ZoomDayView } from './ZoomDayView';
 export { ZoomMyBookingsView } from './ZoomMyBookingsView';
+export { ZoomClientMonthCalendar } from './ZoomClientMonthCalendar';
 export { ZoomMonthDayPopover } from './ZoomMonthDayPopover';
 
 // ── New panel form/view components ───────────────────────────────────────────
@@ -27,6 +29,8 @@ export { ZoomBookingDetailView } from './ZoomBookingDetailView';
 export { ZoomRescheduleView } from './ZoomRescheduleView';
 export { SimpleRecurringField } from './SimpleRecurringField';
 export { SimpleBookingForm } from './SimpleBookingForm';
+export { ZoomEndTimeSelect, type EndTimeOption } from './ZoomEndTimeSelect';
+export { ZoomParticipantPicker, type ZoomParticipantPickerProps } from './ZoomParticipantPicker';
 
 // ── Skeletons ────────────────────────────────────────────────────────────────
 export {

@@ -195,7 +195,8 @@ export class InstallationController {
     }
 
     private async guardOwnerOrIct(requestId: string, user: { userId: string; role: string }) {
-        if (user.role === 'ICT_STAFF') return;
+        const role = (user.role as string)?.toUpperCase();
+        if (role === 'ICT_STAFF' || role === 'ADMIN' || role === 'MANAGER' || role === 'AGENT') return;
         const siteId = (user as any).siteId ?? null;
         const userRole = (user as any).userRole as UserRole;
         const req = await this.queryService.getById({ id: user.userId, role: HardwareRole.USER, siteId, userRole }, requestId);

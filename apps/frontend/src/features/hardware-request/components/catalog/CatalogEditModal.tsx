@@ -1,9 +1,20 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings2, X } from 'lucide-react';
-import type { HardwareCatalog } from '../../types';
+import { Settings2, X, Check, Loader2, Sparkles } from 'lucide-react';
+import type { HardwareCatalog, ItemCategory } from '../../types';
+import { CATEGORY_ICONS, CATEGORY_STYLES } from './CatalogTable';
+import { cn } from '@/lib/utils';
 
-const categories = ['LAPTOP', 'DESKTOP', 'MONITOR', 'ACCESSORY', 'NETWORK', 'SOFTWARE', 'OTHER'] as const;
+const categories: ItemCategory[] = [
+  'LAPTOP',
+  'DESKTOP',
+  'MONITOR',
+  'ACCESSORY',
+  'NETWORK',
+  'SOFTWARE',
+  'OTHER',
+];
 
 type Props = {
   open: boolean;
@@ -16,7 +27,7 @@ type Props = {
 export function CatalogEditModal({ open, initial, onClose, onSubmit, isSubmitting }: Props) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<HardwareCatalog['category']>('LAPTOP');
+  const [category, setCategory] = useState<ItemCategory>('LAPTOP');
   const [active, setActive] = useState(true);
 
   useEffect(() => {
@@ -49,86 +60,174 @@ export function CatalogEditModal({ open, initial, onClose, onSubmit, isSubmittin
     });
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
-            onClick={onClose} 
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-background/80 backdrop-blur-md"
+          onClick={onClose}
         />
-        <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }}
-            role="dialog" aria-labelledby="cat-title" 
-            className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]"
+
+        {/* Dialog Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 10 }}
+          transition={{ duration: 0.18 }}
+          role="dialog"
+          aria-labelledby="cat-title"
+          className="relative w-full max-w-xl rounded-3xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            <h2 id="cat-title" className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <Settings2 className="size-5 text-primary" />
-              {initial ? 'Edit Catalog Item' : 'Tambah Catalog Item'}
-            </h2>
-            <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <X className="size-5" />
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/20">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                <Settings2 className="size-5" />
+              </div>
+              <div>
+                <h2 id="cat-title" className="text-base font-bold text-foreground">
+                  {initial ? 'Edit Item Katalog' : 'Tambah Item Katalog Baru'}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {initial ? `Ubah konfigurasi master item ${initial.code}` : 'Tambahkan jenis hardware baru ke formulir permohonan'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="size-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              <X className="size-4" />
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
-              <label className="text-sm space-y-1.5">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Code</span>
+          {/* Body */}
+          <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar">
+            {/* Code & Name Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>Kode Item</span>
+                  {initial && <span className="text-[10px] text-muted-foreground font-normal">(Tidak dapat diubah)</span>}
+                </label>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s+/g, '-'))}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
                   disabled={!!initial}
-                  placeholder="Ex: LAPTOP-001"
+                  placeholder="Contoh: LAPTOP-01"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all disabled:opacity-60 disabled:bg-muted"
                 />
-              </label>
-              <label className="text-sm space-y-1.5">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Name</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Nama Perangkat</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
-                  placeholder="Nama Perangkat"
+                  placeholder="Contoh: Laptop Developer Pro"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-muted-foreground/60"
                 />
-              </label>
-              <label className="text-sm space-y-1.5 col-span-2">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Category</span>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as HardwareCatalog['category'])}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
-                >
-                  {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="col-span-2 flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ease-in-out ${active ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-300 ease-in-out ${active ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+            </div>
+
+            {/* Category Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-foreground">Pilih Kategori Hardware</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {categories.map((c) => {
+                  const Icon = CATEGORY_ICONS[c];
+                  const selected = category === c;
+                  const catStyle = CATEGORY_STYLES[c];
+
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCategory(c)}
+                      className={cn(
+                        'flex items-center gap-2 p-2.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer text-left',
+                        selected
+                          ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                          : 'bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50 border-border/80'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'p-1.5 rounded-xl border',
+                          selected ? 'bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground' : cn(catStyle.bg, catStyle.border, catStyle.text)
+                        )}
+                      >
+                        <Icon className="size-3.5" />
+                      </div>
+                      <span className="truncate">{c}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Active Toggle Card */}
+            <div
+              onClick={() => setActive(!active)}
+              className="flex items-center justify-between p-4 rounded-2xl border border-border bg-muted/20 hover:bg-muted/30 cursor-pointer transition-all"
+            >
+              <div className="space-y-0.5">
+                <div className="text-xs font-bold text-foreground">Status Aktif di Katalog</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Jika aktif, item ini akan langsung muncul sebagai opsi pilihan di formulir request user.
                 </div>
-                <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="sr-only" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status Aktif (Tampil di form request)</span>
-              </label>
+              </div>
+              <div
+                className={cn(
+                  'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200',
+                  active ? 'bg-primary' : 'bg-muted-foreground/30'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block size-4.5 transform rounded-full bg-white shadow-xs transition duration-200',
+                    active ? 'translate-x-5.5' : 'translate-x-1'
+                  )}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-            <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors">
+          {/* Footer */}
+          <div className="px-6 py-4 bg-muted/20 border-t border-border flex items-center justify-end gap-2.5">
+            <button
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors cursor-pointer"
+            >
               Batal
             </button>
             <button
               onClick={handleSubmit}
               disabled={!canSubmit || isSubmitting}
-              className="px-6 py-2 text-sm font-bold rounded-xl bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
             >
-              {isSubmitting ? 'Menyimpan…' : 'Simpan Item'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="size-3.5" />
+                  <span>{initial ? 'Simpan Perubahan' : 'Tambah ke Katalog'}</span>
+                </>
+              )}
             </button>
           </div>
         </motion.div>
       </div>
     </AnimatePresence>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 }

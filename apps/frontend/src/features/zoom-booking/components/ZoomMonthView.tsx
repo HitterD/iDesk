@@ -1,33 +1,25 @@
 import { useMemo, useState } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import type { CalendarDay, CalendarSlot } from '../types';
+import type { CalendarDay, CalendarSlot, ZoomAccount } from '../types';
 import { ZoomMonthDayPopover } from './ZoomMonthDayPopover';
-import { Video } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
 
-const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-
-const PILL_BG: Record<string, string> = {
-    available:  'bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400',
-    booked:     'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
-    my_booking: 'bg-primary/10 text-primary dark:bg-primary/20',
-    blocked:    'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
-    external:   'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
-};
-
-const PILL_DOT: Record<string, string> = {
-    available:  'bg-slate-400',
-    booked:     'bg-amber-500',
-    my_booking: 'bg-primary',
-    blocked:    'bg-red-500',
-    external:   'bg-slate-400',
-};
+const DAY_NAMES = [
+    { full: 'Senin', short: 'Sen' },
+    { full: 'Selasa', short: 'Sel' },
+    { full: 'Rabu', short: 'Rab' },
+    { full: 'Kamis', short: 'Kam' },
+    { full: 'Jumat', short: 'Jum' },
+    { full: 'Sabtu', short: 'Sab' },
+    { full: 'Minggu', short: 'Min' },
+];
 
 interface ZoomMonthViewProps {
     currentDate: Date;
     calendar: CalendarDay[];
+    accounts?: ZoomAccount[];
     onSlotClick: (day: CalendarDay, slot: CalendarSlot) => void;
     onDateDoubleClick: (date: Date) => void;
     onBookingClick: (bookingId: string, day: CalendarDay) => void;
@@ -47,48 +39,84 @@ interface DayEvents {
     title: string;
     bookingId?: string;
     startTime?: string;
+    endTime?: string;
     joinUrl?: string;
     accountName?: string;
     accountColorHex?: string;
+    shortAccountName?: string;
 }
 
-function getDayEvents(day: CalendarDay | undefined): DayEvents[] {
+function getShortAccountName(name?: string): string {
+    if (!name) return 'Zoom';
+    // e.g. "Zoom Admin 1" -> "ZA 1" / "Z1", "Marketing" -> "Mktg", "Zoom 1" -> "Zoom 1"
+    const match = name.match(/Zoom\s+(?:Admin\s+)?(\d+)/i);
+    if (match) return `Z${match[1]}`;
+    return name.length > 5 ? name.substring(0, 4) + '..' : name;
+}
+
+function getDayEvents(day: CalendarDay | undefined, accountsMap: Map<string, ZoomAccount>): DayEvents[] {
     if (!day) return [];
     const events: DayEvents[] = [];
     const seenIds = new Set<string>();
 
+    const extractBooking = (b: any, status: string, time: string) => {
+        if (!b || !b.id || seenIds.has(b.id)) return;
+        seenIds.add(b.id);
+        const accountId = b.zoomAccountId || b.zoomAccount?.id;
+        const account = accountId ? accountsMap.get(accountId) : undefined;
+        const accountName = account?.name || b.zoomAccount?.name || b.accountName || 'Zoom';
+        const accountColorHex = account?.colorHex || b.zoomAccount?.colorHex || b.accountColorHex || '#3b82f6';
+
+        events.push({
+            status,
+            title: b.title,
+            bookingId: b.id,
+            startTime: b.startTime || time,
+            endTime: b.endTime,
+            joinUrl: b.joinUrl,
+            accountName,
+            accountColorHex,
+            shortAccountName: getShortAccountName(accountName),
+        });
+    };
+
     for (const slot of day.slots) {
-        if (slot.booking && !seenIds.has(slot.booking.id)) {
-            seenIds.add(slot.booking.id);
-            const slotBooking = slot.booking as (typeof slot.booking & {
-                zoomAccount?: { colorHex?: string; name?: string };
-            });
-            events.push({
-                status: slot.status,
-                title: slot.booking.title,
-                bookingId: slot.booking.id,
-                startTime: slot.booking.startTime || slot.time,
-                joinUrl: slot.booking.joinUrl,
-                accountName: slotBooking?.zoomAccount?.name ?? 'Zoom',
-                accountColorHex: slotBooking?.zoomAccount?.colorHex ?? '#3b82f6',
-            });
+        if (slot.booking) {
+            extractBooking(slot.booking, slot.status, slot.time);
+        }
+        const extraBookings = (slot as any).extraBookings;
+        if (Array.isArray(extraBookings)) {
+            for (const extra of extraBookings) {
+                extractBooking(extra, 'booked', slot.time);
+            }
         }
     }
-    return events;
+
+    // Sort by startTime
+    return events.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 }
 
 export function ZoomMonthView({
     currentDate,
     calendar,
+    accounts = [],
     onSlotClick,
     onDateDoubleClick,
     onBookingClick,
     canBook = true,
 }: ZoomMonthViewProps) {
-    const [popoverDate, setPopoverDate] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const days = useMemo(() => getDaysGrid(currentDate), [currentDate]);
     const { data: zoomSettings } = useZoomSettings();
     const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
+
+    const accountsMap = useMemo(() => {
+        const map = new Map<string, ZoomAccount>();
+        for (const a of accounts) {
+            map.set(a.id, a);
+        }
+        return map;
+    }, [accounts]);
 
     const calendarMap = useMemo(() => {
         const map = new Map<string, CalendarDay>();
@@ -98,54 +126,66 @@ export function ZoomMonthView({
         return map;
     }, [calendar]);
 
+    const totalRows = days.length / 7;
+
+    // Selected day data for popup
+    const selectedCalDay = selectedDate ? calendarMap.get(selectedDate) : undefined;
+    const selectedEvents = selectedCalDay ? getDayEvents(selectedCalDay, accountsMap) : [];
+    const selectedWeekend = selectedDate ? !isWorkingDay(new Date(selectedDate), workingDays) : false;
+
     return (
-        <div className="flex flex-col h-full select-none">
+        <div className="flex flex-col h-full select-none bg-background relative">
             {/* Day headers */}
-            <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700 shrink-0">
-                {DAY_NAMES.map((name, idx) => (
+            <div className="grid grid-cols-7 border-b border-border bg-muted/30 shrink-0">
+                {DAY_NAMES.map((day, idx) => (
                     <div
-                        key={name}
+                        key={day.full}
                         className={cn(
-                            "py-2 text-center text-xs font-semibold",
+                            "py-2 text-center text-xs font-bold uppercase tracking-wider",
                             idx >= 5
-                                ? "text-slate-400/70 dark:text-slate-500/70"
-                                : "text-slate-500 dark:text-slate-400"
+                                ? "text-muted-foreground/60 bg-muted/20"
+                                : "text-foreground"
                         )}
                     >
-                        {name}
+                        <span className="hidden sm:inline">{day.full}</span>
+                        <span className="inline sm:hidden text-[11px]">{day.short}</span>
                     </div>
                 ))}
             </div>
 
             {/* Day cells grid */}
             <div
-                className="grid grid-cols-7 flex-1 min-h-0"
-                style={{ gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))` }}
+                className="grid grid-cols-7 flex-1 min-h-0 divide-x divide-y divide-border/70 border-b border-border"
+                style={{ gridTemplateRows: `repeat(${totalRows}, minmax(0, 1fr))` }}
             >
                 {days.map((day) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const calDay = calendarMap.get(dateStr);
                     const inMonth = isSameMonth(day, currentDate);
                     const today = isToday(day);
-                    const events = getDayEvents(calDay);
-                    const visibleEvents = events.slice(0, 3);
+                    const events = getDayEvents(calDay, accountsMap);
+                    
+                    // Adaptive pills: show at most 2 pills + 1 compact overflow chip
+                    const maxDisplay = events.length > 2 ? 2 : 2;
+                    const visibleEvents = events.slice(0, maxDisplay);
                     const overflow = events.length - visibleEvents.length;
                     const isBlocked = calDay?.isBlocked ?? false;
                     const isWeekend = !isWorkingDay(day, workingDays);
+                    const isSelected = selectedDate === dateStr;
 
                     return (
                         <div
                             key={dateStr}
                             className={cn(
-                                "min-h-[80px] p-1 border-b border-r border-slate-200 dark:border-slate-700",
-                                "transition-colors duration-100 relative group",
+                                "p-1 sm:p-1.5 transition-colors duration-150 relative group flex flex-col justify-between overflow-hidden",
                                 !isWeekend && "cursor-pointer",
                                 inMonth
-                                    ? "bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 hover:shadow-inner"
-                                    : "bg-slate-50/40 dark:bg-slate-800/20",
-                                today && "bg-blue-50/60 dark:bg-blue-950/20",
-                                isBlocked && "bg-red-50/40 dark:bg-red-950/20",
-                                isWeekend && "bg-slate-100/80 dark:bg-slate-800/40 cursor-not-allowed opacity-60 hover:bg-slate-100/80 dark:hover:bg-slate-800/40"
+                                    ? "bg-card hover:bg-muted/30"
+                                    : "bg-muted/20 text-muted-foreground/50",
+                                today && "bg-primary/5 hover:bg-primary/10",
+                                isBlocked && "bg-destructive/5",
+                                isWeekend && "bg-muted/40 cursor-not-allowed opacity-75",
+                                isSelected && "ring-2 ring-primary ring-inset bg-primary/10"
                             )}
                             onClick={() => {
                                 if (isWeekend) return;
@@ -155,86 +195,128 @@ export function ZoomMonthView({
                             }}
                             onDoubleClick={() => onDateDoubleClick(day)}
                         >
-                            {/* Day number */}
-                            <div className="flex items-center justify-between mb-1 px-0.5">
+                            {/* Day Header Row */}
+                            <div className="flex items-center justify-between mb-1 px-0.5 z-10 shrink-0">
                                 <span className={cn(
-                                    "text-xs font-semibold inline-flex items-center justify-center w-6 h-6 rounded-full",
+                                    "text-xs font-bold inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full transition-all",
                                     today
-                                        ? "bg-blue-600 text-white"
+                                        ? "bg-primary text-primary-foreground shadow-xs font-black"
                                         : inMonth
-                                            ? "text-slate-800 dark:text-slate-200"
-                                            : "text-slate-400 dark:text-slate-600"
+                                            ? "text-foreground font-semibold"
+                                            : "text-muted-foreground/60"
                                 )}>
                                     {format(day, 'd')}
                                 </span>
+
+                                {/* Distinct account color indicator dots */}
+                                {events.length > 0 && !isBlocked && (
+                                    <div className="hidden sm:flex items-center gap-1 max-w-[65px] overflow-hidden shrink-0 px-1">
+                                        {Array.from(new Set(events.map(e => e.accountColorHex || '#3b82f6'))).slice(0, 5).map((color, idx) => (
+                                            <span
+                                                key={idx}
+                                                className="w-1.5 h-1.5 rounded-full shrink-0 shadow-2xs ring-1 ring-background"
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))}
+                                        {new Set(events.map(e => e.accountColorHex)).size > 5 && (
+                                            <span className="text-[8px] font-mono text-muted-foreground font-bold leading-none">+</span>
+                                        )}
+                                    </div>
+                                )}
+
                                 {isBlocked && (
-                                    <span className="text-xs text-red-500 font-medium">Blokir</span>
+                                    <span className="text-[9px] sm:text-[10px] font-bold text-destructive px-1.5 py-0.2 rounded-full bg-destructive/10">
+                                        Blokir
+                                    </span>
+                                )}
+
+                                {!isBlocked && events.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedDate(dateStr);
+                                        }}
+                                        className={cn(
+                                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer",
+                                            isSelected
+                                                ? "bg-primary text-primary-foreground shadow-2xs"
+                                                : "bg-muted/80 hover:bg-primary/10 text-muted-foreground hover:text-primary border border-border/60"
+                                        )}
+                                        title="Klik untuk lihat semua jadwal meeting hari ini"
+                                    >
+                                        <span className="hidden sm:inline">{events.length} meeting{events.length > 1 ? 's' : ''}</span>
+                                        <span className="inline sm:hidden">{events.length} mtg</span>
+                                    </button>
                                 )}
                             </div>
 
-                            {/* Events */}
-                            <div className="space-y-0.5 px-0.5 relative z-10">
-                                {visibleEvents.map((event, idx) => (
+                            {/* Meeting Pills (Adaptive height & never clipped) */}
+                            <div className="space-y-1 px-0.5 relative z-10 flex-1 min-h-0 flex flex-col justify-start">
+                                {visibleEvents.map((event, eventIdx) => (
                                     <div
-                                        key={`${event.bookingId ?? idx}`}
+                                        key={`${event.bookingId ?? eventIdx}`}
                                         className={cn(
-                                            "text-xs px-1.5 py-0.5 rounded-md truncate font-medium cursor-pointer animate-[pillSlideIn_0.3s_ease-out_forwards] opacity-0",
-                                            PILL_BG[event.status] ?? PILL_BG.available
+                                            "h-[22px] sm:h-[24px] px-1.5 rounded-md font-medium cursor-pointer transition-all border shadow-2xs group/pill flex items-center gap-1.5",
+                                            "bg-background hover:bg-muted/80 border-border/80 text-foreground"
                                         )}
-                                        style={{ animationDelay: `${idx * 50}ms` }}
+                                        style={{ borderLeftWidth: '3.5px', borderLeftColor: event.accountColorHex || '#3b82f6' }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (event.bookingId && calDay) {
                                                 onBookingClick(event.bookingId, calDay);
                                             }
                                         }}
+                                        title={`${event.title} (${event.startTime || ''}) - ${event.accountName || 'Zoom'}`}
                                     >
-                                        <span className="flex items-center gap-1.5">
-                                            <span
-                                                className={cn("w-1.5 h-1.5 rounded-full shrink-0", PILL_DOT[event.status] ?? PILL_DOT.available)}
-                                                aria-hidden="true"
-                                            />
-                                            <span className="truncate">{event.title}</span>
+                                        {/* Account Tag Badge */}
+                                        <span
+                                            className="px-1 py-0.2 rounded text-[9px] font-black text-white shrink-0 shadow-2xs leading-none"
+                                            style={{ backgroundColor: event.accountColorHex || '#3b82f6' }}
+                                        >
+                                            {event.shortAccountName}
+                                        </span>
+
+                                        {/* Start Time */}
+                                        {event.startTime && (
+                                            <span className="text-[10px] font-mono font-bold text-muted-foreground shrink-0 leading-none">
+                                                {event.startTime}
+                                            </span>
+                                        )}
+
+                                        {/* Title */}
+                                        <span className="truncate text-[11px] font-semibold flex-1 min-w-0 leading-none">
+                                            {event.title}
                                         </span>
                                     </div>
                                 ))}
+
+                                {/* +X More Pill Button */}
                                 {overflow > 0 && (
-                                    <div className="relative mt-1">
-                                        <button
-                                            className="text-xs text-primary px-1 font-semibold hover:underline w-full text-left"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setPopoverDate(popoverDate === dateStr ? null : dateStr);
-                                            }}
-                                        >
-                                            +{overflow} lainnya
-                                        </button>
-                                        {popoverDate === dateStr && (
-                                            <ZoomMonthDayPopover
-                                                date={dateStr}
-                                                events={events.map((ev) => ({
-                                                    bookingId: ev.bookingId ?? '',
-                                                    status: ev.status,
-                                                    title: ev.title,
-                                                    startTime: ev.startTime,
-                                                    joinUrl: ev.joinUrl,
-                                                }))}
-                                                onClose={() => setPopoverDate(null)}
-                                                onEventClick={(id) => {
-                                                    if (calDay) onBookingClick(id, calDay);
-                                                }}
-                                                anchorRef={{ current: null } as any}
-                                            />
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedDate(dateStr);
+                                        }}
+                                        className={cn(
+                                            "h-[20px] sm:h-[22px] px-2 rounded-md text-[10px] sm:text-[11px] font-bold transition-all text-left flex items-center justify-between cursor-pointer border shadow-2xs",
+                                            isSelected
+                                                ? "bg-primary text-primary-foreground border-primary font-extrabold"
+                                                : "bg-primary/5 hover:bg-primary/15 text-primary border-primary/20 hover:border-primary/40"
                                         )}
-                                    </div>
+                                    >
+                                        <span>+{overflow} meeting lagi</span>
+                                        <span className="text-[9px] opacity-70 font-mono">Lihat &rarr;</span>
+                                    </button>
                                 )}
                             </div>
 
-                            {/* Book Hover Overlay */}
-                            {canBook && !isWeekend && !isBlocked && (
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 border border-dashed border-blue-400/70 rounded-lg m-1 bg-blue-50/50 dark:bg-blue-950/30 pointer-events-none z-0">
-                                    <span className="text-xs font-medium text-blue-500 dark:text-blue-400 flex items-center gap-1">
-                                        <Video className="h-3 w-3" /> Book Zoom
+                            {/* Book Hover Prompt on Empty Days */}
+                            {canBook && !isWeekend && !isBlocked && events.length === 0 && (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 border-2 border-dashed border-primary/40 rounded-xl m-1 bg-primary/5 pointer-events-none z-0">
+                                    <span className="text-xs font-semibold text-primary flex items-center gap-1">
+                                        <Plus className="h-3.5 w-3.5" /> Book Zoom
                                     </span>
                                 </div>
                             )}
@@ -242,6 +324,21 @@ export function ZoomMonthView({
                     );
                 })}
             </div>
+
+            {/* Root-Level Day Schedule Popover Modal (Never clipped by overflow-hidden) */}
+            {selectedDate && (
+                <ZoomMonthDayPopover
+                    date={selectedDate}
+                    events={selectedEvents}
+                    onClose={() => setSelectedDate(null)}
+                    onEventClick={(id) => {
+                        if (selectedCalDay) onBookingClick(id, selectedCalDay);
+                    }}
+                    onNewBooking={canBook && !selectedWeekend && !selectedCalDay?.isBlocked && selectedCalDay?.slots?.length ? () => {
+                        onSlotClick(selectedCalDay, selectedCalDay.slots[0]);
+                    } : undefined}
+                />
+            )}
         </div>
     );
 }

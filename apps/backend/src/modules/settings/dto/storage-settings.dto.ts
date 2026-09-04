@@ -17,6 +17,34 @@ export class RetentionSettingsDto {
     onlyResolvedTickets?: boolean;
 }
 
+export class ImageCompressionSettingsDto {
+    @IsOptional()
+    @IsBoolean()
+    enabled?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    @Max(3650) // Max 10 years
+    retentionDays?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    onlyResolvedTickets?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(30)
+    @Max(100)
+    quality?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(640)
+    @Max(3840)
+    maxWidth?: number;
+}
+
 export class UpdateStorageSettingsDto {
     @IsOptional()
     @IsBoolean()
@@ -33,6 +61,34 @@ export class UpdateStorageSettingsDto {
     @IsOptional()
     @Type(() => RetentionSettingsDto)
     discussions?: RetentionSettingsDto;
+
+    @IsOptional()
+    @Type(() => ImageCompressionSettingsDto)
+    imageCompression?: ImageCompressionSettingsDto;
+}
+
+export class ManualCompressDto {
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    @Max(3650)
+    olderThanDays?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    onlyResolvedTickets?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(30)
+    @Max(100)
+    quality?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(640)
+    @Max(3840)
+    maxWidth?: number;
 }
 
 export class ManualCleanupDto {

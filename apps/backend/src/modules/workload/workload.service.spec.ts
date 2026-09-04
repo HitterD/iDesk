@@ -30,6 +30,10 @@ describe('WorkloadService — query count for multi-agent operations', () => {
             ticketRepo,
             userRepo,
             { emit: jest.fn() } as any,
+            {
+                resolvePolicy: jest.fn().mockResolvedValue({ module: null, autoAssignEnabled: true, userIds: [], roles: [] }),
+                toAssignable: jest.fn((t: any) => t),
+            } as any,
         );
     });
 

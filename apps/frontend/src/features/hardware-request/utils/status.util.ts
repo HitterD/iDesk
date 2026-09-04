@@ -7,7 +7,7 @@ export const STATUS_META: Record<RequestStatus, { label: string; tone: string; h
     SUBMITTED:    { label: 'Submitted',    tone: 'bg-sky-100 text-sky-800 ring-sky-200',         hex: '#0284c7' },
     UNDER_REVIEW: { label: 'Under Review', tone: 'bg-amber-100 text-amber-900 ring-amber-200',   hex: '#b45309' },
     APPROVED:     { label: 'Approved',     tone: 'bg-emerald-100 text-emerald-800 ring-emerald-200', hex: '#047857' },
-    PROCUREMENT:  { label: 'Procurement',  tone: 'bg-violet-100 text-violet-800 ring-violet-200',    hex: '#6d28d9' },
+    PROCUREMENT:  { label: 'SPP Issued',   tone: 'bg-violet-100 text-violet-800 ring-violet-200',    hex: '#6d28d9' },
     AWAITING_DELIVERY: { label: 'Awaiting Delivery', tone: 'bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-200', hex: '#a21caf' },
     INSTALLATION: { label: 'Installation', tone: 'bg-indigo-100 text-indigo-800 ring-indigo-200',    hex: '#4338ca' },
     AWAITING_USER_CONFIRMATION: { label: 'Awaiting User Confirmation', tone: 'bg-cyan-100 text-cyan-800 ring-cyan-200', hex: '#0891b2' },

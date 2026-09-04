@@ -44,8 +44,16 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
         uptime: process.uptime(),
         cpuUsage: 0,
         memoryUsage: 0,
+        memoryTotal: 0,
         memoryFree: 0,
         loadAverage: [0, 0, 0],
+        process: {
+            pid: process.pid,
+            heapUsed: 0,
+            heapTotal: 0,
+            rss: 0,
+            external: 0,
+        },
         database: { status: 'disconnected', latency: 0 },
         redis: { status: 'disabled' },
         websocket: { status: 'active', clients: 0 },
@@ -208,8 +216,10 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
             uptime: process.uptime(),
             cpuUsage: metrics.cpuUsage,
             memoryUsage: metrics.memoryUsage,
+            memoryTotal: metrics.memoryTotal,
             memoryFree: metrics.memoryFree,
             loadAverage: metrics.loadAverage,
+            process: metrics.process,
             database,
             redis: {
                 ...redis,
@@ -286,6 +296,17 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    /**
+     * Force on-demand full refresh of both fast & slow tiers
+     */
+    async forceRefresh(): Promise<void> {
+        this.logger.log('Executing on-demand health force refresh');
+        await Promise.allSettled([
+            this.refreshFastTier(),
+            this.refreshSlowTier(),
+        ]);
+    }
+
     private async getRedisDetail(): Promise<RedisDetail | undefined> {
         if (!this.redisEnabled || !this.redisClient) return undefined;
 
@@ -332,7 +353,7 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
             system: {
                 cpuUsage: this.fastSnapshot.cpuUsage,
                 memoryUsage: this.fastSnapshot.memoryUsage,
-                memoryTotal: 0,
+                memoryTotal: this.fastSnapshot.memoryTotal,
                 memoryFree: this.fastSnapshot.memoryFree,
                 diskUsage: this.slowSnapshot.disk.diskUsage,
                 diskTotal: this.slowSnapshot.disk.diskTotal,
@@ -341,6 +362,7 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
                 arch: osArch(),
                 nodeVersion: process.version,
                 loadAverage: this.fastSnapshot.loadAverage,
+                process: this.fastSnapshot.process,
             },
             infrastructure: {
                 database: this.fastSnapshot.database,
@@ -363,8 +385,10 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
             uptime: this.fastSnapshot.uptime,
             cpuUsage: this.fastSnapshot.cpuUsage,
             memoryUsage: this.fastSnapshot.memoryUsage,
+            memoryTotal: this.fastSnapshot.memoryTotal,
             memoryFree: this.fastSnapshot.memoryFree,
             loadAverage: this.fastSnapshot.loadAverage,
+            process: this.fastSnapshot.process,
             database: this.fastSnapshot.database,
             redis: this.fastSnapshot.redis,
             websocket: this.fastSnapshot.websocket,

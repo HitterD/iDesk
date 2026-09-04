@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { AlertTriangle, Trash2, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Trash2, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
@@ -10,7 +10,7 @@ interface ConfirmationDialogProps {
     description: string;
     confirmText?: string;
     cancelText?: string;
-    variant?: 'default' | 'destructive' | 'warning';
+    variant?: 'default' | 'destructive' | 'warning' | 'success';
     onConfirm: () => void;
     onCancel: () => void;
     isLoading?: boolean;
@@ -43,6 +43,14 @@ const variantConfig = {
         iconColor: 'text-amber-500',
         confirmBg: 'bg-amber-500',
         confirmHover: 'hover:bg-amber-600',
+        confirmText: 'text-white',
+    },
+    success: {
+        icon: CheckCircle2,
+        iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
+        iconColor: 'text-emerald-600 dark:text-emerald-400',
+        confirmBg: 'bg-emerald-600',
+        confirmHover: 'hover:bg-emerald-700',
         confirmText: 'text-white',
     },
 };

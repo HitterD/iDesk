@@ -44,6 +44,7 @@ export interface ProcessedBookingV2 {
     isExternal: boolean;
     accountColorHex: string;
     accountName: string;
+    accountId?: string;
     rowIndex: number;
     totalRows: number;
     overflowCount: number;
@@ -66,7 +67,9 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
             seen.add(slot.booking.id);
             const rowSpan = Math.max(1, Math.ceil(slot.booking.durationMinutes / SLOT_INTERVAL));
             const slotBooking = slot.booking as (CalendarSlot['booking'] & {
-                zoomAccount?: { colorHex?: string; name?: string };
+                zoomAccount?: { colorHex?: string; name?: string; id?: string };
+                zoomAccountId?: string;
+                accountId?: string;
             });
             all.push({
                 id: slot.booking.id,
@@ -81,6 +84,7 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
                 isExternal: slot.booking.isExternal || false,
                 accountColorHex: slotBooking?.zoomAccount?.colorHex ?? '#3b82f6',
                 accountName: slotBooking?.zoomAccount?.name ?? 'Zoom',
+                accountId: slotBooking?.zoomAccountId || slotBooking?.accountId || slotBooking?.zoomAccount?.id || '',
                 rowIndex: 0,
                 totalRows: 0,
                 overflowCount: 0,
@@ -100,7 +104,9 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
             seen.add(extra.id);
             const extraRowSpan = Math.max(1, Math.ceil(extra.durationMinutes / SLOT_INTERVAL));
             const extraBooking = extra as NonNullable<CalendarSlot['booking']> & {
-                zoomAccount?: { colorHex?: string; name?: string };
+                zoomAccount?: { colorHex?: string; name?: string; id?: string };
+                zoomAccountId?: string;
+                accountId?: string;
             };
             all.push({
                 id: extra.id,
@@ -115,6 +121,7 @@ export function processBookingsForDayV2(day: CalendarDay): ProcessedBookingV2[] 
                 isExternal: extra.isExternal || false,
                 accountColorHex: extraBooking?.zoomAccount?.colorHex ?? '#3b82f6',
                 accountName: extraBooking?.zoomAccount?.name ?? 'Zoom',
+                accountId: extraBooking?.zoomAccountId || extraBooking?.accountId || extraBooking?.zoomAccount?.id || '',
                 rowIndex: 0,
                 totalRows: 0,
                 overflowCount: 0,

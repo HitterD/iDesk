@@ -9,8 +9,6 @@ import {
     Columns3,
     TableProperties,
     Inbox,
-    CircleDot,
-    CheckCircle2,
     Flame,
     ChevronLeft,
     ChevronRight,
@@ -19,18 +17,18 @@ import {
     X,
     Maximize2,
     ArrowRight,
-    TrendingUp,
     Plus,
     Ticket as TicketIcon,
     Search,
     Filter,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
 import { AgentSelectList, Agent } from './AgentSelectList';
+import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
@@ -83,6 +81,8 @@ interface Ticket {
     site?: { id: string; code: string; name: string };
     messages?: Message[];
     attachments?: Attachment[];
+    hasUnreadChat?: boolean;
+    unreadMessageCount?: number;
     createdAt: string;
 }
 
@@ -120,40 +120,6 @@ const COLUMN_ACCENTS: Record<string, { dot: string; border: string; bg: string; 
     },
 };
 
-// Compact modern Stats metric tile
-const StatsMetricTile: React.FC<{
-    icon: React.ElementType;
-    label: string;
-    value: number;
-    color: string;
-    bgColor: string;
-    highlight?: boolean;
-    onClick?: () => void;
-    isActive?: boolean;
-}> = ({ icon: Icon, label, value, color, bgColor, highlight, onClick, isActive }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-            "flex items-center justify-between p-3 rounded-xl border bg-card text-left transition-all duration-200 cursor-pointer shadow-xs",
-            "hover:bg-muted/50 hover:shadow-xs",
-            isActive
-                ? "ring-1 ring-primary border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
-                : "border-border",
-            highlight && value > 0 && !isActive && "border-destructive/40 bg-destructive/5"
-        )}
-    >
-        <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate">{label}</p>
-            <p className={cn("text-xl font-extrabold tracking-tight tabular-nums mt-0.5", color)}>
-                {value}
-            </p>
-        </div>
-        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ml-2", bgColor)}>
-            <Icon className={cn("w-4 h-4", color)} />
-        </div>
-    </button>
-);
 
 // Enhanced Linear-style Kanban card
 const EnhancedKanbanCard: React.FC<{
@@ -161,19 +127,16 @@ const EnhancedKanbanCard: React.FC<{
     index: number;
     onSelect: () => void;
     onQuickAssign: () => void;
-}> = ({ ticket, index, onSelect, onQuickAssign }) => {
+    onOpen: () => void;
+}> = ({ ticket, index, onSelect, onQuickAssign, onOpen }) => {
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
+    const isOverdue = ticket.isOverdue || (ticket.slaTarget && new Date(ticket.slaTarget) < new Date() && ticket.status !== 'RESOLVED');
+    const isApproaching = ticket.slaTarget && !isOverdue && (new Date(ticket.slaTarget).getTime() - Date.now() < 2 * 60 * 60 * 1000);
     const PriorityIcon = priorityConfig.icon;
 
-    const { isOverdue, isApproaching } = useMemo(() => {
-        if (!ticket.slaTarget || ticket.status === 'RESOLVED') return { isOverdue: false, isApproaching: false };
-        const slaTime = new Date(ticket.slaTarget).getTime();
-        const now = Date.now();
-        return {
-            isOverdue: slaTime < now,
-            isApproaching: slaTime >= now && (slaTime - now) < SLA_WARNING_THRESHOLD_MS,
-        };
-    }, [ticket.slaTarget, ticket.status]);
+    const cleanDescription = ticket.description
+        ? ticket.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim()
+        : '';
 
     return (
         <Draggable draggableId={ticket.id} index={index}>
@@ -182,11 +145,12 @@ const EnhancedKanbanCard: React.FC<{
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
+                    onClick={onOpen}
                     style={{
                         ...provided.draggableProps.style,
                     }}
                     className={cn(
-                        "rounded-xl border bg-card p-3 transition-all duration-150 group relative select-none cursor-grab active:cursor-grabbing",
+                        "rounded-xl border bg-card p-3 transition-all duration-150 group relative select-none cursor-pointer",
                         "hover:shadow-md hover:border-primary/40",
                         snapshot.isDragging
                             ? "shadow-2xl ring-2 ring-primary border-primary scale-[1.02] z-50 bg-card/95 backdrop-blur-sm"
@@ -204,7 +168,7 @@ const EnhancedKanbanCard: React.FC<{
 
                             {ticket.category && (
                                 <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded truncate max-w-[90px]">
-                                    {ticket.category}
+                                    {ticket.category.replace(/_/g, ' ')}
                                 </span>
                             )}
                         </div>
@@ -225,7 +189,7 @@ const EnhancedKanbanCard: React.FC<{
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); onSelect(); }}
                                     className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                                    title="Detail & Pratinjau"
+                                    title="Detail & Pratinjau Cepat"
                                 >
                                     <Eye className="w-3.5 h-3.5" />
                                 </button>
@@ -241,15 +205,30 @@ const EnhancedKanbanCard: React.FC<{
                         </div>
                     </div>
 
-                    {/* Ticket Title */}
+                    {/* Ticket Title with Rich Hover Card / Tooltip */}
                     <TicketQuickPreview ticket={ticket as any} side="right">
                         <h4
-                            onClick={onSelect}
-                            className="font-bold text-xs sm:text-sm text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors cursor-pointer leading-snug"
+                            className="font-bold text-xs sm:text-sm text-foreground mb-1.5 line-clamp-2 group-hover:text-primary transition-colors leading-snug"
                         >
                             {ticket.title}
                         </h4>
                     </TicketQuickPreview>
+
+                    {ticket.hasUnreadChat && (
+                        <div className="mb-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/60 shadow-2xs animate-pulse">
+                                <MessageSquare className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                <span>Pesan Baru{ticket.unreadMessageCount ? ` (${ticket.unreadMessageCount})` : ''}</span>
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Ticket Description Snippet */}
+                    {cleanDescription && (
+                        <p className="text-[11px] sm:text-xs text-muted-foreground line-clamp-2 mb-2.5 leading-relaxed font-normal break-words">
+                            {cleanDescription}
+                        </p>
+                    )}
 
                     {/* SLA / Target Date Pill if active */}
                     {ticket.slaTarget && ticket.status !== 'RESOLVED' && (
@@ -325,7 +304,8 @@ const KanbanColumn: React.FC<{
     onToggleCollapse: () => void;
     onCardSelect: (ticket: Ticket) => void;
     onQuickAssign: (ticketId: string) => void;
-}> = ({ column, tickets, isCollapsed, onToggleCollapse, onCardSelect, onQuickAssign }) => {
+    onCardOpen: (ticket: Ticket) => void;
+}> = ({ column, tickets, isCollapsed, onToggleCollapse, onCardSelect, onQuickAssign, onCardOpen }) => {
     const accent = COLUMN_ACCENTS[column.id] || COLUMN_ACCENTS.TODO;
 
     if (isCollapsed) {
@@ -385,6 +365,7 @@ const KanbanColumn: React.FC<{
                                 index={index}
                                 onSelect={() => onCardSelect(ticket)}
                                 onQuickAssign={() => onQuickAssign(ticket.id)}
+                                onOpen={() => onCardOpen(ticket)}
                             />
                         ))}
                         {provided.placeholder}
@@ -417,7 +398,7 @@ const TicketPreviewPanel: React.FC<{
     agents: Agent[];
     onClose: () => void;
     onOpenFull: () => void;
-    onAssign: (assigneeId: string) => void;
+    onAssign: (assigneeId: string, reason?: string) => void;
     onStatusChange: (status: string) => void;
     onPriorityChange: (priority: string) => void;
 }> = ({ ticket, agents, onClose, onOpenFull, onAssign, onStatusChange, onPriorityChange }) => {
@@ -428,6 +409,32 @@ const TicketPreviewPanel: React.FC<{
     const { user } = useAuth();
     const isAdmin = isCrossSiteRole(user?.role);
     const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
+    const [reassignModalOpen, setReassignModalOpen] = useState(false);
+    const [targetAgentToAssign, setTargetAgentToAssign] = useState<TargetAgentInfo | null>(null);
+
+    const handleAgentSelect = (agentId: string) => {
+        setAssignPopoverOpen(false);
+
+        if (ticket.assignedTo?.id === agentId) return;
+
+        const target = agentId
+            ? (agents.find((a) => a.id === agentId) || { id: agentId, fullName: 'Selected Agent' })
+            : null;
+
+        // If ticket already has an assigned PIC, prompt for confirmation and reason
+        if (ticket.assignedTo?.id) {
+            setTargetAgentToAssign(target);
+            setReassignModalOpen(true);
+        } else {
+            // Unassigned ticket being assigned for the first time
+            onAssign(agentId);
+        }
+    };
+
+    const handleConfirmReassign = (reason: string) => {
+        onAssign(targetAgentToAssign ? targetAgentToAssign.id : '', reason);
+        setReassignModalOpen(false);
+    };
 
     return (
         <div className="w-[380px] max-w-full h-full bg-card border-l border-border flex flex-col shrink-0 shadow-2xl z-20 overflow-hidden animate-in slide-in-from-right duration-200">
@@ -553,10 +560,7 @@ const TicketPreviewPanel: React.FC<{
                                 agents={agents}
                                 selectedId={ticket.assignedTo?.id}
                                 isAdmin={isAdmin}
-                                onSelect={(agentId) => {
-                                    onAssign(agentId);
-                                    setAssignPopoverOpen(false);
-                                }}
+                                onSelect={handleAgentSelect}
                             />
                         </PopoverContent>
                     </Popover>
@@ -613,14 +617,92 @@ const TicketPreviewPanel: React.FC<{
                     Buka Detail Lengkap Tiket
                 </button>
             </div>
+
+            {/* Reassign Modal */}
+            <ReassignConfirmDialog
+                isOpen={reassignModalOpen}
+                onClose={() => setReassignModalOpen(false)}
+                ticket={{
+                    id: ticket.id,
+                    ticketNumber: ticket.ticketNumber,
+                    title: ticket.title,
+                    assignedTo: ticket.assignedTo
+                        ? {
+                              id: ticket.assignedTo.id,
+                              fullName: ticket.assignedTo.fullName,
+                          }
+                        : null,
+                }}
+                targetAgent={targetAgentToAssign}
+                onConfirm={handleConfirmReassign}
+            />
         </div>
     );
 };
 
-export const BentoTicketKanban: React.FC = () => {
+export type KanbanQueue = 'it-support' | 'oracle' | 'web-dev' | 'mobile-dev';
+
+export interface BentoTicketKanbanProps {
+    queue?: KanbanQueue;
+    currentView?: 'table' | 'kanban';
+    onToggleView?: (view: 'table' | 'kanban') => void;
+    embedded?: boolean;
+}
+
+const QUEUE_CONFIG: Record<KanbanQueue, {
+    title: string;
+    description: string;
+    createPath: string;
+    createLabel: string;
+    tablePath: string;
+    ticketType?: string;
+}> = {
+    'it-support': {
+        title: 'IT Support Kanban',
+        description: 'Geser dan lepas kartu tiket untuk memperbarui status secara instan',
+        createPath: '/tickets/create',
+        createLabel: 'New Ticket',
+        tablePath: '/tickets/list',
+    },
+    oracle: {
+        title: 'Oracle / K2 Kanban',
+        description: 'Papan alur kerja tiket Oracle ERP & K2 Request',
+        createPath: '/tickets/create?type=oracle-request',
+        createLabel: 'New Oracle/K2 Request',
+        tablePath: '/tickets/oracle-k2',
+        ticketType: 'ORACLE_REQUEST',
+    },
+    'web-dev': {
+        title: 'Web Developer Kanban',
+        description: 'Papan alur kerja tiket Web Development & Portal',
+        createPath: '/tickets/create?type=web-dev-request',
+        createLabel: 'New Web Dev Request',
+        tablePath: '/tickets/web-developer',
+        ticketType: 'WEB_DEV_REQUEST',
+    },
+    'mobile-dev': {
+        title: 'Mobile Developer Kanban',
+        description: 'Papan alur kerja tiket Aplikasi Mobile iOS & Android',
+        createPath: '/tickets/create?type=mobile-dev-request',
+        createLabel: 'New Mobile Dev Request',
+        tablePath: '/tickets/mobile-developer',
+        ticketType: 'MOBILE_DEV_REQUEST',
+    },
+};
+
+export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
+    queue: propQueue,
+    currentView = 'kanban',
+    onToggleView,
+    embedded = false,
+}) => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const { user } = useAuth();
+
+    const effectiveQueue: KanbanQueue = propQueue || (searchParams.get('queue') as KanbanQueue) || 'it-support';
+    const config = QUEUE_CONFIG[effectiveQueue] || QUEUE_CONFIG['it-support'];
 
     const [collapsedColumns, setCollapsedColumns] = useState<string[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -629,9 +711,11 @@ export const BentoTicketKanban: React.FC = () => {
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
 
     const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
-        queryKey: ['tickets'],
+        queryKey: ['tickets', 'kanban', effectiveQueue],
         queryFn: async () => {
-            const res = await api.get('/tickets');
+            const res = await api.get('/tickets', {
+                params: { queue: effectiveQueue },
+            });
             return res.data;
         },
         refetchInterval: 30000,
@@ -639,11 +723,14 @@ export const BentoTicketKanban: React.FC = () => {
 
     const isAdmin = isCrossSiteRole(user?.role);
     const { data: agents = [] } = useQuery<Agent[]>({
-        queryKey: ['agents', isAdmin ? 'all' : user?.siteId],
+        queryKey: ['agents', effectiveQueue, isAdmin ? 'all' : user?.siteId],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (!isAdmin && user?.siteId) {
                 params.set('siteId', user.siteId);
+            }
+            if (config.ticketType) {
+                params.set('ticketType', config.ticketType);
             }
             const res = await api.get(`/users/agents?${params.toString()}`);
             return res.data;
@@ -655,10 +742,10 @@ export const BentoTicketKanban: React.FC = () => {
             await api.patch(`/tickets/${id}/status`, { status });
         },
         onMutate: async ({ id, status }) => {
-            await queryClient.cancelQueries({ queryKey: ['tickets'] });
-            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
+            await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue]);
 
-            queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
+            queryClient.setQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue], (old) =>
                 old?.map(t => t.id === id ? { ...t, status: status as Ticket['status'] } : t) ?? []
             );
 
@@ -669,11 +756,15 @@ export const BentoTicketKanban: React.FC = () => {
             return { previousTickets };
         },
         onError: (_, __, context) => {
-            queryClient.setQueryData(['tickets'], context?.previousTickets);
+            queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
             toast.error('Gagal memperbarui status');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'kanban'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'web-dev'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'mobile-dev'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
         onSuccess: () => toast.success('Status tiket diperbarui'),
@@ -684,10 +775,10 @@ export const BentoTicketKanban: React.FC = () => {
             await api.patch(`/tickets/${id}/priority`, { priority });
         },
         onMutate: async ({ id, priority }) => {
-            await queryClient.cancelQueries({ queryKey: ['tickets'] });
-            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
+            await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue]);
 
-            queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
+            queryClient.setQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue], (old) =>
                 old?.map(t => t.id === id ? { ...t, priority: priority as Ticket['priority'] } : t) ?? []
             );
 
@@ -698,61 +789,72 @@ export const BentoTicketKanban: React.FC = () => {
             return { previousTickets };
         },
         onError: (_, __, context) => {
-            queryClient.setQueryData(['tickets'], context?.previousTickets);
+            queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
             toast.error('Gagal memperbarui prioritas');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'kanban'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'web-dev'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'mobile-dev'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
         onSuccess: () => toast.success('Prioritas diperbarui'),
     });
 
     const assignMutation = useMutation({
-        mutationFn: async ({ id, assigneeId }: { id: string; assigneeId: string }) => {
-            await api.patch(`/tickets/${id}/assign`, { assigneeId });
+        mutationFn: async ({ id, assigneeId, reason }: { id: string; assigneeId?: string | null; reason?: string }) => {
+            await api.patch(`/tickets/${id}/assign`, { assigneeId: assigneeId || undefined, reason });
         },
         onMutate: async ({ id, assigneeId }) => {
-            await queryClient.cancelQueries({ queryKey: ['tickets'] });
-            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
-            const assignee = agents.find(a => a.id === assigneeId);
+            await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue]);
+            const assignee = assigneeId ? agents.find(a => a.id === assigneeId) || null : null;
 
-            queryClient.setQueryData<Ticket[]>(['tickets'], (old) =>
-                old?.map(t => t.id === id ? { ...t, assignedTo: assignee } : t) ?? []
+            queryClient.setQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue], (old) =>
+                old?.map(t => t.id === id ? { ...t, assignedTo: assignee || undefined } : t) ?? []
             );
 
             if (selectedTicket?.id === id) {
-                setSelectedTicket(prev => prev ? { ...prev, assignedTo: assignee } : null);
+                setSelectedTicket(prev => prev ? { ...prev, assignedTo: assignee || undefined } : null);
             }
 
             return { previousTickets };
         },
         onError: (_, __, context) => {
-            queryClient.setQueryData(['tickets'], context?.previousTickets);
+            queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
             toast.error('Gagal menugaskan agent');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'kanban'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'web-dev'] });
+            queryClient.invalidateQueries({ queryKey: ['tickets', 'mobile-dev'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
         onSuccess: () => toast.success('Agent berhasil ditugaskan'),
     });
 
-    // Client-side filtering for Kanban
+    // Client-side filtering and sorting for Kanban
     const filteredTickets = useMemo(() => {
-        let result = tickets;
+        let result = [...tickets];
 
-        // Quick filter pills
+        // 1. Sort newest to oldest (createdAt descending)
+        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        // 2. Quick filter pills
         if (filter === 'my') result = result.filter(t => t.assignedTo?.id === user?.id);
         if (filter === 'overdue') result = result.filter(t => t.isOverdue);
         if (filter === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
 
-        // Site filter
+        // 3. Site filter
         if (selectedSites.length > 0) {
             result = result.filter(t => t.site?.id && selectedSites.includes(t.site.id));
         }
 
-        // Live search filter
+        // 4. Live search filter
         if (searchQuery.trim()) {
             const q = searchQuery.trim().toLowerCase();
             result = result.filter(t =>
@@ -760,7 +862,8 @@ export const BentoTicketKanban: React.FC = () => {
                 (t.ticketNumber && t.ticketNumber.toLowerCase().includes(q)) ||
                 (t.user?.fullName && t.user.fullName.toLowerCase().includes(q)) ||
                 (t.assignedTo?.fullName && t.assignedTo.fullName.toLowerCase().includes(q)) ||
-                (t.category && t.category.toLowerCase().includes(q))
+                (t.category && t.category.toLowerCase().includes(q)) ||
+                (t.description && t.description.toLowerCase().includes(q))
             );
         }
 
@@ -811,30 +914,36 @@ export const BentoTicketKanban: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
                 <div>
                     <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Kanban Board</h1>
+                        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">{config.title}</h1>
                         <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Live
                         </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">Geser dan lepas kartu tiket untuk memperbarui status secara instan</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
                 </div>
 
                 <div className="flex items-center gap-2.5 shrink-0">
                     <button
                         type="button"
-                        onClick={() => navigate('/tickets/create')}
+                        onClick={() => navigate(config.createPath)}
                         className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-bold text-xs hover:bg-primary/90 transition-all shadow-xs cursor-pointer"
                     >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>New Ticket</span>
+                        <span>{config.createLabel}</span>
                     </button>
 
                     {/* View Toggle */}
                     <div className="flex bg-card p-1 rounded-xl border border-border shadow-xs">
                         <button
                             type="button"
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold"
+                            onClick={() => onToggleView ? onToggleView('kanban') : undefined}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
+                                currentView === 'kanban'
+                                    ? "bg-primary/10 text-primary font-bold"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
                             title="Kanban Board"
                         >
                             <Columns3 className="w-3.5 h-3.5" />
@@ -842,8 +951,19 @@ export const BentoTicketKanban: React.FC = () => {
                         </button>
                         <button
                             type="button"
-                            onClick={() => navigate('/tickets/list')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground hover:text-foreground rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                            onClick={() => {
+                                if (onToggleView) {
+                                    onToggleView('table');
+                                } else {
+                                    navigate(config.tablePath);
+                                }
+                            }}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
+                                currentView === 'table'
+                                    ? "bg-primary/10 text-primary font-bold"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
                             title="Table View"
                         >
                             <TableProperties className="w-3.5 h-3.5" />
@@ -853,62 +973,6 @@ export const BentoTicketKanban: React.FC = () => {
                 </div>
             </div>
 
-            {/* Interactive Stats Metric Tiles */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 shrink-0">
-                <StatsMetricTile
-                    icon={TrendingUp}
-                    label="Total"
-                    value={stats.total}
-                    color="text-primary"
-                    bgColor="bg-primary/10"
-                    onClick={() => setFilter('all')}
-                    isActive={filter === 'all'}
-                />
-                <StatsMetricTile
-                    icon={Inbox}
-                    label="Open"
-                    value={stats.open}
-                    color="text-blue-500"
-                    bgColor="bg-blue-500/10"
-                    onClick={() => setFilter('all')}
-                />
-                <StatsMetricTile
-                    icon={CircleDot}
-                    label="In Progress"
-                    value={stats.inProgress}
-                    color="text-amber-500"
-                    bgColor="bg-amber-500/10"
-                    onClick={() => setFilter('all')}
-                />
-                <StatsMetricTile
-                    icon={CheckCircle2}
-                    label="Resolved"
-                    value={stats.resolved}
-                    color="text-emerald-500"
-                    bgColor="bg-emerald-500/10"
-                    onClick={() => setFilter('all')}
-                />
-                <StatsMetricTile
-                    icon={AlertTriangle}
-                    label="Overdue"
-                    value={stats.overdue}
-                    color="text-destructive"
-                    bgColor="bg-destructive/10"
-                    highlight
-                    onClick={() => setFilter(filter === 'overdue' ? 'all' : 'overdue')}
-                    isActive={filter === 'overdue'}
-                />
-                <StatsMetricTile
-                    icon={Flame}
-                    label="Critical"
-                    value={stats.critical}
-                    color="text-destructive"
-                    bgColor="bg-destructive/10"
-                    highlight
-                    onClick={() => setFilter(filter === 'critical' ? 'all' : 'critical')}
-                    isActive={filter === 'critical'}
-                />
-            </div>
 
             {/* Filter & Search Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2 bg-card rounded-2xl border border-border shrink-0 shadow-xs">
@@ -1024,6 +1088,7 @@ export const BentoTicketKanban: React.FC = () => {
                                     onToggleCollapse={() => toggleColumn(column.id)}
                                     onCardSelect={setSelectedTicket}
                                     onQuickAssign={handleQuickAssign}
+                                    onCardOpen={(ticket) => navigate(`/tickets/${ticket.id}`, { state: { from: '/kanban' } })}
                                 />
                             );
                         })}
@@ -1036,8 +1101,8 @@ export const BentoTicketKanban: React.FC = () => {
                         ticket={selectedTicket}
                         agents={agents}
                         onClose={() => setSelectedTicket(null)}
-                        onOpenFull={() => navigate(`/tickets/${selectedTicket.id}`)}
-                        onAssign={(id) => assignMutation.mutate({ id: selectedTicket.id, assigneeId: id })}
+                        onOpenFull={() => navigate(`/tickets/${selectedTicket.id}`, { state: { from: '/kanban' } })}
+                        onAssign={(id, reason) => assignMutation.mutate({ id: selectedTicket.id, assigneeId: id, reason })}
                         onStatusChange={(status) => updateStatusMutation.mutate({ id: selectedTicket.id, status })}
                         onPriorityChange={(priority) => updatePriorityMutation.mutate({ id: selectedTicket.id, priority })}
                     />

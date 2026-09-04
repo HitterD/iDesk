@@ -30,8 +30,9 @@ describe('EmailNotifierListener', () => {
         jest.clearAllMocks();
     });
 
-    it('onSubmitted sends to ICT_STAFF via mail dispatch', async () => {
+    it('onSubmitted sends to AGENT_OPERATIONAL_SUPPORT via mail dispatch', async () => {
         await listener.onSubmitted({ requestId: 'r1', actorId: 'u1', requesterId: 'u1', occurredAt: new Date() } as any);
+        expect(perm.listUsersWithRole).toHaveBeenCalledWith('AGENT_OPERATIONAL_SUPPORT', null);
         expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'lead1@x.com',
         }));

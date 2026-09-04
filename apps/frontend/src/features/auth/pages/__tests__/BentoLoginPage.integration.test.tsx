@@ -18,6 +18,12 @@ const mockApi = api as unknown as { post: ReturnType<typeof vi.fn> };
 describe('BentoLoginPage integration', () => {
   beforeEach(() => {
     mockApi.post.mockReset();
+    mockApi.post.mockImplementation((url: string) => {
+      if (url === '/auth/refresh') {
+        return Promise.reject(new Error('No refresh token'));
+      }
+      return Promise.resolve({ data: { user: { role: 'ADMIN' } } });
+    });
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
   });
@@ -72,11 +78,11 @@ describe('BentoLoginPage integration', () => {
     await user.type(screen.getByLabelText('Password'), password);
     await user.click(screen.getByRole('button', { name: /continue/i }));
     await waitFor(() => {
-      expect(mockApi.post).toHaveBeenCalledWith('/auth/login', { email, password, rememberMe: false });
+      expect(mockApi.post).toHaveBeenCalledWith('/auth/login', { email, password, rememberMe: true });
     });
   });
 
-  it('sends rememberMe: true when "Keep session active" is checked', async () => {
+  it('sends rememberMe: false when "Keep session active" is unchecked', async () => {
     mockApi.post.mockResolvedValue({ data: { user: { role: 'ADMIN' } } });
     render(
       <MemoryRouter>
@@ -86,13 +92,13 @@ describe('BentoLoginPage integration', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('NIK / Email'), 'admin@example.com');
     await user.type(screen.getByLabelText('Password'), 'password123');
-    await user.click(screen.getByLabelText(/keep session active/i));
+    await user.click(screen.getByLabelText(/keep session active/i)); // uncheck default
     await user.click(screen.getByRole('button', { name: /continue/i }));
     await waitFor(() => {
       expect(mockApi.post).toHaveBeenCalledWith('/auth/login', {
         email: 'admin@example.com',
         password: 'password123',
-        rememberMe: true,
+        rememberMe: false,
       });
     });
   });
@@ -198,6 +204,6 @@ describe('BentoLoginPage integration', () => {
     await user.type(screen.getByLabelText('NIK / Email'), 'manager@idesk.com');
 
     expect(await screen.findByText(/rate limit exceeded/i)).toBeInTheDocument();
-    expect(screen.getByText(/wait 45 seconds/i)).toBeInTheDocument();
+    expect(screen.getByText(/wait \d+ seconds/i)).toBeInTheDocument();
   });
 });

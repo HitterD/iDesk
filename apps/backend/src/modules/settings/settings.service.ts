@@ -25,6 +25,13 @@ export interface StorageSettings {
         retentionDays: number;
         onlyResolvedTickets: boolean;
     };
+    imageCompression: {
+        enabled: boolean;
+        retentionDays: number;
+        onlyResolvedTickets: boolean;
+        quality: number;
+        maxWidth: number;
+    };
 }
 
 const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
@@ -43,6 +50,13 @@ const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
         enabled: true,
         retentionDays: 90,
         onlyResolvedTickets: true,
+    },
+    imageCompression: {
+        enabled: true,
+        retentionDays: 90,
+        onlyResolvedTickets: true,
+        quality: 80,
+        maxWidth: 1600,
     },
 };
 
@@ -125,6 +139,13 @@ export class SettingsService {
                 enabled: updates.discussions?.enabled ?? current.discussions.enabled,
                 retentionDays: updates.discussions?.retentionDays ?? current.discussions.retentionDays,
                 onlyResolvedTickets: updates.discussions?.onlyResolvedTickets ?? current.discussions.onlyResolvedTickets,
+            },
+            imageCompression: {
+                enabled: updates.imageCompression?.enabled ?? current.imageCompression?.enabled ?? DEFAULT_STORAGE_SETTINGS.imageCompression.enabled,
+                retentionDays: updates.imageCompression?.retentionDays ?? current.imageCompression?.retentionDays ?? DEFAULT_STORAGE_SETTINGS.imageCompression.retentionDays,
+                onlyResolvedTickets: updates.imageCompression?.onlyResolvedTickets ?? current.imageCompression?.onlyResolvedTickets ?? DEFAULT_STORAGE_SETTINGS.imageCompression.onlyResolvedTickets,
+                quality: updates.imageCompression?.quality ?? current.imageCompression?.quality ?? DEFAULT_STORAGE_SETTINGS.imageCompression.quality,
+                maxWidth: updates.imageCompression?.maxWidth ?? current.imageCompression?.maxWidth ?? DEFAULT_STORAGE_SETTINGS.imageCompression.maxWidth,
             },
         };
 

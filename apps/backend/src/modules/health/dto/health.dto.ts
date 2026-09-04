@@ -2,6 +2,14 @@
  * Health DTOs - Comprehensive system health data structures
  */
 
+export interface ProcessMetrics {
+    pid: number;
+    heapUsed: number;   // bytes
+    heapTotal: number;  // bytes
+    rss: number;        // bytes
+    external: number;   // bytes
+}
+
 export interface SystemMetrics {
     cpuUsage: number;       // 0-100 percentage
     memoryUsage: number;    // 0-100 percentage
@@ -14,12 +22,21 @@ export interface SystemMetrics {
     arch: string;
     nodeVersion: string;
     loadAverage: number[];  // 1, 5, 15 minute load averages
+    process?: ProcessMetrics;
+}
+
+export interface DatabasePoolMetrics {
+    total: number;
+    idle: number;
+    waiting: number;
+    max: number;
 }
 
 export interface InfrastructureStatus {
     database: {
         status: 'connected' | 'disconnected';
         latency: number;  // ms
+        pool?: DatabasePoolMetrics;
     };
     redis: {
         status: 'connected' | 'disabled' | 'error';
@@ -114,8 +131,10 @@ export interface HealthFastUpdate {
     uptime: number;
     cpuUsage: number;
     memoryUsage: number;
+    memoryTotal: number;
     memoryFree: number;
     loadAverage: number[];
+    process?: ProcessMetrics;
     database: InfrastructureStatus['database'];
     redis: InfrastructureStatus['redis'];
     websocket: InfrastructureStatus['websocket'];
@@ -136,4 +155,5 @@ export interface HealthSnapshot extends DetailedHealthStatus {
     sampledAt: { fast: string; slow: string };
     redisDetail?: RedisDetail;
 }
+
 

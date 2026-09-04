@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { TicketCreatedEvent } from '../events/ticket-created.event';
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
@@ -18,6 +18,11 @@ import { NotificationType } from '../../notifications/entities/notification.enti
 import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 import { User } from '../../users/entities/user.entity';
 import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
+import {
+    isMobileDevCategory,
+    isWebDevCategory,
+    isOracleDevCategory,
+} from '../utils/oracle-ticket-access.util';
 
 @Injectable()
 export class TicketNotificationListener {
@@ -48,30 +53,91 @@ export class TicketNotificationListener {
                 event.title,
             );
         } catch (error) {
-            this.logger.error('Failed to send ticket created notification', error);
+            this.logger.error('Failed to send ticket created notification to requester', error);
         }
 
-        // 2. Notify Admins (In-App)
+        // 2. Notify Agents (In-App & Email) precisely based on ticket category / team
         try {
-            const adminAgents = await this.userRepo.find({
-                where: [
-                    { role: UserRole.ADMIN },
-                    { role: UserRole.AGENT },
-                ],
-            });
-            const adminIds = adminAgents.map(a => a.id);
+            let targetAgents: User[] = [];
+            let emailSubjectPrefix = 'Tiket Baru';
+            let teamName = 'Operational Support';
 
-            await this.notificationService.notifyNewTicketToAdmins(
-                event.ticketId,
-                event.ticketNumber,
-                event.title,
-                event.priority,
-                event.category,
-                event.userFullName,
-                adminIds,
+            if (isMobileDevCategory(event.category, event.ticketType)) {
+                // Mobile Dev Request: Notify AGENT_MOBILE_DEV only
+                targetAgents = await this.userRepo.find({
+                    where: { role: UserRole.AGENT_MOBILE_DEV as any, isActive: true },
+                });
+                emailSubjectPrefix = 'Permintaan Mobile Dev Baru';
+                teamName = 'Mobile Developer';
+            } else if (isWebDevCategory(event.category, event.ticketType)) {
+                // Web Dev Request: Notify AGENT_ORACLE
+                targetAgents = await this.userRepo.find({
+                    where: { role: UserRole.AGENT_ORACLE as any, isActive: true },
+                });
+                emailSubjectPrefix = 'Permintaan Web Dev Baru';
+                teamName = 'Web Developer';
+            } else if (isOracleDevCategory(event.category, event.ticketType)) {
+                // Oracle / K2 Request: Notify AGENT_ORACLE and AGENT_MOBILE_DEV
+                targetAgents = await this.userRepo.find({
+                    where: [
+                        { role: UserRole.AGENT_ORACLE as any, isActive: true },
+                        { role: UserRole.AGENT_MOBILE_DEV as any, isActive: true },
+                    ] as any,
+                });
+                emailSubjectPrefix = 'Permintaan Oracle/K2 Baru';
+                teamName = 'Oracle & Mobile Developer';
+            } else {
+                // General / IT Support: Notify AGENT_OPERATIONAL_SUPPORT (scoped to ticket siteId or cross-site)
+                targetAgents = event.siteId
+                    ? await this.userRepo.find({
+                        where: [
+                            { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: event.siteId, isActive: true },
+                            { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: IsNull(), isActive: true },
+                        ] as any,
+                    })
+                    : await this.userRepo.find({
+                        where: { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, isActive: true },
+                    });
+                emailSubjectPrefix = 'Tiket Baru';
+                teamName = 'Operational Support';
+            }
+
+            const agentIds = targetAgents.map(a => a.id);
+
+            if (agentIds.length > 0) {
+                await this.notificationService.notifyNewTicketToAdmins(
+                    event.ticketId,
+                    event.ticketNumber,
+                    event.title,
+                    event.priority,
+                    event.category,
+                    event.userFullName,
+                    agentIds,
+                );
+            }
+
+            const emailContext = {
+                title: emailSubjectPrefix,
+                message: `Tiket baru #${event.ticketNumber} (${event.title}) diajukan oleh ${event.userFullName} dan menunggu penanganan tim ${teamName}.`,
+                ticketId: event.ticketNumber,
+                link: buildAppUrl(`/tickets/${event.ticketId}`),
+                year: new Date().getFullYear(),
+            };
+
+            await Promise.all(
+                targetAgents
+                    .filter(a => !!a.email)
+                    .map(a =>
+                        this.mailDispatch.send({
+                            to: a.email,
+                            subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
+                            template: 'notification',
+                            context: emailContext,
+                        }).catch(err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`))
+                    )
             );
         } catch (error) {
-            this.logger.error('Failed to notify admins about new ticket', error);
+            this.logger.error('Failed to notify agents about new ticket', error);
         }
     }
 
@@ -111,23 +177,52 @@ export class TicketNotificationListener {
             }
         }
 
-        // 2. Email Notification
-        if (ticket.user && ticket.user.email) {
-            try {
-                await this.mailDispatch.send({
-                    to: ticket.user.email,
-                    subject: `Ticket Updated: #${ticketNumber}`,
-                    template: 'ticket-update',
-                    context: {
-                        name: ticket.user.fullName,
-                        ticketId: ticket.id,
-                        status: ticket.status,
-                        title: ticket.title,
-                    },
-                });
-            } catch (error) {
-                this.logger.error(`Failed to send ticket update email to ${ticket.user.email}`, error);
+        // 2. Email Notification (Exclusive to parties inside the ticket room: Requester & Assigned Agent)
+        try {
+            const isActorRequester = event.userId === ticket.user?.id;
+            const isActorAssignee = event.userId === ticket.assignedToId || (ticket.assignedTo && event.userId === ticket.assignedTo.id);
+
+            let assignedAgent = ticket.assignedTo;
+            if (!assignedAgent && ticket.assignedToId) {
+                assignedAgent = await this.userRepo.findOne({ where: { id: ticket.assignedToId } }) as any;
             }
+
+            const recipients: Array<{ email: string; name: string }> = [];
+
+            // If updater is NOT requester, notify requester
+            if (!isActorRequester && ticket.user?.email) {
+                recipients.push({ email: ticket.user.email, name: ticket.user.fullName || 'User' });
+            }
+
+            // If updater is NOT assignee, notify assignee
+            if (!isActorAssignee && assignedAgent?.email) {
+                recipients.push({ email: assignedAgent.email, name: assignedAgent.fullName || 'Agent' });
+            }
+
+            const subject = ticket.status === TicketStatus.RESOLVED
+                ? `Ticket Resolved: #${ticketNumber}`
+                : `Ticket Updated: #${ticketNumber}`;
+
+            await Promise.all(
+                recipients.map(r =>
+                    this.mailDispatch.send({
+                        to: r.email,
+                        subject,
+                        template: 'ticket-update',
+                        context: {
+                            name: r.name,
+                            ticketId: ticket.id,
+                            ticketNumber,
+                            status: ticket.status,
+                            title: ticket.title,
+                            link: buildAppUrl(`/tickets/${ticket.id}`),
+                            year: new Date().getFullYear(),
+                        },
+                    }).catch(err => this.logger.error(`Failed to send ticket update email to ${r.email}: ${err.message}`))
+                )
+            );
+        } catch (error) {
+            this.logger.error('Failed to send ticket update emails', error);
         }
 
         // 3. Telegram Notification
@@ -160,32 +255,55 @@ export class TicketNotificationListener {
             this.logger.error('Failed to send assignment notification', error);
         }
 
-        // 2. Email Notification (respects prefs, bypass quiet/digest - actionable)
+        // 2. Email Notification to Assignee (respects prefs, bypass quiet/digest - actionable)
         if (event.assigneeEmail) {
             try {
                 const pref = await this.prefRepo.findOne({ where: { userId: event.assigneeId } as any });
                 const emailAllowed = !pref || (pref.emailEnabled !== false);
                 const typeAllowed = !pref?.typeSettings || (pref.typeSettings?.['TICKET_ASSIGNED']?.['email'] !== false);
-                if (!emailAllowed || !typeAllowed) { this.logger.log(`Skipping assignment email for ${event.assigneeId} (prefs)`); } else {
+                if (!emailAllowed || !typeAllowed) {
+                    this.logger.log(`Skipping assignment email for ${event.assigneeId} (prefs)`);
+                } else {
+                    await this.mailDispatch.send({
+                        to: event.assigneeEmail,
+                        subject: `Ticket Assigned to You: #${event.ticketNumber}`,
+                        template: 'ticket-assigned',
+                        context: {
+                            name: event.assigneeName,
+                            ticketId: event.ticketId,
+                            ticketNumber: event.ticketNumber,
+                            status: event.ticketStatus,
+                            title: event.ticketTitle,
+                            assigneeName: event.assigneeName,
+                            assignerName: event.assignerName,
+                            message: `You have been assigned to this ticket by ${event.assignerName}.`,
+                            link: buildAppUrl(`/tickets/${event.ticketId}`),
+                            year: new Date().getFullYear(),
+                        },
+                    });
+                }
+            } catch (error) {
+                this.logger.error(`Failed to send assignment email to ${event.assigneeEmail}`, error);
+            }
+        }
+
+        // 3. Email Notification to Requester (Ticket Owner)
+        if (event.ticketOwnerEmail && event.ticketOwnerEmail !== event.assigneeEmail) {
+            try {
                 await this.mailDispatch.send({
-                    to: event.assigneeEmail,
-                    subject: `Ticket Assigned to You: #${event.ticketNumber}`,
-                    template: 'ticket-assigned',
+                    to: event.ticketOwnerEmail,
+                    subject: `Ticket Assigned: #${event.ticketNumber} - ${event.ticketTitle}`,
+                    template: 'notification',
                     context: {
-                        name: event.assigneeName,
-                        ticketId: event.ticketId,
-                        ticketNumber: event.ticketNumber,
-                        status: event.ticketStatus,
-                        title: event.ticketTitle,
-                        assigneeName: event.assigneeName,
-                        assignerName: event.assignerName,
-                        message: `You have been assigned to this ticket by ${event.assignerName}.`,
+                        title: 'Tiket Sedang Ditangani',
+                        message: `Tiket Anda #${event.ticketNumber} (${event.ticketTitle}) telah ditugaskan kepada ${event.assigneeName} dan sedang dalam penanganan.`,
+                        ticketId: event.ticketNumber,
                         link: buildAppUrl(`/tickets/${event.ticketId}`),
                         year: new Date().getFullYear(),
                     },
-                }); }
+                });
             } catch (error) {
-                this.logger.error(`Failed to send assignment email to ${event.assigneeEmail}`, error);
+                this.logger.error(`Failed to send assignment notification email to requester ${event.ticketOwnerEmail}`, error);
             }
         }
     }
@@ -290,10 +408,10 @@ export class TicketNotificationListener {
             }
         }
 
-        // 4. Email Notification
-        if (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) {
-            if (event.ticketOwnerEmail && (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketOwnerId))) {
-                try {
+        // 4. Email Notification (Bidirectional: Agent -> Requester, Requester -> Assignee)
+        try {
+            if (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) {
+                if (event.ticketOwnerEmail && (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketOwnerId))) {
                     await this.mailDispatch.send({
                         to: event.ticketOwnerEmail,
                         subject: `New Reply on Ticket #${event.ticketNumber}`,
@@ -301,14 +419,37 @@ export class TicketNotificationListener {
                         context: {
                             name: event.ticketOwnerName,
                             ticketId: event.ticketId,
+                            ticketNumber: event.ticketNumber,
                             status: event.ticketStatus,
                             title: event.ticketTitle,
+                            link: buildAppUrl(`/tickets/${event.ticketId}`),
+                            year: new Date().getFullYear(),
                         },
                     });
-                } catch (error) {
-                    this.logger.error(`Failed to send reply email to ${event.ticketOwnerEmail}`, error);
+                }
+            } else if (event.senderRole === UserRole.USER && event.ticketAssignedToId && event.ticketAssignedToId !== event.senderId) {
+                if (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketAssignedToId)) {
+                    const assignedAgent = await this.userRepo.findOne({ where: { id: event.ticketAssignedToId } });
+                    if (assignedAgent?.email) {
+                        await this.mailDispatch.send({
+                            to: assignedAgent.email,
+                            subject: `New Reply on Ticket #${event.ticketNumber}`,
+                            template: 'ticket-update',
+                            context: {
+                                name: assignedAgent.fullName,
+                                ticketId: event.ticketId,
+                                ticketNumber: event.ticketNumber,
+                                status: event.ticketStatus,
+                                title: event.ticketTitle,
+                                link: buildAppUrl(`/tickets/${event.ticketId}`),
+                                year: new Date().getFullYear(),
+                            },
+                        });
+                    }
                 }
             }
+        } catch (error) {
+            this.logger.error(`Failed to send reply email: ${error.message}`, error);
         }
     }
 
@@ -341,6 +482,26 @@ export class TicketNotificationListener {
                 }
             } catch (e) { this.logger.error(`Failed auto-assign email to ${agent.email}`, e); }
         }
+
+        // Notify requester about auto-assignment
+        if (ticket.user?.email && ticket.user.email !== agent.email) {
+            try {
+                await this.mailDispatch.send({
+                    to: ticket.user.email,
+                    subject: `Ticket Assigned: #${ticket.ticketNumber || ticket.id.slice(0, 8)} - ${ticket.title}`,
+                    template: 'notification',
+                    context: {
+                        title: 'Tiket Sedang Ditangani',
+                        message: `Tiket Anda #${ticket.ticketNumber || ticket.id.slice(0, 8)} (${ticket.title}) telah ditugaskan kepada ${agent.fullName} dan sedang dalam penanganan.`,
+                        ticketId: ticket.ticketNumber || ticket.id.slice(0, 8),
+                        link: buildAppUrl(`/tickets/${ticket.id}`),
+                        year: new Date().getFullYear(),
+                    },
+                });
+            } catch (e) {
+                this.logger.error(`Failed auto-assign email to requester ${ticket.user.email}`, e);
+            }
+        }
     }
 
     @OnEvent('ticket.cancelled')
@@ -357,6 +518,22 @@ export class TicketNotificationListener {
                     message: `Ticket #${event.ticketNumber} has been cancelled by ${event.userFullName}`,
                     ticketId: event.ticketId,
                 });
+
+                const assignedAgent = await this.userRepo.findOne({ where: { id: event.ticketAssignedToId } });
+                if (assignedAgent?.email) {
+                    await this.mailDispatch.send({
+                        to: assignedAgent.email,
+                        subject: `Ticket Cancelled: #${event.ticketNumber}`,
+                        template: 'notification',
+                        context: {
+                            title: 'Tiket Dibatalkan',
+                            message: `Tiket #${event.ticketNumber} (${event.ticketTitle}) telah dibatalkan oleh ${event.userFullName}${event.reason ? `. Alasan: ${event.reason}` : ''}.`,
+                            ticketId: event.ticketNumber,
+                            link: buildAppUrl(`/tickets/${event.ticketId}`),
+                            year: new Date().getFullYear(),
+                        },
+                    }).catch(e => this.logger.error(`Failed to send cancellation email: ${e.message}`));
+                }
             }
             // If admin/agent cancelled, notify ticket owner
             if ((event.userRole === UserRole.ADMIN || event.userRole === UserRole.AGENT) && event.ticketOwnerId !== event.userId) {
@@ -367,6 +544,22 @@ export class TicketNotificationListener {
                     message: `Your ticket #${event.ticketNumber} has been cancelled by support`,
                     ticketId: event.ticketId,
                 });
+
+                const ticketOwner = await this.userRepo.findOne({ where: { id: event.ticketOwnerId } });
+                if (ticketOwner?.email) {
+                    await this.mailDispatch.send({
+                        to: ticketOwner.email,
+                        subject: `Ticket Cancelled: #${event.ticketNumber}`,
+                        template: 'notification',
+                        context: {
+                            title: 'Tiket Dibatalkan',
+                            message: `Tiket Anda #${event.ticketNumber} (${event.ticketTitle}) telah dibatalkan oleh pihak support${event.reason ? `. Alasan: ${event.reason}` : ''}.`,
+                            ticketId: event.ticketNumber,
+                            link: buildAppUrl(`/tickets/${event.ticketId}`),
+                            year: new Date().getFullYear(),
+                        },
+                    }).catch(e => this.logger.error(`Failed to send cancellation email: ${e.message}`));
+                }
             }
         } catch (error) {
             this.logger.error('Failed to send cancellation notification', error);

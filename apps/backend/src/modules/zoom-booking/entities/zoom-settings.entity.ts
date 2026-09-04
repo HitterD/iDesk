@@ -37,7 +37,7 @@ export class ZoomSettings {
     @Column({ type: 'int', default: 50 })
     maxBookingPerUserPerDay: number;
 
-    @Column({ type: 'jsonb', default: '[30, 60, 90, 120]' })
+    @Column({ type: 'jsonb', default: '[30, 60, 90, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720]' })
     allowedDurations: number[]; // Available duration options in minutes
 
     @UpdateDateColumn()

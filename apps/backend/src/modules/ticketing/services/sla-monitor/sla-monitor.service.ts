@@ -6,6 +6,7 @@ import { Ticket, TicketStatus } from '../../entities/ticket.entity';
 import { EventsGateway } from '../../presentation/gateways/events.gateway';
 import { TicketUpdateService } from '../ticket-update.service';
 import { WorkloadService } from '../../../workload/workload.service';
+import { ModuleAssignmentPolicyService } from '../module-assignment-policy.service';
 
 @Injectable()
 export class SlaMonitorService {
@@ -19,6 +20,7 @@ export class SlaMonitorService {
         private readonly eventsGateway: EventsGateway,
         private readonly ticketUpdateService: TicketUpdateService,
         private readonly workloadService: WorkloadService,
+        private readonly assignmentPolicy: ModuleAssignmentPolicyService,
     ) { }
 
     // Run every 15 minutes to check SLA status
@@ -75,6 +77,19 @@ export class SlaMonitorService {
 
             // 8-Hour Rule: Auto-Reassign
             if (workingHoursPassed >= 8) {
+                // Check BEFORE releasing the ticket. Reassignment nulls the
+                // assignee first, so on a module without auto-assign the ticket
+                // would lose its agent and gain nothing — worse than the breach.
+                const canReassign = await this.assignmentPolicy.isAutoAssignAllowed(
+                    this.assignmentPolicy.toAssignable(ticket),
+                );
+                if (!canReassign) {
+                    this.logger.warn(
+                        `Ticket ${ticket.ticketNumber} breached 8-hour SLA but its module has auto-assign disabled; keeping current assignee.`,
+                    );
+                    continue;
+                }
+
                 this.logger.warn(`Ticket ${ticket.ticketNumber} breached 8-hour SLA. Auto-reassigning from ${ticket.assignedTo.fullName}`);
 
                 const oldAgent = ticket.assignedTo;
@@ -95,7 +110,10 @@ export class SlaMonitorService {
                 if (result.affected === 0) continue; // Already reassigned by another worker
 
                 // Note: oldAgent is NOT blacklisted, they simply lost the ticket.
-                // Call auto-assign to find the next best agent
+                // Call auto-assign to find the next best agent. The per-module
+                // guard inside autoAssignTicket keeps a breached dev ticket from
+                // being handed to the ops-support pool; it stays unassigned and
+                // the warning below records why.
                 try {
                     await this.workloadService.autoAssignTicket(ticket.id);
 

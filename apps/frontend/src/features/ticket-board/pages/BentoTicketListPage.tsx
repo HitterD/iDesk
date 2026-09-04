@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import {
     Columns3,
     TableProperties,
@@ -53,6 +53,7 @@ import { TargetDateCell } from '../components/TargetDateCell';
 import { SortableHeader, SortField, SortOrder } from '../components/SortableHeader';
 import { BulkActionsBar, SelectCheckbox } from '../components/BulkActionsBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
+import { MergeTicketsModal } from '../components/MergeTicketsModal';
 import { SecondaryFiltersMenu } from '../components/SecondaryFiltersMenu';
 import { TicketListRow } from '../components/TicketListRow';
 import { VirtualizedTicketList } from '../components/VirtualizedTicketList';
@@ -62,6 +63,7 @@ import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { TicketListPagination } from '../components/TicketListPagination';
 import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { BentoTicketKanban } from '../components/BentoTicketKanban';
 import { SiteSelector } from '@/components/site/SiteSelector';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
@@ -190,7 +192,6 @@ export const BentoTicketListPage: React.FC = () => {
             params.append('page', String(currentPage));
             params.append('limit', String(ITEMS_PER_PAGE));
             params.append('excludeCategory', 'ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST'); // Exclude Request Center categories
-            params.append('excludeType', 'HARDWARE_INSTALLATION'); // Exclude HW from general list
             if (statusFilter) params.append('status', statusFilter);
             if (priorityFilter) params.append('priority', priorityFilter);
             if (debouncedSearch) params.append('search', debouncedSearch);
@@ -234,6 +235,7 @@ export const BentoTicketListPage: React.FC = () => {
             const res = await api.get(`/users/agents?${params.toString()}`);
             return res.data;
         },
+        staleTime: 60_000,
     });
 
     const { assignTicketMutation, updateStatusMutation, updatePriorityMutation } = useTicketListMutations(agents);
@@ -243,11 +245,13 @@ export const BentoTicketListPage: React.FC = () => {
         [updatePriorityMutation]
     );
     const handleUpdateStatus = useCallback(
-        (ticketId: string, status: string) => updateStatusMutation.mutate({ ticketId, status }),
+        (ticketId: string, status: string, resolutionNote?: string, files?: File[]) =>
+            updateStatusMutation.mutate({ ticketId, status, resolutionNote, files }),
         [updateStatusMutation]
     );
     const handleAssign = useCallback(
-        (ticketId: string, assigneeId: string) => assignTicketMutation.mutate({ ticketId, assigneeId }),
+        (ticketId: string, assigneeId: string, reason?: string) =>
+            assignTicketMutation.mutate({ ticketId, assigneeId, reason }),
         [assignTicketMutation]
     );
 
@@ -342,10 +346,10 @@ export const BentoTicketListPage: React.FC = () => {
         setShowBulkAssignDialog(true);
     }, []);
 
-    const handleBulkAssignSubmit = useCallback(async (assigneeId: string) => {
+    const handleBulkAssignSubmit = useCallback(async (assigneeId: string, reason?: string) => {
         const ticketIds = Array.from(selectedTickets);
         try {
-            await api.patch('/tickets/bulk/assign', { ticketIds, assigneeId });
+            await api.patch('/tickets/bulk/assign', { ticketIds, assigneeId, reason });
             toast.success(`${ticketIds.length} tickets assigned successfully`);
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             clearSelection();
@@ -390,6 +394,13 @@ export const BentoTicketListPage: React.FC = () => {
             setIsDeleting(false);
         }
     }, [selectedTickets, queryClient, clearSelection]);
+
+    const [showMergeDialog, setShowMergeDialog] = useState<boolean>(false);
+
+    const selectedTicketsList = useMemo(
+        () => filteredTickets.filter((t) => selectedTickets.has(t.id)),
+        [filteredTickets, selectedTickets],
+    );
 
     const selectedTicketNumbers = useMemo(
         () => filteredTickets
@@ -445,9 +456,32 @@ export const BentoTicketListPage: React.FC = () => {
         return pages;
     }, [paginationInfo]);
 
+    const currentView = searchParams.get('view') === 'kanban' ? 'kanban' : 'table';
     const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || selectedSites.length > 0);
     const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
     const showSiteColumn = isCrossSiteRole(user?.role);
+
+    if (user?.role === 'AGENT_ORACLE') {
+        return <Navigate to="/tickets/oracle-k2" replace />;
+    }
+
+    if (currentView === 'kanban') {
+        return (
+            <BentoTicketKanban
+                queue="it-support"
+                currentView="kanban"
+                onToggleView={(view) => {
+                    if (view === 'table') {
+                        setSearchParams(prev => {
+                            const next = new URLSearchParams(prev);
+                            next.delete('view');
+                            return next;
+                        });
+                    }
+                }}
+            />
+        );
+    }
 
     if (isLoading) {
         return <TicketListSkeleton />;
@@ -459,7 +493,7 @@ export const BentoTicketListPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
                     <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">All Tickets</h1>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">IT Support Tickets</h1>
                         {isConnected && (
                             <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -504,7 +538,13 @@ export const BentoTicketListPage: React.FC = () => {
                     {/* View Toggle */}
                     <div className="flex bg-card border border-border p-1 rounded-xl shadow-xs">
                         <button
-                            onClick={() => navigate('/kanban')}
+                            onClick={() => {
+                                setSearchParams(prev => {
+                                    const next = new URLSearchParams(prev);
+                                    next.set('view', 'kanban');
+                                    return next;
+                                });
+                            }}
                             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-muted-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
                             title="Kanban Board"
                         >
@@ -774,7 +814,16 @@ export const BentoTicketListPage: React.FC = () => {
                 onAssign={handleBulkAssign}
                 onChangeStatus={handleBulkStatusChange}
                 onClear={clearSelection}
+                onMerge={() => setShowMergeDialog(true)}
                 onDelete={isAdmin ? () => setDeleteDialogOpen(true) : undefined}
+            />
+
+            {/* Merge Tickets Modal */}
+            <MergeTicketsModal
+                isOpen={showMergeDialog}
+                onClose={() => setShowMergeDialog(false)}
+                tickets={selectedTicketsList}
+                onSuccess={clearSelection}
             />
 
             <BulkDeleteDialog

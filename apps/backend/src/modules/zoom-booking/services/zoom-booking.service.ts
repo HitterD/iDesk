@@ -5,6 +5,7 @@ import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, LessThanOrEqual, MoreThanOrEqual, DataSource } from 'typeorm';
@@ -12,8 +13,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { ZoomBooking, ZoomAccount, ZoomMeeting, ZoomParticipant, ZoomSettings, ZoomAuditLog } from '../entities';
 import { BookingStatus } from '../enums/booking-status.enum';
-import { CreateBookingDto, CancelBookingDto } from '../dto';
+import { CreateBookingDto, CancelBookingDto, SendReminderDto } from '../dto';
 import { ZoomApiAdapter } from '../adapters/zoom-api.adapter';
+import { ZoomNotificationService } from './zoom-notification.service';
+import { ZoomQueueService } from './zoom-queue.service';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { AuditService } from '../../audit/audit.service';
@@ -30,11 +33,15 @@ export interface CalendarSlot {
         id: string;
         title: string;
         bookedBy: string;
+        bookedByUserId?: string;
         durationMinutes: number;
         startTime: string;  // Actual booking start time (HH:mm)
         endTime: string;    // Actual booking end time (HH:mm)
         isExternal?: boolean;
         joinUrl?: string;
+        department?: string;
+        email?: string;
+        isDoubleBooking?: boolean;
     };
 }
 
@@ -91,6 +98,8 @@ export class ZoomBookingService {
         private readonly dataSource: DataSource,
         private readonly zoomApi: ZoomApiAdapter,
         private readonly eventEmitter: EventEmitter2,
+        @Optional() private readonly notificationService?: ZoomNotificationService,
+        @Optional() private readonly queueService?: ZoomQueueService,
     ) { }
 
     /** Format Date ke YYYY-MM-DD string (local, bukan UTC) */
@@ -351,29 +360,36 @@ export class ZoomBookingService {
             const slotBookings = bookings
                 .filter((booking) => time >= booking.startTime.substring(0, 5) && time < booking.endTime.substring(0, 5))
                 .sort((a, b) => Number(b.bookedByUserId === currentUserId) - Number(a.bookedByUserId === currentUserId))
-                .map((booking): MergedCalendarBooking => ({
-                    id: booking.id,
-                    title: booking.title,
-                    bookedBy: booking.bookedByUserId === currentUserId
-                        ? 'Saya'
-                        : booking.isExternal ? 'External Meeting' : booking.bookedByUser?.fullName || 'Unknown',
-                    durationMinutes: booking.durationMinutes,
-                    startTime: booking.startTime.substring(0, 5),
-                    endTime: booking.endTime.substring(0, 5),
-                    isExternal: booking.isExternal,
-                    joinUrl: booking.meeting?.joinUrl,
-                    zoomAccountId: booking.zoomAccountId,
-                    accountColorHex: booking.zoomAccount?.colorHex || '#3b82f6',
-                }));
+                .map((booking): MergedCalendarBooking => {
+                    const isMy = booking.bookedByUserId === currentUserId;
+                    return {
+                        id: booking.id,
+                        title: booking.title,
+                        bookedBy: isMy
+                            ? 'Saya'
+                            : booking.isExternal ? 'External Meeting' : booking.bookedByUser?.fullName || 'Unknown',
+                        bookedByUserId: booking.bookedByUserId,
+                        department: (booking.bookedByUser as any)?.department,
+                        email: (booking.bookedByUser as any)?.email,
+                        durationMinutes: booking.durationMinutes,
+                        startTime: booking.startTime.substring(0, 5),
+                        endTime: booking.endTime.substring(0, 5),
+                        isExternal: booking.isExternal,
+                        isDoubleBooking: booking.isDoubleBooking,
+                        // PRIVACY: Only the creator of the booking gets the joinUrl in calendar matrix
+                        joinUrl: isMy ? booking.meeting?.joinUrl : undefined,
+                        zoomAccountId: booking.zoomAccountId,
+                        accountColorHex: booking.zoomAccount?.colorHex || '#3b82f6',
+                    };
+                });
             const isMyBooking = slotBookings.some((booking) => booking.bookedBy === 'Saya');
-            const visibleBookings = slotBookings.slice(0, 4);
             slots.push({
                 date,
                 time,
                 endTime: `${nextHour.toString().padStart(2, '0')}:${(nextMin % 60).toString().padStart(2, '0')}`,
                 status: !isAvailable ? 'blocked' : slotBookings.length ? 'booked' : 'available',
-                bookings: visibleBookings,
-                bookingsOverflow: Math.max(0, slotBookings.length - visibleBookings.length),
+                bookings: slotBookings,
+                bookingsOverflow: 0,
                 isMyBooking,
             });
             currentMin = nextMin % 60;
@@ -518,10 +534,14 @@ export class ZoomBookingService {
 
             const [startHour, startMin] = dto.startTime.split(':').map(Number);
             const totalMinutes = startHour * 60 + startMin + dto.durationMinutes;
+            if (totalMinutes > 24 * 60) {
+                throw new BadRequestException('Meeting must end on the same day (before 24:00). Please select an earlier start time.');
+            }
             const endTime = `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`;
 
             let selectedAccountId: string | null = null;
             let accountFound = false;
+            let isDoubleBookingMeeting = false;
 
             const accountsToTry = dto.zoomAccountId
                 ? [
@@ -549,8 +569,31 @@ export class ZoomBookingService {
                 }
             }
 
+            // If all accounts are full, check if emergency double booking is allowed
+            if (!accountFound && dto.allowDoubleBooking) {
+                for (const account of accountsToTry) {
+                    const count = await this.bookingRepo
+                        .createQueryBuilder('booking')
+                        .where('booking.zoomAccountId = :accountId', { accountId: account.id })
+                        .andWhere('booking.bookingDate = :date', { date: dateStr })
+                        .andWhere('booking.status IN (:...statuses)', { statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED] })
+                        .andWhere(
+                            '(booking.startTime < :endTime AND booking.endTime > :startTime)',
+                            { startTime: dto.startTime, endTime }
+                        )
+                        .getCount();
+
+                    if (count === 1) { // Exactly 1 meeting, room for 1 secondary double booking
+                        selectedAccountId = account.id;
+                        accountFound = true;
+                        isDoubleBookingMeeting = true;
+                        break;
+                    }
+                }
+            }
+
             if (!accountFound) {
-                errors.push(`Semua akun penuh pada ${dateStr}`);
+                errors.push(`Zoom yang Anda pilih pada tanggal ${dateStr} jam ${dto.startTime} tidak tersedia dan sudah penuh di 10 akun. Mohon menghubungi admin di 1607.`);
                 continue;
             }
 
@@ -563,7 +606,8 @@ export class ZoomBookingService {
                     ipAddress,
                     seriesId,
                     dto.recurrencePattern,
-                    existingSeriesMeeting
+                    existingSeriesMeeting,
+                    isDoubleBookingMeeting
                 );
                 if (seriesId && !existingSeriesMeeting && booking.meeting) {
                     existingSeriesMeeting = booking.meeting;
@@ -588,7 +632,7 @@ export class ZoomBookingService {
         bookingDateStr: string,
         startTime: string,
         durationMinutes: number,
-    ): Promise<{ available: boolean; reason?: string }> {
+    ): Promise<{ available: boolean; canDoubleBook?: boolean; reason?: string }> {
         const settings = await this.getSettings();
 
         if (!settings.allowedDurations.includes(durationMinutes)) {
@@ -632,8 +676,10 @@ export class ZoomBookingService {
             return { available: false, reason: 'Tidak ada akun Zoom yang aktif.' };
         }
 
+        let canDoubleBook = false;
+
         for (const account of allAccounts) {
-            const conflict = await this.bookingRepo
+            const qb = this.bookingRepo
                 .createQueryBuilder('booking')
                 .where('booking.zoomAccountId = :accountId', { accountId: account.id })
                 .andWhere('booking.bookingDate = :date', { date: bookingDateStr })
@@ -641,15 +687,230 @@ export class ZoomBookingService {
                 .andWhere(
                     '(booking.startTime < :endTime AND booking.endTime > :startTime)',
                     { startTime, endTime },
-                )
-                .getOne();
+                );
 
-            if (!conflict) {
+            const count = typeof qb.getCount === 'function'
+                ? await qb.getCount()
+                : ((await qb.getMany?.())?.length ?? (await qb.getOne?.() ? 1 : 0));
+
+            if (count === 0) {
                 return { available: true };
+            }
+            if (count === 1) {
+                canDoubleBook = true;
             }
         }
 
-        return { available: false, reason: `Semua akun penuh pada ${bookingDateStr}` };
+        return {
+            available: false,
+            canDoubleBook,
+            reason: `Semua akun penuh pada ${bookingDateStr}. Zoom yang Anda pilih pada jam tersebut tidak tersedia dan sudah penuh di ${allAccounts.length} akun. Mohon menghubungi admin di 1607.`
+        };
+    }
+
+    /**
+     * Checks availability across all operating slots for a given date and duration.
+     * Evaluates in-memory against all active Zoom accounts and confirmed bookings.
+     */
+    async getDaySlotsAvailability(
+        bookingDateStr: string,
+        durationMinutes: number = 60,
+    ): Promise<{
+        date: string;
+        durationMinutes: number;
+        isWorkingDay: boolean;
+        isBlocked: boolean;
+        isPast: boolean;
+        isFutureExceeded: boolean;
+        totalAccounts: number;
+        availableSlotsCount: number;
+        totalSlotsCount: number;
+        isFullyBooked: boolean;
+        reason?: string;
+        slots: Array<{
+            time: string;
+            endTime: string;
+            available: boolean;
+            availableAccountsCount: number;
+            totalAccountsCount: number;
+            reason?: string;
+            exceedsOperatingHours?: boolean;
+        }>;
+    }> {
+        const settings = await this.getSettings();
+        const durationNum = Number(durationMinutes) || 60;
+
+        const bookingDate = new Date(`${bookingDateStr}T00:00:00`);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const isPast = bookingDate < today;
+        const now = new Date();
+        const isToday = bookingDate.getFullYear() === now.getFullYear() &&
+            bookingDate.getMonth() === now.getMonth() &&
+            bookingDate.getDate() === now.getDate();
+        const currentMinutesNow = now.getHours() * 60 + now.getMinutes();
+
+        const maxDate = new Date(today);
+        maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
+        const isFutureExceeded = bookingDate > maxDate;
+        const isWorkingDay = settings.workingDays.includes(bookingDate.getDay());
+        const isBlocked = settings.blockedDates.includes(bookingDateStr);
+
+        const allAccounts = await this.accountRepo.find({ where: { isActive: true } });
+        const totalAccounts = allAccounts.length;
+
+        const baseResult = {
+            date: bookingDateStr,
+            durationMinutes: durationNum,
+            isWorkingDay,
+            isBlocked,
+            isPast,
+            isFutureExceeded,
+            totalAccounts,
+            availableSlotsCount: 0,
+            totalSlotsCount: 0,
+            isFullyBooked: false,
+            slots: [],
+        };
+
+        if (isPast) {
+            return { ...baseResult, isFullyBooked: true, reason: `Tanggal ${bookingDateStr} sudah lewat.` };
+        }
+        if (isFutureExceeded) {
+            return { ...baseResult, isFullyBooked: true, reason: `Tanggal ${bookingDateStr} melebihi batas maksimal ${settings.advanceBookingDays} hari.` };
+        }
+        if (!isWorkingDay) {
+            return { ...baseResult, isFullyBooked: true, reason: `Tanggal ${bookingDateStr} bukan hari kerja (akhir pekan).` };
+        }
+        if (isBlocked) {
+            return { ...baseResult, isFullyBooked: true, reason: `Tanggal ${bookingDateStr} diblokir / hari libur.` };
+        }
+        if (totalAccounts === 0) {
+            return { ...baseResult, isFullyBooked: true, reason: 'Tidak ada akun Zoom yang aktif.' };
+        }
+
+        // Fetch all bookings for this date across all active accounts in ONE single query
+        const bookings = await this.bookingRepo
+            .createQueryBuilder('booking')
+            .where('booking.bookingDate = :date', { date: bookingDateStr })
+            .andWhere('booking.status IN (:...statuses)', {
+                statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
+            })
+            .getMany();
+
+        // Pre-group bookings by zoomAccountId for O(1) account lookup
+        const bookingsByAccount = new Map<string, Array<{ start: string; end: string }>>();
+        for (const b of bookings) {
+            if (!b.zoomAccountId) continue;
+            const entry = {
+                start: b.startTime.substring(0, 5),
+                end: b.endTime.substring(0, 5),
+            };
+            const existing = bookingsByAccount.get(b.zoomAccountId);
+            if (existing) {
+                existing.push(entry);
+            } else {
+                bookingsByAccount.set(b.zoomAccountId, [entry]);
+            }
+        }
+
+        const [startHour, startMin] = (settings.slotStartTime || '08:00').split(':').map(Number);
+        const [endHour, endMin] = (settings.slotEndTime || '18:00').split(':').map(Number);
+        const interval = settings.slotIntervalMinutes || 30;
+        const closingTotalMins = endHour * 60 + endMin;
+
+        let curHour = startHour;
+        let curMin = startMin;
+        const slots: Array<{
+            time: string;
+            endTime: string;
+            available: boolean;
+            availableAccountsCount: number;
+            totalAccountsCount: number;
+            reason?: string;
+            exceedsOperatingHours?: boolean;
+        }> = [];
+
+        let availableSlotsCount = 0;
+
+        while (curHour < endHour || (curHour === endHour && curMin < endMin)) {
+            const time = `${curHour.toString().padStart(2, '0')}:${curMin.toString().padStart(2, '0')}`;
+            const slotStartMins = curHour * 60 + curMin;
+            const slotEndMins = slotStartMins + durationNum;
+
+            const endH = Math.floor(slotEndMins / 60);
+            const endM = slotEndMins % 60;
+            const endTimeStr = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+            // Check if meeting would exceed closing time (or exceed 24:00)
+            if (slotEndMins > closingTotalMins || slotEndMins > 24 * 60) {
+                slots.push({
+                    time,
+                    endTime: endTimeStr,
+                    available: false,
+                    availableAccountsCount: 0,
+                    totalAccountsCount: totalAccounts,
+                    reason: 'Melebihi jam operasional',
+                    exceedsOperatingHours: true,
+                });
+            } else if (isToday && slotStartMins <= currentMinutesNow) {
+                // Past slot on today
+                slots.push({
+                    time,
+                    endTime: endTimeStr,
+                    available: false,
+                    availableAccountsCount: 0,
+                    totalAccountsCount: totalAccounts,
+                    reason: 'Waktu sudah lewat',
+                });
+            } else {
+                // Count how many accounts have NO conflict with [time, endTimeStr)
+                let availableAccountsForSlot = 0;
+                for (const account of allAccounts) {
+                    const accBookings = bookingsByAccount.get(account.id);
+                    if (!accBookings || accBookings.length === 0) {
+                        availableAccountsForSlot++;
+                        continue;
+                    }
+                    const hasConflict = accBookings.some(
+                        (b) => b.start < endTimeStr && b.end > time
+                    );
+                    if (!hasConflict) {
+                        availableAccountsForSlot++;
+                    }
+                }
+
+                const isSlotAvailable = availableAccountsForSlot > 0;
+                if (isSlotAvailable) {
+                    availableSlotsCount++;
+                }
+
+                slots.push({
+                    time,
+                    endTime: endTimeStr,
+                    available: isSlotAvailable,
+                    availableAccountsCount: availableAccountsForSlot,
+                    totalAccountsCount: totalAccounts,
+                    reason: isSlotAvailable ? undefined : `Semua akun penuh (${totalAccounts} terpakai)`,
+                });
+            }
+
+            curMin += interval;
+            curHour += Math.floor(curMin / 60);
+            curMin = curMin % 60;
+        }
+
+        const isFullyBooked = availableSlotsCount === 0;
+
+        return {
+            ...baseResult,
+            availableSlotsCount,
+            totalSlotsCount: slots.length,
+            isFullyBooked,
+            reason: isFullyBooked ? 'Semua slot jam pada tanggal ini telah penuh terpakai.' : undefined,
+            slots,
+        };
     }
 
     /**
@@ -664,6 +925,7 @@ export class ZoomBookingService {
         seriesId?: string,
         recurrencePattern?: string,
         existingSeriesMeeting?: ZoomMeeting | null,
+        isDoubleBooking: boolean = false,
     ): Promise<ZoomBooking> {
         const settings = await this.getSettings();
         const account = await this.accountRepo.findOne({ where: { id: accountId, isActive: true } });
@@ -683,18 +945,84 @@ export class ZoomBookingService {
         // Calculate end time
         const [startHour, startMin] = dto.startTime.split(':').map(Number);
         const totalMinutes = startHour * 60 + startMin + dto.durationMinutes;
+        if (totalMinutes > 24 * 60) {
+            throw new BadRequestException('Meeting must end on the same day (before 24:00). Please select an earlier start time.');
+        }
         const endHour = Math.floor(totalMinutes / 60);
         const endMin = totalMinutes % 60;
         const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
 
-        // Use transaction for database operations
+        // Pre-validate Zoom API readiness if new meeting is needed
+        if (!existingSeriesMeeting && !this.zoomApi.isConfigured()) {
+            throw new BadRequestException('Zoom API tidak dikonfigurasi. Silakan hubungi administrator.');
+        }
+
+        // Check user's daily booking limit before external API call
+        const userDailyBookings = await this.bookingRepo.count({
+            where: {
+                bookedByUserId: user.userId,
+                bookingDate: new Date(dateStr),
+                status: BookingStatus.CONFIRMED,
+            },
+        });
+
+        if (userDailyBookings >= settings.maxBookingPerUserPerDay) {
+            throw new BadRequestException(`You can only have ${settings.maxBookingPerUserPerDay} bookings per day`);
+        }
+
+        // 1. Prepare / Create Zoom Meeting outside DB transaction to prevent pool starvation
+        let zoomMeetingData: {
+            zoomMeetingId: string;
+            joinUrl: string;
+            startUrl: string;
+            password?: string;
+            hostEmail: string;
+            meetingSettings: any;
+        };
+        let freshlyCreatedMeetingId: string | null = null;
+
+        if (existingSeriesMeeting) {
+            // Reuse existing Zoom meeting details for recurring series so invitation stays identical
+            zoomMeetingData = {
+                zoomMeetingId: existingSeriesMeeting.zoomMeetingId,
+                joinUrl: existingSeriesMeeting.joinUrl,
+                startUrl: isDoubleBooking ? existingSeriesMeeting.joinUrl : existingSeriesMeeting.startUrl,
+                password: existingSeriesMeeting.password,
+                hostEmail: existingSeriesMeeting.hostEmail,
+                meetingSettings: existingSeriesMeeting.meetingSettings,
+            };
+        } else {
+            const startDateTime = new Date(`${dateStr}T${dto.startTime}:00+07:00`);
+            const zoomMeeting = await this.zoomApi.createMeeting(
+                account.email,
+                dto.title,
+                startDateTime,
+                dto.durationMinutes,
+                dto.description,
+            );
+            freshlyCreatedMeetingId = zoomMeeting.id.toString();
+            zoomMeetingData = {
+                zoomMeetingId: zoomMeeting.id.toString(),
+                joinUrl: zoomMeeting.join_url,
+                // DOUBLE BOOKING: Strip startUrl so user cannot claim host
+                startUrl: isDoubleBooking ? zoomMeeting.join_url : zoomMeeting.start_url,
+                password: zoomMeeting.password,
+                hostEmail: zoomMeeting.host_email,
+                meetingSettings: zoomMeeting.settings,
+            };
+        }
+
+        // 2. Fast atomic database operations
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
 
+        let savedBooking: ZoomBooking;
+        let meeting: ZoomMeeting;
+
         try {
-            // Check user's daily booking limit inside transaction to prevent race conditions too
-            const userDailyBookings = await queryRunner.manager.count(ZoomBooking, {
+            // Re-verify daily limit inside transaction to avoid race conditions
+            const txDailyCount = await queryRunner.manager.count(ZoomBooking, {
                 where: {
                     bookedByUserId: user.userId,
                     bookingDate: new Date(dateStr),
@@ -702,7 +1030,7 @@ export class ZoomBookingService {
                 },
             });
 
-            if (userDailyBookings >= settings.maxBookingPerUserPerDay) {
+            if (txDailyCount >= settings.maxBookingPerUserPerDay) {
                 throw new BadRequestException(`You can only have ${settings.maxBookingPerUserPerDay} bookings per day`);
             }
 
@@ -715,12 +1043,13 @@ export class ZoomBookingService {
                 startTime: dto.startTime,
                 endTime,
                 durationMinutes: dto.durationMinutes,
-                status: BookingStatus.PENDING,
+                status: BookingStatus.CONFIRMED,
                 seriesId,
-                recurrencePattern
+                recurrencePattern,
+                isDoubleBooking,
             });
 
-            const savedBooking = await queryRunner.manager.save(booking);
+            savedBooking = await queryRunner.manager.save(booking);
 
             // Add participants
             if (dto.participantEmails?.length) {
@@ -734,104 +1063,72 @@ export class ZoomBookingService {
                 await queryRunner.manager.save(participants);
             }
 
-            let meeting: ZoomMeeting;
-
-            if (existingSeriesMeeting) {
-                // Reuse existing Zoom meeting details for recurring series so invitation stays identical
-                meeting = queryRunner.manager.create(ZoomMeeting, {
-                    zoomBookingId: savedBooking.id,
-                    zoomMeetingId: existingSeriesMeeting.zoomMeetingId,
-                    joinUrl: existingSeriesMeeting.joinUrl,
-                    startUrl: existingSeriesMeeting.startUrl,
-                    password: existingSeriesMeeting.password,
-                    hostEmail: existingSeriesMeeting.hostEmail,
-                    meetingSettings: existingSeriesMeeting.meetingSettings,
-                });
-                await queryRunner.manager.save(meeting);
-            } else {
-                // Create Zoom meeting via Zoom API
-                if (!this.zoomApi.isConfigured()) {
-                    throw new BadRequestException('Zoom API tidak dikonfigurasi. Silakan hubungi administrator.');
-                }
-
-                // Format date properly for Zoom API
-                const startDateTime = new Date(`${dateStr}T${savedBooking.startTime}:00+07:00`);
-
-                const zoomMeeting = await this.zoomApi.createMeeting(
-                    account.email,
-                    savedBooking.title,
-                    startDateTime,
-                    savedBooking.durationMinutes,
-                    savedBooking.description,
-                );
-
-                // Save meeting details
-                meeting = queryRunner.manager.create(ZoomMeeting, {
-                    zoomBookingId: savedBooking.id,
-                    zoomMeetingId: zoomMeeting.id.toString(),
-                    joinUrl: zoomMeeting.join_url,
-                    startUrl: zoomMeeting.start_url,
-                    password: zoomMeeting.password,
-                    hostEmail: zoomMeeting.host_email,
-                    meetingSettings: zoomMeeting.settings,
-                });
-                await queryRunner.manager.save(meeting);
-            }
-
-            // Update booking status to confirmed
-            savedBooking.status = BookingStatus.CONFIRMED;
-            await queryRunner.manager.save(savedBooking);
+            // Save meeting details
+            meeting = queryRunner.manager.create(ZoomMeeting, {
+                zoomBookingId: savedBooking.id,
+                ...zoomMeetingData,
+            });
+            await queryRunner.manager.save(meeting);
 
             // Create audit log
             const auditLog = queryRunner.manager.create(ZoomAuditLog, {
                 zoomBookingId: savedBooking.id,
                 userId: user.userId,
-                action: 'CREATED',
+                action: isDoubleBooking ? 'CREATED_DOUBLE_BOOKING' : 'CREATED',
                 newValues: {
                     title: dto.title,
                     date: dateStr,
                     time: dto.startTime,
+                    isDoubleBooking,
                 },
                 ipAddress,
             });
             await queryRunner.manager.save(auditLog);
 
             await queryRunner.commitTransaction();
-
-            // Emit events
-            this.eventEmitter.emit('zoom.booking.created', { booking: savedBooking, user });
-            this.eventEmitter.emit('zoom.meeting.created', { booking: savedBooking, meeting });
-
-            this.auditService.logAsync({
-                userId: user.userId,
-                action: AuditAction.ZOOM_BOOKING_CREATE,
-                entityType: 'ZoomBooking',
-                entityId: savedBooking.id,
-                description: `Created Zoom Booking: ${savedBooking.title}`,
-                newValue: { date: dateStr, time: dto.startTime, duration: dto.durationMinutes },
-            });
-
-            // Re-fetch to get updated status with full relations
-            const updatedBooking = await this.bookingRepo.findOne({
-                where: { id: savedBooking.id },
-                relations: ['bookedByUser', 'meeting'],
-            });
-
-            return updatedBooking || savedBooking;
-
         } catch (error: any) {
             await queryRunner.rollbackTransaction();
+
+            // Compensation: if Zoom meeting was created on Zoom Cloud, delete it to prevent phantom meetings
+            if (freshlyCreatedMeetingId) {
+                try {
+                    await this.zoomApi.deleteMeeting(freshlyCreatedMeetingId);
+                } catch (cleanupErr: any) {
+                    this.logger.warn(`Failed to cleanup orphaned Zoom meeting ${freshlyCreatedMeetingId}: ${cleanupErr?.message}`);
+                }
+            }
             
             if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ConflictException) {
                 throw error;
             }
 
             throw new BadRequestException(
-                `Gagal membuat Zoom meeting: ${error.response?.data?.message || error.message}. Silakan coba lagi.`
+                `Gagal membuat Zoom booking: ${error.response?.data?.message || error.message}. Silakan coba lagi.`
             );
         } finally {
             await queryRunner.release();
         }
+
+        // Emit events
+        this.eventEmitter.emit('zoom.booking.created', { booking: savedBooking, user });
+        this.eventEmitter.emit('zoom.meeting.created', { booking: savedBooking, meeting });
+
+        this.auditService.logAsync({
+            userId: user.userId,
+            action: AuditAction.ZOOM_BOOKING_CREATE,
+            entityType: 'ZoomBooking',
+            entityId: savedBooking.id,
+            description: `Created Zoom Booking: ${savedBooking.title}`,
+            newValue: { date: dateStr, time: dto.startTime, duration: dto.durationMinutes },
+        });
+
+        // Re-fetch to get updated status with full relations
+        const updatedBooking = await this.bookingRepo.findOne({
+            where: { id: savedBooking.id },
+            relations: ['bookedByUser', 'meeting'],
+        });
+
+        return updatedBooking || savedBooking;
     }
 
     /**
@@ -1184,6 +1481,9 @@ export class ZoomBookingService {
         const newDuration = dto.durationMinutes || primaryBooking.durationMinutes;
         const [hours, minutes] = dto.startTime.split(':').map(Number);
         const endMinutes = hours * 60 + minutes + newDuration;
+        if (endMinutes > 24 * 60) {
+            throw new BadRequestException('Meeting must end on the same day (before 24:00). Please select an earlier start time.');
+        }
         const endHours = Math.floor(endMinutes / 60);
         const endMins = endMinutes % 60;
         const newEndTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
@@ -1215,6 +1515,28 @@ export class ZoomBookingService {
             }
         }
 
+        // 1. Update Zoom meetings on Zoom API first (outside DB transaction)
+        for (const booking of bookingsToUpdate) {
+            if (booking.meeting?.zoomMeetingId) {
+                const targetDateStr = booking.id === bookingId || dto.scope === 'this' ? dto.bookingDate : this.formatLocalDate(booking.bookingDate);
+                try {
+                    const formattedStartTime = `${targetDateStr}T${dto.startTime}:00`;
+                    await this.zoomApi.updateMeeting(booking.meeting.zoomMeetingId, {
+                        start_time: formattedStartTime,
+                        duration: newDuration,
+                        timezone: 'Asia/Jakarta',
+                    });
+                } catch (error: any) {
+                    if (this.zoomApi.isScopeError(error)) {
+                        throw new ConflictException('Gagal mengubah jadwal Zoom (Zoom Meeting API Scope Error). Silakan hubungi administrator.');
+                    }
+                    this.logger.error(`Failed to update Zoom meeting: ${error.message}`, error.stack);
+                    throw new BadRequestException(`Gagal update Zoom meeting: ${error.response?.data?.message || error.message}`);
+                }
+            }
+        }
+
+        // 2. Fast atomic database updates
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -1230,23 +1552,6 @@ export class ZoomBookingService {
                     endTime: newEndTime,
                     durationMinutes: newDuration,
                 });
-
-                if (booking.meeting?.zoomMeetingId) {
-                    try {
-                        const formattedStartTime = `${targetDateStr}T${dto.startTime}:00`;
-                        await this.zoomApi.updateMeeting(booking.meeting.zoomMeetingId, {
-                            start_time: formattedStartTime,
-                            duration: newDuration,
-                            timezone: 'Asia/Jakarta',
-                        });
-                    } catch (error: any) {
-                        if (this.zoomApi.isScopeError(error)) {
-                            throw new ConflictException('Gagal mengubah jadwal Zoom (Zoom Meeting API Scope Error). Silakan hubungi administrator.');
-                        }
-                        this.logger.error(`Failed to update Zoom meeting: ${error.message}`, error.stack);
-                        throw new BadRequestException(`Gagal update Zoom meeting: ${error.response?.data?.message || error.message}`);
-                    }
-                }
 
                 // Audit log
                 const auditLog = queryRunner.manager.create(ZoomAuditLog, {
@@ -1374,5 +1679,90 @@ export class ZoomBookingService {
         ipAddress?: string,
     ): Promise<{ success: boolean; message: string }> {
         return this.performCancellation(bookingId, dto, user, ipAddress, 'owner');
+    }
+
+    /**
+     * Send email reminder & Outlook calendar (.ics) invitation for a booking
+     */
+    async sendReminder(
+        bookingId: string,
+        dto: SendReminderDto,
+        currentUser: any,
+    ): Promise<{ success: boolean; message: string; emailSent: boolean; scheduled: boolean }> {
+        const booking = await this.bookingRepo.findOne({
+            where: { id: bookingId },
+            relations: ['zoomAccount', 'meeting', 'bookedByUser', 'participants'],
+        });
+
+        if (!booking) {
+            throw new NotFoundException('Booking tidak ditemukan');
+        }
+
+        const currentUserId = currentUser.userId || currentUser.id;
+        const isOwner = booking.bookedByUserId === currentUserId;
+        const userRole = currentUser.role || '';
+        const isAdminOrAgent = [
+            'ADMIN', 'MANAGER', 'AGENT', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT',
+            'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV'
+        ].includes(userRole);
+
+        if (!isOwner && !isAdminOrAgent) {
+            throw new ForbiddenException('Anda tidak memiliki izin untuk mengirim pengingat booking ini');
+        }
+
+        const recipientEmail = dto.recipientEmail?.trim()
+            || booking.bookedByUser?.email
+            || currentUser.email;
+
+        if (!recipientEmail) {
+            throw new BadRequestException('Email penerima tidak valid atau tidak ditemukan');
+        }
+
+        const recipientName = booking.bookedByUser?.fullName || currentUser.fullName || 'User';
+        const joinUrl = booking.meeting?.joinUrl;
+        const meetingId = booking.meeting?.zoomMeetingId;
+        const passcode = booking.meeting?.password;
+
+        let emailSent = false;
+        let scheduled = false;
+
+        const sendNow = dto.sendNow !== false;
+        if (sendNow && this.notificationService) {
+            await this.notificationService.sendBookingReminderEmail(
+                recipientEmail,
+                recipientName,
+                booking,
+                joinUrl,
+                meetingId,
+                passcode,
+            );
+            emailSent = true;
+        }
+
+        if (dto.minutesBefore && dto.minutesBefore > 0 && this.queueService) {
+            const rawDate = booking.bookingDate;
+            const dateStr = rawDate instanceof Date
+                ? rawDate.toISOString().split('T')[0]
+                : String(rawDate || '').split('T')[0] || new Date().toISOString().split('T')[0];
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [hour, minute] = (booking.startTime || '09:00').split(':').map(Number);
+            // Jakarta WIB is UTC+7
+            const meetingDateTime = new Date(Date.UTC(year, month - 1, day, hour - 7, minute, 0));
+            const reminderTime = new Date(meetingDateTime.getTime() - dto.minutesBefore * 60 * 1000);
+
+            if (reminderTime.getTime() > Date.now()) {
+                await this.queueService.queueReminder(booking.id, dto.minutesBefore, reminderTime);
+                scheduled = true;
+            }
+        }
+
+        return {
+            success: true,
+            emailSent,
+            scheduled,
+            message: sendNow
+                ? `Pengingat dan undangan kalender Outlook (.ics) berhasil dikirim ke ${recipientEmail}`
+                : `Pengingat otomatis berhasil dijadwalkan untuk ${dto.minutesBefore} menit sebelum meeting`,
+        };
     }
 }

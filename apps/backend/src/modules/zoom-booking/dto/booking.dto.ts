@@ -56,7 +56,7 @@ export class CreateBookingDto {
     })
     @IsInt()
     @Min(30)
-    @Max(240)
+    @Max(720)
     durationMinutes: number;
 
     @ApiPropertyOptional({ description: 'Participant emails', type: [String] })
@@ -69,6 +69,10 @@ export class CreateBookingDto {
     @IsString()
     @IsOptional()
     recurrencePattern?: string;
+
+    @ApiPropertyOptional({ description: 'Allow emergency double booking when all 10 accounts are full' })
+    @IsOptional()
+    allowDoubleBooking?: boolean;
 }
 
 export class CancelBookingDto {
@@ -120,7 +124,7 @@ export class RescheduleBookingDto {
     @Type(() => Number)
     @IsInt()
     @Min(30)
-    @Max(240)
+    @Max(720)
     @IsOptional()
     durationMinutes?: number;
 

@@ -3,6 +3,8 @@ import { io, Socket } from 'socket.io-client';
 
 export interface TvBoardCard {
     id: string;
+    ticketNumber?: string;
+    title: string;
     description: string;
     requesterName: string;
     requesterDepartment: string | null;
@@ -11,10 +13,17 @@ export interface TvBoardCard {
     slaTarget: string | null;
     isOverdue: boolean;
     isOracleRequest: boolean;
+    handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'WEB_DEV' | 'MOBILE_DEV' | string;
+    category?: string | null;
+    ticketType?: string | null;
 }
 
 export interface TvBoardRingtones {
     newTicket: string | null;
+    newTicketSupport?: string | null;
+    newTicketOracle?: string | null;
+    newTicketWebDev?: string | null;
+    newTicketMobileDev?: string | null;
     inProgress: string | null;
     closing: string | null;
     closingTime: string | null;
@@ -36,7 +45,7 @@ interface UseTvBoardSocketReturn {
 
 const rawSocketUrl = import.meta.env.VITE_SOCKET_URL ||
     import.meta.env.VITE_API_URL ||
-    'http://localhost:5050';
+    (typeof window !== 'undefined' ? window.location.origin : '');
 const SOCKET_URL = rawSocketUrl
     .replace(/\/v1\/?$/, '')
     .replace(/\/api\/?$/, '')

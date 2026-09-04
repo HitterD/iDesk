@@ -7,7 +7,7 @@ import api from '../../../lib/api';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { PASSWORD_POLICY, getPasswordRequirements, translatePasswordPolicyError } from '@/lib/passwordPolicy';
+import { PASSWORD_POLICY, RECOMMENDED_PASSWORD_LENGTH, getPasswordRequirements, translatePasswordPolicyError } from '@/lib/passwordPolicy';
 
 interface SecurityFormValues {
     currentPassword: string;
@@ -15,6 +15,11 @@ interface SecurityFormValues {
     confirmPassword: string;
 }
 
+/**
+ * "Kuat" disediakan untuk password yang melewati panjang anjuran, bukan sekadar
+ * memenuhi `minLength` — password 8 karakter yang sah tetap dilabeli "Sedang"
+ * supaya indikator mendorong ke arah yang lebih aman tanpa menolaknya.
+ */
 const getPasswordStrength = (pwd: string): { level: number; label: string; colorBar: string; colorText: string } => {
     if (!pwd) return { level: 0, label: '', colorBar: '', colorText: '' };
     const hasLower = /[a-z]/.test(pwd);
@@ -22,7 +27,7 @@ const getPasswordStrength = (pwd: string): { level: number; label: string; color
     const hasDigit = /\d/.test(pwd);
     const meetsAll = pwd.length >= PASSWORD_POLICY.minLength && hasLower && hasUpper && hasDigit;
     if (pwd.length < PASSWORD_POLICY.minLength) return { level: 1, label: 'Lemah', colorBar: 'bg-red-500', colorText: 'text-red-500' };
-    if (!meetsAll) return { level: 2, label: 'Sedang', colorBar: 'bg-yellow-500', colorText: 'text-yellow-500' };
+    if (!meetsAll || pwd.length < RECOMMENDED_PASSWORD_LENGTH) return { level: 2, label: 'Sedang', colorBar: 'bg-yellow-500', colorText: 'text-yellow-500' };
     return { level: 3, label: 'Kuat', colorBar: 'bg-green-500', colorText: 'text-green-500' };
 };
 
@@ -88,7 +93,7 @@ export const SecuritySettingsForm: React.FC = () => {
                             type="password"
                             {...register('newPassword', {
                                 required: 'Kata sandi baru wajib diisi',
-                                minLength: { value: PASSWORD_POLICY.minLength, message: `Kata sandi minimal ${PASSWORD_POLICY.minLength} karakter` },
+                                minLength: { value: PASSWORD_POLICY.minLength, message: `Kata sandi minimal ${PASSWORD_POLICY.minLength} karakter (disarankan ${RECOMMENDED_PASSWORD_LENGTH}+ agar lebih aman)` },
                                 validate: (val: string) => {
                                     if (!/[a-z]/.test(val) || !/[A-Z]/.test(val) || !/\d/.test(val)) return 'Harus mengandung huruf besar, huruf kecil, dan angka.';
                                     return true;

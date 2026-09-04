@@ -32,7 +32,7 @@ export class HardwareActivityService {
         });
     }
 
-    async log(requestId: string, actorId: string, action: string, metadata: Record<string, unknown> = {}): Promise<void> {
+    async log(requestId: string, actorId: string | null, action: string, metadata: Record<string, unknown> = {}): Promise<void> {
         const req = await this.requestRepo.findOne({ where: { id: requestId } });
         if (!req) return;
         const entry = this.repo.create({

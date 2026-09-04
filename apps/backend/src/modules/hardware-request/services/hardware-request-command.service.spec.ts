@@ -366,4 +366,42 @@ describe('HardwareRequestCommandService', () => {
                 .rejects.toThrow(/schedule not done/i);
         });
     });
+
+    describe('autoConfirmInstallation', () => {
+        it('transitions AWAITING_USER_CONFIRMATION to COMPLETED and creates activity with null actorId', async () => {
+            reqRepo.findOne.mockResolvedValue({
+                id: 'r1',
+                status: RequestStatus.AWAITING_USER_CONFIRMATION,
+                requesterId: 'user-1',
+            });
+
+            const res = await service.autoConfirmInstallation('r1');
+
+            expect(res.status).toBe(RequestStatus.COMPLETED);
+            expect(res.userConfirmationKind).toBe('ACCEPT_AS_IS');
+            expect(activityRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+                requestId: 'r1',
+                actorId: null,
+                action: ActivityAction.USER_CONFIRMED,
+                fromStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
+                toStatus: RequestStatus.COMPLETED,
+                metadata: { kind: 'AUTO', reason: 'TTL_EXCEEDED_24H' },
+            }));
+            expect(emitter.emit).toHaveBeenCalledWith('hardware-request.install.completed', expect.objectContaining({
+                requestId: 'r1',
+                actorId: null,
+                auto: true,
+            }));
+        });
+
+        it('throws error when request is not in AWAITING_USER_CONFIRMATION', async () => {
+            reqRepo.findOne.mockResolvedValue({
+                id: 'r1',
+                status: RequestStatus.INSTALLATION,
+            });
+
+            await expect(service.autoConfirmInstallation('r1'))
+                .rejects.toThrow();
+        });
+    });
 });

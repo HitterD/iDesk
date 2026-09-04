@@ -131,6 +131,41 @@ describe('BentoSidebar', () => {
         });
     });
 
+    it('keeps Request Center permanently expanded on /dashboard while allowing max 1 other secondary group', async () => {
+        renderSidebar('/dashboard');
+
+        // On /dashboard, Request Center is open by default
+        expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
+        expect(screen.getByText('E-Form Access')).toBeInTheDocument();
+
+        // 1. Open Resources -> Resources opens, Request Center remains open (Total = 2)
+        const resourcesBtn = screen.getByText('Resources');
+        fireEvent.click(resourcesBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText('Zoom Calendar')).toBeInTheDocument();
+            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
+        });
+
+        // 2. Open Administration -> Admin opens, Resources closes, Request Center remains open (Total = 2)
+        const adminBtn = screen.getByText('Administration');
+        fireEvent.click(adminBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText('Agents')).toBeInTheDocument();
+            expect(screen.queryByText('Zoom Calendar')).not.toBeInTheDocument();
+            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
+        });
+
+        // 3. Click Administration again -> Admin closes, leaving only Request Center (Total = 1)
+        fireEvent.click(adminBtn);
+
+        await waitFor(() => {
+            expect(screen.queryByText('Agents')).not.toBeInTheDocument();
+            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
+        });
+    });
+
     it('toggles collapse mode and renders icon-only sidebar with new logo', async () => {
         renderSidebar('/dashboard');
 
@@ -143,5 +178,17 @@ describe('BentoSidebar', () => {
         // Ensure logo image uses the new logo asset (/idesk-logo.png)
         const logoImg = screen.getByAltText('iDesk Logo');
         expect(logoImg).toHaveAttribute('src', '/idesk-logo.png');
+    });
+
+    it('keeps sidebar expanded by default on /tickets/web-developer', async () => {
+        renderSidebar('/tickets/web-developer');
+        expect(screen.getByText('Web Developer Request')).toBeInTheDocument();
+        expect(screen.getByTitle(/Collapse sidebar/i)).toBeInTheDocument();
+    });
+
+    it('keeps sidebar expanded by default on /tickets/mobile-developer', async () => {
+        renderSidebar('/tickets/mobile-developer');
+        expect(screen.getByText('Mobile Developer Request')).toBeInTheDocument();
+        expect(screen.getByTitle(/Collapse sidebar/i)).toBeInTheDocument();
     });
 });

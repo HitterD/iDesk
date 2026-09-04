@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket, TicketStatus, HandlingTeam } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType, HandlingTeam } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
@@ -9,14 +9,14 @@ import { WorkloadService } from '../../workload/workload.service';
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
 
 /**
- * Move a ticket between the ops-support and the Oracle/Dev teams.
+ * Move a ticket between the ops-support, Oracle/Dev, and Mobile Dev teams.
  * The reason is mandatory and quoted in the system message so the
  * handover is auditable.
  *
  * Forwarding to OPS_SUPPORT unassigns the previous agent and auto-assigns
  * the best available ops agent for the ticket site (mirrors ticket create),
- * then resets the SLA clock. Forwarding to ORACLE_DEV does not auto-assign
- * (Oracle dev has no workload pool) but still resets the SLA clock.
+ * then resets the SLA clock. Forwarding to dev teams releases the assignee
+ * and resets the SLA clock.
  */
 @Injectable()
 export class TicketForwardService {
@@ -61,11 +61,22 @@ export class TicketForwardService {
         ];
         ticket.handlingTeam = dto.targetTeam;
 
-        // Moving to OPS_SUPPORT gives the ticket a fresh ops agent; the old
-        // (possibly K2) assignee is released.
-        if (dto.targetTeam === HandlingTeam.OPS_SUPPORT) {
-            ticket.assignedTo = null;
-            ticket.assignedToId = null;
+        // Release previous assignee and adjust ticket type based on target team
+        ticket.assignedTo = null;
+        ticket.assignedToId = null;
+
+        if (dto.targetTeam === HandlingTeam.MOBILE_DEV) {
+            ticket.ticketType = TicketType.MOBILE_DEV_REQUEST;
+            ticket.category = 'MOBILE_DEV_REQUEST';
+        } else if (dto.targetTeam === HandlingTeam.WEB_DEV) {
+            ticket.ticketType = TicketType.WEB_DEV_REQUEST;
+            ticket.category = 'WEB_DEV_REQUEST';
+        } else if (dto.targetTeam === HandlingTeam.ORACLE_DEV) {
+            ticket.ticketType = TicketType.ORACLE_REQUEST;
+            ticket.category = 'ORACLE_REQUEST';
+        } else if (dto.targetTeam === HandlingTeam.OPS_SUPPORT) {
+            ticket.ticketType = TicketType.SERVICE;
+            ticket.category = 'GENERAL';
         }
 
         // Reset the resolution SLA clock: a forwarded ticket gets a fresh
@@ -87,11 +98,12 @@ export class TicketForwardService {
                 );
                 await this.ticketRepo.save(saved);
             } catch (err: any) {
-                // No available agents / site issue: log, don't fail the forward.
+                // Auto-assign disabled for the target module, or no eligible
+                // agent: log, don't fail the forward.
                 this.logger.warn(
                     `Auto-assign after forward skipped for ${ticket.ticketNumber || ticket.id}: ${err?.message ?? err}`,
                 );
-                changeNotes.push('Auto-assign skipped (no available agent for this site)');
+                changeNotes.push('Auto-assign skipped (tidak ada agent yang tersedia untuk modul ini)');
             }
         }
 
@@ -150,6 +162,18 @@ export class TicketForwardService {
                 ticket.originalSlaTarget = null;
                 notes.push('SLA reset (no SlaConfig for this priority)');
             }
+        } else if (ticket.status === TicketStatus.WAITING_VENDOR) {
+            // Paused at the vendor: keep the original anchor so that resumeFromVendor
+            // (ticket-update.service.ts) can shift slaTarget by the paused duration
+            // when the vendor answers. Nulling originalSlaTarget here would make the
+            // resolution clock unable to re-arm after resume.
+            if (!ticket.originalSlaTarget) {
+                ticket.originalSlaTarget = ticket.slaTarget
+                    ? new Date(ticket.slaTarget)
+                    : null;
+            }
+            ticket.slaTarget = null;
+            notes.push('SLA held for waiting-vendor; originalSlaTarget preserved');
         } else {
             // Not actively worked on: clear the clock so it restarts when work resumes.
             ticket.slaTarget = null;

@@ -8,7 +8,7 @@ export interface Agent {
     email: string;
     role: string;
     avatarUrl?: string;
-    site?: { code: string; name: string };
+    site?: { code?: string; name?: string };
 }
 
 const SITE_BADGE_COLORS: Record<string, string> = {
@@ -46,19 +46,15 @@ export const AgentSelectList: React.FC<AgentSelectListProps> = ({
         );
     }, [agents, query]);
 
-    // Grouping by Site for Admin, or flat list for non-admin
+    // Grouping by Site for all users
     const groups = useMemo(() => {
-        if (!isAdmin) {
-            const siteCode = agents[0]?.site?.code || 'Site';
-            return { [siteCode]: filtered };
-        }
         return filtered.reduce<Record<string, Agent[]>>((acc, agent) => {
             const code = agent.site?.code || 'Unassigned';
             if (!acc[code]) acc[code] = [];
             acc[code].push(agent);
             return acc;
         }, {});
-    }, [filtered, isAdmin, agents]);
+    }, [filtered]);
 
     return (
         <div className="flex flex-col w-full max-h-[380px] bg-card text-card-foreground select-none">
@@ -134,7 +130,7 @@ export const AgentSelectList: React.FC<AgentSelectListProps> = ({
                                         agent={agent}
                                         selected={selectedId === agent.id}
                                         onSelect={onSelect}
-                                        showBadge={isAdmin}
+                                        showBadge={true}
                                     />
                                 ))}
                             </div>

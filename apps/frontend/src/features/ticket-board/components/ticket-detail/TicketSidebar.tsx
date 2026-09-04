@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { formatDistanceToNow } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
 import {
     UserCheck,
     Activity,
@@ -23,6 +27,11 @@ import {
     X,
     ArrowLeftRight,
     ArrowUpRight,
+    CalendarPlus,
+    History,
+    ChevronUp,
+    ArrowRight,
+    Bell,
 } from 'lucide-react';
 import {
     Select,
@@ -46,6 +55,8 @@ import { AgentSelectList, type Agent } from '../AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from '../ReassignConfirmDialog';
 import { TicketForwardDialog, type ForwardTargetTeam } from '../TicketForwardDialog';
 import { TicketParticipantsSection } from './TicketParticipantsSection';
+import { ResolveTicketModal } from './ResolveTicketModal';
+import { SetTicketReminderModal } from './SetTicketReminderModal';
 import { useAuth } from '@/stores/useAuth';
 
 interface TicketSidebarProps {
@@ -54,11 +65,13 @@ interface TicketSidebarProps {
     slaConfigs: { id: string; priority: string; resolutionTimeMinutes: number }[];
     attributes: { categories: { id: string; value: string }[]; devices: { id: string; value: string }[]; software: any[] };
     onAssigneeChange: (value: string, reason?: string) => Promise<void>;
-    onStatusChange: (value: string) => Promise<void>;
+    onStatusChange: (value: string, resolutionNote?: string, files?: File[]) => Promise<void>;
     onPriorityChange: (value: string) => Promise<void>;
     onCategoryChange: (value: string) => Promise<void>;
     onDeviceChange: (value: string) => Promise<void>;
     onForward?: (targetTeam: ForwardTargetTeam, reason: string) => Promise<void> | void;
+    onExtendSla?: () => void;
+    onSetReminder?: () => void;
 }
 
 type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
@@ -96,6 +109,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     onCategoryChange,
     onDeviceChange,
     onForward,
+    onExtendSla,
+    onSetReminder,
 }) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
@@ -103,11 +118,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const [copiedEmail, setCopiedEmail] = useState(false);
     const [agentPickerOpen, setAgentPickerOpen] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
+    const [reminderModalOpen, setReminderModalOpen] = useState(false);
+    const [showSlaHistory, setShowSlaHistory] = useState(false);
 
     const isAgentOracle = user?.role === 'AGENT_ORACLE';
     const canManageParticipants = isAgentOracle || isAdmin;
     const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
-        (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST'));
+        ticket.handlingTeam === 'MOBILE_DEV' ||
+        ticket.handlingTeam === 'WEB_DEV' ||
+        (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST' || ticket.ticketType === 'WEB_DEV_REQUEST' || ticket.ticketType === 'MOBILE_DEV_REQUEST'));
     const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
 
     // Local optimistic state per field
@@ -186,6 +205,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         }
     };
 
+    const [resolveModalOpen, setResolveModalOpen] = useState(false);
+
     const handleConfirmReassign = async (reason: string) => {
         const val = targetAgentToAssign ? targetAgentToAssign.id : '';
         await handleAssigneeChange(val, reason);
@@ -195,6 +216,26 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const handleStatusChange = makeHandler('status', setLocalStatus, onStatusChange);
     const handlePriorityChange = makeHandler('priority', setLocalPriority, onPriorityChange);
     const handleCategoryChange = makeHandler('category', setLocalCategory, onCategoryChange);
+
+    const handleStatusSelectChange = async (value: string) => {
+        if (value === 'RESOLVED') {
+            setResolveModalOpen(true);
+            return;
+        }
+        await handleStatusChange(value);
+    };
+
+    const handleConfirmResolve = async (note: string, files: File[]) => {
+        setLocalStatus('RESOLVED');
+        setSaving(prev => ({ ...prev, status: true }));
+        try {
+            await onStatusChange('RESOLVED', note, files);
+            showSaved('status');
+        } finally {
+            setSaving(prev => ({ ...prev, status: false }));
+            setResolveModalOpen(false);
+        }
+    };
 
     const handleDeviceChange = async (value: string) => {
         const actualVal = value === 'none' ? '' : value;
@@ -224,12 +265,197 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const currentSla = slaConfigs.find(s => s.priority === localPriority);
     const currentSlaHours = currentSla ? Math.round(currentSla.resolutionTimeMinutes / 60) : null;
 
-    return (
-        <div className="p-4 space-y-5 select-none">
+    // Active Scheduled Reminders Query
+    const { data: reminders = [] } = useQuery<any[]>({
+        queryKey: ['ticket-reminders', ticket.id],
+        queryFn: async () => {
+            const res = await api.get(`/tickets/${ticket.id}/reminders`);
+            return res.data?.data || [];
+        },
+        enabled: Boolean(ticket?.id),
+    });
 
-            {/* 1. Requester Profile Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
+    const nextReminder = useMemo(() => {
+        if (!reminders || reminders.length === 0) return null;
+        const active = reminders.filter((r: any) => !r.isSent);
+        if (active.length === 0) return null;
+        return [...active].sort(
+            (a: any, b: any) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime()
+        )[0];
+    }, [reminders]);
+
+    return (
+        <div className="p-4 space-y-4 select-none">
+
+            {/* 1. SLA & Tracking Card (Prominently Placed at Top) */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-200/60 dark:border-blue-800/60 shadow-2xs">
+                            <Clock className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                            SLA & Tracking
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        {ticket.slaAdjustments && ticket.slaAdjustments.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setShowSlaHistory(!showSlaHistory)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 shadow-2xs hover:bg-amber-100 transition-colors cursor-pointer"
+                                title="Lihat riwayat perpanjangan SLA"
+                            >
+                                <History className="w-2.5 h-2.5" />
+                                <span>{ticket.slaAdjustments.length}x Diundur</span>
+                                {showSlaHistory ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                            </button>
+                        )}
+                        {ticket.slaTarget && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50">
+                                Active SLA
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-slate-400 dark:text-slate-500">Created At</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {formatDateTimeID(ticket.createdAt)}
+                        </span>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-slate-400 dark:text-slate-500">Last Activity</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {formatRelativeTime(ticket.updatedAt)}
+                        </span>
+                    </div>
+
+                    {ticket.slaTarget && (
+                        <div className="flex items-center justify-between py-1">
+                            <span className="text-slate-400 dark:text-slate-500">SLA Target</span>
+                            <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/50 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-800/50 text-right">
+                                {formatDateTimeID(ticket.slaTarget)}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Scheduled Reminder Hint Card */}
+                    {nextReminder && (
+                        <div
+                            onClick={() => {
+                                if (onSetReminder) onSetReminder();
+                                else setReminderModalOpen(true);
+                            }}
+                            className="group p-2.5 rounded-xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/70 hover:border-purple-300 dark:hover:border-purple-600 transition-all cursor-pointer shadow-2xs space-y-1"
+                            title="Klik untuk melihat atau mengubah jadwal pengingat email"
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-purple-700 dark:text-purple-300">
+                                    <Bell className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 fill-purple-600/20" />
+                                    <span>Pengingat Terjadwal</span>
+                                </span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-200/70 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200">
+                                    {formatDistanceToNow(new Date(nextReminder.remindAt), { addSuffix: true, locale: idLocale })}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                    {formatDateTimeID(nextReminder.remindAt)}
+                                </span>
+                                <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 group-hover:underline">
+                                    Ubah →
+                                </span>
+                            </div>
+                            {nextReminder.note && (
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate pt-0.5 border-t border-purple-200/60 dark:border-purple-900/40">
+                                    "{nextReminder.note}"
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Actions: Perpanjang SLA & Atur Pengingat */}
+                    {!isClosed && (
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
+                                    <button
+                                        type="button"
+                                        onClick={onExtendSla}
+                                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors shadow-2xs cursor-pointer"
+                                        title="Perpanjang target SLA"
+                                    >
+                                        <CalendarPlus className="w-3.5 h-3.5" />
+                                        <span>Perpanjang SLA</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (onSetReminder) onSetReminder();
+                                        else setReminderModalOpen(true);
+                                    }}
+                                    className={cn(
+                                        "w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer",
+                                        nextReminder
+                                            ? "text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-950/60 border border-blue-300/90 dark:border-blue-700/80 hover:bg-blue-200/80 dark:hover:bg-blue-900/60"
+                                            : "text-slate-700 dark:text-slate-300 bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-200/70 dark:hover:bg-slate-700/60"
+                                    )}
+                                    title="Atur pengingat email untuk agent"
+                                >
+                                    <Bell className={cn("w-3.5 h-3.5 text-blue-600 dark:text-blue-400", nextReminder && "fill-blue-600 dark:fill-blue-400")} />
+                                    <span>{nextReminder ? 'Ubah Reminder' : 'Set Reminder'}</span>
+                                    {nextReminder && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Expandable History Accordion */}
+                    {showSlaHistory && ticket.slaAdjustments && ticket.slaAdjustments.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+                            <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                <History className="w-3 h-3 text-blue-500" />
+                                <span>Riwayat Penundaan Target</span>
+                            </div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                {ticket.slaAdjustments.map((adj, idx) => (
+                                    <div key={adj.id || idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 space-y-1 text-[11px]">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-bold text-blue-600 dark:text-blue-400">
+                                                +{adj.minutes}m ({adj.reasonCategory})
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                {formatDateTimeID(adj.createdAt)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
+                                            <span>{adj.previousTarget ? formatDateTimeID(adj.previousTarget) : '-'}</span>
+                                            <ArrowRight className="w-3 h-3 shrink-0" />
+                                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                {adj.newTarget ? formatDateTimeID(adj.newTarget) : '-'}
+                                            </span>
+                                        </div>
+                                        <p className="text-slate-600 dark:text-slate-300 italic">
+                                            "{adj.reasonText}"
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* 2. Requester Profile Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/60">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         Requester Profile
                     </span>
@@ -263,7 +489,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
                     <div className="flex items-center justify-between">
                         <span className="text-slate-400 flex items-center gap-1.5">
                             <Building className="w-3.5 h-3.5" /> Department
@@ -286,7 +512,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 </div>
             </div>
 
-            {/* 1.5. Ticket Participants (Oracle Tickets / Multi-user Group) */}
+            {/* 3. Ticket Participants (Oracle Tickets / Multi-user Group) */}
             {(isOracleTicket || (ticket.participants && ticket.participants.length > 0)) && (
                 <TicketParticipantsSection
                     ticketId={ticket.id}
@@ -298,9 +524,9 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 />
             )}
 
-            {/* 2. Ticket Properties & Assignment Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            {/* 4. Ticket Properties & Assignment Card */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/60">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         Ticket Properties
                     </span>
@@ -370,7 +596,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 {/* Status */}
                 <PropertyRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
-                    <Select value={localStatus} onValueChange={handleStatusChange} disabled={isClosed || saving.status}>
+                    <Select value={localStatus} onValueChange={handleStatusSelectChange} disabled={isClosed || saving.status}>
                         <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0", currentStatusConfig.color)}>
@@ -448,6 +674,19 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     )}
                 </PropertyRow>
 
+                {/* Critical Priority Justification Card */}
+                {(ticket.priority === 'CRITICAL' || localPriority === 'CRITICAL') && (
+                    <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-2xl border border-red-200 dark:border-red-900/40 space-y-2 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">Critical Justification</span>
+                        </div>
+                        <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-medium bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-red-100 dark:border-red-900/30 shadow-xs">
+                            {ticket.criticalReason || 'Tidak ada catatan justifikasi tertulis dari requester.'}
+                        </p>
+                    </div>
+                )}
+
                 {/* Category */}
                 <PropertyRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
                     <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
@@ -490,41 +729,6 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 </PropertyRow>
             </div>
 
-            {/* 3. SLA & Timeline Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        SLA & Tracking
-                    </span>
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-
-                <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-slate-400">Created At</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {formatDateTimeID(ticket.createdAt)}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-slate-400">Last Activity</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {formatRelativeTime(ticket.updatedAt)}
-                        </span>
-                    </div>
-
-                    {ticket.slaTarget && (
-                        <div className="flex items-center justify-between py-1">
-                            <span className="text-slate-400">SLA Resolution Target</span>
-                            <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                {formatDateTimeID(ticket.slaTarget)}
-                            </span>
-                        </div>
-                    )}
-                </div>
-            </div>
-
             {/* 4. Hardware Installation Schedule (if applicable) */}
             {ticket.isHardwareInstallation && (
                 <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 shadow-2xs space-y-3">
@@ -561,23 +765,19 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 </div>
             )}
 
-            {onForward && !isClosed && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                    <button
-                        type="button"
-                        onClick={() => setForwardOpen(true)}
-                        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-2xl text-xs font-bold text-white bg-primary hover:bg-primary/90 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] shadow-2xs cursor-pointer"
-                    >
-                        <span className="flex items-center gap-2">
-                            <ArrowLeftRight className="w-3.5 h-3.5" strokeWidth={1.5} />
-                            Teruskan ke Tim Lain
-                        </span>
-                        <span className="w-5 h-5 rounded-full bg-white/15 flex items-center justify-center">
-                            <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
-                        </span>
-                    </button>
-                </div>
-            )}
+            {/* Set Reminder Dialog */}
+            <SetTicketReminderModal
+                isOpen={reminderModalOpen}
+                onClose={() => setReminderModalOpen(false)}
+                ticketId={ticket.id}
+                ticketNumber={ticket.ticketNumber}
+                ticketTitle={ticket.title}
+                assignedAgent={ticket.assignedTo ? {
+                    id: ticket.assignedTo.id,
+                    fullName: ticket.assignedTo.fullName,
+                    email: ticket.assignedTo.email,
+                } : null}
+            />
 
             {/* Forward Dialog */}
             <TicketForwardDialog
@@ -612,6 +812,19 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 }}
                 targetAgent={targetAgentToAssign}
                 onConfirm={handleConfirmReassign}
+            />
+
+            {/* Resolve Confirmation Modal with Explanation and Proof Attachments */}
+            <ResolveTicketModal
+                isOpen={resolveModalOpen}
+                onClose={() => setResolveModalOpen(false)}
+                ticket={{
+                    id: ticket.id,
+                    ticketNumber: ticket.ticketNumber,
+                    title: ticket.title,
+                }}
+                onConfirm={handleConfirmResolve}
+                isLoading={saving.status}
             />
         </div>
     );

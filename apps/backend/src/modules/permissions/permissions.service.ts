@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Logger, OnModuleInit, Inject, forwardRef, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { FeatureDefinition } from './entities/feature-definition.entity';
 import { UserFeaturePermission } from './entities/user-feature-permission.entity';
 import { PermissionPreset, PermissionSet, PageAccess, PresetTargetRole } from './entities/permission-preset.entity';
@@ -48,6 +48,9 @@ const AGENT_PAGES: PageDefinition[] = [
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT', 'ADMIN'] },
     { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports', roles: ['AGENT', 'ADMIN'] },
     { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal', roles: ['AGENT', 'ADMIN'] },
+    { key: 'oracle_k2_tickets', name: 'Oracle K2 Request', icon: 'Database', route: '/tickets/oracle-k2', roles: ['AGENT', 'ADMIN'] },
+    { key: 'web_dev_tickets', name: 'Web Developer Request', icon: 'Code2', route: '/tickets/web-developer', roles: ['AGENT', 'ADMIN'] },
+    { key: 'mobile_dev_tickets', name: 'Mobile Developer Request', icon: 'Smartphone', route: '/tickets/mobile-developer', roles: ['AGENT', 'ADMIN'] },
     // Admin-only pages
     { key: 'agents', name: 'Agents', icon: 'Users', route: '/agents', roles: ['ADMIN'] },
     { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads', roles: ['ADMIN'] },
@@ -74,6 +77,8 @@ const MANAGER_PAGES: PageDefinition[] = [
 
 const ORACLE_PAGES: PageDefinition[] = [
     { key: 'oracle_k2_tickets', name: 'Oracle K2 Request', icon: 'Database', route: '/tickets/oracle-k2', roles: ['AGENT'] },
+    { key: 'web_dev_tickets', name: 'Web Developer Request', icon: 'Code2', route: '/tickets/web-developer', roles: ['AGENT'] },
+    { key: 'mobile_dev_tickets', name: 'Mobile Developer Request', icon: 'Smartphone', route: '/tickets/mobile-developer', roles: ['AGENT'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT'] },
 ];
 
@@ -316,12 +321,58 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
 
     {
         name: 'Agent Oracle',
-        description: 'Oracle/K2 agent. Oracle/K2 ticket queue and notifications only.',
+        description: 'Oracle Developer agent. Developer ticket queues and notifications.',
         sortOrder: 5,
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
             oracle_k2_tickets: true,
+            web_dev_tickets: true,
+            mobile_dev_tickets: true,
+            notifications: true,
+        },
+        permissions: {
+            'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.create': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.edit': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+        },
+    },
+
+    {
+        name: 'Agent Web Developer',
+        description: 'Web Developer agent. Developer ticket queues and notifications.',
+        sortOrder: 6,
+        isSystem: true,
+        targetRole: 'AGENT',
+        pageAccess: {
+            oracle_k2_tickets: true,
+            web_dev_tickets: true,
+            mobile_dev_tickets: true,
+            notifications: true,
+        },
+        permissions: {
+            'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.create': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.edit': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+        },
+    },
+
+    {
+        name: 'Agent Mobile Developer',
+        description: 'Mobile Developer agent. Developer ticket queues and notifications.',
+        sortOrder: 7,
+        isSystem: true,
+        targetRole: 'AGENT',
+        pageAccess: {
+            oracle_k2_tickets: true,
+            web_dev_tickets: true,
+            mobile_dev_tickets: true,
             notifications: true,
         },
         permissions: {
@@ -350,6 +401,8 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             lost_items: true,
             reports: true,
             knowledge_base: true,
+            notifications: true,
+            renewal: true,
         },
         permissions: {
             // Ticketing - full including delete
@@ -639,8 +692,17 @@ export class PermissionsService implements OnModuleInit {
 
         // Otherwise return default page access for their role
         const role = user.role as UserRole;
-        if (role === UserRole.AGENT_ORACLE) {
-            return Object.fromEntries(ORACLE_PAGES.map((page) => [page.key, true]));
+        if (
+            role === UserRole.AGENT_ORACLE ||
+            role === UserRole.AGENT_WEB_DEV ||
+            role === UserRole.AGENT_MOBILE_DEV
+        ) {
+            return {
+                oracle_k2_tickets: true,
+                web_dev_tickets: true,
+                mobile_dev_tickets: true,
+                notifications: true,
+            };
         }
         const normalizedRole = (user.role || 'USER').startsWith('AGENT_') ? 'AGENT' : (user.role || 'USER') as PresetTargetRole;
         return getDefaultPageAccess(normalizedRole);
@@ -653,6 +715,8 @@ export class PermissionsService implements OnModuleInit {
             [UserRole.AGENT_ADMIN]: 'Agent',
             [UserRole.AGENT_OPERATIONAL_SUPPORT]: 'Agent Operational Support',
             [UserRole.AGENT_ORACLE]: 'Agent Oracle',
+            [UserRole.AGENT_WEB_DEV]: 'Agent Web Developer',
+            [UserRole.AGENT_MOBILE_DEV]: 'Agent Mobile Developer',
             [UserRole.MANAGER]: 'Manager',
             [UserRole.ADMIN]: 'Admin',
         };
@@ -794,17 +858,24 @@ export class PermissionsService implements OnModuleInit {
 
     async listUsersWithRole(role: string, siteId?: string | null): Promise<User[]> {
         // ICT_STAFF = semua user ADMIN+MANAGER+AGENT yang bisa akses hardware_requests
-        // When siteId provided, scope to that site only (for site-isolated notifications).
+        // When siteId provided, scope to that site only (for site-isolated notifications) plus cross-site (null siteId) staff.
         // Cross-site callers may pass undefined/null to get all.
         if (role === 'ICT_STAFF') {
-            const baseWhere = [
-                { role: 'ADMIN' as any, isActive: true },
-                { role: 'MANAGER' as any, isActive: true },
-                { role: 'AGENT' as any, isActive: true },
+            const agentRoles = [
+                UserRole.ADMIN,
+                UserRole.MANAGER,
+                UserRole.AGENT,
+                UserRole.AGENT_OPERATIONAL_SUPPORT,
+                UserRole.AGENT_ORACLE,
+                UserRole.AGENT_ADMIN,
             ];
+            const baseWhere = agentRoles.map((r) => ({ role: r, isActive: true }));
             if (siteId) {
                 return this.userRepo.find({
-                    where: baseWhere.map((w: any) => ({ ...w, siteId })) as any,
+                    where: [
+                        ...baseWhere.map((w: any) => ({ ...w, siteId })),
+                        ...baseWhere.map((w: any) => ({ ...w, siteId: IsNull() })),
+                    ] as any,
                 });
             }
             return this.userRepo.find({ where: baseWhere as any });
@@ -813,10 +884,16 @@ export class PermissionsService implements OnModuleInit {
         if (['ICT_LEAD', 'ICT_PROCUREMENT', 'ICT_TECHNICIAN'].includes(role)) {
             return this.listUsersWithRole('ICT_STAFF', siteId);
         }
-        // Fallback untuk role lain (optionally scoped by site)
-        const where: any = { role: role as any, isActive: true };
-        if (siteId) where.siteId = siteId;
-        return this.userRepo.find({ where });
+        // Fallback untuk role lain (optionally scoped by site with cross-site support)
+        if (siteId) {
+            return this.userRepo.find({
+                where: [
+                    { role: role as any, isActive: true, siteId },
+                    { role: role as any, isActive: true, siteId: IsNull() },
+                ] as any,
+            });
+        }
+        return this.userRepo.find({ where: { role: role as any, isActive: true } });
     }
 
     // Bulk apply preset to multiple users

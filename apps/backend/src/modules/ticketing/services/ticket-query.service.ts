@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket } from '../entities/ticket.entity';
+import { Ticket, TicketType, HandlingTeam, TicketStatus } from '../entities/ticket.entity';
+import { TicketModule } from '../entities/ticket-module.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
@@ -16,14 +17,39 @@ export function isNonOracleAgent(role: UserRole): boolean {
 }
 
 export function applyOracleFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, role: UserRole): void {
-    // handlingTeam is the single source of truth for team ownership. A ticket
-    // that was forwarded away from ORACLE_DEV is no longer an Oracle ticket,
-    // even if its category/ticketType still say ORACLE_REQUEST.
     if (isNonOracleAgent(role)) {
-        qb.andWhere('(ticket."handlingTeam" != :oracleTeam)', ORACLE_FILTER_PARAMS);
+        qb.andWhere('(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)', {
+            opsTeam: HandlingTeam.OPS_SUPPORT,
+        });
     } else if (role === UserRole.AGENT_ORACLE) {
-        qb.andWhere('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
+        qb.andWhere('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :webTeam)', {
+            oracleTeam: 'ORACLE_DEV',
+            webTeam: 'WEB_DEV',
+        });
+    } else if (role === UserRole.AGENT_WEB_DEV) {
+        qb.andWhere('(ticket."handlingTeam" = :webTeam OR ticket."handlingTeam" = :oracleTeam)', {
+            webTeam: 'WEB_DEV',
+            oracleTeam: 'ORACLE_DEV',
+        });
+    } else if (role === UserRole.AGENT_MOBILE_DEV) {
+        qb.andWhere('(ticket."handlingTeam" = :mobileTeam)', { mobileTeam: 'MOBILE_DEV' });
     }
+}
+
+const DEFAULT_SLA_MINUTES: Record<string, number> = {
+    CRITICAL: 120,
+    HIGH: 240,
+    MEDIUM: 480,
+    LOW: 1440,
+};
+
+export function ensureSlaTarget(ticket: Ticket): Date | null {
+    if (ticket.slaTarget) return ticket.slaTarget;
+    if (ticket.priority && ticket.createdAt && (ticket.priority as any) !== 'HARDWARE_INSTALLATION') {
+        const mins = DEFAULT_SLA_MINUTES[ticket.priority] || 480;
+        return new Date(new Date(ticket.createdAt).getTime() + mins * 60000);
+    }
+    return null;
 }
 
 @Injectable()
@@ -34,6 +60,9 @@ export class TicketQueryService {
         @InjectRepository(SlaConfig)
         private readonly slaConfigRepo: Repository<SlaConfig>,
         private readonly cacheService: CacheService,
+        @Optional()
+        @InjectRepository(TicketModule)
+        private readonly moduleRepo?: Repository<TicketModule>,
     ) { }
 
     private createFilteredTicketQb(role: UserRole, userSiteId: string | null, excludeCategory?: string): import('typeorm').SelectQueryBuilder<Ticket> {
@@ -49,38 +78,82 @@ export class TicketQueryService {
         return qb;
     }
 
-    async findAll(userId: string, role: UserRole, userSiteId: string | null = null): Promise<Ticket[]> {
+    async findAll(
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null = null,
+        queue?: string,
+    ): Promise<Ticket[]> {
         const query = this.ticketRepo.createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .where('ticket.ticketType NOT IN (:...excludedTypes)', { 
-                excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION'] 
-            })
+            .leftJoinAndSelect('ticket.site', 'site')
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
 
-        if (role === UserRole.ADMIN) {
-            // Admin sees all
-            return query.getMany();
+        if (queue === 'oracle') {
+            query.where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
+            query.andWhere(
+                '(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory OR ticket.category ILIKE :oracleLike OR ticket.category ILIKE :k2Like)',
+                {
+                    oracleType: TicketType.ORACLE_REQUEST,
+                    oracleCategory: 'ORACLE_REQUEST',
+                    oracleLike: '%oracle%',
+                    k2Like: '%k2%',
+                },
+            );
+        } else if (queue === 'web-dev') {
+            query.where('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :webTeam)', { ...ORACLE_FILTER_PARAMS, webTeam: HandlingTeam.WEB_DEV });
+            query.andWhere(
+                '(ticket.ticketType = :webDevType OR ticket.category = :webDevCategory OR ticket.category ILIKE :webDevLike)',
+                {
+                    webDevType: TicketType.WEB_DEV_REQUEST,
+                    webDevCategory: 'WEB_DEV_REQUEST',
+                    webDevLike: '%web%',
+                },
+            );
+        } else if (queue === 'mobile-dev') {
+            query.where('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :mobileTeam)', { ...ORACLE_FILTER_PARAMS, mobileTeam: HandlingTeam.MOBILE_DEV });
+            query.andWhere(
+                '(ticket.ticketType = :mobileDevType OR ticket.category = :mobileDevCategory OR ticket.category ILIKE :mobileDevLike)',
+                {
+                    mobileDevType: TicketType.MOBILE_DEV_REQUEST,
+                    mobileDevCategory: 'MOBILE_DEV_REQUEST',
+                    mobileDevLike: '%mobile%',
+                },
+            );
+        } else if (role === UserRole.ADMIN) {
+            // IT Support Queue (default)
+            query.where('(ticket."handlingTeam" = :opsTeam)', { opsTeam: HandlingTeam.OPS_SUPPORT });
+            query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
+                excludedTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST, TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION] 
+            });
         } else if (role === UserRole.AGENT_ORACLE) {
-            // Oracle agent sees only Oracle requests
-            applyOracleFilter(query, role);
-            return query.getMany();
+            // Oracle agent sees only developer requests
+            query.where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
         } else if (isNonOracleAgent(role)) {
-            // Normal agents see everything EXCEPT Oracle requests
-            applyOracleFilter(query, role);
+            // Normal agents see everything EXCEPT developer requests
+            query.where('(ticket."handlingTeam" = :opsTeam)', { opsTeam: HandlingTeam.OPS_SUPPORT });
+            query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
+                excludedTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST, TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION] 
+            });
             applySiteFilter(query, role, userSiteId);
-            return query.getMany();
         } else {
             // Normal user sees only their own tickets OR tickets where they are a participant
-            // EXCLUDE specialized request types that have their own modules
-            query.andWhere('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
+            query.where('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
             query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
-                excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION'] 
+                excludedTypes: [TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION] 
             });
-            return query.getMany();
         }
+
+        const rawTickets = await query.getMany();
+        return rawTickets.map((ticket) => ({
+            ...ticket,
+            slaTarget: ensureSlaTarget(ticket),
+            hasUnreadChat: computeHasUnreadChat(ticket, role),
+            isParticipant: role === UserRole.USER && ticket.userId !== userId,
+        })) as Ticket[];
     }
 
     async findAllPaginated(
@@ -131,13 +204,16 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.site', 'site');
 
         // Client My Tickets includes every ticket owned by the requester.
-        // Oracle/K2 remains isolated from every non-client general list, and
-        // ownership is decided by handlingTeam only — forwarding a ticket away
-        // removes it from any list keyed on the other team.
+        // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
+        // developer requests (Oracle, Web Dev, Mobile Dev).
         if (role !== UserRole.USER) {
             qb.andWhere(
-                '(ticket."handlingTeam" != :oracleTeam)',
-                ORACLE_FILTER_PARAMS,
+                '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)',
+                { opsTeam: HandlingTeam.OPS_SUPPORT },
+            );
+            qb.andWhere(
+                '(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)',
+                { devTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST] }
             );
         }
 
@@ -256,6 +332,7 @@ export class TicketQueryService {
 
         const enrichedTickets = data.map((ticket) => ({
           ...ticket,
+          slaTarget: ensureSlaTarget(ticket),
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
           hasUnreadChat: computeHasUnreadChat(ticket, role),
           isParticipant: role === UserRole.USER && ticket.userId !== userId,
@@ -314,7 +391,16 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.site', 'site')
             // Strict Oracle/K2 filter — handlingTeam is the source of truth,
             // so a ticket forwarded to OPS_SUPPORT disappears from this list.
-            .where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
+            .where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS)
+            .andWhere(
+                '(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory OR (ticket.category ILIKE :oracleLike AND (ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...otherDevTypes))))',
+                {
+                    oracleType: 'ORACLE_REQUEST',
+                    oracleCategory: 'ORACLE_REQUEST',
+                    oracleLike: '%oracle%',
+                    otherDevTypes: ['WEB_DEV_REQUEST', 'MOBILE_DEV_REQUEST'],
+                },
+            );
 
         // Site isolation (matches findAllPaginated behaviour)
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
@@ -360,6 +446,221 @@ export class TicketQueryService {
 
         const enrichedTickets = data.map((ticket) => ({
             ...ticket,
+            slaTarget: ensureSlaTarget(ticket),
+            hasUnreadChat: computeHasUnreadChat(ticket, role),
+        }));
+
+        return {
+            data: enrichedTickets as any,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            },
+        };
+    }
+
+    async findAllPaginatedWebDev(
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null,
+        options: {
+            page?: number;
+            limit?: number;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+            status?: string;
+            priority?: string;
+            search?: string;
+            siteId?: string;
+            siteIds?: string[];
+            startDate?: string;
+            endDate?: string;
+        } = {},
+    ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
+        const {
+            page = 1,
+            limit = 20,
+            sortBy = 'createdAt',
+            sortOrder = 'DESC',
+            status,
+            priority,
+            search,
+            siteId,
+            siteIds,
+            startDate,
+            endDate,
+        } = options;
+
+        const qb = this.ticketRepo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('user.department', 'department')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('ticket.site', 'site')
+            .where('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :webTeam)', { ...ORACLE_FILTER_PARAMS, webTeam: 'WEB_DEV' })
+            .andWhere(
+                '(ticket.ticketType = :webDevType OR ticket.category = :webDevCategory OR ticket.category ILIKE :webDevLike)',
+                {
+                    webDevType: 'WEB_DEV_REQUEST',
+                    webDevCategory: 'WEB_DEV_REQUEST',
+                    webDevLike: '%web%',
+                },
+            );
+
+        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+
+        if (status) {
+            qb.andWhere('ticket.status = :status', { status });
+        }
+        if (priority) {
+            qb.andWhere('ticket.priority = :priority', { priority });
+        }
+        if (search) {
+            const searchTerm = search.trim();
+            if (searchTerm.length <= 3 || /^\d{6}-/.test(searchTerm)) {
+                qb.andWhere(
+                    '(ticket.title ILIKE :search OR ticket.description ILIKE :search OR ticket."ticketNumber" ILIKE :search)',
+                    { search: `%${searchTerm}%` },
+                );
+            } else {
+                qb.andWhere(
+                    `(to_tsvector('indonesian', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ plainto_tsquery('indonesian', :search) OR ticket."ticketNumber" ILIKE :ticketSearch)`,
+                    { search: searchTerm, ticketSearch: `%${searchTerm}%` },
+                );
+            }
+        }
+        if (startDate) {
+            qb.andWhere('ticket.createdAt >= :startDate', { startDate });
+        }
+        if (endDate) {
+            qb.andWhere('ticket.createdAt <= :endDate', { endDate });
+        }
+
+        const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
+        const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+        qb.orderBy(`ticket.${safeSortBy}`, safeSortOrder)
+          .skip((page - 1) * limit)
+          .take(limit);
+
+        const [data, total] = await qb.getManyAndCount();
+        const totalPages = Math.ceil(total / limit);
+
+        const enrichedTickets = data.map((ticket) => ({
+            ...ticket,
+            slaTarget: ensureSlaTarget(ticket),
+            hasUnreadChat: computeHasUnreadChat(ticket, role),
+        }));
+
+        return {
+            data: enrichedTickets as any,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            },
+        };
+    }
+
+    async findAllPaginatedMobileDev(
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null,
+        options: {
+            page?: number;
+            limit?: number;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+            status?: string;
+            priority?: string;
+            search?: string;
+            siteId?: string;
+            siteIds?: string[];
+            startDate?: string;
+            endDate?: string;
+        } = {},
+    ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
+        const {
+            page = 1,
+            limit = 20,
+            sortBy = 'createdAt',
+            sortOrder = 'DESC',
+            status,
+            priority,
+            search,
+            siteId,
+            siteIds,
+            startDate,
+            endDate,
+        } = options;
+
+        const qb = this.ticketRepo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('user.department', 'department')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('ticket.site', 'site')
+            .where('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :mobileTeam)', { ...ORACLE_FILTER_PARAMS, mobileTeam: 'MOBILE_DEV' })
+            .andWhere(
+                '(ticket.ticketType = :mobileDevType OR ticket.category = :mobileDevCategory OR ticket.category ILIKE :mobileDevLike)',
+                {
+                    mobileDevType: 'MOBILE_DEV_REQUEST',
+                    mobileDevCategory: 'MOBILE_DEV_REQUEST',
+                    mobileDevLike: '%mobile%',
+                },
+            );
+
+        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+
+        if (status) {
+            qb.andWhere('ticket.status = :status', { status });
+        }
+        if (priority) {
+            qb.andWhere('ticket.priority = :priority', { priority });
+        }
+        if (search) {
+            const searchTerm = search.trim();
+            if (searchTerm.length <= 3 || /^\d{6}-/.test(searchTerm)) {
+                qb.andWhere(
+                    '(ticket.title ILIKE :search OR ticket.description ILIKE :search OR ticket."ticketNumber" ILIKE :search)',
+                    { search: `%${searchTerm}%` },
+                );
+            } else {
+                qb.andWhere(
+                    `(to_tsvector('indonesian', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ plainto_tsquery('indonesian', :search) OR ticket."ticketNumber" ILIKE :ticketSearch)`,
+                    { search: searchTerm, ticketSearch: `%${searchTerm}%` },
+                );
+            }
+        }
+        if (startDate) {
+            qb.andWhere('ticket.createdAt >= :startDate', { startDate });
+        }
+        if (endDate) {
+            qb.andWhere('ticket.createdAt <= :endDate', { endDate });
+        }
+
+        const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
+        const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+        qb.orderBy(`ticket.${safeSortBy}`, safeSortOrder)
+          .skip((page - 1) * limit)
+          .take(limit);
+
+        const [data, total] = await qb.getManyAndCount();
+        const totalPages = Math.ceil(total / limit);
+
+        const enrichedTickets = data.map((ticket) => ({
+            ...ticket,
+            slaTarget: ensureSlaTarget(ticket),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
         }));
 
@@ -389,7 +690,14 @@ export class TicketQueryService {
                 'participants.user',
                 'participants.user.department',
                 'participants.invitedBy',
+                'slaAdjustments',
+                'slaAdjustments.actor',
             ],
+            order: {
+                slaAdjustments: {
+                    createdAt: 'DESC',
+                },
+            },
         });
 
         if (!ticket) {
@@ -626,6 +934,182 @@ export class TicketQueryService {
             recentTickets: formattedRecentTickets,
             topAgents,
             avgResolutionTime,
+        };
+    }
+
+    /**
+     * Generic paginated query based on dynamic TicketModule configuration
+     */
+    async findAllPaginatedByModule(
+        slug: string,
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null = null,
+        options: {
+            page?: number;
+            limit?: number;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+            status?: string;
+            priority?: string;
+            category?: string;
+            search?: string;
+            assignedToId?: string;
+            siteId?: string;
+            siteIds?: string[];
+            ticketType?: string;
+            startDate?: string;
+            endDate?: string;
+        } = {}
+    ) {
+        if (!this.moduleRepo) {
+            throw new NotFoundException(`Ticket module repository is not available`);
+        }
+        const module = await this.moduleRepo.findOne({ where: { slug } });
+        if (!module) {
+            throw new NotFoundException(`Ticket module with slug "${slug}" not found`);
+        }
+
+        // Role authorization check
+        if (role !== UserRole.ADMIN && module.allowedRoles && module.allowedRoles.length > 0) {
+            if (!module.allowedRoles.includes(role)) {
+                throw new NotFoundException(`You do not have permission to access the ${module.name} queue`);
+            }
+        }
+
+        const {
+            page = 1,
+            limit = 20,
+            sortBy = 'createdAt',
+            sortOrder = 'DESC',
+            status,
+            priority,
+            category,
+            search,
+            assignedToId,
+            siteId,
+            siteIds,
+            ticketType,
+            startDate,
+            endDate,
+        } = options;
+
+        const qb = this.ticketRepo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('user.department', 'department')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('ticket.site', 'site');
+
+        // Apply module criteria
+        if (module.handlingTeams && module.handlingTeams.length > 0) {
+            qb.andWhere('ticket.handlingTeam IN (:...teams)', { teams: module.handlingTeams });
+        }
+        if (module.ticketTypes && module.ticketTypes.length > 0) {
+            qb.andWhere('ticket.ticketType IN (:...types)', { types: module.ticketTypes });
+        }
+        if (module.categories && module.categories.length > 0) {
+            qb.andWhere('ticket.category IN (:...cats)', { cats: module.categories });
+        }
+
+        // Cross-site filter if applicable
+        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+
+        if (status) qb.andWhere('ticket.status = :status', { status });
+        if (priority) qb.andWhere('ticket.priority = :priority', { priority });
+        if (category) qb.andWhere('ticket.category = :category', { category });
+        if (ticketType) qb.andWhere('ticket.ticketType = :ticketType', { ticketType });
+        if (assignedToId) {
+            if (assignedToId === 'unassigned') {
+                qb.andWhere('ticket.assignedToId IS NULL');
+            } else {
+                qb.andWhere('ticket.assignedToId = :assignedToId', { assignedToId });
+            }
+        }
+
+        if (search) {
+            const searchTerm = search.trim();
+            if (searchTerm.includes('-') || /^[A-Z0-9#-]+$/i.test(searchTerm)) {
+                qb.andWhere('ticket.ticketNumber ILIKE :exactSearch', { exactSearch: `%${searchTerm}%` });
+            } else {
+                const formattedQuery = searchTerm.split(/\s+/).filter(Boolean).map(t => `${t}:*`).join(' & ');
+                qb.andWhere(
+                    `(to_tsvector('simple', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ to_tsquery('simple', :ftsQuery) OR ticket.ticketNumber ILIKE :fuzzySearch OR user.fullName ILIKE :fuzzySearch)`,
+                    { ftsQuery: formattedQuery, fuzzySearch: `%${searchTerm}%` }
+                );
+            }
+        }
+
+        if (startDate && endDate) {
+            qb.andWhere('ticket.createdAt BETWEEN :startDate AND :endDate', {
+                startDate: new Date(startDate),
+                endDate: new Date(endDate),
+            });
+        }
+
+        const validSortColumns: Record<string, string> = {
+            createdAt: 'ticket.createdAt',
+            updatedAt: 'ticket.updatedAt',
+            priority: 'ticket.priority',
+            status: 'ticket.status',
+            ticketNumber: 'ticket.ticketNumber',
+            targetDate: 'ticket.targetDate',
+        };
+        const sortColumn = validSortColumns[sortBy] || 'ticket.createdAt';
+        qb.orderBy(sortColumn, sortOrder);
+
+        const skip = (page - 1) * limit;
+        qb.skip(skip).take(limit);
+
+        const [tickets, total] = await qb.getManyAndCount();
+
+        // Calculate queue stats for this module
+        const statsQb = this.ticketRepo.createQueryBuilder('ticket');
+        if (module.handlingTeams && module.handlingTeams.length > 0) {
+            statsQb.andWhere('ticket.handlingTeam IN (:...teams)', { teams: module.handlingTeams });
+        }
+        if (module.ticketTypes && module.ticketTypes.length > 0) {
+            statsQb.andWhere('ticket.ticketType IN (:...types)', { types: module.ticketTypes });
+        }
+        if (module.categories && module.categories.length > 0) {
+            statsQb.andWhere('ticket.category IN (:...cats)', { cats: module.categories });
+        }
+        applySiteFilter(statsQb, role, userSiteId, { siteId, siteIds });
+
+        const [totalCount, openCount, inProgressCount, resolvedCount] = await Promise.all([
+            statsQb.clone().getCount(),
+            statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.TODO }).getCount(),
+            statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.IN_PROGRESS }).getCount(),
+            statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.RESOLVED }).getCount(),
+        ]);
+
+        return {
+            data: tickets.map(t => ({
+                ...t,
+                hasUnreadChat: computeHasUnreadChat(t, role),
+            })),
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                hasMore: page * limit < total,
+            },
+            stats: {
+                total: totalCount,
+                open: openCount,
+                inProgress: inProgressCount,
+                resolved: resolvedCount,
+            },
+            module: {
+                id: module.id,
+                name: module.name,
+                slug: module.slug,
+                description: module.description,
+                icon: module.icon,
+                color: module.color,
+                allowedRoles: module.allowedRoles,
+            },
         };
     }
 }

@@ -85,4 +85,23 @@ describe('ZoomBookingModal', () => {
         await user.click(screen.getByRole('button', { name: /^close$/i }));
         expect(onClose).toHaveBeenCalled();
     });
+
+    it('renders estimated end time pill when start time is provided', () => {
+        render(
+            <ZoomBookingModal
+                open
+                onClose={vi.fn()}
+                mode="booking"
+                zoomAccountId="z1"
+                preselectedDate="2026-09-03"
+                preselectedTime="09:00"
+                accounts={accounts}
+            />,
+            { wrapper }
+        );
+
+        expect(screen.getByText(/Estimasi:/i)).toBeInTheDocument();
+        expect(screen.getByText(/09:00 - 10:00 WIB/i)).toBeInTheDocument();
+        expect(screen.getByText(/Selesai pukul 10:00/i)).toBeInTheDocument();
+    });
 });

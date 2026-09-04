@@ -1,5 +1,6 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/stores/useAuth';
 import {
     FileSpreadsheet, BarChart3, Clock, AlertCircle,
     Users, FileText, Calendar, TrendingUp, Target, CheckCircle,
@@ -19,6 +20,7 @@ const AgentPerformanceChart = lazy(() => import('../components/ReportsCharts').t
 const DistributionChart = lazy(() => import('../components/ReportsCharts').then(m => ({ default: m.DistributionChart })));
 const PeriodComparison = lazy(() => import('../components/ReportsCharts').then(m => ({ default: m.PeriodComparison })));
 import { PDFPreviewModal, usePDFPreview } from '../components/PDFPreviewModal';
+import { ScheduledReportsTab } from '../components/scheduled/ScheduledReportsTab';
 
 // Types
 interface MonthlyStats {
@@ -56,7 +58,22 @@ interface TicketVolumeData {
     };
 }
 
-type ReportTab = 'monthly' | 'agent' | 'volume';
+type ReportTab = 'monthly' | 'agent' | 'volume' | 'scheduled';
+
+const formatDurationHours = (val: string | number | undefined | null): string => {
+    if (val === undefined || val === null) return '0.0h';
+    const str = String(val).replace(/h$/i, '').trim();
+    const num = parseFloat(str);
+    if (isNaN(num) || !isFinite(num)) return '0.0h';
+    return `${num.toFixed(1)}h`;
+};
+
+const formatPercentage = (numerator: number, denominator: number): string => {
+    if (!denominator || denominator <= 0) return '0.0%';
+    const pct = (numerator / denominator) * 100;
+    if (isNaN(pct) || !isFinite(pct)) return '0.0%';
+    return `${pct.toFixed(1)}%`;
+};
 
 // Filter Chip Component for interactive filtering
 const FilterChip: React.FC<{
@@ -290,6 +307,9 @@ export const BentoReportsPage: React.FC = () => {
         [currentYear]
     );
 
+    // Agent Category Filter state ('ALL' | 'ORACLE' | 'REGULAR' | 'DEV')
+    const [agentCategory, setAgentCategory] = useState<'ALL' | 'ORACLE' | 'REGULAR' | 'DEV'>('ALL');
+
     // Monthly Stats Query
     const {
         data: monthlyStats,
@@ -312,9 +332,10 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: agentLoading,
         error: agentError,
     } = useQuery<{ data: AgentMetrics[] }>({
-        queryKey: ['reports', 'agent-performance', startDate, endDate],
+        queryKey: ['reports', 'agent-performance', startDate, endDate, agentCategory],
         queryFn: async () => {
-            const response = await api.get(`/reports/agent-performance?startDate=${startDate}&endDate=${endDate}`);
+            const categoryParam = agentCategory !== 'ALL' ? `&agentCategory=${agentCategory}` : '';
+            const response = await api.get(`/reports/agent-performance?startDate=${startDate}&endDate=${endDate}${categoryParam}`);
             return response.data;
         },
         enabled: activeTab === 'agent',
@@ -341,6 +362,9 @@ export const BentoReportsPage: React.FC = () => {
     });
 
     const volumeData = volumeDataResponse?.data || null;
+
+    const { user: authUser } = useAuth();
+    const canManageScheduled = ['ADMIN', 'MANAGER'].includes(authUser?.role || '');
 
     // Download handler with progress indicator
     const downloadFile = async (url: string, filename: string, reportType: string = 'Report') => {
@@ -392,12 +416,14 @@ export const BentoReportsPage: React.FC = () => {
     };
 
     const handleExportAgentPDF = () => {
-        downloadFile(`/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}`, `agent-performance-${startDate}-to-${endDate}.pdf`, 'Agent Performance PDF');
+        const categoryParam = agentCategory !== 'ALL' ? `&agentCategory=${agentCategory}` : '';
+        downloadFile(`/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}${categoryParam}`, `agent-performance-${startDate}-to-${endDate}.pdf`, 'Agent Performance PDF');
     };
 
     const handlePreviewAgentPDF = () => {
+        const categoryParam = agentCategory !== 'ALL' ? `&agentCategory=${agentCategory}` : '';
         pdfPreview.openPreview(
-            `/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}`,
+            `/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}${categoryParam}`,
             `agent-performance-${startDate}-to-${endDate}.pdf`,
             'Agent Performance Report'
         );
@@ -429,6 +455,7 @@ export const BentoReportsPage: React.FC = () => {
         { id: 'monthly' as ReportTab, label: 'Monthly Summary', icon: Calendar },
         { id: 'agent' as ReportTab, label: 'Agent Performance', icon: Users },
         { id: 'volume' as ReportTab, label: 'Ticket Volume', icon: BarChart3 },
+        { id: 'scheduled' as ReportTab, label: 'Scheduled Reports', icon: Clock },
     ];
 
     const loading = activeTab === 'monthly' ? monthlyLoading : activeTab === 'agent' ? agentLoading : volumeLoading;
@@ -524,7 +551,7 @@ export const BentoReportsPage: React.FC = () => {
                                         value={monthlyStats.resolvedTickets}
                                         icon={CheckCircle}
                                         color="bg-green-500"
-                                        subtext={`${monthlyStats.totalTickets > 0 ? ((monthlyStats.resolvedTickets / monthlyStats.totalTickets) * 100).toFixed(1) : 0}% Resolution Rate`}
+                                        subtext={`${formatPercentage(monthlyStats.resolvedTickets, monthlyStats.totalTickets)} Resolution Rate`}
                                     />
                                     <ReportCard
                                         title="Open Tickets"
@@ -534,7 +561,7 @@ export const BentoReportsPage: React.FC = () => {
                                     />
                                     <ReportCard
                                         title="Avg Resolution Time"
-                                        value={`${monthlyStats.avgResolutionTimeHours}h`}
+                                        value={formatDurationHours(monthlyStats.avgResolutionTimeHours)}
                                         icon={Clock}
                                         color="bg-purple-500"
                                     />
@@ -564,7 +591,7 @@ export const BentoReportsPage: React.FC = () => {
                                                     <div>
                                                         <p className="text-sm text-slate-500 dark:text-slate-400">Resolution Rate</p>
                                                         <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                                                            {monthlyStats.totalTickets > 0 ? ((monthlyStats.resolvedTickets / monthlyStats.totalTickets) * 100).toFixed(1) : 0}%
+                                                            {formatPercentage(monthlyStats.resolvedTickets, monthlyStats.totalTickets)}
                                                         </p>
                                                     </div>
                                                     {monthlyStats.resolvedTickets >= monthlyStats.openTickets ? (
@@ -580,7 +607,7 @@ export const BentoReportsPage: React.FC = () => {
                                                 <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                                     <div>
                                                         <p className="text-sm text-slate-500 dark:text-slate-400">Avg Resolution Time</p>
-                                                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{monthlyStats.avgResolutionTimeHours}h</p>
+                                                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatDurationHours(monthlyStats.avgResolutionTimeHours)}</p>
                                                     </div>
                                                     <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
                                                         <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
@@ -600,13 +627,38 @@ export const BentoReportsPage: React.FC = () => {
                 {/* Agent Performance Tab */}
                 {activeTab === 'agent' && (
                     <div className="space-y-6">
-                        <div className="flex flex-wrap gap-4 items-center justify-between">
-                            <DateRangePicker
-                                startDate={startDate}
-                                endDate={endDate}
-                                onStartDateChange={setStartDate}
-                                onEndDateChange={setEndDate}
-                            />
+                        {/* Filter Bar: Date Range + Agent Category Pills + Action Buttons */}
+                        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <DateRangePicker
+                                    startDate={startDate}
+                                    endDate={endDate}
+                                    onStartDateChange={setStartDate}
+                                    onEndDateChange={setEndDate}
+                                />
+                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-[hsl(var(--border))]">
+                                    {[
+                                        { id: 'ALL', label: 'Semua Teknisi' },
+                                        { id: 'ORACLE', label: 'Oracle Support' },
+                                        { id: 'REGULAR', label: 'Operational' },
+                                        { id: 'DEV', label: 'Web & Mobile' },
+                                    ].map((cat) => (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            onClick={() => setAgentCategory(cat.id as any)}
+                                            className={cn(
+                                                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150",
+                                                agentCategory === cat.id
+                                                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-bold"
+                                                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50"
+                                            )}
+                                        >
+                                            {cat.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             <div className="flex gap-2">
                                 <button
                                     onClick={handlePreviewAgentPDF}
@@ -672,22 +724,22 @@ export const BentoReportsPage: React.FC = () => {
                                                     <td className="px-6 py-4 text-center">
                                                         <span className={cn(
                                                             "px-2 py-1 rounded-full text-xs font-medium",
-                                                            agent.resolutionRate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                                agent.resolutionRate >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                            (agent.resolutionRate ?? 0) >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                                (agent.resolutionRate ?? 0) >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
                                                                     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                         )}>
-                                                            {agent.resolutionRate.toFixed(1)}%
+                                                            {(agent.resolutionRate ?? 0).toFixed(1)}%
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">{agent.avgResponseTimeMinutes}m</td>
+                                                    <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">{agent.avgResponseTimeMinutes ?? 0}m</td>
                                                     <td className="px-6 py-4 text-center">
                                                         <span className={cn(
                                                             "px-2 py-1 rounded-full text-xs font-medium",
-                                                            agent.slaComplianceRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                                agent.slaComplianceRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                            (agent.slaComplianceRate ?? 0) >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                                (agent.slaComplianceRate ?? 0) >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
                                                                     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                         )}>
-                                                            {agent.slaComplianceRate.toFixed(1)}%
+                                                            {(agent.slaComplianceRate ?? 0).toFixed(1)}%
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -925,6 +977,13 @@ export const BentoReportsPage: React.FC = () => {
                             <div className="text-center py-12 text-slate-500">No data available for selected period</div>
                         )}
                     </div>
+                )}
+                {/* Scheduled Reports Tab */}
+                {activeTab === 'scheduled' && (
+                    <ScheduledReportsTab
+                        canManage={canManageScheduled}
+                        currentSiteId={authUser?.siteId}
+                    />
                 )}
             </div>
 

@@ -18,6 +18,7 @@ export enum ArticleVisibility {
 @Index(['status'])
 @Index(['status', 'visibility'])
 @Index(['category'])
+@Index(['isFeatured'])
 export class Article {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -51,6 +52,15 @@ export class Article {
 
     @Column({ default: 0 })
     helpfulCount: number;
+
+    /**
+     * The single "start here" article pinned to the top of the KB landing page.
+     * At most one article may carry this flag (enforced by a partial unique
+     * index) and only a PUBLISHED + PUBLIC article is eligible, so the hero
+     * card can never leak a draft or staff-only article to end users.
+     */
+    @Column({ default: false })
+    isFeatured: boolean;
 
     @Column({ type: 'varchar', nullable: true })
     authorId: string;

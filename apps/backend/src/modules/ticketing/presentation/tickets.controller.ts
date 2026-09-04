@@ -14,7 +14,9 @@ import {
     Query,
     BadRequestException,
     ParseIntPipe,
+    Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TicketCreateService } from '../services/ticket-create.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
@@ -37,6 +39,7 @@ import {
     CancelTicketDto
 } from '../dto/update-ticket.dto';
 import { BulkUpdateTicketsDto, BulkDeleteTicketsDto } from '../dto/bulk-update.dto';
+import { BulkAssignTicketsDto } from '../dto/bulk-assign.dto';
 import { MergeTicketsDto } from '../dto/ticket-merge.dto';
 import { TicketMergeService } from '../services/ticket-merge.service';
 import { TicketSlaExtendService } from '../services/ticket-sla-extend.service';
@@ -48,6 +51,8 @@ import { AttachmentMultiInterceptor, getRelativeUploadPath } from './interceptor
 import { AddParticipantsDto } from '../dto/ticket-participant.dto';
 import { ExtendSlaDto } from '../dto/extend-sla.dto';
 import { ForwardTicketDto } from '../dto/forward-ticket.dto';
+import { CreateTicketReminderDto } from '../dto/ticket-reminder.dto';
+import { TicketReminderService } from '../services/ticket-reminder.service';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -63,7 +68,9 @@ export class TicketsController {
         private readonly ticketStatsService: TicketStatsService,
         private readonly ticketSlaExtendService: TicketSlaExtendService,
         private readonly ticketForwardService: TicketForwardService,
+        private readonly ticketReminderService: TicketReminderService,
         private readonly kbService: KnowledgeBaseService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     @Post()
@@ -83,14 +90,29 @@ export class TicketsController {
             }
         }
         const filePaths = files ? files.map(f => getRelativeUploadPath(f)) : [];
-        return this.ticketCreateService.createTicket(req.user.userId, createTicketDto, filePaths);
+        const result = await this.ticketCreateService.createTicket(req.user.userId, createTicketDto, filePaths);
+
+        if (files && files.length > 0 && this.eventEmitter) {
+            for (const f of files) {
+                this.eventEmitter.emit('file.uploaded', {
+                    filePath: f.path,
+                    relativePath: getRelativeUploadPath(f),
+                    filename: f.filename,
+                    originalName: f.originalname,
+                    size: f.size,
+                });
+            }
+        }
+
+        return result;
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all tickets' })
+    @ApiOperation({ summary: 'Get all tickets (supports queue isolation: it-support, oracle, web-dev, mobile-dev)' })
     @ApiResponse({ status: 200, description: 'Return all tickets.' })
-    async findAll(@Request() req: any) {
-        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null);
+    @ApiQuery({ name: 'queue', required: false, enum: ['it-support', 'oracle', 'web-dev', 'mobile-dev'] })
+    async findAll(@Request() req: any, @Query('queue') queue?: string) {
+        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null, queue);
     }
 
     @Get('paginated')
@@ -113,13 +135,61 @@ export class TicketsController {
     }
 
     @Get(['paginated/oracle', 'oracle-k2'])
-    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Get paginated Oracle/K2 tickets (Oracle agent queue)' })
     @ApiResponse({ status: 200, description: 'Return paginated Oracle/K2 tickets.' })
-    @ApiResponse({ status: 403, description: 'Forbidden — AGENT_ORACLE or ADMIN role required.' })
+    @ApiResponse({ status: 403, description: 'Forbidden — AGENT_ORACLE, AGENT_WEB_DEV, AGENT_MOBILE_DEV or ADMIN role required.' })
     async findAllPaginatedOracle(@Request() req: any, @Query() pagination: PaginationDto) {
         const userSiteId = req.user.siteId ?? null;
         return this.ticketQueryService.findAllPaginatedOracle(
+            req.user.userId,
+            req.user.role,
+            userSiteId,
+            pagination,
+        );
+    }
+
+    @Get(['paginated/web-dev', 'web-developer'])
+    @Roles(UserRole.ADMIN, UserRole.AGENT_WEB_DEV, UserRole.AGENT_ORACLE, UserRole.AGENT_MOBILE_DEV)
+    @ApiOperation({ summary: 'Get paginated Web Developer tickets (Developer queue)' })
+    @ApiResponse({ status: 200, description: 'Return paginated Web Developer tickets.' })
+    @ApiResponse({ status: 403, description: 'Forbidden — AGENT_WEB_DEV, AGENT_ORACLE, AGENT_MOBILE_DEV or ADMIN role required.' })
+    async findAllPaginatedWebDev(@Request() req: any, @Query() pagination: PaginationDto) {
+        const userSiteId = req.user.siteId ?? null;
+        return this.ticketQueryService.findAllPaginatedWebDev(
+            req.user.userId,
+            req.user.role,
+            userSiteId,
+            pagination,
+        );
+    }
+
+    @Get(['paginated/mobile-dev', 'mobile-developer'])
+    @Roles(UserRole.ADMIN, UserRole.AGENT_MOBILE_DEV, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV)
+    @ApiOperation({ summary: 'Get paginated Mobile Developer tickets (Developer queue)' })
+    @ApiResponse({ status: 200, description: 'Return paginated Mobile Developer tickets.' })
+    @ApiResponse({ status: 403, description: 'Forbidden — AGENT_MOBILE_DEV, AGENT_ORACLE, AGENT_WEB_DEV or ADMIN role required.' })
+    async findAllPaginatedMobileDev(@Request() req: any, @Query() pagination: PaginationDto) {
+        const userSiteId = req.user.siteId ?? null;
+        return this.ticketQueryService.findAllPaginatedMobileDev(
+            req.user.userId,
+            req.user.role,
+            userSiteId,
+            pagination,
+        );
+    }
+
+    @Get(['paginated/module/:slug', 'queue/:slug'])
+    @ApiOperation({ summary: 'Get paginated tickets by dynamic ticket module slug' })
+    @ApiResponse({ status: 200, description: 'Return paginated tickets filtered by module config.' })
+    async findAllPaginatedByModule(
+        @Request() req: any,
+        @Param('slug') slug: string,
+        @Query() pagination: PaginationDto,
+    ) {
+        const userSiteId = req.user.siteId ?? null;
+        return this.ticketQueryService.findAllPaginatedByModule(
+            slug,
             req.user.userId,
             req.user.role,
             userSiteId,
@@ -134,6 +204,8 @@ export class TicketsController {
         UserRole.AGENT_OPERATIONAL_SUPPORT,
         UserRole.AGENT_ADMIN,
         UserRole.AGENT_ORACLE,
+        UserRole.AGENT_WEB_DEV,
+        UserRole.AGENT_MOBILE_DEV,
         UserRole.MANAGER,
         UserRole.USER,
     )
@@ -255,7 +327,7 @@ export class TicketsController {
         // Parse isInternal (can come as string 'true'/'false' from FormData)
         const isInternalNote = isInternal === true || isInternal === 'true';
 
-        return this.ticketMessagingService.replyToTicket(
+        const result = await this.ticketMessagingService.replyToTicket(
             id,
             req.user.userId,
             content,
@@ -263,6 +335,20 @@ export class TicketsController {
             parsedMentionedUserIds,
             isInternalNote,
         );
+
+        if (files && files.length > 0 && this.eventEmitter) {
+            for (const f of files) {
+                this.eventEmitter.emit('file.uploaded', {
+                    filePath: f.path,
+                    relativePath: getRelativeUploadPath(f),
+                    filename: f.filename,
+                    originalName: f.originalname,
+                    size: f.size,
+                });
+            }
+        }
+
+        return result;
     }
 
     @Get(':id/participants')
@@ -286,8 +372,8 @@ export class TicketsController {
     }
 
     @Delete(':id/participants/:userId')
-    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE)
-    @ApiOperation({ summary: 'Remove a participant from a ticket (Oracle Agent / Admin only)' })
+    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @ApiOperation({ summary: 'Remove a participant from a ticket (Developer Agent / Admin only)' })
     @ApiResponse({ status: 200, description: 'Participant removed successfully.' })
     async removeParticipant(
         @Param('id') id: string,
@@ -300,7 +386,7 @@ export class TicketsController {
     }
 
     @Patch(':id/status')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Update ticket status' })
     @ApiResponse({ status: 200, description: 'Ticket status updated.' })
     async updateStatus(
@@ -312,7 +398,7 @@ export class TicketsController {
     }
 
     @Patch(':id/priority')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Update ticket priority' })
     @ApiResponse({ status: 200, description: 'Ticket priority updated.' })
     async updatePriority(
@@ -324,7 +410,7 @@ export class TicketsController {
     }
 
     @Patch(':id/category')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Update ticket category' })
     @ApiResponse({ status: 200, description: 'Ticket category updated.' })
     async updateCategory(
@@ -336,7 +422,7 @@ export class TicketsController {
     }
 
     @Patch(':id/device')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Update ticket device' })
     @ApiResponse({ status: 200, description: 'Ticket device updated.' })
     async updateDevice(
@@ -347,7 +433,7 @@ export class TicketsController {
         return this.ticketUpdateService.updateTicket(id, { device: dto.device }, req.user.userId);
     }
     @Patch(':id/assign')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Assign ticket to an agent' })
     @ApiResponse({ status: 200, description: 'Ticket assigned successfully.' })
     async assignTicket(
@@ -370,7 +456,7 @@ export class TicketsController {
     }
 
     @Post(':id/sla/extend')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Extend the SLA target of a ticket, recording the reason' })
     @ApiResponse({ status: 201, description: 'SLA extended' })
     async extendSla(
@@ -381,11 +467,12 @@ export class TicketsController {
         return this.ticketSlaExtendService.extendSla(id, dto, {
             userId: req.user.userId,
             role: req.user.role,
+            fullName: req.user.fullName || req.user.username,
         });
     }
 
     @Post(':id/forward')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Forward a ticket to the other handling team (ops <-> oracle)' })
     @ApiResponse({ status: 201, description: 'Ticket forwarded' })
     async forwardTicket(
@@ -399,8 +486,47 @@ export class TicketsController {
         });
     }
 
+    @Post(':id/reminders')
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @ApiOperation({ summary: 'Create a scheduled email reminder for this ticket' })
+    @ApiResponse({ status: 201, description: 'Reminder created successfully' })
+    async createReminder(
+        @Param('id') id: string,
+        @Body() dto: CreateTicketReminderDto,
+        @Request() req: any,
+    ) {
+        return this.ticketReminderService.createReminder(id, dto, {
+            userId: req.user.userId,
+            fullName: req.user.fullName || req.user.username,
+        });
+    }
+
+    @Get(':id/reminders')
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @ApiOperation({ summary: 'Get all scheduled reminders for this ticket' })
+    @ApiResponse({ status: 200, description: 'Return all reminders for ticket' })
+    async getReminders(@Param('id') id: string) {
+        return this.ticketReminderService.getReminders(id);
+    }
+
+    @Delete(':id/reminders/:reminderId')
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @ApiOperation({ summary: 'Cancel/delete an unsent reminder for this ticket' })
+    @ApiResponse({ status: 200, description: 'Reminder cancelled successfully' })
+    async deleteReminder(
+        @Param('id') id: string,
+        @Param('reminderId') reminderId: string,
+        @Request() req: any,
+    ) {
+        return this.ticketReminderService.deleteReminder(id, reminderId, {
+            userId: req.user.userId,
+            fullName: req.user.fullName || req.user.username,
+            role: req.user.role,
+        });
+    }
+
     @Patch('bulk/update')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Bulk update multiple tickets' })
     @ApiResponse({ status: 200, description: 'Tickets updated successfully.' })
     async bulkUpdate(
@@ -420,6 +546,22 @@ export class TicketsController {
         );
     }
 
+    @Patch('bulk/assign')
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @ApiOperation({ summary: 'Bulk assign multiple tickets to one assignee (per-team authorization inherited)' })
+    @ApiResponse({ status: 200, description: 'Tickets assigned successfully.' })
+    async bulkAssign(
+        @Body() dto: BulkAssignTicketsDto,
+        @Request() req: any,
+    ): Promise<{ updated: number; failed: string[] }> {
+        return this.ticketUpdateService.bulkAssign(
+            dto.ticketIds,
+            dto.assigneeId,
+            req.user.userId,
+            dto.reason,
+        );
+    }
+
     @Delete('bulk')
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Soft-delete multiple tickets (ADMIN only)' })
@@ -433,7 +575,7 @@ export class TicketsController {
     }
 
     @Post('merge')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
+    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
     @ApiOperation({ summary: 'Merge multiple tickets into one' })
     @ApiResponse({ status: 200, description: 'Tickets merged successfully.' })
     async mergeTickets(

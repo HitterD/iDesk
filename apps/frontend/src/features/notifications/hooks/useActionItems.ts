@@ -5,13 +5,15 @@ import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import { ActionItemsResponse } from '../../../components/notifications/types/action-item.types';
 
+import { queryKeys } from '@/lib/queryKeys';
+
 export const useActionItems = () => {
     const { user } = useAuth();
     const { socket } = useSocket();
     const queryClient = useQueryClient();
 
     const { data, isLoading, isFetching, error, refetch } = useQuery<ActionItemsResponse>({
-        queryKey: ['action-items'],
+        queryKey: queryKeys.notifications.actionItems(),
         queryFn: async () => {
             const res = await api.get('/notifications/action-items');
             return res.data;
@@ -19,6 +21,8 @@ export const useActionItems = () => {
         enabled: !!user,
         staleTime: 5 * 60 * 1000,
         refetchInterval: 60000, // Poll every 60s as per spec
+        refetchIntervalInBackground: false, // Pause polling when tab is inactive to save CPU/network
+        refetchOnWindowFocus: true, // Instantly refresh when returning to this tab
     });
 
     // Invalidate on socket events
@@ -26,7 +30,8 @@ export const useActionItems = () => {
         if (!socket || !user) return;
 
         const handleRefresh = () => {
-            queryClient.invalidateQueries({ queryKey: ['action-items'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.actionItems() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.legacyActionItems() });
         };
 
         socket.on(`notification:${user.id}`, handleRefresh);

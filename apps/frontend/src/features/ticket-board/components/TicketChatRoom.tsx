@@ -12,6 +12,7 @@ const RichTextEditor = lazy(() => import('../../../components/ui/RichTextEditor'
 import api from '../../../lib/api';
 import { formatDate } from '../../../lib/utils';
 import { logger } from '@/lib/logger';
+import { SystemMessageEvent } from './ticket-detail/SystemMessageEvent';
 
 interface Message {
     id: string;
@@ -68,8 +69,8 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
 
     useEffect(() => {
         // Connect to Socket.io
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
-        socketRef.current = io(apiUrl);
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || undefined;
+        socketRef.current = socketUrl ? io(socketUrl) : io();
 
         socketRef.current.on('connect', () => {
             logger.debug('Connected to socket server');
@@ -110,7 +111,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
             files.forEach((file) => formData.append('files', file));
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+                const apiUrl = import.meta.env.VITE_API_URL || '';
                 const response = await fetch(`${apiUrl}/uploads`, {
                     method: 'POST',
                     body: formData,
@@ -160,11 +161,11 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                 {messages.map((msg: Message) => {
                     if (msg.isSystemMessage) {
                         return (
-                            <div key={msg.id} className="flex justify-center my-4">
-                                <span className="text-xs font-medium text-slate-500 bg-white/5 px-3 py-1 rounded-full border border-white/5">
-                                    {msg.content}
-                                </span>
-                            </div>
+                            <SystemMessageEvent
+                                key={msg.id}
+                                content={msg.content}
+                                createdAt={msg.createdAt}
+                            />
                         );
                     }
 

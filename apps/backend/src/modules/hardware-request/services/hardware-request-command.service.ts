@@ -512,7 +512,7 @@ export class HardwareRequestCommandService {
         });
     }
 
-    async autoConfirmInstallation(requestId: string, systemActorId: string): Promise<HardwareRequest> {
+    async autoConfirmInstallation(requestId: string, systemActorId: string | null = null): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
@@ -533,7 +533,7 @@ export class HardwareRequestCommandService {
 
             await activityRepo.save(activityRepo.create({
                 requestId: req.id,
-                actorId: systemActorId,
+                actorId: systemActorId ?? null,
                 action: ActivityAction.USER_CONFIRMED,
                 metadata: { kind: 'AUTO', reason: 'TTL_EXCEEDED_24H' },
                 fromStatus,
@@ -542,7 +542,7 @@ export class HardwareRequestCommandService {
 
             this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
                 requestId: req.id,
-                actorId: systemActorId,
+                actorId: systemActorId ?? null,
                 occurredAt: new Date(),
                 requesterId: req.requesterId,
                 auto: true,

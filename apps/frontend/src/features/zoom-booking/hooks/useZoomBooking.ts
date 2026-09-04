@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '@/lib/api';
 import type {
     ZoomAccount,
@@ -170,8 +171,12 @@ export function useCreateBooking() {
         onSettled: () => {
             // Always refetch after error or success to ensure fresh data
             queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-booking'] });
         },
     });
 }
@@ -228,6 +233,36 @@ export function useDurationOptions() {
             return response.data;
         },
         staleTime: 10 * 60 * 1000, // 10 minutes
+    });
+}
+
+export interface SendBookingReminderParams {
+    bookingId: string;
+    recipientEmail?: string;
+    minutesBefore?: number;
+    sendNow?: boolean;
+}
+
+/**
+ * Send email reminder and Outlook calendar (.ics) invitation for a booking
+ */
+export function useSendBookingReminder() {
+    return useMutation({
+        mutationFn: async ({ bookingId, recipientEmail, minutesBefore, sendNow }: SendBookingReminderParams) => {
+            const response = await api.post(`/zoom-booking/${bookingId}/send-reminder`, {
+                recipientEmail,
+                minutesBefore,
+                sendNow,
+            });
+            return response.data;
+        },
+        onSuccess: (data) => {
+            toast.success(data?.message || 'Pengingat meeting berhasil dikirim ke email.');
+        },
+        onError: (error: any) => {
+            const message = error.response?.data?.message || 'Gagal mengirim pengingat meeting.';
+            toast.error(message);
+        },
     });
 }
 
@@ -365,8 +400,12 @@ export function useCancelBooking() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
             queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
         },
     });
 }
@@ -407,8 +446,12 @@ export function useRescheduleBooking() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
             queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['booking-details'] });
         },
     });
@@ -430,7 +473,11 @@ export function useRescheduleOwnBooking() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['booking-details'] });
         },
     });
@@ -480,6 +527,9 @@ export function useCancelOwnBooking() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['booking-details'] });

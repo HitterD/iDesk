@@ -30,7 +30,7 @@ export class InAppNotifierListener {
     async onSubmitted(e: HrSubmitted) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const leads = await this.perm.listUsersWithRole('ICT_STAFF');
+        const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
         await Promise.all(leads.map(l => this.push(l.id, {
             title: 'Permintaan hardware baru',
             message: `${r.requestNumber} menunggu review`,
@@ -43,7 +43,8 @@ export class InAppNotifierListener {
     async onApproved(e: HrApproved) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const procs = await this.perm.listUsersWithRole('ICT_STAFF');
+        const siteId = (r as any).siteId ?? null;
+        const procs = await this.perm.listUsersWithRole('ICT_STAFF', siteId);
         await this.push(e.requesterId, {
             title: 'Request disetujui',
             message: `${r.requestNumber} approved, menunggu procurement`,
@@ -76,7 +77,9 @@ export class InAppNotifierListener {
     @OnEvent(HR_EVT.CANCELLED)
     async onCancelled(e: HrCancelled) {
         if (e.fromStatus !== 'UNDER_REVIEW') return;
-        const leads = await this.perm.listUsersWithRole('ICT_STAFF');
+        // Load request to get siteId for scoping
+        const r = await this.q.findById(e.requestId);
+        const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any)?.siteId ?? null);
         await Promise.all(leads.map(l => this.push(l.id, {
             title: 'Request dibatalkan oleh user',
             message: `Request ${e.requestId.slice(0, 8)} dicancel`,
@@ -89,7 +92,7 @@ export class InAppNotifierListener {
     async onProcurementDone(e: HrProcurementDone) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const techs = await this.perm.listUsersWithRole('ICT_STAFF');
+        const techs = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
         await this.push(e.requesterId, {
             title: 'Procurement selesai',
             message: `${r.requestNumber} siap jadwal instalasi`,
@@ -151,7 +154,7 @@ export class InAppNotifierListener {
     async onInstallCompleted(e: HrInstallCompleted) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const leads = await this.perm.listUsersWithRole('ICT_STAFF');
+        const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
         await this.push(e.requesterId, {
             title: 'Instalasi selesai',
             message: `${r.requestNumber} completed`,

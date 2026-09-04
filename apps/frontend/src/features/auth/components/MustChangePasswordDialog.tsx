@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { getPasswordRequirements, translatePasswordPolicyError, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
+import { PASSWORD_POLICY, RECOMMENDED_PASSWORD_LENGTH, getPasswordRequirements, translatePasswordPolicyError, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
 
 interface MustChangePasswordDialogProps {
     currentPassword: string;
@@ -86,7 +86,7 @@ export const MustChangePasswordDialog: React.FC<MustChangePasswordDialogProps> =
                                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Minimal 12 karakter, wajib huruf besar, huruf kecil, dan angka. Tidak boleh mengandung nama/email/NIK Anda.</p>
+                        <p className="text-xs text-slate-400 mt-1">Minimal {PASSWORD_POLICY.minLength} karakter (disarankan {RECOMMENDED_PASSWORD_LENGTH}+ agar lebih aman), wajib huruf besar, huruf kecil, dan angka. Tidak boleh mengandung nama/email/NIK Anda.</p>
                         {newPassword.length > 0 && (
                             <ul className="mt-2 space-y-1">
                                 {getPasswordRequirements(newPassword).map((r) => (

@@ -106,7 +106,7 @@ class QueryErrorBoundaryInner extends Component<Props & { reset: () => void }, S
             network: {
                 icon: WifiOff,
                 title: 'Connection Problem',
-                description: 'Unable to connect to the server. Please check your internet connection.',
+                description: 'Gagal terhubung ke server atau terjadi kendala sistem. Silakan coba beberapa saat lagi.',
                 iconColor: 'text-amber-500',
                 bgColor: 'bg-amber-50 dark:bg-amber-900/20',
             },

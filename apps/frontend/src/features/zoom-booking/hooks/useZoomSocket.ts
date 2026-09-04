@@ -30,6 +30,9 @@ export function useZoomSocket(accountId?: string) {
     const handleCalendarUpdate = useCallback((data: { accountId: string; action: string }) => {
         // Invalidate calendar queries to refetch
         queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
         queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
@@ -53,6 +56,9 @@ export function useZoomSocket(accountId?: string) {
     // Handle booking created (for specific account)
     const handleBookingCreated = useCallback((_data: any) => {
         queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
         queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['zoom-booking'] });
@@ -61,6 +67,9 @@ export function useZoomSocket(accountId?: string) {
     // Handle booking cancelled
     const handleBookingCancelled = useCallback((_data: { bookingId: string; reason?: string }) => {
         queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+        queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
         queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['zoom-booking'] });
@@ -69,6 +78,9 @@ export function useZoomSocket(accountId?: string) {
     const handleSyncCompleted = useCallback((data: { updatedCount: number }) => {
         if (data.updatedCount > 0) {
             queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-batch'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-account-load-summary'] });
             queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });

@@ -40,8 +40,23 @@ describe('Oracle Ticket Access Utility', () => {
         expect(canAccessTicketObject(agent, { handlingTeam: HandlingTeam.OPS_SUPPORT, category: 'ORACLE_REQUEST' })).toBe(true);
     });
 
+    it('correctly identifies Mobile Dev categories and Web Dev categories', () => {
+        expect(canAccessTicketObject({ role: UserRole.AGENT_MOBILE_DEV }, { handlingTeam: HandlingTeam.MOBILE_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_MOBILE_DEV }, { handlingTeam: HandlingTeam.WEB_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_MOBILE_DEV }, { handlingTeam: HandlingTeam.ORACLE_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_MOBILE_DEV }, { handlingTeam: HandlingTeam.OPS_SUPPORT })).toBe(false);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_WEB_DEV }, { handlingTeam: HandlingTeam.WEB_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_WEB_DEV }, { handlingTeam: HandlingTeam.ORACLE_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_WEB_DEV }, { handlingTeam: HandlingTeam.MOBILE_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_WEB_DEV }, { handlingTeam: HandlingTeam.OPS_SUPPORT })).toBe(false);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_ORACLE }, { handlingTeam: HandlingTeam.ORACLE_DEV })).toBe(true);
+        expect(canAccessTicketObject({ role: UserRole.AGENT_ORACLE }, { handlingTeam: HandlingTeam.WEB_DEV })).toBe(true);
+    });
+
     it('throws ForbiddenException when validateTicketAccess fails', () => {
         const agent = { role: UserRole.AGENT };
         expect(() => validateTicketAccess(agent, { handlingTeam: HandlingTeam.ORACLE_DEV })).toThrow(ForbiddenException);
+        expect(() => validateTicketAccess(agent, { handlingTeam: HandlingTeam.MOBILE_DEV })).toThrow(ForbiddenException);
+        expect(() => validateTicketAccess(agent, { handlingTeam: HandlingTeam.WEB_DEV })).toThrow(ForbiddenException);
     });
 });

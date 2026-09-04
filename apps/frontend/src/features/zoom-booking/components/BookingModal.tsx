@@ -22,6 +22,9 @@ import {
 } from '@/components/ui/select';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { useCreateBooking, useDurationOptions, usePublicZoomSettings, useZoomCalendar } from '../hooks';
+import { ZoomEndTimeSelect, type EndTimeOption } from './ZoomEndTimeSelect';
+import { ZoomParticipantPicker } from './ZoomParticipantPicker';
+import { calculateDuration, formatDurationLabel, computeEndTimeOptions } from './SimpleBookingForm';
 import type { ZoomAccount, CreateBookingDto } from '../types';
 
 interface BookingModalProps {
@@ -68,13 +71,16 @@ export function BookingModal({
     const [description, setDescription] = useState('');
     const [bookingDate, setBookingDate] = useState(preselectedDate || '');
     const [startTime, setStartTime] = useState(preselectedTime || '');
-    const [duration, setDuration] = useState<number>(60);
-    const [participantEmails, setParticipantEmails] = useState('');
+    const [endTime, setEndTime] = useState<string>('');
+    const [participantEmails, setParticipantEmails] = useState<string[]>([]);
 
     const { data: durations } = useDurationOptions();
     const { data: settings } = usePublicZoomSettings();
     const createBooking = useCreateBooking();
     const queryClient = useQueryClient();
+
+    // Calculate duration in minutes derived from startTime and endTime
+    const duration = useMemo(() => calculateDuration(startTime, endTime), [startTime, endTime]);
 
     // Force refetch whenever the modal opens or key inputs change to prevent stale conflict warnings
     useEffect(() => {
@@ -104,12 +110,72 @@ export function BookingModal({
         if (preselectedTime) setStartTime(preselectedTime);
     }, [preselectedDate, preselectedTime]);
 
-    // Fetch calendar data for conflict detection
+    // Fetch calendar data for conflict detection and end-time availability
     const { data: calendarData, isFetching: isCalendarFetching } = useZoomCalendar(
         selectedAccountId,
         bookingDate || format(new Date(), 'yyyy-MM-dd'),
         bookingDate || format(new Date(), 'yyyy-MM-dd')
     );
+
+    const slotAvailabilityList = useMemo(() => {
+        if (!calendarData || !bookingDate) return undefined;
+        const dayData = calendarData.find((d) => d.date === bookingDate);
+        if (!dayData) return undefined;
+
+        return dayData.slots.map((s) => {
+            const occupied = s.status === 'booked' || s.status === 'my_booking';
+            const blocked = s.status === 'blocked';
+            return {
+                time: s.time,
+                available: !occupied && !blocked,
+                availableAccountsCount: occupied || blocked ? 0 : 1,
+                totalAccountsCount: 1,
+                reason: blocked ? 'Diblokir' : s.booking?.title ? `Terisi: ${s.booking.title}` : 'Penuh',
+            };
+        });
+    }, [calendarData, bookingDate]);
+
+    const durationOptionsList = useMemo(() => {
+        return (settings?.allowedDurations && settings.allowedDurations.length > 0)
+            ? settings.allowedDurations
+            : (durations && durations.length > 0)
+                ? durations.map((d) => d.minutes)
+                : [30, 60, 90, 120, 150, 180, 240];
+    }, [settings, durations]);
+
+    const endTimeOptions = useMemo(() => {
+        return computeEndTimeOptions(
+            startTime,
+            bookingDate,
+            settings,
+            durationOptionsList,
+            slotAvailabilityList,
+        );
+    }, [startTime, bookingDate, settings, durationOptionsList, slotAvailabilityList]);
+
+    // Auto-select first available end time when startTime changes or options refresh
+    useEffect(() => {
+        if (!startTime || !endTimeOptions.length) {
+            setEndTime('');
+            return;
+        }
+
+        const currentValid = endTimeOptions.find((o) => o.value === endTime && !o.isUnavailable);
+        if (currentValid) return;
+
+        const default60 = endTimeOptions.find((o) => o.durationMinutes === 60 && !o.isUnavailable);
+        if (default60) {
+            setEndTime(default60.value);
+            return;
+        }
+
+        const firstAvailable = endTimeOptions.find((o) => !o.isUnavailable);
+        if (firstAvailable) {
+            setEndTime(firstAvailable.value);
+        } else {
+            setEndTime('');
+        }
+    }, [startTime, endTimeOptions]);
 
     // Detect conflicts with existing bookings
     const conflictWarning = useMemo(() => {
@@ -158,6 +224,17 @@ export function BookingModal({
         return null;
     }, [calendarData, bookingDate, startTime, duration, isCalendarFetching, createBooking.isPending]);
 
+    // Estimated end time calculation (Zoom Client style)
+    const estimatedTime = useMemo(() => {
+        if (!startTime || !duration || !endTime) return null;
+        return {
+            startTime,
+            endTime,
+            isNextDay: false,
+            displayText: `${startTime} - ${endTime} WIB (${formatDurationLabel(duration)})`,
+        };
+    }, [startTime, duration, endTime]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -176,6 +253,16 @@ export function BookingModal({
             return;
         }
 
+        if (!endTime) {
+            toast.error('Jam selesai wajib dipilih');
+            return;
+        }
+
+        if (duration <= 0) {
+            toast.error('Jam selesai harus setelah jam mulai');
+            return;
+        }
+
         const dto: CreateBookingDto = {
             zoomAccountId: selectedAccountId,
             title: title.trim(),
@@ -183,10 +270,7 @@ export function BookingModal({
             bookingDate,
             startTime,
             durationMinutes: duration,
-            participantEmails: participantEmails
-                .split(',')
-                .map(e => e.trim())
-                .filter(e => e.includes('@')),
+            participantEmails: participantEmails.filter(e => e.includes('@')),
         };
 
         try {
@@ -249,26 +333,27 @@ export function BookingModal({
                         />
                     </div>
 
-                    {/* Date & Time */}
+                    {/* Date */}
+                    <div className="space-y-2">
+                        <Label>
+                            <Calendar className="h-4 w-4 inline mr-1" />
+                            Tanggal *
+                        </Label>
+                        <ModernDatePicker
+                            value={bookingDate ? parseISO(bookingDate) : undefined}
+                            onChange={(date) => setBookingDate(format(date, 'yyyy-MM-dd'))}
+                            placeholder="Pilih tanggal"
+                            minDate={new Date()}
+                            maxDate={addDays(new Date(), settings?.advanceBookingDays || 30)}
+                        />
+                    </div>
+
+                    {/* Time (Start & End) */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>
-                                <Calendar className="h-4 w-4 inline mr-1" />
-                                Tanggal *
-                            </Label>
-                            <ModernDatePicker
-                                value={bookingDate ? parseISO(bookingDate) : undefined}
-                                onChange={(date) => setBookingDate(format(date, 'yyyy-MM-dd'))}
-                                placeholder="Pilih tanggal"
-                                minDate={new Date()}
-                                maxDate={addDays(new Date(), settings?.advanceBookingDays || 30)}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>
                                 <Clock className="h-4 w-4 inline mr-1" />
-                                Waktu Mulai *
+                                Jam Mulai *
                             </Label>
                             <Select value={startTime} onValueChange={setStartTime}>
                                 <SelectTrigger>
@@ -283,33 +368,33 @@ export function BookingModal({
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        <div className="space-y-2">
+                            <ZoomEndTimeSelect
+                                value={endTime}
+                                onChange={setEndTime}
+                                options={endTimeOptions}
+                                disabled={!startTime}
+                                align="left"
+                            />
+                        </div>
                     </div>
 
-                    {/* Duration - Flexible Manual Input */}
-                    <div className="space-y-2">
-                        <Label htmlFor="duration">
-                            <Clock className="h-4 w-4 inline mr-1" />
-                            Durasi (menit) *
-                        </Label>
-                        <div className="flex items-center gap-3">
-                            <Input
-                                id="duration"
-                                type="number"
-                                min={15}
-                                max={480}
-                                step={5}
-                                value={duration}
-                                onChange={(e) => setDuration(Number(e.target.value) || 30)}
-                                className="w-28"
-                            />
-                            <span className="text-sm text-muted-foreground">
-                                = {Math.floor(duration / 60)}h {duration % 60}m
-                            </span>
+                    {/* Estimated End Time Banner (Zoom Client Style) */}
+                    {estimatedTime && (
+                        <div className="flex items-center gap-2.5 px-3 py-2 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-lg text-xs text-blue-800 dark:text-blue-200">
+                            <Clock className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                            <div className="flex flex-wrap items-center gap-1.5 font-medium leading-tight">
+                                <span className="text-blue-600/90 dark:text-blue-400/90">Estimasi:</span>
+                                <span className="font-semibold text-blue-950 dark:text-blue-50">
+                                    {estimatedTime.displayText}
+                                </span>
+                                <span className="text-blue-700/80 dark:text-blue-300/80">
+                                    (Selesai pukul {estimatedTime.endTime}{estimatedTime.isNextDay ? ' besok' : ''})
+                                </span>
+                            </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            Masukkan durasi bebas (15-480 menit), akan disinkronkan dengan Zoom
-                        </p>
-                    </div>
+                    )}
 
                     {/* Conflict Warning Loading State */}
                     {isCalendarFetching && bookingDate && startTime && (
@@ -346,14 +431,13 @@ export function BookingModal({
                             <Users className="h-4 w-4 inline mr-1" />
                             Peserta (Opsional)
                         </Label>
-                        <Input
-                            id="participants"
+                        <ZoomParticipantPicker
                             value={participantEmails}
-                            onChange={(e) => setParticipantEmails(e.target.value)}
-                            placeholder="email1@example.com, email2@example.com"
+                            onChange={setParticipantEmails}
+                            placeholder="Cari nama / email user iDesk atau ketik email luar..."
                         />
                         <p className="text-xs text-muted-foreground">
-                            Pisahkan dengan koma untuk multiple email
+                            Pilih user iDesk dari daftar atau ketik email eksternal lalu tekan Enter
                         </p>
                     </div>
 

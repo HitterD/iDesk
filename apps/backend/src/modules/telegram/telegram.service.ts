@@ -9,6 +9,7 @@ import { User } from '../users/entities/user.entity';
 import { Ticket, TicketStatus, TicketPriority, TicketSource } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { CacheService } from '../../shared/core/cache';
+import { generateNextTicketNumber } from '../ticketing/utils/ticket-number-generator';
 
 // Cache key prefix for link codes
 const LINK_CODE_PREFIX = 'telegram:linkcode:';
@@ -219,8 +220,6 @@ export class TelegramService {
             relations: ['department'],
         });
 
-        const ticketNumber = await this.generateTicketNumber(user || undefined);
-
         // Map priority string to enum
         const priorityMap: Record<string, TicketPriority> = {
             'LOW': TicketPriority.LOW,
@@ -230,7 +229,6 @@ export class TelegramService {
         };
 
         const ticket = this.ticketRepo.create({
-            ticketNumber,
             title,
             description,
             category,
@@ -240,8 +238,17 @@ export class TelegramService {
             userId: session.userId,
         });
 
-        // Save ticket
-        const savedTicket = await this.ticketRepo.save(ticket);
+        // Save ticket + number in ONE transaction with the shared locked
+        // generator (PROD-19): web and Telegram serialize on the same
+        // pessimistic_write lock, so concurrent creations never collide on
+        // the unique ticketNumber.
+        const savedTicket = await this.ticketRepo.manager.transaction(async (manager) => {
+            const division = user?.department?.name
+                ? user.department.name.substring(0, 3).toUpperCase()
+                : 'TLG';
+            ticket.ticketNumber = await generateNextTicketNumber(manager, division);
+            return manager.save(ticket);
+        });
 
         // Create initial message
         const message = this.messageRepo.create({
@@ -271,15 +278,12 @@ export class TelegramService {
             relations: ['department'],
         });
 
-        const ticketNumber = await this.generateTicketNumber(user || undefined);
-
         // Calculate SLA target = scheduled date + 1 day (H+1 auto-resolve)
         const slaTarget = new Date(scheduledDate);
         slaTarget.setDate(slaTarget.getDate() + 1);
         slaTarget.setHours(17, 0, 0, 0); // End of business day H+1
 
         const ticket = this.ticketRepo.create({
-            ticketNumber,
             title,
             description,
             category: 'HARDWARE_INSTALLATION',
@@ -294,8 +298,17 @@ export class TelegramService {
             slaStartedAt: new Date(),
         });
 
-        // Save ticket
-        const savedTicket = await this.ticketRepo.save(ticket);
+        // Save ticket + number in ONE transaction with the shared locked
+        // generator (PROD-19): web and Telegram serialize on the same
+        // pessimistic_write lock, so concurrent creations never collide on
+        // the unique ticketNumber.
+        const savedTicket = await this.ticketRepo.manager.transaction(async (manager) => {
+            const division = user?.department?.name
+                ? user.department.name.substring(0, 3).toUpperCase()
+                : 'TLG';
+            ticket.ticketNumber = await generateNextTicketNumber(manager, division);
+            return manager.save(ticket);
+        });
 
         // Create initial message
         const message = this.messageRepo.create({
@@ -400,32 +413,6 @@ export class TelegramService {
         });
 
         return this.messageRepo.save(message);
-    }
-
-    private async generateTicketNumber(user?: User): Promise<string> {
-        const date = new Date();
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear().toString().slice(-2);
-        const dateStr = `${day}${month}${year}`;
-
-        // Get division from user's department or default
-        const division = user?.department?.name
-            ? user.department.name.substring(0, 3).toUpperCase()
-            : 'TLG'; // TLG = Telegram
-
-        // Count tickets from today
-        const startOfDay = new Date(date);
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const count = await this.ticketRepo.count({
-            where: {
-                createdAt: MoreThanOrEqual(startOfDay),
-            },
-        });
-
-        const number = (count + 1).toString().padStart(4, '0');
-        return `${dateStr}-${division}-${number}`;
     }
 
     // =====================

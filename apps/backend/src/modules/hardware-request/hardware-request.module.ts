@@ -38,6 +38,12 @@ import { AgingReminderCron } from './listeners/aging-reminder.cron';
 import { InstallAutoConfirmCron } from './listeners/install-auto-confirm.cron';
 import { HardwareRequestGateway } from './realtime/hardware-request.gateway';
 import { WsAuthGuard } from './realtime/ws-auth.guard';
+import { HardwareScheduleTicketListener } from './listeners/hardware-schedule-ticket.listener';
+import { Ticket } from '../ticketing/entities/ticket.entity';
+import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
+import { User } from '../users/entities/user.entity';
+import { WorkloadModule } from '../workload/workload.module';
+import { TicketingModule } from '../ticketing/ticketing.module';
 
 @Module({
     imports: [
@@ -50,12 +56,17 @@ import { WsAuthGuard } from './realtime/ws-auth.guard';
             InstallationSchedule,
             InstallationScheduleItem,
             HardwareAsset,
+            Ticket,
+            TicketMessage,
+            User,
         ]),
         EventEmitterModule,
         forwardRef(() => AuthModule),
         forwardRef(() => NotificationModule),
         forwardRef(() => UsersModule),
         forwardRef(() => PermissionsModule),
+        forwardRef(() => TicketingModule),
+        WorkloadModule,
     ],
     controllers: [
         InstallationController,
@@ -80,6 +91,7 @@ import { WsAuthGuard } from './realtime/ws-auth.guard';
         MutualSchedulingService,
         InAppNotifierListener,
         EmailNotifierListener,
+        HardwareScheduleTicketListener,
         AgingReminderCron,
         InstallAutoConfirmCron,
         HardwareRequestGateway,

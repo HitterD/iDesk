@@ -1,6 +1,6 @@
-import React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Ticket, PlusCircle, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch, PackageCheck, ClipboardList } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Ticket, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
@@ -16,19 +16,21 @@ import { cn } from '@/lib/utils';
 const pageVariants: Variants = {
     initial: {
         opacity: 0,
+        y: 8,
     },
     animate: {
         opacity: 1,
+        y: 0,
         transition: {
-            duration: 0.15,
-            ease: 'easeOut'
+            duration: 0.2,
+            ease: [0.23, 1, 0.32, 1]
         }
     },
     exit: {
         opacity: 0,
         transition: {
-            duration: 0.1,
-            ease: 'easeIn'
+            duration: 0.12,
+            ease: [0.23, 1, 0.32, 1]
         }
     }
 };
@@ -44,13 +46,23 @@ interface ClientNavItem {
 
 export const ClientLayout: React.FC = () => {
     const location = useLocation();
-    const { user } = useAuth();
+    const navigate = useNavigate();
+    const { user, justLoggedIn, setJustLoggedIn } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
     const { data: myPermissions } = useMyPermissions();
 
+    useEffect(() => {
+        if (justLoggedIn) {
+            const timer = setTimeout(() => {
+                setJustLoggedIn(false);
+            }, 800);
+            return () => clearTimeout(timer);
+        }
+    }, [justLoggedIn, setJustLoggedIn]);
+
     const handleLogout = async () => {
         await performLogout();
-        window.location.href = '/login';
+        navigate('/login', { replace: true });
     };
 
     // All possible nav items — items with pageKey are filtered by preset pageAccess
@@ -84,7 +96,12 @@ export const ClientLayout: React.FC = () => {
     return (
         <div className={cn("min-h-screen app-background-blobs bg-slate-50 dark:bg-slate-900", isTicketDetailPage && "h-screen flex flex-col overflow-hidden")}>
             {/* Navbar */}
-            <nav className="glass-card-elevated sticky top-0 z-50 shrink-0">
+            <motion.nav
+                initial={justLoggedIn ? { y: -16, opacity: 0 } : false}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                className="glass-card-elevated sticky top-0 z-50 shrink-0"
+            >
                 <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
                     <div className="flex justify-between h-16">
                         {/* Logo */}
@@ -133,7 +150,7 @@ export const ClientLayout: React.FC = () => {
                                 </div>
                                 <button
                                     onClick={handleLogout}
-                                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                     title="Logout"
                                 >
                                     <LogOut className="w-5 h-5" />
@@ -182,17 +199,24 @@ export const ClientLayout: React.FC = () => {
                         </div>
                     </div>
                 )}
-            </nav>
+            </motion.nav>
 
             {/* Main Content */}
-            <main className={cn(
-                "w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12",
-                isTicketDetailPage ? "flex-1 min-h-0 py-4 flex flex-col overflow-hidden" : "py-8"
-            )}>
+            <motion.main
+                initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
+                className={cn(
+                    "w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto",
+                    isTicketDetailPage
+                        ? "flex-1 min-h-0 p-0 sm:py-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 flex flex-col overflow-hidden"
+                        : "px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8"
+                )}
+            >
                 <FeatureErrorBoundary featureName="Client Portal">
                     <Outlet />
                 </FeatureErrorBoundary>
-            </main>
+            </motion.main>
 
             {/* Footer */}
             {!isTicketDetailPage && (
@@ -207,3 +231,5 @@ export const ClientLayout: React.FC = () => {
         </div>
     );
 };
+
+export default ClientLayout;

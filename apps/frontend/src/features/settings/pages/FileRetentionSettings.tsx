@@ -17,7 +17,10 @@ import {
     Calendar,
     Clock,
     CheckCircle2,
-    FileText
+    FileText,
+    Sparkles,
+    Zap,
+    Layers,
 } from 'lucide-react';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { format, parseISO } from 'date-fns';
@@ -28,11 +31,39 @@ interface RetentionSettings {
     onlyResolvedTickets: boolean;
 }
 
+interface ImageCompressionSettings {
+    enabled: boolean;
+    retentionDays: number;
+    onlyResolvedTickets: boolean;
+    quality: number;
+    maxWidth: number;
+}
+
 interface StorageSettings {
     autoCleanupEnabled: boolean;
     attachments: RetentionSettings;
     notes: RetentionSettings;
     discussions: RetentionSettings;
+    imageCompression?: ImageCompressionSettings;
+}
+
+interface ImageCompressionPreview {
+    eligibleCount: number;
+    totalSizeBytes: number;
+    estimatedSavingsBytes: number;
+    files: Array<{ url: string; sizeBytes: number; createdAt: string }>;
+}
+
+interface ImageCompressionResult {
+    totalScanned: number;
+    compressedCount: number;
+    skippedCount: number;
+    originalSizeBytes: number;
+    compressedSizeBytes: number;
+    freedBytes: number;
+    savingsPercentage: number;
+    errors: string[];
+    executedAt: string;
 }
 
 interface StorageStats {
@@ -130,6 +161,10 @@ export default function FileRetentionSettings() {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [cleanupPreview, setCleanupPreview] = useState<CleanupPreview | null>(null);
 
+    // Image compression state
+    const [showCompressDialog, setShowCompressDialog] = useState(false);
+    const [compressPreview, setCompressPreview] = useState<ImageCompressionPreview | null>(null);
+
     // Fetch storage settings
     const { data, isLoading, refetch } = useQuery({
         queryKey: ['storage-settings'],
@@ -205,6 +240,48 @@ export default function FileRetentionSettings() {
         },
         onError: () => {
             toast.error('Cleanup failed');
+        }
+    });
+
+    // Preview image compression mutation
+    const previewCompressMutation = useMutation({
+        mutationFn: async () => {
+            const res = await api.post('/settings/storage/compress/preview', {
+                olderThanDays: settings?.imageCompression?.retentionDays ?? 90,
+                onlyResolvedTickets: settings?.imageCompression?.onlyResolvedTickets ?? true,
+            });
+            return res.data.preview as ImageCompressionPreview;
+        },
+        onSuccess: (preview) => {
+            setCompressPreview(preview);
+            setShowCompressDialog(true);
+        },
+        onError: () => {
+            toast.error('Failed to preview image compression');
+        }
+    });
+
+    // Execute image compression mutation
+    const executeCompressMutation = useMutation({
+        mutationFn: async () => {
+            const res = await api.post('/settings/storage/compress/execute', {
+                olderThanDays: settings?.imageCompression?.retentionDays ?? 90,
+                onlyResolvedTickets: settings?.imageCompression?.onlyResolvedTickets ?? true,
+                quality: settings?.imageCompression?.quality ?? 80,
+                maxWidth: settings?.imageCompression?.maxWidth ?? 1600,
+            });
+            return res.data.result as ImageCompressionResult;
+        },
+        onSuccess: (result) => {
+            toast.success(
+                `Compression complete! ${result.compressedCount} images optimized to WebP, saved ${formatBytes(result.freedBytes)} (${result.savingsPercentage}%)`
+            );
+            setShowCompressDialog(false);
+            setCompressPreview(null);
+            queryClient.invalidateQueries({ queryKey: ['storage-settings'] });
+        },
+        onError: () => {
+            toast.error('Image compression failed');
         }
     });
 
@@ -287,13 +364,98 @@ export default function FileRetentionSettings() {
             {/* Retention Settings */}
             {settings && (
                 <div className="space-y-4">
-                    <h2 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        Retention Policies
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                            <Calendar className="w-5 h-5" />
+                            Retention & Compression Policies
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Image Compression Card */}
+                        <div className="p-5 rounded-xl border bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800 backdrop-blur-sm flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                                    <h3 className="font-semibold text-slate-800 dark:text-white text-sm">WebP Compression</h3>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 ml-auto">
+                                        WebP
+                                    </span>
+                                    <Switch
+                                        checked={settings.imageCompression?.enabled ?? true}
+                                        onCheckedChange={(checked) => handleSettingsChange('imageCompression', {
+                                            ...(settings.imageCompression || { retentionDays: 90, onlyResolvedTickets: true, quality: 80, maxWidth: 1600 }),
+                                            enabled: checked,
+                                        })}
+                                    />
+                                </div>
+                                <p className="text-xs text-slate-500 mb-3">
+                                    Compress images & screenshots older than threshold to save disk space.
+                                </p>
+
+                                {(settings.imageCompression?.enabled ?? true) && (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                                Compress After (days)
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={3650}
+                                                    value={settings.imageCompression?.retentionDays ?? 90}
+                                                    onChange={(e) => handleSettingsChange('imageCompression', {
+                                                        ...(settings.imageCompression || { enabled: true, onlyResolvedTickets: true, quality: 80, maxWidth: 1600 }),
+                                                        retentionDays: parseInt(e.target.value) || 90,
+                                                    })}
+                                                    className="w-20 h-8 text-sm"
+                                                />
+                                                <span className="text-xs text-slate-500">
+                                                    {(settings.imageCompression?.retentionDays ?? 90) < 30 ? `${settings.imageCompression?.retentionDays ?? 90} days` :
+                                                        `${Math.floor((settings.imageCompression?.retentionDays ?? 90) / 30)} months`}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <Switch
+                                                checked={settings.imageCompression?.onlyResolvedTickets ?? true}
+                                                onCheckedChange={(checked) => handleSettingsChange('imageCompression', {
+                                                    ...(settings.imageCompression || { enabled: true, retentionDays: 90, quality: 80, maxWidth: 1600 }),
+                                                    onlyResolvedTickets: checked,
+                                                })}
+                                            />
+                                            <label className="text-xs text-slate-600 dark:text-slate-400">
+                                                Only resolved tickets
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {(settings.imageCompression?.enabled ?? true) && (
+                                <div className="pt-3 mt-3 border-t border-purple-200/50 dark:border-purple-800/50">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full text-xs text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-100/50 dark:hover:bg-purple-900/30"
+                                        onClick={() => previewCompressMutation.mutate()}
+                                        disabled={previewCompressMutation.isPending}
+                                    >
+                                        {previewCompressMutation.isPending ? (
+                                            <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                        ) : (
+                                            <Zap className="w-3.5 h-3.5 mr-1.5" />
+                                        )}
+                                        Compress Now
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Attachments Delete Card */}
                         <RetentionCard
-                            title="Attachments"
+                            title="Attachments Deletion"
                             icon={<Image className="w-5 h-5 text-blue-500" />}
                             settings={settings.attachments}
                             onChange={(s) => handleSettingsChange('attachments', s)}
@@ -469,6 +631,74 @@ export default function FileRetentionSettings() {
                                     <CheckCircle2 className="w-4 h-4 mr-2" />
                                 )}
                                 Confirm Delete
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Image Compression Confirmation Dialog */}
+            {showCompressDialog && compressPreview && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                                <Sparkles className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Optimize Images to WebP</h3>
+                                <p className="text-sm text-slate-500">Compress images older than {settings?.imageCompression?.retentionDays ?? 90} days</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                            <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">Eligible Images</span>
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {compressPreview.eligibleCount} files
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">Current Total Size</span>
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {formatBytes(compressPreview.totalSizeBytes)}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Estimated Space Saved</span>
+                                    <span className="font-bold text-purple-700 dark:text-purple-300">
+                                        ~{formatBytes(compressPreview.estimatedSavingsBytes)} (75-80%)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => {
+                                    setShowCompressDialog(false);
+                                    setCompressPreview(null);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                                onClick={() => executeCompressMutation.mutate()}
+                                disabled={executeCompressMutation.isPending || compressPreview.eligibleCount === 0}
+                            >
+                                {executeCompressMutation.isPending ? (
+                                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Zap className="w-4 h-4 mr-2" />
+                                )}
+                                Start Compression
                             </Button>
                         </div>
                     </div>

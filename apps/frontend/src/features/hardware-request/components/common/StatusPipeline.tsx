@@ -5,14 +5,24 @@ import { STATUS_META, isTerminal } from '../../utils/status.util';
 
 export function StatusPipeline({ current }: { current: RequestStatus }) {
     const terminalBad = current === 'REJECTED' || current === 'CANCELLED';
+    const isCompleted = current === 'COMPLETED';
     const idx = REQUEST_PIPELINE.indexOf(current);
+    const activeMeta = STATUS_META[current] || STATUS_META.SUBMITTED;
 
     return (
         <div role="group" aria-label="Status progress" className="w-full">
+            {/* Mobile Active Step Summary */}
+            <div className="sm:hidden flex items-center justify-between text-xs font-semibold text-muted-foreground mb-2 px-0.5">
+                <span>Langkah {idx >= 0 ? idx + 1 : '—'} dari {REQUEST_PIPELINE.length}</span>
+                <span className="font-bold" style={{ color: activeMeta.hex }}>
+                    {activeMeta.label}
+                </span>
+            </div>
+
             {/* Segmented blocks */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none scroll-smooth">
                 {REQUEST_PIPELINE.map((step, i) => {
-                    const done = !terminalBad && i < idx;
+                    const done = !terminalBad && (isCompleted ? i <= idx : i < idx);
                     const active = i === idx && !isTerminal(current);
                     const future = !done && !active;
                     const meta = STATUS_META[step];
@@ -20,7 +30,7 @@ export function StatusPipeline({ current }: { current: RequestStatus }) {
                     return (
                         <motion.div
                             key={step}
-                            className="flex flex-col items-center gap-1.5 flex-1 min-w-[72px]"
+                            className="flex flex-col items-center gap-1.5 flex-1 min-w-[68px] sm:min-w-[72px]"
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: future && !terminalBad ? 0.4 : 1, y: 0 }}
                             transition={{ duration: 0.3, ease: 'easeOut', delay: i * 0.05 }}

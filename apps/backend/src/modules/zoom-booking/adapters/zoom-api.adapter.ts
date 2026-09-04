@@ -64,6 +64,7 @@ export interface ZoomMeetingListItem {
     created_at: string;
     join_url: string;
     host_id: string;
+    agenda?: string;
 }
 
 export interface ZoomMeetingListResponse {

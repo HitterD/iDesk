@@ -1,8 +1,112 @@
-<p>Welcome {{name}},</p>
-<p>Your account has been successfully created.</p>
-<p><strong>Username:</strong> {{email}}</p>
-<p><strong>Password:</strong> {{password}}</p>
-<p>Please login and change your password immediately.</p>
-<br>
-<p>Best regards,</p>
-<p>Helpdesk Team</p>
+<!DOCTYPE html>
+<html lang="id" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>Selamat Datang di iDesk</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+<style>
+  body { margin: 0; padding: 0; background: #F1F0EC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  a { color: #2D4A8C; text-decoration: none; }
+  @media only screen and (max-width: 600px) {
+    .pad { padding: 20px !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#F1F0EC;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Selamat datang di iDesk, akun Anda telah berhasil dibuat.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">&#847; &zwnj; &nbsp; &#8199; &shy;</div>
+
+<center style="width:100%;background:#F1F0EC;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F1F0EC;">
+<tr>
+<td align="center" style="padding: 24px 12px;">
+<!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="width:100%;max-width:600px;background:#FFFFFF;border-radius:16px;overflow:hidden;border:1px solid #E7E5E0;">
+  
+  <!-- Header Banner -->
+  <tr>
+    <td style="background:#0F172A;background:linear-gradient(135deg,#0F172A 0%,#1E3A5F 55%,#2D4A8C 100%);padding:28px 28px 26px 28px;">
+      <span style="display:inline-block;background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.20);color:#E0F2FE;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;padding:5px 12px;border-radius:999px;">
+        AKUN PENGGUNA BARU
+      </span>
+      <h1 style="margin:14px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:26px;color:#FFFFFF;font-weight:800;">
+        Selamat Datang di iDesk
+      </h1>
+      <p style="margin:8px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;color:#C7D2FE;">
+        Akun portal helpdesk Anda telah berhasil dibuat.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Body Content -->
+  <tr>
+    <td style="padding: 28px;" class="pad">
+      <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:22px;color:#1F2937;">
+        Halo <strong>{{name}}</strong>,
+      </p>
+      <p style="margin:10px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:22px;color:#4B5563;">
+        Berikut adalah kredensial login awal Anda untuk mengakses sistem helpdesk iDesk:
+      </p>
+
+      <!-- Credentials Card -->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:18px;background:#F8F6F3;border:1px solid #E7E5E0;border-radius:12px;">
+        <tr>
+          <td style="padding:18px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:#6B7280;width:35%;padding:4px 0;">
+                  Email / Username:
+                </td>
+                <td style="font-family:monospace;font-size:13px;font-weight:700;color:#0F172A;padding:4px 0;">
+                  {{email}}
+                </td>
+              </tr>
+              <tr>
+                <td style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:#6B7280;padding:4px 0;">
+                  Password Sementara:
+                </td>
+                <td style="padding:4px 0;">
+                  <span style="font-family:monospace;font-size:13px;font-weight:700;color:#0F172A;background:#FFFFFF;border:1px solid #E5E7EB;padding:4px 8px;border-radius:6px;display:inline-block;">{{password}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Security Notice (NO EMOJI) -->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:18px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;">
+        <tr>
+          <td style="padding:12px 14px;">
+            <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#92400E;">
+              <strong>Penting:</strong> Demi keamanan, segera ubah password sementara ini setelah Anda berhasil masuk ke iDesk untuk pertama kali.
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:18px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#9CA3AF;">
+        Jika Anda mengalami kendala saat masuk, silakan hubungi tim IT Administrator.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background:#F8F6F3;border-top:1px solid #E7E5E0;padding:14px 28px;text-align:center;">
+      <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;color:#6B7280;">
+        &copy; iDesk &middot; Helpdesk System
+      </p>
+    </td>
+  </tr>
+
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td>
+</tr>
+</table>
+</center>
+</body>
+</html>

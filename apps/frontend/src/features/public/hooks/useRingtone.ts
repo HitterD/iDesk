@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { resolveAudioUrl } from '@/lib/media';
+
+const SILENT_AUDIO_DATA_URI =
+    'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
 
 export function useRingtone(): {
     enqueue: (urls: Array<string | null>) => void;
     blocked: boolean;
+    unlockAudio: () => void;
+    playTestSound: (url?: string) => void;
 } {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const queueRef = useRef<string[]>([]);
@@ -28,8 +34,9 @@ export function useRingtone(): {
         }
 
         const audio = getAudio();
+        const resolvedUrl = resolveAudioUrl(url);
         isPlayingRef.current = true;
-        audio.src = url;
+        audio.src = resolvedUrl;
         audio.currentTime = 0;
         audio.play().then(
             () => setBlocked(false),
@@ -61,19 +68,53 @@ export function useRingtone(): {
         };
     }, [getAudio]);
 
+    const unlockAudio = useCallback(() => {
+        const audio = getAudio();
+
+        // Resume AudioContext if present in browser
+        try {
+            const AudioContextClass = typeof window !== 'undefined'
+                ? (window.AudioContext || (window as any).webkitAudioContext)
+                : null;
+            if (AudioContextClass) {
+                const ctx = new AudioContextClass();
+                if (ctx.state === 'suspended') {
+                    ctx.resume().catch(() => undefined);
+                }
+            }
+        } catch {
+            // ignore Web Audio context errors
+        }
+
+        // Prime the audio element with a valid sound so play() succeeds without throwing NotSupportedError
+        if (!audio.src || (typeof window !== 'undefined' && audio.src === window.location.href)) {
+            audio.src = SILENT_AUDIO_DATA_URI;
+        }
+
+        audio.play().then(
+            () => {
+                setBlocked(false);
+                if (queueRef.current.length > 0) {
+                    playNextRef.current();
+                }
+            },
+            () => {
+                setBlocked(true);
+            },
+        );
+    }, [getAudio]);
+
+    const playTestSound = useCallback((soundUrl = '/sounds/default/new-ticket.mp3') => {
+        unlockAudio();
+        enqueue([soundUrl]);
+    }, [unlockAudio, enqueue]);
+
     // Autoplay biasanya diblokir sampai halaman menerima interaksi. TV memakai
     // flag --autoplay-policy=no-user-gesture-required, tapi bila kebetulan ada
     // yang menyentuh layar atau menekan tombol remote, buka kuncinya di situ.
-    // Hasil unlock tidak pernah mematikan indikator: memutar Audio tanpa src
-    // bisa resolve atau reject berbeda antar-browser, jadi hanya pemutaran
-    // ringtone sungguhan yang boleh mengubah flag blocked.
     useEffect(() => {
         const unlock = () => {
-            const audio = getAudio();
-            audio.play().then(
-                () => audio.pause(),
-                () => undefined,
-            );
+            unlockAudio();
         };
         window.addEventListener('pointerdown', unlock, { once: true });
         window.addEventListener('keydown', unlock, { once: true });
@@ -81,7 +122,7 @@ export function useRingtone(): {
             window.removeEventListener('pointerdown', unlock);
             window.removeEventListener('keydown', unlock);
         };
-    }, [getAudio]);
+    }, [unlockAudio]);
 
-    return { enqueue, blocked };
+    return { enqueue, blocked, unlockAudio, playTestSound };
 }

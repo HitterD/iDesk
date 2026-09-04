@@ -66,15 +66,15 @@ export const StatsCardSkeleton: React.FC<{ animationIndex?: number }> = ({ anima
 
     return (
         <div
-            className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-4 animate-fade-in-up opacity-0"
+            className="bg-card border border-border/70 rounded-2xl p-3 sm:p-4 animate-fade-in-up opacity-0 shrink-0 min-w-[125px] sm:min-w-0"
             style={{ animationDelay, animationFillMode: 'forwards' }}
         >
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
+            <div className="flex items-center justify-between gap-2">
                 <div className="space-y-2 flex-1">
-                    <div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
-                    <div className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                    <div className="h-3 w-14 rounded bg-muted animate-pulse" />
+                    <div className="h-7 w-10 rounded bg-muted animate-pulse" />
                 </div>
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-muted animate-pulse shrink-0" />
             </div>
         </div>
     );
@@ -86,15 +86,12 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     value,
     color,
     bgColor,
-    highlight,
+    highlight: _highlight,
     animationIndex = 0,
     onClick,
     isActive,
     isLoading,
 }) => {
-    // Calculate staggered delay based on index (50ms per card)
-    const animationDelay = `${animationIndex * 50}ms`;
-
     if (isLoading) {
         return <StatsCardSkeleton animationIndex={animationIndex} />;
     }
@@ -102,14 +99,13 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     return (
         <div
             className={cn(
-                "bg-card border border-border rounded-xl relative p-4 transition-[colors,transform,box-shadow] duration-300 ease-out hover:bg-slate-50/50 dark:hover:bg-slate-800/20",
+                "bg-card border rounded-2xl relative p-3 sm:p-4 transition-all duration-200 ease-out shrink-0 min-w-[125px] sm:min-w-0 snap-start shadow-xs group",
+                // Base border & background state - soft and subtle, no harsh double rings
+                isActive
+                    ? "border-primary/40 bg-primary/[0.04] dark:bg-primary/[0.08]"
+                    : "border-border/70 hover:border-border hover:bg-muted/30 dark:hover:bg-slate-800/30",
                 // Interactive styles
-                onClick && "cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md hover:-translate-y-0.5",
-                // Active filter state
-                isActive && "ring-1 ring-primary border-primary bg-primary/5 dark:bg-primary/10",
-                // Highlight states (overdue/critical)
-                !isActive && highlight && typeof value === 'number' && value > 0 && "cursor-pointer hover:shadow-sm",
-                !isActive && highlight && typeof value === 'number' && value === 0 && ""
+                onClick && "cursor-pointer hover:-translate-y-0.5 active:scale-[0.98]"
             )}
             onClick={onClick}
             role={onClick ? "button" : undefined}
@@ -118,12 +114,14 @@ export const StatsCard: React.FC<StatsCardProps> = ({
         >
             <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{label}</p>
-                    <p className={cn("text-3xl font-extrabold tracking-tight tabular-nums mt-1", color)}>
+                    <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">{label}</p>
+                    <p className={cn("text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums mt-0.5 sm:mt-1", color)}>
                         <AnimatedNumber value={value} />
                     </p>
                 </div>
-                <Icon className={cn("w-5 h-5 shrink-0 opacity-60", color)} aria-hidden="true" />
+                <div className={cn("w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105", bgColor)}>
+                    <Icon className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5", color)} aria-hidden="true" />
+                </div>
             </div>
         </div>
     );

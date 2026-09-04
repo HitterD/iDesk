@@ -17,6 +17,15 @@ export class SyncProcessor {
 
     constructor(private readonly syncEngine: SyncEngineService) { }
 
+    @Process()
+    async handleDefault(job: Job<SyncJobData | any>) {
+        this.logger.debug(`Processing default google-sync job ${job.id}`);
+        if (job.data && job.data.sheetId) {
+            return this.handleSync(job as any);
+        }
+        return { success: true, handled: '__default__', jobId: job.id };
+    }
+
     @Process('sync')
     async handleSync(job: Job<SyncJobData>) {
         this.logger.log(`Processing sync job ${job.id} for sheet ${job.data.sheetId}`);

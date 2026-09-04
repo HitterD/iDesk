@@ -9,9 +9,7 @@ export async function seedHardwareCatalog(ds: DataSource): Promise<void> {
         { code: 'LAPTOP_STD', name: 'Laptop Standard',
           category: ItemCategory.LAPTOP,
           defaultSpecs: { cpu: 'i5', ram: '16GB', storage: '512GB SSD' },
-          requiredFields: [
-              { key: 'preferredBrand', label: 'Preferred Brand', type: 'text', required: false },
-          ],
+          requiredFields: [],
           displayOrder: 10 },
         { code: 'LAPTOP_DESIGN', name: 'Laptop Design',
           category: ItemCategory.LAPTOP,
@@ -46,7 +44,14 @@ export async function seedHardwareCatalog(ds: DataSource): Promise<void> {
 
     for (const data of initial) {
         const existing = await repo.findOne({ where: { code: data.code! } });
-        if (existing) continue;
+        if (existing) {
+            // Clean up legacy preferredBrand if present
+            if (Array.isArray(existing.requiredFields) && existing.requiredFields.some((f) => f.key === 'preferredBrand')) {
+                existing.requiredFields = existing.requiredFields.filter((f) => f.key !== 'preferredBrand');
+                await repo.save(existing);
+            }
+            continue;
+        }
         await repo.save(repo.create(data));
     }
     console.log(`[seed] hardware_catalog ready (${initial.length} items)`);

@@ -5,8 +5,8 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 export const AUTH_COOKIE_OPTIONS: CookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: process.env.COOKIE_SECURE === 'true',
+    sameSite: 'lax',
     path: '/',
 };
 

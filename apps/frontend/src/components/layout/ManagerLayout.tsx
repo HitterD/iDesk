@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
@@ -7,24 +7,27 @@ import { cn } from '@/lib/utils';
 import { Logo } from '@/components/ui/Logo';
 import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
 import { CriticalNotificationBanner } from '@/components/notifications/CriticalNotificationBanner';
+import { useAuth } from '@/stores/useAuth';
 
 // Page transition variants
 const pageVariants: Variants = {
     initial: {
         opacity: 0,
+        y: 8,
     },
     animate: {
         opacity: 1,
+        y: 0,
         transition: {
-            duration: 0.15,
-            ease: 'easeOut'
+            duration: 0.2,
+            ease: [0.23, 1, 0.32, 1]
         }
     },
     exit: {
         opacity: 0,
         transition: {
-            duration: 0.1,
-            ease: 'easeIn'
+            duration: 0.12,
+            ease: [0.23, 1, 0.32, 1]
         }
     }
 };
@@ -32,6 +35,17 @@ const pageVariants: Variants = {
 export const ManagerLayout = () => {
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const justLoggedIn = useAuth((state) => state.justLoggedIn);
+    const setJustLoggedIn = useAuth((state) => state.setJustLoggedIn);
+
+    useEffect(() => {
+        if (justLoggedIn) {
+            const timer = setTimeout(() => {
+                setJustLoggedIn(false);
+            }, 800);
+            return () => clearTimeout(timer);
+        }
+    }, [justLoggedIn, setJustLoggedIn]);
 
     return (
         <>
@@ -53,11 +67,16 @@ export const ManagerLayout = () => {
                     />
                 )}
 
-                {/* Sidebar - Hidden on mobile by default */}
-                <aside className={cn(
-                    "fixed lg:relative inset-y-0 left-0 z-50 transition-transform duration-300 lg:translate-x-0",
-                    isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-                )}>
+                {/* Sidebar - Animated on first login entrance */}
+                <motion.aside
+                    initial={justLoggedIn ? { x: -28, opacity: 0 } : false}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+                    className={cn(
+                        "fixed lg:relative inset-y-0 left-0 z-50 transition-transform duration-300 lg:translate-x-0",
+                        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+                    )}
+                >
                     <ManagerSidebar />
                     {/* Mobile close button */}
                     <button
@@ -67,7 +86,7 @@ export const ManagerLayout = () => {
                     >
                         <X className="w-6 h-6" aria-hidden="true" />
                     </button>
-                </aside>
+                </motion.aside>
 
                 <div className="flex-1 flex flex-col min-w-0">
                     {/* Mobile header */}
@@ -85,18 +104,34 @@ export const ManagerLayout = () => {
                     </div>
 
                     {/* Manager Topbar */}
-                    <div className="hidden lg:flex items-center justify-between px-8 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+                    <motion.div
+                        initial={justLoggedIn ? { y: -16, opacity: 0 } : false}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+                        className="hidden lg:flex items-center justify-between px-8 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm"
+                    >
                         <div>
                             <h1 className="text-lg font-bold text-slate-800 dark:text-white">Manager Portal</h1>
                             <p className="text-sm text-slate-500">Overview semua site</p>
                         </div>
-                    </div>
+                    </motion.div>
 
                     <main
                         id="main-content"
                         className="flex-1 overflow-y-auto p-4 lg:p-8 pt-2 pb-20 lg:pb-8 scroll-smooth scrollbar-custom"
                     >
-                        <Outlet />
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={location.pathname}
+                                variants={pageVariants}
+                                initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : "initial"}
+                                animate={justLoggedIn ? { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 } } : "animate"}
+                                exit="exit"
+                                className="w-full"
+                            >
+                                <Outlet />
+                            </motion.div>
+                        </AnimatePresence>
                     </main>
                 </div>
 

@@ -1,6 +1,6 @@
 import { NotificationCategory, Notification } from '../types/notification.types';
 
-export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_ADMIN';
+export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN';
 
 /**
  * Get the redirect path for a notification based on its category and user role
@@ -36,7 +36,11 @@ export function getNotificationRedirectPath(
     switch (category) {
         case NotificationCategory.CATEGORY_TICKET: {
             const basePath = userRole === 'USER' ? '/client/tickets' : '/tickets';
-            const fallback = userRole === 'USER' ? '/client/my-tickets' : '/tickets/list';
+            const fallback = userRole === 'USER' ? '/client/my-tickets' :
+                (userRole === 'AGENT_ORACLE' ? '/tickets/oracle-k2' :
+                userRole === 'AGENT_WEB_DEV' ? '/tickets/web-developer' :
+                userRole === 'AGENT_MOBILE_DEV' ? '/tickets/mobile-developer' :
+                '/tickets/list');
             if (userRole === 'MANAGER') return `/manager/tickets`;
             return ticketId ? `${basePath}/${ticketId}` : fallback;
         }
@@ -63,7 +67,11 @@ export function getNotificationRedirectPath(
         }
 
         default:
-            return userRole === 'USER' ? '/client/my-tickets' : '/dashboard';
+            if (userRole === 'USER') return '/client/my-tickets';
+            if (userRole === 'AGENT_ORACLE') return '/tickets/oracle-k2';
+            if (userRole === 'AGENT_WEB_DEV') return '/tickets/web-developer';
+            if (userRole === 'AGENT_MOBILE_DEV') return '/tickets/mobile-developer';
+            return '/dashboard';
     }
 }
 

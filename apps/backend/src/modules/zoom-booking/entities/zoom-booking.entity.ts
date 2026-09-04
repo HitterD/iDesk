@@ -17,7 +17,7 @@ import { ZoomParticipant } from './zoom-participant.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('zoom_bookings')
-@Index(['zoomAccountId', 'bookingDate', 'startTime'], { unique: true })
+@Index(['zoomAccountId', 'bookingDate', 'startTime'])
 @Index(['bookedByUserId'])
 @Index(['bookingDate'])
 @Index(['status'])
@@ -87,8 +87,12 @@ export class ZoomBooking {
     @Column({ default: false })
     isExternal: boolean; // true = synced from Zoom, not created via iDesk
 
-    @Column({ type: 'bigint', nullable: true, unique: true })
-    externalZoomMeetingId: string; // Zoom meeting ID for dedup (null = internal)
+    @Column({ type: 'boolean', default: false })
+    isDoubleBooking: boolean; // Emergency overflow meeting (no host claim / no recording)
+
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Index()
+    externalZoomMeetingId: string; // Zoom meeting occurrence key (e.g. {meetingId}_{date}_{time})
 
     @OneToOne(() => ZoomMeeting, (meeting) => meeting.booking, { nullable: true })
     meeting: ZoomMeeting;

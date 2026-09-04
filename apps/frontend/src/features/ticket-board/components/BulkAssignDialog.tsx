@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { UserCheck, Users, X, Loader2 } from 'lucide-react';
 import {
     Select,
@@ -15,7 +16,7 @@ interface BulkAssignDialogProps {
     onClose: () => void;
     selectedCount: number;
     agents: AgentUser[];
-    onAssign: (assigneeId: string) => Promise<void>;
+    onAssign: (assigneeId: string, reason?: string) => Promise<void>;
 }
 
 export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
@@ -26,6 +27,7 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
     onAssign,
 }) => {
     const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+    const [reason, setReason] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
 
     if (!isOpen) return null;
@@ -35,24 +37,26 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
 
         setIsLoading(true);
         try {
-            await onAssign(selectedAgentId);
+            await onAssign(selectedAgentId, reason.trim() || undefined);
             onClose();
         } finally {
             setIsLoading(false);
             setSelectedAgentId('');
+            setReason('');
         }
     };
 
     const handleClose = () => {
         if (!isLoading) {
             setSelectedAgentId('');
+            setReason('');
             onClose();
         }
     };
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
             onClick={handleClose}
         >
             <div
@@ -115,6 +119,20 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
                             </SelectContent>
                         </Select>
                     </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">
+                            Keterangan / Alasan Penugasan (Opsional)
+                        </label>
+                        <textarea
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value.slice(0, 500))}
+                            placeholder="Tambahkan catatan atau alasan penugasan massal ini..."
+                            rows={2}
+                            disabled={isLoading}
+                            className="w-full px-3 py-2 text-xs bg-background border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-1 focus:ring-primary focus:border-primary resize-none text-slate-800 dark:text-white placeholder:text-slate-400"
+                        />
+                    </div>
                 </div>
 
                 {/* Footer */}
@@ -150,7 +168,8 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

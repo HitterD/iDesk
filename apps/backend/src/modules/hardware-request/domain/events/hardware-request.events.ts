@@ -16,7 +16,7 @@ export const HR_EVT = {
 
 export type HrEventName = typeof HR_EVT[keyof typeof HR_EVT];
 
-export interface HrEventBase { requestId: string; actorId: string; occurredAt: Date; }
+export interface HrEventBase { requestId: string; actorId?: string | null; occurredAt: Date; }
 export interface HrSubmitted extends HrEventBase { requesterId: string; }
 export interface HrApproved extends HrEventBase { requesterId: string; }
 export interface HrRejected extends HrEventBase { requesterId: string; reason: string; }

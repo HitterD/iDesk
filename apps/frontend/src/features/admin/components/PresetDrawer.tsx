@@ -36,6 +36,8 @@ import {
     Info,
     Sparkles,
     UserCheck,
+    Code2,
+    Smartphone,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -158,6 +160,18 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
                 label: 'Oracle / K2 Tickets',
                 description: 'Dedicated Oracle ERP and K2 automated request queues',
                 icon: Layers,
+            },
+            {
+                key: 'web_dev_tickets',
+                label: 'Web Developer Tickets',
+                description: 'Dedicated Web development and web portal request queues',
+                icon: Code2,
+            },
+            {
+                key: 'mobile_dev_tickets',
+                label: 'Mobile Developer Tickets',
+                description: 'Dedicated Mobile iOS/Android app request queues',
+                icon: Smartphone,
             },
         ],
     },

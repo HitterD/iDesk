@@ -10,7 +10,7 @@ const uploadDir = join(process.cwd(), 'uploads', 'kb');
 if (!existsSync(uploadDir)) {
     mkdirSync(uploadDir, { recursive: true });
 }
-import { KnowledgeBaseService, ArticleFilters } from './knowledge-base.service';
+import { KnowledgeBaseService, ArticleFilters, ArticleSort } from './knowledge-base.service';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
@@ -22,6 +22,22 @@ import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleStatus } from './entities/article.entity';
 import { allowedVisibilities, isInternalStaff } from './kb-visibility.util';
+import { extractClientIp } from '../../shared/security/client-ip';
+
+/** Sort values accepted by the list endpoint. Anything else falls back to the default. */
+const ARTICLE_SORTS = ['popular', 'recent', 'newest', 'title'] as const;
+
+const DEFAULT_PAGE_SIZE = 20;
+
+/** Map a raw query value to a known sort, or undefined so the service applies its default. */
+const parseSort = (value?: string): ArticleSort | undefined =>
+    ARTICLE_SORTS.includes(value as ArticleSort) ? (value as ArticleSort) : undefined;
+
+/** Parse a numeric query param, falling back when it is missing or not a number. */
+const toPositiveInt = (value: string | undefined, fallback: number): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
+};
 
 @ApiTags('Knowledge Base')
 @Controller('kb')
@@ -40,12 +56,20 @@ export class KnowledgeBaseController {
     @ApiQuery({ name: 'status', required: false, enum: ArticleStatus })
     @ApiQuery({ name: 'category', required: false })
     @ApiQuery({ name: 'all', required: false, description: 'Show all articles including drafts (ICT/agent staff only)' })
+    @ApiQuery({ name: 'sort', required: false, enum: ARTICLE_SORTS, description: 'Ordering (default: newest)' })
+    @ApiQuery({ name: 'limit', required: false, description: 'Page size. When set, the response is a paginated object instead of an array.' })
+    @ApiQuery({ name: 'offset', required: false, description: 'Rows to skip (used with limit)' })
+    @ApiQuery({ name: 'excludeFeatured', required: false, description: 'Omit the pinned article (it is rendered separately as a hero card)' })
     async findAll(
         @Request() req: any,
         @Query('q') query?: string,
         @Query('status') status?: ArticleStatus,
         @Query('category') category?: string,
         @Query('all') showAll?: string,
+        @Query('sort') sort?: string,
+        @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+        @Query('excludeFeatured') excludeFeatured?: string,
     ) {
         // Drafts are unfinished internal material: only ICT/agent staff may list them.
         const canSeeDrafts = showAll === 'true' && isInternalStaff(req.user?.role);
@@ -56,8 +80,29 @@ export class KnowledgeBaseController {
             status: effectiveStatus,
             category,
             visibilities: allowedVisibilities(req.user?.role),
+            sort: parseSort(sort),
+            excludeFeatured: excludeFeatured === 'true',
         };
-        return this.kbService.findAll(filters);
+
+        // Paginating is opt-in: without `limit` the response keeps its historic
+        // array shape, which other screens (command palette, manage) rely on.
+        if (limit === undefined) {
+            return this.kbService.findAll(filters);
+        }
+
+        return this.kbService.findAllPaginated({
+            ...filters,
+            limit: toPositiveInt(limit, DEFAULT_PAGE_SIZE),
+            offset: toPositiveInt(offset, 0),
+        });
+    }
+
+    @Get('articles/featured')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Get the pinned "start here" article, if any' })
+    async getFeatured(@Request() req: any) {
+        return this.kbService.findFeatured(allowedVisibilities(req.user?.role));
     }
 
     @Get('articles/popular')
@@ -127,7 +172,7 @@ export class KnowledgeBaseController {
 
         // Viewer identity comes from the verified session only. Accepting it from
         // the request body would let any caller forge another user view record.
-        const ip = req.ip || req.headers?.['x-forwarded-for'] || 'client';
+        const ip = extractClientIp(req);
 
         return this.kbService.incrementViewCount(id, {
             userId: req.user?.userId,
@@ -173,6 +218,20 @@ export class KnowledgeBaseController {
     @ApiOperation({ summary: 'Update article status' })
     async updateStatus(@Param('id') id: string, @Body('status') status: ArticleStatus, @Request() req: any) {
         return this.kbService.updateStatus(id, status, req.user?.userId, req.user?.role);
+    }
+
+    @Patch('articles/:id/featured')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
+    @Roles(UserRole.ADMIN)
+    @PageAccess('knowledge_base')
+    @ApiOperation({ summary: 'Pin or unpin the KB landing page "start here" article (admin only)' })
+    async setFeatured(
+        @Param('id') id: string,
+        @Body('featured') featured: boolean,
+        @Request() req: any,
+    ) {
+        return this.kbService.setFeatured(id, featured === true, req.user?.userId);
     }
 
     @Delete('articles/:id')

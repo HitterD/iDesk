@@ -24,7 +24,7 @@ export const NotificationPopover: React.FC = () => {
         queryKey: ['notifications', 'popover'],
         queryFn: async () => {
             const res = await api.get('/notifications?limit=10');
-            return res.data.data;
+            return res.data?.data ?? res.data ?? [];
         },
         enabled: !!user,
         staleTime: 30000,

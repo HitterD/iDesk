@@ -3,6 +3,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
+import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { User } from '../../users/entities/user.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { AuditService, AuditAction } from '../../audit';
@@ -82,6 +83,43 @@ export class TicketMergeService {
             const ticketNumbers: string[] = [];
             for (const secondaryTicket of secondaryTickets) {
                 ticketNumbers.push(secondaryTicket.ticketNumber);
+
+                // Automatically add secondary ticket requester as participant on primary ticket
+                if (secondaryTicket.userId && secondaryTicket.userId !== primaryTicket.userId) {
+                    const existingParticipant = await manager.findOne(TicketParticipant, {
+                        where: { ticketId: primaryTicketId, userId: secondaryTicket.userId },
+                    });
+                    if (!existingParticipant) {
+                        const newParticipant = manager.create(TicketParticipant, {
+                            ticketId: primaryTicketId,
+                            userId: secondaryTicket.userId,
+                            invitedById: userId,
+                            role: 'PARTICIPANT',
+                        });
+                        await manager.save(TicketParticipant, newParticipant);
+                    }
+                }
+
+                // Also copy existing participants of secondaryTicket to primaryTicket
+                const secondaryParticipants = await manager.find(TicketParticipant, {
+                    where: { ticketId: secondaryTicket.id },
+                });
+                for (const sp of secondaryParticipants) {
+                    if (sp.userId && sp.userId !== primaryTicket.userId) {
+                        const existing = await manager.findOne(TicketParticipant, {
+                            where: { ticketId: primaryTicketId, userId: sp.userId },
+                        });
+                        if (!existing) {
+                            const newParticipant = manager.create(TicketParticipant, {
+                                ticketId: primaryTicketId,
+                                userId: sp.userId,
+                                invitedById: userId,
+                                role: sp.role || 'PARTICIPANT',
+                            });
+                            await manager.save(TicketParticipant, newParticipant);
+                        }
+                    }
+                }
 
                 // Move all source messages to the primary ticket in one bulk save
                 const messages = await manager.find(TicketMessage, {

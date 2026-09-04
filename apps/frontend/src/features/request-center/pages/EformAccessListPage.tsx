@@ -39,26 +39,51 @@ const STATUS_FILTERS = [
     })),
 ];
 
-const SkeletonCard = () => (
-    <div className="rounded-2xl border border-border bg-card p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
-            <div className="space-y-2">
-                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-                <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+const SkeletonTableRow = () => (
+    <tr className="animate-pulse border-b border-border/60">
+        <td className="px-5 py-4">
+            <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-muted shrink-0" />
+                <div className="space-y-1.5 min-w-0">
+                    <div className="h-3 w-16 rounded bg-muted" />
+                    <div className="h-4 w-28 rounded bg-muted" />
+                </div>
             </div>
-            <div className="h-6 w-28 animate-pulse rounded-full bg-muted" />
-        </div>
-        <div className="mb-5 flex items-center gap-3">
-            <div className="h-10 w-10 animate-pulse rounded-xl bg-muted" />
+        </td>
+        <td className="px-4 py-4">
             <div className="space-y-1.5">
-                <div className="h-3 w-16 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-32 rounded bg-muted" />
+                <div className="h-3 w-20 rounded bg-muted" />
             </div>
+        </td>
+        <td className="px-4 py-4 whitespace-nowrap">
+            <div className="h-4 w-24 rounded bg-muted" />
+        </td>
+        <td className="px-4 py-4 whitespace-nowrap">
+            <div className="h-4 w-24 rounded bg-muted" />
+        </td>
+        <td className="px-4 py-4 whitespace-nowrap">
+            <div className="h-6 w-28 rounded-full bg-muted" />
+        </td>
+        <td className="px-5 py-4 text-right whitespace-nowrap">
+            <div className="inline-block h-8 w-24 rounded-lg bg-muted" />
+        </td>
+    </tr>
+);
+
+const SkeletonMobileCard = () => (
+    <div className="animate-pulse rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-muted shrink-0" />
+                <div className="space-y-1.5">
+                    <div className="h-3 w-16 bg-muted rounded" />
+                    <div className="h-4 w-28 bg-muted rounded" />
+                </div>
+            </div>
+            <div className="h-6 w-20 bg-muted rounded-full" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-            <div className="h-14 animate-pulse rounded-xl bg-muted" />
-            <div className="h-14 animate-pulse rounded-xl bg-muted" />
-        </div>
+        <div className="h-8 bg-muted/60 rounded-xl" />
     </div>
 );
 
@@ -150,7 +175,7 @@ export const EformAccessListPage: React.FC = () => {
                 </div>
                 <button
                     onClick={handleCreateNew}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
                 >
                     <Plus className="h-4 w-4" />
                     Ajukan Akses
@@ -207,7 +232,7 @@ export const EformAccessListPage: React.FC = () => {
                     aria-selected={!isApprovalTab}
                     onClick={() => setTab('my-requests')}
                     className={cn(
-                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
                         !isApprovalTab
                             ? 'bg-card text-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground',
@@ -221,7 +246,7 @@ export const EformAccessListPage: React.FC = () => {
                     aria-selected={isApprovalTab}
                     onClick={() => setTab('pending-approvals')}
                     className={cn(
-                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
                         isApprovalTab
                             ? 'bg-card text-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground',
@@ -273,30 +298,73 @@ export const EformAccessListPage: React.FC = () => {
                 </select>
             </div>
 
-            {/* Results */}
-            {isLoading ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)}
-                </div>
-            ) : filteredRequests.length === 0 ? (
-                <EmptyState
-                    isFiltered={isFiltered}
-                    isApprovalTab={isApprovalTab}
-                    onReset={resetFilters}
-                    onCreate={handleCreateNew}
-                />
-            ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredRequests.map(req => (
-                        <RequestCard
+            {/* Results: Mobile Cards (md:hidden) & Desktop Table (hidden md:block) */}
+            <div className="md:hidden space-y-3">
+                {isLoading ? (
+                    Array.from({ length: 4 }, (_, i) => <SkeletonMobileCard key={i} />)
+                ) : filteredRequests.length === 0 ? (
+                    <div className="rounded-2xl border border-border bg-card p-6">
+                        <EmptyState
+                            isFiltered={isFiltered}
+                            isApprovalTab={isApprovalTab}
+                            onReset={resetFilters}
+                            onCreate={handleCreateNew}
+                        />
+                    </div>
+                ) : (
+                    filteredRequests.map(req => (
+                        <EformMobileCard
                             key={req.id}
                             request={req}
                             isApprovalTab={isApprovalTab}
                             onOpen={() => handleViewDetail(req.id)}
                         />
-                    ))}
+                    ))
+                )}
+            </div>
+
+            {/* Desktop Results Table */}
+            <div className="hidden md:block overflow-hidden rounded-2xl border border-border bg-card shadow-2xs">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="border-b border-border bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                <th className="px-5 py-3.5">ID & Jenis Akses</th>
+                                <th className="px-4 py-3.5">Pemohon</th>
+                                <th className="px-4 py-3.5">Diajukan</th>
+                                <th className="px-4 py-3.5">Berlaku Dari</th>
+                                <th className="px-4 py-3.5">Status</th>
+                                <th className="px-5 py-3.5 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                            {isLoading ? (
+                                Array.from({ length: 5 }, (_, i) => <SkeletonTableRow key={i} />)
+                            ) : filteredRequests.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="p-0">
+                                        <EmptyState
+                                            isFiltered={isFiltered}
+                                            isApprovalTab={isApprovalTab}
+                                            onReset={resetFilters}
+                                            onCreate={handleCreateNew}
+                                        />
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredRequests.map(req => (
+                                    <EformListRow
+                                        key={req.id}
+                                        request={req}
+                                        isApprovalTab={isApprovalTab}
+                                        onOpen={() => handleViewDetail(req.id)}
+                                    />
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-            )}
+            </div>
         </div>
     );
 };
@@ -316,7 +384,7 @@ const CountTile: React.FC<CountTileProps> = ({ label, value, icon: Icon, accent,
         onClick={onClick}
         aria-pressed={isActive}
         className={cn(
-            'flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
             isActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40',
         )}
     >
@@ -328,19 +396,20 @@ const CountTile: React.FC<CountTileProps> = ({ label, value, icon: Icon, accent,
     </button>
 );
 
-interface RequestCardProps {
+interface EformListRowProps {
     request: EFormRequest;
     isApprovalTab: boolean;
     onOpen: () => void;
 }
 
-const RequestCard: React.FC<RequestCardProps> = ({ request, isApprovalTab, onOpen }) => {
-    const status = getStatusConfig(request.status);
+const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onOpen }) => {
     const type = getTypeConfig(request.formType);
     const TypeIcon = type.icon;
+    const formattedDate = format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale });
+    const validFrom = request.formData?.dariTanggal || '—';
 
     return (
-        <div
+        <tr
             role="button"
             tabIndex={0}
             onClick={onOpen}
@@ -350,48 +419,59 @@ const RequestCard: React.FC<RequestCardProps> = ({ request, isApprovalTab, onOpe
                     onOpen();
                 }
             }}
-            className="group flex flex-col rounded-2xl border border-border bg-card p-6 text-left cursor-pointer transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="group cursor-pointer transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/50"
         >
-            <div className="mb-5 flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1.5">
-                    <span className="font-mono text-xs font-medium text-muted-foreground">
-                        #{request.id.slice(0, 8).toUpperCase()}
-                    </span>
-                    <h3 className="truncate text-base font-bold leading-tight text-foreground group-hover:text-primary">
-                        {type.label}
-                    </h3>
+            {/* ID & Jenis Akses */}
+            <td className="px-5 py-3.5">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                        <TypeIcon className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="font-mono text-[11px] font-semibold text-muted-foreground group-hover:text-primary transition-colors">
+                            #{request.id.slice(0, 8).toUpperCase()}
+                        </div>
+                        <div className="truncate text-sm font-bold text-foreground">
+                            {type.label}
+                        </div>
+                    </div>
                 </div>
-                <EformStatusBadge status={request.status} className="shrink-0" />
-            </div>
+            </td>
 
-            <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                    <TypeIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            {/* Pemohon */}
+            <td className="px-4 py-3.5">
+                <div className="min-w-[140px]">
+                    <div className="truncate text-sm font-bold text-foreground">
+                        {request.requesterName}
+                    </div>
+                    {request.requesterDepartment && (
+                        <div className="truncate text-xs font-medium text-muted-foreground">
+                            {request.requesterDepartment}
+                        </div>
+                    )}
                 </div>
-                <div className="min-w-0">
-                    <p className="text-xs font-semibold text-muted-foreground">Pemohon</p>
-                    <p className="truncate text-sm font-bold text-foreground">{request.requesterName}</p>
-                </div>
-            </div>
+            </td>
 
-            <dl className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-muted/50 p-3">
-                    <dt className="text-xs font-semibold text-muted-foreground">Diajukan</dt>
-                    <dd className="mt-0.5 text-sm font-bold text-foreground">
-                        {format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale })}
-                    </dd>
-                </div>
-                <div className="rounded-xl bg-muted/50 p-3">
-                    <dt className="text-xs font-semibold text-muted-foreground">Berlaku dari</dt>
-                    <dd className="mt-0.5 truncate text-sm font-bold text-foreground">
-                        {request.formData?.dariTanggal || '—'}
-                    </dd>
-                </div>
-            </dl>
+            {/* Tanggal Pengajuan */}
+            <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold text-muted-foreground">
+                {formattedDate}
+            </td>
 
-            <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">{status.hint}</span>
+            {/* Berlaku Dari */}
+            <td className="px-4 py-3.5 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs font-semibold text-foreground">
+                    {validFrom}
+                </span>
+            </td>
+
+            {/* Status */}
+            <td className="px-4 py-3.5 whitespace-nowrap">
+                <EformStatusBadge status={request.status} />
+            </td>
+
+            {/* Aksi */}
+            <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     {request.status === EFormStatus.CONFIRMED && (
                         <button
                             type="button"
@@ -399,21 +479,101 @@ const RequestCard: React.FC<RequestCardProps> = ({ request, isApprovalTab, onOpe
                                 e.stopPropagation();
                                 downloadEformPdf(request.id, `F-ICT-04-${request.requesterName.replace(/\s+/g, '_')}.pdf`);
                             }}
-                            className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
                             title="Unduh Formulir Resmi PDF"
                         >
-                            <Download size={11} /> PDF F-ICT-04
+                            <Download size={12} /> PDF F-ICT-04
                         </button>
                     )}
+                    <button
+                        type="button"
+                        onClick={onOpen}
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                    >
+                        {isApprovalTab ? 'Tinjau' : 'Detail'}
+                        <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </button>
                 </div>
-                <span className="inline-flex items-center gap-1 text-sm font-bold text-primary">
-                    {isApprovalTab ? 'Tinjau' : 'Lihat detail'}
-                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </span>
+            </td>
+        </tr>
+    );
+};
+
+const EformMobileCard: React.FC<EformListRowProps> = ({ request, isApprovalTab, onOpen }) => {
+    const type = getTypeConfig(request.formType);
+    const TypeIcon = type.icon;
+    const formattedDate = format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale });
+    const validFrom = request.formData?.dariTanggal || '—';
+
+    return (
+        <div
+            onClick={onOpen}
+            className="group relative flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs transition-all hover:border-primary/40 active:scale-[0.99] cursor-pointer"
+        >
+            {/* Top row: Type Icon + ID + Status */}
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <TypeIcon className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <span className="font-mono text-[11px] font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                            #{request.id.slice(0, 8).toUpperCase()}
+                        </span>
+                        <div className="truncate text-sm font-extrabold text-foreground">
+                            {type.label}
+                        </div>
+                    </div>
+                </div>
+                <EformStatusBadge status={request.status} />
+            </div>
+
+            {/* Mid row: Requester Info */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
+                <div className="min-w-0">
+                    <div className="font-bold text-foreground truncate">
+                        {request.requesterName}
+                    </div>
+                    {request.requesterDepartment && (
+                        <div className="text-muted-foreground text-[11px] truncate">
+                            {request.requesterDepartment}
+                        </div>
+                    )}
+                </div>
+                <div className="text-right shrink-0">
+                    <div className="text-[11px] text-muted-foreground font-medium">Diajukan: {formattedDate}</div>
+                    <div className="text-[11px] font-semibold text-foreground mt-0.5">
+                        Mulai: <span className="bg-muted px-1.5 py-0.5 rounded">{validFrom}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Bottom Row: Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60">
+                {request.status === EFormStatus.CONFIRMED ? (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            downloadEformPdf(request.id, `F-ICT-04-${request.requesterName.replace(/\s+/g, '_')}.pdf`);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
+                    >
+                        <Download size={13} />
+                        <span>Unduh PDF F-ICT-04</span>
+                    </button>
+                ) : (
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                        {isApprovalTab ? 'Ketuk untuk tinjau & setujui' : 'Ketuk untuk lihat detail'}
+                    </span>
+                )}
+                <div className="flex items-center gap-1 text-xs font-bold text-primary group-hover:translate-x-0.5 transition-transform ml-auto">
+                    <span>{isApprovalTab ? 'Tinjau' : 'Detail'}</span>
+                    <ChevronRight size={14} />
+                </div>
             </div>
         </div>
     );
-
 };
 
 interface EmptyStateProps {

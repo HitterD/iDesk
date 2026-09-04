@@ -29,3 +29,36 @@ describe('ZoomBookingController.getAvailability', () => {
         expect(bookingService.checkAvailability).not.toHaveBeenCalled();
     });
 });
+
+describe('ZoomBookingController.getDaySlotsAvailability', () => {
+    const bookingService = {
+        getDaySlotsAvailability: jest.fn(),
+    };
+    const controller = new ZoomBookingController(bookingService as any, {} as any, {} as any);
+
+    beforeEach(() => {
+        bookingService.getDaySlotsAvailability.mockReset();
+        bookingService.getDaySlotsAvailability.mockResolvedValue({
+            date: '2026-09-04',
+            availableSlotsCount: 16,
+            totalSlotsCount: 20,
+            slots: [],
+        });
+    });
+
+    it('delegates valid query params to getDaySlotsAvailability with default 60 mins', async () => {
+        const result = await controller.getDaySlotsAvailability('2026-09-04');
+        expect(bookingService.getDaySlotsAvailability).toHaveBeenCalledWith('2026-09-04', 60);
+        expect(result).toEqual(expect.objectContaining({ availableSlotsCount: 16 }));
+    });
+
+    it('delegates custom duration to getDaySlotsAvailability', async () => {
+        await controller.getDaySlotsAvailability('2026-09-04', '30');
+        expect(bookingService.getDaySlotsAvailability).toHaveBeenCalledWith('2026-09-04', 30);
+    });
+
+    it('rejects invalid date', async () => {
+        await expect(controller.getDaySlotsAvailability('invalid-date'))
+            .rejects.toThrow('Parameter date tidak valid');
+    });
+});

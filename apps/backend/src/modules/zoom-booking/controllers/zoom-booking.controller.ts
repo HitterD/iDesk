@@ -19,7 +19,8 @@ import { PageAccess } from '../../../shared/core/decorators/page-access.decorato
 import { ZoomBookingService } from '../services/zoom-booking.service';
 import { ZoomAccountService } from '../services/zoom-account.service';
 import { ZoomSettingsService } from '../services/zoom-settings.service';
-import { CreateBookingDto, GetCalendarDto, RescheduleBookingDto, CancelBookingDto } from '../dto';
+import { CreateBookingDto, GetCalendarDto, RescheduleBookingDto, CancelBookingDto, SendReminderDto } from '../dto';
+import { extractClientIp } from '../../../shared/security/client-ip';
 
 @ApiTags('Zoom Booking')
 @ApiBearerAuth()
@@ -89,6 +90,32 @@ export class ZoomBookingController {
         );
     }
 
+    @Get('availability/slots')
+    @ApiOperation({ summary: 'Get day-level slots availability across all Zoom accounts' })
+    @ApiQuery({ name: 'date', required: true, description: 'YYYY-MM-DD' })
+    @ApiQuery({ name: 'durationMinutes', required: false, example: 60 })
+    async getDaySlotsAvailability(
+        @Query('date') date: string,
+        @Query('durationMinutes') durationMinutes?: string,
+    ) {
+        const parsedDate = new Date(`${date}T00:00:00`);
+        const normalizedDate = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
+        const dateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(date)
+            && !Number.isNaN(parsedDate.getTime())
+            && normalizedDate === date;
+
+        if (!dateIsValid) {
+            throw new BadRequestException('Parameter date tidak valid (harus YYYY-MM-DD).');
+        }
+
+        const duration = durationMinutes ? Number(durationMinutes) : 60;
+        if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
+            throw new BadRequestException('Parameter durationMinutes tidak valid.');
+        }
+
+        return this.bookingService.getDaySlotsAvailability(date, duration);
+    }
+
     @Get('availability')
     @ApiOperation({ summary: 'Check availability without reserving a Zoom account' })
     @ApiQuery({ name: 'date', required: true, description: 'YYYY-MM-DD' })
@@ -125,7 +152,7 @@ export class ZoomBookingController {
         @Req() req: Request,
     ) {
         const user = req.user as any;
-        const ipAddress = req.ip || req.socket.remoteAddress;
+        const ipAddress = extractClientIp(req);
         return this.bookingService.createBooking(dto, user, ipAddress);
     }
 
@@ -172,7 +199,7 @@ export class ZoomBookingController {
         @Req() req: Request,
     ) {
         const user = req.user as any;
-        const ipAddress = req.ip || req.socket.remoteAddress;
+        const ipAddress = extractClientIp(req);
         return this.bookingService.rescheduleBooking(id, dto, user, ipAddress);
     }
 
@@ -185,7 +212,19 @@ export class ZoomBookingController {
         @Req() req: Request,
     ) {
         const user = req.user as any;
-        const ipAddress = req.ip || req.socket.remoteAddress;
+        const ipAddress = extractClientIp(req);
         return this.bookingService.cancelBookingByOwner(id, dto, user, ipAddress);
+    }
+
+    @Post(':id/send-reminder')
+    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 reminder requests per minute
+    @ApiOperation({ summary: 'Send email reminder & Outlook calendar (.ics) invite for a booking' })
+    async sendReminder(
+        @Param('id') id: string,
+        @Body() dto: SendReminderDto,
+        @Req() req: Request,
+    ) {
+        const user = req.user as any;
+        return this.bookingService.sendReminder(id, dto, user);
     }
 }

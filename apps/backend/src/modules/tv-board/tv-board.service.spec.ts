@@ -159,6 +159,10 @@ describe('TvBoardService', () => {
 
             expect(data.ringtones).toEqual({
                 newTicket: '/uploads/sounds/masuk.mp3',
+                newTicketSupport: null,
+                newTicketOracle: null,
+                newTicketWebDev: null,
+                newTicketMobileDev: null,
                 inProgress: '/uploads/sounds/proses.mp3',
                 closing: '/uploads/sounds/pulang.mp3',
                 closingTime: '17:00',
@@ -172,6 +176,10 @@ describe('TvBoardService', () => {
 
             expect(data.ringtones).toEqual({
                 newTicket: null,
+                newTicketSupport: null,
+                newTicketOracle: null,
+                newTicketWebDev: null,
+                newTicketMobileDev: null,
                 inProgress: null,
                 closing: null,
                 closingTime: null,

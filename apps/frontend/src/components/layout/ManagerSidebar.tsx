@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Ticket,
@@ -26,13 +26,13 @@ import { useMyPermissions } from '@/hooks/usePermissions';
 
 export const ManagerSidebar = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { data: myPermissions } = useMyPermissions();
 
     const handleLogout = async () => {
         await performLogout();
-        // Full page reload resets ErrorBoundary state — same pattern as api.ts:146
-        window.location.href = '/login';
+        navigate('/login', { replace: true });
     };
 
     // All possible nav items with their pageAccess key

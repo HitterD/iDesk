@@ -3,10 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TicketsController } from './presentation/tickets.controller';
 import { TicketTemplatesController } from './presentation/ticket-templates.controller';
+import { TicketModulesController } from './presentation/ticket-modules.controller';
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
 import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
+import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
 import { User } from '../users/entities/user.entity';
 import { CustomerSession } from '../users/entities/customer-session.entity';
 import { EventsGateway } from './presentation/gateways/events.gateway';
@@ -24,6 +26,7 @@ import { TelegramModule } from '../telegram/telegram.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
 import { WorkloadModule } from '../workload/workload.module';
+import { ModuleAssignmentPolicyModule } from './module-assignment-policy.module';
 
 import { SavedReply } from './entities/saved-reply.entity';
 import { SlaAdjustment } from './entities/sla-adjustment.entity';
@@ -42,6 +45,7 @@ import { TicketUpdateService } from './services/ticket-update.service';
 import { TicketMessagingService } from './services/ticket-messaging.service';
 import { TicketQueryService } from './services/ticket-query.service';
 import { TicketTemplateService } from './services/ticket-template.service';
+import { TicketModulesService } from './services/ticket-modules.service';
 import { TicketMergeService } from './services/ticket-merge.service';
 import { TicketParticipantService } from './services/ticket-participant.service';
 import { TimeTrackingService } from './services/time-tracking.service';
@@ -56,20 +60,50 @@ import { TicketNotificationService } from './services/ticket-notification.servic
 import { TicketStatsService } from './services/ticket-stats.service';
 import { TicketNotificationListener } from './listeners/ticket-notification.listener';
 
+import { TicketReminder } from './entities/ticket-reminder.entity';
+import { TicketReminderService } from './services/ticket-reminder.service';
+import { TicketReminderSchedulerService } from './services/ticket-reminder-scheduler.service';
+
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketParticipant, TicketTemplate, User, CustomerSession, SlaConfig, SavedReply, TicketSurvey, TicketAttribute, TimeEntry, NotificationPreference, SlaAdjustment]),
+        TypeOrmModule.forFeature([
+            Ticket,
+            TicketMessage,
+            TicketParticipant,
+            TicketTemplate,
+            TicketModuleEntity,
+            User,
+            CustomerSession,
+            SlaConfig,
+            SavedReply,
+            TicketSurvey,
+            TicketAttribute,
+            TimeEntry,
+            NotificationPreference,
+            SlaAdjustment,
+            TicketReminder,
+        ]),
         ReportsModule,
         KnowledgeBaseModule,
         MailerModule,
         AuthModule,
         SlaConfigModule,  // Provides BusinessHoursService for SLA calculation
         WorkloadModule,   // Provides WorkloadService for auto-assignment
+        ModuleAssignmentPolicyModule, // Provides the per-module assignment guard
         forwardRef(() => TelegramModule),
         forwardRef(() => NotificationModule),
         CacheModule.register(),
     ],
-    controllers: [TicketsController, TicketTemplatesController, SlaConfigController, SavedRepliesController, SurveysController, TicketAttributesController, TimeTrackingController],
+    controllers: [
+        TicketsController,
+        TicketTemplatesController,
+        TicketModulesController,
+        SlaConfigController,
+        SavedRepliesController,
+        SurveysController,
+        TicketAttributesController,
+        TimeTrackingController,
+    ],
     providers: [
         // Core services (Split)
         TicketCreateService,
@@ -77,15 +111,16 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketMessagingService,
         TicketQueryService,
         TicketTemplateService,
+        TicketModulesService,
         TicketMergeService,
         TicketParticipantService,
         TicketSlaExtendService,
         TicketForwardService,
-        TicketForwardService,
+        TicketReminderService,
+        TicketReminderSchedulerService,
         TimeTrackingService,
 
         SlaCheckerService,
-        TicketSlaExtendService,
         SlaConfigService,
         SavedRepliesService,
         SurveysService,
@@ -103,13 +138,15 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
         TicketMessagingService,
         TicketQueryService,
         TicketTemplateService,
+        TicketModulesService,
         TicketMergeService,
         TicketParticipantService,
+        TicketReminderService,
         TimeTrackingService,
         EventsGateway,
         TicketRepository,
         TicketNotificationService,
-        TicketStatsService
+        TicketStatsService,
     ],
 })
 export class TicketingModule { }

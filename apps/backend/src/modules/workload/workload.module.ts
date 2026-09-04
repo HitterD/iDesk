@@ -8,12 +8,14 @@ import { Ticket } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
+import { ModuleAssignmentPolicyModule } from '../ticketing/module-assignment-policy.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([PriorityWeight, AgentDailyWorkload, Ticket, User]),
         AuthModule,
         AuditModule,
+        ModuleAssignmentPolicyModule, // Provides the per-module auto-assign guard
     ],
     controllers: [WorkloadController],
     providers: [WorkloadService],

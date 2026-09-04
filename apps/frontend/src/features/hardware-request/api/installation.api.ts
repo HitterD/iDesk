@@ -42,19 +42,38 @@ export async function rescheduleSchedule(requestId: string, payload: RescheduleP
   return data;
 }
 
-export async function fetchTechnicians() {
-  const { data } = await api.get<{ data: { id: string; fullName: string }[] }>('/users/technicians');
-  return data.data;
+export interface TechnicianItem {
+  id: string;
+  fullName: string;
+  role?: string;
+  email?: string;
+  siteId?: string;
+  avatarUrl?: string;
+}
+
+export async function fetchTechnicians(siteId?: string): Promise<TechnicianItem[]> {
+  const params = siteId ? { siteId } : undefined;
+  const res = await api.get('/users/technicians', { params });
+  const raw = res.data;
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  return [];
 }
 
 export async function fetchUnscheduledRequests() {
-  const { data } = await api.get<{ data: { id: string; requestNumber: string; siteName: string }[] }>('/hardware-requests/unscheduled');
-  return data.data;
+  const res = await api.get('/hardware-requests/unscheduled');
+  const raw = res.data;
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  return [];
 }
 
 export async function fetchMyTodaySchedules() {
-  const { data } = await api.get<{ data: { id: string; requestId: string; requestNumber: string; siteName: string; scheduledAt: string }[] }>('/hardware-requests/my-today');
-  return data.data;
+  const res = await api.get('/hardware-requests/my-today');
+  const raw = res.data;
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  return [];
 }
 
 export async function completeInstallation(requestId: string, payload: { items: { itemId: string; assetCode: string }[] }) {

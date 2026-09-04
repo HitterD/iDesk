@@ -27,7 +27,11 @@ export const getErrorFromResponse = (err: unknown, currentAttempts: number): Log
     const errorCode = data.errorCode;
 
     if (!err.response) {
-      return { type: 'error', message: 'Unable to connect to server', details: 'Please check your internet connection and try again.' };
+      return {
+        type: 'error',
+        message: 'Unable to connect to server',
+        details: 'Terjadi kendala pada sistem (Something went wrong). Silakan coba beberapa saat lagi.',
+      };
     }
 
     if (errorCode) {

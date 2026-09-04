@@ -14,6 +14,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from './ticket-message.entity';
 import { TicketParticipant } from './ticket-participant.entity';
+import { SlaAdjustment } from './sla-adjustment.entity';
 import { Site } from '../../sites/entities/site.entity';
 
 export enum TicketStatus {
@@ -45,6 +46,8 @@ export enum TicketType {
     ACCESS_REQUEST = 'ACCESS_REQUEST',
     HARDWARE_INSTALLATION = 'HARDWARE_INSTALLATION',
     ORACLE_REQUEST = 'ORACLE_REQUEST',
+    WEB_DEV_REQUEST = 'WEB_DEV_REQUEST',
+    MOBILE_DEV_REQUEST = 'MOBILE_DEV_REQUEST',
 }
 
 /**
@@ -56,6 +59,8 @@ export enum TicketType {
 export enum HandlingTeam {
     OPS_SUPPORT = 'OPS_SUPPORT',
     ORACLE_DEV = 'ORACLE_DEV',
+    MOBILE_DEV = 'MOBILE_DEV',
+    WEB_DEV = 'WEB_DEV',
 }
 
 @Entity('tickets')
@@ -155,6 +160,9 @@ export class Ticket {
 
     @OneToMany(() => TicketParticipant, (participant) => participant.ticket)
     participants: TicketParticipant[];
+
+    @OneToMany(() => SlaAdjustment, (adjustment) => adjustment.ticket)
+    slaAdjustments: SlaAdjustment[];
 
     @Column({ default: false })
     isOverdue: boolean;

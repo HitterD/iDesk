@@ -59,8 +59,8 @@ export class ZoomGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * Broadcast booking created event to all clients watching the account
      */
     emitBookingCreated(accountId: string, booking: any) {
+        if (!this.server) return;
         this.server.to(`zoom:account:${accountId}`).emit('booking:created', booking);
-        // Also emit global event for calendar refresh
         this.server.emit('calendar:updated', { accountId, action: 'created' });
     }
 
@@ -68,6 +68,7 @@ export class ZoomGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * Broadcast booking cancelled event
      */
     emitBookingCancelled(accountId: string, bookingId: string, reason?: string) {
+        if (!this.server) return;
         this.server.to(`zoom:account:${accountId}`).emit('booking:cancelled', { bookingId, reason });
         this.server.emit('calendar:updated', { accountId, action: 'cancelled' });
     }
@@ -76,6 +77,7 @@ export class ZoomGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * Broadcast booking updated event
      */
     emitBookingUpdated(accountId: string, booking: any) {
+        if (!this.server) return;
         this.server.to(`zoom:account:${accountId}`).emit('booking:updated', booking);
         this.server.emit('calendar:updated', { accountId, action: 'updated' });
     }
@@ -84,6 +86,7 @@ export class ZoomGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * Broadcast settings changed (blocked dates, working hours)
      */
     emitSettingsChanged() {
+        if (!this.server) return;
         this.server.emit('settings:updated', { timestamp: new Date().toISOString() });
     }
 
@@ -91,6 +94,7 @@ export class ZoomGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * Broadcast sync completed event
      */
     emitSyncCompleted(updatedCount: number) {
+        if (!this.server) return;
         this.server.emit('sync:completed', { updatedCount, timestamp: new Date().toISOString() });
     }
 }

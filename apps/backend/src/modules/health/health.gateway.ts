@@ -59,6 +59,10 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         this.server?.to('health-updates').emit('health:incident', incident);
     }
 
+    pushTrace(trace: any): void {
+        this.server?.to('health-updates').emit('telemetry:trace', trace);
+    }
+
     afterInit(server: Server) {
         this.logger.log('Health WebSocket Gateway initialized');
     }
@@ -96,13 +100,27 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     }
 
     /**
+     * Client triggers on-demand full health refresh
+     */
+    @SubscribeMessage('health:force-refresh')
+    async handleForceRefresh(@ConnectedSocket() client: Socket): Promise<{ status: string; timestamp: string }> {
+        this.logger.log(`Client ${client.id} requested on-demand force refresh`);
+        await this.healthSampler.forceRefresh();
+        return {
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    /**
      * Get current subscribers count
      */
     @SubscribeMessage('health:ping')
-    handlePing(@ConnectedSocket() client: Socket): { subscribers: number; connected: boolean } {
+    handlePing(@ConnectedSocket() client: Socket): { subscribers: number; connected: boolean; serverTime: string } {
         return {
             subscribers: this.subscribedClients.size,
             connected: true,
+            serverTime: new Date().toISOString(),
         };
     }
 

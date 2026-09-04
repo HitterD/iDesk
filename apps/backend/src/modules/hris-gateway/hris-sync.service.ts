@@ -123,6 +123,10 @@ export class HrisSyncService {
             return 'created';
         }
 
+        // NOTE: `email` is deliberately absent from this update. A user (or an
+        // admin on their behalf) may change the address via PATCH /users/me/email,
+        // and re-applying the HRIS address here would silently revert it on the
+        // next nightly run. Locked by hris-sync.service.email-preservation.spec.ts.
         const siteId = this.resolveSiteId(employee.lokasi, siteByCode);
         existing.fullName = employee.nama_karyawan || existing.fullName;
         existing.jobTitle = employee.nama_jabatan ?? existing.jobTitle;
@@ -269,6 +273,16 @@ export class HrisSyncService {
         const existing = await this.userRepo.findOne({
             where: { email, employeeId: Not(employee.nik_hris) },
         });
-        return existing ? fallback : email;
+        if (!existing) return email;
+
+        // Now reachable in normal operation: another user may have claimed this
+        // address through the self-service email change. Provisioning still
+        // succeeds on the @hris.local fallback, but without this line an admin
+        // has no way to tell why a new hire has no real email.
+        this.logger.warn(
+            `HRIS email ${maskIdentifier(email)} for NIK ${maskIdentifier(employee.nik_hris)} ` +
+            `is already used by another user; falling back to ${maskIdentifier(fallback)}`,
+        );
+        return fallback;
     }
 }

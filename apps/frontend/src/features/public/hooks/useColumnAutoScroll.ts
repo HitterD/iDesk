@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 
 export const SCROLL_SPEED_PX_PER_SEC = 40;
-export const PAUSE_MS = 2500;
+export const PAUSE_MS = 2000;
 
-type AutoScrollPhase = 'pause-top' | 'down' | 'pause-bottom' | 'up';
+export type AutoScrollPhase = 'pause-top' | 'down' | 'pause-bottom' | 'up';
 
 export interface AutoScrollState {
     phase: AutoScrollPhase;
@@ -48,35 +48,53 @@ export function stepAutoScroll(
     return { ...state, scrollTop };
 }
 
-export function useColumnAutoScroll<T extends HTMLElement>() {
+export function useColumnAutoScroll<T extends HTMLElement>(deps?: any) {
     const ref = useRef<T>(null);
+    const isHoveredRef = useRef(false);
 
     useEffect(() => {
-        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-            return;
-        }
-
         let frameId = 0;
         let lastTimestamp: number | null = null;
         let state: AutoScrollState = { phase: 'pause-top', scrollTop: 0, elapsedMs: 0 };
 
+        const element = ref.current;
+        if (element) {
+            element.scrollTop = 0;
+        }
+
+        const handleMouseEnter = () => { isHoveredRef.current = true; };
+        const handleMouseLeave = () => { isHoveredRef.current = false; };
+
+        if (element) {
+            element.addEventListener('mouseenter', handleMouseEnter);
+            element.addEventListener('mouseleave', handleMouseLeave);
+        }
+
         const tick = (timestamp: number) => {
-            const element = ref.current;
-            const deltaMs = lastTimestamp === null ? 0 : timestamp - lastTimestamp;
+            const el = ref.current;
+            const deltaMs = lastTimestamp === null ? 0 : Math.min(timestamp - lastTimestamp, 100);
             lastTimestamp = timestamp;
 
-            if (element) {
-                const maxScroll = element.scrollHeight - element.clientHeight;
+            if (el && !isHoveredRef.current) {
+                const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
                 state = stepAutoScroll(state, deltaMs, maxScroll);
-                element.scrollTop = state.scrollTop;
+                el.scrollTop = Math.round(state.scrollTop);
             }
 
             frameId = requestAnimationFrame(tick);
         };
 
         frameId = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(frameId);
-    }, []);
+        return () => {
+            cancelAnimationFrame(frameId);
+            if (element) {
+                element.removeEventListener('mouseenter', handleMouseEnter);
+                element.removeEventListener('mouseleave', handleMouseLeave);
+            }
+        };
+    }, [deps]);
 
     return ref;
 }
+
+export default useColumnAutoScroll;

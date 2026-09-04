@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,6 +10,13 @@ import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * @deprecated This service is deprecated and will be removed.
+ * All scheduled reporting is now handled by DynamicScheduledReportsService + per-config scheduling.
+ *
+ * This file is kept temporarily to avoid import breakage. Its @Cron methods are disabled/no-op.
+ * Do not add new logic here. Use the dynamic scheduler (site-scoped, per-config) instead.
+ */
 export interface ScheduledReportConfig {
     id: string;
     name: string;
@@ -20,11 +27,25 @@ export interface ScheduledReportConfig {
 }
 
 /**
- * Scheduled Reports Service
- * Handles automatic report generation and distribution
+ * Scheduled Reports Service (DEPRECATED)
+ *
+ * This service previously ran global hardcoded schedules:
+ * - Daily at 07:00 (EVERY_DAY_AT_7AM)
+ * - Weekly on Monday at 08:00 (EVERY_WEEK)
+ * - Monthly on the 1st at 09:00 ('0 9 1 * *')
+ *
+ * It sent cross-site data to ALL ADMIN users without site or role separation.
+ *
+ * Replacement:
+ * - DynamicScheduledReportsService (registers CronJob per ScheduledReportConfig at runtime)
+ * - ScheduledReportsCrudService + ScheduledReportsController under /reports/scheduled
+ * - Site-scoped, recipient-scoped to agents at the config's site
+ * - AGENT_PERFORMANCE supports explicit TargetAgentCategory (REGULAR | ORACLE)
+ *
+ * @deprecated Use the dynamic scheduled reports system instead.
  */
 @Injectable()
-export class ScheduledReportsService {
+export class ScheduledReportsService implements OnModuleInit {
     private readonly logger = new Logger(ScheduledReportsService.name);
     private readonly reportsDir = path.join(process.cwd(), 'reports');
 
@@ -41,10 +62,23 @@ export class ScheduledReportsService {
         }
     }
 
+    onModuleInit() {
+        this.logger.warn(
+            'ScheduledReportsService is DEPRECATED and its cron jobs are DISABLED. ' +
+            'Use DynamicScheduledReportsService + /reports/scheduled (site-scoped, per-config) instead.',
+        );
+    }
+
     /**
      * Daily report - runs every day at 7:00 AM
+     *
+     * @deprecated DISABLED. This global cron is superseded by DynamicScheduledReportsService.
+     * The dynamic scheduler registers per-config CronJobs at runtime based on site-scoped configs.
+     *
+     * This method is intentionally left as a no-op to avoid double-sending during transition.
+     * Remove the @Cron decorator or delete this method after the dynamic scheduler is fully validated.
      */
-    @Cron(CronExpression.EVERY_DAY_AT_7AM)
+    // @Cron(CronExpression.EVERY_DAY_AT_7AM)  // DISABLED - use DynamicScheduledReportsService instead
     async generateDailyReport(): Promise<void> {
         this.logger.log('Generating daily report...');
 
@@ -100,8 +134,10 @@ export class ScheduledReportsService {
 
     /**
      * Weekly report - runs every Monday at 8:00 AM
+     *
+     * @deprecated DISABLED. This global cron is superseded by DynamicScheduledReportsService.
      */
-    @Cron(CronExpression.EVERY_WEEK)
+    // @Cron(CronExpression.EVERY_WEEK)  // DISABLED - use DynamicScheduledReportsService instead
     async generateWeeklyReport(): Promise<void> {
         this.logger.log('Generating weekly report...');
 
@@ -160,8 +196,10 @@ export class ScheduledReportsService {
 
     /**
      * Monthly report - runs on the 1st of every month at 9:00 AM
+     *
+     * @deprecated DISABLED. This global cron is superseded by DynamicScheduledReportsService.
      */
-    @Cron('0 9 1 * *')
+    // @Cron('0 9 1 * *')  // DISABLED - use DynamicScheduledReportsService instead
     async generateMonthlyReport(): Promise<void> {
         this.logger.log('Generating monthly report...');
 

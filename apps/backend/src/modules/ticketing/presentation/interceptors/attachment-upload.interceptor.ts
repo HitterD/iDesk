@@ -17,9 +17,15 @@ function ensureDir(dir: string): void {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const storage = diskStorage({
     destination: (req: Request, _file, cb) => {
-        const ticketId = (req.params?.id as string) || 'unscoped';
+        // Belt + suspenders: even though routes already validate UUID, never let a
+        // crafted :id escape the tickets directory (path traversal via ../).
+        // Anything that isn't a plain UUID lands in 'unscoped' instead of failing.
+        const raw = (req.params?.id as string) || '';
+        const ticketId = UUID_RE.test(raw) ? raw : 'unscoped';
         const dest = join(UPLOAD_ROOT, 'tickets', ticketId);
         ensureDir(dest);
         cb(null, dest);

@@ -16,5 +16,11 @@ export function useMySchedules(range: { from: string; to: string }) {
     staleTime: 30_000,
   });
 
-  return { events: query.data ?? [], isLoading: query.isLoading, error: query.error };
+  return {
+    events: query.data ?? [],
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    refetch: query.refetch,
+    error: query.error,
+  };
 }

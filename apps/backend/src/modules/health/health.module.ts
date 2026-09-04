@@ -6,6 +6,7 @@ import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { HealthGateway } from './health.gateway';
 import { HealthSamplerService } from './health-sampler.service';
+import { TraceCollectorService } from './services/trace-collector.service';
 
 @Module({
     imports: [
@@ -17,7 +18,8 @@ import { HealthSamplerService } from './health-sampler.service';
         HealthService,
         HealthSamplerService,
         HealthGateway,
+        TraceCollectorService,
     ],
-    exports: [HealthService, HealthSamplerService, HealthGateway],
+    exports: [HealthService, HealthSamplerService, HealthGateway, TraceCollectorService],
 })
 export class HealthModule { }

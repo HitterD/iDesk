@@ -20,8 +20,8 @@ export class AddSlaAdjustments1790000000000 implements MigrationInterface {
                 "reasonText" varchar(1000) NOT NULL,
                 "previousTarget" timestamp,
                 "newTarget" timestamp,
-                "actorId" varchar,
-                "approvedById" varchar,
+                "actorId" uuid,
+                "approvedById" uuid,
                 "createdAt" timestamp NOT NULL DEFAULT now(),
                 CONSTRAINT "PK_sla_adjustments_id" PRIMARY KEY ("id")
             )`,

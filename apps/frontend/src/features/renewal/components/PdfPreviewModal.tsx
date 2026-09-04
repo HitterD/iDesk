@@ -19,7 +19,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
 
     if (!isOpen || !contract) return null;
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+    const baseUrl = import.meta.env.VITE_API_URL || '';
     const pdfUrl = contract.filePath ? `${baseUrl}${contract.filePath}` : null;
 
     const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 200));

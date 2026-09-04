@@ -4,7 +4,7 @@ export interface PasswordPolicyContext {
     fullName?: string;
 }
 
-const MIN_PASSWORD_LENGTH = 12;
+const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 72;
 
 export interface PasswordPolicyResult {

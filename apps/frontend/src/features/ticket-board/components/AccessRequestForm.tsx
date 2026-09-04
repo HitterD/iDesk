@@ -110,7 +110,7 @@ export const AccessRequestForm = ({ onSubmit, onCancel }: AccessRequestFormProps
             return;
         }
 
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+        const apiUrl = import.meta.env.VITE_API_URL || '';
         const url = selectedType.formTemplateUrl;
         const absoluteUrl = `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
         const filename = url.split('/').pop() || 'template.pdf';

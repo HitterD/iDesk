@@ -25,8 +25,9 @@ export class ReportsController {
     async getMonthlyStats(
         @Query('month') month: number,
         @Query('year') year: number,
+        @Query('siteId') siteId?: string,
     ) {
-        return this.reportsService.getMonthlyStats(Number(month), Number(year));
+        return this.reportsService.getMonthlyStats(Number(month), Number(year), siteId);
     }
 
     @Get('agent-performance')
@@ -36,10 +37,14 @@ export class ReportsController {
     async getAgentPerformance(
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
+        @Query('siteId') siteId?: string,
+        @Query('agentCategory') agentCategory?: 'REGULAR' | 'ORACLE' | 'ALL',
     ) {
         return this.reportsService.getAgentPerformance(
             new Date(startDate),
             new Date(endDate),
+            siteId,
+            agentCategory,
         );
     }
 
@@ -47,13 +52,16 @@ export class ReportsController {
     @ApiOperation({ summary: 'Get ticket volume report for date range' })
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
     async getTicketVolume(
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
+        @Query('siteId') siteId?: string,
     ) {
         return this.reportsService.getTicketVolume(
             new Date(startDate),
             new Date(endDate),
+            siteId,
         );
     }
 
@@ -100,17 +108,23 @@ export class ReportsController {
     @ApiOperation({ summary: 'Download agent performance report as PDF' })
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'agentCategory', enum: ['REGULAR', 'ORACLE', 'DEV', 'ALL'], required: false })
     async exportAgentPerformancePDF(
         @Res() res: Response,
+        @Req() req: any,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
-        @Req() req: any,
+        @Query('siteId') siteId?: string,
+        @Query('agentCategory') agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL',
     ) {
         return this.reportsService.generateAgentPerformancePDF(
             res,
             new Date(startDate),
             new Date(endDate),
             req.user?.id || req.user?.userId,
+            siteId,
+            agentCategory,
         );
     }
 

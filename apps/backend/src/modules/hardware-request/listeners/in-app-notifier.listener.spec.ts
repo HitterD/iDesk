@@ -46,6 +46,20 @@ describe('InAppNotifierListener', () => {
         expect(calls).toContain('proc1');
     });
 
+    it('onProcurementDone scopes fan-out by siteId (not cross-site)', async () => {
+        q.findById.mockResolvedValue({ id: 'r2', siteId: 's1', requestNumber: 'HR-2026-0002', requesterId: 'u1' });
+        perm.listUsersWithRole.mockResolvedValue([{ id: 'tech1' }]);
+        await (listener as any).onProcurementDone({ requestId: 'r2', actorId: 'lead1', requesterId: 'u1', occurredAt: new Date() } as any);
+        expect(perm.listUsersWithRole).toHaveBeenCalledWith('ICT_STAFF', 's1');
+    });
+
+    it('onInstallCompleted scopes fan-out by siteId (not cross-site)', async () => {
+        q.findById.mockResolvedValue({ id: 'r3', siteId: 's1', requestNumber: 'HR-2026-0003', requesterId: 'u1' });
+        perm.listUsersWithRole.mockResolvedValue([{ id: 'leadA' }]);
+        await (listener as any).onInstallCompleted({ requestId: 'r3', actorId: 'tech1', requesterId: 'u1', occurredAt: new Date() } as any);
+        expect(perm.listUsersWithRole).toHaveBeenCalledWith('ICT_STAFF', 's1');
+    });
+
     it('onCommented notifies subscribers except author', async () => {
         await listener.onCommented({
             requestId: 'r1', actorId: 'u1', commentId: 'c1', body: 'halo',

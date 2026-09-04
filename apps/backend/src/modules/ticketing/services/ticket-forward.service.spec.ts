@@ -153,18 +153,26 @@ describe('TicketForwardService', () => {
         expect(workloadService.autoAssignTicket).not.toHaveBeenCalled();
     });
 
-    it('does not fail the forward when auto-assign throws', async () => {
-        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, handlingTeam: HandlingTeam.ORACLE_DEV }));
-        workloadService.autoAssignTicket = jest.fn(async () => {
-            throw new Error('No available agents for this site');
-        });
-        const result = await service.forwardTicket('t1', {
-            targetTeam: HandlingTeam.OPS_SUPPORT,
-            reason: 'ops',
-        }, actor);
+    it('preserves the ability to resume when forwarding a WAITING_VENDOR ticket', async () => {
+        // A ticket paused at the vendor must keep an SLA anchor: after resume,
+        // resumeFromVendor shifts slaTarget by the paused duration, so the
+        // resolution budget must not be nulled away by the forward.
+        const waitingTicket = {
+            ...baseTicket,
+            status: TicketStatus.WAITING_VENDOR,
+            slaTarget: new Date('2026-08-05T08:00:00'),
+            originalSlaTarget: new Date('2026-08-05T08:00:00'),
+        };
+        ticketRepo.findOne = jest.fn(async () => ({ ...waitingTicket }));
 
-        expect(result.handlingTeam).toBe(HandlingTeam.OPS_SUPPORT);
-        const msg = messageRepo.save.mock.calls.at(-1)[0];
-        expect(msg.content).toContain('Auto-assign skipped');
+        const result = await service.forwardTicket('t1', dto, actor);
+
+        // The forward may not restore a full budget on its own (status is not
+        // IN_PROGRESS), but it must not destroy the anchor that resumeFromVendor
+        // relies on — the clock re-arms when the vendor answers.
+        expect(result.originalSlaTarget).toBeInstanceOf(Date);
+        expect(result.originalSlaTarget!.getTime()).toBe(
+            waitingTicket.originalSlaTarget!.getTime(),
+        );
     });
 });

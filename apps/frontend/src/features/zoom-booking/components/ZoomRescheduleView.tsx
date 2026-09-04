@@ -19,6 +19,7 @@ import {
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import type { ZoomBooking } from '../types';
 import { useRescheduleOwnBooking, useZoomCalendar, usePublicZoomSettings } from '../hooks/useZoomBooking';
+import { ZOOM_DURATION_OPTIONS } from '../constants/duration-constants';
 
 interface ZoomRescheduleViewProps {
     booking: ZoomBooking;
@@ -88,6 +89,12 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
         });
     }, [calendarData, selectedDate, selectedTime, selectedDuration, booking.id]);
 
+    const isPastMidnight = useMemo(() => {
+        if (!selectedTime) return false;
+        const [startH, startM] = selectedTime.split(':').map(Number);
+        return (startH * 60 + startM + selectedDuration) > 24 * 60;
+    }, [selectedTime, selectedDuration]);
+
     const isChanged =
         format(selectedDate, 'yyyy-MM-dd') !== booking.bookingDate ||
         selectedTime !== booking.startTime.substring(0, 5) ||
@@ -95,6 +102,10 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
 
     const handleSubmit = async () => {
         if (!selectedDate || !selectedTime) return;
+        if (isPastMidnight) {
+            toast.error('Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.');
+            return;
+        }
         try {
             await reschedule.mutateAsync({
                 bookingId: booking.id,
@@ -184,15 +195,25 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
                     <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 hover:border-blue-500/50 shadow-none transition-colors">
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                        {(settings?.allowedDurations || [30, 60, 90, 120]).map((d) => (
-                            <SelectItem key={d} value={d.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
-                                <span className="font-medium">{d} menit</span>
+                    <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-60">
+                        {ZOOM_DURATION_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
+                                <span className="font-medium">{opt.label}</span>
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
             </div>
+
+            {/* Midnight warning */}
+            {isPastMidnight && (
+                <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                    <p className="font-medium leading-relaxed">
+                        Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.
+                    </p>
+                </div>
+            )}
 
             {/* Warning block */}
             <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs mt-4">
@@ -236,7 +257,7 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
                 </Button>
                 <Button
                     onClick={handleSubmit}
-                    disabled={!isChanged || hasConflict || reschedule.isPending}
+                    disabled={!isChanged || hasConflict || isPastMidnight || reschedule.isPending}
                     className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50"
                 >
                     {reschedule.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}

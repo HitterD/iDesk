@@ -10,10 +10,21 @@ import { CacheService } from '../../shared/core/cache';
 import { User } from '../users/entities/user.entity';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 
-export type TvRingtoneSlot = 'newTicket' | 'inProgress' | 'closing';
+export type TvRingtoneSlot = 
+    | 'newTicket' 
+    | 'newTicketSupport'
+    | 'newTicketOracle'
+    | 'newTicketWebDev'
+    | 'newTicketMobileDev'
+    | 'inProgress' 
+    | 'closing';
 
-const TV_RINGTONE_COLUMNS: Record<TvRingtoneSlot, 'ringtoneNewTicket' | 'ringtoneInProgress' | 'ringtoneClosing'> = {
+const TV_RINGTONE_COLUMNS: Record<TvRingtoneSlot, keyof Site> = {
     newTicket: 'ringtoneNewTicket',
+    newTicketSupport: 'ringtoneNewTicketSupport',
+    newTicketOracle: 'ringtoneNewTicketOracle',
+    newTicketWebDev: 'ringtoneNewTicketWebDev',
+    newTicketMobileDev: 'ringtoneNewTicketMobileDev',
     inProgress: 'ringtoneInProgress',
     closing: 'ringtoneClosing',
 };
@@ -173,7 +184,7 @@ export class SitesService {
         return saved;
     }
 
-    private resolveRingtoneColumn(slot: string): 'ringtoneNewTicket' | 'ringtoneInProgress' | 'ringtoneClosing' {
+    private resolveRingtoneColumn(slot: string): keyof Site {
         const column = TV_RINGTONE_COLUMNS[slot as TvRingtoneSlot];
         if (!column) {
             throw new BadRequestException(
@@ -190,7 +201,7 @@ export class SitesService {
     async setTvRingtone(id: string, slot: string, url: string, userId?: string): Promise<Site> {
         const site = await this.findOne(id);
         const column = this.resolveRingtoneColumn(slot);
-        site[column] = url;
+        (site as any)[column] = url;
         const saved = await this.siteRepo.save(site);
 
         if (userId) {
@@ -209,7 +220,7 @@ export class SitesService {
     async clearTvRingtone(id: string, slot: string, userId?: string): Promise<Site> {
         const site = await this.findOne(id);
         const column = this.resolveRingtoneColumn(slot);
-        site[column] = null;
+        (site as any)[column] = null;
         const saved = await this.siteRepo.save(site);
 
         if (userId) {

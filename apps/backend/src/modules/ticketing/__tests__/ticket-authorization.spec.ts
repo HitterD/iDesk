@@ -79,6 +79,11 @@ describe('Ticket Authorization Object Checks', () => {
             { logAsync: jest.fn() } as any,
             dataSource,
             { recalculateAgentWorkload: jest.fn() } as any,
+            {
+                isUserEligible: jest.fn().mockResolvedValue(true),
+                describeModule: jest.fn().mockResolvedValue('modul ini'),
+                toAssignable: jest.fn((t: any) => t),
+            } as any,
         );
     });
 

@@ -91,6 +91,7 @@ export interface Ticket {
     category: TicketCategory;
     device?: string;
     software?: string;
+    criticalReason?: string;
 
     // Relationships
     requesterId: string;
@@ -121,6 +122,7 @@ export interface CreateTicketDto {
     category?: TicketCategory;
     device?: string;
     software?: string;
+    criticalReason?: string;
 }
 
 export interface UpdateTicketDto {

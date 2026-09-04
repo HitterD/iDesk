@@ -26,6 +26,7 @@ import { RejectRequestDto } from '../dto/reject-request.dto';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import { ProcurementDecisionDto } from '../dto/procurement-decision.dto';
 import { ProcurementCompleteDto } from '../dto/procurement-complete.dto';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 @Controller('hardware-requests')
 @UseGuards(JwtAuthGuard, HardwareRoleGuard)
@@ -39,7 +40,9 @@ export class HardwareRequestController {
     @Get()
     async list(@Req() req: any, @Query() dto: ListRequestsDto) {
         const role = pickRole(req.user);
-        const result = await this.queries.list({ id: req.user.userId, role }, dto);
+        const userRole: UserRole = req.user.role;
+        const siteId: string | null = req.user.siteId ?? null;
+        const result = await this.queries.list({ id: req.user.userId, role, userRole, siteId }, dto);
         return {
             success: true,
             data: result.rows,
@@ -54,14 +57,18 @@ export class HardwareRequestController {
     @Get(':id')
     async getOne(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
         const role = pickRole(req.user);
-        const data = await this.queries.getById({ id: req.user.userId, role }, id);
+        const userRole: UserRole = req.user.role;
+        const siteId: string | null = req.user.siteId ?? null;
+        const data = await this.queries.getById({ id: req.user.userId, role, userRole, siteId }, id);
         return { success: true, data };
     }
 
     @Post()
     @Throttle({ default: { limit: 10, ttl: 60000 } })
     async create(@Req() req: any, @Body() dto: CreateRequestDto) {
-        const data = await this.commands.createDraft(req.user.userId, dto);
+        const siteId: string | null = req.user.siteId ?? null;
+        const userRole: UserRole = req.user.role;
+        const data = await this.commands.createDraft(req.user.userId, siteId, userRole, dto);
         return { success: true, data };
     }
 
@@ -71,7 +78,9 @@ export class HardwareRequestController {
         @Param('id', new ParseUUIDPipe()) id: string,
         @Body() dto: UpdateDraftDto,
     ) {
-        const data = await this.commands.updateDraft(req.user.userId, id, dto);
+        const siteId: string | null = req.user.siteId ?? null;
+        const userRole: UserRole = req.user.role;
+        const data = await this.commands.updateDraft(req.user.userId, siteId, userRole, id, dto);
         return { success: true, data };
     }
 

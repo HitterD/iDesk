@@ -14,8 +14,9 @@ import { WorkloadService } from '../../workload/workload.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
+import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
+import { generateNextTicketNumber } from '../utils/ticket-number-generator';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
-import { isOracleK2Category } from '../utils/oracle-ticket-access.util';
 
 @Injectable()
 export class TicketCreateService {
@@ -47,13 +48,15 @@ export class TicketCreateService {
             if (!user) {
                 throw new NotFoundException('User not found');
             }
+            const handlingTeam = resolveInitialHandlingTeam(
+                createTicketDto.category,
+                createTicketDto.ticketType,
+            );
+
             assertTicketRoleAccess({
                 category: createTicketDto.category || 'GENERAL',
                 ticketType: createTicketDto.ticketType || TicketType.SERVICE,
-                handlingTeam: isOracleK2Category(
-                    createTicketDto.category,
-                    createTicketDto.ticketType,
-                ) ? HandlingTeam.ORACLE_DEV : HandlingTeam.OPS_SUPPORT,
+                handlingTeam,
             }, user.role);
 
             const ticket = this.ticketRepo.create({
@@ -62,10 +65,7 @@ export class TicketCreateService {
                 priority: createTicketDto.priority,
                 category: createTicketDto.category || 'GENERAL',
                 ticketType: createTicketDto.ticketType || TicketType.SERVICE,
-                handlingTeam: isOracleK2Category(
-                    createTicketDto.category,
-                    createTicketDto.ticketType,
-                ) ? HandlingTeam.ORACLE_DEV : HandlingTeam.OPS_SUPPORT,
+                handlingTeam,
                 source: createTicketDto.source || TicketSource.WEB,
                 device: createTicketDto.device,
                 software: createTicketDto.software,
@@ -76,11 +76,6 @@ export class TicketCreateService {
             } as DeepPartial<Ticket>);
 
             const date = new Date();
-            const day = date.getDate().toString().padStart(2, '0');
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const year = date.getFullYear().toString().slice(-2);
-            const dateStr = `${day}${month}${year}`;
-
             const division = user.department?.name ? user.department.name.substring(0, 3).toUpperCase() : 'GEN';
 
             // === Hardware Installation: Special Handling ===
@@ -124,28 +119,11 @@ export class TicketCreateService {
 
             // Wrap in transaction (M7: multiple-write ops)
             const finalTicket = await this.ticketRepo.manager.transaction(async (manager) => {
-                // Generate Custom Ticket Number safely within transaction
-                const todayStart = new Date(date);
-                todayStart.setHours(0, 0, 0, 0);
-
-                const latestTicket = await manager.createQueryBuilder(Ticket, 'ticket')
-                    .where('ticket.createdAt >= :todayStart', { todayStart })
-                    .orderBy('ticket.createdAt', 'DESC')
-                    .setLock('pessimistic_write')
-                    .getOne();
-
-                let newNumber = 1;
-                if (latestTicket && latestTicket.ticketNumber) {
-                    const parts = latestTicket.ticketNumber.split('-');
-                    if (parts.length === 3) {
-                        const lastNumber = parseInt(parts[2], 10);
-                        if (!isNaN(lastNumber)) {
-                            newNumber = lastNumber + 1;
-                        }
-                    }
-                }
-                const numberStr = newNumber.toString().padStart(4, '0');
-                ticket.ticketNumber = `${dateStr}-${division}-${numberStr}`;
+                // Generate Custom Ticket Number safely within transaction.
+                // Shared locked generator (PROD-19): web + Telegram serialize
+                // on the same pessimistic_write lock so concurrent creations
+                // can never collide on the unique ticketNumber.
+                ticket.ticketNumber = await generateNextTicketNumber(manager, division, date);
 
                 const savedTicket = await manager.save(ticket);
 
@@ -158,22 +136,26 @@ export class TicketCreateService {
                 });
                 await manager.save(message);
 
-            // Emit Domain Event
+                return savedTicket;
+            }); // End of transaction
+
+            // Domain events + audit fire AFTER commit: listeners must only react
+            // to a ticket that actually persisted (no phantom notifications on rollback).
             this.eventEmitter.emit(
                 'ticket.created',
                 new TicketCreatedEvent(
-                    savedTicket.id,
-                    savedTicket.ticketNumber,
-                    savedTicket.title,
-                    savedTicket.priority,
-                    savedTicket.category,
-                    savedTicket.status,
+                    finalTicket.id,
+                    finalTicket.ticketNumber,
+                    finalTicket.title,
+                    finalTicket.priority,
+                    finalTicket.category,
+                    finalTicket.status,
                     user.id,
                     user.fullName,
                     user.email,
-                    savedTicket.createdAt,
-                    savedTicket.siteId,
-                    savedTicket.ticketType,
+                    finalTicket.createdAt,
+                    finalTicket.siteId,
+                    finalTicket.ticketType,
                 ),
             );
 
@@ -182,13 +164,10 @@ export class TicketCreateService {
                 userId,
                 action: AuditAction.CREATE_TICKET,
                 entityType: 'ticket',
-                entityId: ticket.id,
-                newValue: { ticketNumber: ticket.ticketNumber, title: ticket.title, priority: ticket.priority, category: ticket.category },
-                description: `Ticket #${ticket.ticketNumber} created: ${ticket.title}`,
+                entityId: finalTicket.id,
+                newValue: { ticketNumber: finalTicket.ticketNumber, title: finalTicket.title, priority: finalTicket.priority, category: finalTicket.category },
+                description: `Ticket #${finalTicket.ticketNumber} created: ${finalTicket.title}`,
             });
-
-                return savedTicket;
-            }); // End of transaction
 
             // Site-isolated real-time fan-out (outside transaction, after commit)
             this.eventsGateway.notifyDashboardStatsUpdate((finalTicket as any).siteId ?? null);
@@ -212,30 +191,28 @@ export class TicketCreateService {
             }
 
             // === Auto-Assignment: Assign to agent with lowest workload ===
+            // The per-module guard lives in WorkloadService.autoAssignTicket, so
+            // this path cannot disagree with forward / SLA breach / the manual
+            // API about which tickets may be auto-assigned. A disabled module
+            // simply returns a BadRequest, which is caught and logged below.
             if (!(createTicketDto as any).assignedToId && finalTicket.siteId) {
-                // handlingTeam is the source of truth: only OPS_SUPPORT tickets
-                // get auto-assigned to the workload pool.
-                const isOracleTicket = finalTicket.handlingTeam === HandlingTeam.ORACLE_DEV;
-
-                if (!isOracleTicket) {
-                    try {
-                        const assignedTicket = await this.workloadService.autoAssignTicket(finalTicket.id);
-                        if (assignedTicket.assignedTo) {
-                            this.logger.log(
-                                `✅ Ticket ${finalTicket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
-                            );
-                            // Update local ticket reference with assignment
-                            finalTicket.assignedToId = assignedTicket.assignedToId;
-                            finalTicket.assignedTo = assignedTicket.assignedTo;
-                        }
-                    } catch (autoAssignError) {
-                        // Don't fail ticket creation if auto-assign fails
-                        this.logger.warn(
-                            `⚠️ Auto-assign failed for ticket ${finalTicket.ticketNumber}: ${autoAssignError.message}`
+                try {
+                    const assignedTicket = await this.workloadService.autoAssignTicket(finalTicket.id);
+                    if (assignedTicket.assignedTo) {
+                        this.logger.log(
+                            `✅ Ticket ${finalTicket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
                         );
+                        // Update local ticket reference with assignment
+                        finalTicket.assignedToId = assignedTicket.assignedToId;
+                        finalTicket.assignedTo = assignedTicket.assignedTo;
                     }
-                } else {
-                    this.logger.log(`⏳ Ticket ${finalTicket.ticketNumber} bypassed auto-assign (Oracle Request)`);
+                } catch (autoAssignError) {
+                    // Don't fail ticket creation if auto-assign is disabled or
+                    // no eligible agent is available — the ticket stays visibly
+                    // unassigned instead.
+                    this.logger.warn(
+                        `⚠️ Auto-assign skipped for ticket ${finalTicket.ticketNumber}: ${autoAssignError.message}`
+                    );
                 }
             }
 

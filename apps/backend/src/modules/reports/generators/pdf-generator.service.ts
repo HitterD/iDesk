@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Response } from 'express';
+import * as path from 'path';
+import * as fs from 'fs';
 import { AgentMetrics } from './agent-performance.report';
 import { TicketVolumeData } from './ticket-volume.report';
+import { generateExecutiveInsights } from '../utils/executive-insights.util';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
@@ -11,153 +14,65 @@ export interface PDFReportOptions {
     subtitle?: string;
     dateRange?: { startDate: Date; endDate: Date };
     author?: string;
+    siteName?: string;
+    docNo?: string;
 }
 
-// ─── INDUSTRIAL UTILITARIAN PALETTE ──────────────────────────
-// Deliberately restrained. No saturated brand colors.
-// Reads like a printed corporate document, not an app screenshot.
+// ─── CORPORATE EXECUTIVE PALETTE ────────────────────────────
+// Professional Navy & Slate palette for PT Santos Jaya Abadi / iDesk
 const C = {
-    // Structural grays
-    black: '#111827',          // Gray-900 — headings, emphasis
-    text: '#374151',           // Gray-700 — body text
-    textMuted: '#6B7280',      // Gray-500 — secondary text
-    textFaint: '#9CA3AF',      // Gray-400 — captions, metadata
-    rule: '#D1D5DB',           // Gray-300 — lines, borders
-    bgSubtle: '#F3F4F6',       // Gray-100 — alt rows, card fills
+    // Brand
+    brandNavy: '#1E3A8A',      // Blue-900 — Primary Brand
+    brandNavyDark: '#0F172A',  // Slate-900 — Main Text & Headings
+    brandBlue: '#2563EB',      // Blue-600 — Accent
+    brandBlueLight: '#EFF6FF', // Blue-50 — Subtitle / Pill fill
+
+    // Neutrals
+    black: '#0F172A',          // Slate-900
+    text: '#334155',           // Slate-700 — Body text
+    textMuted: '#64748B',      // Slate-500 — Secondary text
+    textFaint: '#94A3B8',      // Slate-400 — Captions & Metadata
+    rule: '#E2E8F0',           // Slate-200 — Divider lines
+    ruleStrong: '#CBD5E1',     // Slate-300 — Table headers border
+    bgSubtle: '#F8FAFC',       // Slate-50 — Table alternate rows
     white: '#FFFFFF',
 
-    // Header — dark neutral, not brand-colored
-    headerBg: '#1F2937',       // Gray-800
-    headerAccent: '#D1D5DB',   // Gray-300 — subtle rule inside header
+    // Headers & Banners
+    headerBg: '#1E293B',       // Slate-800 — Table Header
+    headerAccent: '#475569',   // Slate-600 — Divider inside header
+    bannerBg: '#F1F5F9',       // Slate-100 — Section banner fill
 
-    // Semantic — muted, print-friendly
+    // Executive Card Colors
+    cardBg: '#FFFFFF',
+    cardBorder: '#CBD5E1',
+    cardFill: '#F8FAFC',
+    insightBg: '#F8FAFC',      // Slate-50 (Corporate Executive Box)
+    insightBorder: '#CBD5E1',  // Slate-300
+    insightDot: '#1E3A8A',     // Brand Navy
+
+    // Semantic Status Colors
     positive: '#059669',       // Emerald-600
+    positiveBg: '#DCFCE7',     // Emerald-100
     caution: '#D97706',        // Amber-600
+    cautionBg: '#FEF3C7',      // Amber-100
     critical: '#DC2626',       // Red-600
+    criticalBg: '#FEE2E2',     // Red-100
     neutral: '#2563EB',        // Blue-600
-
-    // Cards — no saturated fills; use border + icon approach
-    cardBorder: '#D1D5DB',
-    cardBg: '#F9FAFB',        // Gray-50
+    neutralBg: '#DBEAFE',      // Blue-100
 };
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_NAMES = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
 
 /**
  * PDF Report Generator Service
- * Industrial Utilitarian design — muted, dense, professional
+ * Executive Summary Standard — PT Santos Jaya Abadi / iDesk
  */
 @Injectable()
 export class PDFGeneratorService {
     private readonly logger = new Logger(PDFGeneratorService.name);
-
-    /**
-     * Generate Agent Performance PDF Report
-     */
-    async generateAgentPerformancePDF(
-        res: Response,
-        metrics: AgentMetrics[],
-        options: PDFReportOptions,
-    ): Promise<void> {
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-            'Content-Disposition',
-            `attachment; filename=agent-performance-${Date.now()}.pdf`,
-        );
-
-        doc.pipe(res);
-
-        this.drawHeader(doc, options);
-
-        // Summary metrics — flat key-value row
-        const totalAgents = metrics.length;
-        const avgResolutionRate = metrics.length > 0
-            ? metrics.reduce((sum, m) => sum + m.resolutionRate, 0) / metrics.length
-            : 0;
-        const avgSLA = metrics.length > 0
-            ? metrics.reduce((sum, m) => sum + m.slaComplianceRate, 0) / metrics.length
-            : 0;
-        const bestAgent = metrics.length > 0
-            ? metrics.reduce((best, m) => m.resolutionRate > best.resolutionRate ? m : best, metrics[0])
-            : null;
-
-        const metricsY = doc.y + 8;
-        this.drawMetricStrip(doc, metricsY, [
-            { label: 'AGENTS', value: String(totalAgents) },
-            { label: 'AVG RESOLUTION', value: `${avgResolutionRate.toFixed(1)}%` },
-            { label: 'AVG SLA', value: `${avgSLA.toFixed(1)}%` },
-            { label: 'TOP PERFORMER', value: bestAgent?.agentName?.split(' ')[0] || '—' },
-        ]);
-
-        doc.y = metricsY + 52;
-
-        // Agent table
-        this.drawSectionLabel(doc, 'Agent Performance Details');
-        this.drawAgentTable(doc, metrics);
-
-        // Bar chart
-        if (metrics.length > 0 && metrics.length <= 10) {
-            doc.moveDown(1);
-            this.drawSectionLabel(doc, 'Resolution Rate Comparison');
-            this.drawBarChart(doc,
-                metrics.map(m => ({ label: m.agentName.substring(0, 14), value: m.resolutionRate, max: 100 })),
-            );
-        }
-
-        this.drawFooter(doc);
-        doc.end();
-    }
-
-    /**
-     * Generate Ticket Volume PDF Report
-     */
-    async generateTicketVolumePDF(
-        res: Response,
-        volumeData: TicketVolumeData,
-        options: PDFReportOptions,
-    ): Promise<void> {
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-            'Content-Disposition',
-            `attachment; filename=ticket-volume-${Date.now()}.pdf`,
-        );
-
-        doc.pipe(res);
-
-        this.drawHeader(doc, options);
-
-        // Metric strip
-        const metricsY = doc.y + 8;
-        this.drawMetricStrip(doc, metricsY, [
-            { label: 'CREATED', value: String(volumeData.summary.totalCreated) },
-            { label: 'RESOLVED', value: String(volumeData.summary.totalResolved) },
-            { label: 'PENDING', value: String(volumeData.summary.totalPending) },
-            { label: 'AVG / DAY', value: String(volumeData.summary.avgPerDay) },
-        ]);
-
-        doc.y = metricsY + 52;
-
-        // Daily chart
-        if (volumeData.daily.length > 0) {
-            this.drawSectionLabel(doc, 'Daily Ticket Volume');
-            this.drawDailyVolumeChart(doc, volumeData.daily);
-        }
-
-        // Breakdown columns
-        doc.moveDown(1);
-        const infoY = doc.y;
-        this.drawKeyValueList(doc, 40, infoY, 'By Priority', volumeData.byPriority);
-        this.drawKeyValueList(doc, 210, infoY, 'By Status', volumeData.byStatus);
-        this.drawKeyValueList(doc, 380, infoY, 'By Category', volumeData.byCategory);
-
-        this.drawFooter(doc);
-        doc.end();
-    }
 
     /**
      * Generate Monthly Summary PDF Report
@@ -174,7 +89,7 @@ export class PDFGeneratorService {
         },
         options: PDFReportOptions,
     ): Promise<void> {
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const doc = new PDFDocument({ margin: 36, size: 'A4', bufferPages: true });
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
@@ -184,176 +99,632 @@ export class PDFGeneratorService {
 
         doc.pipe(res);
 
-        this.drawHeader(doc, {
-            ...options,
-            title: `Monthly Summary Report`,
-            subtitle: `${MONTH_NAMES[stats.month - 1]} ${stats.year}`,
-        });
-
+        const monthName = MONTH_NAMES[stats.month - 1] || `Bulan ${stats.month}`;
         const totalTickets = Number(stats.totalTickets) || 0;
         const resolvedTickets = Number(stats.resolvedTickets) || 0;
-        const openTickets = Number(stats.openTickets) || 0;
-        const avgHours = parseFloat(String(stats.avgResolutionTimeHours)) || 0;
+        const openTickets = Number(stats.openTickets) || Math.max(0, totalTickets - resolvedTickets);
+        const parsedHours = parseFloat(String(stats.avgResolutionTimeHours));
+        const avgHours = isNaN(parsedHours) ? 0 : parsedHours;
+        const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
 
-        // Metric strip
-        const metricsY = doc.y + 8;
-        this.drawMetricStrip(doc, metricsY, [
-            { label: 'TOTAL TICKETS', value: String(totalTickets) },
-            { label: 'RESOLVED', value: String(resolvedTickets) },
-            { label: 'OPEN', value: String(openTickets) },
-            { label: 'AVG RESOLUTION', value: `${avgHours.toFixed(1)}h` },
+        // Draw Corporate Header
+        this.drawCorporateHeader(doc, {
+            ...options,
+            title: 'Laporan Ringkasan Bulanan (Monthly Summary)',
+            subtitle: `Periode: ${monthName} ${stats.year}`,
+            siteName: options.siteName || 'Semua Site Operasional',
+            docNo: options.docNo || `REP-MTH-${stats.year}${String(stats.month).padStart(2, '0')}`,
+        });
+
+        // Smart Executive Insights
+        const insights = generateExecutiveInsights({
+            periodLabel: `${monthName} ${stats.year}`,
+            totalTickets,
+            resolvedTickets,
+            openTickets,
+            resolutionRate,
+            avgResolutionTimeHours: avgHours,
+        });
+
+        // Executive Summary Section (KPI Cards + Takeaways)
+        this.drawExecutiveSectionHeader(doc, 'Executive Summary & Key Takeaways');
+        const kpiY = doc.y + 6;
+        this.drawEnhancedKpiGrid(doc, kpiY, [
+            { label: 'TOTAL TIKET', value: totalTickets.toLocaleString('id-ID'), subtext: `${monthName} ${stats.year}` },
+            { label: 'TIKET SELESAI', value: resolvedTickets.toLocaleString('id-ID'), subtext: `${resolutionRate.toFixed(1)}% Resolution Rate`, status: 'positive' },
+            { label: 'TIKET TERBUKA', value: openTickets.toLocaleString('id-ID'), subtext: 'Dalam Antrean / Proses', status: openTickets > 0 ? 'caution' : 'positive' },
+            { label: 'AVG RESOLUSI', value: `${avgHours.toFixed(1)} jam`, subtext: 'Waktu Rata-rata Resolusi' },
         ]);
 
-        doc.y = metricsY + 60;
+        this.drawInsightBox(doc, insights);
 
-        // Resolution rate bar
-        const resolutionRate = totalTickets > 0 ? ((resolvedTickets / totalTickets) * 100) : 0;
-        this.drawSectionLabel(doc, 'Performance Overview');
-        this.drawProgressBar(doc, 40, doc.y + 5, 515, 'Resolution Rate', resolutionRate, 100);
-        doc.y += 50;
+        // Performance & Distribution
+        this.drawSectionLabel(doc, 'Indikator Kinerja & Distribusi Tiket');
+        this.drawProgressBar(doc, 36, doc.y + 4, 523, 'Tingkat Penyelesaian Tiket (Resolution Rate)', resolutionRate, 100);
+        doc.y += 38;
 
-        // Distribution
-        this.drawSectionLabel(doc, 'Ticket Distribution');
         this.drawDistributionRow(doc, [
-            { label: 'Resolved', value: resolvedTickets, total: totalTickets },
-            { label: 'Open', value: openTickets, total: totalTickets },
+            { label: 'Tiket Selesai (Resolved)', value: resolvedTickets, total: totalTickets, color: C.positive },
+            { label: 'Tiket Masih Terbuka (Open)', value: openTickets, total: totalTickets, color: C.caution },
         ]);
 
-        // Summary table
-        doc.y += 20;
-        this.drawSectionLabel(doc, 'Summary Statistics');
+        // Summary Statistics Table
+        this.drawSectionLabel(doc, 'Tabel Ringkasan Metrik Operasional');
         this.drawKeyValueTable(doc, [
-            { metric: 'Report Period', value: `${MONTH_NAMES[stats.month - 1]} ${stats.year}` },
-            { metric: 'Total Tickets Created', value: String(totalTickets) },
-            { metric: 'Tickets Resolved', value: String(resolvedTickets) },
-            { metric: 'Tickets Still Open', value: String(openTickets) },
-            { metric: 'Resolution Rate', value: `${resolutionRate.toFixed(1)}%` },
-            { metric: 'Average Resolution Time', value: `${avgHours.toFixed(2)} hours` },
+            { metric: 'Periode Laporan', value: `${monthName} ${stats.year}` },
+            { metric: 'Cakupan Unit / Site', value: options.siteName || 'Seluruh Site PT Santos Jaya Abadi' },
+            { metric: 'Total Tiket Masuk', value: `${totalTickets.toLocaleString('id-ID')} tiket` },
+            { metric: 'Total Tiket Terselesaikan', value: `${resolvedTickets.toLocaleString('id-ID')} tiket` },
+            { metric: 'Tiket Dalam Pengerjaan / Antrean', value: `${openTickets.toLocaleString('id-ID')} tiket` },
+            { metric: 'Rasio Penyelesaian (Resolution Rate)', value: `${resolutionRate.toFixed(2)}%` },
+            { metric: 'Rata-rata Durasi Resolusi Tiket', value: `${avgHours.toFixed(2)} jam` },
+            { metric: 'Status Efektivitas Helpdesk', value: resolutionRate >= 90 ? 'OPTIMAL (Sangat Baik)' : resolutionRate >= 75 ? 'STABIL (Baik)' : 'MEMERLUKAN MONITORING' },
         ]);
+
+        // Approval Section
+        this.drawSignOffSection(doc, options.author || 'IT Service Desk Specialist', 'IT Operations Manager');
 
         this.drawFooter(doc);
         doc.end();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // PRIMITIVE DRAWING METHODS
-    // ═══════════════════════════════════════════════════════════
-
     /**
-     * Header — dark neutral bar, not brand-colored
+     * Generate Agent Performance PDF Report
      */
-    private drawHeader(doc: any, options: PDFReportOptions): void {
-        // Dark header band
-        doc.rect(0, 0, 612, 72).fill(C.headerBg);
+    async generateAgentPerformancePDF(
+        res: Response,
+        metrics: AgentMetrics[],
+        options: PDFReportOptions,
+    ): Promise<void> {
+        const doc = new PDFDocument({ margin: 36, size: 'A4', bufferPages: true });
 
-        // Thin accent rule at bottom of header
-        doc.rect(0, 72, 612, 1).fill(C.rule);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename=agent-performance-${Date.now()}.pdf`,
+        );
 
-        // Left: Company identity
-        doc.fontSize(16).font('Helvetica-Bold').fillColor(C.white)
-            .text('iDesk', 40, 22);
-        doc.fontSize(8).font('Helvetica').fillColor(C.headerAccent)
-            .text('ENTERPRISE HELPDESK', 40, 42);
+        doc.pipe(res);
 
-        // Right: Report title
-        doc.fontSize(13).font('Helvetica-Bold').fillColor(C.white)
-            .text(options.title, 240, 22, { align: 'right', width: 310 });
+        // Corporate Header
+        this.drawCorporateHeader(doc, {
+            ...options,
+            title: 'Laporan Kinerja Teknisi (Agent Performance)',
+            subtitle: this.formatDateRangeSubtitle(options.dateRange),
+            siteName: options.siteName || 'Semua Site',
+            docNo: options.docNo || `REP-AGT-${Date.now().toString().slice(-6)}`,
+        });
 
-        if (options.subtitle) {
-            doc.fontSize(9).font('Helvetica').fillColor(C.headerAccent)
-                .text(options.subtitle, 240, 40, { align: 'right', width: 310 });
+        // Summary Calculations
+        const totalAgents = metrics.length;
+        const totalAssignedAll = metrics.reduce((sum, m) => sum + (Number(m.totalAssigned) || 0), 0);
+        const totalResolvedAll = metrics.reduce((sum, m) => sum + (Number(m.totalResolved) || 0), 0);
+        const avgResolutionRate = metrics.length > 0
+            ? metrics.reduce((sum, m) => sum + (Number(m.resolutionRate) || 0), 0) / metrics.length
+            : 0;
+        const avgSLA = metrics.length > 0
+            ? metrics.reduce((sum, m) => sum + (Number(m.slaComplianceRate) || 0), 0) / metrics.length
+            : 0;
+        const bestAgent = metrics.length > 0
+            ? metrics.reduce((best, m) => (m.resolutionRate || 0) > (best.resolutionRate || 0) ? m : best, metrics[0])
+            : null;
+
+        const insights = generateExecutiveInsights({
+            totalTickets: totalAssignedAll,
+            resolvedTickets: totalResolvedAll,
+            resolutionRate: avgResolutionRate,
+            slaComplianceRate: avgSLA,
+            agentCount: totalAgents,
+            topPerformer: bestAgent ? { name: bestAgent.agentName, resolutionRate: bestAgent.resolutionRate, count: bestAgent.totalResolved } : undefined,
+        });
+
+        // Executive Summary Section
+        this.drawExecutiveSectionHeader(doc, 'Executive Summary & Evaluasi Kinerja Teknisi');
+        const kpiY = doc.y + 6;
+        this.drawEnhancedKpiGrid(doc, kpiY, [
+            { label: 'TOTAL TEKNISI', value: String(totalAgents), subtext: 'Teknisi Aktif Dievaluasi' },
+            { label: 'AVG RESOLUSI', value: `${avgResolutionRate.toFixed(1)}%`, subtext: `${totalResolvedAll}/${totalAssignedAll} Tiket Selesai`, status: 'positive' },
+            { label: 'KEPATUHAN SLA', value: `${avgSLA.toFixed(1)}%`, subtext: 'Rata-rata Kepatuhan SLA', status: avgSLA >= 90 ? 'positive' : 'caution' },
+            { label: 'TOP PERFORMER', value: bestAgent?.agentName?.split(' ')[0] || '—', subtext: `${bestAgent?.resolutionRate?.toFixed(1) || 0}% Selesai` },
+        ]);
+
+        this.drawInsightBox(doc, insights);
+
+        // Agent Details Table
+        this.drawSectionLabel(doc, 'Rincian Metrik Evaluasi Performa Setiap Teknisi');
+        this.drawAgentTable(doc, metrics);
+
+        // Sign-off
+        if (doc.y > 675) {
+            doc.addPage();
+            doc.y = 36;
         }
+        this.drawSignOffSection(doc, options.author || 'IT Service Lead', 'Head of ICT / Manager');
 
-        // Date info — small, right-aligned
-        if (options.dateRange) {
-            const s = options.dateRange.startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-            const e = options.dateRange.endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-            doc.fontSize(8).fillColor(C.textFaint)
-                .text(`Period: ${s} — ${e}`, 240, 54, { align: 'right', width: 310 });
-        } else {
-            doc.fontSize(8).fillColor(C.textFaint)
-                .text(`Generated: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 240, 54, { align: 'right', width: 310 });
-        }
-
-        doc.fillColor(C.text);
-        doc.y = 84;
+        this.drawFooter(doc);
+        doc.end();
     }
 
     /**
-     * Metric strip — horizontal row of key figures, no colored fills
+     * Generate Ticket Volume PDF Report
      */
-    private drawMetricStrip(doc: any, y: number, items: { label: string; value: string }[]): void {
-        const totalWidth = 515;
-        const itemWidth = totalWidth / items.length;
+    async generateTicketVolumePDF(
+        res: Response,
+        volumeData: TicketVolumeData,
+        options: PDFReportOptions,
+    ): Promise<void> {
+        const doc = new PDFDocument({ margin: 36, size: 'A4', bufferPages: true });
 
-        // Light background band
-        doc.rect(40, y, totalWidth, 42).fill(C.cardBg);
-        doc.rect(40, y, totalWidth, 42).strokeColor(C.rule).stroke();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename=ticket-volume-${Date.now()}.pdf`,
+        );
 
-        items.forEach((item, i) => {
-            const x = 40 + (i * itemWidth);
+        doc.pipe(res);
 
-            // Vertical divider (except first)
-            if (i > 0) {
-                doc.moveTo(x, y + 6).lineTo(x, y + 36).strokeColor(C.rule).stroke();
+        // Corporate Header
+        this.drawCorporateHeader(doc, {
+            ...options,
+            title: 'Laporan Volume & Distribusi Tiket',
+            subtitle: this.formatDateRangeSubtitle(options.dateRange),
+            siteName: options.siteName || 'Semua Site',
+            docNo: options.docNo || `REP-VOL-${Date.now().toString().slice(-6)}`,
+        });
+
+        const totalCreated = Number(volumeData.summary.totalCreated) || 0;
+        const totalResolved = Number(volumeData.summary.totalResolved) || 0;
+        const totalPending = Number(volumeData.summary.totalPending) || 0;
+        const avgPerDay = Number(volumeData.summary.avgPerDay) || 0;
+        const resolutionRate = totalCreated > 0 ? (totalResolved / totalCreated) * 100 : 0;
+
+        const insights = generateExecutiveInsights({
+            totalTickets: totalCreated,
+            resolvedTickets: totalResolved,
+            openTickets: totalPending,
+            resolutionRate,
+            byPriority: volumeData.byPriority,
+            byCategory: volumeData.byCategory,
+        });
+
+        // Executive Summary Section
+        this.drawExecutiveSectionHeader(doc, 'Executive Summary & Analisis Beban Kerja');
+        const kpiY = doc.y + 6;
+        this.drawEnhancedKpiGrid(doc, kpiY, [
+            { label: 'TIKET MASUK', value: totalCreated.toLocaleString('id-ID'), subtext: 'Total Tiket Baru' },
+            { label: 'TERSELESAIKAN', value: totalResolved.toLocaleString('id-ID'), subtext: `${resolutionRate.toFixed(1)}% Tingkat Resolusi`, status: 'positive' },
+            { label: 'PENDING / AKTIF', value: totalPending.toLocaleString('id-ID'), subtext: 'Tiket Berjalan', status: totalPending > 0 ? 'caution' : 'positive' },
+            { label: 'RATA-RATA / HARI', value: avgPerDay.toFixed(1), subtext: `Peak: ${volumeData.summary.peakCount || 0} (${volumeData.summary.peakDay || '—'})` },
+        ]);
+
+        this.drawInsightBox(doc, insights);
+
+        // Daily Trend Chart
+        if (volumeData.daily && volumeData.daily.length > 0) {
+            this.drawSectionLabel(doc, 'Tren Volume Tiket Harian (Created vs Resolved)');
+            this.drawDailyVolumeChart(doc, volumeData.daily);
+        }
+
+        // Breakdown Columns
+        this.drawSectionLabel(doc, 'Distribusi Berdasarkan Kategori, Prioritas & Status');
+        const infoY = doc.y;
+        this.drawKeyValueList(doc, 36, infoY, 'Menurut Kategori', volumeData.byCategory);
+        this.drawKeyValueList(doc, 215, infoY, 'Menurut Prioritas', volumeData.byPriority);
+        this.drawKeyValueList(doc, 395, infoY, 'Menurut Status', volumeData.byStatus);
+
+        // Sign-off
+        doc.y = infoY + 84;
+        if (doc.y > 675) {
+            doc.addPage();
+            doc.y = 36;
+        }
+        this.drawSignOffSection(doc, options.author || 'IT Service Lead', 'IT Operations Manager');
+
+        this.drawFooter(doc);
+        doc.end();
+    }
+
+    /**
+     * Generate Comprehensive Manager Report PDF
+     */
+    async generateManagerReportPDF(
+        res: Response,
+        report: {
+            period: string;
+            sites: string[];
+            sections: string[];
+            ticketStats?: { total: number; byPriority: Record<string, number>; byStatus: Record<string, number>; byCategory?: Record<string, number>; created: number; resolved: number };
+            agentPerformance?: Array<{ agentName: string; siteCode: string; totalAssigned: number; resolved: number; avgResolutionHours: number; slaCompliance: number }>;
+            slaMetrics?: { totalTickets: number; onTime: number; breached: number; complianceRate: number; avgResponseTimeMinutes: number; avgResolutionTimeHours: number };
+            trends?: Array<{ date: string; created: number; resolved: number }>;
+            criticalTickets?: Array<{ id?: string; ticketNumber: string | null; title: string; status: string; createdAt: Date; assignedToName: string | null }>;
+            summary?: { totalTickets: number; resolvedTickets: number; slaComplianceRate: number; siteCount: number; agentCount: number };
+            siteComparison?: Array<{ siteCode: string; siteName: string; ticketStats: { total: number; created: number; resolved: number }; slaMetrics: { complianceRate: number } }>;
+        },
+        options: PDFReportOptions,
+    ): Promise<void> {
+        const doc = new PDFDocument({ margin: 36, size: 'A4', bufferPages: true });
+        doc.pipe(res);
+
+        const scopeLabel = report.sites && report.sites.length > 0
+            ? `Site: ${report.sites.join(', ')}`
+            : 'Seluruh Site Operasional';
+
+        // Corporate Header
+        this.drawCorporateHeader(doc, {
+            ...options,
+            title: 'Laporan Manajemen & Evaluasi Layanan IT',
+            subtitle: `Periode: ${report.period}`,
+            siteName: scopeLabel,
+            docNo: options.docNo || `REP-MGR-${Date.now().toString().slice(-6)}`,
+        });
+
+        // ── Executive Summary (KPI Cards + Smart Insights) ──────
+        const summary = report.summary || {
+            totalTickets: report.ticketStats?.total || 0,
+            resolvedTickets: report.ticketStats?.resolved || 0,
+            slaComplianceRate: report.slaMetrics?.complianceRate || 0,
+            siteCount: report.sites?.length || 1,
+            agentCount: report.agentPerformance?.length || 0,
+        };
+
+        const resRate = summary.totalTickets > 0 ? (summary.resolvedTickets / summary.totalTickets) * 100 : 0;
+        const topAgent = report.agentPerformance && report.agentPerformance.length > 0
+            ? report.agentPerformance.reduce((b, a) => (a.resolved > b.resolved ? a : b), report.agentPerformance[0])
+            : undefined;
+
+        const insights = generateExecutiveInsights({
+            periodLabel: report.period,
+            totalTickets: summary.totalTickets,
+            resolvedTickets: summary.resolvedTickets,
+            resolutionRate: resRate,
+            slaComplianceRate: summary.slaComplianceRate,
+            breachedTickets: report.slaMetrics?.breached,
+            avgResolutionTimeHours: report.slaMetrics?.avgResolutionTimeHours,
+            byPriority: report.ticketStats?.byPriority,
+            byCategory: report.ticketStats?.byCategory,
+            topPerformer: topAgent ? { name: topAgent.agentName, count: topAgent.resolved } : undefined,
+            siteCount: summary.siteCount,
+            agentCount: summary.agentCount,
+        });
+
+        this.drawExecutiveSectionHeader(doc, 'Executive Summary & Rekomendasi Manajemen');
+        const kpiY = doc.y + 6;
+        this.drawEnhancedKpiGrid(doc, kpiY, [
+            { label: 'TOTAL TIKET', value: summary.totalTickets.toLocaleString('id-ID'), subtext: `${summary.siteCount} Site Terlingkup` },
+            { label: 'TERSELESAIKAN', value: summary.resolvedTickets.toLocaleString('id-ID'), subtext: `${resRate.toFixed(1)}% Resolution Rate`, status: 'positive' },
+            { label: 'KEPATUHAN SLA', value: `${summary.slaComplianceRate}%`, subtext: 'Target Standard SLA', status: summary.slaComplianceRate >= 90 ? 'positive' : 'caution' },
+            { label: 'TEKNISI & SITE', value: `${summary.agentCount} Agt / ${summary.siteCount} Site`, subtext: 'Kapasitas Tim Aktif' },
+        ]);
+
+        this.drawInsightBox(doc, insights);
+
+        // ── Ticket Statistics ───────────────────────────────────
+        if (report.ticketStats) {
+            if (doc.y > 620) doc.addPage();
+            this.drawSectionLabel(doc, 'Statistik Volume & Distribusi Tiket');
+            const ts = report.ticketStats;
+            this.drawKeyValueTable(doc, [
+                { metric: 'Total Tiket Terdaftar', value: `${ts.total.toLocaleString('id-ID')} tiket` },
+                { metric: 'Tiket Selesai Pada Periode Ini', value: `${ts.resolved.toLocaleString('id-ID')} tiket` },
+                ...Object.entries(ts.byPriority || {}).map(([k, v]) => ({ metric: `Prioritas — ${k}`, value: `${v} tiket` })),
+                ...Object.entries(ts.byStatus || {}).map(([k, v]) => ({ metric: `Status — ${k}`, value: `${v} tiket` })),
+            ]);
+            doc.moveDown(0.8);
+        }
+
+        // ── SLA Performance ─────────────────────────────────────
+        if (report.slaMetrics) {
+            if (doc.y > 620) doc.addPage();
+            this.drawSectionLabel(doc, 'Kinerja Service Level Agreement (SLA)');
+            const sl = report.slaMetrics;
+            const avgResp = Number(sl.avgResponseTimeMinutes) || 0;
+            const avgResH = Number(sl.avgResolutionTimeHours) || 0;
+
+            this.drawKeyValueTable(doc, [
+                { metric: 'Tiket Selesai yang Dievaluasi', value: `${sl.totalTickets} tiket` },
+                { metric: 'Penyelesaian Tepat Waktu (On-Time SLA)', value: `${sl.onTime} tiket` },
+                { metric: 'Penyelesaian Terlambat (Breached SLA)', value: `${sl.breached} tiket` },
+                { metric: 'Tingkat Kepatuhan SLA', value: `${sl.complianceRate}%` },
+                { metric: 'Rata-rata Waktu Respon Awal', value: `${avgResp.toFixed(1)} menit` },
+                { metric: 'Rata-rata Waktu Resolusi Keseluruhan', value: `${avgResH.toFixed(2)} jam` },
+            ]);
+            doc.moveDown(0.8);
+        }
+
+        // ── Agent Performance ────────────────────────────────────
+        if (report.agentPerformance && report.agentPerformance.length > 0) {
+            if (doc.y > 600) doc.addPage();
+            this.drawSectionLabel(doc, 'Evaluasi Beban Kerja & Kinerja Teknisi');
+            this.drawManagerAgentTable(doc, report.agentPerformance);
+            doc.moveDown(0.8);
+        }
+
+        // ── Site Comparison ──────────────────────────────────────
+        if (report.siteComparison && report.siteComparison.length > 0) {
+            if (doc.y > 600) doc.addPage();
+            this.drawSectionLabel(doc, 'Perbandingan Kinerja Antar Site Operasional');
+            this.drawSiteComparisonTable(doc, report.siteComparison);
+            doc.moveDown(0.8);
+        }
+
+        // ── Critical Tickets ─────────────────────────────────────
+        if (report.criticalTickets && report.criticalTickets.length > 0) {
+            if (doc.y > 600) doc.addPage();
+            this.drawSectionLabel(doc, 'Daftar Tiket Kritis & Prioritas Tinggi');
+            this.drawCriticalTicketsTable(doc, report.criticalTickets);
+            doc.moveDown(0.8);
+        }
+
+        // Sign-off / Approval Block
+        if (doc.y > 660) doc.addPage();
+        this.drawSignOffSection(doc, options.author || 'IT Service Specialist', 'IT Manager / Department Head');
+
+        this.drawFooter(doc);
+        doc.end();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DRAWING PRIMITIVES & CORPORATE COMPONENTS
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Draw Formal Corporate Header with PT Santos Jaya Abadi Logo
+     */
+    private drawCorporateHeader(doc: any, options: PDFReportOptions): void {
+        const startX = 36;
+        const startY = 32;
+        const pageWidth = 523; // 595 - 72
+        const headerH = 74;
+
+        const col1W = 120; // Logo & Company
+        const col3W = 155; // Metadata Block
+        const col2W = pageWidth - col1W - col3W; // Title Block (248)
+
+        // Outer header box with navy accent top line
+        doc.rect(startX, startY, pageWidth, headerH).fill(C.cardBg);
+        doc.rect(startX, startY, pageWidth, headerH).lineWidth(0.8).strokeColor(C.cardBorder).stroke();
+        doc.rect(startX, startY, pageWidth, 2.5).fill(C.brandNavy); // Top Brand Accent Strip
+
+        // Vertical dividers
+        doc.moveTo(startX + col1W, startY + 2.5).lineTo(startX + col1W, startY + headerH).lineWidth(0.5).strokeColor(C.rule).stroke();
+        doc.moveTo(startX + col1W + col2W, startY + 2.5).lineTo(startX + col1W + col2W, startY + headerH).stroke();
+
+        // ── Column 1: Logo & Company Name ──
+        const logoPathCandidates = [
+            path.join(__dirname, '../../assets/santos-logo.png'),
+            path.join(process.cwd(), 'src/assets/santos-logo.png'),
+            path.join(process.cwd(), 'apps/backend/src/assets/santos-logo.png'),
+            path.join(process.cwd(), 'dist/assets/santos-logo.png'),
+            path.resolve(__dirname, '../../../../../login picture/gb-putih.png'),
+        ];
+
+        let logoLoaded = false;
+        for (const p of logoPathCandidates) {
+            if (fs.existsSync(p)) {
+                try {
+                    doc.image(p, startX + (col1W - 38) / 2, startY + 7, { fit: [38, 28], align: 'center', valign: 'center' });
+                    logoLoaded = true;
+                    break;
+                } catch {
+                    // ignore
+                }
             }
+        }
 
-            // Label — uppercase, tiny
-            doc.fontSize(7).font('Helvetica').fillColor(C.textFaint)
-                .text(item.label, x + 12, y + 8, { width: itemWidth - 24 });
+        if (!logoLoaded) {
+            const logoCenterX = startX + col1W / 2;
+            doc.save();
+            doc.fillColor('#DC2626').polygon([logoCenterX - 8, startY + 8], [logoCenterX, startY + 18], [logoCenterX - 8, startY + 28]).fill();
+            doc.fillColor('#16A34A').polygon([logoCenterX + 8, startY + 8], [logoCenterX, startY + 18], [logoCenterX + 8, startY + 28]).fill();
+            doc.restore();
+        }
 
-            // Value — large
-            doc.fontSize(16).font('Helvetica-Bold').fillColor(C.black)
-                .text(item.value, x + 12, y + 20, { width: itemWidth - 24 });
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor(C.brandNavyDark)
+            .text('PT SANTOS JAYA ABADI', startX + 4, startY + 44, { width: col1W - 8, align: 'center' });
+        doc.font('Helvetica').fontSize(5.5).fillColor(C.textMuted)
+            .text('iDesk Helpdesk System', startX + 4, startY + 56, { width: col1W - 8, align: 'center' });
+
+        // ── Column 2: Document Title, Subtitle, Scope (Dynamic Height) ──
+        const titleX = startX + col1W + 10;
+        const titleW = col2W - 20;
+
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C.brandNavyDark);
+        const titleText = options.title.toUpperCase();
+        doc.text(titleText, titleX, startY + 8, { width: titleW, lineGap: 1.5 });
+        const titleHeight = doc.heightOfString(titleText, { width: titleW, lineGap: 1.5 });
+
+        let currentY = startY + 8 + titleHeight + 3;
+
+        if (options.subtitle) {
+            doc.font('Helvetica-Bold').fontSize(7.5).fillColor(C.brandBlue)
+                .text(options.subtitle, titleX, currentY, { width: titleW, lineBreak: false });
+            currentY += 12;
+        }
+
+        doc.font('Helvetica').fontSize(6.8).fillColor(C.textMuted)
+            .text(`Scope: ${options.siteName || 'Semua Site'}`, titleX, currentY, { width: titleW, lineBreak: false });
+
+        // ── Column 3: Metadata Box ──
+        const metaX = startX + col1W + col2W + 8;
+        const valX = metaX + 52;
+        const metaW = col3W - 60;
+        const rowH = 13.5;
+        let mY = startY + 8;
+
+        doc.font('Helvetica').fontSize(6.8).fillColor(C.textMuted);
+        doc.text('No. Dokumen', metaX, mY);
+        doc.font('Helvetica-Bold').fillColor(C.brandNavyDark).text(`: ${options.docNo || 'iDesk-RPT'}`, valX, mY, { width: metaW });
+
+        mY += rowH;
+        doc.font('Helvetica').fillColor(C.textMuted).text('Tgl Cetak', metaX, mY);
+        const printDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        doc.font('Helvetica-Bold').fillColor(C.brandNavyDark).text(`: ${printDate}`, valX, mY, { width: metaW });
+
+        mY += rowH;
+        doc.font('Helvetica').fillColor(C.textMuted).text('Waktu', metaX, mY);
+        const printTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        doc.font('Helvetica').fillColor(C.brandNavyDark).text(`: ${printTime} WIB`, valX, mY, { width: metaW });
+
+        mY += rowH;
+        doc.font('Helvetica').fillColor(C.textMuted).text('Sifat', metaX, mY);
+        doc.font('Helvetica-Bold').fillColor(C.critical).text(': RAHASIA / INTERNAL', valX, mY, { width: metaW });
+
+        doc.fillColor(C.text);
+        doc.y = startY + headerH + 12;
+    }
+
+    /**
+     * Draw Executive Section Banner Header
+     */
+    private drawExecutiveSectionHeader(doc: any, title: string): void {
+        const x = 36;
+        const w = 523;
+        const y = doc.y;
+
+        doc.rect(x, y, w, 20).fill(C.bannerBg);
+        doc.rect(x, y, 3.5, 20).fill(C.brandNavy);
+        doc.rect(x, y, w, 20).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
+
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.brandNavyDark)
+            .text(title.toUpperCase(), x + 10, y + 5.5);
+
+        doc.y = y + 20;
+        doc.fillColor(C.text);
+    }
+
+    /**
+     * Section label — thin rule with bold uppercase label
+     */
+    private drawSectionLabel(doc: any, title: string): void {
+        doc.moveDown(0.5);
+        const y = doc.y;
+        doc.fontSize(8.2).font('Helvetica-Bold').fillColor(C.brandNavyDark)
+            .text(title.toUpperCase(), 36, y);
+        doc.moveTo(36, doc.y + 2).lineTo(559, doc.y + 2).lineWidth(0.6).strokeColor(C.ruleStrong).stroke();
+        doc.moveDown(0.3);
+        doc.fillColor(C.text);
+    }
+
+    /**
+     * Enhanced KPI Grid (4 Cards per row with border and colored subtext)
+     */
+    private drawEnhancedKpiGrid(
+        doc: any,
+        y: number,
+        cards: Array<{ label: string; value: string; subtext?: string; status?: 'positive' | 'caution' | 'critical' }>
+    ): void {
+        const totalW = 523;
+        const gap = 8;
+        const cardW = (totalW - (gap * (cards.length - 1))) / cards.length;
+        const cardH = 46;
+
+        cards.forEach((card, i) => {
+            const cx = 36 + i * (cardW + gap);
+
+            // Card Container
+            doc.rect(cx, y, cardW, cardH).fill(C.cardFill);
+            doc.rect(cx, y, cardW, cardH).lineWidth(0.6).strokeColor(C.cardBorder).stroke();
+
+            // Card Top Accent Border
+            const accentColor = card.status === 'positive' ? C.positive : card.status === 'caution' ? C.caution : card.status === 'critical' ? C.critical : C.brandBlue;
+            doc.rect(cx, y, cardW, 2.5).fill(accentColor);
+
+            // Label
+            doc.fontSize(6.8).font('Helvetica-Bold').fillColor(C.textMuted)
+                .text(card.label.toUpperCase(), cx + 8, y + 5.5, { width: cardW - 16, align: 'left' });
+
+            // Value
+            doc.fontSize(13.5).font('Helvetica-Bold').fillColor(C.brandNavyDark)
+                .text(card.value, cx + 8, y + 15, { width: cardW - 16, align: 'left' });
+
+            // Subtext
+            if (card.subtext) {
+                doc.fontSize(6.2).font('Helvetica').fillColor(card.status ? accentColor : C.textMuted)
+                    .text(card.subtext, cx + 8, y + 31, { width: cardW - 16, align: 'left', lineBreak: false });
+            }
         });
 
         doc.fillColor(C.text);
+        doc.y = y + cardH + 8;
     }
 
     /**
-     * Section label — thin rule with uppercase label
+     * Draw Insight Box containing smart automated takeaways with exact dynamic height calculation
      */
-    private drawSectionLabel(doc: any, title: string): void {
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(C.black)
-            .text(title.toUpperCase(), 40);
-        doc.moveTo(40, doc.y + 2).lineTo(555, doc.y + 2).lineWidth(0.5).strokeColor(C.rule).stroke();
-        doc.moveDown(0.4);
+    private drawInsightBox(doc: any, insights: string[]): void {
+        if (!insights || insights.length === 0) return;
+
+        const x = 36;
+        const w = 523;
+        const padX = 18;
+        const textX = x + padX;
+        const textW = w - padX - 10;
+        const padTop = 6;
+        const padBottom = 6;
+        const itemGap = 3.5;
+        const fontSize = 7.5;
+        const lineGap = 1.2;
+
+        doc.font('Helvetica').fontSize(fontSize);
+
+        // Precalculate dynamic heights for each insight item
+        const itemHeights = insights.map((insight) =>
+            doc.heightOfString(insight, { width: textW, lineGap })
+        );
+
+        const totalContentH = itemHeights.reduce((sum, h) => sum + h, 0) + (insights.length - 1) * itemGap;
+        const boxH = Math.max(30, padTop + totalContentH + padBottom);
+        const y = doc.y + 2;
+
+        // Container Box (Corporate Slate-50 background, Slate-300 border)
+        doc.rect(x, y, w, boxH).fill(C.cardFill);
+        doc.rect(x, y, w, boxH).lineWidth(0.6).strokeColor(C.cardBorder).stroke();
+        doc.rect(x, y, 3, boxH).fill(C.brandNavy); // Left Navy Brand accent bar
+
+        // Render bullet points & text with exact calculated offsets
+        let curY = y + padTop;
+        insights.forEach((insight, idx) => {
+            const h = itemHeights[idx];
+
+            // Bullet dot vertically aligned with first line of text
+            doc.circle(x + 10, curY + 4.5, 1.8).fill(C.brandNavy);
+
+            // Insight text
+            doc.font('Helvetica').fontSize(fontSize).fillColor(C.brandNavyDark)
+                .text(insight, textX, curY, { width: textW, lineGap });
+
+            curY += h + itemGap;
+        });
+
+        doc.y = y + boxH + 8;
         doc.fillColor(C.text);
     }
 
     /**
-     * Agent performance table — clean grid, no colored header
+     * Agent performance table
      */
     private drawAgentTable(doc: any, metrics: AgentMetrics[]): void {
-        const L = 40;
-        const W = [120, 52, 52, 60, 80, 80, 71];
+        const L = 36;
+        const W = [125, 50, 50, 65, 75, 75, 83];
         const totalW = W.reduce((a, b) => a + b, 0);
-        const headers = ['Agent', 'Assgn', 'Rslvd', 'Rate %', 'Avg Resp (m)', 'Avg Res (m)', 'SLA %'];
+        const headers = ['Nama Teknisi', 'Ditugaskan', 'Selesai', 'Tingkat %', 'Avg Respon', 'Avg Resolusi', 'SLA %'];
 
-        // Header row — dark bg
+        // Header
         const headerY = doc.y;
-        doc.rect(L, headerY, totalW, 20).fill(C.headerBg);
+        doc.rect(L, headerY, totalW, 19).fill(C.headerBg);
         let x = L;
-        doc.fontSize(8).font('Helvetica-Bold').fillColor(C.white);
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.white);
         headers.forEach((h, i) => {
-            doc.text(h, x + 4, headerY + 6, { width: W[i] - 8 });
+            doc.text(h, x + 4, headerY + 5.5, { width: W[i] - 8, align: i >= 1 ? 'center' : 'left' });
             x += W[i];
         });
 
-        // Header vertical separators
-        x = L;
-        W.forEach(w => {
-            x += w;
-            if (x < L + totalW) {
-                doc.moveTo(x, headerY).lineTo(x, headerY + 20).lineWidth(0.3).strokeColor(C.headerAccent).stroke();
-            }
-        });
+        doc.y = headerY + 19;
 
-        doc.y = headerY + 20;
-
-        // Data rows
-        doc.font('Helvetica').fontSize(8);
-        const displayed = metrics.slice(0, 15);
+        // Rows
+        doc.font('Helvetica').fontSize(7.5);
+        const displayed = metrics.slice(0, 20);
         displayed.forEach((agent, idx) => {
             const rowY = doc.y;
             if (idx % 2 === 0) {
@@ -362,316 +733,402 @@ export class PDFGeneratorService {
 
             x = L;
             doc.fillColor(C.text);
+            const resMin = Number(agent.avgResolutionTimeMinutes) || 0;
+            const resHours = (resMin / 60).toFixed(1);
+
             const vals = [
-                agent.agentName.substring(0, 18),
-                String(agent.totalAssigned),
-                String(agent.totalResolved),
-                `${agent.resolutionRate.toFixed(1)}%`,
-                String(agent.avgResponseTimeMinutes),
-                String(agent.avgResolutionTimeMinutes ?? '—'),
-                `${agent.slaComplianceRate.toFixed(1)}%`,
+                agent.agentName.substring(0, 22),
+                String(agent.totalAssigned || 0),
+                String(agent.totalResolved || 0),
+                `${(agent.resolutionRate || 0).toFixed(1)}%`,
+                `${agent.avgResponseTimeMinutes || 0} m`,
+                `${resHours} h`,
+                `${(agent.slaComplianceRate || 0).toFixed(1)}%`,
             ];
+
             vals.forEach((v, i) => {
-                doc.text(v, x + 4, rowY + 4, { width: W[i] - 8 });
+                doc.text(v, x + 4, rowY + 4, { width: W[i] - 8, align: i >= 1 ? 'center' : 'left' });
                 x += W[i];
             });
 
             // Row bottom line
             doc.moveTo(L, rowY + 16).lineTo(L + totalW, rowY + 16).lineWidth(0.3).strokeColor(C.rule).stroke();
-
-            // Vertical separators
-            x = L;
-            W.forEach(w => {
-                x += w;
-                if (x < L + totalW) {
-                    doc.moveTo(x, rowY).lineTo(x, rowY + 16).lineWidth(0.3).strokeColor(C.rule).stroke();
-                }
-            });
-
             doc.y = rowY + 16;
         });
 
         // Outer border
-        const tableTop = headerY;
-        const tableHeight = 20 + (displayed.length * 16);
-        doc.rect(L, tableTop, totalW, tableHeight).lineWidth(0.5).strokeColor(C.rule).stroke();
+        const tableHeight = 19 + (displayed.length * 16);
+        doc.rect(L, headerY, totalW, tableHeight).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
     }
 
     /**
-     * Horizontal bar chart — monochrome with value labels
+     * Manager Agent performance table
      */
-    private drawBarChart(doc: any, data: { label: string; value: number; max: number }[]): void {
-        const barColor = C.text;         // Dark neutral bars
-        const trackColor = C.bgSubtle;
+    private drawManagerAgentTable(
+        doc: any,
+        perf: Array<{ agentName: string; siteCode: string; totalAssigned: number; resolved: number; avgResolutionHours: number; slaCompliance: number }>
+    ): void {
+        const L = 36;
+        const W = [140, 60, 65, 65, 95, 98];
+        const totalW = W.reduce((a, b) => a + b, 0);
+        const headers = ['Nama Teknisi', 'Lokasi Site', 'Ditugaskan', 'Selesai', 'Avg Resolusi (Jam)', 'Kepatuhan SLA'];
 
-        data.slice(0, 8).forEach((item) => {
-            const barWidth = (item.value / item.max) * 340;
-
-            doc.fontSize(8).font('Helvetica').fillColor(C.text)
-                .text(item.label, 40, doc.y, { width: 95 });
-
-            doc.rect(142, doc.y - 1, 340, 12).fill(trackColor);
-            doc.rect(142, doc.y - 1, barWidth, 12).fill(barColor);
-
-            doc.fontSize(7).fillColor(C.textMuted)
-                .text(`${item.value.toFixed(1)}%`, 490, doc.y, { width: 50 });
-
-            doc.y += 16;
-        });
-        doc.fillColor(C.text);
-    }
-
-    /**
-     * Daily volume chart — paired bars
-     */
-    private drawDailyVolumeChart(doc: any, daily: { date: string; created: number; resolved: number }[]): void {
-        const chartH = 75;
-        const chartW = 515;
-        const chartX = 40;
-        const chartY = doc.y + 8;
-
-        const maxVal = Math.max(...daily.map(d => Math.max(d.created, d.resolved)), 1);
-
-        // Axes
-        doc.moveTo(chartX, chartY).lineTo(chartX, chartY + chartH).lineWidth(0.5).strokeColor(C.rule).stroke();
-        doc.moveTo(chartX, chartY + chartH).lineTo(chartX + chartW, chartY + chartH).stroke();
-
-        const barW = Math.min(10, chartW / (daily.length * 2.5));
-        const gap = barW * 0.4;
-
-        daily.slice(-31).forEach((day, i) => {
-            const x = chartX + 8 + (i * (barW * 2 + gap));
-            const cH = (day.created / maxVal) * (chartH - 8);
-            const rH = (day.resolved / maxVal) * (chartH - 8);
-
-            doc.rect(x, chartY + chartH - cH, barW, cH).fill(C.text);
-            doc.rect(x + barW, chartY + chartH - rH, barW, rH).fill(C.textMuted);
+        const headerY = doc.y;
+        doc.rect(L, headerY, totalW, 19).fill(C.headerBg);
+        let x = L;
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.white);
+        headers.forEach((h, i) => {
+            doc.text(h, x + 4, headerY + 5.5, { width: W[i] - 8, align: i >= 2 ? 'center' : 'left' });
+            x += W[i];
         });
 
-        // Legend
-        doc.y = chartY + chartH + 8;
-        doc.rect(chartX + 200, doc.y, 8, 8).fill(C.text);
-        doc.fontSize(7).fillColor(C.text).text('Created', chartX + 212, doc.y + 1);
-        doc.rect(chartX + 270, doc.y, 8, 8).fill(C.textMuted);
-        doc.text('Resolved', chartX + 282, doc.y + 1);
+        doc.y = headerY + 19;
 
-        doc.y += 16;
-        doc.fillColor(C.text);
-    }
+        doc.font('Helvetica').fontSize(7.5);
+        perf.slice(0, 20).forEach((a, idx) => {
+            const rowY = doc.y;
+            if (idx % 2 === 0) doc.rect(L, rowY, totalW, 16).fill(C.bgSubtle);
 
-    /**
-     * Key-value list — compact section with bullet points
-     */
-    private drawKeyValueList(doc: any, x: number, y: number, title: string, data: Record<string, number>): void {
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(C.black).text(title.toUpperCase(), x, y);
-        doc.font('Helvetica').fontSize(8).fillColor(C.text);
+            x = L;
+            doc.fillColor(C.text);
+            const avgH = Number(a.avgResolutionHours) || 0;
+            const sla = Number(a.slaCompliance) || 0;
 
-        let itemY = y + 16;
-        Object.entries(data).slice(0, 6).forEach(([key, value]) => {
-            doc.fillColor(C.textMuted).text('—', x, itemY, { continued: true });
-            doc.fillColor(C.text).text(` ${key}: `, { continued: true });
-            doc.font('Helvetica-Bold').text(String(value));
-            doc.font('Helvetica');
-            itemY += 13;
-        });
-    }
+            const vals = [
+                a.agentName.substring(0, 24),
+                a.siteCode || '—',
+                String(a.totalAssigned || 0),
+                String(a.resolved || 0),
+                `${avgH.toFixed(1)} jam`,
+                `${sla.toFixed(1)}%`,
+            ];
 
-    /**
-     * Progress bar — flat, no rounded corners
-     */
-    private drawProgressBar(doc: any, x: number, y: number, width: number, label: string, value: number, max: number): void {
-        doc.fontSize(9).font('Helvetica').fillColor(C.text).text(label, x, y);
-        doc.fontSize(9).font('Helvetica-Bold').text(`${value.toFixed(1)}%`, x + width - 50, y, { width: 50, align: 'right' });
+            vals.forEach((v, i) => {
+                doc.text(v, x + 4, rowY + 4, { width: W[i] - 8, align: i >= 2 ? 'center' : 'left' });
+                x += W[i];
+            });
 
-        // Track
-        doc.rect(x, y + 16, width, 12).fill(C.bgSubtle);
-        doc.rect(x, y + 16, width, 12).strokeColor(C.rule).stroke();
-
-        // Fill — use dark neutral
-        const fillWidth = (value / max) * width;
-        doc.rect(x, y + 16, Math.max(fillWidth, 4), 12).fill(C.text);
-
-        doc.fillColor(C.text);
-    }
-
-    /**
-     * Distribution row — percentage bars with labels
-     */
-    private drawDistributionRow(doc: any, items: { label: string; value: number; total: number }[]): void {
-        items.forEach((item) => {
-            const pct = item.total > 0 ? ((item.value / item.total) * 100).toFixed(1) : '0';
-
-            doc.fontSize(9).font('Helvetica').fillColor(C.text)
-                .text(`${item.label}: ${item.value}`, 40, doc.y, { continued: true });
-            doc.fillColor(C.textMuted).text(` (${pct}%)`);
+            doc.moveTo(L, rowY + 16).lineTo(L + totalW, rowY + 16).lineWidth(0.3).strokeColor(C.rule).stroke();
+            doc.y = rowY + 16;
         });
 
-        doc.moveDown(0.3);
-        doc.fillColor(C.text);
+        doc.rect(L, headerY, totalW, 19 + perf.slice(0, 20).length * 16).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
     }
 
     /**
-     * Key-value summary table — clean grid
+     * Site Comparison Table
+     */
+    private drawSiteComparisonTable(
+        doc: any,
+        sites: Array<{ siteCode: string; siteName: string; ticketStats: { total: number; created: number; resolved: number }; slaMetrics: { complianceRate: number } }>
+    ): void {
+        const L = 36;
+        const W = [80, 160, 95, 95, 93];
+        const totalW = W.reduce((a, b) => a + b, 0);
+        const headers = ['Kode Site', 'Nama Lokasi / Unit', 'Total Tiket', 'Tiket Selesai', 'Kepatuhan SLA'];
+
+        const headerY = doc.y;
+        doc.rect(L, headerY, totalW, 19).fill(C.headerBg);
+        let x = L;
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.white);
+        headers.forEach((h, i) => {
+            doc.text(h, x + 4, headerY + 5.5, { width: W[i] - 8, align: i >= 2 ? 'center' : 'left' });
+            x += W[i];
+        });
+
+        doc.y = headerY + 19;
+
+        doc.font('Helvetica').fontSize(7.5);
+        sites.forEach((s, idx) => {
+            const rowY = doc.y;
+            if (idx % 2 === 0) doc.rect(L, rowY, totalW, 16).fill(C.bgSubtle);
+
+            x = L;
+            doc.fillColor(C.text);
+            const vals = [
+                s.siteCode,
+                s.siteName || s.siteCode,
+                String(s.ticketStats?.total || 0),
+                String(s.ticketStats?.resolved || 0),
+                `${s.slaMetrics?.complianceRate || 0}%`,
+            ];
+
+            vals.forEach((v, i) => {
+                doc.text(v, x + 4, rowY + 4, { width: W[i] - 8, align: i >= 2 ? 'center' : 'left' });
+                x += W[i];
+            });
+
+            doc.moveTo(L, rowY + 16).lineTo(L + totalW, rowY + 16).lineWidth(0.3).strokeColor(C.rule).stroke();
+            doc.y = rowY + 16;
+        });
+
+        doc.rect(L, headerY, totalW, 19 + sites.length * 16).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
+    }
+
+    /**
+     * Critical Tickets Table
+     */
+    private drawCriticalTicketsTable(
+        doc: any,
+        tickets: Array<{ ticketNumber: string | null; title: string; status: string; createdAt: Date; assignedToName: string | null }>
+    ): void {
+        const L = 36;
+        const W = [90, 200, 75, 78, 80];
+        const totalW = W.reduce((a, b) => a + b, 0);
+        const headers = ['No. Tiket', 'Judul Masalah / Insiden', 'Status', 'Tanggal Masuk', 'Teknisi'];
+
+        const headerY = doc.y;
+        doc.rect(L, headerY, totalW, 19).fill(C.headerBg);
+        let x = L;
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.white);
+        headers.forEach((h, i) => {
+            doc.text(h, x + 4, headerY + 5.5, { width: W[i] - 8, align: i === 2 ? 'center' : 'left' });
+            x += W[i];
+        });
+
+        doc.y = headerY + 19;
+
+        doc.font('Helvetica').fontSize(7);
+        tickets.slice(0, 15).forEach((t, idx) => {
+            const rowY = doc.y;
+            if (idx % 2 === 0) doc.rect(L, rowY, totalW, 15).fill(C.bgSubtle);
+
+            x = L;
+            doc.fillColor(C.text);
+            const createdStr = t.createdAt instanceof Date
+                ? t.createdAt.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                : String(t.createdAt || '—');
+
+            const vals = [
+                t.ticketNumber || '—',
+                t.title.substring(0, 36),
+                t.status,
+                createdStr,
+                t.assignedToName || 'Unassigned',
+            ];
+
+            vals.forEach((v, i) => {
+                doc.text(v, x + 4, rowY + 4, { width: W[i] - 8, align: i === 2 ? 'center' : 'left' });
+                x += W[i];
+            });
+
+            doc.moveTo(L, rowY + 15).lineTo(L + totalW, rowY + 15).lineWidth(0.3).strokeColor(C.rule).stroke();
+            doc.y = rowY + 15;
+        });
+
+        doc.rect(L, headerY, totalW, 19 + tickets.slice(0, 15).length * 15).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
+    }
+
+    /**
+     * Key-value summary table
      */
     private drawKeyValueTable(doc: any, rows: { metric: string; value: string }[]): void {
-        const L = 40;
-        const W = 515;
-        const dividerX = L + 260;
+        const L = 36;
+        const W = 523;
+        const dividerX = L + 270;
 
-        // Header row for table
         const headerY = doc.y;
         doc.rect(L, headerY, W, 18).fill(C.headerBg);
-        doc.fontSize(8).font('Helvetica-Bold').fillColor(C.white);
-        doc.text('Metric', L + 8, headerY + 5, { width: 240 });
-        doc.text('Value', dividerX + 8, headerY + 5, { width: 240 });
-        doc.moveTo(dividerX, headerY).lineTo(dividerX, headerY + 18).lineWidth(0.3).strokeColor(C.headerAccent).stroke();
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.white);
+        doc.text('Indikator / Parameter Metrik', L + 8, headerY + 5, { width: 250 });
+        doc.text('Nilai Realisasi', dividerX + 8, headerY + 5, { width: W - 280, align: 'right' });
         doc.y = headerY + 18;
 
         rows.forEach((row, idx) => {
             const rowY = doc.y;
             if (idx % 2 === 0) {
-                doc.rect(L, rowY, W, 18).fill(C.bgSubtle);
+                doc.rect(L, rowY, W, 16.5).fill(C.bgSubtle);
             }
 
-            doc.fontSize(8).font('Helvetica').fillColor(C.text)
-                .text(row.metric, L + 8, rowY + 5, { width: 245 });
+            doc.fontSize(7.5).font('Helvetica').fillColor(C.text)
+                .text(row.metric, L + 8, rowY + 4.5, { width: 255 });
             doc.font('Helvetica-Bold')
-                .text(row.value, dividerX + 8, rowY + 5, { width: W - 268, align: 'right' });
+                .text(row.value, dividerX + 8, rowY + 4.5, { width: W - 286, align: 'right' });
 
-            // Row border + vertical divider
-            doc.moveTo(L, rowY + 18).lineTo(L + W, rowY + 18).lineWidth(0.3).strokeColor(C.rule).stroke();
-            doc.moveTo(dividerX, rowY).lineTo(dividerX, rowY + 18).lineWidth(0.3).strokeColor(C.rule).stroke();
-
-            doc.y = rowY + 18;
+            doc.moveTo(L, rowY + 16.5).lineTo(L + W, rowY + 16.5).lineWidth(0.3).strokeColor(C.rule).stroke();
+            doc.y = rowY + 16.5;
         });
 
-        // Outer border
-        doc.rect(L, headerY, W, 18 + rows.length * 18).lineWidth(0.5).strokeColor(C.rule).stroke();
+        doc.rect(L, headerY, W, 18 + rows.length * 16.5).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
         doc.fillColor(C.text);
     }
 
     /**
-     * Draw a donut chart for distribution visualization
+     * Progress bar with flat container
      */
-    private drawDonutChart(
-        doc: any,
-        centerX: number,
-        centerY: number,
-        outerRadius: number,
-        innerRadius: number,
-        data: { label: string; value: number; color: string }[]
-    ): void {
-        const total = data.reduce((sum, d) => sum + d.value, 0);
-        if (total === 0) return;
+    private drawProgressBar(doc: any, x: number, y: number, width: number, label: string, value: number, max: number): void {
+        const safeVal = isNaN(value) ? 0 : Math.min(Math.max(value, 0), max);
+        doc.fontSize(8).font('Helvetica').fillColor(C.text).text(label, x, y);
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.brandNavyDark)
+            .text(`${safeVal.toFixed(1)}%`, x + width - 60, y, { width: 60, align: 'right' });
 
-        let startAngle = -Math.PI / 2;
+        // Track
+        doc.rect(x, y + 14, width, 9).fill(C.bannerBg);
+        doc.rect(x, y + 14, width, 9).lineWidth(0.5).strokeColor(C.cardBorder).stroke();
 
-        data.forEach(segment => {
-            const sweepAngle = (segment.value / total) * Math.PI * 2;
-            const endAngle = startAngle + sweepAngle;
-
-            doc.save();
-            doc.path(this.createArcPath(centerX, centerY, outerRadius, innerRadius, startAngle, endAngle))
-                .fill(segment.color);
-            doc.restore();
-
-            startAngle = endAngle;
-        });
-
-        doc.fontSize(16).font('Helvetica-Bold').fillColor(C.black)
-            .text(String(total), centerX - 25, centerY - 10, { width: 50, align: 'center' });
-        doc.fontSize(7).font('Helvetica').fillColor(C.textMuted)
-            .text('Total', centerX - 25, centerY + 8, { width: 50, align: 'center' });
-
-        let legendY = centerY + outerRadius + 12;
-        let legendX = centerX - (data.length * 50);
-        data.forEach((segment, i) => {
-            const x = legendX + (i * 100);
-            doc.rect(x, legendY, 8, 8).fill(segment.color);
-            const pct = total > 0 ? ((segment.value / total) * 100).toFixed(0) : '0';
-            doc.fontSize(7).fillColor(C.text)
-                .text(`${segment.label} (${pct}%)`, x + 12, legendY + 1);
-        });
+        // Fill
+        const fillWidth = (safeVal / max) * width;
+        const barColor = safeVal >= 90 ? C.positive : safeVal >= 70 ? C.neutral : C.caution;
+        if (fillWidth > 0) {
+            doc.rect(x, y + 14, Math.max(fillWidth, 3), 9).fill(barColor);
+        }
 
         doc.fillColor(C.text);
     }
 
     /**
-     * Create SVG-like arc path for donut segments
+     * Distribution row with colored pills
      */
-    private createArcPath(
-        cx: number, cy: number,
-        outerR: number, innerR: number,
-        startAngle: number, endAngle: number
-    ): string {
-        const outerStartX = cx + outerR * Math.cos(startAngle);
-        const outerStartY = cy + outerR * Math.sin(startAngle);
-        const outerEndX = cx + outerR * Math.cos(endAngle);
-        const outerEndY = cy + outerR * Math.sin(endAngle);
+    private drawDistributionRow(doc: any, items: { label: string; value: number; total: number; color?: string }[]): void {
+        const y = doc.y;
+        let curX = 36;
 
-        const innerStartX = cx + innerR * Math.cos(endAngle);
-        const innerStartY = cy + innerR * Math.sin(endAngle);
-        const innerEndX = cx + innerR * Math.cos(startAngle);
-        const innerEndY = cy + innerR * Math.sin(startAngle);
+        items.forEach((item) => {
+            const pct = item.total > 0 ? ((item.value / item.total) * 100).toFixed(1) : '0.0';
+            doc.rect(curX, y, 9, 9).fill(item.color || C.neutral);
+            doc.fontSize(7.8).font('Helvetica-Bold').fillColor(C.brandNavyDark)
+                .text(` ${item.label}: `, curX + 14, y + 0.5, { continued: true });
+            doc.font('Helvetica').fillColor(C.text)
+                .text(`${item.value.toLocaleString('id-ID')} `, { continued: true });
+            doc.fillColor(C.textMuted).text(`(${pct}%)`);
 
-        const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
-
-        return `
-            M ${outerStartX} ${outerStartY}
-            A ${outerR} ${outerR} 0 ${largeArcFlag} 1 ${outerEndX} ${outerEndY}
-            L ${innerStartX} ${innerStartY}
-            A ${innerR} ${innerR} 0 ${largeArcFlag} 0 ${innerEndX} ${innerEndY}
-            Z
-        `;
-    }
-
-    /**
-     * Draw enhanced metrics comparison grid
-     */
-    private drawMetricsGrid(doc: any, metrics: { label: string; value: string; change?: number }[], x: number, y: number): void {
-        const cardWidth = 120;
-        const cardHeight = 50;
-        const gap = 8;
-
-        metrics.forEach((metric, i) => {
-            const cardX = x + (i % 4) * (cardWidth + gap);
-            const cardY = y + Math.floor(i / 4) * (cardHeight + gap);
-
-            doc.rect(cardX, cardY, cardWidth, cardHeight).fill(C.cardBg);
-            doc.rect(cardX, cardY, cardWidth, cardHeight).strokeColor(C.rule).stroke();
-
-            doc.fontSize(7).font('Helvetica').fillColor(C.textFaint)
-                .text(metric.label.toUpperCase(), cardX + 8, cardY + 6, { width: cardWidth - 16 });
-
-            doc.fontSize(15).font('Helvetica-Bold').fillColor(C.black)
-                .text(metric.value, cardX + 8, cardY + 20, { width: cardWidth - 16 });
-
-            if (metric.change !== undefined) {
-                const isPositive = metric.change >= 0;
-                const arrow = isPositive ? '↑' : '↓';
-                const changeColor = isPositive ? C.positive : C.critical;
-                doc.fontSize(8).fillColor(changeColor)
-                    .text(`${arrow} ${Math.abs(metric.change).toFixed(1)}%`, cardX + 8, cardY + 38);
-            }
+            curX += 250;
         });
 
+        doc.moveDown(0.4);
         doc.fillColor(C.text);
     }
 
     /**
-     * Footer — minimal, functional
+     * Daily Volume Chart
+     */
+    private drawDailyVolumeChart(doc: any, daily: { date: string; created: number; resolved: number }[]): void {
+        const chartH = 68;
+        const chartW = 523;
+        const chartX = 36;
+        const chartY = doc.y + 4;
+
+        const maxVal = Math.max(...daily.map(d => Math.max(d.created || 0, d.resolved || 0)), 1);
+
+        // Grid lines
+        doc.rect(chartX, chartY, chartW, chartH).fill(C.bgSubtle);
+        doc.rect(chartX, chartY, chartW, chartH).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
+
+        const barW = Math.min(8.5, chartW / (daily.length * 2.5));
+        const gap = barW * 0.4;
+
+        daily.slice(-31).forEach((day, i) => {
+            const x = chartX + 8 + (i * (barW * 2 + gap));
+            const cH = Math.max(0, ((day.created || 0) / maxVal) * (chartH - 12));
+            const rH = Math.max(0, ((day.resolved || 0) / maxVal) * (chartH - 12));
+
+            doc.rect(x, chartY + chartH - cH - 2, barW, cH).fill(C.neutral);
+            doc.rect(x + barW, chartY + chartH - rH - 2, barW, rH).fill(C.positive);
+        });
+
+        // Legend
+        doc.y = chartY + chartH + 5;
+        doc.rect(chartX + 165, doc.y, 7.5, 7.5).fill(C.neutral);
+        doc.fontSize(7).fillColor(C.text).text('Tiket Masuk (Created)', chartX + 176, doc.y + 0.5);
+        doc.rect(chartX + 285, doc.y, 7.5, 7.5).fill(C.positive);
+        doc.text('Tiket Selesai (Resolved)', chartX + 296, doc.y + 0.5);
+
+        doc.y += 12;
+        doc.fillColor(C.text);
+    }
+
+    /**
+     * Key-value list for breakdown categories
+     */
+    private drawKeyValueList(doc: any, x: number, y: number, title: string, data?: Record<string, number>): void {
+        doc.fontSize(8).font('Helvetica-Bold').fillColor(C.brandNavyDark).text(title.toUpperCase(), x, y);
+        doc.font('Helvetica').fontSize(7.5).fillColor(C.text);
+
+        let itemY = y + 14;
+        const entries = Object.entries(data || {}).slice(0, 6);
+        if (entries.length === 0) {
+            doc.fillColor(C.textMuted).text('— Tidak ada data', x, itemY);
+            return;
+        }
+
+        entries.forEach(([key, value]) => {
+            doc.fillColor(C.brandBlue).text('•', x, itemY, { continued: true });
+            doc.fillColor(C.text).text(` ${key.replace('_', ' ')}: `, { continued: true });
+            doc.font('Helvetica-Bold').fillColor(C.brandNavyDark).text(String(value));
+            doc.font('Helvetica');
+            itemY += 12;
+        });
+    }
+
+    /**
+     * Official Sign-off / Approval Block
+     */
+    private drawSignOffSection(doc: any, preparedBy: string, approvedBy: string): void {
+        const startX = 36;
+        const width = 523;
+        const boxH = 62;
+        // Anchor to bottom (y = 675) if there's enough space on page, avoiding empty white void
+        const y = doc.y < 675 && doc.y > 400 ? 675 : doc.y + 10;
+
+        // Container
+        doc.rect(startX, y, width, boxH).fill(C.cardFill);
+        doc.rect(startX, y, width, boxH).lineWidth(0.5).strokeColor(C.cardBorder).stroke();
+
+        const halfW = width / 2;
+        doc.moveTo(startX + halfW, y).lineTo(startX + halfW, y + boxH).lineWidth(0.5).strokeColor(C.rule).stroke();
+
+        // Left: Disiapkan oleh
+        const leftX = startX + 14;
+        doc.fontSize(6.8).font('Helvetica-Bold').fillColor(C.textMuted).text('DISIAPKAN OLEH:', leftX, y + 6);
+        doc.moveTo(leftX, y + 42).lineTo(leftX + 160, y + 42).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.brandNavyDark).text(preparedBy, leftX, y + 45);
+        doc.fontSize(6.5).font('Helvetica').fillColor(C.textMuted).text('IT Service Desk Operations', leftX, y + 53);
+
+        // Right: Disetujui oleh
+        const rightX = startX + halfW + 14;
+        doc.fontSize(6.8).font('Helvetica-Bold').fillColor(C.textMuted).text('DIKETAHUI / DISETUJUI OLEH:', rightX, y + 6);
+        doc.moveTo(rightX, y + 42).lineTo(rightX + 160, y + 42).lineWidth(0.5).strokeColor(C.ruleStrong).stroke();
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(C.brandNavyDark).text(approvedBy, rightX, y + 45);
+        doc.fontSize(6.5).font('Helvetica').fillColor(C.textMuted).text('Head of ICT / IT Management', rightX, y + 53);
+
+        doc.y = y + boxH + 8;
+        doc.fillColor(C.text);
+    }
+
+    /**
+     * Footer — Page numbers & Confidential notice
+     * Margin bottom is temporarily set to 0 during drawing to strictly prevent auto page-breaking.
      */
     private drawFooter(doc: any): void {
         const pages = doc.bufferedPageRange();
-        for (let i = 0; i < pages.count; i++) {
-            doc.switchToPage(i);
+        const start = pages.start ?? 0;
+        const count = pages.count ?? 1;
 
-            doc.moveTo(40, 780).lineTo(555, 780).lineWidth(0.5).strokeColor(C.rule).stroke();
+        for (let i = 0; i < count; i++) {
+            doc.switchToPage(start + i);
+            const savedBottom = doc.page.margins.bottom;
+            doc.page.margins.bottom = 0;
 
-            doc.fontSize(7).fillColor(C.textFaint).font('Helvetica')
-                .text('iDesk Enterprise Helpdesk  •  Confidential', 40, 786);
-            doc.text(`Page ${i + 1} of ${pages.count}`, 250, 786, { align: 'center', width: 100 });
-            doc.text(new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }), 400, 786, { align: 'right', width: 155 });
+            doc.moveTo(36, 788).lineTo(559, 788).lineWidth(0.5).strokeColor(C.rule).stroke();
+
+            doc.fontSize(6.5).fillColor(C.textMuted).font('Helvetica')
+                .text('PT Santos Jaya Abadi  •  iDesk Enterprise Helpdesk System  •  Dokumen Internal Rahasia', 36, 792, { lineBreak: false });
+
+            doc.text(`Halaman ${i + 1} dari ${count}`, 230, 792, { align: 'center', width: 135, lineBreak: false });
+
+            doc.text(
+                new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+                410, 792, { align: 'right', width: 149, lineBreak: false }
+            );
+
+            doc.page.margins.bottom = savedBottom;
         }
+    }
+
+    private formatDateRangeSubtitle(dateRange?: { startDate: Date; endDate: Date }): string {
+        if (!dateRange) return `Per Tanggal: ${new Date().toLocaleDateString('id-ID')}`;
+        const s = dateRange.startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const e = dateRange.endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        return `Periode: ${s} — ${e}`;
     }
 }

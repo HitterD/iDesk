@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
@@ -29,7 +30,10 @@ export class UploadService {
     private readonly uploadDir: string;
     private readonly baseUrl: string;
 
-    constructor(private configService: ConfigService) {
+    constructor(
+        private configService: ConfigService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
+    ) {
         // Default upload directory
         this.uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
         this.baseUrl = this.configService.get<string>('UPLOAD_BASE_URL', '/uploads');
@@ -111,6 +115,18 @@ export class UploadService {
                     };
                     
                     this.logger.log(`Downloaded file: ${filename} (${size} bytes)`);
+
+                    if (this.eventEmitter) {
+                        this.eventEmitter.emit('file.uploaded', {
+                            filePath,
+                            relativePath: `${folder}/${filename}`,
+                            folder,
+                            filename,
+                            originalName: result.originalName,
+                            size,
+                        });
+                    }
+
                     resolve(result);
                 });
             });
@@ -156,7 +172,7 @@ export class UploadService {
         
         const mimeType = this.getMimeType(extension);
         
-        return {
+        const result: UploadedFile = {
             id: fileId,
             originalName,
             filename,
@@ -166,6 +182,19 @@ export class UploadService {
             size: buffer.length,
             createdAt: new Date(),
         };
+
+        if (this.eventEmitter) {
+            this.eventEmitter.emit('file.uploaded', {
+                filePath,
+                relativePath: `${folder}/${filename}`,
+                folder,
+                filename,
+                originalName,
+                size: buffer.length,
+            });
+        }
+
+        return result;
     }
 
     /**

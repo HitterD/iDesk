@@ -16,14 +16,11 @@ import { NotificationCenterService } from './notification-center.service';
 import { NotificationCategory } from './entities/notification.entity';
 import { SnoozeActionItemDto, UnsnoozeActionItemDto } from './dto/snooze-action-item.dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
-import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
-import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('Notifications')
 @Controller('notifications')
-@UseGuards(JwtAuthGuard, PageAccessGuard)
-@PageAccess('notifications')
+@UseGuards(JwtAuthGuard)
 export class NotificationController {
     constructor(
         private readonly notificationService: NotificationService,

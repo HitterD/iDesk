@@ -18,6 +18,8 @@ describe('UsersController Oracle assignee scope', () => {
             UserRole.AGENT_ORACLE,
             'ORACLE_REQUEST',
             'ORACLE_REQUEST',
+            undefined,
+            undefined,
         );
     });
 });

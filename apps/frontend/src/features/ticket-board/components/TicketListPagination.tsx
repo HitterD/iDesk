@@ -29,16 +29,41 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
     if (!paginationInfo.showPagination) return null;
 
     return (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-2 border-t border-[hsl(var(--border))]">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4 mt-2 border-t border-[hsl(var(--border))]">
             {/* Results Info */}
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-                Showing <span className="font-medium text-slate-700 dark:text-slate-300">{paginationInfo.startIndex + 1}</span> to{' '}
-                <span className="font-medium text-slate-700 dark:text-slate-300">{paginationInfo.endIndex}</span> of{' '}
-                <span className="font-medium text-slate-700 dark:text-slate-300">{paginationInfo.totalItems}</span> tickets
+            <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 text-center sm:text-left">
+                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.startIndex + 1}</span> to{' '}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.endIndex}</span> of{' '}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.totalItems}</span> tickets
             </div>
 
-            {/* Pagination Buttons */}
-            <div className="flex items-center gap-1">
+            {/* Mobile Pagination View (< sm) */}
+            <div className="flex sm:hidden items-center justify-between w-full gap-2">
+                <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={!paginationInfo.hasPrevPage}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-border bg-card text-xs font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed active:bg-muted transition-colors shadow-2xs"
+                >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Prev</span>
+                </button>
+
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 px-3 py-1.5 bg-muted/50 rounded-lg shrink-0">
+                    Page {currentPage} of {paginationInfo.totalPages}
+                </div>
+
+                <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={!paginationInfo.hasNextPage}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-border bg-card text-xs font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed active:bg-muted transition-colors shadow-2xs"
+                >
+                    <span>Next</span>
+                    <ChevronRight className="w-4 h-4" />
+                </button>
+            </div>
+
+            {/* Desktop Pagination View (>= sm) */}
+            <div className="hidden sm:flex items-center gap-1">
                 {/* First Page */}
                 <button
                     onClick={() => goToPage(1)}

@@ -64,6 +64,19 @@ export function resolveRequestTimeoutMs(raw = process.env.HRIS_GATEWAY_TIMEOUT_M
     return Math.min(parsed, MAX_TIMEOUT_MS);
 }
 
+/**
+ * Whether NIK logins should verify the password against HRIS.
+ *
+ * Opt-out only: anything other than an explicit `false` keeps verification on, so a
+ * typo cannot silently downgrade authentication. Disabling it makes every NIK login
+ * rely on the locally stored password, which only exists for users an admin has
+ * reset or that HRIS sync has provisioned — intended for development against an
+ * unreachable gateway, not for production.
+ */
+export function isHrisLoginVerifyEnabled(raw = process.env.HRIS_LOGIN_VERIFY_ENABLED): boolean {
+    return raw?.trim().toLowerCase() !== 'false';
+}
+
 @Injectable()
 export class HrisGatewayAdapter {
     private readonly logger = new Logger(HrisGatewayAdapter.name);

@@ -29,23 +29,55 @@ async function bootstrap() {
     process.env.TZ = 'UTC';
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+    // Express 5 changed the default "query parser" from 'extended' (qs) to
+    // 'simple' (node:querystring). 'simple' does not understand bracket
+    // notation, so axios' default array serialization `status[]=A&status[]=B`
+    // arrives as the literal key "status[]" instead of an array. The global
+    // ValidationPipe below (forbidNonWhitelisted) then rejects it with 400.
+    // Restoring 'extended' keeps array query params working across all routes.
+    app.set('query parser', 'extended');
+
+    // Trust proxy: allow Express to trust upstream reverse proxies (Nginx, Synology NAS, Docker network)
+    // to correctly extract client IP from X-Forwarded-* headers and req.ip
+    app.set('trust proxy', true);
+
     // Enable API Versioning for backward compatibility
     app.enableVersioning({
         type: VersioningType.URI,
         defaultVersion: '1',
     });
 
-    const allowedOrigins = [
+    const isProd = process.env.NODE_ENV === 'production';
+    const allowedOrigins = isProd ? [] : [
         'http://localhost:4050',
         'http://localhost:5173',
-        'http://localhost:3000'
+        'http://localhost:3000',
+        'http://idesk.santos.co.id',
+        'https://idesk.santos.co.id',
+        'http://idesk.santos.co.id:4050',
     ];
     if (process.env.FRONTEND_URL) {
-        allowedOrigins.push(process.env.FRONTEND_URL);
+        const extraOrigins = process.env.FRONTEND_URL.split(',').map((u) => u.trim()).filter(Boolean);
+        allowedOrigins.push(...extraOrigins);
+    }
+    if (isProd && allowedOrigins.length === 0) {
+        logger.warn('CORS: no FRONTEND_URL set in production — browser requests will be blocked');
     }
     
     app.enableCors({
-        origin: allowedOrigins,
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            const isAllowed = allowedOrigins.includes(origin) ||
+                /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
+                /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
+                /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin) ||
+                (!isProd && /^https?:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin));
+            if (isAllowed) {
+                callback(null, true);
+            } else {
+                callback(new Error(`CORS blocked for origin: ${origin}`), false);
+            }
+        },
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     });
@@ -68,7 +100,7 @@ async function bootstrap() {
                 objectSrc: ["'none'"],
             },
         } : false,
-        hsts: process.env.NODE_ENV === 'production' ? {
+        hsts: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE === 'true' ? {
             maxAge: 31536000,
             includeSubDomains: true,
             preload: true,
@@ -110,6 +142,7 @@ async function bootstrap() {
         './uploads/contracts',
         './uploads/documents',
         './uploads/temp',
+        './uploads/sounds',
     ];
     uploadDirs.forEach(dir => {
         if (!fs.existsSync(dir)) {

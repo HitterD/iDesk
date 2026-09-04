@@ -7,7 +7,7 @@ interface UserAvatarProps {
     user?: {
         id?: string;
         fullName?: string;
-        avatarUrl?: string;
+        avatarUrl?: string | null;
     } | null;
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     className?: string;
@@ -34,7 +34,7 @@ const iconSizes = {
 const getImageUrl = (url?: string | null): string | null => {
     if (!url) return null;
     if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+    const apiUrl = import.meta.env.VITE_API_URL || '';
     return `${apiUrl}${url}`;
 };
 

@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { Plus, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useHasPageAccess } from '@/hooks/usePermissions';
 import {
     useZoomAccounts,
@@ -29,7 +30,7 @@ import { ZoomShortcutsModal } from '../components/ZoomShortcutsModal';
 import { ZoomBookingModal } from '../components/ZoomBookingModal';
 import { ZoomMonthView } from '../components/ZoomMonthView';
 import { ZoomAccountsMatrix } from '../components/ZoomAccountsMatrix';
-import { LayoutGrid, CalendarDays as CalendarDaysIcon } from 'lucide-react';
+import { LayoutGrid, CalendarDays as CalendarDaysIcon, UserCheck } from 'lucide-react';
 import { ZoomWeekView } from '../components/ZoomWeekView';
 import { ZoomDayView } from '../components/ZoomDayView';
 import { ZoomMyBookingsView } from '../components/ZoomMyBookingsView';
@@ -110,15 +111,6 @@ export function ZoomCalendarPage() {
             ? accountScope
             : selectedAccountId;
 
-    // Per-account meeting count derived from my upcoming bookings (best-effort load).
-    const meetingsPerAccount = useMemo(() => {
-        const counts = new Map<string, number>();
-        for (const booking of upcomingBookings) {
-            counts.set(booking.zoomAccountId, (counts.get(booking.zoomAccountId) ?? 0) + 1);
-        }
-        return counts;
-    }, [upcomingBookings]);
-
     // Real-time updates.
     // In Gabungan mode subscribe to ALL accounts so any booking change
     // invalidates the merged calendar query immediately (no manual refresh).
@@ -126,23 +118,10 @@ export function ZoomCalendarPage() {
     const socketAccountId = useGabungan ? undefined : activeAccountId;
     useZoomSocket(socketAccountId);
 
-    // Day view always renders single-account. When user is in Gabungan mode and
-    // switches to day view, auto-pick the most-free account so the day grid stays
-    // readable.
-    const isDayView = view === 'day';
-    const forceSingleForDay = isDayView && useGabungan;
-    const mostFreeAccount = useMostFreeAccount(safeAccounts, meetingsPerAccount);
-    const effectiveActiveAccountId = forceSingleForDay
-        ? (activeAccountId && safeAccounts.some((a) => a.id === activeAccountId)
-            ? activeAccountId
-            : mostFreeAccount?.id)
-        : activeAccountId;
-
-    // Calendar data source — merged endpoint when in Gabungan mode (and not day view),
-    // per-account otherwise.
-    const shouldLoadMerged = !isDayView && useGabungan;
+    // Calendar data source — merged endpoint when in Gabungan mode, per-account otherwise.
+    const shouldLoadMerged = useGabungan;
     const singleCalendar = useZoomCalendar(
-        view !== 'my-bookings' && !shouldLoadMerged ? effectiveActiveAccountId : undefined,
+        view !== 'my-bookings' && !shouldLoadMerged ? activeAccountId : undefined,
         dateRange.start,
         dateRange.end,
     );
@@ -177,6 +156,44 @@ export function ZoomCalendarPage() {
 
     const isLoading = accountsLoading || calendarLoading;
     const safeCalendar = calendar ?? [];
+
+    // Per-account meeting count derived from active calendar data (accurately reflects current view).
+    const meetingsPerAccount = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const a of safeAccounts) {
+            counts.set(a.id, 0);
+        }
+        const seen = new Set<string>();
+        for (const day of safeCalendar) {
+            for (const slot of day.slots) {
+                if (slot.booking && !seen.has(slot.booking.id)) {
+                    seen.add(slot.booking.id);
+                    const accId = (slot.booking as any).zoomAccountId || (slot.booking as any).zoomAccount?.id || (useGabungan ? undefined : activeAccountId);
+                    if (accId && counts.has(accId)) {
+                        counts.set(accId, (counts.get(accId) ?? 0) + 1);
+                    }
+                }
+                const extras = (slot as any).extraBookings;
+                if (Array.isArray(extras)) {
+                    for (const extra of extras) {
+                        if (extra?.id && !seen.has(extra.id)) {
+                            seen.add(extra.id);
+                            const accId = extra.zoomAccountId || extra.zoomAccount?.id;
+                            if (accId && counts.has(accId)) {
+                                counts.set(accId, (counts.get(accId) ?? 0) + 1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!useGabungan && activeAccountId && counts.get(activeAccountId) === 0 && seen.size > 0) {
+            counts.set(activeAccountId, seen.size);
+        }
+        return counts;
+    }, [safeAccounts, safeCalendar, useGabungan, activeAccountId]);
+
+    const mostFreeAccount = useMostFreeAccount(safeAccounts, meetingsPerAccount);
 
     // Filter calendar by search query (case-insensitive substring on booking title)
     const filteredCalendar = useMemo(() => {
@@ -262,9 +279,15 @@ export function ZoomCalendarPage() {
         return () => document.removeEventListener('keydown', handler);
     }, [currentDate, accountScope, safeAccounts, panel, navigateToToday, openBookingAtCurrentContext, setAccountScope]);
 
-    // Slot click → open booking panel
-    const handleSlotClick = (day: CalendarDay, slotOrIndex: CalendarSlot | number) => {
-        if (!canBook || !activeAccountId) return;
+    // Click on a slot → open booking panel with preset date/time
+    const handleSlotClick = (day: CalendarDay, slotOrIndex: CalendarSlot | number, accountId?: string) => {
+        if (!canBook) return;
+
+        const targetAccountId = accountId ?? activeAccountId ?? safeAccounts[0]?.id;
+        if (!targetAccountId) {
+            toast.error('Tidak ada akun Zoom yang tersedia untuk booking');
+            return;
+        }
 
         let time: string;
         if (typeof slotOrIndex === 'number') {
@@ -279,13 +302,13 @@ export function ZoomCalendarPage() {
         panel.openBooking({
             date: day.date,
             time,
-            zoomAccountId: activeAccountId,
+            zoomAccountId: targetAccountId,
         });
     };
 
     // Slot index click (week/day views)
-    const handleSlotIndexClick = (day: CalendarDay, slotIndex: number) => {
-        handleSlotClick(day, slotIndex);
+    const handleSlotIndexClick = (day: CalendarDay, slotIndex: number, accountId?: string) => {
+        handleSlotClick(day, slotIndex, accountId);
     };
 
     // Booking click → open detail panel (just need the ID)
@@ -339,35 +362,48 @@ export function ZoomCalendarPage() {
                 <div className="flex flex-col h-full min-h-0">
                     {/* Month display-mode toggle — matrix needs merged (Gabungan) data */}
                     {useGabungan && (
-                        <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-border bg-white dark:bg-slate-900">
-                            <div className="flex bg-muted p-0.5 border border-border rounded-lg">
+                        <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card/60">
+                            <div className="flex items-center gap-1.5 bg-muted/60 p-0.5 border border-border/80 rounded-lg">
                                 <button
+                                    type="button"
                                     onClick={() => setMonthMode('calendar')}
-                                    className={
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer",
                                         monthMode === 'calendar'
-                                            ? 'flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md bg-card text-primary shadow-sm'
-                                            : 'flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md text-muted-foreground hover:text-foreground'
-                                    }
+                                            ? "bg-card text-primary shadow-2xs"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
                                 >
                                     <CalendarDaysIcon className="w-3.5 h-3.5" aria-hidden="true" />
-                                    Calendar
+                                    <span>Kalender</span>
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setMonthMode('matrix')}
-                                    className={
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer",
                                         monthMode === 'matrix'
-                                            ? 'flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md bg-card text-primary shadow-sm'
-                                            : 'flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md text-muted-foreground hover:text-foreground'
-                                    }
+                                            ? "bg-card text-primary shadow-2xs"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
                                 >
                                     <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" />
-                                    All Accounts
+                                    <span>Matrix Semua Akun</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setView('my-bookings')}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer text-muted-foreground hover:text-foreground hover:bg-card/50"
+                                    title="Buka halaman kalender & daftar bookingan Anda sendiri"
+                                >
+                                    <UserCheck className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" />
+                                    <span>Bookingan Saya</span>
                                 </button>
                             </div>
-                            <span className="ml-2 text-xs text-muted-foreground">
+                            <span className="text-[11px] text-muted-foreground hidden sm:inline">
                                 {monthMode === 'matrix'
-                                    ? 'Every Zoom account at a glance — click an empty cell to book'
-                                    : 'One row per day — switch to All Accounts to compare schedules'}
+                                    ? 'Matriks jadwal semua akun Zoom sekaligus'
+                                    : 'Klik tanggal untuk booking atau dobel-klik untuk tampilan harian'}
                             </span>
                         </div>
                     )}
@@ -392,6 +428,7 @@ export function ZoomCalendarPage() {
                             <ZoomMonthView
                                 currentDate={currentDate}
                                 calendar={filteredCalendar}
+                                accounts={safeAccounts}
                                 canBook={canBook}
                                 onSlotClick={(day, slot) => handleSlotClick(day, slot)}
                                 onDateDoubleClick={handleDateDoubleClick}
@@ -408,6 +445,7 @@ export function ZoomCalendarPage() {
                     calendar={filteredCalendar}
                     timeLabels={timeLabels}
                     currentTime={currentTime}
+                    accounts={safeAccounts}
                     canBook={canBook}
                     onSlotClick={handleSlotIndexClick}
                     onBookingClick={handleBookingClick}
@@ -420,12 +458,13 @@ export function ZoomCalendarPage() {
                     calendar={filteredCalendar}
                     timeLabels={timeLabels}
                     currentTime={currentTime}
+                    accounts={safeAccounts}
                     canBook={canBook}
                     onSlotClick={handleSlotIndexClick}
                     onBookingClick={handleBookingClick}
                     onNavigateDay={handleNavigateDay}
-                    forceSingleAccountMode={forceSingleForDay}
-                    forceSingleAccountName={mostFreeAccount?.name}
+                    forceSingleAccountMode={!useGabungan}
+                    forceSingleAccountName={safeAccounts.find((a) => a.id === activeAccountId)?.name}
                 />
             );
         }
@@ -461,7 +500,7 @@ export function ZoomCalendarPage() {
 
     return (
         <ZoomErrorBoundary>
-            <div className="min-h-0 h-auto lg:h-[calc(100vh-2rem)] flex flex-col animate-fade-in-up">
+            <div className="min-h-0 h-auto lg:h-[calc(100vh-2rem)] flex flex-col animate-fade-in-up pb-24 lg:pb-0">
                 {showEmptyState ? emptyStateNode : (
                     <ZoomCalendarShell
                         header={(
@@ -517,6 +556,8 @@ export function ZoomCalendarPage() {
                                 onSync={handleSync}
                                 lastSyncAt={null}
                                 userName="User"
+                                selectedAccountId={accountScope}
+                                onAccountClick={(id) => setAccountScope(id as any)}
                             />
                         )}
                         calendarContent={calendarContent()}

@@ -1,21 +1,35 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {
     children: ReactNode;
+    locationKey?: string;
 }
 
 interface State {
     hasError: boolean;
+    prevLocationKey?: string;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+export class ErrorBoundaryClass extends Component<Props, State> {
     public state: State = {
         hasError: false,
+        prevLocationKey: this.props.locationKey,
     };
 
-    public static getDerivedStateFromError(_: Error): State {
+    public static getDerivedStateFromError(_: Error): Partial<State> {
         return { hasError: true };
+    }
+
+    public static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
+        if (props.locationKey && props.locationKey !== state.prevLocationKey) {
+            return {
+                hasError: false,
+                prevLocationKey: props.locationKey,
+            };
+        }
+        return null;
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -48,3 +62,17 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.children;
     }
 }
+
+export const ErrorBoundary = ({ children }: { children: ReactNode }) => {
+    let locationKey = '';
+    try {
+        const location = useLocation();
+        locationKey = location.pathname;
+    } catch {
+        // Fallback if rendered outside Router context
+    }
+
+    return <ErrorBoundaryClass locationKey={locationKey}>{children}</ErrorBoundaryClass>;
+};
+
+export default ErrorBoundary;

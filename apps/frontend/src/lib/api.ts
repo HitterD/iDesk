@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
-import { getErrorMessage } from './errorMessages';
+import { getErrorMessage, resolveNetworkOrServerError } from './errorMessages';
 
 // Generate unique request ID for error correlation
 const generateRequestId = (): string => {
@@ -95,20 +95,37 @@ const processQueue = (error: AxiosError | null) => {
     failedQueue = [];
 };
 
+export interface AuthHandlers {
+    logout?: () => void;
+    setExpiresAt?: (expiresAt: string | null) => void;
+    isAuthenticated?: () => boolean;
+}
+
+let authHandlers: AuthHandlers = {};
+
+export const registerAuthHandlers = (handlers: AuthHandlers): void => {
+    authHandlers = { ...authHandlers, ...handlers };
+};
+
 let hasRedirectedToLogin = false;
+
+export function resetLoginRedirectState(): void {
+    hasRedirectedToLogin = false;
+}
 
 function forceLogout(): void {
     if (hasRedirectedToLogin) return;
     hasRedirectedToLogin = true;
     try {
-        // Avoid static import to break circular dep useAuth -> api -> useAuth
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { useAuth } = require('../stores/useAuth') as typeof import('../stores/useAuth');
-        useAuth.getState().logout();
+        authHandlers.logout?.();
     } catch {
         try { localStorage.removeItem('auth-storage'); } catch {}
     }
-    const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const pathname = window.location.pathname;
+    if (pathname.startsWith('/login') || pathname.startsWith('/tv/') || pathname.startsWith('/feedback/')) {
+        return;
+    }
+    const next = `${pathname}${window.location.search}${window.location.hash}`;
     const base = next && next !== '/login' ? `/login?next=${encodeURIComponent(next)}` : '/login';
     const target = base.includes('?') ? `${base}&reason=expired` : `${base}?reason=expired`;
     toast.error(getErrorMessage('SESSION_EXPIRED'));
@@ -122,15 +139,14 @@ api.interceptors.response.use(
         if (import.meta.env.DEV) {
             console.log(`${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
         }
+        if (response.config?.url?.includes('/auth/login')) {
+            resetLoginRedirectState();
+        }
         // Keep local session expiry in sync when backend rotates tokens.
         const expiresAt: unknown = (response.data as Record<string, unknown> | undefined)?.expiresAt;
         if (typeof expiresAt === 'string' && response.config?.url?.includes('/auth/')) {
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const { useAuth: _useAuth } = require('../stores/useAuth') as typeof import('../stores/useAuth');
-                const iso = Date.parse(expiresAt) ? expiresAt : null;
-                if (iso) _useAuth.getState().setExpiresAt(iso);
-            } catch {}
+            const iso = Date.parse(expiresAt) ? expiresAt : null;
+            if (iso) authHandlers.setExpiresAt?.(iso);
         }
         return response;
     },
@@ -145,10 +161,14 @@ api.interceptors.response.use(
 
         const isLoginRequest = originalRequest?.url?.includes('/auth/login');
         const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
+        const isLogoutRequest = originalRequest?.url?.includes('/auth/logout');
+
+        // If user is already logged out or during logout request, avoid triggering refresh/forceLogout
+        const isCurrentlyAuthenticated = authHandlers.isAuthenticated ? authHandlers.isAuthenticated() : true;
 
         if (response) {
             // Single 401 handler: try refresh once, otherwise force logout (no duplicate block).
-            if (response.status === 401 && !isLoginRequest && !isRefreshRequest) {
+            if (response.status === 401 && !isLoginRequest && !isRefreshRequest && !isLogoutRequest && isCurrentlyAuthenticated) {
                 if (originalRequest._retry) {
                     forceLogout();
                     return Promise.reject(error);
@@ -170,12 +190,8 @@ api.interceptors.response.use(
                     const refreshRes = await api.post('/auth/refresh');
                     const nextExpiresAt: unknown = (refreshRes.data as Record<string, unknown> | undefined)?.expiresAt;
                     if (typeof nextExpiresAt === 'string') {
-                        try {
-                            // eslint-disable-next-line @typescript-eslint/no-require-imports
-                            const { useAuth: _useAuth2 } = require('../stores/useAuth') as typeof import('../stores/useAuth');
-                            const iso = Date.parse(nextExpiresAt) ? nextExpiresAt : null;
-                            if (iso) _useAuth2.getState().setExpiresAt(iso);
-                        } catch {}
+                        const iso = Date.parse(nextExpiresAt) ? nextExpiresAt : null;
+                        if (iso) authHandlers.setExpiresAt?.(iso);
                     }
                     processQueue(null);
                     return api(originalRequest);
@@ -188,8 +204,8 @@ api.interceptors.response.use(
                 }
             }
 
-            // Don't show toast for login errors (let login page handle it with detailed messages)
-            if (!isLoginRequest) {
+            // Don't show toast for login/logout/refresh errors or when user is already logged out
+            if (!isLoginRequest && !isLogoutRequest && !isRefreshRequest && isCurrentlyAuthenticated) {
                 // Suppress toast for GET + 403: background read queries that fail due to missing page permission.
                 const isGetRequest = originalRequest?.method?.toLowerCase() === 'get';
                 const isForbidden = response.status === 403;
@@ -201,16 +217,29 @@ api.interceptors.response.use(
                 // Use centralized error messages
                 const errorCode = response.data?.errorCode || response.data?.code;
                 const serverMessage = response.data?.message;
-                const displayMessage = getErrorMessage(errorCode, serverMessage);
+                
+                // For 500 errors without explicit business code, use friendly Indonesian error
+                let displayMessage: string;
+                if (response.status === 500 && (!errorCode || errorCode === 'INTERNAL_ERROR')) {
+                    displayMessage = getErrorMessage('SYS_001');
+                } else {
+                    displayMessage = getErrorMessage(errorCode, serverMessage);
+                }
                 toast.error(displayMessage);
             }
         } else if (!isLoginRequest) {
-            // Network error or no response
-            toast.error(getErrorMessage('NETWORK_ERROR'));
+            // No response received (timeout, abort, network, server unreachable)
+            const { message, isSilent } = resolveNetworkOrServerError(error);
+            if (!isSilent && message) {
+                toast.error(message);
+            }
         }
 
         return Promise.reject(error);
     }
 );
+
+(api as any).resetLoginRedirectState = resetLoginRedirectState;
+(api as any).registerAuthHandlers = registerAuthHandlers;
 
 export default api;

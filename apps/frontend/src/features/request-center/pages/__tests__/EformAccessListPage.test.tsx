@@ -50,7 +50,7 @@ describe('EformAccessListPage', () => {
     });
   });
 
-  it('renders E-Form Access page and verified request card with PDF button', async () => {
+  it('renders E-Form Access page and verified request table list with PDF button', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={['/eform-access']}>
@@ -62,11 +62,22 @@ describe('EformAccessListPage', () => {
     expect(screen.getByText('E-Form Access')).toBeInTheDocument();
     expect(screen.getByText(/Pengajuan akses VPN, website, dan jaringan/i)).toBeInTheDocument();
 
-    // Verify card rendered
-    const requesterName = await screen.findByText('Bagas Pratama');
-    expect(requesterName).toBeInTheDocument();
+    // Verify table headers
+    expect(screen.getByText('ID & Jenis Akses')).toBeInTheDocument();
+    expect(screen.getByText('Pemohon')).toBeInTheDocument();
+    expect(screen.getByText('Diajukan')).toBeInTheDocument();
+    expect(screen.getByText('Berlaku Dari')).toBeInTheDocument();
+    expect(screen.getByText('Status')).toBeInTheDocument();
+    expect(screen.getByText('Aksi')).toBeInTheDocument();
 
-    // Verify PDF button rendered on confirmed card
-    expect(screen.getByText('PDF F-ICT-04')).toBeInTheDocument();
+    // Verify request row & card data rendered
+    const requesterNames = await screen.findAllByText('Bagas Pratama');
+    expect(requesterNames.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('IT Department').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Akses VPN').length).toBeGreaterThanOrEqual(1);
+
+    // Verify PDF button and Detail button rendered
+    expect(screen.getAllByText(/PDF F-ICT-04/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Detail').length).toBeGreaterThanOrEqual(1);
   });
 });

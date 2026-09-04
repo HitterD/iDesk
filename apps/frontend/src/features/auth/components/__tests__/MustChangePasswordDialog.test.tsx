@@ -16,8 +16,8 @@ describe('MustChangePasswordDialog', () => {
         fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: '123456' } });
         fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: '123456' } });
         fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
-        // 123456 gagal di minimal 12 karakter sebelum cek khusus 123456
-        expect((await screen.findAllByText(/minimal 12/i)).length).toBeGreaterThan(0);
+        // 123456 gagal di minimal 8 karakter sebelum cek khusus 123456
+        expect((await screen.findAllByText(/minimal 8/i)).length).toBeGreaterThan(0);
         expect(api.post).not.toHaveBeenCalled();
     });
 
@@ -30,12 +30,12 @@ describe('MustChangePasswordDialog', () => {
         expect(api.post).not.toHaveBeenCalled();
     });
 
-    it('menolak kurang dari 12 karakter', async () => {
+    it('menolak kurang dari 8 karakter', async () => {
         setup();
-        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'Short7xAb1' } });
-        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'Short7xAb1' } });
+        fireEvent.change(screen.getByLabelText(/password baru/i), { target: { value: 'Ab1Xy2!' } });
+        fireEvent.change(screen.getByLabelText(/konfirmasi/i), { target: { value: 'Ab1Xy2!' } });
         fireEvent.click(screen.getByRole('button', { name: /simpan|ganti/i }));
-        expect((await screen.findAllByText(/minimal 12/i)).length).toBeGreaterThan(0);
+        expect((await screen.findAllByText(/minimal 8/i)).length).toBeGreaterThan(0);
         expect(api.post).not.toHaveBeenCalled();
     });
 

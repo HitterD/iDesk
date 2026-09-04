@@ -427,4 +427,35 @@ describe('AuthService', () => {
             expect(result).toBeNull();
         });
     });
+
+    describe('register', () => {
+        const registerPayload = {
+            email: 'new@example.com',
+            password: 'Password123!',
+            fullName: 'New User',
+        };
+
+        it('always creates the account as USER', async () => {
+            usersService.createUser.mockResolvedValue(persistedUser);
+
+            await service.register(registerPayload as any);
+
+            expect(usersService.createUser).toHaveBeenCalledWith(
+                expect.objectContaining({ role: UserRole.USER }),
+            );
+        });
+
+        it('ignores a caller-supplied role (no privilege escalation via public register)', async () => {
+            usersService.createUser.mockResolvedValue(persistedUser);
+
+            await service.register({ ...registerPayload, role: UserRole.ADMIN } as any);
+
+            expect(usersService.createUser).toHaveBeenCalledWith(
+                expect.objectContaining({ role: UserRole.USER }),
+            );
+            expect(usersService.createUser).not.toHaveBeenCalledWith(
+                expect.objectContaining({ role: UserRole.ADMIN }),
+            );
+        });
+    });
 });

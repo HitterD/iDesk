@@ -1,17 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
-import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { FeatureErrorBoundary } from '../components/ui/FeatureErrorBoundary';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
-import { Toaster } from 'sonner';
 import { LoadingScreen } from '../components/ui/LoadingScreen';
-import { ScreenReaderProvider } from '../components/ui/ScreenReaderAnnounce';
-import { LazyMotion } from 'framer-motion';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { PresenceProvider } from '../components/layout/PresenceProvider';
-
-// Lazy load Framer Motion features to drastically reduce main bundle size
-const loadFramerFeatures = () => import('../lib/animations').then(res => res.default);
 
 // Eagerly loaded (critical auth path only)
 import { BentoLoginPage } from '../features/auth/pages/BentoLoginPage';
@@ -27,6 +20,9 @@ const BentoDashboardPage = lazy(() => import('../features/dashboard/pages/BentoD
 const BentoTicketKanban = lazy(() => import('../features/ticket-board/components/BentoTicketKanban').then(m => ({ default: m.BentoTicketKanban })));
 const BentoTicketListPage = lazy(() => import('../features/ticket-board/pages/BentoTicketListPage').then(m => ({ default: m.BentoTicketListPage })));
 const BentoOracleK2TicketsPage = lazy(() => import('../features/ticket-board/pages/BentoOracleK2TicketsPage').then(m => ({ default: m.BentoOracleK2TicketsPage })));
+const BentoWebDevTicketsPage = lazy(() => import('../features/ticket-board/pages/BentoWebDevTicketsPage').then(m => ({ default: m.BentoWebDevTicketsPage })));
+const BentoMobileDevTicketsPage = lazy(() => import('../features/ticket-board/pages/BentoMobileDevTicketsPage').then(m => ({ default: m.BentoMobileDevTicketsPage })));
+const DynamicTicketQueuePage = lazy(() => import('../features/ticket-board/pages/DynamicTicketQueuePage').then(m => ({ default: m.DynamicTicketQueuePage })));
 const BentoTicketDetailPage = lazy(() => import('../features/ticket-board/pages/BentoTicketDetailPage').then(m => ({ default: m.BentoTicketDetailPage })));
 const BentoSettingsPage = lazy(() => import('../features/settings/pages/BentoSettingsPage').then(m => ({ default: m.BentoSettingsPage })));
 const BentoAdminAgentsPage = lazy(() => import('../features/admin/pages/BentoAdminAgentsPage').then(m => ({ default: m.BentoAdminAgentsPage })));
@@ -91,41 +87,29 @@ const PageLoader = () => (
     <LoadingScreen message="Loading..." />
 );
 
-import { z } from 'zod';
-
-const AuthStorageSchema = z.object({
-    state: z.object({
-        user: z.object({
-            role: z.string().nullable().optional()
-        }).nullable().optional()
-    }).nullable().optional()
-}).catch({ state: { user: { role: null } } });
+import { useAuth } from '../stores/useAuth';
+import { useSessionRestore } from '../hooks/useSessionRestore';
 
 // Smart redirect component that routes users to their role-appropriate home page
 // Prevents MANAGER/USER from being sent to /dashboard (ADMIN/AGENT portal)
 const RoleBasedRedirect = () => {
-    let userRole: string | null = null;
-    try {
-        const authData = localStorage.getItem('auth-storage');
-        if (authData) {
-            const parsed = JSON.parse(authData);
-            const validated = AuthStorageSchema.parse(parsed);
-            userRole = validated?.state?.user?.role || null;
-        }
-    } catch {
-        userRole = null;
+    const { isAuthenticated, user } = useAuth();
+
+    if (!isAuthenticated || !user) {
+        return <Navigate to="/login" replace />; // Default fallback for unauthenticated sessions
     }
 
-    if (!userRole) {
-        return <Navigate to="/login" replace />; // Default fallback for invalid/tampered roles
-    }
-
+    const userRole = user.role;
     if (userRole === 'MANAGER') {
         return <Navigate to="/manager/dashboard" replace />;
     } else if (userRole === 'USER') {
         return <Navigate to="/client/my-tickets" replace />;
     } else if (userRole === 'AGENT_ORACLE') {
         return <Navigate to="/tickets/oracle-k2" replace />;
+    } else if (userRole === 'AGENT_WEB_DEV') {
+        return <Navigate to="/tickets/web-developer" replace />;
+    } else if (userRole === 'AGENT_MOBILE_DEV') {
+        return <Navigate to="/tickets/mobile-developer" replace />;
     }
     // ADMIN and AGENT go to admin/agent portal
     return <Navigate to="/dashboard" replace />;
@@ -159,7 +143,16 @@ const LazyRoute = ({ component: Component, featureName, requiredPageAccess, allo
 };
 
 export default function AppRoutes() {
+    const isPublicKiosk = typeof window !== 'undefined' && 
+        (window.location.pathname.startsWith('/tv/') || window.location.pathname.startsWith('/feedback/'));
+
+    const { isRestoring } = useSessionRestore();
     useSessionTimeout();
+
+    if (isRestoring && !isPublicKiosk) {
+        return <PageLoader />;
+    }
+
     return (
         <PresenceProvider>
             <Routes>
@@ -169,25 +162,31 @@ export default function AppRoutes() {
                 <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
                 <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
 
-                {/* Admin/Agent Routes - Lazy loaded portal */}
+                {/* Root Route - Global role-based redirect for all authenticated users */}
+                <Route path="/" element={<RoleBasedRedirect />} />
+
+                {/* Admin/Agent/Manager Routes - Lazy loaded portal */}
                 <Route
-                    path="/"
                     element={
-                        <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_ADMIN']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER']}>
                             <Suspense fallback={<PageLoader />}>
                                 <BentoLayout />
                             </Suspense>
                         </ProtectedRoute>
                     }
                 >
-                    <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" />} />
+                    <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" requiredPageAccess="dashboard" />} />
 
-                    <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" />} />
-                    <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" />} />
-                    <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'ADMIN']} requiredPageAccess="oracle_k2_tickets" />} />
+                    <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" requiredPageAccess="tickets" />} />
+                    <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" requiredPageAccess="tickets" />} />
+                    <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="oracle_k2_tickets" />} />
+                    <Route path="tickets/web-developer" element={<LazyRoute component={BentoWebDevTicketsPage} featureName="Web Developer Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="web_dev_tickets" />} />
+                    <Route path="tickets/mobile-developer" element={<LazyRoute component={BentoMobileDevTicketsPage} featureName="Mobile Developer Request" allowedRoles={['AGENT_MOBILE_DEV', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'ADMIN']} requiredPageAccess="mobile_dev_tickets" />} />
+                    <Route path="tickets/queue/:slug" element={<LazyRoute component={DynamicTicketQueuePage} featureName="Ticket Queue" />} />
                     <Route path="tickets/:id" element={<LazyRoute component={BentoTicketDetailPage} featureName="Ticket Detail" />} />
                     <Route path="tickets/create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
-                    <Route path="settings" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" requiredPageAccess="settings" />} />
+                    <Route path="settings" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" />} />
+                    <Route path="settings/:tab" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" />} />
                     <Route path="agents" element={<LazyRoute component={BentoAdminAgentsPage} featureName="Agent Management" allowedRoles={['ADMIN']} />} />
                     <Route path="reports" element={<LazyRoute component={BentoReportsPage} featureName="Reports" requiredPageAccess="reports" />} />
                     <Route path="sla" element={<LazyRoute component={BentoSlaSettingsPage} featureName="SLA Settings" allowedRoles={['ADMIN']} />} />
@@ -220,25 +219,23 @@ export default function AppRoutes() {
                     <Route path="lost-items/my" element={<LazyRoute component={MyLostReportsPage} featureName="My Lost Reports" requiredPageAccess="lost_items" />} />
                     <Route path="found" element={<LazyRoute component={ReportFoundItemPage} featureName="Report Found Item" requiredPageAccess="lost_items" />} />
 
-                    {/* Admin-only Feature Pages */}
-                    <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN']} />} />
+                    {/* Workload Feature Page (Admin, Manager, and Operational Support Agents) */}
+                    <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN', 'MANAGER', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ADMIN', 'AGENT']} />} />
                     <Route path="audit-logs" element={<LazyRoute component={AuditLogPage} featureName="Audit Logs" allowedRoles={['ADMIN']} />} />
                     <Route path="system-health" element={<LazyRoute component={SystemHealthPage} featureName="System Health" allowedRoles={['ADMIN']} />} />
 
                     {/* Zoom Booking Calendar */}
                     <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                     <Route path="zoom-settings" element={<LazyRoute component={ZoomSettingsPage} featureName="Zoom Settings" allowedRoles={['ADMIN']} />} />
-
-                    <Route index element={<Navigate to="/dashboard" replace />} />
                 </Route>
 
-                {/* Manager Routes - Separate portal with own layout */}
+                {/* Manager Routes - Using BentoLayout */}
                 <Route
                     path="/manager"
                     element={
                         <ProtectedRoute allowedRoles={['MANAGER']}>
                             <Suspense fallback={<PageLoader />}>
-                                <ManagerLayout />
+                                <BentoLayout />
                             </Suspense>
                         </ProtectedRoute>
                     }

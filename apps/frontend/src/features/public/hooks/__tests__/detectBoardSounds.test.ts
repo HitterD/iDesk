@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectBoardSounds } from '../detectBoardSounds';
+import { detectBoardSounds, detectBoardSoundDetails } from '../detectBoardSounds';
 
 describe('detectBoardSounds', () => {
     it('stays silent on the first snapshot even when the board is full', () => {
@@ -46,5 +46,23 @@ describe('detectBoardSounds', () => {
             { open: [], inProgress: [] },
             { open: [], inProgress: ['a'] },
         )).toEqual([]);
+    });
+
+    it('reports specific division sound events for new tickets', () => {
+        const prev = { open: [{ id: '1', division: 'OPS_SUPPORT' as const }], inProgress: [] };
+        const next = {
+            open: [
+                { id: '1', division: 'OPS_SUPPORT' as const },
+                { id: '2', division: 'ORACLE_DEV' as const },
+                { id: '3', division: 'WEB_DEV' as const },
+            ],
+            inProgress: [{ id: '1' }],
+        };
+        const results = detectBoardSoundDetails(prev, next);
+        expect(results).toEqual([
+            { event: 'newTicket', division: 'ORACLE_DEV' },
+            { event: 'newTicket', division: 'WEB_DEV' },
+            { event: 'inProgress' },
+        ]);
     });
 });

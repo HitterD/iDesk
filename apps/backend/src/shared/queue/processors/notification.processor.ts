@@ -36,6 +36,15 @@ export class NotificationProcessor {
         private logRepo: Repository<NotificationLog>,
     ) {}
 
+    @Process()
+    async handleDefault(job: Job<NotificationJobData | any>) {
+        this.logger.debug(`Processing default notification job ${job.id}`);
+        if (job.data && job.data.notificationId) {
+            return this.handleSendNotification(job as any);
+        }
+        return { success: true, handled: '__default__', jobId: job.id };
+    }
+
     @Process('send-notification')
     async handleSendNotification(job: Job<NotificationJobData>) {
         const { notificationId, userId, channel, payload, recipient } = job.data;

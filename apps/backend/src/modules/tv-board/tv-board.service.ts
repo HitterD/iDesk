@@ -2,10 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Site } from '../sites/entities/site.entity';
-import { Ticket, TicketStatus, TicketType } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType, HandlingTeam } from '../ticketing/entities/ticket.entity';
+import { resolveInitialHandlingTeam } from '../ticketing/utils/oracle-ticket-access.util';
 
 export interface TvBoardCard {
     id: string;
+    ticketNumber?: string;
+    title: string;
     description: string;
     requesterName: string;
     requesterDepartment: string | null;
@@ -14,10 +17,17 @@ export interface TvBoardCard {
     slaTarget: string | null;
     isOverdue: boolean;
     isOracleRequest: boolean;
+    handlingTeam: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'WEB_DEV' | 'MOBILE_DEV' | string;
+    category?: string | null;
+    ticketType?: string | null;
 }
 
 export interface TvBoardRingtones {
     newTicket: string | null;
+    newTicketSupport?: string | null;
+    newTicketOracle?: string | null;
+    newTicketWebDev?: string | null;
+    newTicketMobileDev?: string | null;
     inProgress: string | null;
     closing: string | null;
     closingTime: string | null;
@@ -71,20 +81,29 @@ export class TvBoardService {
             where: { siteId, status: TicketStatus.WAITING_VENDOR },
         });
 
-        const toCard = (t: Ticket): TvBoardCard => ({
-            id: t.id,
-            description: t.description,
-            requesterName: t.user?.fullName ?? 'Unknown',
-            requesterDepartment:
-                t.user?.department?.code || t.user?.department?.name || null,
-            assignedToName: t.assignedTo?.fullName ?? null,
-            priority: t.priority,
-            slaTarget: t.slaTarget ? t.slaTarget.toISOString() : null,
-            isOverdue: t.isOverdue,
-            isOracleRequest:
-                t.ticketType === TicketType.ORACLE_REQUEST ||
-                t.category === 'ORACLE_REQUEST',
-        });
+        const toCard = (t: Ticket): TvBoardCard => {
+            const team = t.handlingTeam || resolveInitialHandlingTeam(t.category, t.ticketType);
+            return {
+                id: t.id,
+                ticketNumber: t.ticketNumber || t.id.slice(0, 8),
+                title: t.title || t.description || 'No Title',
+                description: t.description,
+                requesterName: t.user?.fullName ?? 'Unknown',
+                requesterDepartment:
+                    t.user?.department?.code || t.user?.department?.name || null,
+                assignedToName: t.assignedTo?.fullName ?? null,
+                priority: t.priority,
+                slaTarget: t.slaTarget ? t.slaTarget.toISOString() : null,
+                isOverdue: t.isOverdue,
+                isOracleRequest:
+                    team === HandlingTeam.ORACLE_DEV ||
+                    t.ticketType === TicketType.ORACLE_REQUEST ||
+                    t.category === 'ORACLE_REQUEST',
+                handlingTeam: team,
+                category: t.category,
+                ticketType: t.ticketType,
+            };
+        };
 
         return {
             siteName: site.name,
@@ -94,6 +113,10 @@ export class TvBoardService {
             waitingVendorCount,
             ringtones: {
                 newTicket: site.ringtoneNewTicket ?? null,
+                newTicketSupport: site.ringtoneNewTicketSupport ?? null,
+                newTicketOracle: site.ringtoneNewTicketOracle ?? null,
+                newTicketWebDev: site.ringtoneNewTicketWebDev ?? null,
+                newTicketMobileDev: site.ringtoneNewTicketMobileDev ?? null,
                 inProgress: site.ringtoneInProgress ?? null,
                 closing: site.ringtoneClosing ?? null,
                 closingTime: site.closingTime ?? null,

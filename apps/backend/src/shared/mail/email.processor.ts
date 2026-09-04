@@ -35,6 +35,21 @@ export class EmailProcessor {
 
     constructor(private readonly mailTransport: MailTransportService) {}
 
+    @Process()
+    async handleDefault(job: Job<EmailJobData | any>) {
+        this.logger.debug(`Processing default email job ${job.id}`);
+        if (job.data && (job.data.to || job.data.recipientEmail)) {
+            if (job.data.recipientEmail && job.data.ticketNumber) {
+                return this.handleTicketNotification(job as any);
+            }
+            if (job.data.to && job.data.subject) {
+                return this.handleSendEmail(job as any);
+            }
+        }
+        this.logger.log(`Default email job ${job.id} handled successfully`);
+        return { success: true, handled: '__default__', jobId: job.id };
+    }
+
     @Process('send-email')
     async handleSendEmail(job: Job<EmailJobData>) {
         const { to, subject, template, context, attachments, cc, bcc, replyTo } = job.data;

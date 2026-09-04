@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import { DataSource } from 'typeorm';
-import { Article } from '../entities/article.entity';
-import { ArticleView } from '../entities/article-view.entity';
+import { join } from 'path';
 import { seedKBArticles } from './kb-articles.seed';
 
 const dataSource = new DataSource({
@@ -10,7 +10,7 @@ const dataSource = new DataSource({
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'idesk_db',
-    entities: [Article, ArticleView],
+    entities: [join(__dirname, '..', '..', '**', 'entities', '*.entity.{ts,js}')],
     synchronize: false,
 });
 

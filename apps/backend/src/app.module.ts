@@ -3,12 +3,14 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/adapters/handlebars.adapter';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './shared/core/guards/custom-throttler.guard';
 import { CustomTypeOrmLogger } from './shared/core/logger/typeorm-logger';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ApmTracingInterceptor } from './shared/core/interceptors/apm-tracing.interceptor';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TicketingModule } from './modules/ticketing/ticketing.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -163,10 +165,13 @@ import { validateAuthEnvironment } from './config/auth.config';
             maxQueryExecutionTime: 1000, // Log queries taking > 1 second
             // Connection Pool Configuration (Section 5.3.B)
             extra: {
-                max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+                max: parseInt(process.env.DB_POOL_MAX || '35', 10),
                 min: parseInt(process.env.DB_POOL_MIN || '5', 10),
-                idleTimeoutMillis: 30000,
-                connectionTimeoutMillis: 5000,
+                connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000', 10),
+                idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000', 10),
+                statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '15000', 10),
+                keepAlive: true,
+                keepAliveInitialDelayMillis: 10000,
             },
         }),
         ServeStaticModule.forRoot({
@@ -191,8 +196,11 @@ import { validateAuthEnvironment } from './config/auth.config';
                 from: process.env.SMTP_FROM || '"No Reply" <noreply@idesk.com>',
             },
             template: {
-                // Fix: __dirname is dist/src, templates are in dist/assets/templates
-                dir: join(__dirname, '..', 'assets', 'templates'),
+                dir: existsSync(join(__dirname, 'assets', 'templates'))
+                    ? join(__dirname, 'assets', 'templates')
+                    : existsSync(join(__dirname, '..', 'assets', 'templates'))
+                    ? join(__dirname, '..', 'assets', 'templates')
+                    : join(__dirname, 'src', 'assets', 'templates'),
                 adapter: new HandlebarsAdapter(),
                 options: {
                     strict: true,
@@ -204,6 +212,7 @@ import { validateAuthEnvironment } from './config/auth.config';
         UsersModule,
         UploadsModule,
         NotificationModule,
+        ScheduleModule.forRoot(),
         TelegramModule,
         HealthModule,
         SearchModule,
@@ -236,13 +245,17 @@ import { validateAuthEnvironment } from './config/auth.config';
         EncryptionModule, // Provides CredentialCipherService (AES-256-GCM) for at-rest credential protection
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
-            limit: 60, // 60 requests per minute (P0: lowered from 100 to leave headroom for per-endpoint overrides)
+            limit: 120, // 120 requests per minute
         }]),
     ],
     providers: [
         {
             provide: APP_GUARD,
             useClass: CustomThrottlerGuard,
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: ApmTracingInterceptor,
         },
     ],
 })

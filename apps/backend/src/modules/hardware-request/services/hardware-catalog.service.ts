@@ -21,10 +21,17 @@ export class HardwareCatalogService {
         private readonly cacheService: CacheService,
     ) {}
 
-    listActive(): Promise<HardwareCatalog[]> {
+    private sanitizeItem(item: HardwareCatalog): HardwareCatalog {
+        if (item && Array.isArray(item.requiredFields)) {
+            item.requiredFields = item.requiredFields.filter((f) => f && f.key && f.key !== 'preferredBrand');
+        }
+        return item;
+    }
+
+    async listActive(): Promise<HardwareCatalog[]> {
         // P1 perf: catalog is static reference data and is fetched on every
         // request-form open. 60s cache drops the hot-path DB hit.
-        return this.cacheService.getOrSet(
+        const items = await this.cacheService.getOrSet(
             HardwareCatalogService.KEY_ACTIVE,
             async () => this.repo.find({
                 where: { active: true },
@@ -32,18 +39,20 @@ export class HardwareCatalogService {
             }),
             HardwareCatalogService.CACHE_TTL,
         );
+        return (items || []).map((item) => this.sanitizeItem(item));
     }
 
-    listAll(): Promise<HardwareCatalog[]> {
-        return this.cacheService.getOrSet(
+    async listAll(): Promise<HardwareCatalog[]> {
+        const items = await this.cacheService.getOrSet(
             HardwareCatalogService.KEY_ALL,
             async () => this.repo.find({ order: { displayOrder: 'ASC', name: 'ASC' } }),
             HardwareCatalogService.CACHE_TTL,
         );
+        return (items || []).map((item) => this.sanitizeItem(item));
     }
 
     async getById(id: string): Promise<HardwareCatalog> {
-        return this.cacheService.getOrSet(
+        const item = await this.cacheService.getOrSet(
             HardwareCatalogService.KEY_ONE(id),
             async () => {
                 const found = await this.repo.findOne({ where: { id } });
@@ -54,6 +63,7 @@ export class HardwareCatalogService {
             },
             HardwareCatalogService.CACHE_TTL,
         );
+        return this.sanitizeItem(item);
     }
 
     async ensureActive(id: string): Promise<HardwareCatalog> {

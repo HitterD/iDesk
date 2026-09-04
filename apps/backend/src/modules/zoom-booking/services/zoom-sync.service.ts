@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
+import { Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { ZoomBooking, ZoomAccount, ZoomMeeting } from '../entities';
 import { ZoomApiAdapter, ZoomMeetingListItem } from '../adapters/zoom-api.adapter';
 import { BookingStatus } from '../enums/booking-status.enum';
@@ -19,13 +20,23 @@ export class ZoomSyncService {
         private readonly eventEmitter: EventEmitter2,
     ) { }
 
+    @Cron(CronExpression.EVERY_5_MINUTES)
+    async handleCronSync() {
+        this.logger.log('Starting automated 5-minute Zoom background sync...');
+        try {
+            await this.syncAllAccounts();
+        } catch (error) {
+            this.logger.error('Error during scheduled Zoom sync', error);
+        }
+    }
+
     async syncAllAccounts() {
         if (!this.zoomApi.isConfigured()) {
             this.logger.warn('Zoom API is not configured. Skipping sync.');
             return 0;
         }
 
-        const accounts = await this.accountRepo.find({ where: { isActive: true } });
+        const accounts = await this.accountRepo.find({ where: { isActive: true }, order: { displayOrder: 'ASC' } });
         let updatedCount = 0;
 
         for (const account of accounts) {
@@ -51,40 +62,48 @@ export class ZoomSyncService {
 
         try {
             // Pull upcoming scheduled meetings
-            const response = await this.zoomApi.listMeetings(account.email, 'scheduled');
-            const externalMeetingIds: string[] = [];
+            const response = await this.zoomApi.listMeetings(account.email, 'upcoming');
+            const externalMeetingKeys: string[] = [];
 
-            for (const meeting of response.meetings) {
-                // Determine if meeting already exists (external or internal)
-                // First try to match by externalZoomMeetingId, then by ZoomMeeting entity
-                const zoomMeetingIdStr = meeting.id.toString();
-                externalMeetingIds.push(zoomMeetingIdStr);
+            for (const meeting of (response.meetings || [])) {
+                try {
+                    const startDateTime = new Date(meeting.start_time);
+                    const dateStr = startDateTime.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+                    const timeStr = startDateTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' }) + ':00';
+                    
+                    // Distinct key per occurrence so recurring meetings appear on every scheduled day
+                    const externalKey = `${meeting.id}_${dateStr}_${timeStr.slice(0, 5)}`;
+                    externalMeetingKeys.push(externalKey);
 
-                const existingExternal = await this.bookingRepo.findOne({
-                    where: { externalZoomMeetingId: zoomMeetingIdStr },
-                });
+                    const existingExternal = await this.bookingRepo.findOne({
+                        where: { externalZoomMeetingId: externalKey },
+                    });
 
-                if (existingExternal) {
-                    await this.upsertExternalMeeting(existingExternal, meeting, account);
-                    syncedCount++;
-                    continue;
-                }
+                    if (existingExternal) {
+                        await this.upsertExternalMeeting(existingExternal, meeting, account, externalKey, dateStr, timeStr);
+                        syncedCount++;
+                        continue;
+                    }
 
-                // Verify if it's an internal meeting that we created
-                const isInternal = await this.bookingRepo.createQueryBuilder('booking')
-                    .innerJoin('booking.meeting', 'meeting')
-                    .where('meeting.zoomMeetingId = :zoomMeetingId', { zoomMeetingId: zoomMeetingIdStr })
-                    .getOne();
+                    // Verify if it's an internal meeting that we created in iDesk
+                    const isInternal = await this.bookingRepo.createQueryBuilder('booking')
+                        .innerJoin('booking.meeting', 'meeting')
+                        .where('meeting.zoomMeetingId = :zoomMeetingId', { zoomMeetingId: meeting.id.toString() })
+                        .andWhere('booking.bookingDate = :dateStr', { dateStr })
+                        .getOne();
 
-                if (!isInternal) {
-                    // It's a brand new external meeting
-                    await this.upsertExternalMeeting(null, meeting, account);
-                    syncedCount++;
+                    if (!isInternal) {
+                        // It's a brand new external meeting from Zoom
+                        await this.upsertExternalMeeting(null, meeting, account, externalKey, dateStr, timeStr);
+                        syncedCount++;
+                    }
+                } catch (meetingErr) {
+                    this.logger.warn(`Failed to process Zoom meeting ${meeting.id} for ${account.email}: ${meetingErr.message}`);
                 }
             }
 
             // Remove stale external meetings for this account (meetings that were deleted in Zoom)
-            await this.removeStaleExternalMeetings(account.id, externalMeetingIds);
+            await this.removeStaleExternalMeetings(account.id, externalMeetingKeys);
 
         } catch (error) {
             this.logger.error(`Error syncing account ${account.email}`, error);
@@ -94,30 +113,33 @@ export class ZoomSyncService {
         return syncedCount;
     }
 
+    private calculateSafeEndTime(timeStr: string, durationMinutes: number): string {
+        const [startHour, startMin] = timeStr.split(':').map(Number);
+        const totalMinutes = startHour * 60 + startMin + (durationMinutes || 60);
+        let endHour = Math.floor(totalMinutes / 60);
+        const endMin = totalMinutes % 60;
+        if (endHour >= 24) {
+            return '23:59:00';
+        }
+        return `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}:00`;
+    }
+
     private async upsertExternalMeeting(
         existingBooking: ZoomBooking | null,
         zoomData: ZoomMeetingListItem,
-        account: ZoomAccount
+        account: ZoomAccount,
+        externalKey: string,
+        dateStr: string,
+        timeStr: string,
     ) {
-        // Parse start_time to date and time components
-        const startDateTime = new Date(zoomData.start_time);
-        
-        // Convert to local YYYY-MM-DD and HH:mm based on Asia/Jakarta
-        const dateStr = startDateTime.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD
-        const timeStr = startDateTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' }); // HH:mm
-
-        // Calculate end time
         const durationMinutes = zoomData.duration || 60;
-        const [startHour, startMin] = timeStr.split(':').map(Number);
-        const totalMinutes = startHour * 60 + startMin + durationMinutes;
-        const endHour = Math.floor(totalMinutes / 60);
-        const endMin = totalMinutes % 60;
-        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const endStr = this.calculateSafeEndTime(timeStr, durationMinutes);
+        const title = (zoomData.topic || 'Zoom Meeting').slice(0, 100);
 
         if (existingBooking) {
             // Update existing external meeting
-            existingBooking.title = zoomData.topic;
-            existingBooking.bookingDate = new Date(dateStr);
+            existingBooking.title = title;
+            existingBooking.bookingDate = dateStr as any;
             existingBooking.startTime = timeStr;
             existingBooking.endTime = endStr;
             existingBooking.durationMinutes = durationMinutes;
@@ -127,35 +149,31 @@ export class ZoomSyncService {
             // Create new external booking
             const newBooking = this.bookingRepo.create({
                 zoomAccountId: account.id,
-                title: zoomData.topic || 'Zoom Meeting',
-                description: 'External meeting scheduled directly via Zoom',
-                bookingDate: new Date(dateStr),
+                title,
+                description: zoomData.agenda || 'External meeting scheduled directly via Zoom',
+                bookingDate: dateStr as any,
                 startTime: timeStr,
                 endTime: endStr,
                 durationMinutes,
                 status: BookingStatus.CONFIRMED,
                 isExternal: true,
-                externalZoomMeetingId: zoomData.id.toString(),
+                externalZoomMeetingId: externalKey,
             });
 
             await this.bookingRepo.save(newBooking);
         }
     }
 
-    private async removeStaleExternalMeetings(accountId: string, activeExternalZoomMeetingIds: string[]) {
-        // Find external meetings that are in DB but NOT in the active list from Zoom
-        // Only look for future meetings to delete, keep the past ones history? Or just clean up?
-        // Usually list API returns 'upcoming' so we clean up pending/confirmed external meetings that no longer exist
-        const todayStr = new Date().toLocaleDateString('en-CA');
+    private async removeStaleExternalMeetings(accountId: string, activeExternalZoomKeys: string[]) {
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         
         const qb = this.bookingRepo.createQueryBuilder('booking')
             .where('booking.zoomAccountId = :accountId', { accountId })
             .andWhere('booking.isExternal = :isExternal', { isExternal: true })
-            .andWhere('booking.status = :status', { status: BookingStatus.CONFIRMED })
             .andWhere('booking.bookingDate >= :todayStr', { todayStr });
 
-        if (activeExternalZoomMeetingIds.length > 0) {
-            qb.andWhere('booking.externalZoomMeetingId NOT IN (:...activeIds)', { activeIds: activeExternalZoomMeetingIds });
+        if (activeExternalZoomKeys.length > 0) {
+            qb.andWhere('booking.externalZoomMeetingId NOT IN (:...activeKeys)', { activeKeys: activeExternalZoomKeys });
         }
 
         const staleMeetings = await qb.getMany();
@@ -170,27 +188,29 @@ export class ZoomSyncService {
     
     // Webhook Handlers (For feature completeness)
     async handleWebhookMeetingCreated(payload: any) {
-        // Find account matching payload.host_email
         if (!payload || !payload.object) return;
         const meetingData = payload.object;
         
         const account = await this.accountRepo.findOne({ where: { email: meetingData.host_email } });
         if (!account) return;
 
-        // Verify if we already have it
-        const zoomMeetingIdStr = meetingData.id.toString();
+        const startDateTime = new Date(meetingData.start_time);
+        const dateStr = startDateTime.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+        const timeStr = startDateTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' }) + ':00';
+        const externalKey = `${meetingData.id}_${dateStr}_${timeStr.slice(0, 5)}`;
+
         const existingExternal = await this.bookingRepo.findOne({
-            where: { externalZoomMeetingId: zoomMeetingIdStr },
+            where: { externalZoomMeetingId: externalKey },
         });
 
-        // Or if it's internal
         const isInternal = await this.bookingRepo.createQueryBuilder('booking')
             .innerJoin('booking.meeting', 'meeting')
-            .where('meeting.zoomMeetingId = :zoomMeetingId', { zoomMeetingId: zoomMeetingIdStr })
+            .where('meeting.zoomMeetingId = :zoomMeetingId', { zoomMeetingId: meetingData.id.toString() })
+            .andWhere('booking.bookingDate = :dateStr', { dateStr })
             .getOne();
 
         if (!existingExternal && !isInternal) {
-            await this.upsertExternalMeeting(null, meetingData as any, account);
+            await this.upsertExternalMeeting(null, meetingData as any, account, externalKey, dateStr, timeStr);
             this.eventEmitter.emit('zoom.sync.completed', { updatedCount: 1 });
         }
     }
@@ -202,13 +222,17 @@ export class ZoomSyncService {
         const account = await this.accountRepo.findOne({ where: { email: meetingData.host_email } });
         if (!account) return;
 
-        const zoomMeetingIdStr = meetingData.id.toString();
+        const startDateTime = new Date(meetingData.start_time);
+        const dateStr = startDateTime.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+        const timeStr = startDateTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' }) + ':00';
+        const externalKey = `${meetingData.id}_${dateStr}_${timeStr.slice(0, 5)}`;
+
         const existingExternal = await this.bookingRepo.findOne({
-            where: { externalZoomMeetingId: zoomMeetingIdStr },
+            where: { externalZoomMeetingId: externalKey },
         });
 
         if (existingExternal) {
-            await this.upsertExternalMeeting(existingExternal, meetingData as any, account);
+            await this.upsertExternalMeeting(existingExternal, meetingData as any, account, externalKey, dateStr, timeStr);
             this.eventEmitter.emit('zoom.sync.completed', { updatedCount: 1 });
         }
     }
@@ -218,14 +242,16 @@ export class ZoomSyncService {
         const meetingData = payload.object;
         const zoomMeetingIdStr = meetingData.id.toString();
         
-        const existingExternal = await this.bookingRepo.findOne({
+        const existingExternal = await this.bookingRepo.find({
             where: { externalZoomMeetingId: zoomMeetingIdStr },
         });
 
-        if (existingExternal) {
-            await this.bookingRepo.delete(existingExternal.id);
-            this.logger.log(`Webhook: Removed external meeting: ${existingExternal.title}`);
-            this.eventEmitter.emit('zoom.sync.completed', { updatedCount: 1 });
+        if (existingExternal && existingExternal.length > 0) {
+            for (const item of existingExternal) {
+                await this.bookingRepo.delete(item.id);
+            }
+            this.logger.log(`Webhook: Removed external meeting instances for ID: ${zoomMeetingIdStr}`);
+            this.eventEmitter.emit('zoom.sync.completed', { updatedCount: existingExternal.length });
         }
     }
 }

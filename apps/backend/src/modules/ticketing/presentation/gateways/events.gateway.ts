@@ -16,6 +16,7 @@ import { RateLimiter } from '../../../../shared/core/utils/rate-limiter';
 import { UserRole } from '../../../users/enums/user-role.enum';
 import { TicketRepository } from '../../repositories/ticket.repository';
 import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
+import { extractClientIp } from '../../../../shared/security/client-ip';
 
 const ACCESS_COOKIE_NAME = 'access_token';
 
@@ -53,11 +54,8 @@ export function readCookie(header: string | undefined, name: string): string | u
 export function resolveClientIp(handshake: { address?: string; headers?: Record<string, unknown> }): string {
     const directAddress = handshake.address || 'unknown';
     if (process.env.TRUST_PROXY !== 'true') return directAddress;
-    const forwarded = handshake.headers?.['x-forwarded-for'];
-    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-    if (typeof raw !== 'string') return directAddress;
-    const clientIp = raw.split(',')[0]?.trim();
-    return clientIp || directAddress;
+    const resolved = extractClientIp(handshake as any);
+    return resolved !== 'unknown' ? resolved : directAddress;
 }
 
 export function buildCorsOrigin() {
@@ -67,9 +65,14 @@ export function buildCorsOrigin() {
             .map((value) => value.trim())
             .filter(Boolean);
         if (process.env.NODE_ENV !== 'production') {
-            allowedOrigins.push('http://localhost:4050', 'http://localhost:3000', 'http://localhost:5173');
+            allowedOrigins.push('http://localhost:4050', 'http://localhost:3000', 'http://localhost:5173', 'http://idesk.santos.co.id', 'https://idesk.santos.co.id');
         }
-        if (!origin || allowedOrigins.includes(origin)) {
+        const isAllowed = !origin ||
+            allowedOrigins.includes(origin) ||
+            /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
+            /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
+            /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin);
+        if (isAllowed) {
             callback(null, true);
             return;
         }
@@ -249,7 +252,13 @@ export class EventsGateway
         {
             const userSiteId = (client.data.siteId as string | null) ?? null;
             const ticketSiteId = (ticket as any).siteId ?? null;
-            const CROSS = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ORACLE] as string[];
+            const CROSS = [
+                UserRole.ADMIN,
+                UserRole.MANAGER,
+                UserRole.AGENT_ORACLE,
+                UserRole.AGENT_WEB_DEV,
+                UserRole.AGENT_MOBILE_DEV,
+            ] as string[];
             if (!CROSS.includes(role as string)) {
                 if (!userSiteId || ticketSiteId !== userSiteId) return { status: 'error', message: 'Forbidden' };
             }

@@ -1,5 +1,5 @@
-import { IsEnum, IsString, IsInt, Min, Max, IsNotEmpty, MaxLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsString, IsInt, Min, Max, IsNotEmpty, MaxLength, IsOptional, IsISO8601 } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 import { SlaAdjustmentReasonCategory } from '../entities/sla-adjustment.entity';
 
@@ -15,9 +15,16 @@ export class ExtendSlaDto {
     @Sanitize({ removeHtml: true })
     reasonText: string;
 
-    @ApiProperty({ description: 'Extra minutes (business-hours) to add to the SLA target' })
+    @ApiPropertyOptional({ description: 'Extra minutes (business-hours) to add to the SLA target' })
+    @IsOptional()
     @IsInt()
-    @Min(30)
+    @Min(1)
     @Max(10080)
-    minutes: number;
+    minutes?: number;
+
+    @ApiPropertyOptional({ description: 'Specific new SLA target date & time in ISO 8601 format' })
+    @IsOptional()
+    @IsISO8601()
+    newTargetDate?: string;
 }
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,45 +42,30 @@ export const SiteSelector = ({
     className,
     disabled = false,
 }: SiteSelectorProps) => {
-    const [sites, setSites] = useState<Site[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        fetchSites();
-    }, []);
-
-    const fetchSites = async () => {
-        setLoading(true);
-        try {
-            setError(null);
-            // Use api helper that handles encrypted auth storage
-            const response = await api.get('/sites');
-            setSites(Array.isArray(response.data) ? response.data : []);
-        } catch (err: any) {
-            console.error('Failed to fetch sites:', err);
-
-            // Handle specific error codes
-            if (err.response?.status === 401) {
-                setError('Session expired');
-            } else if (err.response?.status === 403) {
-                // Try fallback to /sites/active
-                try {
-                    const activeResponse = await api.get('/sites/active');
-                    setSites(Array.isArray(activeResponse.data) ? activeResponse.data : []);
-                    return; // Success with fallback
-                } catch {
-                    setError('Tidak memiliki akses');
+    const {
+        data: sites = [],
+        isLoading: loading,
+        isError,
+        refetch,
+    } = useQuery<Site[]>({
+        queryKey: ['sites', 'active'],
+        queryFn: async () => {
+            try {
+                const res = await api.get('/sites/active');
+                return Array.isArray(res.data) ? res.data : [];
+            } catch (err: any) {
+                if (err.response?.status === 403 || err.response?.status === 404) {
+                    const fallbackRes = await api.get('/sites');
+                    return Array.isArray(fallbackRes.data) ? fallbackRes.data : [];
                 }
-            } else if (err.code === 'ERR_NETWORK') {
-                setError('Server tidak tersedia');
-            } else {
-                setError('Gagal memuat sites');
+                throw err;
             }
-        } finally {
-            setLoading(false);
-        }
-    };
+        },
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+    });
+
+    const error = isError ? 'Gagal memuat sites' : null;
 
     const handleSiteToggle = (siteId: string) => {
         if (mode === 'single') {
@@ -127,7 +112,7 @@ export const SiteSelector = ({
 
     if (error) {
         return (
-            <Button variant="outline" onClick={fetchSites} className={cn('text-red-500', className)}>
+            <Button variant="outline" onClick={() => refetch()} className={cn('text-red-500', className)}>
                 <Building2 className="h-4 w-4 mr-2" />
                 {error} ↻
             </Button>

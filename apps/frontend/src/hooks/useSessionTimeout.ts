@@ -23,15 +23,12 @@ function forceExpiredRedirect(): void {
     } catch {
         try { localStorage.removeItem('auth-storage'); } catch {}
     }
-    // Don't loop if already on /login — just add reason.
-    const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (next.startsWith('/login')) {
-        // Preserve next if present, ensure reason=expired.
-        const url = new URL(window.location.href);
-        url.searchParams.set('reason', 'expired');
-        window.location.replace(`${url.pathname}${url.search}${url.hash}`);
+    const pathname = window.location.pathname;
+    if (pathname.startsWith('/login') || pathname.startsWith('/tv/') || pathname.startsWith('/feedback/')) {
+        // Public route or login page, no need to reload or redirect
         return;
     }
+    const next = `${pathname}${window.location.search}${window.location.hash}`;
     const target = `/login?next=${encodeURIComponent(next)}&reason=expired`;
     toast.error(getErrorMessage('SESSION_EXPIRED'));
     window.location.replace(target);
@@ -44,6 +41,9 @@ function forceExpiredRedirect(): void {
  * - Re-arms whenever `expiresAt` changes (login/refresh) and on visibility/interval polls.
  */
 export function useSessionTimeout(): void {
+    const isPublicKioskRoute = typeof window !== 'undefined' && 
+        (window.location.pathname.startsWith('/tv/') || window.location.pathname.startsWith('/feedback/'));
+
     const expiresAt = useAuth((s) => s.expiresAt);
     const isAuthenticated = useAuth((s) => s.isAuthenticated);
 
@@ -63,24 +63,17 @@ export function useSessionTimeout(): void {
     }, []);
 
     const trySilentRefresh = useCallback(async () => {
-        // Only attempt if still authenticated and not already expired.
         const state = useAuth.getState();
         if (!state.isAuthenticated) return;
-        if (state.isSessionExpired()) {
-            forceExpiredRedirect();
-            return;
-        }
         try {
             const res = await api.post('/auth/refresh');
             const nextExpiresAt: unknown = (res.data as Record<string, unknown> | undefined)?.expiresAt;
             if (typeof nextExpiresAt === 'string' && Date.parse(nextExpiresAt)) {
-                // api interceptor also syncs this, but set explicitly for resilience.
                 state.setExpiresAt(nextExpiresAt);
-                toast.success('Session extended.');
             }
         } catch {
-            // Refresh failure is handled centrally by api interceptor (forceLogout).
-            // No extra action needed here; the next expiry timer will still fire.
+            // Refresh token invalid or expired: now safely redirect to login
+            forceExpiredRedirect();
         }
     }, []);
 
@@ -89,20 +82,19 @@ export function useSessionTimeout(): void {
         warningTimeoutRef.current = window.setTimeout(async () => {
             const state = useAuth.getState();
             if (!state.isAuthenticated) return;
-            const ms = parseExpiresAtMs(state.expiresAt);
-            if (ms === null) return;
-            if (Date.now() >= ms) {
-                forceExpiredRedirect();
-                return;
-            }
-            toast.message('Your session will expire in 5 minutes.', {
-                description: 'Trying to keep you signed in…',
-            });
             await trySilentRefresh();
         }, remainingMs - WARNING_LEAD_MS);
     }, [trySilentRefresh]);
 
     useEffect(() => {
+        if (
+            typeof window !== 'undefined' && 
+            (window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/tv/') || window.location.pathname.startsWith('/feedback/'))
+        ) {
+            clearTimers();
+            return;
+        }
+
         // Reset global guard when user logs out/in so a later session can redirect again.
         if (!isAuthenticated) {
             hasFiredExpiryRedirect = false;
@@ -123,13 +115,13 @@ export function useSessionTimeout(): void {
 
         const remaining = ms - Date.now();
         if (remaining <= 0) {
-            forceExpiredRedirect();
+            void trySilentRefresh();
             return;
         }
 
         clearTimers();
         expiryTimeoutRef.current = window.setTimeout(() => {
-            forceExpiredRedirect();
+            void trySilentRefresh();
         }, remaining);
 
         scheduleWarning(remaining);
@@ -138,35 +130,36 @@ export function useSessionTimeout(): void {
             clearTimers();
         };
         // Re-arm on every expiresAt change.
-    }, [expiresAt, isAuthenticated, clearTimers, scheduleWarning]);
+    }, [expiresAt, isAuthenticated, clearTimers, scheduleWarning, trySilentRefresh]);
 
     // Visibility + interval polling: catches clock drift, suspended tabs, and cross-tab expiry.
     useEffect(() => {
         if (!isAuthenticated) return;
 
         const onVisibility = () => {
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) return;
             if (document.visibilityState !== 'visible') return;
             const state = useAuth.getState();
             if (!state.isAuthenticated) return;
             if (state.isSessionExpired()) {
-                forceExpiredRedirect();
+                void trySilentRefresh();
                 return;
             }
             const ms = parseExpiresAtMs(state.expiresAt);
             if (ms === null) return;
             const remaining = ms - Date.now();
-            // If we're inside the warning window and no warning timer is pending, nudge a refresh.
-            if (remaining > 0 && remaining <= WARNING_LEAD_MS && warningTimeoutRef.current === null) {
-                // Fire-and-forget
+            // If we're inside the warning window, refresh silently.
+            if (remaining > 0 && remaining <= WARNING_LEAD_MS) {
                 void trySilentRefresh();
             }
         };
 
         const onPoll = () => {
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) return;
             const state = useAuth.getState();
             if (!state.isAuthenticated) return;
             if (state.isSessionExpired()) {
-                forceExpiredRedirect();
+                void trySilentRefresh();
             }
         };
 

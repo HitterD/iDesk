@@ -24,7 +24,7 @@ export const USER_PAGES: PageDefinition[] = [
 // Pages available for AGENT role (16 pages including admin-only)
 export const AGENT_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard' },
-    { key: 'tickets', name: 'All Tickets', icon: 'Ticket', route: '/tickets' },
+    { key: 'tickets', name: 'IT Support Tickets', icon: 'Ticket', route: '/tickets' },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests' },
     { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access' },
     { key: 'lost_items', name: 'Lost Items', icon: 'Search', route: '/lost-items' },
@@ -33,9 +33,9 @@ export const AGENT_PAGES: PageDefinition[] = [
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications' },
     { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports' },
     { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal' },
+    { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads' },
     // Admin-only pages
     { key: 'agents', name: 'Agents', icon: 'Users', route: '/agents', adminOnly: true },
-    { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads', adminOnly: true },
     { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', adminOnly: true },
     { key: 'audit_logs', name: 'Audit Logs', icon: 'Shield', route: '/audit-logs', adminOnly: true },
     { key: 'system_health', name: 'System Health', icon: 'Activity', route: '/system-health', adminOnly: true },
@@ -86,6 +86,8 @@ export function getRoleDefaultPageKeys(role: string): string[] {
     const roleMap: Record<string, string[]> = {
         USER: USER_PAGES.map(p => p.key),
         AGENT: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
+        AGENT_OPERATIONAL_SUPPORT: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
+        AGENT_ADMIN: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
         MANAGER: MANAGER_PAGES.map(p => p.key),
         ADMIN: AGENT_PAGES.map(p => p.key),
     };

@@ -3,19 +3,29 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, AlertTriangle } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
 import { logger } from '@/lib/logger';
+import { PriorityHoverTip } from '@/components/ui/PriorityHoverTip';
 
 const createTicketSchema = z.object({
     requesterName: z.string().min(1, 'Requester name is required'),
     requesterPhone: z.string().optional(),
     title: z.string().min(1, 'Title is required'),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL', 'ORACLE_REQUEST']),
+    criticalReason: z.string().optional(),
     category: z.enum(['HARDWARE', 'SOFTWARE', 'NETWORK', 'ORACLE_REQUEST']),
     description: z.string().min(1, 'Description is required'),
+}).refine(data => {
+    if (data.priority === 'CRITICAL' && (!data.criticalReason || data.criticalReason.trim().length === 0)) {
+        return false;
+    }
+    return true;
+}, {
+    message: 'Justifikasi/alasan wajib diisi untuk tiket berkategori Critical',
+    path: ['criticalReason'],
 });
 
 type CreateTicketFormValues = z.infer<typeof createTicketSchema>;
@@ -33,6 +43,8 @@ export const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
     const {
         register,
         handleSubmit,
+        watch,
+        setValue,
         reset,
         formState: { errors },
     } = useForm<CreateTicketFormValues>({
@@ -42,6 +54,8 @@ export const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
             category: 'SOFTWARE',
         },
     });
+
+    const currentPriority = watch('priority');
 
     const mutation = useMutation({
         mutationFn: async (data: CreateTicketFormValues) => {
@@ -53,12 +67,16 @@ Requester: ${data.requesterName} ${data.requesterPhone ? `(${data.requesterPhone
 ${data.description}
       `.trim();
 
-            const payload = {
+            const payload: any = {
                 title: data.title,
                 description: enhancedDescription,
                 priority: data.priority,
                 source: 'WEB', // Explicitly set source
             };
+
+            if (data.priority === 'CRITICAL' && data.criticalReason) {
+                payload.criticalReason = data.criticalReason;
+            }
 
             const response = await api.post('/tickets', payload);
             return response.data;
@@ -143,29 +161,69 @@ ${data.description}
                         </div>
 
                         {/* Priority & Category */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-slate-300 mb-1.5">
                                     Priority
                                 </label>
-                                <select
-                                    {...register('priority')}
-                                    className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
-                                >
-                                    <option value="LOW">Low</option>
-                                    <option value="MEDIUM">Medium</option>
-                                    <option value="HIGH">High</option>
-                                    <option value="CRITICAL">Critical</option>
-                                    <option value="ORACLE_REQUEST">Oracle/K2</option>
-                                </select>
+                                <div className="grid grid-cols-5 gap-1.5 p-1 bg-slate-900/80 border border-white/10 rounded-xl">
+                                    {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL', 'ORACLE_REQUEST'] as const).map((p) => {
+                                        const isSelected = currentPriority === p;
+                                        const displayLabel = p === 'ORACLE_REQUEST' ? 'Oracle' : p.charAt(0) + p.slice(1).toLowerCase();
+                                        return (
+                                            <PriorityHoverTip key={p} priority={p === 'ORACLE_REQUEST' ? 'HIGH' : p} side="top">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setValue('priority', p, { shouldValidate: true })}
+                                                    className={`py-2 px-1 rounded-lg text-xs font-bold transition-all text-center ${isSelected
+                                                        ? p === 'CRITICAL'
+                                                            ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500 shadow-sm'
+                                                            : p === 'HIGH'
+                                                                ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500 shadow-sm'
+                                                                : p === 'MEDIUM'
+                                                                    ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500 shadow-sm'
+                                                                    : p === 'ORACLE_REQUEST'
+                                                                        ? 'bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500 shadow-sm'
+                                                                        : 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500 shadow-sm'
+                                                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                                        }`}
+                                                >
+                                                    {displayLabel}
+                                                </button>
+                                            </PriorityHoverTip>
+                                        );
+                                    })}
+                                </div>
                             </div>
+
+                            {/* Critical Reason Input */}
+                            {currentPriority === 'CRITICAL' && (
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-red-400 flex items-center gap-1.5 uppercase tracking-wide">
+                                            <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> Justifikasi Kritis (Wajib) *
+                                        </label>
+                                        <span className="text-[10px] text-red-400/80">Diteruskan ke Tim Agent</span>
+                                    </div>
+                                    <textarea
+                                        {...register('criticalReason')}
+                                        rows={2}
+                                        className="w-full bg-slate-950/80 border border-red-500/30 rounded-lg px-3 py-2 text-xs text-white placeholder:text-red-400/40 focus:outline-none focus:ring-1 focus:ring-red-500 resize-none"
+                                        placeholder="Jelaskan alasan mengapa tiket ini memerlukan penanganan kritis & darurat..."
+                                    />
+                                    {errors.criticalReason && (
+                                        <p className="text-xs text-red-400 mt-0.5">{errors.criticalReason.message}</p>
+                                    )}
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">
                                     Category
                                 </label>
                                 <select
                                     {...register('category')}
-                                    className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer text-sm"
                                 >
                                     <option value="SOFTWARE">Software</option>
                                     <option value="HARDWARE">Hardware</option>

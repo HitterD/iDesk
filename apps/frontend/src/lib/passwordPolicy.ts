@@ -5,9 +5,16 @@
  */
 
 export const PASSWORD_POLICY = {
-    minLength: 12,
+    minLength: 8,
     maxLength: 72,
 } as const;
+
+/**
+ * Panjang yang dianjurkan — bukan aturan yang memblokir. Dipakai indikator
+ * kekuatan dan teks bantuan untuk mendorong password lebih panjang tanpa
+ * menolak password yang sudah memenuhi `minLength`.
+ */
+export const RECOMMENDED_PASSWORD_LENGTH = 12;
 
 export const MIN_PASSWORD_LENGTH = PASSWORD_POLICY.minLength;
 export const MAX_PASSWORD_LENGTH = PASSWORD_POLICY.maxLength;
@@ -41,7 +48,7 @@ export function validatePasswordLocal(password: string): PasswordCheckResult {
 export function passwordPolicyMessage(reason: PasswordPolicyReason): string {
     switch (reason) {
         case 'TOO_SHORT':
-            return `Password minimal ${PASSWORD_POLICY.minLength} karakter.`;
+            return `Password minimal ${PASSWORD_POLICY.minLength} karakter (disarankan ${RECOMMENDED_PASSWORD_LENGTH}+ agar lebih aman).`;
         case 'TOO_LONG':
             return `Password maksimal ${PASSWORD_POLICY.maxLength} karakter.`;
         case 'MISSING_COMPLEXITY':

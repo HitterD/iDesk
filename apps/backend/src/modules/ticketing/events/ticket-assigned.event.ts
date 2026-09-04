@@ -10,5 +10,7 @@ export class TicketAssignedEvent {
         public readonly assignerName: string,
         public readonly ticketTitle: string,
         public readonly ticketStatus: string,
+        public readonly ticketOwnerEmail?: string,
+        public readonly ticketOwnerName?: string,
     ) { }
 }

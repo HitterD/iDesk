@@ -27,6 +27,7 @@ interface MessageReactionsProps {
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
     className?: string;
+    align?: 'left' | 'right' | 'auto';
 }
 
 export const MessageReactions: React.FC<MessageReactionsProps> = ({
@@ -34,9 +35,12 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
     onAddReaction,
     onRemoveReaction,
     className,
+    align = 'auto',
 }) => {
     const [showPicker, setShowPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
+
+    const isRightAligned = align === 'right' || (align === 'auto' && className?.includes('justify-end'));
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -58,59 +62,69 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
     };
 
     return (
-        <div className={cn('flex items-center gap-1 flex-wrap', className)}>
+        <div className={cn('flex items-center gap-1.5 flex-wrap my-1', className)}>
             {/* Existing reactions */}
             {reactions.map((reaction) => (
                 <button
                     key={reaction.emoji}
                     onClick={() => handleReactionClick(reaction.emoji, reaction.hasReacted)}
                     className={cn(
-                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors duration-150',
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all duration-150 shadow-2xs cursor-pointer',
                         'hover:scale-105 active:scale-95',
                         reaction.hasReacted
-                            ? 'bg-primary/20 text-primary border border-primary/30'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 border border-transparent'
+                            ? 'bg-primary/15 text-primary border border-primary/40 font-bold ring-1 ring-primary/20'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200/70 dark:hover:bg-slate-700'
                     )}
-                    title={reaction.users.join(', ')}
+                    title={reaction.users.length > 0 ? reaction.users.join(', ') : `${reaction.count} reaksi`}
                 >
-                    <span>{reaction.emoji}</span>
-                    <span className="font-medium">{reaction.count}</span>
+                    <span className="text-sm">{reaction.emoji}</span>
+                    <span className="font-semibold text-[11px]">{reaction.count}</span>
                 </button>
             ))}
 
             {/* Add reaction button */}
-            <div className="relative" ref={pickerRef}>
+            <div className="relative inline-flex items-center" ref={pickerRef}>
                 <button
+                    type="button"
                     onClick={() => setShowPicker(!showPicker)}
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    className={cn(
+                        "inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/80 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-2xs active:scale-95 cursor-pointer",
+                        showPicker && "ring-2 ring-primary/30 text-primary bg-primary/10 border-primary/40"
+                    )}
+                    title="Tambah Reaksi"
                 >
                     <SmilePlus className="w-3.5 h-3.5" />
                 </button>
 
-                {/* Emoji picker */}
+                {/* Emoji picker popover with smart alignment */}
                 <AnimatePresence>
                     {showPicker && (
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 4 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 4 }}
-                            className="absolute bottom-full mb-1 left-0 z-50 p-2 w-max max-w-[280px] sm:max-w-none bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/60 origin-bottom-left"
+                            transition={{ duration: 0.15, ease: 'easeOut' }}
+                            className={cn(
+                                "absolute bottom-full mb-2 z-50 p-1.5 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-1 min-w-max",
+                                isRightAligned
+                                    ? "right-0 origin-bottom-right"
+                                    : "left-0 origin-bottom-left"
+                            )}
                         >
-                            <div className="flex flex-wrap gap-1">
-                                {EMOJI_REACTIONS.map(({ emoji, label }) => (
-                                    <button
-                                        key={emoji}
-                                        onClick={() => {
-                                            onAddReaction(emoji);
-                                            setShowPicker(false);
-                                        }}
-                                        className="w-8 h-8 flex items-center justify-center text-xl hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all duration-200 hover:scale-125 hover:-translate-y-1 active:scale-95"
-                                        title={label}
-                                    >
-                                        {emoji}
-                                    </button>
-                                ))}
-                            </div>
+                            {EMOJI_REACTIONS.map(({ emoji, label }) => (
+                                <button
+                                    key={emoji}
+                                    type="button"
+                                    onClick={() => {
+                                        onAddReaction(emoji);
+                                        setShowPicker(false);
+                                    }}
+                                    className="w-8 h-8 flex items-center justify-center text-lg hover:bg-slate-100 dark:hover:bg-slate-700/80 rounded-xl transition-all duration-150 hover:scale-125 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none"
+                                    title={label}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
                         </motion.div>
                     )}
                 </AnimatePresence>

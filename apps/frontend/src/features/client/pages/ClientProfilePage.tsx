@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { User, Mail, Phone, Building, Lock, Save, Camera, MessageCircle, Palette, Moon, Sun } from 'lucide-react';
+import { User, Mail, Phone, Building, Lock, Save, Camera, MessageCircle, Palette, Moon, Sun, Volume2, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { TelegramSettingsForm } from '../../settings/components/TelegramSettingsForm';
+import { ChangeEmailDialog } from '../../settings/components/ChangeEmailDialog';
+import { SoundSettingsPage } from '../../settings/pages/SoundSettingsPage';
+import { NotificationSettings } from '../../settings/components/NotificationSettings';
 import { PASSWORD_POLICY, getPasswordRequirements, translatePasswordPolicyError, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
 import { useTheme } from '@/components/theme-provider';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -23,8 +27,25 @@ export const ClientProfilePage: React.FC = () => {
     const { user, updateUser } = useAuth();
     const queryClient = useQueryClient();
     const { theme, setTheme } = useTheme();
-    const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'telegram' | 'appearance'>('profile');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const queryTab = searchParams.get('tab') as 'profile' | 'password' | 'telegram' | 'appearance' | 'sounds' | 'notifications' | null;
+    const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'telegram' | 'appearance' | 'sounds' | 'notifications'>(
+        queryTab || 'profile'
+    );
+
+    useEffect(() => {
+        if (queryTab && ['profile', 'password', 'telegram', 'appearance', 'sounds', 'notifications'].includes(queryTab)) {
+            setActiveTab(queryTab);
+        }
+    }, [queryTab]);
+
+    const handleTabSelect = (tab: typeof activeTab) => {
+        setActiveTab(tab);
+        setSearchParams({ tab });
+    };
+
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
     // Profile form
     const [profileForm, setProfileForm] = useState({
@@ -197,9 +218,9 @@ export const ClientProfilePage: React.FC = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-2 mb-6">
+                <div className="flex gap-2 mb-6 flex-wrap">
                     <button
-                        onClick={() => setActiveTab('profile')}
+                        onClick={() => handleTabSelect('profile')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'profile'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
@@ -211,7 +232,19 @@ export const ClientProfilePage: React.FC = () => {
                         </span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('password')}
+                        onClick={() => handleTabSelect('notifications')}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'notifications'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                            }`}
+                    >
+                        <span className="flex items-center gap-2">
+                            <Bell className="w-4 h-4" />
+                            Notifikasi
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => handleTabSelect('password')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'password'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
@@ -223,7 +256,7 @@ export const ClientProfilePage: React.FC = () => {
                         </span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('telegram')}
+                        onClick={() => handleTabSelect('telegram')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'telegram'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
@@ -235,7 +268,7 @@ export const ClientProfilePage: React.FC = () => {
                         </span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('appearance')}
+                        onClick={() => handleTabSelect('appearance')}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'appearance'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
@@ -244,6 +277,18 @@ export const ClientProfilePage: React.FC = () => {
                         <span className="flex items-center gap-2">
                             <Palette className="w-4 h-4" />
                             Appearance
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => handleTabSelect('sounds')}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'sounds'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                            }`}
+                    >
+                        <span className="flex items-center gap-2">
+                            <Volume2 className="w-4 h-4" />
+                            Suara Notifikasi
                         </span>
                     </button>
                 </div>
@@ -274,13 +319,23 @@ export const ClientProfilePage: React.FC = () => {
                                     Email
                                 </span>
                             </label>
-                            <input
-                                type="email"
-                                value={profile?.email || ''}
-                                disabled
-                                className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 cursor-not-allowed"
-                            />
-                            <p className="text-xs text-slate-400 mt-1">Email cannot be changed</p>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0 px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                                    <span className="block truncate text-slate-700 dark:text-slate-200">
+                                        {profile?.email || ''}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEmailDialogOpen(true)}
+                                    className="shrink-0 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors duration-150"
+                                >
+                                    Ubah
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1">
+                                Perlu password Anda untuk mengubahnya.
+                            </p>
                         </div>
 
                         <div>
@@ -452,7 +507,27 @@ export const ClientProfilePage: React.FC = () => {
                         </div>
                     </div>
                 )}
+
+                {/* Notification Settings */}
+                {activeTab === 'notifications' && (
+                    <div className="pt-2">
+                        <NotificationSettings />
+                    </div>
+                )}
+
+                {/* Sound Settings */}
+                {activeTab === 'sounds' && (
+                    <div className="pt-2">
+                        <SoundSettingsPage />
+                    </div>
+                )}
             </div>
+
+            <ChangeEmailDialog
+                open={emailDialogOpen}
+                onOpenChange={setEmailDialogOpen}
+                currentEmail={profile?.email || ''}
+            />
         </div>
     );
 };

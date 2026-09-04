@@ -1,8 +1,11 @@
 import { TicketQueryService } from './ticket-query.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 
-const ORACLE_EXCLUSION =
-    '(ticket."handlingTeam" != :oracleTeam)';
+const OPS_SUPPORT_ONLY =
+    '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)';
+const OPS_SUPPORT_PARAMS = {
+    opsTeam: 'OPS_SUPPORT',
+};
 const ORACLE_ONLY =
     '(ticket."handlingTeam" = :oracleTeam)';
 const ORACLE_FILTER_PARAMS = {
@@ -52,7 +55,7 @@ describe('TicketQueryService', () => {
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.createdAt <= :endDate', { endDate: '2023-12-31' });
     });
 
-    it('includes Oracle/K2 tickets owned by USER in the paginated list', async () => {
+    it('does not filter out handling team for USER role', async () => {
         await service.findAllPaginated('user-1', UserRole.USER, 'site-1');
 
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
@@ -60,8 +63,8 @@ describe('TicketQueryService', () => {
             { userId: 'user-1' },
         );
         expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(
-            ORACLE_EXCLUSION,
-            ORACLE_FILTER_PARAMS,
+            OPS_SUPPORT_ONLY,
+            OPS_SUPPORT_PARAMS,
         );
     });
 
@@ -72,12 +75,12 @@ describe('TicketQueryService', () => {
         UserRole.AGENT_OPERATIONAL_SUPPORT,
         UserRole.AGENT_ADMIN,
         UserRole.AGENT_ORACLE,
-    ])('keeps Oracle/K2 out of the general paginated list for %s', async (role) => {
+    ])('keeps developer queues out of the general paginated list for %s', async (role) => {
         await service.findAllPaginated('actor-1', role, 'site-1');
 
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-            ORACLE_EXCLUSION,
-            ORACLE_FILTER_PARAMS,
+            OPS_SUPPORT_ONLY,
+            OPS_SUPPORT_PARAMS,
         );
     });
 

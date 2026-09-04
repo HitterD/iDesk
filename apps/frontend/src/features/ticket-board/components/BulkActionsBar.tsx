@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, UserPlus, CheckCircle2, XCircle, MoreHorizontal, Check } from 'lucide-react';
+import { Trash2, UserPlus, CheckCircle2, XCircle, MoreHorizontal, Check, GitMerge } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BulkActionsBarProps {
@@ -7,6 +7,7 @@ interface BulkActionsBarProps {
     onAssign: () => void;
     onChangeStatus: (status: string) => void;
     onClear: () => void;
+    onMerge?: () => void;
     isLoading?: boolean;
     /** Rendered only when provided — ADMIN-only in practice. */
     onDelete?: () => void;
@@ -17,6 +18,7 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
     onAssign,
     onChangeStatus,
     onClear,
+    onMerge,
     isLoading,
     onDelete,
 }) => {
@@ -35,6 +37,19 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                    {onMerge && selectedCount >= 2 && (
+                        <button
+                            type="button"
+                            onClick={onMerge}
+                            disabled={isLoading}
+                            className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-indigo-300 hover:text-white hover:bg-indigo-950/70 border border-indigo-500/40 rounded-xl transition-all shadow-2xs active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                            title="Gabungkan tiket terpilih menjadi 1 tiket"
+                        >
+                            <GitMerge className="w-4 h-4 text-indigo-400" />
+                            <span className="hidden sm:inline">Merge Tiket</span>
+                        </button>
+                    )}
+
                     <button
                         onClick={onAssign}
                         disabled={isLoading}

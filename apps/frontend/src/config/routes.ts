@@ -31,6 +31,8 @@ export const ROUTES = {
         CREATE: '/tickets/create',
         KANBAN: '/kanban',
         ORACLE_K2: '/tickets/oracle-k2',
+        WEB_DEV: '/tickets/web-developer',
+        MOBILE_DEV: '/tickets/mobile-developer',
     },
 
     // Knowledge Base
@@ -137,6 +139,8 @@ export const ROUTE_NAMES: Record<string, string> = {
     '/tickets/list': 'Tickets',
     '/tickets/create': 'Create Ticket',
     '/tickets/oracle-k2': 'Oracle K2 Request',
+    '/tickets/web-developer': 'Web Developer Request',
+    '/tickets/mobile-developer': 'Mobile Developer Request',
     '/kanban': 'Kanban Board',
     '/kb': 'Knowledge Base',
     '/kb/manage': 'Manage Articles',

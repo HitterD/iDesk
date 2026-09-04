@@ -12,6 +12,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
+import {
+    AssignmentPolicy,
+    ModuleAssignmentPolicyService,
+} from '../ticketing/services/module-assignment-policy.service';
 
 @Injectable()
 export class WorkloadService {
@@ -35,6 +39,7 @@ export class WorkloadService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly eventEmitter: EventEmitter2,
+        private readonly assignmentPolicy: ModuleAssignmentPolicyService,
     ) { }
 
     // ==========================================
@@ -95,19 +100,113 @@ export class WorkloadService {
         });
 
         if (!workload) {
-            // Create new workload record for today — use the resolved target site
-            workload = this.workloadRepo.create({
+            // Create new workload record for today — race-safe: two concurrent
+            // readers may both miss the row; ON CONFLICT DO NOTHING keeps the
+            // unique (agentId, siteId, workDate) from exploding, then re-read.
+            await this.ensureWorkloadRow(agentId, targetSiteId, workDate);
+            workload = await this.workloadRepo.findOne({
+                where: { agentId, siteId: targetSiteId, workDate },
+                relations: ['agent', 'site'],
+            });
+        }
+
+        if (!workload) {
+            // Only reachable if the row vanished between insert and re-read
+            throw new NotFoundException(`Workload for agent ${agentId} not found`);
+        }
+
+        return workload;
+    }
+
+    /**
+     * Atomically add a ticket's points to an agent's daily workload.
+     *
+     * Replaces the previous unlocked findOne → mutate → save sequence, which
+     * lost concurrent increments: two auto-assignments to the same agent both
+     * read the same row and the second save silently discarded the first
+     * `totalPoints +=` (PROD-20). The row is created with ON CONFLICT DO
+     * NOTHING and updated via SQL `col = col + n`, so neither a duplicate-key
+     * error nor a lost update is possible under concurrency.
+     *
+     * @returns the freshly-read workload (used for the auto-assign event payload)
+     */
+    async incrementAgentWorkload(
+        actor: SiteActor,
+        agentId: string,
+        siteId?: string,
+        points?: number,
+        date?: Date,
+    ): Promise<AgentDailyWorkload> {
+        const scope = resolveSiteScope(actor);
+
+        if (scope.mode === 'none') {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        // For site-locked actors, explicitly provided siteId must match actor's site (defense-in-depth)
+        if (scope.mode === 'site' && siteId && siteId !== scope.siteId) {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        // Non-cross-site always uses actor's site; cross-site may use provided siteId
+        const targetSiteId = scope.mode === 'site' ? scope.siteId : siteId;
+
+        if (!targetSiteId) {
+            throw new ForbiddenException('Access to this resource is forbidden');
+        }
+
+        const workDate = date || new Date();
+        workDate.setHours(0, 0, 0, 0);
+
+        // 1. Ensure the row exists (no-op when it already does).
+        await this.ensureWorkloadRow(agentId, targetSiteId, workDate);
+
+        // 2. Atomic increments — never read-modify-write.
+        await this.workloadRepo.increment(
+            { agentId, siteId: targetSiteId, workDate },
+            'totalPoints',
+            points ?? 0,
+        );
+        await this.workloadRepo.increment(
+            { agentId, siteId: targetSiteId, workDate },
+            'activeTickets',
+            1,
+        );
+        await this.workloadRepo.update(
+            { agentId, siteId: targetSiteId, workDate },
+            { lastAssignedAt: new Date() },
+        );
+
+        const workload = await this.workloadRepo.findOne({
+            where: { agentId, siteId: targetSiteId, workDate },
+            relations: ['agent', 'site'],
+        });
+        if (!workload) {
+            throw new NotFoundException(`Workload for agent ${agentId} not found`);
+        }
+        return workload;
+    }
+
+    /**
+     * INSERT ... ON CONFLICT DO NOTHING for the unique (agentId, siteId, workDate).
+     * Concurrent create-then-save would deadlock/duplicate; this is the safe
+     * primitive used by both the read path and incrementAgentWorkload.
+     */
+    private async ensureWorkloadRow(agentId: string, siteId: string, workDate: Date): Promise<void> {
+        await this.workloadRepo
+            .createQueryBuilder()
+            .insert()
+            .into(AgentDailyWorkload)
+            .values([{
                 agentId,
-                siteId: targetSiteId,
+                siteId,
                 workDate,
                 totalPoints: 0,
                 activeTickets: 0,
                 resolvedTickets: 0,
-            });
-            workload = await this.workloadRepo.save(workload);
-        }
-
-        return workload;
+            }])
+            .orIgnore()
+            .execute();
     }
 
     async getAllAgentWorkloads(actor: SiteActor, siteId?: string, date?: Date): Promise<any[]> {
@@ -307,21 +406,44 @@ export class WorkloadService {
     // ==========================================
 
     /**
-     * Find the best agent to assign a ticket to based on workload
-     * Algorithm: Select agent with lowest current workload points for the given site
+     * Resolve the candidate pool for auto-assignment. Kept separate so the
+     * explicit-list rule is stated once and is readable on its own.
      */
-    async findBestAgentForAssignment(siteId: string, excludeAgentIds: string[] = []): Promise<User | null> {
+    private async findCandidateAgents(siteId: string, policy?: AssignmentPolicy): Promise<User[]> {
+        if (policy && policy.userIds.length > 0) {
+            return this.userRepo.find({
+                where: { id: In(policy.userIds), isActive: true },
+            });
+        }
+
+        const roles = policy?.roles?.length
+            ? policy.roles
+            : [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT];
+
+        return this.userRepo.find({
+            where: { role: In(roles), siteId, isActive: true },
+        });
+    }
+
+    /**
+     * Find the best agent to assign a ticket to based on workload.
+     * Algorithm: lowest current workload points, tie-broken by oldest assignment.
+     *
+     * The candidate pool comes from `policy` when given:
+     *   - explicit `userIds` -> exactly those users, across sites (an admin who
+     *     curated the list decided the membership; site is not a second filter);
+     *   - otherwise `roles` filtered to `siteId`, which is the legacy behaviour.
+     * Without a policy the caller gets the historical ops-support pool.
+     */
+    async findBestAgentForAssignment(
+        siteId: string,
+        excludeAgentIds: string[] = [],
+        policy?: AssignmentPolicy,
+    ): Promise<User | null> {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Get all active agents for this site (only operational support)
-        const agents = await this.userRepo.find({
-            where: {
-                role: In([UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT]),
-                siteId,
-                isActive: true,
-            },
-        });
+        const agents = await this.findCandidateAgents(siteId, policy);
 
         if (agents.length === 0) {
             return null;
@@ -403,11 +525,27 @@ export class WorkloadService {
             throw new BadRequestException('Ticket has no site assigned');
         }
 
-        // Find best agent (scoped by ticket.siteId; findBest is site-specific and does not cross sites)
-        const bestAgent = await this.findBestAgentForAssignment(ticket.siteId);
+        // Single guard for every auto-assign path (create, forward, SLA breach,
+        // manual API). Modules with auto-assign off — Oracle, Web Dev, Mobile
+        // Dev — must never be routed into the ops-support workload pool.
+        const policy = await this.assignmentPolicy.resolvePolicy(
+            this.assignmentPolicy.toAssignable(ticket),
+        );
+
+        if (!policy.autoAssignEnabled) {
+            throw new BadRequestException(
+                `Auto-assign is disabled for ${policy.module?.name ?? 'this ticket module'}`,
+            );
+        }
+
+        const bestAgent = await this.findBestAgentForAssignment(ticket.siteId, [], policy);
 
         if (!bestAgent) {
-            throw new BadRequestException('No available agents for this site');
+            // The admin curated a list and nobody on it is available. Leaving
+            // the ticket unassigned is visible and actionable; silently falling
+            // back to the role pool would assign the very people who were
+            // deliberately excluded.
+            throw new BadRequestException('No available agents for this ticket module');
         }
 
         // Assign ticket
@@ -416,14 +554,17 @@ export class WorkloadService {
 
         const savedTicket = await this.ticketRepo.save(ticket);
 
-        // Update agent's workload using a trusted internal actor derived from the ticket's site
+        // Update agent's workload using a trusted internal actor derived from the ticket's site.
+        // Atomic increment — a concurrent auto-assignment to the same agent must not
+        // lose this increment (PROD-20).
         const priorityPoints = await this.getPriorityWeight(ticket.priority);
-        const internalActor: SiteActor = actor ?? { role: UserRole.ADMIN, siteId: ticket.siteId };
-        const workload = await this.getAgentWorkload(internalActor, bestAgent.id, ticket.siteId);
-        workload.totalPoints += priorityPoints;
-        workload.activeTickets += 1;
-        workload.lastAssignedAt = new Date();
-        await this.workloadRepo.save(workload);
+        const internalActor: SiteActor = actor ?? { role: UserRole.ADMIN, siteId: ticket.siteId ?? null };
+        const workload = await this.incrementAgentWorkload(
+            internalActor,
+            bestAgent.id,
+            ticket.siteId,
+            priorityPoints,
+        );
 
         // Emit event
         this.eventEmitter.emit('ticket.auto-assigned', {

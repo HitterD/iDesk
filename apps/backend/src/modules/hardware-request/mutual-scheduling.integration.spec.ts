@@ -78,7 +78,7 @@ maybeDescribe('Mutual Scheduling Flow (integration)', () => {
     it('runs end-to-end installation lifecycle', async () => {
         // Setup initial request and fast-forward to INSTALLATION
         const cat = await catalog.create({ code: `TEST-${Date.now()}`, name: 'Test Laptop', category: ItemCategory.LAPTOP } as any);
-        const draft = await commands.createDraft(userId, {
+        const draft = await commands.createDraft(userId, siteId, 'AGENT' as any, {
             siteId, justification: 'Testing scheduling', items: [{ catalogId: cat.id, quantity: 1 }],
         } as any);
         await commands.submit(userId, draft.id);

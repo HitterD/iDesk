@@ -81,32 +81,38 @@ export const EformAccessDetailPage: React.FC = () => {
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-4xl space-y-6 px-3 sm:px-6 py-6 sm:py-8 animate-fade-in-up">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-xl font-semibold">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+      <div className="flex items-center justify-between gap-2.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="rounded-xl font-semibold cursor-pointer shrink-0">
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> Kembali
         </Button>
         <Button
           variant={request.status === EFormStatus.CONFIRMED ? 'default' : 'outline'}
+          size="sm"
           onClick={downloadPdf}
-          className="rounded-xl font-bold shadow-xs"
+          className="rounded-xl font-bold shadow-xs cursor-pointer text-xs sm:text-sm shrink-0"
         >
-          <Download className="mr-2 h-4 w-4" />
-          {request.status === EFormStatus.CONFIRMED ? 'Export PDF Resmi (F-ICT-04)' : 'Unduh Draft PDF'}
+          <Download className="mr-1.5 h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">
+            {request.status === EFormStatus.CONFIRMED ? 'Export PDF Resmi (F-ICT-04)' : 'Unduh Draft PDF'}
+          </span>
+          <span className="sm:hidden">
+            {request.status === EFormStatus.CONFIRMED ? 'PDF Resmi' : 'Draft PDF'}
+          </span>
         </Button>
       </div>
 
       {/* Confirmed / ACC Banner */}
       {request.status === EFormStatus.CONFIRMED && (
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <CheckCircle2 size={20} />
             </div>
             <div>
               <p className="font-bold text-sm text-foreground">Pengajuan Akses Telah Terealisasi (ACC)</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Dokumen resmi F-ICT-04 telah lengkap dengan tanda tangan pemohon, atasan, dan verifikasi ICT.
               </p>
             </div>
@@ -114,7 +120,7 @@ export const EformAccessDetailPage: React.FC = () => {
           <Button
             size="sm"
             onClick={downloadPdf}
-            className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+            className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 w-full sm:w-auto cursor-pointer"
           >
             <Download className="mr-1.5 h-3.5 w-3.5" /> Unduh PDF Resmi
           </Button>
@@ -122,7 +128,7 @@ export const EformAccessDetailPage: React.FC = () => {
       )}
 
       {/* Status pipeline */}
-      <div className="rounded-2xl border border-border bg-card p-8">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 md:p-8 shadow-xs">
         <EformStatusPipeline
           currentStatus={request.status as EFormStatus}
           formType={request.formType}
@@ -130,12 +136,11 @@ export const EformAccessDetailPage: React.FC = () => {
         />
       </div>
 
-
       {/* Contextual action */}
       {isCurrentApprover && request.status === EFormStatus.PENDING_MANAGER && (
         <Button
           onClick={() => navigate(`${basePath}/eform-access/${id}/approve`)}
-          className="h-12 w-full rounded-xl text-sm font-bold"
+          className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <ClipboardCheck className="mr-2 h-4 w-4" /> Tinjau &amp; setujui permintaan
         </Button>
@@ -143,7 +148,7 @@ export const EformAccessDetailPage: React.FC = () => {
       {isICT && request.status === EFormStatus.PENDING_ICT && (
         <Button
           onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
-          className="h-12 w-full rounded-xl text-sm font-bold"
+          className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <Database className="mr-2 h-4 w-4" /> Siapkan kredensial akses
         </Button>
@@ -151,16 +156,16 @@ export const EformAccessDetailPage: React.FC = () => {
       {isRequester && request.status === EFormStatus.CONFIRMED && (
         <Button
           onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
-          className="h-12 w-full rounded-xl text-sm font-bold"
+          className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <ShieldCheck className="mr-2 h-4 w-4" /> Lihat kredensial akses
         </Button>
       )}
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-3">
         {/* Main content */}
         <div className="space-y-6 lg:col-span-2">
-          <div className="space-y-6 rounded-2xl border border-border bg-card p-8">
+          <div className="space-y-6 rounded-2xl border border-border bg-card p-4 sm:p-6 md:p-8 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <FileText size={20} aria-hidden="true" />

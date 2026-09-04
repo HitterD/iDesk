@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { format, addDays, parseISO, isSameDay } from 'date-fns';
-import { Video, Calendar, Clock, Users, FileText, AlertTriangle, Loader2, CheckCircle2, ExternalLink, Sparkles, ChevronDown } from 'lucide-react';
+import { Video, Calendar, Clock, Users, FileText, AlertTriangle, Loader2, Sparkles, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,9 @@ import {
 import type { ZoomAccount, CreateBookingDto, CalendarDay } from '../types';
 import { ZoomRecurringOptions } from './ZoomRecurringOptions';
 import { ZoomTimeSelect, type TimeSlotOption } from './ZoomTimeSelect';
+import { ZoomEndTimeSelect, type EndTimeOption } from './ZoomEndTimeSelect';
+import { ZoomParticipantPicker } from './ZoomParticipantPicker';
+import { calculateDuration, formatDurationLabel, computeEndTimeOptions } from './SimpleBookingForm';
 import { autoPickAccount, buildAvailability, type AccountLoad, type AccountAvailability } from '../utils/autoPickAccount';
 
 export const GABUNGAN_ACCOUNT_ID = 'gabungan';
@@ -51,14 +54,6 @@ const generateTimeOptions = (
     return options;
 };
 
-const DURATION_OPTIONS = [
-    { value: 30,  label: '30 menit (0.5 jam)' },
-    { value: 60,  label: '60 menit (1 jam)' },
-    { value: 90,  label: '90 menit (1.5 jam)' },
-    { value: 120, label: '120 menit (2 jam)' },
-    { value: 180, label: '180 menit (3 jam)' },
-    { value: 240, label: '240 menit (4 jam)' },
-];
 
 interface ZoomBookingFormProps {
     zoomAccountId: string;
@@ -88,10 +83,13 @@ export function ZoomBookingForm({
     const [description, setDescription] = useState('');
     const [bookingDate, setBookingDate] = useState(preselectedDate || '');
     const [startTime, setStartTime] = useState(preselectedTime || '');
-    const [duration, setDuration] = useState<number>(60);
-    const [participantEmails, setParticipantEmails] = useState('');
-    const [successJoinUrl, setSuccessJoinUrl] = useState<string | null>(null);
+    const [endTime, setEndTime] = useState('');
+    const [participantEmails, setParticipantEmails] = useState<string[]>([]);
     const [accountPickerOpen, setAccountPickerOpen] = useState(false);
+
+    const duration = useMemo(() => {
+        return calculateDuration(startTime, endTime);
+    }, [startTime, endTime]);
 
     // Recurring state
     const [isRecurring, setIsRecurring] = useState(false);
@@ -252,6 +250,72 @@ export function ZoomBookingForm({
         });
     }, [calendarData, isGabungan, accounts, allCalResults, effectiveDate, bookingDate, timeOptions]);
 
+    // Slot availability mapping for computeEndTimeOptions
+    const slotAvailabilityList = useMemo(() => {
+        const sourceCalendarData: CalendarDay[] | undefined = isGabungan
+            ? buildMergedGabunganCalendar(accounts, allCalResults, effectiveDate)
+            : calendarData;
+
+        if (!sourceCalendarData || !bookingDate) return undefined;
+        const dayData = sourceCalendarData.find((d) => d.date === bookingDate);
+        if (!dayData) return undefined;
+
+        return dayData.slots.map((s) => {
+            const occupied = s.status === 'booked' || s.status === 'my_booking';
+            const blocked = s.status === 'blocked';
+            return {
+                time: s.time,
+                available: !occupied && !blocked,
+                availableAccountsCount: occupied || blocked ? 0 : 1,
+                totalAccountsCount: 1,
+                reason: blocked ? 'Diblokir' : s.booking?.title ? `Terisi: ${s.booking.title}` : 'Penuh',
+            };
+        });
+    }, [calendarData, isGabungan, accounts, allCalResults, effectiveDate, bookingDate]);
+
+    const durationOptionsList = useMemo(() => {
+        return (settings?.allowedDurations && settings.allowedDurations.length > 0)
+            ? settings.allowedDurations
+            : [30, 60, 90, 120, 150, 180, 240];
+    }, [settings]);
+
+    const endTimeOptions = useMemo(() => {
+        return computeEndTimeOptions(
+            startTime,
+            bookingDate,
+            settings,
+            durationOptionsList,
+            slotAvailabilityList,
+        );
+    }, [startTime, bookingDate, settings, durationOptionsList, slotAvailabilityList]);
+
+    // Auto-select end time when startTime or options change
+    useEffect(() => {
+        if (!startTime || !endTimeOptions.length) {
+            setEndTime('');
+            return;
+        }
+
+        // If current endTime is available in options, keep it
+        const currentValid = endTimeOptions.find((o) => o.value === endTime && !o.isUnavailable);
+        if (currentValid) return;
+
+        // Default to +60 minutes if available
+        const default60 = endTimeOptions.find((o) => o.durationMinutes === 60 && !o.isUnavailable);
+        if (default60) {
+            setEndTime(default60.value);
+            return;
+        }
+
+        // Fallback to first available end time
+        const firstAvailable = endTimeOptions.find((o) => !o.isUnavailable);
+        if (firstAvailable) {
+            setEndTime(firstAvailable.value);
+        } else {
+            setEndTime('');
+        }
+    }, [startTime, endTimeOptions]);
+
     const conflictWarning = useMemo(() => {
         if (isCalendarFetching || !calendarData || !startTime || !duration || !bookingDate || createBooking.isPending) return null;
         if (isGabungan) return null; // Gabungan uses the dropdown occupancy display
@@ -262,6 +326,10 @@ export function ZoomBookingForm({
         const [startH, startM] = startTime.split(':').map(Number);
         const startMinutes = startH * 60 + startM;
         const endMinutes = startMinutes + duration;
+
+        if (endMinutes > 24 * 60) {
+            return 'Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.';
+        }
 
         const checkedIds = new Set<string>();
         for (const slot of dayData.slots) {
@@ -293,6 +361,12 @@ export function ZoomBookingForm({
 
         if (!title.trim()) { toast.error('Judul meeting wajib diisi'); return; }
         if (!bookingDate) { toast.error('Tanggal wajib dipilih'); return; }
+        if (!startTime) { toast.error('Waktu mulai wajib dipilih'); return; }
+        const [startH, startM] = startTime.split(':').map(Number);
+        if (startH * 60 + startM + duration > 24 * 60) {
+            toast.error('Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.');
+            return;
+        }
         if (isGabungan && (!selectedAccountId || selectedAccountId === GABUNGAN_ACCOUNT_ID)) {
             toast.error('Pilih akun Zoom terlebih dahulu');
             return;
@@ -307,6 +381,10 @@ export function ZoomBookingForm({
             }
         }
 
+        const validParticipantEmails = participantEmails
+            .map((e) => e.trim())
+            .filter((e) => e.includes('@'));
+
         const dto: CreateBookingDto = {
             zoomAccountId: selectedAccountId,
             title: title.trim(),
@@ -314,20 +392,14 @@ export function ZoomBookingForm({
             bookingDate,
             startTime,
             durationMinutes: duration,
-            participantEmails: participantEmails
-                .split(',')
-                .map((e) => e.trim())
-                .filter((e) => e.includes('@')),
+            participantEmails: validParticipantEmails.length > 0 ? validParticipantEmails : undefined,
             recurrencePattern
         };
 
         try {
-            const result = await createBooking.mutateAsync(dto);
+            await createBooking.mutateAsync(dto);
             toast.success('Booking berhasil dibuat! Link Zoom akan dikirim via email.');
-            const joinUrl = (result as any)?.meeting?.joinUrl ?? null;
-            setSuccessJoinUrl(joinUrl);
-            // Auto-close after 5s
-            setTimeout(() => onClose(), 5000);
+            onClose();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal membuat booking');
         }
@@ -357,32 +429,25 @@ export function ZoomBookingForm({
         return free.length;
     }, [isGabungan, startTime, duration, accountLoads, availabilityForPick]);
 
-    // Success view
-    if (successJoinUrl !== null || (createBooking.isSuccess && !createBooking.isPending)) {
-        return (
-            <div className="p-6 flex flex-col items-center gap-4 text-center">
-                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-                <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Booking Berhasil!</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Link Zoom akan dikirim via email. Panel akan tertutup otomatis.
-                    </p>
-                </div>
-                {successJoinUrl && (
-                    <Button
-                        className="gap-2"
-                        onClick={() => window.open(successJoinUrl, '_blank')}
-                    >
-                        <ExternalLink className="h-4 w-4" />
-                        Join Meeting Sekarang
-                    </Button>
-                )}
-                <Button variant="outline" onClick={onClose} className="w-full">
-                    Tutup
-                </Button>
-            </div>
-        );
-    }
+    // Estimated end time calculation (Zoom Client style)
+    const estimatedTime = useMemo(() => {
+        if (!startTime || !duration) return null;
+        const [h, m] = startTime.split(':').map(Number);
+        if (isNaN(h) || isNaN(m)) return null;
+
+        const totalMinutes = h * 60 + m + duration;
+        const endH = Math.floor(totalMinutes / 60) % 24;
+        const endM = totalMinutes % 60;
+        const isNextDay = totalMinutes >= 24 * 60;
+        const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+        return {
+            startTime,
+            endTime: endStr,
+            isNextDay,
+            displayText: `${startTime} - ${endStr} WIB`,
+        };
+    }, [startTime, duration]);
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
@@ -501,7 +566,8 @@ export function ZoomBookingForm({
                 </div>
 
                 {/* Date & Time */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Date & Time */}
+                <div className="space-y-3">
                     <div className="space-y-1.5">
                         <Label className="text-xs font-semibold">
                             <Calendar className="h-3.5 w-3.5 inline mr-1" />
@@ -515,37 +581,44 @@ export function ZoomBookingForm({
                             maxDate={addDays(new Date(), settings?.advanceBookingDays || 30)}
                         />
                     </div>
-                    <ZoomTimeSelect
-                        label="Waktu Mulai *"
-                        value={startTime}
-                        onChange={setStartTime}
-                        options={timeSlotOptions}
-                        placeholder="Pilih waktu"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <ZoomTimeSelect
+                            label="Waktu Mulai *"
+                            value={startTime}
+                            onChange={setStartTime}
+                            options={timeSlotOptions}
+                            placeholder="Pilih jam mulai"
+                            align="left"
+                            dropdownClassName="w-full sm:w-[calc(200%+0.75rem)] min-w-[260px]"
+                        />
+                        <ZoomEndTimeSelect
+                            label="Jam Selesai *"
+                            value={endTime}
+                            onChange={setEndTime}
+                            options={endTimeOptions}
+                            placeholder={startTime ? "Pilih jam selesai" : "Pilih jam mulai dulu"}
+                            disabled={!startTime}
+                            align="right"
+                            dropdownClassName="w-full sm:w-[calc(200%+0.75rem)] min-w-[260px]"
+                        />
+                    </div>
                 </div>
 
-                {/* Duration */}
-                <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                        <Clock className="h-3.5 w-3.5 inline mr-1" />
-                        Durasi *
-                    </Label>
-                    <Select
-                        value={String(duration)}
-                        onValueChange={(v) => setDuration(Number(v))}
-                    >
-                        <SelectTrigger className="h-9">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {DURATION_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={String(opt.value)}>
-                                    {opt.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                {/* Estimated End Time Banner (Zoom Client Style) */}
+                {estimatedTime && (
+                    <div className="flex items-center gap-2.5 px-3 py-2 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-lg text-xs text-blue-800 dark:text-blue-200">
+                        <Clock className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <div className="flex flex-wrap items-center gap-1.5 font-medium leading-tight">
+                            <span className="text-blue-600/90 dark:text-blue-400/90">Estimasi:</span>
+                            <span className="font-semibold text-blue-950 dark:text-blue-50 font-mono">
+                                {estimatedTime.displayText}
+                            </span>
+                            <span className="text-blue-700/80 dark:text-blue-300/80">
+                                (Selesai pukul {estimatedTime.endTime}{estimatedTime.isNextDay ? ' besok' : ''}) · {formatDurationLabel(duration)}
+                            </span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Conflict check loading */}
                 {!isGabungan && isCalendarFetching && bookingDate && startTime && (
@@ -582,14 +655,11 @@ export function ZoomBookingForm({
                         <Users className="h-3.5 w-3.5 inline mr-1" />
                         Peserta (Opsional)
                     </Label>
-                    <Input
+                    <ZoomParticipantPicker
                         id="participants"
                         value={participantEmails}
-                        onChange={(e) => setParticipantEmails(e.target.value)}
-                        placeholder="email1@example.com, email2@example.com"
-                        className="h-9"
+                        onChange={setParticipantEmails}
                     />
-                    <p className="text-xs text-muted-foreground">Pisahkan dengan koma untuk multiple email</p>
                 </div>
 
                 {/* Recurring Options */}

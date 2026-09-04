@@ -28,6 +28,19 @@ export class User {
     @Column({ unique: true })
     email: string;
 
+    /**
+     * Set when a human deliberately chose this email — the user themself via
+     * PATCH /users/me/email, or an admin via the Edit User modal. Automated
+     * writers (HRIS sync, CSV import) must leave the address alone once this is
+     * set, otherwise the nightly sync would silently revert the change.
+     */
+    @Column({ type: 'timestamp', nullable: true })
+    emailOverriddenAt: Date | null;
+
+    // Who performed the override (user id). Kept for audit trail only.
+    @Column({ type: 'varchar', nullable: true })
+    emailOverriddenBy: string | null;
+
     @Column({ type: 'varchar', nullable: true })
     password?: string;
 

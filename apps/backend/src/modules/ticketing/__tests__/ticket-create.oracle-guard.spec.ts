@@ -7,6 +7,7 @@ describe('Ticket Creation Oracle Guard', () => {
     let userRepo: any;
     let ticketRepo: any;
     let eventEmitter: { emit: jest.Mock };
+    let auditService: { logAsync: jest.Mock };
 
     beforeEach(() => {
         userRepo = {
@@ -46,6 +47,7 @@ describe('Ticket Creation Oracle Guard', () => {
         };
 
         eventEmitter = { emit: jest.fn() };
+        auditService = { logAsync: jest.fn() };
 
         service = new TicketCreateService(
             ticketRepo,
@@ -57,7 +59,7 @@ describe('Ticket Creation Oracle Guard', () => {
             { invalidateTicketCache: jest.fn(), onTicketChange: jest.fn() } as any,
             eventEmitter as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            { logAsync: jest.fn() } as any,
+            auditService as any,
         );
     });
 
@@ -105,5 +107,40 @@ describe('Ticket Creation Oracle Guard', () => {
                 category: 'GENERAL',
             } as any),
         ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('emits ticket.created and logs audit AFTER the transaction commits, not inside it', async () => {
+        const order: string[] = [];
+        eventEmitter.emit.mockImplementation((name: string) => { order.push(`emit:${name}`); });
+        auditService.logAsync.mockImplementation(() => { order.push('audit'); });
+        ticketRepo.manager.transaction.mockImplementation(async (cb: (m: unknown) => Promise<unknown>) =>
+            cb({
+                createQueryBuilder: () => ({
+                    where: jest.fn().mockReturnThis(),
+                    orderBy: jest.fn().mockReturnThis(),
+                    setLock: jest.fn().mockReturnThis(),
+                    getOne: jest.fn().mockResolvedValue(null),
+                }),
+                create: jest.fn((_, dto) => dto),
+                save: jest.fn(async (_e: unknown, t?: unknown) => {
+                    const target = (t || _e) as Record<string, unknown>;
+                    order.push('tx:save');
+                    return { id: 't-created', ...target };
+                }),
+            }),
+        );
+
+        await service.createTicket('user-site-1', {
+            title: 'Oracle access issue',
+            description: 'Tidak dapat membuka menu K2',
+            category: 'ORACLE_REQUEST',
+            ticketType: 'ORACLE_REQUEST',
+        } as any);
+
+        // Ticket save + message save inside the transaction; emit + audit only AFTER commit
+        expect(order).toEqual(['tx:save', 'tx:save', 'emit:ticket.created', 'audit', 'emit:tv-board.ticket-changed']);
+        const event = eventEmitter.emit.mock.calls.find(([name]) => name === 'ticket.created')![1];
+        expect(event.ticketId).toBe('t-created');
+        expect(event.siteId).toBe('site-1');
     });
 });

@@ -33,28 +33,57 @@ export class SitesController {
 
     @Get()
     @ApiOperation({ summary: 'Get all sites' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_ORACLE,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     findAll() {
         return this.sitesService.findAll();
     }
 
     @Get('active')
     @ApiOperation({ summary: 'Get all active sites' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.USER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ORACLE,
+        UserRole.AGENT_ADMIN,
+        UserRole.USER,
+    )
     findActive() {
         return this.sitesService.findActive();
     }
 
     @Get('stats')
     @ApiOperation({ summary: 'Get site statistics' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_ORACLE,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     getSiteStats() {
         return this.sitesService.getSiteStats();
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get site by ID' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_ORACLE,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     findOne(@Param('id', ParseUUIDPipe) id: string) {
         return this.sitesService.findOne(id);
     }

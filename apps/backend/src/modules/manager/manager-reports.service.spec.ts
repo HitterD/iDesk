@@ -2,6 +2,9 @@ import { ManagerReportsService } from './manager-reports.service';
 import { ReportType } from './dto';
 import { UserRole } from '../users/enums/user-role.enum';
 
+// Actor cross-site (MANAGER) — resolveSiteScope() → mode 'all'.
+const MANAGER_ACTOR = { role: UserRole.MANAGER, siteId: 'site-x' };
+
 describe('ManagerReportsService.getAgentPerformance — query count', () => {
     let service: ManagerReportsService;
     let ticketRepo: any;
@@ -17,7 +20,10 @@ describe('ManagerReportsService.getAgentPerformance — query count', () => {
                 addSelect: jest.fn().mockReturnThis(),
                 where: jest.fn().mockReturnThis(),
                 andWhere: jest.fn().mockReturnThis(),
+                setParameters: jest.fn().mockReturnThis(),
                 groupBy: jest.fn().mockReturnThis(),
+                addGroupBy: jest.fn().mockReturnThis(),
+                orderBy: jest.fn().mockReturnThis(),
                 getRawMany: jest.fn().mockResolvedValue([]),
             }),
             find: jest.fn().mockResolvedValue([]),
@@ -37,7 +43,8 @@ describe('ManagerReportsService.getAgentPerformance — query count', () => {
             includeTicketStats: false,
             includeAgentPerformance: true,
             includeSlaMetrics: false,
-        } as any);
+            sections: ['agents'],
+        } as any, MANAGER_ACTOR);
 
         // One grouped count query (createQueryBuilder) + one find for resolved tickets,
         // no matter how many agents — not 2 queries per agent.
@@ -54,7 +61,8 @@ describe('ManagerReportsService.getAgentPerformance — query count', () => {
             includeTicketStats: false,
             includeAgentPerformance: true,
             includeSlaMetrics: false,
-        } as any);
+            sections: ['agents'],
+        } as any, MANAGER_ACTOR);
 
         expect(report.agentPerformance).toEqual([]);
         expect(ticketRepo.createQueryBuilder).not.toHaveBeenCalled();

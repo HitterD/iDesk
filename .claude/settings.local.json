@@ -58,7 +58,18 @@
       "PowerShell(Test-Path *)",
       "Bash(ln -s '/f/Program Bagas/SynologyDrive/iDesk-main/apps/backend/node_modules' /tmp/idesk-client-zoom-merge/apps/backend/node_modules)",
       "Bash(ln -s '/f/Program Bagas/SynologyDrive/iDesk-main/apps/frontend/node_modules' /tmp/idesk-client-zoom-merge/apps/frontend/node_modules)",
-      "Bash(C:/Users/IT18/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/brainstorming/scripts/start-server.sh *)"
+      "Bash(C:/Users/IT18/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/brainstorming/scripts/start-server.sh *)",
+      "Bash(npm view *)",
+      "Bash(npm i *)",
+      "Bash(npm root *)",
+      "Bash(higgsfield --version)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(npm config *)",
+      "Bash(npm --version)",
+      "Bash(curl -sL \"https://api.github.com/repos/higgsfield-ai/cli/releases/tags/v1.1.23\")",
+      "Read(//f/tmp/**)",
+      "Bash(curl -sL \"https://github.com/higgsfield-ai/cli/releases/download/v1.1.23/checksums.txt\" -o hf_checksums.txt)",
+      "Bash(curl -sL \"https://github.com/higgsfield-ai/cli/releases/download/v1.1.23/hf_1.1.23_windows_amd64.tar.gz\" -o hf_win.tar.gz)"
     ]
   },
   "hooks": {

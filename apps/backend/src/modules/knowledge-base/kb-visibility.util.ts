@@ -48,6 +48,22 @@ export function canReadArticle(
 }
 
 /**
+ * Whether a caller may read an article that has not been published yet
+ * (DRAFT or PENDING_REVIEW). Mirrors the publishing gate: the author, an
+ * internal-staff reviewer, or an ADMIN may see pre-publication articles;
+ * an arbitrary end user may not (their existence must not leak, hence the
+ * NotFound thrown by findOneForUser).
+ */
+export function canSeeUnpublished(
+    article: { authorId?: string | null },
+    user: { userId?: string; role?: UserRole | string | null },
+): boolean {
+    if (user.role === UserRole.ADMIN) return true;
+    if (isInternalStaff(user.role)) return true;
+    return !!user.userId && article.authorId === user.userId;
+}
+
+/**
  * Publishing is role-gated. Articles marked PUBLIC need an admin review
  * before they reach the whole company: a non-admin author who asks to
  * "publish" gets PENDING_REVIEW instead. INTERNAL is staff-facing so
@@ -77,3 +93,41 @@ export function finalPublishStatus(
  */
 export const canReviewPending = (actorRole?: UserRole | string | null): boolean =>
     actorRole === UserRole.ADMIN;
+
+/**
+ * Whether the actor may pin/unpin the single "start here" article shown at
+ * the top of the KB landing page. That slot is the most prominent surface in
+ * the app; if every author could claim it, it would change without a decision.
+ */
+export const canFeatureArticle = (actorRole?: UserRole | string | null): boolean =>
+    actorRole === UserRole.ADMIN;
+
+/**
+ * Whether an article is eligible to be featured.
+ *
+ * The hero card is shown to every logged-in user, including end users, so it
+ * must never become a side channel around the normal visibility rules: an
+ * unpublished or staff-only article cannot be pinned there.
+ */
+export function canBeFeatured(article: {
+    status: ArticleStatus;
+    visibility: ArticleVisibility;
+}): boolean {
+    return (
+        article.status === ArticleStatus.PUBLISHED &&
+        article.visibility === ArticleVisibility.PUBLIC
+    );
+}
+
+/**
+ * Whether a currently-featured article must lose the flag after a change to
+ * its status or visibility. Demoting an article out of PUBLISHED/PUBLIC
+ * silently unpins it rather than leaving a hero card pointing at something
+ * the reader is no longer allowed to open.
+ */
+export function shouldDropFeatured(
+    article: { isFeatured?: boolean },
+    next: { status: ArticleStatus; visibility: ArticleVisibility },
+): boolean {
+    return !!article.isFeatured && !canBeFeatured(next);
+}

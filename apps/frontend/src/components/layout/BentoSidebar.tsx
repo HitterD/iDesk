@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Ticket,
@@ -25,6 +25,8 @@ import {
     FileText,
     PackageSearch,
     Database,
+    Code2,
+    Smartphone,
     LucideIcon
 } from 'lucide-react';
 import { useAuth, performLogout } from '../../stores/useAuth';
@@ -37,6 +39,8 @@ import { usePermissions as useIctPermissions } from '@/features/hardware-request
 import { usePendingApprovals } from '@/features/request-center/api/eform-request.api';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 // Types for navigation structure
 interface NavItem {
@@ -73,38 +77,66 @@ const NavGroupComponent: React.FC<{
 }> = ({ group, isExpanded, onToggle, isCollapsed, groupBadge, getItemBadge }) => {
     const location = useLocation();
     const hasActiveChild = group.items.some(item => location.pathname.startsWith(item.path));
+    const [popoverOpen, setPopoverOpen] = useState(false);
+    const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // When sidebar is collapsed (icon-only mode)
+    const handleMouseEnter = () => {
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current);
+            closeTimeoutRef.current = null;
+        }
+        setPopoverOpen(true);
+    };
+
+    const handleMouseLeave = () => {
+        closeTimeoutRef.current = setTimeout(() => {
+            setPopoverOpen(false);
+        }, 150);
+    };
+
+    // When sidebar is collapsed (icon-only mode) -> Portaled Floating Flyout Menu
     if (isCollapsed) {
         return (
-            <div className="relative group/nav">
-                <button
-                    type="button"
-                    onClick={onToggle}
-                    aria-label={group.label}
-                    aria-expanded={isExpanded}
-                    className={cn(
-                        "w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-150 relative",
-                        hasActiveChild
-                            ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                            : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
-                    )}
-                >
-                    <group.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
-                    {groupBadge && groupBadge.count > 0 ? (
-                        <span className={cn(
-                            "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-background shadow-xs pointer-events-none tabular-nums",
-                            groupBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
-                        )}>
-                            {groupBadge.count > 99 ? '99+' : groupBadge.count}
-                        </span>
-                    ) : null}
-                </button>
+            <div
+                className="relative flex justify-center py-0.5"
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+            >
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                    <PopoverTrigger asChild>
+                        <button
+                            type="button"
+                            onClick={() => setPopoverOpen(prev => !prev)}
+                            aria-label={group.label}
+                            aria-expanded={popoverOpen}
+                            className={cn(
+                                "w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-150 relative cursor-pointer",
+                                hasActiveChild
+                                    ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                                    : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
+                            )}
+                        >
+                            <group.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                            {groupBadge && groupBadge.count > 0 ? (
+                                <span className={cn(
+                                    "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-background shadow-xs pointer-events-none tabular-nums",
+                                    groupBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
+                                )}>
+                                    {groupBadge.count > 99 ? '99+' : groupBadge.count}
+                                </span>
+                            ) : null}
+                        </button>
+                    </PopoverTrigger>
 
-                {/* Floating Flyout Menu on hover */}
-                <div className="absolute left-full ml-2.5 top-0 hidden group-hover/nav:flex group-focus-within/nav:flex flex-col z-50 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border/80 p-2 min-w-[210px] backdrop-blur-xl">
-                        <div className="px-3 py-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between border-b border-border/50 mb-1">
+                    <PopoverContent
+                        side="right"
+                        align="start"
+                        sideOffset={14}
+                        className="bg-white/95 dark:bg-slate-900/95 text-popover-foreground rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-2 min-w-[220px] backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150"
+                        onMouseEnter={handleMouseEnter}
+                        onMouseLeave={handleMouseLeave}
+                    >
+                        <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 dark:border-slate-800 mb-1">
                             <span>{group.label}</span>
                             {groupBadge && groupBadge.count > 0 ? (
                                 <span className={cn(
@@ -122,17 +154,18 @@ const NavGroupComponent: React.FC<{
                                     <NavLink
                                         key={item.path}
                                         to={item.path}
+                                        onClick={() => setPopoverOpen(false)}
                                         className={({ isActive }) =>
                                             cn(
-                                                "flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors relative",
+                                                "flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-all duration-150 relative",
                                                 isActive
-                                                    ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                                                    ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
                                                     : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
                                             )
                                         }
                                     >
                                         <item.icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                        <span className="truncate flex-1">{item.label}</span>
+                                        <span className="truncate flex-1 font-medium">{item.label}</span>
                                         {itemBadge && itemBadge.count > 0 ? (
                                             <span className={cn(
                                                 "text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums",
@@ -145,8 +178,8 @@ const NavGroupComponent: React.FC<{
                                 );
                             })}
                         </div>
-                    </div>
-                </div>
+                    </PopoverContent>
+                </Popover>
             </div>
         );
     }
@@ -246,33 +279,35 @@ const StandaloneNavLink: React.FC<{
 }> = ({ entry, isCollapsed, itemBadge }) => {
     if (isCollapsed) {
         return (
-            <div className="relative group/nav">
-                <NavLink
-                    to={entry.path}
-                    aria-label={entry.label}
-                    className={({ isActive }) =>
-                        cn(
-                            "w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-150 relative",
-                            isActive
-                                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                                : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
-                        )
-                    }
-                >
-                    <entry.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
-                    {itemBadge && itemBadge.count > 0 ? (
-                        <span className={cn(
-                            "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-background shadow-xs pointer-events-none tabular-nums",
-                            itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
-                        )}>
-                            {itemBadge.count > 99 ? '99+' : itemBadge.count}
-                        </span>
-                    ) : null}
-                </NavLink>
-
-                {/* Floating Tooltip */}
-                <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 hidden group-hover/nav:flex group-focus-within/nav:flex z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
-                    <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-1.5 text-xs font-semibold whitespace-nowrap flex items-center gap-2">
+            <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className="relative flex justify-center py-0.5">
+                            <NavLink
+                                to={entry.path}
+                                aria-label={entry.label}
+                                className={({ isActive }) =>
+                                    cn(
+                                        "w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all duration-150 relative cursor-pointer",
+                                        isActive
+                                            ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                                            : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
+                                    )
+                                }
+                            >
+                                <entry.icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                                {itemBadge && itemBadge.count > 0 ? (
+                                    <span className={cn(
+                                        "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-background shadow-xs pointer-events-none tabular-nums",
+                                        itemBadge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
+                                    )}>
+                                        {itemBadge.count > 99 ? '99+' : itemBadge.count}
+                                    </span>
+                                ) : null}
+                            </NavLink>
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" sideOffset={14} className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-1.5 text-xs font-semibold whitespace-nowrap flex items-center gap-2 z-50">
                         <span>{entry.label}</span>
                         {itemBadge && itemBadge.count > 0 ? (
                             <span className={cn(
@@ -282,9 +317,9 @@ const StandaloneNavLink: React.FC<{
                                 {itemBadge.count}
                             </span>
                         ) : null}
-                    </div>
-                </div>
-            </div>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         );
     }
 
@@ -317,18 +352,46 @@ const StandaloneNavLink: React.FC<{
     );
 };
 
-export const BentoSidebar = () => {
+export interface BentoSidebarProps {
+    onNavigate?: () => void;
+}
+
+export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const { user } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
+
+    // Check if current route is a ticket detail view
+    const isTicketDetail = location.pathname.startsWith('/tickets/') && 
+        !['/tickets/list', '/tickets/create', '/tickets/oracle-k2', '/tickets/web-developer', '/tickets/mobile-developer'].includes(location.pathname);
+
+    // Track user's global collapsed preference in localStorage
     const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+        if (isTicketDetail) return true;
         const saved = localStorage.getItem('sidebar-is-collapsed');
         return saved ? JSON.parse(saved) : false;
     });
 
-    // Save collapse state to localStorage
+    // Auto-collapse when entering ticket detail, auto-restore when returning to other pages
     useEffect(() => {
-        localStorage.setItem('sidebar-is-collapsed', JSON.stringify(isCollapsed));
-    }, [isCollapsed]);
+        if (isTicketDetail) {
+            setIsCollapsed(true);
+        } else {
+            const saved = localStorage.getItem('sidebar-is-collapsed');
+            setIsCollapsed(saved ? JSON.parse(saved) : false);
+        }
+    }, [isTicketDetail]);
+
+    // Save collapse state to localStorage only when user explicitly toggles outside of ticket detail
+    const handleToggleCollapse = () => {
+        setIsCollapsed(prev => {
+            const next = !prev;
+            if (!isTicketDetail) {
+                localStorage.setItem('sidebar-is-collapsed', JSON.stringify(next));
+            }
+            return next;
+        });
+    };
 
     // Global keyboard shortcut (Ctrl+B / Cmd+B) to toggle collapse
     useEffect(() => {
@@ -339,12 +402,12 @@ export const BentoSidebar = () => {
                     return;
                 }
                 e.preventDefault();
-                setIsCollapsed(prev => !prev);
+                handleToggleCollapse();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [isTicketDetail]);
 
     // Fetch pending approvals for managers/admins to show badge count
     const isManagerOrAdmin = ['MANAGER', 'ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(user?.role || '');
@@ -396,9 +459,17 @@ export const BentoSidebar = () => {
     };
 
     // Navigation configuration - Core items and groups
+    const isManager = user?.role === 'MANAGER';
+
     const NAVIGATION_CONFIG = useMemo(() => [
         // Core items
-        { type: 'item', key: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+        { 
+            type: 'item', 
+            key: 'dashboard', 
+            icon: LayoutDashboard, 
+            label: 'Dashboard', 
+            path: isManager ? '/manager/dashboard' : '/dashboard' 
+        },
 
         // Request Center group
         {
@@ -407,8 +478,15 @@ export const BentoSidebar = () => {
             label: 'Request Center',
             icon: PackageSearch,
             items: [
-                { key: 'tickets', icon: Ticket, label: 'Tickets', path: '/tickets/list' },
+                { 
+                    key: 'tickets', 
+                    icon: Ticket, 
+                    label: 'IT Support Tickets', 
+                    path: isManager ? '/manager/tickets' : '/tickets/list' 
+                },
                 { key: 'oracle_k2_tickets', icon: Database, label: 'Oracle K2 Request', path: '/tickets/oracle-k2' },
+                { key: 'web_dev_tickets', icon: Code2, label: 'Web Developer Request', path: '/tickets/web-developer' },
+                { key: 'mobile_dev_tickets', icon: Smartphone, label: 'Mobile Developer Request', path: '/tickets/mobile-developer' },
                 { key: 'hardware_requests', icon: MonitorSmartphone, label: 'Hardware Requests', path: '/hardware-requests' },
                 { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/eform-access' },
                 { key: 'lost_items', icon: Search, label: 'Lost Items', path: '/lost-items' },
@@ -434,8 +512,19 @@ export const BentoSidebar = () => {
             label: 'Management',
             icon: Briefcase,
             items: [
+                { 
+                    key: 'workloads', 
+                    icon: Activity, 
+                    label: 'Workloads', 
+                    path: isManager ? '/manager/workloads' : '/workloads' 
+                },
+                { 
+                    key: 'reports', 
+                    icon: BarChart3, 
+                    label: 'Reports', 
+                    path: isManager ? '/manager/reports' : '/reports' 
+                },
                 { key: 'notifications', icon: Bell, label: 'Notifications', path: '/notifications' },
-                { key: 'reports', icon: BarChart3, label: 'Reports', path: '/reports' },
                 { key: 'renewal', icon: CalendarClock, label: 'Renewal Hub', path: '/renewal' },
             ]
         },
@@ -449,13 +538,12 @@ export const BentoSidebar = () => {
             adminOnly: true,
             items: [
                 { key: 'agents', icon: Users, label: 'Agents', path: '/agents' },
-                { key: 'workloads', icon: Activity, label: 'Workloads', path: '/workloads' },
                 { key: 'automation', icon: Zap, label: 'Automation', path: '/automation' },
                 { key: 'audit_logs', icon: Shield, label: 'Audit Logs', path: '/audit-logs' },
                 { key: 'system_health', icon: Activity, label: 'System Health', path: '/system-health' },
             ]
         },
-    ] as const, []);
+    ] as const, [isManager]);
 
     // Page access check - uses pageAccess from applied preset
     const canAccessPage = (pageKey: string): boolean => {
@@ -470,18 +558,32 @@ export const BentoSidebar = () => {
         // Fallback: role-based defaults
         const roleDefaults: Record<string, string[]> = {
             USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
-            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_ORACLE: ['oracle_k2_tickets', 'notifications'],
-            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
-            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],
+            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications'],
+            AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
+            AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
+            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],
         };
 
         const userRole = (user?.role || 'USER') as string;
         const allowedPages = roleDefaults[userRole] || roleDefaults['USER'];
-        return allowedPages.includes(pageKey);
+        return allowedPages.includes(pageKey) || pageKey.startsWith('module_');
     };
 
-    // Build upper navigation from config + pageAccess
+    // Query dynamic ticket modules
+    const { data: dynamicModules = [] } = useQuery<any[]>({
+        queryKey: ['ticket-modules'],
+        queryFn: async () => {
+            const res = await api.get('/ticket-modules');
+            return res.data;
+        },
+        staleTime: 60_000,
+    });
+
+    // Build upper navigation from config + dynamic ticket modules + pageAccess
     const buildNavigation = (): NavEntry[] => {
         const nav: NavEntry[] = [];
 
@@ -492,6 +594,66 @@ export const BentoSidebar = () => {
                 }
             } else if (entry.type === 'group') {
                 if ('adminOnly' in entry && entry.adminOnly && user?.role !== 'ADMIN') {
+                    continue;
+                }
+
+                if (entry.id === 'request_center' && dynamicModules.length > 0) {
+                    // Map dynamic ticket modules
+                    const moduleItems: NavItem[] = dynamicModules.map((mod: any) => {
+                        let path = `/tickets/queue/${mod.slug}`;
+                        let key = `module_${mod.slug}`;
+
+                        if (mod.slug === 'it-support') {
+                            path = isManager ? '/manager/tickets' : '/tickets/list';
+                            key = 'tickets';
+                        } else if (mod.slug === 'oracle-k2') {
+                            path = '/tickets/oracle-k2';
+                            key = 'oracle_k2_tickets';
+                        } else if (mod.slug === 'web-developer') {
+                            path = '/tickets/web-developer';
+                            key = 'web_dev_tickets';
+                        } else if (mod.slug === 'mobile-developer') {
+                            path = '/tickets/mobile-developer';
+                            key = 'mobile_dev_tickets';
+                        }
+
+                        // Determine icon
+                        let IconComponent: LucideIcon = Ticket;
+                        if (mod.icon === 'Database') IconComponent = Database;
+                        else if (mod.icon === 'Code2') IconComponent = Code2;
+                        else if (mod.icon === 'Smartphone') IconComponent = Smartphone;
+                        else if (mod.icon === 'Network' || mod.icon === 'Server') IconComponent = Activity;
+                        else if (mod.icon === 'Shield') IconComponent = Shield;
+                        else if (mod.icon === 'Zap') IconComponent = Zap;
+
+                        return {
+                            key,
+                            icon: IconComponent,
+                            label: mod.name,
+                            path,
+                        };
+                    });
+
+                    // Append static Request Center items
+                    const otherRequestCenterItems = entry.items.filter((item) =>
+                        ['hardware_requests', 'eform_access', 'lost_items'].includes(item.key)
+                    );
+
+                    const allItems = [...moduleItems, ...otherRequestCenterItems];
+                    const visibleItems = allItems.filter((item) => {
+                        if ('ictOnly' in item && (item as any).ictOnly) return isIctRole;
+                        if ('ictLeadOnly' in item && (item as any).ictLeadOnly) return isIctLead;
+                        return canAccessPage(item.key);
+                    });
+
+                    if (visibleItems.length > 0) {
+                        nav.push({
+                            id: entry.id,
+                            label: entry.label,
+                            icon: entry.icon,
+                            items: visibleItems,
+                        });
+                    }
                     continue;
                 }
 
@@ -527,13 +689,10 @@ export const BentoSidebar = () => {
         return nav;
     };
 
-    // Settings item (Admin only, anchored at bottom)
-    const settingsItem: NavItem | null = useMemo(() => {
-        if (canAccessPage('settings') || user?.role === 'ADMIN') {
-            return { key: 'settings', icon: Settings, label: 'Settings', path: '/settings' };
-        }
-        return null;
-    }, [user?.role, myPermissions?.pageAccess]);
+    // Settings item (Anchored at bottom for all portal users to access profile & preferences)
+    const settingsItem: NavItem = useMemo(() => {
+        return { key: 'settings', icon: Settings, label: 'Settings', path: '/settings' };
+    }, []);
 
     // Find active group based on current route
     const getActiveGroupId = (): string | null => {
@@ -545,55 +704,64 @@ export const BentoSidebar = () => {
         return activeGroup ? activeGroup.id : null;
     };
 
-    // Accordion state: remembers which groups are expanded
+    // Accordion state: remembers which groups are expanded.
+    // - request_center is ALWAYS open (true) by default and design requirement.
+    // - At most 1 other secondary group (resources, management, administration) can be open at a time (maximum 2 open collapsibles total).
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
         const saved = localStorage.getItem('sidebar-expanded-groups-v2');
         if (saved) {
-            try { return JSON.parse(saved); } catch { return {}; }
+            try {
+                const parsed = JSON.parse(saved);
+                return { ...parsed, request_center: true };
+            } catch {
+                return { request_center: true };
+            }
         }
-        return {};
+        return { request_center: true };
     });
 
     useEffect(() => {
         localStorage.setItem('sidebar-expanded-groups-v2', JSON.stringify(expandedGroups));
     }, [expandedGroups]);
 
-    // Auto-expand group containing active route
+    // Auto-expand group containing active route while preserving request_center open
     useEffect(() => {
         const activeId = getActiveGroupId();
-        if (activeId) {
-            setExpandedGroups(prev => ({
-                ...prev,
+        if (activeId && activeId !== 'request_center') {
+            setExpandedGroups({
+                request_center: true,
                 [activeId]: true,
-            }));
+            });
         }
     }, [location.pathname]);
 
     const handleLogout = async () => {
         await performLogout();
-        window.location.href = '/login';
+        navigate('/login', { replace: true });
     };
 
-    // Smart accordion toggle:
-    // - Active group (containing current page) stays open
-    // - Opening another secondary group closes other secondary groups
-    // - Clicking an already open group toggles it closed
+    // Dynamic 2-collapse accordion:
+    // - request_center ALWAYS stays open
+    // - Opening another secondary group opens it and closes any other secondary group
+    // - Clicking an already open secondary group toggles it closed
+    // - Clicking request_center preserves its open state
     const toggleGroup = (groupId: string) => {
-        const activeGroupId = getActiveGroupId();
         setExpandedGroups(prev => {
+            if (groupId === 'request_center') {
+                return { ...prev, request_center: true };
+            }
+
             const isCurrentlyOpen = !!prev[groupId];
             if (isCurrentlyOpen) {
                 return {
-                    ...prev,
+                    request_center: true,
                     [groupId]: false,
                 };
             } else {
-                const nextState: Record<string, boolean> = {};
-                if (activeGroupId && prev[activeGroupId] !== false) {
-                    nextState[activeGroupId] = true;
-                }
-                nextState[groupId] = true;
-                return nextState;
+                return {
+                    request_center: true,
+                    [groupId]: true,
+                };
             }
         });
     };
@@ -604,14 +772,14 @@ export const BentoSidebar = () => {
     return (
         <aside
             className={cn(
-                "h-screen flex flex-col transition-[width,padding] duration-200 ease-out relative z-10",
+                "h-full flex flex-col transition-[width,padding] duration-200 ease-out relative z-10",
                 "sidebar-frosted select-none",
-                isCollapsed ? "w-20 p-3" : "w-64 px-4 py-5"
+                isCollapsed ? "w-20 p-3" : "w-full lg:w-64 px-4 py-5"
             )}
         >
             {/* Toggle Button */}
             <button
-                onClick={() => setIsCollapsed(!isCollapsed)}
+                onClick={handleToggleCollapse}
                 aria-label={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
                 title={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
                 aria-expanded={!isCollapsed}
@@ -649,7 +817,7 @@ export const BentoSidebar = () => {
                             <NavGroupComponent
                                 key={entry.id}
                                 group={entry}
-                                isExpanded={expandedGroups[entry.id] ?? false}
+                                isExpanded={entry.id === 'request_center' ? true : (expandedGroups[entry.id] ?? false)}
                                 onToggle={() => toggleGroup(entry.id)}
                                 isCollapsed={isCollapsed}
                                 groupBadge={getGroupBadge(entry)}
@@ -671,7 +839,7 @@ export const BentoSidebar = () => {
             </nav>
 
             {/* Bottom Section: Settings + User Profile */}
-            <div className="pt-2 pb-1 mt-auto border-t border-border/70 flex flex-col gap-1 shrink-0">
+            <div className="pt-2 pb-6 lg:pb-1 mt-auto border-t border-border/70 flex flex-col gap-1 shrink-0 safe-area-pb">
                 {/* Settings pinned above user profile */}
                 {settingsItem && (
                     <StandaloneNavLink
@@ -684,40 +852,49 @@ export const BentoSidebar = () => {
                 {/* User Profile & Logout */}
                 {isCollapsed ? (
                     <div className="flex flex-col items-center gap-2 pt-2">
-                        <div className="relative group/avatar cursor-pointer">
-                            <UserAvatar useCurrentUser size="md" />
-                            {/* Hover tooltip for user name */}
-                            <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 hidden group-hover/avatar:flex z-50 pointer-events-none animate-in fade-in duration-150">
-                                <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-2 text-xs whitespace-nowrap">
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <NavLink to="/settings" className="relative cursor-pointer flex justify-center py-0.5" aria-label="Profile Settings">
+                                        <UserAvatar useCurrentUser size="md" />
+                                    </NavLink>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" sideOffset={14} className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-2 text-xs whitespace-nowrap z-50">
                                     <p className="font-semibold">{user?.fullName}</p>
-                                    <p className="text-[10px] text-muted-foreground capitalize">{user?.role?.toLowerCase()}</p>
-                                </div>
-                            </div>
-                        </div>
+                                    <p className="text-[10px] text-muted-foreground capitalize">{user?.role?.toLowerCase()?.replace(/_/g, ' ')}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
 
-                        <div className="relative group/logout">
-                            <button
-                                type="button"
-                                onClick={handleLogout}
-                                aria-label="Logout"
-                                className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer"
-                            >
-                                <LogOut className="w-4 h-4" aria-hidden="true" />
-                            </button>
-                            <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 hidden group-hover/logout:flex z-50 pointer-events-none animate-in fade-in duration-150">
-                                <div className="bg-popover text-destructive rounded-lg shadow-lg border border-border/80 px-2.5 py-1 text-xs font-semibold whitespace-nowrap">
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="relative flex justify-center py-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={handleLogout}
+                                            aria-label="Logout"
+                                            className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer"
+                                        >
+                                            <LogOut className="w-4 h-4" aria-hidden="true" />
+                                        </button>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" sideOffset={14} className="bg-popover text-destructive rounded-lg shadow-lg border border-border/80 px-2.5 py-1 text-xs font-semibold whitespace-nowrap z-50">
                                     Logout
-                                </div>
-                            </div>
-                        </div>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 ) : (
                     <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-secondary/30 border border-border/40 mt-1">
-                        <UserAvatar useCurrentUser size="md" />
-                        <div className="flex-1 min-w-0 animate-in fade-in duration-200">
-                            <p className="text-sm font-semibold text-foreground truncate">{user?.fullName}</p>
-                            <p className="text-xs text-muted-foreground font-medium truncate capitalize">{user?.role?.toLowerCase()}</p>
-                        </div>
+                        <NavLink to="/settings" className="flex items-center gap-2.5 flex-1 min-w-0 group/user cursor-pointer" title="Settings / Profile">
+                            <UserAvatar useCurrentUser size="md" className="group-hover/user:ring-2 group-hover/user:ring-primary/50 transition-all" />
+                            <div className="flex-1 min-w-0 animate-in fade-in duration-200">
+                                <p className="text-sm font-semibold text-foreground truncate group-hover/user:text-primary transition-colors">{user?.fullName}</p>
+                                <p className="text-xs text-muted-foreground font-medium truncate capitalize">{user?.role?.toLowerCase()?.replace(/_/g, ' ')}</p>
+                            </div>
+                        </NavLink>
                         <button
                             type="button"
                             onClick={handleLogout}

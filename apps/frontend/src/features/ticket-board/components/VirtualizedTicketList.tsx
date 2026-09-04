@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { TicketListRow, TicketRowData, type Agent } from './TicketListRow';
 import { Inbox, Search, X } from 'lucide-react';
 
@@ -11,8 +11,8 @@ interface VirtualizedTicketListProps {
     agents: Agent[];
     onSelect: (ticketId: string, selected: boolean) => void;
     onUpdatePriority: (ticketId: string, priority: string) => void;
-    onUpdateStatus: (ticketId: string, status: string) => void;
-    onAssign: (ticketId: string, assigneeId: string) => void;
+    onUpdateStatus: (ticketId: string, status: string, resolutionNote?: string, files?: File[]) => void;
+    onAssign: (ticketId: string, assigneeId: string, reason?: string) => void;
     /** Optional callback to clear filters */
     onClearFilters?: () => void;
     /** Whether any filters are active */
@@ -47,6 +47,7 @@ export const VirtualizedTicketList: React.FC<VirtualizedTicketListProps> = ({
     hasActiveFilters,
 }) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [focusedIndex, setFocusedIndex] = useState(-1);
 
     // Keyboard navigation handler
@@ -64,7 +65,9 @@ export const VirtualizedTicketList: React.FC<VirtualizedTicketListProps> = ({
                 break;
             case 'Enter':
                 if (focusedIndex >= 0 && focusedIndex < tickets.length) {
-                    navigate(`/tickets/${tickets[focusedIndex].id}`);
+                    navigate(`/tickets/${tickets[focusedIndex].id}`, {
+                        state: { from: location.pathname + location.search }
+                    });
                 }
                 break;
             case ' ':

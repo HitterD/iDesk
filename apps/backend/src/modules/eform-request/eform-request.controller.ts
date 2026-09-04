@@ -35,8 +35,8 @@ export class EFormRequestController {
   }
 
   @Get('all')
-  @ApiOperation({ summary: 'Get all requests (Admin/Agent only)' })
-  @Roles(UserRole.ADMIN, UserRole.AGENT_ADMIN)
+  @ApiOperation({ summary: 'Get all requests (Admin/Manager/Agent only)' })
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN)
   async findAll(@Request() req: any) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
     return this.eformRequestService.findAll(actor);
@@ -58,7 +58,7 @@ export class EFormRequestController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get request details' })
-  @Roles(UserRole.ADMIN, UserRole.AGENT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN)
   async getDetails(@Param('id') id: string, @Request() req: any) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
     return this.eformRequestService.getDetails(actor, id);
@@ -66,7 +66,7 @@ export class EFormRequestController {
 
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Download PDF' })
-  @Roles(UserRole.ADMIN, UserRole.AGENT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN)
   async getPdf(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
     const buffer = await this.eformRequestService.generatePdf(actor, id);

@@ -172,6 +172,27 @@ export async function runSeed(dataSource: DataSource): Promise<void> {
             siteId: smgSite.id,
         },
         {
+            email: 'agent.oracle@idesk.com',
+            password: hashedPassword,
+            fullName: 'Agent Oracle',
+            role: UserRole.AGENT_ORACLE,
+            siteId: spjSite.id,
+        },
+        {
+            email: 'agent.web@idesk.com',
+            password: hashedPassword,
+            fullName: 'Agent Web Dev',
+            role: UserRole.AGENT_WEB_DEV,
+            siteId: spjSite.id,
+        },
+        {
+            email: 'agent.mobile@idesk.com',
+            password: hashedPassword,
+            fullName: 'Agent Mobile Dev',
+            role: UserRole.AGENT_MOBILE_DEV,
+            siteId: spjSite.id,
+        },
+        {
             email: 'user.spj@idesk.com',
             password: hashedPassword,
             fullName: 'User SPJ',

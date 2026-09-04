@@ -106,12 +106,29 @@ export class MutualSchedulingService {
         }
       }
 
+      // Archive any previous active schedules and retain reschedule count
+      const existingSchedules = await schedRepo.find({
+        where: { requestId },
+        order: { createdAt: 'DESC' },
+      });
+      let prevRescheduleCount = 0;
+      for (const prev of existingSchedules) {
+        if (
+          prev.status === InstallStatus.RESCHEDULE_REQUESTED ||
+          prev.status === InstallStatus.PROPOSED_AWAITING_USER
+        ) {
+          prevRescheduleCount = Math.max(prevRescheduleCount, prev.rescheduleCount || 0);
+          prev.status = InstallStatus.RESCHEDULED;
+          await schedRepo.save(prev);
+        }
+      }
+
       const schedule = schedRepo.create({
         requestId,
         technicianId: dto.technicianId,
         status: InstallStatus.PROPOSED_AWAITING_USER,
         proposedSlots: dto.slots,
-        rescheduleCount: 0,
+        rescheduleCount: prevRescheduleCount,
         proposedBy: actor.id,
         scheduledStart: new Date(dto.slots[0].start), // dummy
         scheduledEnd: new Date(dto.slots[0].end), // dummy

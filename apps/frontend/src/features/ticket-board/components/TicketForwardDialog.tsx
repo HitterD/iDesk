@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, X, Loader2, AlertCircle, Info, ArrowLeftRight, ArrowUpRight } from 'lucide-react';
+import {
+    ArrowRight,
+    X,
+    Loader2,
+    AlertCircle,
+    Info,
+    ArrowLeftRight,
+    ArrowUpRight,
+    Smartphone,
+    Database,
+    Headphones,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type ForwardTargetTeam = 'OPS_SUPPORT' | 'ORACLE_DEV';
+export type ForwardTargetTeam = 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV';
 
 export interface ForwardTicketInfo {
     id: string;
@@ -20,28 +31,74 @@ interface TicketForwardDialogProps {
     isLoading?: boolean;
 }
 
-const TEAM_OPTIONS: { value: ForwardTargetTeam; label: string; desc: string; tone: string }[] = [
-    {
-        value: 'ORACLE_DEV',
-        label: 'Oracle / Developer Team',
-        desc: 'Masalahnya butuh penanganan aplikasi Oracle / K2 — developer.',
-        tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20',
-    },
+interface TeamOption {
+    value: ForwardTargetTeam;
+    label: string;
+    shortLabel: string;
+    desc: string;
+    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+    dotColor: string;
+    badgeBg: string;
+    activeBorder: string;
+}
+
+const TEAM_OPTIONS: TeamOption[] = [
     {
         value: 'OPS_SUPPORT',
-        label: 'Ops Support / ICT',
-        desc: 'Masalahnya ada di sisi operasional/perangkat — agent support.',
-        tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20',
+        label: 'IT Support / Ops Support',
+        shortLabel: 'IT Support',
+        desc: 'Masalah infrastruktur, jaringan, hardware, atau operasional — agent support.',
+        icon: Headphones,
+        dotColor: 'bg-emerald-500',
+        badgeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+        activeBorder: 'border-emerald-500',
+    },
+    {
+        value: 'ORACLE_DEV',
+        label: 'Oracle / K2 Developer',
+        shortLabel: 'Oracle / K2',
+        desc: 'Masalah aplikasi Oracle / K2 ERP & database backend — developer.',
+        icon: Database,
+        dotColor: 'bg-violet-500',
+        badgeBg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
+        activeBorder: 'border-violet-500',
+    },
+    {
+        value: 'WEB_DEV',
+        label: 'Web Developer Team',
+        shortLabel: 'Web Dev',
+        desc: 'Masalah aplikasi Web, Portal, Frontend & integrasi web — developer.',
+        icon: ArrowUpRight,
+        dotColor: 'bg-blue-500',
+        badgeBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+        activeBorder: 'border-blue-500',
+    },
+    {
+        value: 'MOBILE_DEV',
+        label: 'Mobile Developer Team',
+        shortLabel: 'Mobile Dev',
+        desc: 'Masalah aplikasi Mobile (iOS / Android) — developer.',
+        icon: Smartphone,
+        dotColor: 'bg-sky-500',
+        badgeBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+        activeBorder: 'border-sky-500',
     },
 ];
 
 const REASON_PRESETS = [
-    { id: 'oracle_issue', label: 'Terkait aplikasi Oracle / K2' },
-    { id: 'infra_issue', label: 'Masalah infrastruktur / perangkat' },
+    { id: 'web_issue', label: 'Terkait aplikasi Web / Portal / Frontend', forTeam: 'WEB_DEV' },
+    { id: 'mobile_issue', label: 'Terkait aplikasi Mobile (iOS / Android)', forTeam: 'MOBILE_DEV' },
+    { id: 'oracle_issue', label: 'Terkait aplikasi Oracle / K2', forTeam: 'ORACLE_DEV' },
+    { id: 'infra_issue', label: 'Masalah infrastruktur / perangkat / IT Support', forTeam: 'OPS_SUPPORT' },
     { id: 'needs_dev', label: 'Butuh kode / akses developer' },
     { id: 'misrouted', label: 'Salah routing awal' },
     { id: 'other', label: 'Lainnya' },
 ];
+
+const getTeamName = (team?: string | null): string => {
+    const found = TEAM_OPTIONS.find((t) => t.value === team);
+    return found ? found.label : team === 'WEB_DEV' ? 'Web Developer Team' : 'IT Support / Ops Support';
+};
 
 export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
     isOpen,
@@ -57,15 +114,34 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
     const [entered, setEntered] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            setSelectedTeam(
-                ticket?.handlingTeam === 'ORACLE_DEV' ? 'OPS_SUPPORT' : 'ORACLE_DEV',
+        if (isOpen && ticket) {
+            const current = ticket.handlingTeam;
+            let defaultTeam: ForwardTargetTeam = 'ORACLE_DEV';
+
+            if (current === 'ORACLE_DEV') {
+                defaultTeam = 'WEB_DEV';
+            } else if (current === 'WEB_DEV') {
+                defaultTeam = 'MOBILE_DEV';
+            } else if (current === 'MOBILE_DEV') {
+                defaultTeam = 'ORACLE_DEV';
+            } else {
+                defaultTeam = 'ORACLE_DEV';
+            }
+
+            setSelectedTeam(defaultTeam);
+            setSelectedPreset(
+                defaultTeam === 'WEB_DEV'
+                    ? 'web_issue'
+                    : defaultTeam === 'MOBILE_DEV'
+                    ? 'mobile_issue'
+                    : defaultTeam === 'ORACLE_DEV'
+                    ? 'oracle_issue'
+                    : 'infra_issue'
             );
-            setSelectedPreset('oracle_issue');
             setCustomReason('');
             setError(null);
             setEntered(false);
-            // Staggered entrance: trigger after mount
+
             const t = window.setTimeout(() => setEntered(true), 20);
             return () => window.clearTimeout(t);
         }
@@ -74,6 +150,20 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
     if (!isOpen || !ticket) return null;
 
     const currentTeam = ticket.handlingTeam || 'OPS_SUPPORT';
+
+    const handleSelectTeam = (team: ForwardTargetTeam) => {
+        setSelectedTeam(team);
+        setError(null);
+        if (team === 'WEB_DEV') {
+            setSelectedPreset('web_issue');
+        } else if (team === 'MOBILE_DEV') {
+            setSelectedPreset('mobile_issue');
+        } else if (team === 'ORACLE_DEV') {
+            setSelectedPreset('oracle_issue');
+        } else if (team === 'OPS_SUPPORT') {
+            setSelectedPreset('infra_issue');
+        }
+    };
 
     const handleConfirm = async () => {
         const presetObj = REASON_PRESETS.find((p) => p.id === selectedPreset);
@@ -109,7 +199,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
             }}
         >
             <div
-                className="relative w-full max-w-lg overflow-hidden bg-card text-card-foreground border border-border/80 shadow-2xl rounded-[2rem] animate-in zoom-in-95 duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                className="relative w-full max-w-2xl overflow-hidden bg-card text-card-foreground border border-border/80 shadow-2xl rounded-[2rem] animate-in zoom-in-95 duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Outer shell (Double-Bezel) */}
@@ -164,9 +254,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                             Tim Saat Ini
                                         </div>
                                         <div className="text-xs font-semibold text-foreground truncate">
-                                            {currentTeam === 'ORACLE_DEV'
-                                                ? 'Oracle / Developer Team'
-                                                : 'Ops Support / ICT'}
+                                            {getTeamName(currentTeam)}
                                         </div>
                                     </div>
                                 </div>
@@ -181,9 +269,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                             Tim Tujuan
                                         </div>
                                         <div className="text-xs font-semibold text-primary truncate">
-                                            {selectedTeam === 'ORACLE_DEV'
-                                                ? 'Oracle / Developer Team'
-                                                : 'Ops Support / ICT'}
+                                            {getTeamName(selectedTeam)}
                                         </div>
                                     </div>
                                     <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
@@ -192,54 +278,71 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                 </div>
                             </div>
 
-                            {/* Team choose pills */}
+                            {/* Team choose cards */}
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-foreground flex items-center justify-between">
                                     <span>Pilih Tim Tujuan</span>
                                     <span className="text-[11px] font-normal text-muted-foreground">
-                                        Salah satu
+                                        Pilih salah satu dari 4 tim penanganan
                                     </span>
                                 </label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {TEAM_OPTIONS.map((opt) => {
                                         const isSelected = selectedTeam === opt.value;
+                                        const isCurrent = currentTeam === opt.value;
+                                        const Icon = opt.icon;
+
                                         return (
                                             <button
                                                 key={opt.value}
                                                 type="button"
-                                                onClick={() => {
-                                                    setSelectedTeam(opt.value);
-                                                    setError(null);
-                                                }}
+                                                onClick={() => handleSelectTeam(opt.value)}
                                                 className={cn(
-                                                    'px-3 py-2.5 rounded-2xl text-left transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer border',
+                                                    'relative p-3 rounded-2xl text-left transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer border flex flex-col justify-between',
                                                     'hover:-translate-y-0.5 active:scale-[0.98]',
                                                     isSelected
-                                                        ? 'bg-primary text-primary-foreground border-primary shadow-2xs'
+                                                        ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
                                                         : 'bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border/80'
                                                 )}
                                             >
-                                                <div className="text-xs font-bold flex items-center gap-1.5">
-                                                    <span
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div
+                                                            className={cn(
+                                                                'w-7 h-7 rounded-lg flex items-center justify-center border transition-colors',
+                                                                isSelected
+                                                                    ? 'bg-white/15 text-white border-white/20'
+                                                                    : 'bg-muted text-foreground border-border'
+                                                            )}
+                                                        >
+                                                            <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+                                                        </div>
+                                                        <span
+                                                            className={cn(
+                                                                'w-2 h-2 rounded-full shrink-0',
+                                                                isSelected ? 'bg-white ring-2 ring-white/30' : opt.dotColor
+                                                            )}
+                                                        />
+                                                    </div>
+                                                    <div className="text-xs font-bold leading-tight">
+                                                        {opt.label}
+                                                    </div>
+                                                    <div
                                                         className={cn(
-                                                            'w-2 h-2 rounded-full shrink-0',
-                                                            opt.value === 'ORACLE_DEV'
-                                                                ? 'bg-violet-500'
-                                                                : 'bg-emerald-500'
+                                                            'text-[11px] mt-1 leading-relaxed line-clamp-2',
+                                                            isSelected
+                                                                ? 'text-primary-foreground/80'
+                                                                : 'text-muted-foreground'
                                                         )}
-                                                    />
-                                                    {opt.label}
+                                                    >
+                                                        {opt.desc}
+                                                    </div>
                                                 </div>
-                                                <div
-                                                    className={cn(
-                                                        'text-[11px] mt-1 leading-relaxed',
-                                                        isSelected
-                                                            ? 'text-primary-foreground/80'
-                                                            : 'text-muted-foreground'
-                                                    )}
-                                                >
-                                                    {opt.desc}
-                                                </div>
+                                                {isCurrent && (
+                                                    <div className="mt-2 text-[10px] uppercase font-bold tracking-wider opacity-70">
+                                                        (Tim Saat Ini)
+                                                    </div>
+                                                )}
                                             </button>
                                         );
                                     })}
@@ -303,7 +406,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                     placeholder={
                                         selectedPreset === 'other'
                                             ? 'Jelaskan alasan mengapa tiket ini diteruskan...'
-                                            : 'Tambahkan catatan spesifik jika diperlukan (misal: butuh akses developer)...'
+                                            : 'Tambahkan catatan spesifik jika diperlukan (misal: butuh akses developer/mobile)...'
                                     }
                                     rows={3}
                                     className={cn(
@@ -358,7 +461,6 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                             >
                                 {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                 <span>Teruskan Tiket</span>
-                                {/* Button-in-button trailing icon */}
                                 <span className="w-6 h-6 rounded-full bg-white/15 flex items-center justify-center transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-[1px] group-hover:scale-105">
                                     <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={1.5} />
                                 </span>

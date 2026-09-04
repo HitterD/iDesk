@@ -83,6 +83,18 @@ describe('email templates', () => {
             greeting: 'Hi', meetingTitle: 'Sync', meetingDate: '1 Sep 2026', meetingTime: '09:00 - 10:00 WIB',
             duration: 60, hostName: 'Host', cancellationReason: 'Dibatalkan oleh: Admin', year: YEAR,
         }],
+        ['ticket-reminder (with note)', 'ticket-reminder', {
+            ticketNumber: 'TK-100', ticketId: 't-100', title: 'Oracle Bug Followup',
+            agentName: 'Agent A', creatorName: 'Admin', status: 'IN_PROGRESS', priority: 'HIGH',
+            remindAtFormatted: 'Kamis, 3 September 2026 08:00 WIB', note: 'Follow up segera',
+            link: 'http://app/tickets/t-100', year: YEAR,
+        }],
+        ['ticket-reminder (no note)', 'ticket-reminder', {
+            ticketNumber: 'TK-100', ticketId: 't-100', title: 'Oracle Bug Followup',
+            agentName: 'Agent A', creatorName: 'Admin', status: 'IN_PROGRESS', priority: 'HIGH',
+            remindAtFormatted: 'Kamis, 3 September 2026 08:00 WIB', note: undefined,
+            link: 'http://app/tickets/t-100', year: YEAR,
+        }],
     ];
 
     it.each(cases)('%s renders in strict mode', (_label, template, context) => {
@@ -95,6 +107,7 @@ describe('email templates', () => {
         const referenced = [
             'contract-reminder', 'eform-request', 'hardware-request-status', 'mention-notification',
             'notification', 'ticket-assigned', 'ticket-update', 'welcome-user', 'zoom-booking',
+            'ticket-reminder',
         ];
         const missing = referenced.filter((t) => !existsSync(join(TEMPLATE_DIR, `${t}.hbs`)));
         expect(missing).toEqual([]);

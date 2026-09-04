@@ -11,6 +11,9 @@ describe('TicketSlaExtendService', () => {
     let slaConfigRepo: any;
     let businessHoursService: any;
 
+    let messageRepo: any;
+    let eventsGateway: any;
+
     const baseTicket = {
         id: 't1',
         ticketNumber: 'TK-001',
@@ -39,18 +42,30 @@ describe('TicketSlaExtendService', () => {
         slaConfigRepo = {
             findOne: jest.fn(async () => ({ resolutionTimeMinutes: 480 })), // HIGH, 8h
         };
+        messageRepo = {
+            create: jest.fn((d: any) => d),
+            save: jest.fn(async (m: any) => ({ id: 'msg-1', ...m })),
+        };
         businessHoursService = {
             calculateBusinessMinutes: jest.fn(async () => 120), // 2h elapsed
             calculateSlaTarget: jest.fn(async (start: Date, minutes: number) =>
                 new Date(start.getTime() + minutes * 60000)
             ),
         };
+        eventsGateway = {
+            server: {
+                to: jest.fn().mockReturnThis(),
+                emit: jest.fn(),
+            },
+        };
 
         service = new TicketSlaExtendService(
             ticketRepo,
             adjustmentRepo,
             slaConfigRepo,
+            messageRepo,
             businessHoursService,
+            eventsGateway,
         );
     });
 
@@ -95,7 +110,7 @@ describe('TicketSlaExtendService', () => {
     it('rejects an extension exceeding the cap (2x + 8h business)', async () => {
         // Cap = 2x480 + 480 = 1440. elapsed 1400 + 60 = 1460 > 1440
         businessHoursService.calculateBusinessMinutes = jest.fn(async () => 1400);
-        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('exceed the cap');
+        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('melebihi batas yang diizinkan');
     });
 
     it('rejects an extension when prior extends already push the total over cap', async () => {
@@ -106,6 +121,22 @@ describe('TicketSlaExtendService', () => {
         }));
         await expect(
             service.extendSla('t1', { ...dto, minutes: 100 }, actor)
-        ).rejects.toThrow('exceed the cap');
+        ).rejects.toThrow('melebihi batas yang diizinkan');
+    });
+
+    it('extends the target by manual newTargetDate and creates system message', async () => {
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const targetDateStr = tomorrow.toISOString();
+        businessHoursService.calculateBusinessMinutes = jest.fn(async () => 480);
+
+        const result = await service.extendSla('t1', {
+            reasonCategory: SlaAdjustmentReasonCategory.TECHNICAL_COMPLEXITY,
+            reasonText: 'Need deeper investigation',
+            newTargetDate: targetDateStr,
+        }, actor);
+
+        expect(result.ticket.slaTarget).toEqual(new Date(targetDateStr));
+        expect(messageRepo.create).toHaveBeenCalled();
+        expect(messageRepo.save).toHaveBeenCalled();
     });
 });

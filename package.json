@@ -8,7 +8,23 @@
     },
     "devDependencies": {
         "concurrently": "^8.2.2",
-        "puppeteer": "^24.37.5"
+        "puppeteer": "^24.43.1"
     },
-    "dependencies": {}
+    "description": "<p align=\"center\">\r   <img src=\"Stylized Logotype for iDesk.png\" alt=\"iDesk Logo\" width=\"400\"/>\r </p>",
+    "main": "rewrite.js",
+    "directories": {
+        "doc": "docs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/HitterD/iDesk.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "bugs": {
+        "url": "https://github.com/HitterD/iDesk/issues"
+    },
+    "homepage": "https://github.com/HitterD/iDesk#readme"
 }

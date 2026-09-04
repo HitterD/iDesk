@@ -1,19 +1,21 @@
 import React, { lazy, Suspense } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, CalendarClock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail } from 'lucide-react';
+import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes } from 'lucide-react';
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
 import { TelegramSettingsForm } from '../components/TelegramSettingsForm';
 import { NotificationSettings } from '../components/NotificationSettings';
+import { CannedResponsesManager } from '../../../components/ui/CannedResponses';
 import { useTheme } from '../../../components/theme-provider';
 
 // Lazy load SLA settings (admin only)
 const SlaSettingsTab = lazy(() => import('../../admin/pages/BentoSlaSettingsPage').then(m => ({ default: m.BentoSlaSettingsPage })));
+const TicketModulesSettingsTab = lazy(() => import('./TicketModulesSettingsTab').then(m => ({ default: m.TicketModulesSettingsTab })));
 const StorageSettingsTab = lazy(() => import('./StorageSettingsPage').then(m => ({ default: m.StorageSettingsPage })));
 const IpWhitelistSettingsTab = lazy(() => import('./IpWhitelistSettings').then(m => ({ default: m.IpWhitelistSettings })));
 const ZoomSettingsTab = lazy(() => import('../../zoom-booking/pages/ZoomSettingsPage').then(m => ({ default: m.ZoomSettingsPage })));
-const BusinessHoursTab = lazy(() => import('../components/BusinessHoursSettings').then(m => ({ default: m.BusinessHoursSettings })));
 const SoundSettingsTab = lazy(() => import('./SoundSettingsPage').then(m => ({ default: m.SoundSettingsPage })));
 const TvBoardSettingsTab = lazy(() => import('../components/TvBoardSettings').then(m => ({ default: m.TvBoardSettings })));
 const MailSettingsTab = lazy(() => import('./MailSettingsPage').then(m => ({ default: m.MailSettingsPage })));
@@ -22,17 +24,27 @@ const MailSettingsTab = lazy(() => import('./MailSettingsPage').then(m => ({ def
 export const BentoSettingsPage: React.FC = () => {
     const { user } = useAuth();
     const { theme, setTheme } = useTheme();
+    const { tab: pathTab } = useParams<{ tab?: string }>();
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    const queryTab = searchParams.get('tab');
+    const currentTab = pathTab || queryTab || 'profile';
+
+    const handleTabChange = (newTab: string) => {
+        navigate(`/settings/${newTab}`, { replace: true });
+    };
 
     return (
         <div className="space-y-8 animate-fade-in-up">
-            {/* ... header ... */}
+            {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Settings</h1>
                 <p className="text-slate-500 dark:text-slate-400">Manage your account preferences and system configurations</p>
             </div>
 
             <div className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-3xl shadow-xl overflow-hidden min-h-[700px]">
-                <Tabs.Root defaultValue="profile" className="flex flex-col md:flex-row h-full">
+                <Tabs.Root value={currentTab} onValueChange={handleTabChange} className="flex flex-col md:flex-row h-full">
 
                     {/* Sidebar Navigation */}
                     <div className="w-full md:w-72 bg-white/80 dark:bg-slate-900/60 border-r border-slate-200 dark:border-slate-700/80 p-5 flex flex-col gap-6 flex-shrink-0">
@@ -45,8 +57,10 @@ export const BentoSettingsPage: React.FC = () => {
                             <Tabs.List className="flex flex-col w-full gap-1">
                                 {[
                                     { value: 'profile', icon: User, label: 'Profile' },
+                                    { value: 'quick-replies', icon: Zap, label: 'Quick Reply' },
                                     { value: 'security', icon: Lock, label: 'Security' },
                                     { value: 'notifications', icon: Bell, label: 'Notifications' },
+                                    { value: 'sound', icon: Volume2, label: 'Sound Settings' },
                                     { value: 'telegram', icon: MessageCircle, label: 'Telegram' },
                                     { value: 'appearance', icon: Palette, label: 'Appearance' },
                                 ].map((tab) => (
@@ -72,10 +86,9 @@ export const BentoSettingsPage: React.FC = () => {
                                 </h3>
                                 <Tabs.List className="flex flex-col w-full gap-1">
                                     {[
+                                        { value: 'ticket-modules', icon: Boxes, label: 'Modul Tiket' },
                                         { value: 'sla', icon: Clock, label: 'SLA Settings' },
                                         { value: 'storage', icon: HardDrive, label: 'Storage' },
-                                        { value: 'business-hours', icon: CalendarClock, label: 'Business Hours' },
-                                        { value: 'sound', icon: Volume2, label: 'Sound Settings' },
                                         { value: 'ip-whitelist', icon: Shield, label: 'IP Whitelist' },
                                         { value: 'zoom', icon: Video, label: 'Zoom Settings' },
                                         { value: 'mail', icon: Mail, label: 'Email' },
@@ -104,6 +117,12 @@ export const BentoSettingsPage: React.FC = () => {
                             <div className="max-w-4xl">
                                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Profile Information</h2>
                                 <ProfileSettingsForm user={user} />
+                            </div>
+                        </Tabs.Content>
+
+                        <Tabs.Content value="quick-replies" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="max-w-4xl">
+                                <CannedResponsesManager />
                             </div>
                         </Tabs.Content>
 
@@ -196,35 +215,18 @@ export const BentoSettingsPage: React.FC = () => {
                             </Tabs.Content>
                         )}
 
-                        {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="business-hours" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
+                        <Tabs.Content value="sound" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <Suspense fallback={
+                                <div className="flex items-center justify-center h-64">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                                        <p className="text-sm text-slate-400">Memuat...</p>
                                     </div>
-                                }>
-                                    <BusinessHoursTab />
-                                </Suspense>
-                            </Tabs.Content>
-                        )}
-
-                        {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="sound" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
-                                    <SoundSettingsTab />
-                                </Suspense>
-                            </Tabs.Content>
-                        )}
+                                </div>
+                            }>
+                                <SoundSettingsTab />
+                            </Suspense>
+                        </Tabs.Content>
 
                         {user?.role === 'ADMIN' && (
                             <Tabs.Content value="ip-whitelist" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -284,6 +286,21 @@ export const BentoSettingsPage: React.FC = () => {
                                     </div>
                                 }>
                                     <TvBoardSettingsTab />
+                                </Suspense>
+                            </Tabs.Content>
+                        )}
+
+                        {user?.role === 'ADMIN' && (
+                            <Tabs.Content value="ticket-modules" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <Suspense fallback={
+                                    <div className="flex items-center justify-center h-64">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                                            <p className="text-sm text-slate-400">Memuat...</p>
+                                        </div>
+                                    </div>
+                                }>
+                                    <TicketModulesSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}

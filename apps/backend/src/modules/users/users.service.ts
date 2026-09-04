@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UserCrudService } from './user-crud.service';
 import { UserImportService } from './user-import.service';
 import { UserPasswordService } from './user-password.service';
+import { UserEmailService } from './user-email.service';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +16,7 @@ export class UsersService {
         private readonly userCrudService: UserCrudService,
         private readonly userImportService: UserImportService,
         private readonly userPasswordService: UserPasswordService,
+        private readonly userEmailService: UserEmailService,
     ) { }
 
     async createAgent(dto: CreateAgentDto, createdByUserId?: string): Promise<User> {
@@ -31,6 +33,10 @@ export class UsersService {
 
     async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
         return this.userPasswordService.changePassword(userId, currentPassword, newPassword);
+    }
+
+    async changeOwnEmail(userId: string, newEmail: string, currentPassword: string, request?: any): Promise<User> {
+        return this.userEmailService.changeOwnEmail(userId, newEmail, currentPassword, request);
     }
 
     async updateRole(userId: string, role: UserRole): Promise<User> {
@@ -85,8 +91,8 @@ export class UsersService {
         return this.userPasswordService.resetPassword(userId, newPassword, callerId, callerRole);
     }
 
-    async getAgents(siteId?: string, callerRole?: UserRole, category?: string, ticketType?: string): Promise<User[]> {
-        return this.userCrudService.getAgents(siteId, callerRole, category, ticketType);
+    async getAgents(siteId?: string, callerRole?: UserRole, category?: string, ticketType?: string, explicitRoles?: UserRole[], moduleSlug?: string): Promise<User[]> {
+        return this.userCrudService.getAgents(siteId, callerRole, category, ticketType, explicitRoles, moduleSlug);
     }
 
     async getAllUsers(): Promise<User[]> {
@@ -129,7 +135,7 @@ export class UsersService {
         return this.userCrudService.bulkUpdateStatus(userIds, isActive);
     }
 
-    async getTechnicians(): Promise<Array<{ id: string; fullName: string }>> {
-        return this.userCrudService.getTechnicians();
+    async getTechnicians(siteId?: string | null): Promise<Array<{ id: string; fullName: string }>> {
+        return this.userCrudService.getTechnicians(siteId);
     }
 }

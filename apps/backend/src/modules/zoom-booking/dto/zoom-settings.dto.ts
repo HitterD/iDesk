@@ -14,7 +14,7 @@ export class UpdateZoomSettingsDto {
     @ApiPropertyOptional({ description: 'Default meeting duration in minutes' })
     @IsInt()
     @Min(15)
-    @Max(480)
+    @Max(720)
     @IsOptional()
     defaultDurationMinutes?: number;
 

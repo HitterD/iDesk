@@ -4,13 +4,12 @@ import {
     Column,
     CreateDateColumn,
     UpdateDateColumn,
+    OneToMany,
 } from 'typeorm';
+import { BackupHistory } from './backup-history.entity';
+import { BackupType } from '../enums/backup.enum';
 
-export enum BackupType {
-    DATABASE = 'DATABASE',
-    FILES = 'FILES',
-    FULL = 'FULL',
-}
+export { BackupType };
 
 @Entity('backup_configurations')
 export class BackupConfiguration {
@@ -69,6 +68,9 @@ export class BackupConfiguration {
 
     @Column({ type: 'bigint', nullable: true })
     lastBackupSizeBytes: number;
+
+    @OneToMany(() => BackupHistory, (history) => history.config, { cascade: true })
+    histories: BackupHistory[];
 
     @CreateDateColumn()
     createdAt: Date;

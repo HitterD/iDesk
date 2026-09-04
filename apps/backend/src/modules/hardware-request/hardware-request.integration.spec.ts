@@ -84,7 +84,7 @@ maybeDescribe('HardwareRequest happy path (integration)', () => {
             code: `TEST-${Date.now()}`, name: 'Test Laptop', category: ItemCategory.LAPTOP,
         } as any);
 
-        const draft = await commands.createDraft(userId, {
+        const draft = await commands.createDraft(userId, siteId, 'AGENT' as any, {
             siteId, justification: 'Integration test journey end to end',
             items: [{ catalogId: cat.id, quantity: 1 }],
         } as any);

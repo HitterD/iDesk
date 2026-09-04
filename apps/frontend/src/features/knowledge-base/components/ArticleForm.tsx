@@ -8,24 +8,32 @@ import {
     Trash2,
     Loader2,
     Bold,
+    Italic,
     Heading2,
     ListOrdered,
+    List,
     Terminal,
     AlertCircle,
     Table,
-    Link as LinkIcon,
     Copy,
     Check,
     Columns,
     FileText,
     Upload,
     ImageIcon,
-    ArrowUpRight
+    ArrowUpRight,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    Maximize,
+    Sliders,
+    Sparkles,
+    HelpCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { ArticleMarkdownViewer } from './ArticleMarkdownViewer';
+import { ArticleMarkdownViewer, getImageUrl } from './ArticleMarkdownViewer';
 
 export interface ArticleFormData {
     title: string;
@@ -56,14 +64,14 @@ const CATEGORIES = [
     'General',
 ];
 
-const getImageUrl = (url: string): string => {
-    if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
-        return url;
-    }
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
-    return `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-};
+interface ImageConfigModalState {
+    isOpen: boolean;
+    imageUrl: string;
+    altText: string;
+    caption: string;
+    align: 'left' | 'center' | 'right' | 'full';
+    size: '25' | '50' | '75' | '100';
+}
 
 export const ArticleForm: React.FC<ArticleFormProps> = ({
     initialData,
@@ -89,14 +97,23 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
-    // PUBLIC articles need admin review before they become live, unless the
-    // author is an admin. Non-admin authors see an explicit "Ajukan Review"
-    // publish button instead of a fake instant publish.
+    // Image Configuration Modal State
+    const [imageModal, setImageModal] = useState<ImageConfigModalState>({
+        isOpen: false,
+        imageUrl: '',
+        altText: '',
+        caption: '',
+        align: 'center',
+        size: '100',
+    });
+
+    // PUBLIC articles need admin review before they become live, unless the author is an admin.
     const needsReview = !isAdmin && formData.visibility === 'public' && formData.status === 'published';
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const featuredInputRef = useRef<HTMLInputElement>(null);
     const galleryInputRef = useRef<HTMLInputElement>(null);
+    const quickImageInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (initialData) {
@@ -155,6 +172,30 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
         }
     };
 
+    // Open image placement configuration modal
+    const openImageConfigModal = (url: string, defaultAlt: string = 'Screenshot') => {
+        setImageModal({
+            isOpen: true,
+            imageUrl: url,
+            altText: defaultAlt,
+            caption: '',
+            align: 'center',
+            size: '100',
+        });
+    };
+
+    // Apply & insert image from config modal
+    const handleConfirmImageInsert = () => {
+        const { imageUrl, altText, caption, align, size } = imageModal;
+        const formattedAlt = caption.trim() ? `${altText.trim() || 'Gambar'}|${caption.trim()}` : (altText.trim() || 'Gambar');
+        const opts = `{align=${align} size=${size}}`;
+        const markdown = `\n![${formattedAlt}](${imageUrl})${opts}\n`;
+
+        insertAtCursor(markdown);
+        setImageModal((prev) => ({ ...prev, isOpen: false }));
+        toast.success('Gambar berhasil ditempatkan ke posisi kursor!');
+    };
+
     // Paste handler for screenshots (Ctrl+V)
     const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
         const items = e.clipboardData?.items;
@@ -171,14 +212,13 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                 const rawUrl = await uploadFile(blob);
                 if (rawUrl) {
                     const fullUrl = getImageUrl(rawUrl);
-                    const imageMarkdown = `\n![Screenshot](${fullUrl})\n`;
-                    insertAtCursor(imageMarkdown);
-
                     setFormData((prev) => ({
                         ...prev,
                         images: [...(prev.images || []).filter(img => img !== fullUrl), fullUrl],
                     }));
-                    toast.success('Screenshot berhasil disisipkan!');
+                    // Open image modal so user can immediately choose alignment & size
+                    openImageConfigModal(fullUrl, 'Screenshot');
+                    toast.success('Screenshot diunggah! Atur posisi atau klik Sisipkan.');
                 }
                 return;
             }
@@ -197,19 +237,36 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
             const rawUrl = await uploadFile(file);
             if (rawUrl) {
                 const fullUrl = getImageUrl(rawUrl);
-                const imageMarkdown = `\n![${file.name.replace(/\.[^/.]+$/, "")}](${fullUrl})\n`;
-                insertAtCursor(imageMarkdown);
-
                 setFormData((prev) => ({
                     ...prev,
                     images: [...(prev.images || []).filter(img => img !== fullUrl), fullUrl],
                 }));
-                toast.success('Gambar berhasil disisipkan!');
+                const alt = file.name.replace(/\.[^/.]+$/, "");
+                openImageConfigModal(fullUrl, alt);
+                toast.success('Gambar berhasil diunggah! Tentukan posisi penempatan.');
             }
         }
     };
 
-    // Gallery / Attachment file input handler
+    // Quick Image Toolbar upload
+    const handleQuickImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const rawUrl = await uploadFile(file);
+        if (rawUrl) {
+            const fullUrl = getImageUrl(rawUrl);
+            setFormData((prev) => ({
+                ...prev,
+                images: [...(prev.images || []).filter(img => img !== fullUrl), fullUrl],
+            }));
+            const alt = file.name.replace(/\.[^/.]+$/, "");
+            openImageConfigModal(fullUrl, alt);
+        }
+        e.target.value = '';
+    };
+
+    // Gallery file input handler
     const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
@@ -223,7 +280,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                     ...prev,
                     images: [...(prev.images || []).filter(img => img !== fullUrl), fullUrl],
                 }));
-                toast.success(`Gambar "${file.name}" berhasil diunggah ke lampiran!`);
+                toast.success(`Gambar "${file.name}" ditambahkan ke galeri!`);
             }
         }
         e.target.value = '';
@@ -243,10 +300,10 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
         e.target.value = '';
     };
 
-    const handleInsertFromGallery = (imgUrl: string) => {
-        const imageMarkdown = `\n![Gambar](${imgUrl})\n`;
+    const handleQuickInsertImage = (imgUrl: string) => {
+        const imageMarkdown = `\n![Gambar](${imgUrl}){align=center size=100}\n`;
         insertAtCursor(imageMarkdown);
-        toast.success('Gambar disisipkan ke teks!');
+        toast.success('Gambar disisipkan ke posisi kursor!');
     };
 
     const handleCopyImageUrl = async (imgUrl: string) => {
@@ -320,7 +377,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                             type="button"
                             onClick={() => setViewMode('edit')}
                             className={cn(
-                                "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer",
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer",
                                 viewMode === 'edit'
                                     ? "bg-card text-foreground shadow-2xs font-bold"
                                     : "text-muted-foreground hover:text-foreground"
@@ -333,7 +390,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                             type="button"
                             onClick={() => setViewMode('split')}
                             className={cn(
-                                "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer",
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer",
                                 viewMode === 'split'
                                     ? "bg-card text-foreground shadow-2xs font-bold"
                                     : "text-muted-foreground hover:text-foreground"
@@ -346,7 +403,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                             type="button"
                             onClick={() => setViewMode('preview')}
                             className={cn(
-                                "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer",
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer",
                                 viewMode === 'preview'
                                     ? "bg-card text-foreground shadow-2xs font-bold"
                                     : "text-muted-foreground hover:text-foreground"
@@ -363,7 +420,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="px-3 py-1.5 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
                         >
                             Batal
                         </button>
@@ -416,7 +473,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                     {viewMode !== 'preview' && (
                         <div className="space-y-2">
                             {/* Formatting Toolbar */}
-                            <div className="flex items-center justify-between flex-wrap gap-1 p-2 rounded-xl bg-card border border-border text-xs">
+                            <div className="flex items-center justify-between flex-wrap gap-1.5 p-2 rounded-xl bg-card border border-border text-xs">
                                 <div className="flex items-center flex-wrap gap-1">
                                     <button
                                         type="button"
@@ -428,6 +485,14 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                                     </button>
                                     <button
                                         type="button"
+                                        onClick={() => insertAtCursor('*Teks Miring*', -1)}
+                                        className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                        title="Miring (Italic)"
+                                    >
+                                        <Italic className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={() => insertAtCursor('\n## Judul Bagian\n')}
                                         className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                                         title="Heading 2"
@@ -436,17 +501,34 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => insertAtCursor('\n### Step 1: Langkah Pertama\n1. Buka aplikasi...\n')}
-                                        className="px-2 py-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground font-semibold text-xs cursor-pointer"
-                                        title="Step Instruction"
+                                        onClick={() => insertAtCursor('\n### Step 1: Langkah Pertama\n1. Buka aplikasi Settings...\n2. Pilih menu terkait...\n')}
+                                        className="px-2.5 py-1 rounded bg-muted/60 hover:bg-muted text-foreground font-semibold text-xs cursor-pointer border border-border/80 flex items-center gap-1"
+                                        title="Sisipkan Blok Langkah Panduan"
                                     >
-                                        + Langkah
+                                        <Sparkles className="w-3 h-3 text-primary" />
+                                        <span>+ Langkah</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertAtCursor('\n1. Langkah pertama\n2. Langkah kedua\n3. Langkah ketiga\n')}
+                                        className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                        title="List Angka (Numbered List)"
+                                    >
+                                        <ListOrdered className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertAtCursor('\n- Poin pertama\n- Poin kedua\n- Poin ketiga\n')}
+                                        className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                        title="List Poin (Bullet List)"
+                                    >
+                                        <List className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => insertAtCursor('\n```bash\n# Masukkan perintah command di sini\nipconfig /flushdns\n```\n')}
                                         className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                                        title="Command Box (Code)"
+                                        title="Kotak Perintah / Code Box"
                                     >
                                         <Terminal className="w-3.5 h-3.5" />
                                     </button>
@@ -460,7 +542,7 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => insertAtCursor('\n| Komponen | Spesifikasi |\n|---|---|\n| RAM | 8 GB |\n| Storage | 256 GB SSD |\n')}
+                                        onClick={() => insertAtCursor('\n| Parameter | Nilai / Solusi |\n|---|---|\n| Gateway IP | 192.168.1.1 |\n| DNS Server | 8.8.8.8 |\n')}
                                         className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                                         title="Tabel Solusi"
                                     >
@@ -471,16 +553,24 @@ export const ArticleForm: React.FC<ArticleFormProps> = ({
                                 {/* Image / Screenshot Upload Trigger */}
                                 <div className="flex items-center gap-2">
                                     <span className="text-[11px] text-muted-foreground/80 hidden sm:inline">
-                                        💡 Tips: Tekan <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">Ctrl + V</kbd> untuk paste screenshot langsung
+                                        💡 Paste (<kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">Ctrl+V</kbd>) screenshot langsung ke teks
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => galleryInputRef.current?.click()}
-                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors cursor-pointer border border-border"
+                                        onClick={() => quickImageInputRef.current?.click()}
+                                        className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
+                                        title="Pilih gambar dari komputer dan atur posisi"
                                     >
                                         <ImagePlus className="w-3.5 h-3.5" />
                                         <span>Sisipkan Gambar</span>
                                     </button>
+                                    <input
+                                        ref={quickImageInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleQuickImageUpload}
+                                        className="hidden"
+                                    />
                                 </div>
                             </div>
 
@@ -503,7 +593,7 @@ Penjelasan masalah yang dialami.
 1. Buka menu Settings
 2. Pilih Network & Internet
 
-💡 Anda bisa paste screenshot (Ctrl+V) langsung ke kotak ini!"
+💡 Anda bisa paste screenshot (Ctrl+V) atau drag-and-drop gambar langsung ke posisi baris mana saja!"
                                         rows={22}
                                         className="w-full p-4 bg-card border border-border rounded-xl text-xs md:text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40 shadow-2xs leading-relaxed resize-y custom-scrollbar"
                                         required
@@ -511,9 +601,9 @@ Penjelasan masalah yang dialami.
 
                                     {/* Uploading Indicator Overlay */}
                                     {isUploading && (
-                                        <div className="absolute inset-0 bg-background/60 backdrop-blur-xs flex items-center justify-center gap-2 text-xs font-semibold text-foreground rounded-xl">
-                                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                                            <span>Mengunggah screenshot...</span>
+                                        <div className="absolute inset-0 bg-background/70 backdrop-blur-xs flex items-center justify-center gap-2 text-xs font-semibold text-foreground rounded-xl">
+                                            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                            <span>Mengunggah gambar...</span>
                                         </div>
                                     )}
                                 </div>
@@ -580,7 +670,7 @@ Penjelasan masalah yang dialami.
                         </div>
 
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                            Gambar yang di-upload atau di-paste akan terkumpul di sini. Klik tombol sisipkan untuk menaruhnya ke kursor.
+                            Gambar yang di-upload atau di-paste akan terkumpul di sini. Anda bisa mengatur posisi (kiri, tengah, kanan) dan ukuran sebelum menempelkannya.
                         </p>
 
                         {/* Upload Button */}
@@ -608,7 +698,7 @@ Penjelasan masalah yang dialami.
 
                         {/* Thumbnails List */}
                         {(formData.images || []).length > 0 ? (
-                            <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1 pt-1">
+                            <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar pr-1 pt-1">
                                 {(formData.images || []).map((imgUrl, idx) => (
                                     <div
                                         key={idx}
@@ -617,21 +707,23 @@ Penjelasan masalah yang dialami.
                                         <img
                                             src={getImageUrl(imgUrl)}
                                             alt={`Lampiran ${idx + 1}`}
-                                            className="w-10 h-10 object-cover rounded-lg border border-border shrink-0"
+                                            className="w-12 h-12 object-cover rounded-lg border border-border shrink-0 cursor-pointer"
+                                            onClick={() => openImageConfigModal(imgUrl, `Gambar ${idx + 1}`)}
+                                            title="Klik untuk mengatur posisi & sisipkan"
                                         />
                                         <div className="min-w-0 flex-1">
                                             <span className="text-[11px] font-mono truncate block text-foreground">
                                                 Gambar #{idx + 1}
                                             </span>
-                                            <div className="flex items-center gap-2 mt-0.5">
+                                            <div className="flex items-center gap-2 mt-1">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleInsertFromGallery(imgUrl)}
+                                                    onClick={() => openImageConfigModal(imgUrl, `Gambar ${idx + 1}`)}
                                                     className="text-[10px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-0.5"
-                                                    title="Sisipkan markdown ke posisi kursor"
+                                                    title="Atur posisi (kiri/tengah/kanan), ukuran & caption"
                                                 >
-                                                    <span>Sisipkan</span>
-                                                    <ArrowUpRight className="w-2.5 h-2.5" />
+                                                    <Sliders className="w-2.5 h-2.5" />
+                                                    <span>Atur & Sisipkan</span>
                                                 </button>
                                                 <span>•</span>
                                                 <button
@@ -644,7 +736,7 @@ Penjelasan masalah yang dialami.
                                                     ) : (
                                                         <Copy className="w-2.5 h-2.5" />
                                                     )}
-                                                    <span>{copiedUrl === imgUrl ? 'Tersalin' : 'Salin URL'}</span>
+                                                    <span>{copiedUrl === imgUrl ? 'Tersalin' : 'Salin'}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -797,6 +889,137 @@ Penjelasan masalah yang dialami.
                     </div>
                 </div>
             </div>
+
+            {/* Modal Pengaturan Posisi & Ukuran Gambar */}
+            {imageModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+                    <div className="w-full max-w-lg bg-card border border-border rounded-2xl p-5 shadow-2xl space-y-4">
+                        <div className="flex items-center justify-between border-b border-border pb-3">
+                            <div className="flex items-center gap-2">
+                                <Sliders className="w-4 h-4 text-primary" />
+                                <h3 className="text-sm font-bold text-foreground">
+                                    Atur Penempatan Gambar di Teks
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setImageModal((prev) => ({ ...prev, isOpen: false }))}
+                                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Preview Thumbnail */}
+                        <div className="flex items-center justify-center p-3 bg-muted/30 rounded-xl border border-border max-h-48 overflow-hidden">
+                            <img
+                                src={imageModal.imageUrl}
+                                alt={imageModal.altText || 'Pratinjau'}
+                                className="max-h-40 object-contain rounded-lg shadow-sm"
+                            />
+                        </div>
+
+                        {/* Alignment Selector */}
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                                Posisi / Alignment Gambar:
+                            </label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { key: 'center', label: 'Tengah', icon: AlignCenter },
+                                    { key: 'left', label: 'Rata Kiri', icon: AlignLeft },
+                                    { key: 'right', label: 'Rata Kanan', icon: AlignRight },
+                                    { key: 'full', label: 'Lebar Penuh', icon: Maximize },
+                                ].map((item) => {
+                                    const Icon = item.icon;
+                                    const isSelected = imageModal.align === item.key;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            type="button"
+                                            onClick={() => setImageModal((prev) => ({ ...prev, align: item.key as any }))}
+                                            className={cn(
+                                                "flex flex-col items-center gap-1 p-2 rounded-xl border text-xs font-medium transition-all cursor-pointer",
+                                                isSelected
+                                                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-2xs"
+                                                    : "bg-background border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            <Icon className="w-4 h-4" />
+                                            <span>{item.label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Size Selector */}
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                                Ukuran Gambar:
+                            </label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { key: '25', label: '25% (Kecil)' },
+                                    { key: '50', label: '50% (Sedang)' },
+                                    { key: '75', label: '75% (Besar)' },
+                                    { key: '100', label: '100% (Penuh)' },
+                                ].map((sz) => {
+                                    const isSelected = imageModal.size === sz.key;
+                                    return (
+                                        <button
+                                            key={sz.key}
+                                            type="button"
+                                            onClick={() => setImageModal((prev) => ({ ...prev, size: sz.key as any }))}
+                                            className={cn(
+                                                "py-1.5 px-2 rounded-xl border text-xs font-mono text-center transition-all cursor-pointer",
+                                                isSelected
+                                                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-2xs"
+                                                    : "bg-background border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            {sz.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Caption Input */}
+                        <div className="space-y-1">
+                            <label className="block text-xs font-semibold text-foreground">
+                                Keterangan / Caption (Opsional):
+                            </label>
+                            <input
+                                type="text"
+                                value={imageModal.caption}
+                                onChange={(e) => setImageModal((prev) => ({ ...prev, caption: e.target.value }))}
+                                placeholder="Contoh: Gambar 1: Pilih menu Network & Internet..."
+                                className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
+                            />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                            <button
+                                type="button"
+                                onClick={() => setImageModal((prev) => ({ ...prev, isOpen: false }))}
+                                className="px-3.5 py-1.5 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmImageInsert}
+                                className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                            >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Sisipkan ke Teks</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </form>
     );
 };

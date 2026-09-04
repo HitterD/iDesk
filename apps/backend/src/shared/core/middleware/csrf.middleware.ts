@@ -182,8 +182,8 @@ export function setCsrfCookie(res: Response): string {
 
     res.cookie('csrf-token', token, {
         httpOnly: false, // Must be readable by JavaScript
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: process.env.COOKIE_SECURE === 'true',
+        sameSite: 'lax',
         path: '/',
         maxAge: 60 * 60 * 1000, // 1 hour
     });

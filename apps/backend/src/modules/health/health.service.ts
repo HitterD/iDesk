@@ -118,6 +118,14 @@ export class HealthService {
         const memTotal = os.totalmem();
         const memFree = os.freemem();
         const memUsage = ((memTotal - memFree) / memTotal) * 100;
+        const procMem = process.memoryUsage();
+        const procMetrics = {
+            pid: process.pid,
+            heapUsed: procMem.heapUsed,
+            heapTotal: procMem.heapTotal,
+            rss: procMem.rss,
+            external: procMem.external,
+        };
 
         return {
             cpuUsage: Math.round(cpuUsage * 100) / 100,
@@ -128,6 +136,7 @@ export class HealthService {
             arch: os.arch(),
             nodeVersion: process.version,
             loadAverage: os.loadavg(),
+            process: procMetrics,
         };
     }
 
@@ -217,22 +226,52 @@ export class HealthService {
         return statuses;
     }
 
+    private lastDbErrorLogTime = 0;
+
     /**
-     * Check database health with latency measurement
+     * Inspect underlying PostgreSQL connection pool metrics
      */
-    async checkDatabaseHealth(): Promise<{ status: 'connected' | 'disconnected'; latency: number }> {
+    private getPoolMetrics(): InfrastructureStatus['database']['pool'] {
+        try {
+            const driver = (this.dataSource as any)?.driver;
+            const pool = driver?.master || driver?.pool;
+            if (pool && typeof pool.totalCount === 'number') {
+                return {
+                    total: pool.totalCount,
+                    idle: pool.idleCount,
+                    waiting: pool.waitingCount,
+                    max: pool.options?.max ?? parseInt(process.env.DB_POOL_MAX || '35', 10),
+                };
+            }
+        } catch {
+            // Ignore if driver pool is not directly inspectable
+        }
+        return undefined;
+    }
+
+    /**
+     * Check database health with latency measurement and connection pool metrics
+     */
+    async checkDatabaseHealth(): Promise<InfrastructureStatus['database']> {
         const start = Date.now();
+        const pool = this.getPoolMetrics();
         try {
             await this.dataSource.query('SELECT 1');
             return {
                 status: 'connected',
                 latency: Date.now() - start,
+                ...(pool ? { pool } : {}),
             };
         } catch (error) {
-            this.logger.error('Database health check failed', error);
+            const now = Date.now();
+            if (now - this.lastDbErrorLogTime > 30000) {
+                this.logger.warn(`Database health check failed: ${error?.message || error}`);
+                this.lastDbErrorLogTime = now;
+            }
             return {
                 status: 'disconnected',
                 latency: Date.now() - start,
+                ...(pool ? { pool } : {}),
             };
         }
     }
@@ -255,14 +294,14 @@ export class HealthService {
             // Get last backup info
             const lastBackup = await this.dataSource.query(
                 `SELECT "createdAt", status FROM backup_history 
-                 WHERE status = 'completed' 
+                 WHERE status = 'SUCCESS' 
                  ORDER BY "createdAt" DESC LIMIT 1`
             );
 
             return {
                 configured: true,
                 connected: true,
-                lastBackup: lastBackup[0]?.createdAt?.toISOString(),
+                lastBackup: lastBackup[0]?.createdAt ? new Date(lastBackup[0].createdAt).toISOString() : undefined,
             };
         } catch (error) {
             // Table might not exist yet

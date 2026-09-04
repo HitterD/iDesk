@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Ticket, Plus, BookOpen, User, Bell } from 'lucide-react';
+import { Home, Ticket, Plus, BookOpen, User, Bell, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
 
@@ -16,6 +16,19 @@ export const MobileBottomNav: React.FC = () => {
   const { user } = useAuth();
 
   const isClient = user?.role === 'USER';
+  const isAgentOracle = user?.role === 'AGENT_ORACLE';
+
+  // Hide bottom nav on ticket detail pages to allow full-screen dedicated chat without obstruction
+  const isTicketDetail = location.pathname.match(/^\/(tickets|client\/tickets)\/[^/]+$/) !== null &&
+    !location.pathname.endsWith('/list') &&
+    !location.pathname.endsWith('/create') &&
+    !location.pathname.endsWith('/oracle-k2') &&
+    !location.pathname.endsWith('/web-developer') &&
+    !location.pathname.endsWith('/mobile-developer');
+
+  if (isTicketDetail) {
+    return null;
+  }
 
   const navItems: NavItem[] = isClient ? [
     { icon: Home, label: 'Home', path: '/client/my-tickets' },
@@ -23,6 +36,11 @@ export const MobileBottomNav: React.FC = () => {
     { icon: Plus, label: 'Create', path: '/tickets/create', highlight: true },
     { icon: Bell, label: 'Alerts', path: '/client/notifications' },
     { icon: User, label: 'Profile', path: '/client/profile' },
+  ] : isAgentOracle ? [
+    { icon: Database, label: 'Oracle K2', path: '/tickets/oracle-k2' },
+    { icon: Plus, label: 'Create', path: '/tickets/create?type=oracle-request', highlight: true },
+    { icon: Bell, label: 'Alerts', path: '/notifications' },
+    { icon: User, label: 'Profile', path: '/settings' },
   ] : [
     { icon: Home, label: 'Home', path: '/dashboard' },
     { icon: Ticket, label: 'Tickets', path: '/tickets/list' },

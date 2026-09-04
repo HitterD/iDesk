@@ -26,6 +26,15 @@ export interface Ticket {
         id: string;
         fullName: string;
     };
+    site?: {
+        id: string;
+        name: string;
+        code: string;
+    };
+    participants?: any[];
+    isParticipant?: boolean;
+    hasUnreadChat?: boolean;
+    unreadMessageCount?: number;
 }
 
 export interface TicketFilters {
@@ -193,13 +202,14 @@ export function useAssignTicket() {
     const queryClient = useQueryClient();
     
     return useMutation({
-        mutationFn: async ({ ticketId, assigneeId }: { ticketId: string; assigneeId: string }) => {
-            const response = await api.post(`/tickets/${ticketId}/assign`, { assigneeId });
+        mutationFn: async ({ ticketId, assigneeId, reason }: { ticketId: string; assigneeId?: string | null; reason?: string }) => {
+            const response = await api.patch(`/tickets/${ticketId}/assign`, { assigneeId: assigneeId || undefined, reason });
             return response.data;
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['ticket', variables.ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
     });
 }
@@ -212,7 +222,7 @@ export function useCancelTicket() {
     
     return useMutation({
         mutationFn: async ({ ticketId, reason }: { ticketId: string; reason?: string }) => {
-            const response = await api.post(`/tickets/${ticketId}/cancel`, { reason });
+            const response = await api.patch(`/tickets/${ticketId}/cancel`, { reason });
             return response.data;
         },
         onSuccess: (_, variables) => {
@@ -276,7 +286,7 @@ export function useDashboardStats() {
     return useQuery({
         queryKey: ['dashboard-stats'],
         queryFn: async () => {
-            const response = await api.get('/tickets/stats/dashboard');
+            const response = await api.get('/tickets/dashboard/stats');
             return response.data;
         },
         staleTime: 60000, // 1 minute

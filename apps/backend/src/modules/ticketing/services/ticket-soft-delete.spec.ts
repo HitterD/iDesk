@@ -59,6 +59,11 @@ describe('TicketUpdateService.bulkSoftDelete', () => {
             mockAuditService,
             mockDataSource as any,
             {} as any,
+            {
+                isUserEligible: jest.fn().mockResolvedValue(true),
+                describeModule: jest.fn().mockResolvedValue('modul ini'),
+                toAssignable: jest.fn((t: any) => t),
+            } as any,
         );
     });
 

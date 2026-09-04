@@ -12,7 +12,9 @@ import {
     Param,
     Delete,
     Query,
+    Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
@@ -24,11 +26,14 @@ import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
 import { UserPaginationDto } from './dto/user-pagination.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
 import { CacheService } from '../../shared/core/cache/cache.service';
+import { isCrossSiteRole } from '../../shared/core/utils/site-scope.util';
 
 @ApiTags('Users')
 @Controller('users')
@@ -36,6 +41,7 @@ export class UsersController {
     constructor(
         private readonly usersService: UsersService,
         private readonly cacheService: CacheService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     @Get('me')
@@ -47,13 +53,31 @@ export class UsersController {
         return this.usersService.findById(userId);
     }
 
+    /**
+     * Self-service profile update. Bound to UpdateProfileDto, not UpdateUserDto:
+     * the global ValidationPipe runs `forbidNonWhitelisted`, so `role`, `siteId`
+     * and `isActive` are rejected with 400 instead of reaching the repository.
+     * Email is excluded here and handled by PATCH me/email, which requires the
+     * current password.
+     */
     @Patch('me')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Update own profile' })
     @ApiResponse({ status: 200, description: 'Profile updated successfully.' })
-    async updateProfile(@Req() req: any, @Body() updateUserDto: UpdateUserDto) {
+    async updateProfile(@Req() req: any, @Body() updateProfileDto: UpdateProfileDto) {
         const userId = req.user.userId;
-        return this.usersService.update(userId, updateUserDto);
+        return this.usersService.update(userId, updateProfileDto);
+    }
+
+    @Patch('me/email')
+    @UseGuards(JwtAuthGuard)
+    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 attempts per minute
+    @ApiOperation({ summary: 'Change own email address (requires current password)' })
+    @ApiResponse({ status: 200, description: 'Email changed successfully.' })
+    @ApiResponse({ status: 400, description: 'Current password is incorrect.' })
+    @ApiResponse({ status: 409, description: 'Email already in use.' })
+    async changeOwnEmail(@Req() req: any, @Body() dto: ChangeEmailDto) {
+        return this.usersService.changeOwnEmail(req.user.userId, dto.newEmail, dto.currentPassword, req);
     }
 
     @Post('change-password')
@@ -98,24 +122,54 @@ export class UsersController {
     async uploadAvatar(@Req() req: any, @UploadedFile() file: Express.Multer.File) {
         const userId = req.user.userId;
         const avatarUrl = `/uploads/avatars/${file.filename}`;
-        return this.usersService.updateAvatar(userId, avatarUrl, file.path);
+        const updated = await this.usersService.updateAvatar(userId, avatarUrl, file.path);
+
+        if (this.eventEmitter) {
+            this.eventEmitter.emit('file.uploaded', {
+                filePath: file.path,
+                relativePath: `avatars/${file.filename}`,
+                folder: 'avatars',
+                filename: file.filename,
+                originalName: file.originalname,
+                size: file.size,
+            });
+        }
+
+        return updated;
     }
 
     @Get('agents')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE)
-    @ApiOperation({ summary: 'Get agents, optionally filtered by siteId, category, or ticketType' })
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.AGENT,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ORACLE,
+        UserRole.AGENT_WEB_DEV,
+        UserRole.AGENT_MOBILE_DEV,
+        UserRole.AGENT_ADMIN,
+        UserRole.MANAGER,
+        UserRole.USER,
+    )
+    @ApiOperation({ summary: 'Get agents, optionally filtered by siteId, category, ticketType, assigneeRoles, or moduleSlug' })
     @ApiQuery({ name: 'siteId', required: false, description: 'Filter agents by site ID' })
     @ApiQuery({ name: 'category', required: false, description: 'Filter agents by ticket category' })
     @ApiQuery({ name: 'ticketType', required: false, description: 'Filter agents by ticket type' })
+    @ApiQuery({ name: 'assigneeRoles', required: false, description: 'Comma-separated roles for assignee filtering' })
+    @ApiQuery({ name: 'moduleSlug', required: false, description: 'Ticket module slug to match assigneeRoles template' })
     @ApiResponse({ status: 200, description: 'Return agents.' })
     async getAgents(
         @Query('siteId') siteId?: string,
         @Query('category') category?: string,
         @Query('ticketType') ticketType?: string,
         @Req() req?: any,
+        @Query('assigneeRoles') assigneeRoles?: string,
+        @Query('moduleSlug') moduleSlug?: string,
     ) {
-        return this.usersService.getAgents(siteId, req?.user?.role, category, ticketType);
+        const rolesList = typeof assigneeRoles === 'string'
+            ? assigneeRoles.split(',').map((r) => r.trim() as UserRole)
+            : undefined;
+        return this.usersService.getAgents(siteId, req?.user?.role, category, ticketType, rolesList, moduleSlug);
     }
 
     @Get('agents/stats')
@@ -134,9 +188,11 @@ export class UsersController {
     @Get('technicians')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get all technicians for dropdowns' })
+    @ApiQuery({ name: 'siteId', required: false, description: 'Optional site ID filter' })
     @ApiResponse({ status: 200, description: 'Return list of technician {id, fullName}.' })
-    async getTechnicians() {
-        return this.usersService.getTechnicians();
+    async getTechnicians(@Req() req: any, @Query('siteId') querySiteId?: string) {
+        const siteId: string | null = isCrossSiteRole(req.user?.role) ? (querySiteId ?? null) : (req.user?.siteId ?? null);
+        return this.usersService.getTechnicians(siteId);
     }
 
     @Get('approvers')

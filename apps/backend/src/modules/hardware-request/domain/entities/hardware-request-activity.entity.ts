@@ -26,12 +26,12 @@ export class HardwareRequestActivity {
     @JoinColumn({ name: 'requestId' })
     request: HardwareRequest;
 
-    @Column({ type: 'uuid' })
-    actorId: string;
+    @Column({ type: 'uuid', nullable: true })
+    actorId: string | null;
 
-    @ManyToOne(() => User, { onDelete: 'RESTRICT' })
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'actorId' })
-    actor: User;
+    actor: User | null;
 
     @Column({ type: 'enum', enum: ActivityAction })
     action: ActivityAction;

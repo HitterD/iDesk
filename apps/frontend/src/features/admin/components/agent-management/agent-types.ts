@@ -1,6 +1,6 @@
 // Agent Management Types
 // Shared types for agent management components
-import { Shield, Crown, Users, ShieldAlert, Eye, LifeBuoy, type LucideIcon } from 'lucide-react';
+import { Shield, Crown, Users, ShieldAlert, Eye, LifeBuoy, Code2, Smartphone, type LucideIcon } from 'lucide-react';
 
 export interface Site {
     id: string;
@@ -12,7 +12,7 @@ export interface User {
     id: string;
     fullName: string;
     email: string;
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT';
     department?: { id: string; name: string };
     site?: Site;
     siteId?: string;
@@ -55,6 +55,8 @@ export type UserRoleKey =
     | 'AGENT'
     | 'AGENT_ADMIN'
     | 'AGENT_ORACLE'
+    | 'AGENT_WEB_DEV'
+    | 'AGENT_MOBILE_DEV'
     | 'AGENT_OPERATIONAL_SUPPORT'
     | 'USER';
 
@@ -117,10 +119,28 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
         icon: Eye,
         label: 'Agent Oracle',
         pluralLabel: 'Agent Oracles',
-        description: 'Petugas riset/knowledge',
+        description: 'Pengembang Oracle / Database',
         color: 'text-orange-600',
         bgColor: 'bg-orange-100 dark:bg-orange-900/30',
         badgeColor: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
+    },
+    AGENT_WEB_DEV: {
+        icon: Code2,
+        label: 'Agent Web Dev',
+        pluralLabel: 'Agent Web Devs',
+        description: 'Pengembang Web & Portal Internal',
+        color: 'text-sky-600',
+        bgColor: 'bg-sky-100 dark:bg-sky-900/30',
+        badgeColor: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
+    },
+    AGENT_MOBILE_DEV: {
+        icon: Smartphone,
+        label: 'Agent Mobile Dev',
+        pluralLabel: 'Agent Mobile Devs',
+        description: 'Pengembang Aplikasi Mobile iOS/Android',
+        color: 'text-emerald-600',
+        bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+        badgeColor: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
     },
     AGENT_OPERATIONAL_SUPPORT: {
         icon: LifeBuoy,
@@ -148,6 +168,8 @@ export const ROLE_ORDER: UserRoleKey[] = [
     'AGENT',
     'AGENT_ADMIN',
     'AGENT_ORACLE',
+    'AGENT_WEB_DEV',
+    'AGENT_MOBILE_DEV',
     'AGENT_OPERATIONAL_SUPPORT',
     'MANAGER',
     'ADMIN',

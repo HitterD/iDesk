@@ -25,7 +25,12 @@ function buildCorsOrigin() {
         }
         const raw = process.env.WS_CORS_ORIGIN ?? process.env.FRONTEND_URL ?? 'http://localhost:5173';
         const allowed = raw.split(',').map((s) => s.trim());
-        if (!origin || allowed.includes(origin)) {
+        const isAllowed = !origin ||
+            allowed.includes(origin) ||
+            /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
+            /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
+            /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin);
+        if (isAllowed) {
             cb(null, true);
         } else {
             cb(new Error(`WS origin not allowed: ${origin}`), false);

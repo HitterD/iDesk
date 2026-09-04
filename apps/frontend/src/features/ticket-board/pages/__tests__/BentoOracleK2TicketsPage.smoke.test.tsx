@@ -46,7 +46,7 @@ vi.mock('@/stores/useAuth', () => ({
 }));
 
 vi.mock('@/hooks/useTicketSocket', () => ({
-    useTicketListSocket: vi.fn(),
+    useTicketListSocket: vi.fn(() => ({ isConnected: true })),
 }));
 
 describe('BentoOracleK2TicketsPage', () => {
@@ -62,5 +62,19 @@ describe('BentoOracleK2TicketsPage', () => {
 
         expect(screen.getByText('Oracle K2 Request')).toBeInTheDocument();
         expect(screen.getByText('New Oracle/K2 Request')).toBeInTheDocument();
+        expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
+    });
+
+    it('renders Kanban board when ?view=kanban query param is set', async () => {
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={qc}>
+                <MemoryRouter initialEntries={['/tickets/oracle-k2?view=kanban']}>
+                    <BentoOracleK2TicketsPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        expect(await screen.findByText('Oracle / K2 Kanban')).toBeInTheDocument();
     });
 });

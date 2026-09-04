@@ -81,12 +81,12 @@ export const ERROR_MESSAGES: Record<string, string> = {
     // ==========================================
     // SYS - System
     // ==========================================
-    'SYS_001': 'Terjadi kesalahan. Coba lagi atau hubungi support.',
+    'SYS_001': 'Terjadi kendala pada server (Something went wrong). Silakan coba lagi beberapa saat lagi.',
     'SYS_002': 'Operasi database gagal.',
     'SYS_003': 'Layanan eksternal tidak tersedia.',
     'SYS_004': 'Kesalahan konfigurasi sistem.',
     'SYS_005': 'Fitur ini sedang dinonaktifkan.',
-    'SYS_006': 'Sistem sedang dalam maintenance.',
+    'SYS_006': 'Sistem sedang dalam pemeliharaan (maintenance).',
 
     // ==========================================
     // ZOOM - Zoom Integration
@@ -122,8 +122,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
     // ==========================================
     // NET - Network
     // ==========================================
-    'NET_001': 'Koneksi ke layanan gagal.',
-    'NET_002': 'Permintaan timeout. Coba lagi.',
+    'NET_001': 'Gagal terhubung ke layanan. Silakan coba beberapa saat lagi.',
+    'NET_002': 'Waktu permintaan habis (Timeout). Silakan coba beberapa saat lagi.',
 
     // ==========================================
     // Legacy codes (backward compatibility)
@@ -132,11 +132,11 @@ export const ERROR_MESSAGES: Record<string, string> = {
     'INVALID_CREDENTIALS': 'Email atau password salah.',
     'FORBIDDEN': 'Anda tidak memiliki akses ke fitur ini.',
     'VALIDATION_ERROR': 'Data yang dimasukkan tidak valid.',
-    'INTERNAL_ERROR': 'Terjadi kesalahan. Coba lagi atau hubungi support.',
-    'NETWORK_ERROR': 'Koneksi terputus. Periksa koneksi internet anda.',
-    'TIMEOUT': 'Permintaan timeout. Coba lagi.',
+    'INTERNAL_ERROR': 'Terjadi kendala pada server (Something went wrong). Silakan coba lagi beberapa saat lagi.',
+    'NETWORK_ERROR': 'Terjadi kendala pada sistem (Something went wrong). Silakan coba beberapa saat lagi.',
+    'TIMEOUT': 'Waktu permintaan habis (Timeout). Silakan coba beberapa saat lagi.',
     'SERVICE_UNAVAILABLE': 'Layanan sedang tidak tersedia.',
-    'UNKNOWN_ERROR': 'Terjadi kesalahan yang tidak diketahui.',
+    'UNKNOWN_ERROR': 'Terjadi kendala pada sistem (Something went wrong). Silakan coba beberapa saat lagi.',
     'SESSION_EXPIRED': 'Sesi anda telah berakhir. Silakan login kembali.',
 };
 
@@ -190,5 +190,45 @@ export const HTTP_STATUS_TO_ERROR: Record<number, string> = {
 export function getErrorMessageFromStatus(status: number): string {
     const errorCode = HTTP_STATUS_TO_ERROR[status];
     return errorCode ? ERROR_MESSAGES[errorCode] || ERROR_MESSAGES['UNKNOWN_ERROR'] : ERROR_MESSAGES['UNKNOWN_ERROR'];
+}
+
+/**
+ * Resolves a network, timeout, or server error into an informative message
+ * without wrongly blaming the user's internet connection.
+ */
+export function resolveNetworkOrServerError(error: any): { message: string; isSilent: boolean } {
+    // 1. Request was cancelled or aborted (e.g. unmount, user navigated, query cancelled) -> Silent
+    if (
+        error?.code === 'ERR_CANCELED' ||
+        error?.name === 'CanceledError' ||
+        (typeof error?.message === 'string' && error.message.toLowerCase().includes('canceled'))
+    ) {
+        return { message: '', isSilent: true };
+    }
+
+    // 2. Request Timeout
+    if (
+        error?.code === 'ECONNABORTED' ||
+        (typeof error?.message === 'string' && error.message.toLowerCase().includes('timeout'))
+    ) {
+        return {
+            message: ERROR_MESSAGES['TIMEOUT'],
+            isSilent: false,
+        };
+    }
+
+    // 3. User device is truly offline
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return {
+            message: 'Perangkat Anda sedang offline. Mohon periksa koneksi Anda.',
+            isSilent: false,
+        };
+    }
+
+    // 4. Default server unreachable / something went wrong
+    return {
+        message: ERROR_MESSAGES['NETWORK_ERROR'],
+        isSilent: false,
+    };
 }
 

@@ -89,8 +89,33 @@ describe('SystemHealthPage', () => {
             </QueryClientProvider>
         );
 
-        expect(await screen.findByText('1d 2h 3m 08s')).toBeInTheDocument();
+        const uptimeElements = await screen.findAllByText('1d 2h 3m 08s');
+        expect(uptimeElements.length).toBeGreaterThan(0);
         expect(screen.getByText('google-sync')).toBeInTheDocument();
-        expect(screen.getByText(/Waiting: 2/)).toBeInTheDocument();
+        expect(screen.getByText(/2 · 1 · 0/)).toBeInTheDocument();
+    });
+
+    it('switches to End-to-End Service Map tab when tab button is clicked', async () => {
+        const { fireEvent } = await import('@testing-library/react');
+        render(
+            <QueryClientProvider client={queryClient}>
+                <SystemHealthPage />
+            </QueryClientProvider>
+        );
+
+        // Click on the End-to-End Service Map tab
+        const serviceMapTab = screen.getByTestId('tab-service-map');
+        expect(serviceMapTab).toBeInTheDocument();
+        fireEvent.click(serviceMapTab);
+
+        // Verify that the End-to-End Service Map content is rendered
+        expect(screen.getAllByText(/Traces/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText(/1\. Client Edge/i)).toBeInTheDocument();
+        expect(screen.getByText(/iDesk Web Portal/i)).toBeInTheDocument();
+
+        // Switch back to Overview & Vitals tab
+        const vitalsTab = screen.getByTestId('tab-vitals');
+        fireEvent.click(vitalsTab);
+        expect(screen.getByText('google-sync')).toBeInTheDocument();
     });
 });

@@ -35,12 +35,20 @@ export class ZoomBookingEventListener {
         }
     }
 
-    // We can also handle zoom.meeting.created to send emails later if needed
+    // Handle zoom.meeting.created to dispatch calendar invites and emails to booker and participants
     @OnEvent('zoom.meeting.created')
-    handleMeetingCreated(payload: { booking: ZoomBooking; meeting: any }) {
+    async handleMeetingCreated(payload: { booking: ZoomBooking; meeting: any }) {
         this.logger.log(`Handling zoom.meeting.created event for meeting ID: ${payload.meeting?.id}`);
-        // For now, let's just use it to notify the user holding the meeting
-        // Usually, participants get the email here
+        try {
+            await this.notificationService.notifyBookingCreatedWithInvites(
+                payload.booking?.id,
+                payload.meeting?.joinUrl,
+                payload.meeting?.zoomMeetingId,
+                payload.meeting?.password || payload.meeting?.passcode,
+            );
+        } catch (error: any) {
+            this.logger.error(`Failed to dispatch confirmation & participant invites: ${error?.message}`, error?.stack);
+        }
     }
 
     @OnEvent('zoom.sync.completed')

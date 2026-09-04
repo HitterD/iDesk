@@ -29,6 +29,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { ManagerTicketActivityModal } from '../components/ManagerTicketActivityModal';
 
 interface DashboardStats {
     totalTickets: number;
@@ -87,6 +89,7 @@ export const ManagerDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
+    const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchDashboard();
@@ -167,12 +170,18 @@ export const ManagerDashboard = () => {
     }
 
     return (
-        <div className="space-y-6 p-6 animate-fade-in-up">
+        <div className="space-y-6 animate-fade-in-up pb-10">
             {/* Header & Unified Action Bar */}
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[hsl(var(--card))] p-5 rounded-xl border border-[hsl(var(--border))] shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border/80 shadow-xs">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Manager Dashboard</h1>
-                    <p className="text-muted-foreground text-sm mt-1">Overview semua site</p>
+                    <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className="px-2.5 py-0.5 text-xs font-semibold text-primary border-primary/30 bg-primary/5">
+                            <Building2 className="w-3.5 h-3.5 mr-1" />
+                            Manager Portal
+                        </Badge>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Manager Dashboard</h1>
+                    <p className="text-muted-foreground text-sm mt-0.5">Overview performa, distribusi tiket, dan metrik lintas site</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <SiteSelector
@@ -180,8 +189,8 @@ export const ManagerDashboard = () => {
                         onSelectionChange={setSelectedSites}
                         mode="multi"
                     />
-                    <Button variant="outline" onClick={fetchDashboard} className="rounded-xl border-[hsl(var(--border))] bg-white dark:bg-slate-800">
-                        <RefreshCw className="h-4 w-4 mr-2" />
+                    <Button variant="outline" size="sm" onClick={fetchDashboard} className="rounded-xl border-border/80 bg-card hover:bg-muted shadow-xs transition-all duration-150 cursor-pointer h-10">
+                        <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin text-primary")} />
                         Refresh
                     </Button>
                 </div>
@@ -194,27 +203,31 @@ export const ManagerDashboard = () => {
                 <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
                     {/* 2x2 Metrics Grid */}
                     <div className="grid grid-cols-2 gap-4">
-                        <Card className="rounded-xl shadow-sm border-[hsl(var(--border))]">
+                        <Card className="rounded-2xl shadow-xs border-border/80 bg-card hover:border-border transition-all">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Tickets</CardTitle>
-                                <Ticket className="h-4 w-4 text-slate-400" />
+                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Tickets</CardTitle>
+                                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                    <Ticket className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                                </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-bold text-slate-800 dark:text-white">{stats?.totalTickets || 0}</div>
+                                <div className="text-3xl font-extrabold tracking-tight text-foreground">{stats?.totalTickets || 0}</div>
                                 <p className="text-xs text-muted-foreground mt-1">+{stats?.ticketsToday || 0} hari ini</p>
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-xl shadow-sm border-[hsl(var(--border))]">
+                        <Card className="rounded-2xl shadow-xs border-border/80 bg-card hover:border-border transition-all">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Open Tickets</CardTitle>
-                                <Clock className="h-4 w-4 text-slate-400" />
+                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Open Tickets</CardTitle>
+                                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center">
+                                    <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-bold text-slate-800 dark:text-white">{stats?.openTickets?.total || 0}</div>
+                                <div className="text-3xl font-extrabold tracking-tight text-foreground">{stats?.openTickets?.total || 0}</div>
                                 <div className="flex gap-1.5 mt-2 flex-wrap">
                                     {stats?.openTickets?.bySite && Object.entries(stats.openTickets.bySite).map(([code, count]) => (
-                                        <Badge key={code} style={{ backgroundColor: SITE_COLORS[code] }} className="text-xs px-1.5 py-0.5">
+                                        <Badge key={code} style={{ backgroundColor: SITE_COLORS[code] }} className="text-xs px-2 py-0.5 font-bold shadow-2xs">
                                             {code}: {count}
                                         </Badge>
                                     ))}
@@ -222,35 +235,39 @@ export const ManagerDashboard = () => {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-xl shadow-sm border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10">
+                        <Card className="rounded-2xl shadow-xs border-red-200/80 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 hover:border-red-300 transition-all">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-red-600 dark:text-red-400">Critical</CardTitle>
-                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">Critical</CardTitle>
+                                <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 animate-pulse" />
+                                </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-bold text-red-600 dark:text-red-400">{stats?.criticalTickets || 0}</div>
-                                <p className="text-xs text-red-500/80 mt-1">Butuh perhatian segera</p>
+                                <div className="text-3xl font-extrabold tracking-tight text-red-600 dark:text-red-400">{stats?.criticalTickets || 0}</div>
+                                <p className="text-xs text-red-500/90 mt-1 font-medium">Butuh perhatian segera</p>
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-xl shadow-sm border-orange-200 dark:border-orange-900/50 bg-orange-50/50 dark:bg-orange-900/10">
+                        <Card className="rounded-2xl shadow-xs border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 hover:border-amber-300 transition-all">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-orange-600 dark:text-orange-400">SLA Breach</CardTitle>
-                                <TrendingUp className="h-4 w-4 text-orange-500" />
+                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">SLA Breach</CardTitle>
+                                <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+                                    <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats?.slaBreach || 0}</div>
-                                <p className="text-xs text-orange-500/80 mt-1">Sudah melewati target SLA</p>
+                                <div className="text-3xl font-extrabold tracking-tight text-amber-600 dark:text-amber-400">{stats?.slaBreach || 0}</div>
+                                <p className="text-xs text-amber-600/90 dark:text-amber-400/90 mt-1 font-medium">Melewati target SLA</p>
                             </CardContent>
                         </Card>
                     </div>
 
                     {/* Trend Chart */}
-                    <Card className="rounded-xl shadow-sm border-[hsl(var(--border))]">
+                    <Card className="rounded-2xl shadow-xs border-border/80 bg-card">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-base">
+                            <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
                                 <TrendingUp className="h-5 w-5 text-primary" />
-                                Trend 7 Hari Terakhir
+                                Trend Tiket 7 Hari Terakhir
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -284,9 +301,9 @@ export const ManagerDashboard = () => {
                 {/* Right Column: Action Center */}
                 <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
                     {/* Site Distribution */}
-                    <Card className="rounded-xl shadow-sm border-[hsl(var(--border))]">
+                    <Card className="rounded-2xl shadow-xs border-border/80 bg-card">
                         <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-base">
+                            <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
                                 <Building2 className="h-5 w-5 text-primary" />
                                 Distribusi per Site
                             </CardTitle>
@@ -297,7 +314,7 @@ export const ManagerDashboard = () => {
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                     <XAxis dataKey="siteCode" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
                                     <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', backgroundColor: 'hsl(var(--card))' }} />
+                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }} />
                                     <Bar dataKey="openTickets" name="Open" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
                                     <Bar dataKey="criticalTickets" name="Critical" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
                                 </BarChart>
@@ -306,9 +323,9 @@ export const ManagerDashboard = () => {
                     </Card>
 
                     {/* Recent Critical Tickets Feed */}
-                    <Card className="rounded-xl shadow-sm border-red-200 dark:border-red-900/50">
-                        <CardHeader className="pb-3 border-b border-[hsl(var(--border))] bg-red-50/30 dark:bg-red-900/10 rounded-t-xl">
-                            <CardTitle className="flex items-center gap-2 text-base text-red-600 dark:text-red-400">
+                    <Card className="rounded-2xl shadow-xs border-red-200/80 dark:border-red-900/50 bg-card overflow-hidden">
+                        <CardHeader className="pb-3 border-b border-border/80 bg-red-50/40 dark:bg-red-950/20">
+                            <CardTitle className="flex items-center gap-2 text-base font-bold text-red-600 dark:text-red-400">
                                 <AlertTriangle className="h-4 w-4" />
                                 Recent Critical Tickets
                             </CardTitle>
@@ -316,23 +333,28 @@ export const ManagerDashboard = () => {
                         <CardContent className="p-0">
                             <div className="flex flex-col">
                                 {stats?.recentCritical?.length === 0 ? (
-                                    <div className="p-6 text-center text-sm text-muted-foreground">Tidak ada tiket kritis.</div>
+                                    <div className="p-6 text-center text-sm text-muted-foreground">Tidak ada tiket kritis saat ini.</div>
                                 ) : (
                                     stats?.recentCritical?.slice(0, 5).map((ticket) => (
-                                        <div key={ticket.id} className="flex items-start gap-3 p-4 border-b border-[hsl(var(--border))] hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors last:border-0">
+                                        <div
+                                            key={ticket.id}
+                                            onClick={() => setSelectedTicketId(ticket.id)}
+                                            className="flex items-start gap-3 p-4 border-b border-border/60 hover:bg-muted/40 transition-colors last:border-0 cursor-pointer group"
+                                            title="Lihat Log Aktivitas Tiket"
+                                        >
                                             <div className="mt-1">
                                                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-2 mb-1">
-                                                    <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{ticket.ticketNumber}</span>
+                                                    <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">{ticket.ticketNumber}</span>
                                                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                                                         {formatDistanceToNow(new Date(ticket.createdAt), { addSuffix: true, locale: idLocale })}
                                                     </span>
                                                 </div>
-                                                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mb-2">{ticket.title}</p>
+                                                <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{ticket.title}</p>
                                                 <div className="flex items-center gap-2">
-                                                    <Badge variant="outline" className="text-xs bg-[hsl(var(--card))]">
+                                                    <Badge variant="outline" className="text-xs bg-secondary/80 text-foreground border-border/60">
                                                         {ticket.site?.code || 'N/A'}
                                                     </Badge>
                                                     {getStatusBadge(ticket.status)}
@@ -346,11 +368,11 @@ export const ManagerDashboard = () => {
                     </Card>
 
                     {/* Top Agents List */}
-                    <Card className="rounded-xl shadow-sm border-[hsl(var(--border))]">
-                        <CardHeader className="pb-3 border-b border-[hsl(var(--border))]">
-                            <CardTitle className="flex items-center gap-2 text-base">
+                    <Card className="rounded-2xl shadow-xs border-border/80 bg-card overflow-hidden">
+                        <CardHeader className="pb-3 border-b border-border/80">
+                            <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
                                 <Users className="h-5 w-5 text-primary" />
-                                Top Agents (Resolved Today)
+                                Top Agents (Resolved Hari Ini)
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
@@ -359,15 +381,15 @@ export const ManagerDashboard = () => {
                                     <div className="p-6 text-center text-sm text-muted-foreground">Belum ada agen aktif hari ini.</div>
                                 ) : (
                                     stats?.topAgents?.slice(0, 5).map((agent) => (
-                                        <div key={agent.agentId} className="flex items-center justify-between p-4 border-b border-[hsl(var(--border))] hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors last:border-0">
+                                        <div key={agent.agentId} className="flex items-center justify-between p-4 border-b border-border/60 hover:bg-muted/40 transition-colors last:border-0">
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs shrink-0 border border-[hsl(var(--border))]">
+                                                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 border border-primary/20">
                                                     {agent.agentName?.charAt(0) || 'A'}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{agent.agentName}</p>
+                                                    <p className="font-semibold text-sm text-foreground truncate">{agent.agentName}</p>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <Badge style={{ backgroundColor: SITE_COLORS[agent.siteCode] }} className="text-xs px-1 py-0 h-4">
+                                                        <Badge style={{ backgroundColor: SITE_COLORS[agent.siteCode] }} className="text-xs px-1.5 py-0 h-4 shadow-2xs">
                                                             {agent.siteCode}
                                                         </Badge>
                                                         <span className="text-xs text-muted-foreground">{agent.avgResolutionHours}h avg</span>
@@ -375,8 +397,8 @@ export const ManagerDashboard = () => {
                                                 </div>
                                             </div>
                                             <div className="flex flex-col items-end shrink-0 ml-2">
-                                                <span className="text-lg font-bold text-green-600 dark:text-green-500">{agent.resolvedToday}</span>
-                                                <span className="text-xs text-muted-foreground uppercase font-medium">Resolved</span>
+                                                <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{agent.resolvedToday}</span>
+                                                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Resolved</span>
                                             </div>
                                         </div>
                                     ))
@@ -386,6 +408,15 @@ export const ManagerDashboard = () => {
                     </Card>
                 </div>
             </div>
+
+            {/* Manager Ticket Activity & Audit Trail Modal */}
+            <ManagerTicketActivityModal
+                ticketId={selectedTicketId}
+                open={!!selectedTicketId}
+                onOpenChange={(open) => {
+                    if (!open) setSelectedTicketId(null);
+                }}
+            />
         </div>
     );
 };

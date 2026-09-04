@@ -132,4 +132,37 @@ describe('ZoomTimeSelect', () => {
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(screen.queryByTestId('zoom-time-select-options')).not.toBeInTheDocument();
     });
+
+    it('anchors left-0 by default and applies custom dropdownClassName', async () => {
+        const user = userEvent.setup();
+        render(
+            <ZoomTimeSelect
+                value=""
+                onChange={() => {}}
+                options={baseOptions}
+                dropdownClassName="w-[calc(200%+0.75rem)]"
+            />
+        );
+        await user.click(screen.getByTestId('zoom-time-select'));
+        const optionsEl = screen.getByTestId('zoom-time-select-options');
+        expect(optionsEl.className).toContain('left-0');
+        expect(optionsEl.className).toContain('w-[calc(200%+0.75rem)]');
+    });
+
+    it('anchors right-0 when align="right"', async () => {
+        const user = userEvent.setup();
+        render(
+            <ZoomTimeSelect
+                value=""
+                onChange={() => {}}
+                options={baseOptions}
+                align="right"
+            />
+        );
+        await user.click(screen.getByTestId('zoom-time-select'));
+        const optionsEl = screen.getByTestId('zoom-time-select-options');
+        expect(optionsEl.className).toContain('right-0');
+        expect(optionsEl.className).not.toContain('left-0');
+    });
 });
+

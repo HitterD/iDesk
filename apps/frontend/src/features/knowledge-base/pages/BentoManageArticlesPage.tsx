@@ -17,12 +17,15 @@ import {
     ImageIcon,
     Loader2,
     ArrowLeft,
+    Pin,
+    PinOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from '@/features/admin/components/ConfirmDialog';
+import { useAuth } from '@/stores/useAuth';
 
 interface Article {
     id: string;
@@ -36,6 +39,7 @@ interface Article {
     helpfulCount: number;
     authorName: string;
     featuredImage?: string;
+    isFeatured?: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -61,6 +65,9 @@ const STATUS_STYLES = {
 
 export const BentoManageArticlesPage = () => {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    // Pinning is admin-only server-side; hiding it elsewhere avoids a dead button.
+    const canFeature = user?.role === 'ADMIN';
     const [searchQuery, setSearchQuery] = useState('');
     const [searchTerm, setSearchTerm] = useState(''); // Debounced search
     const [statusFilter, setStatusFilter] = useState<string>('');
@@ -120,6 +127,28 @@ export const BentoManageArticlesPage = () => {
         },
     });
 
+    // Pin/unpin the single "start here" article shown on the KB landing page
+    const setFeaturedMutation = useMutation({
+        mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
+            await api.patch(`/kb/articles/${id}/featured`, { featured });
+            return featured;
+        },
+        onSuccess: (featured) => {
+            toast.success(
+                featured
+                    ? 'Artikel disematkan di halaman utama Knowledge Base'
+                    : 'Sematan artikel dilepas',
+            );
+            queryClient.invalidateQueries({ queryKey: ['kb-articles'] });
+            queryClient.invalidateQueries({ queryKey: ['kb-featured'] });
+            setOpenDropdown(null);
+        },
+        onError: (error: any) => {
+            // The server rejects drafts and non-public articles; surface its reason.
+            toast.error(error?.response?.data?.message || 'Gagal menyematkan artikel');
+        },
+    });
+
     // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
@@ -160,13 +189,13 @@ export const BentoManageArticlesPage = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-12">
             <Link
                 to="/kb"
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium text-sm mb-2"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-foreground hover:bg-muted font-semibold text-xs transition-all shadow-2xs group cursor-pointer mb-1"
             >
-                <ArrowLeft className="w-4 h-4 mr-1.5" />
-                Back to Knowledge Base
+                <ArrowLeft className="w-3.5 h-3.5 text-muted-foreground group-hover:-translate-x-0.5 group-hover:text-foreground transition-all" />
+                <span>Kembali ke Knowledge Base</span>
             </Link>
 
             {/* Header */}
@@ -369,6 +398,13 @@ export const BentoManageArticlesPage = () => {
                                                     by {article.authorName}
                                                 </p>
                                             )}
+                                            {article.isFeatured && (
+                                                <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-[var(--radius-sm)] bg-primary/10 text-primary text-[10px] font-semibold">
+                                                    <Pin className="w-2.5 h-2.5" />
+                                                    Disematkan
+                                                </span>
+                                            )}
+
                                         </td>
                                         <td className="px-5 py-4">
                                             <span className="px-2.5 py-1 rounded-[var(--radius-sm)] bg-muted text-muted-foreground text-xs font-medium">
@@ -489,6 +525,31 @@ export const BentoManageArticlesPage = () => {
                                                             >
                                                                 <Archive className="w-3.5 h-3.5" />
                                                                 Archive Article
+                                                            </button>
+                                                        )}
+
+                                                        {canFeature && article.status === 'published' && article.visibility === 'public' && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setFeaturedMutation.mutate({
+                                                                        id: article.id,
+                                                                        featured: !article.isFeatured,
+                                                                    })
+                                                                }
+                                                                disabled={setFeaturedMutation.isPending}
+                                                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-primary/10 text-xs font-medium text-primary transition-colors w-full text-left disabled:opacity-50"
+                                                            >
+                                                                {article.isFeatured ? (
+                                                                    <>
+                                                                        <PinOff className="w-3.5 h-3.5" />
+                                                                        Lepas Sematan
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Pin className="w-3.5 h-3.5" />
+                                                                        Sematkan di Halaman Utama
+                                                                    </>
+                                                                )}
                                                             </button>
                                                         )}
 

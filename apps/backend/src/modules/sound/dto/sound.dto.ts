@@ -1,7 +1,9 @@
 import { IsString, IsOptional, IsBoolean, IsEnum, IsUUID } from 'class-validator';
-import { NotificationEventType } from '../entities/notification-sound.entity';
+import { Transform } from 'class-transformer';
+import { NotificationEventType, normalizeNotificationEventType } from '../entities/notification-sound.entity';
 
 export class CreateSoundDto {
+    @Transform(({ value }) => normalizeNotificationEventType(value))
     @IsEnum(NotificationEventType)
     eventType: NotificationEventType;
 

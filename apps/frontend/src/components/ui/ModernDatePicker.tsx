@@ -60,7 +60,7 @@ export const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
                 </button>
             </PopoverTrigger>
             <PopoverContent
-                className={cn('w-auto p-0 border-0 shadow-2xl', className)}
+                className={cn('w-auto p-0 border-0 shadow-2xl z-[10000]', className)}
                 align="start"
                 sideOffset={8}
             >

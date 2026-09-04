@@ -3,6 +3,8 @@ import { id as idLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { ZoomBooking } from './types';
 
+export * from './utils/calendarExport';
+
 export const formatZoomAccountName = (name?: string): string => {
     if (!name) return 'Zoom';
     // Extracts "Zoom 1", "Zoom 2", etc. regardless of preceding or succeeding text

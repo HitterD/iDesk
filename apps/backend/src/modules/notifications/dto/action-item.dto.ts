@@ -11,6 +11,7 @@ export enum ActionItemEntityType {
     HARDWARE_REQUEST = 'HARDWARE_REQUEST',
     EFORM = 'EFORM',
     RENEWAL = 'RENEWAL',
+    ZOOM = 'ZOOM',
 }
 
 export class ActionItemDto {

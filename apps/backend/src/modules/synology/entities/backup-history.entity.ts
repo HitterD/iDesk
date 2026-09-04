@@ -6,14 +6,10 @@ import {
     ManyToOne,
     JoinColumn,
 } from 'typeorm';
-import { BackupConfiguration, BackupType } from './backup-configuration.entity';
+import { BackupConfiguration } from './backup-configuration.entity';
+import { BackupType, BackupStatus } from '../enums/backup.enum';
 
-export enum BackupStatus {
-    RUNNING = 'RUNNING',
-    SUCCESS = 'SUCCESS',
-    FAILED = 'FAILED',
-    CANCELLED = 'CANCELLED',
-}
+export { BackupStatus, BackupType };
 
 @Entity('backup_history')
 export class BackupHistory {
@@ -23,7 +19,7 @@ export class BackupHistory {
     @Column()
     configId: string;
 
-    @ManyToOne(() => BackupConfiguration)
+    @ManyToOne(() => BackupConfiguration, (config) => config.histories, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'configId' })
     config: BackupConfiguration;
 

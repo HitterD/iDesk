@@ -18,6 +18,7 @@ import { TelegramChannelService } from './channels/telegram-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EntityManager } from 'typeorm';
 import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
@@ -242,6 +243,10 @@ export class NotificationCenterService implements OnModuleInit {
 
     emitActionItemsRefresh(userId: string, entityType: string, entityId: string): void {
         try {
+            // Instantly clear cached action items for this user across all roles & sites
+            this.cacheService.delByPattern(`action-items:${userId}:*`).catch(err => {
+                this.logger.warn(`Failed to clear action-items cache for user ${userId}:`, err);
+            });
             this.eventsGateway.server.emit(`action-items:refresh:${userId}`, { entityType, entityId });
         } catch (error) {
             this.logger.warn(`Failed to emit action-items refresh for user ${userId}:`, error);
@@ -311,9 +316,18 @@ export class NotificationCenterService implements OnModuleInit {
         const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
         const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-        const isAgentOrAdmin = role === 'AGENT' || role === 'ADMIN';
-        const isManagerOrAdmin = role === 'ADMIN' || role === 'MANAGER';
-        const isUser = role === 'USER';
+        const agentRoles = [
+            UserRole.AGENT,
+            UserRole.AGENT_OPERATIONAL_SUPPORT,
+            UserRole.AGENT_ORACLE,
+            UserRole.AGENT_WEB_DEV,
+            UserRole.AGENT_MOBILE_DEV,
+            UserRole.AGENT_ADMIN,
+            UserRole.ADMIN,
+        ];
+        const isAgentOrAdmin = agentRoles.includes(role as any);
+        const isManagerOrAdmin = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN].includes(role as any);
+        const isUser = role === UserRole.USER;
 
         // Build optional site filter per query, with correct parameter indices.
         // Hardware query has no prior params → site uses $1.
@@ -322,71 +336,136 @@ export class NotificationCenterService implements OnModuleInit {
         const hwSiteFilterParams = siteId ? [siteId] : [];
         const eformSiteFilterSql = siteId ? ' AND "siteId" = $2' : '';
 
-        const [slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals] = await Promise.all([
+        const [
+            slaBreachedTickets,
+            unrespondedTickets,
+            resolvedTickets,
+            pendingHw,
+            userHwConfirmation,
+            agentHwInstallation,
+            pendingEform,
+            renewals,
+            zoomBookings,
+        ] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND status != 'CANCELLED' AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
                 [userId, now]
-            ) : Promise.resolve([]),
+            ).catch(() => []) : Promise.resolve([]),
             isAgentOrAdmin ? this.entityManager.query(
                 `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2 AND "deletedAt" IS NULL ORDER BY "createdAt" ASC LIMIT 50`,
                 [userId, oneHourAgo]
-            ) : Promise.resolve([]),
+            ).catch(() => []) : Promise.resolve([]),
             isUser ? this.entityManager.query(
                 `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
                 [userId]
-            ) : Promise.resolve([]),
+            ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
                 `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')${hwSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
                 hwSiteFilterParams
-            ) : Promise.resolve([]),
+            ).catch(() => []) : Promise.resolve([]),
+            isUser ? this.entityManager.query(
+                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE "requesterId" = $1 AND status = 'AWAITING_USER_CONFIRMATION' ORDER BY "createdAt" DESC LIMIT 50`,
+                [userId]
+            ).catch(() => []) : Promise.resolve([]),
+            (isAgentOrAdmin && !isManagerOrAdmin && siteId) ? this.entityManager.query(
+                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE "siteId" = $1 AND status IN ('APPROVED', 'INSTALLATION') ORDER BY "createdAt" DESC LIMIT 50`,
+                [siteId]
+            ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
                 `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')${eformSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
                 siteId ? [userId, siteId] : [userId]
-            ) : Promise.resolve([]),
+            ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
                 `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL ORDER BY "endDate" ASC LIMIT 50`,
                 [next7Days]
             ).catch(() => []) : Promise.resolve([]),
+            this.entityManager.query(
+                `SELECT id, title, "bookingDate", "startTime", "endTime", status, "createdAt" FROM zoom_bookings WHERE "bookedByUserId" = $1 AND "bookingDate" = CURRENT_DATE AND status = 'CONFIRMED' ORDER BY "startTime" ASC LIMIT 20`,
+                [userId]
+            ).catch(() => []),
         ]);
 
-        return { slaBreachedTickets, unrespondedTickets, resolvedTickets, pendingHw, pendingEform, renewals };
+        return {
+            slaBreachedTickets,
+            unrespondedTickets,
+            resolvedTickets,
+            pendingHw,
+            userHwConfirmation,
+            agentHwInstallation,
+            pendingEform,
+            renewals,
+            zoomBookings,
+        };
     }
 
     private mapQueriesToActionItems(data: any, now: Date): ActionItemDto[] {
         const items: ActionItemDto[] = [];
         const next1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-        data.slaBreachedTickets.forEach((t: any) => items.push({
+        data.slaBreachedTickets?.forEach((t: any) => items.push({
             id: `tkt-sla-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `SLA Breached: ${t.ticketNumber}`,
             description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
         }));
 
-        data.unrespondedTickets.forEach((t: any) => items.push({
+        data.unrespondedTickets?.forEach((t: any) => items.push({
             id: `tkt-unresp-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Unresponded: ${t.ticketNumber}`,
             description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt, isSnoozed: false
         }));
 
-        data.resolvedTickets.forEach((t: any) => items.push({
+        data.resolvedTickets?.forEach((t: any) => items.push({
             id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
             description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
         }));
 
-        data.pendingHw.forEach((hw: any) => items.push({
+        data.pendingHw?.forEach((hw: any) => items.push({
             id: `hw-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Hardware Approval Pending`,
             description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
         }));
 
-        data.pendingEform.forEach((ef: any) => items.push({
+        data.userHwConfirmation?.forEach((hw: any) => items.push({
+            id: `hw-confirm-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Konfirmasi Penerimaan Hardware`,
+            description: `Request ${hw.requestNumber} siap dikonfirmasi`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
+        }));
+
+        data.agentHwInstallation?.forEach((hw: any) => items.push({
+            id: `hw-install-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Instalasi Hardware: ${hw.requestNumber}`,
+            description: `Status: ${hw.status}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
+        }));
+
+        data.pendingEform?.forEach((ef: any) => items.push({
             id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
             description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
         }));
 
-        data.renewals.forEach((r: any) => {
+        data.renewals?.forEach((r: any) => {
             const isCritical = new Date(r.endDate) < next1Day;
             const label = r.vendorName || r.description || 'Unknown Contract';
             items.push({
                 id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
                 description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date(), isSnoozed: false
+            });
+        });
+
+        data.zoomBookings?.forEach((z: any) => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const startTimePart = z.startTime ? z.startTime.slice(0, 5) : '00:00';
+            const endTimePart = z.endTime ? z.endTime.slice(0, 5) : '23:59';
+            const startDateTime = new Date(`${todayStr}T${startTimePart}:00`);
+            const endDateTime = new Date(`${todayStr}T${endTimePart}:00`);
+            const isSoonOrActive = !isNaN(startDateTime.getTime()) &&
+                (now.getTime() >= startDateTime.getTime() - 2 * 60 * 60 * 1000) &&
+                (now.getTime() <= endDateTime.getTime());
+
+            items.push({
+                id: `zoom-${z.id}`,
+                entityType: ActionItemEntityType.ZOOM,
+                title: `Zoom Meeting: ${z.title}`,
+                description: `Pukul ${startTimePart} - ${endTimePart}`,
+                urgency: isSoonOrActive ? ActionItemUrgency.HIGH : ActionItemUrgency.NORMAL,
+                entityId: z.id,
+                link: `/zoom`,
+                createdAt: z.createdAt ? new Date(z.createdAt) : new Date(),
+                isSnoozed: false,
             });
         });
 
@@ -445,6 +524,10 @@ export class NotificationCenterService implements OnModuleInit {
     ): Promise<void> {
         const deliveryPromises = channels.map(channel =>
             this.deliverToChannel(notification, channel, notification.userId, preferences)
+                .catch(err => {
+                    this.logger.error(`Unhandled error delivering to channel ${channel} for notification ${notification.id}: ${err.message}`, err.stack);
+                    return null;
+                })
         );
         await Promise.all(deliveryPromises);
     }
@@ -457,7 +540,13 @@ export class NotificationCenterService implements OnModuleInit {
     ): Promise<DeliveryResult | null> {
         const channelService = this.channels.get(channel);
 
-        if (!channelService || !channelService.isAvailable()) {
+        const isChannelAvailable = channelService && (
+            typeof channelService.isAvailable === 'function'
+                ? channelService.isAvailable()
+                : true
+        );
+
+        if (!isChannelAvailable) {
             this.logger.warn(`Channel ${channel} is not available`);
             return null;
         }
@@ -469,12 +558,17 @@ export class NotificationCenterService implements OnModuleInit {
         }
 
         // Create log entry
-        const log = await this.logRepo.save({
-            notificationId: notification.id,
-            channel,
-            status: DeliveryStatus.PENDING,
-            recipient,
-        });
+        let log: any = null;
+        try {
+            log = await this.logRepo.save({
+                notificationId: notification.id,
+                channel,
+                status: DeliveryStatus.PENDING,
+                recipient,
+            });
+        } catch (logErr: any) {
+            this.logger.warn(`Could not create notification delivery log: ${logErr.message}`);
+        }
 
         // Prepare payload
         const deliveryPayload: ChannelDeliveryPayload = {
@@ -489,16 +583,33 @@ export class NotificationCenterService implements OnModuleInit {
             },
         };
 
-        // Send
-        const result = await channelService.send(deliveryPayload);
+        // Send with non-blocking try-catch isolation
+        let result: DeliveryResult;
+        try {
+            result = await channelService.send(deliveryPayload);
+        } catch (error: any) {
+            this.logger.error(`Channel ${channel} delivery threw an unexpected error for user ${userId}: ${error.message}`, error.stack);
+            result = {
+                success: false,
+                channel,
+                error: error.message || 'Channel send failed',
+                timestamp: new Date(),
+            };
+        }
 
         // Update log
-        await this.logRepo.update(log.id, {
-            status: result.success ? DeliveryStatus.SENT : DeliveryStatus.FAILED,
-            externalMessageId: result.messageId,
-            errorMessage: result.error,
-            sentAt: result.success ? result.timestamp : undefined,
-        });
+        if (log?.id) {
+            try {
+                await this.logRepo.update(log.id, {
+                    status: result.success ? DeliveryStatus.SENT : DeliveryStatus.FAILED,
+                    externalMessageId: result.messageId,
+                    errorMessage: result.error,
+                    sentAt: result.success ? result.timestamp : undefined,
+                });
+            } catch (updateErr: any) {
+                this.logger.warn(`Could not update notification delivery log: ${updateErr.message}`);
+            }
+        }
 
         return result;
     }

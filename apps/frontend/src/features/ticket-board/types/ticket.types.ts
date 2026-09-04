@@ -88,17 +88,49 @@ export interface Ticket {
     category: string;
     status: TicketStatus;
     priority: TicketPriority;
+    criticalReason?: string;
     source: TicketSource;
     isOverdue: boolean;
     slaTarget?: string;
     scheduledDate?: string;
+    scheduledTime?: string;
     isHardwareInstallation?: boolean;
+    ictBudgetRequestId?: string | null;
     assignedTo?: AgentUser;
     createdAt: string;
     updatedAt: string;
     user: TicketUser;
     messages?: TicketMessage[];
     site?: TicketSite;
+    slaAdjustments?: SlaAdjustment[];
+}
+
+export type SlaAdjustmentReasonCategory =
+    | 'WAITING_USER'
+    | 'WAITING_VENDOR'
+    | 'WAITING_APPROVAL'
+    | 'TECHNICAL_COMPLEXITY'
+    | 'EXTERNAL_DEPENDENCY'
+    | 'OTHER';
+
+export interface SlaAdjustment {
+    id: string;
+    ticketId: string;
+    type: 'EXTEND';
+    minutes: number;
+    reasonCategory: SlaAdjustmentReasonCategory;
+    reasonText: string;
+    previousTarget: string | null;
+    newTarget: string | null;
+    actorId: string | null;
+    actor?: {
+        id: string;
+        fullName: string;
+        email?: string;
+        avatarUrl?: string | null;
+    };
+    approvedById?: string | null;
+    createdAt: string;
 }
 
 /**

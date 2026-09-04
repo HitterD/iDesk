@@ -6,7 +6,7 @@
 export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
-export type UserRole = 'ADMIN' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'USER';
+export type UserRole = 'ADMIN' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'USER';
 
 export interface Department {
     id: string;
@@ -64,6 +64,7 @@ export interface Ticket {
     source: TicketSource;
     device?: string;
     software?: string;
+    criticalReason?: string;
     isOverdue: boolean;
     slaTarget?: string;
     responseDeadline?: string;
@@ -139,6 +140,7 @@ export interface CreateTicketPayload {
     source?: TicketSource;
     device?: string;
     software?: string;
+    criticalReason?: string;
 }
 
 export interface UpdateTicketPayload {
@@ -158,4 +160,27 @@ export interface ReplyMessagePayload {
 export interface BulkUpdatePayload {
     ticketIds: string[];
     updates: UpdateTicketPayload;
+}
+
+export interface TicketModule {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    icon: string;
+    color: string;
+    sortOrder: number;
+    isActive: boolean;
+    isSystem: boolean;
+    handlingTeams: string[];
+    categories: string[];
+    ticketTypes: string[];
+    allowedRoles: string[];
+    assigneeRoles: string[];
+    /** Explicit per-person assignees. When non-empty, wins over assigneeRoles. */
+    assigneeUserIds?: string[];
+    /** Enable workload auto-assign for tickets landing in this module. */
+    autoAssignEnabled?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }

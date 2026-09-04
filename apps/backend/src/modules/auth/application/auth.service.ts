@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, ServiceUnavaila
 import { RegisterDto } from '../presentation/dto/register.dto';
 import { ChangePasswordDto } from '../presentation/dto/change-password.dto';
 import { UsersService } from '../../users/users.service';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import * as bcrypt from 'bcrypt';
@@ -151,10 +152,16 @@ export class AuthService {
         }
     }
 
+    /**
+     * Public self-registration. The role is pinned to USER here rather than taken
+     * from the payload: this endpoint is unauthenticated, so honouring a
+     * caller-supplied role would be a privilege-escalation path to ADMIN.
+     * Promotion is admin-only (POST /users, PATCH /users/:id/role).
+     */
     async register(registerDto: RegisterDto) {
         return this.usersService.createUser({
             ...registerDto,
-            role: registerDto.role,
+            role: UserRole.USER,
         });
     }
 }

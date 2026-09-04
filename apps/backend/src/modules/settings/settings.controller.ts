@@ -19,6 +19,7 @@ import {
     UpdateStorageSettingsDto,
     ManualCleanupDto,
     CleanupPreviewDto,
+    ManualCompressDto,
 } from './dto/storage-settings.dto';
 import {
     UpdateTimeSlotsDto,
@@ -91,6 +92,28 @@ export class SettingsController {
     @Roles(UserRole.ADMIN)
     async getStorageStats() {
         return this.storageCleanupService.getStorageStats();
+    }
+
+    @Post('storage/compress/preview')
+    @Roles(UserRole.ADMIN)
+    async previewCompression(@Body() dto: ManualCompressDto) {
+        const preview = await this.storageCleanupService.previewImageCompression({
+            olderThanDays: dto.olderThanDays,
+            onlyResolvedTickets: dto.onlyResolvedTickets,
+        });
+        return { success: true, preview };
+    }
+
+    @Post('storage/compress/execute')
+    @Roles(UserRole.ADMIN)
+    async executeCompression(@Body() dto: ManualCompressDto) {
+        const result = await this.storageCleanupService.compressImages({
+            olderThanDays: dto.olderThanDays,
+            onlyResolvedTickets: dto.onlyResolvedTickets,
+            quality: dto.quality,
+            maxWidth: dto.maxWidth,
+        });
+        return { success: true, result };
     }
 
     // =====================

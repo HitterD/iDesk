@@ -5,7 +5,8 @@ import { Ticket, TicketStatus, TicketPriority } from '../ticketing/entities/tick
 import { User } from '../users/entities/user.entity';
 import { Site } from '../sites/entities/site.entity';
 import { UserRole } from '../users/enums/user-role.enum';
-import { ReportQueryDto, ReportType, ReportPeriod } from './dto';
+import { ReportQueryDto, ReportType, ReportPeriod, ManagerReportSection } from './dto';
+import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
 interface TicketStats {
     total: number;
@@ -35,14 +36,39 @@ interface SlaMetrics {
     avgResolutionTimeHours: number;
 }
 
+export interface TrendPoint {
+    date: string; // YYYY-MM-DD
+    created: number;
+    resolved: number;
+}
+
+export interface CriticalTicketRow {
+    id: string;
+    ticketNumber: string | null;
+    title: string;
+    status: string;
+    createdAt: Date;
+    assignedToName: string | null;
+}
+
 export interface ManagerReport {
     reportType: ReportType;
     period: string;
     generatedAt: Date;
     sites: string[];
+    sections: ManagerReportSection[];
     ticketStats?: TicketStats;
     agentPerformance?: AgentPerformance[];
     slaMetrics?: SlaMetrics;
+    trends?: TrendPoint[];
+    criticalTickets?: CriticalTicketRow[];
+    summary?: {
+        totalTickets: number;
+        resolvedTickets: number;
+        slaComplianceRate: number;
+        siteCount: number;
+        agentCount: number;
+    };
     siteComparison?: Array<{
         siteCode: string;
         siteName: string;
@@ -62,36 +88,66 @@ export class ManagerReportsService {
         private readonly siteRepo: Repository<Site>,
     ) { }
 
-    async generateReport(query: ReportQueryDto): Promise<ManagerReport> {
+    async generateReport(query: ReportQueryDto & { sections?: ManagerReportSection[] }, actor: SiteActor): Promise<ManagerReport> {
         const { startDate, endDate } = this.getDateRange(query);
 
-        const sites = query.siteIds?.length
-            ? await this.siteRepo.find({ where: { id: In(query.siteIds) } })
-            : await this.siteRepo.find({ where: { isActive: true } });
+        // Q5: MANAGER/ADMIN cross-site (lihat CROSS_SITE_ROLES di site-scope.util).
+        // resolveSiteScope() dipakai agar jalurnya seragam dengan modul lain; untuk
+        // role site-locked scope ini membatasi ke sitenya masing-masing (fail-closed).
+        const scope = resolveSiteScope(actor);
+
+        const sites =
+            scope.mode === 'site'
+                ? await this.siteRepo.find({ where: { id: scope.siteId } })
+                : query.siteIds?.length
+                    ? await this.siteRepo.find({ where: { id: In(query.siteIds) } })
+                    : await this.siteRepo.find({ where: { isActive: true } });
 
         const siteIds = sites.map(s => s.id);
+        const requestedSections = query.sections;
+
+        const wantSummary = !requestedSections || requestedSections.includes('summary');
+        const wantTickets = (requestedSections?.includes('tickets') ?? true) || wantSummary; // Q8: butuh data utk summary
+        const wantSla = (requestedSections?.includes('sla') ?? true) || wantSummary;
+        const wantAgents = requestedSections?.includes('agents') ?? true;
+        const wantTrends = requestedSections?.includes('trends') ?? false;
+        const wantCritical = requestedSections?.includes('critical') ?? false;
 
         const report: ManagerReport = {
             reportType: query.reportType || ReportType.CONSOLIDATED,
             period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
             generatedAt: new Date(),
             sites: sites.map(s => s.code),
+            sections: requestedSections ?? ['summary', 'tickets', 'sla'],
         };
 
-        // Generate sections based on query
-        if (query.includeTicketStats !== false) {
-            report.ticketStats = await this.getTicketStats(siteIds, startDate, endDate);
+        // Jalankan section yang dibutuhkan secara paralel (Q15 — hindari serial round-trip).
+        const [ticketStats, agentPerformance, slaMetrics, trends, criticalTickets] = await Promise.all([
+            wantTickets ? this.getTicketStats(siteIds, startDate, endDate) : Promise.resolve(undefined),
+            wantAgents ? this.getAgentPerformance(siteIds, startDate, endDate) : Promise.resolve(undefined),
+            wantSla ? this.getSlaMetrics(siteIds, startDate, endDate) : Promise.resolve(undefined),
+            wantTrends ? this.getTrendsForRange(siteIds, startDate, endDate) : Promise.resolve(undefined),
+            wantCritical ? this.getCriticalTickets(siteIds, startDate, endDate) : Promise.resolve(undefined),
+        ]);
+
+        if (wantTickets && ticketStats) report.ticketStats = ticketStats;
+        if (wantAgents && agentPerformance) report.agentPerformance = agentPerformance;
+        if (wantSla && slaMetrics) report.slaMetrics = slaMetrics;
+        if (wantTrends && trends) report.trends = trends;
+        if (wantCritical && criticalTickets) report.criticalTickets = criticalTickets;
+
+        // Ringkasan turunan (Q8): nol query tambahan.
+        if (wantSummary) {
+            report.summary = {
+                totalTickets: report.ticketStats?.total ?? 0,
+                resolvedTickets: report.ticketStats?.resolved ?? report.slaMetrics?.totalTickets ?? 0,
+                slaComplianceRate: report.slaMetrics?.complianceRate ?? 100,
+                siteCount: sites.length,
+                agentCount: report.agentPerformance?.length ?? 0,
+            };
         }
 
-        if (query.includeAgentPerformance !== false) {
-            report.agentPerformance = await this.getAgentPerformance(siteIds, startDate, endDate);
-        }
-
-        if (query.includeSlaMetrics !== false) {
-            report.slaMetrics = await this.getSlaMetrics(siteIds, startDate, endDate);
-        }
-
-        // Per-site comparison if requested
+        // Per-site comparison jika diminta
         if (query.reportType === ReportType.COMPARISON || query.reportType === ReportType.PER_SITE) {
             report.siteComparison = await this.getSiteComparison(sites, startDate, endDate);
         }
@@ -303,20 +359,64 @@ export class ManagerReportsService {
     }
 
     private async getSiteComparison(sites: Site[], startDate: Date, endDate: Date) {
-        const comparison = [];
-
-        for (const site of sites) {
-            const ticketStats = await this.getTicketStats([site.id], startDate, endDate);
-            const slaMetrics = await this.getSlaMetrics([site.id], startDate, endDate);
-
-            comparison.push({
+        // Q15: paralel — versi lama serial per site dan bisa lewat timeout request.
+        const results = await Promise.all(
+            sites.map(async (site) => ({
                 siteCode: site.code,
                 siteName: site.name,
-                ticketStats,
-                slaMetrics,
-            });
-        }
+                ticketStats: await this.getTicketStats([site.id], startDate, endDate),
+                slaMetrics: await this.getSlaMetrics([site.id], startDate, endDate),
+            })),
+        );
 
-        return comparison;
+        return results;
+    }
+
+    /**
+     * Q7: trend per hari yang MENGHORMATI rentang tanggal permintaan.
+     * getTrendData() di manager-dashboard.service hardcode 7 hari terakhir —
+     * tidak dipakai ulang di sini supaya periode laporan akurat.
+     */
+    private async getTrendsForRange(siteIds: string[], startDate: Date, endDate: Date): Promise<TrendPoint[]> {
+        if (siteIds.length === 0) return [];
+
+        const rows = await this.ticketRepo.createQueryBuilder('t')
+            .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
+            .addSelect('COUNT(*)', 'created')
+            .addSelect(`COUNT(*) FILTER (WHERE t.status = :resolvedStatus AND t."resolvedAt" IS NOT NULL)`, 'resolved')
+            .where('t."siteId" IN (:...ids)', { ids: siteIds })
+            .andWhere('t."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate })
+            .setParameters({ resolvedStatus: TicketStatus.RESOLVED })
+            .groupBy(`date_trunc('day', t."createdAt")`)
+            .orderBy(`date_trunc('day', t."createdAt")`, 'ASC')
+            .getRawMany<{ day: string; created: string; resolved: string }>();
+
+        return rows.map(r => ({
+            date: r.day,
+            created: parseInt(r.created, 10),
+            resolved: parseInt(r.resolved, 10),
+        }));
+    }
+
+    /** Q7: tiket kritis dalam rentang permintaan (dashboard pakai take-10 tanpa filter tanggal). */
+    private async getCriticalTickets(siteIds: string[], startDate: Date, endDate: Date): Promise<CriticalTicketRow[]> {
+        const tickets = await this.ticketRepo.find({
+            where: {
+                ...(siteIds.length ? { siteId: In(siteIds) } : {}),
+                priority: TicketPriority.CRITICAL,
+                createdAt: Between(startDate, endDate),
+            },
+            relations: ['assignedTo'],
+            order: { createdAt: 'DESC' },
+        });
+
+        return tickets.map(t => ({
+            id: t.id,
+            ticketNumber: t.ticketNumber ?? null,
+            title: t.title,
+            status: t.status,
+            createdAt: t.createdAt,
+            assignedToName: t.assignedTo?.fullName ?? null,
+        }));
     }
 }

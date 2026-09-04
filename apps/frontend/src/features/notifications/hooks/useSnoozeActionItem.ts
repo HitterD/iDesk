@@ -13,6 +13,8 @@ interface UnsnoozeVariables {
     entityId: string;
 }
 
+import { queryKeys } from '@/lib/queryKeys';
+
 export function useSnoozeActionItem() {
     const queryClient = useQueryClient();
 
@@ -22,7 +24,8 @@ export function useSnoozeActionItem() {
             return response.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['actionItems'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.actionItems() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.legacyActionItems() });
         },
     });
 
@@ -32,7 +35,8 @@ export function useSnoozeActionItem() {
             return response.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['actionItems'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.actionItems() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.legacyActionItems() });
         },
     });
 

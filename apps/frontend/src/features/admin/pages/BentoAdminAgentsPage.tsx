@@ -71,7 +71,7 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
     // P2-2: Role filter
-    const [selectedRole, setSelectedRole] = useState<'ALL' | 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT'>('ALL');
+    const [selectedRole, setSelectedRole] = useState<'ALL' | 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT'>('ALL');
 
     // P2-3: Stats card filter (click to filter by status)
     const [statsFilter, setStatsFilter] = useState<'all' | 'active' | 'resolved' | 'top'>('all');

@@ -19,6 +19,30 @@ export enum NotificationEventType {
     SLA_BREACH = 'sla_breach',
 }
 
+/**
+ * Robustly normalize any input string (e.g. 'NEW_TICKET', 'new_ticket', 'new-ticket', 'New Ticket')
+ * to a valid PostgreSQL/TypeORM NotificationEventType enum value.
+ */
+export function normalizeNotificationEventType(value: any): NotificationEventType {
+    if (!value) return NotificationEventType.NEW_TICKET;
+    const str = String(value).trim().toLowerCase().replace(/[-\s]/g, '_');
+
+    // 1. Direct match with enum values (e.g. 'new_ticket')
+    const directMatch = Object.values(NotificationEventType).find(
+        (v) => v.toLowerCase() === str
+    );
+    if (directMatch) return directMatch;
+
+    // 2. Match with enum keys (e.g. 'NEW_TICKET' -> 'new_ticket')
+    const keyMatch = Object.entries(NotificationEventType).find(
+        ([k]) => k.toLowerCase() === str
+    );
+    if (keyMatch) return keyMatch[1];
+
+    // Fallback default
+    return NotificationEventType.NEW_TICKET;
+}
+
 @Entity('notification_sounds')
 export class NotificationSound {
     @PrimaryGeneratedColumn('uuid')

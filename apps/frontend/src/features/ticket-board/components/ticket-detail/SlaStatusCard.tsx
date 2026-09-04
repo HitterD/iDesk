@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Pause, AlertTriangle, Clock, MessageSquare } from 'lucide-react';
-import { TicketDetail } from './types';
+import {
+    CheckCircle2,
+    Pause,
+    AlertTriangle,
+    Clock,
+    MessageSquare,
+    ChevronDown,
+    ChevronUp,
+    History,
+    CalendarPlus,
+    User,
+    ArrowRight,
+} from 'lucide-react';
+import { TicketDetail, SlaAdjustment } from './types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
+import { cn } from '@/lib/utils';
 
 interface SlaStatusCardProps {
     ticket: TicketDetail & {
@@ -10,8 +23,20 @@ interface SlaStatusCardProps {
         firstResponseTarget?: string;
         isFirstResponseBreached?: boolean;
         resolvedAt?: string;
+        slaAdjustments?: SlaAdjustment[];
     };
+    onOpenExtendSla?: () => void;
+    canExtend?: boolean;
 }
+
+const CATEGORY_LABELS: Record<string, string> = {
+    WAITING_USER: 'Menunggu User',
+    WAITING_VENDOR: 'Menunggu Vendor',
+    WAITING_APPROVAL: 'Persetujuan Manajerial',
+    TECHNICAL_COMPLEXITY: 'Kompleksitas Teknis',
+    EXTERNAL_DEPENDENCY: 'Dependensi Eksternal',
+    OTHER: 'Alasan Lainnya',
+};
 
 const formatTimeRemaining = (diffMs: number): string => {
     if (diffMs <= 0) return 'Overdue';
@@ -41,14 +66,20 @@ const formatDuration = (diffMs: number): string => {
     return parts.join(' ');
 };
 
-export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
+export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
+    ticket,
+    onOpenExtendSla,
+    canExtend = false,
+}) => {
     const [resolutionTimeRemaining, setResolutionTimeRemaining] = useState<string>('');
     const [firstResponseTimeRemaining, setFirstResponseTimeRemaining] = useState<string>('');
     const [percentRemaining, setPercentRemaining] = useState<number>(100);
+    const [showHistory, setShowHistory] = useState<boolean>(false);
 
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
     const isPaused = ticket.status === 'WAITING_VENDOR';
     const slaNotStarted = !ticket.slaStartedAt;
+    const adjustments = ticket.slaAdjustments || [];
 
     useEffect(() => {
         const calculateTimes = () => {
@@ -172,11 +203,26 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
     const resolutionColors = getColorClasses(resolution.color);
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
-            <h3 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2 text-sm uppercase tracking-wider">
-                <Clock className="w-4 h-4" />
-                Status SLA
-            </h3>
+        <div className="bg-white dark:bg-slate-800/95 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 p-4 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-xs uppercase tracking-wider">
+                    <Clock className="w-4 h-4 text-blue-500" />
+                    Status SLA
+                </h3>
+
+                {adjustments.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowHistory(!showHistory)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800/60 shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                        title="Klik untuk melihat riwayat perpanjangan SLA"
+                    >
+                        <History className="w-3 h-3" />
+                        <span>Diperpanjang ({adjustments.length}x)</span>
+                        {showHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                )}
+            </div>
 
             <div className="space-y-3">
                 {/* Resolution Time SLA */}
@@ -287,7 +333,72 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({ ticket }) => {
                         )}
                     </div>
                 )}
+
+                {/* Action: Extend SLA Button */}
+                {canExtend && onOpenExtendSla && !isResolved && (
+                    <button
+                        type="button"
+                        onClick={onOpenExtendSla}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/50 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
+                    >
+                        <CalendarPlus className="w-3.5 h-3.5" />
+                        <span>Perpanjang Target SLA</span>
+                    </button>
+                )}
+
+                {/* Expandable SLA Extension History */}
+                {showHistory && adjustments.length > 0 && (
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 space-y-2.5 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                            <History className="w-3.5 h-3.5 text-blue-500" />
+                            <span>Riwayat Perpanjangan SLA</span>
+                        </div>
+
+                        <div className="space-y-2 divide-y divide-slate-200/60 dark:divide-slate-800">
+                            {adjustments.map((adj, index) => {
+                                const categoryLabel = CATEGORY_LABELS[adj.reasonCategory] || adj.reasonCategory;
+                                return (
+                                    <div key={adj.id || index} className={cn("text-xs space-y-1", index > 0 && "pt-2")}>
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <span className="font-bold px-1.5 py-0.5 rounded bg-blue-100/70 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                                                {categoryLabel}
+                                            </span>
+                                            <span className="text-slate-400 font-mono">
+                                                +{adj.minutes}m
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                                            <span className="truncate">
+                                                {adj.previousTarget ? formatDateTimeID(adj.previousTarget) : '-'}
+                                            </span>
+                                            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
+                                                {adj.newTarget ? formatDateTimeID(adj.newTarget) : '-'}
+                                            </span>
+                                        </div>
+
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic bg-white dark:bg-slate-800/80 p-2 rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                                            "{adj.reasonText}"
+                                        </p>
+
+                                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                                            <span className="flex items-center gap-1">
+                                                <User className="w-3 h-3 text-slate-400" />
+                                                {adj.actor?.fullName || 'Teknisi'}
+                                            </span>
+                                            <span>
+                                                {formatDateTimeID(adj.createdAt)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
+

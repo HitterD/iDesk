@@ -75,7 +75,9 @@ export class HardwareCommentService {
             const reqData = await this.requestRepo.findOne({ where: { id: requestId } });
             const subs = new Set<string>();
             if (reqData?.requesterId) subs.add(reqData.requesterId);
-            activities.forEach(a => subs.add(a.actorId));
+            activities.forEach(a => {
+                if (a.actorId) subs.add(a.actorId);
+            });
 
             this.emitter.emit(HR_EVT.COMMENTED, {
                 requestId,

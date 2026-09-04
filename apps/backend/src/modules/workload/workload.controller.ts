@@ -33,7 +33,13 @@ export class WorkloadController {
 
     @Get('priority-weights')
     @ApiOperation({ summary: 'Get all priority weights' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     getPriorityWeights() {
         return this.workloadService.getPriorityWeights();
     }
@@ -56,7 +62,13 @@ export class WorkloadController {
     @ApiOperation({ summary: 'Get all agent workloads for a site' })
     @ApiQuery({ name: 'siteId', required: false, description: 'Ignored for non-cross-site roles; forced to caller site' })
     @ApiQuery({ name: 'date', required: false, description: 'YYYY-MM-DD format' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     getAllAgentWorkloads(
         @Query('siteId') siteId: string | undefined,
         @Query('date') date?: string,
@@ -72,7 +84,13 @@ export class WorkloadController {
     @Get('agents/:agentId')
     @ApiOperation({ summary: 'Get specific agent workload' })
     @ApiQuery({ name: 'siteId', required: false, description: 'Ignored for non-cross-site roles; forced to caller site' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     getAgentWorkload(
         @Param('agentId', ParseUUIDPipe) agentId: string,
         @Query('siteId') siteId: string | undefined,
@@ -104,7 +122,12 @@ export class WorkloadController {
 
     @Post('auto-assign')
     @ApiOperation({ summary: 'Auto-assign a ticket to the best available agent' })
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     autoAssignTicket(@Body() dto: AssignTicketDto, @Req() req: any) {
         const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
         return this.workloadService.autoAssignTicket(dto.ticketId, req.user?.id || req.user?.userId, actor);
@@ -112,7 +135,13 @@ export class WorkloadController {
 
     @Get('best-agent/:siteId')
     @ApiOperation({ summary: 'Find the best agent for assignment (preview)' })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     findBestAgent(@Param('siteId', ParseUUIDPipe) siteId: string) {
         return this.workloadService.findBestAgentForAssignment(siteId);
     }
@@ -124,7 +153,13 @@ export class WorkloadController {
     @Get('summary')
     @ApiOperation({ summary: 'Get workload summary' })
     @ApiQuery({ name: 'siteId', required: false })
-    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @Roles(
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.AGENT_OPERATIONAL_SUPPORT,
+        UserRole.AGENT_ADMIN,
+        UserRole.AGENT,
+    )
     getWorkloadSummary(@Query('siteId') siteId?: string) {
         return this.workloadService.getWorkloadSummary(siteId);
     }

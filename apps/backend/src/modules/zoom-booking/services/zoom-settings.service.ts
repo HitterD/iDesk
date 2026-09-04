@@ -20,7 +20,7 @@ export class ZoomSettingsService {
     async getSettings(): Promise<ZoomSettings> {
         let settings = await this.settingsRepo.findOne({ where: {} });
 
-        const DEFAULT_DURATIONS = [30, 60, 90, 120, 150, 180, 240, 300, 360, 480, 720];
+        const standardDurations = [30, 60, 90, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720];
 
         if (!settings) {
             this.logger.log('Creating default Zoom booking settings');
@@ -34,13 +34,16 @@ export class ZoomSettingsService {
                 workingDays: [0, 1, 2, 3, 4, 5, 6],
                 requireDescription: false,
                 maxBookingPerUserPerDay: 50,
-                allowedDurations: DEFAULT_DURATIONS,
+                allowedDurations: standardDurations,
             });
             await this.settingsRepo.save(settings);
-        } else if (!settings.allowedDurations || settings.allowedDurations.length <= 4) {
-            // Auto-upgrade existing database settings to include longer duration options
-            settings.allowedDurations = DEFAULT_DURATIONS;
-            await this.settingsRepo.save(settings);
+        } else {
+            const currentDurations = (settings.allowedDurations || []).map(Number);
+            const missing = standardDurations.filter(d => !currentDurations.includes(d));
+            if (missing.length > 0) {
+                settings.allowedDurations = Array.from(new Set([...currentDurations, ...standardDurations])).sort((a, b) => a - b);
+                await this.settingsRepo.save(settings);
+            }
         }
 
         return settings;

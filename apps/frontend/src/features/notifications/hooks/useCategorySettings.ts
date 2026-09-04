@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { CategorySettings } from '@/components/notifications/types/notification.types';
+import { queryKeys } from '@/lib/queryKeys';
 
 export function useCategorySettings() {
     const queryClient = useQueryClient();
 
     const { data: settings, isLoading } = useQuery<CategorySettings>({
-        queryKey: ['notificationCategorySettings'],
+        queryKey: queryKeys.notifications.categorySettings(),
         queryFn: async () => {
             const response = await api.get('/notifications/preferences/categories');
             return response.data;
@@ -19,9 +20,10 @@ export function useCategorySettings() {
             return response.data;
         },
         onSuccess: (newSettings) => {
-            queryClient.setQueryData(['notificationCategorySettings'], newSettings);
+            queryClient.setQueryData(queryKeys.notifications.categorySettings(), newSettings);
             // Invalidate action items since they are filtered by these settings
-            queryClient.invalidateQueries({ queryKey: ['actionItems'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.actionItems() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.legacyActionItems() });
         },
     });
 

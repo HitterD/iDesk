@@ -64,6 +64,11 @@ services:
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_DATABASE: ${DB_DATABASE:-idesk_db}
+      DB_POOL_MAX: ${DB_POOL_MAX:-35}
+      DB_POOL_MIN: ${DB_POOL_MIN:-5}
+      DB_CONNECTION_TIMEOUT: ${DB_CONNECTION_TIMEOUT:-10000}
+      DB_IDLE_TIMEOUT: ${DB_IDLE_TIMEOUT:-30000}
+      DB_STATEMENT_TIMEOUT: ${DB_STATEMENT_TIMEOUT:-15000}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set and non-empty}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-60m}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set and non-empty}
@@ -71,10 +76,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set and non-empty}
       WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:?WS_CORS_ORIGIN must be set and non-empty}
-      # Defaults to false: this service also publishes 5050 directly, so a client
-      # that skips nginx could forge X-Forwarded-For. Only enable once the port
-      # is unpublished or firewalled to the proxy.
-      TRUST_PROXY: ${TRUST_PROXY:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
       REDIS_ENABLED: "true"
       REDIS_HOST: redis
       REDIS_PORT: 6379

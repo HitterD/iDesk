@@ -26,6 +26,7 @@ import {
     UserX,
     Sparkles,
     Users,
+    ArrowRight,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -187,11 +188,37 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
     const slaColors = getSlaColors();
     const SlaIcon = slaColors.icon;
 
+    const mergedParentTicketNumber = React.useMemo(() => {
+        if (!ticket.description) return null;
+        const match = ticket.description.match(/\[MERGED INTO #([^\]]+)\]/);
+        return match ? match[1] : null;
+    }, [ticket.description]);
+
     return (
-        <header className={cn(
-            "px-3.5 py-3 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
-            isTerminal && 'bg-slate-50/50 dark:bg-slate-900/50'
-        )}>
+        <>
+            {mergedParentTicketNumber && (
+                <div className="mx-3.5 sm:mx-6 mt-3 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-800/80 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                        <span className="truncate text-xs">
+                            <strong>Tiket ini telah digabungkan</strong> ke Tiket Utama <span className="font-mono font-bold text-amber-950 dark:text-amber-100">#{mergedParentTicketNumber}</span>. Anda kini tergabung dalam diskusi tiket utama.
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/tickets/browse?search=${mergedParentTicketNumber}`)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-2xs transition-all active:scale-[0.98] shrink-0 cursor-pointer"
+                    >
+                        <span>Buka Tiket Utama</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            )}
+
+            <header className={cn(
+                "px-3.5 py-3 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
+                isTerminal && 'bg-slate-50/50 dark:bg-slate-900/50'
+            )}>
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
                 {/* Left: Back button + Badges + Title */}
                 <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
@@ -315,6 +342,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                 </div>
             </div>
         </header>
+        </>
     );
 };
 
@@ -331,7 +359,9 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
     const isAdmin = user?.role === 'ADMIN';
     const canManageParticipants = isAgentOracle || isAdmin;
     const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
-        (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST'));
+        ticket.handlingTeam === 'MOBILE_DEV' ||
+        ticket.handlingTeam === 'WEB_DEV' ||
+        (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST' || ticket.ticketType === 'WEB_DEV_REQUEST' || ticket.ticketType === 'MOBILE_DEV_REQUEST'));
     const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
 
     const handleCopyEmail = () => {
@@ -461,6 +491,18 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                                 <span className="font-bold text-slate-900 dark:text-white">{priorityConfig.label}</span>
                             </div>
                         </div>
+
+                        {ticket.priority === 'CRITICAL' && ticket.criticalReason && (
+                            <div className="mt-2.5 p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-xs">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3 text-rose-500" />
+                                    Catatan Alasan Kritis:
+                                </p>
+                                <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                                    {ticket.criticalReason}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Category */}

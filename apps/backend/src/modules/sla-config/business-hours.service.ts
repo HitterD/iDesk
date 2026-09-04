@@ -207,7 +207,12 @@ export class BusinessHoursService {
      * @returns Target date/time
      */
     async calculateSlaTarget(startTime: Date, minutesToAdd: number): Promise<Date> {
+        if (!minutesToAdd || minutesToAdd <= 0 || !Number.isFinite(minutesToAdd)) {
+            return new Date(startTime);
+        }
+
         const config = await this.getDefault();
+        const holidaySet = new Set(config.holidays || []);
         let current = new Date(startTime);
         let remainingMinutes = minutesToAdd;
 
@@ -219,7 +224,7 @@ export class BusinessHoursService {
             iterations++;
 
             // Skip if not a work day
-            if (!this.isWorkDay(current, config)) {
+            if (!this.isWorkDay(current, config, holidaySet)) {
                 current.setDate(current.getDate() + 1);
                 current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
                 continue;
@@ -264,7 +269,7 @@ export class BusinessHoursService {
     /**
      * Check if a date is a work day
      */
-    private isWorkDay(date: Date, config: BusinessHours): boolean {
+    private isWorkDay(date: Date, config: BusinessHours, holidaySet?: Set<string>): boolean {
         const dayOfWeek = date.getDay();
 
         // Check if it's a work day
@@ -272,9 +277,9 @@ export class BusinessHoursService {
             return false;
         }
 
-        // Check if it's a holiday
+        // Check if it's a holiday (O(1) with Set, fallback to array scan)
         const dateStr = this.formatDate(date);
-        if (config.holidays?.includes(dateStr)) {
+        if (holidaySet ? holidaySet.has(dateStr) : config.holidays?.includes(dateStr)) {
             return false;
         }
 
@@ -295,7 +300,12 @@ export class BusinessHoursService {
      * Calculate business minutes between two dates
      */
     async calculateBusinessMinutes(startDate: Date, endDate: Date): Promise<number> {
+        if (!startDate || !endDate || startDate.getTime() >= endDate.getTime()) {
+            return 0;
+        }
+
         const config = await this.getDefault();
+        const holidaySet = new Set(config.holidays || []);
         let current = new Date(startDate);
         let totalMinutes = 0;
 
@@ -305,7 +315,7 @@ export class BusinessHoursService {
         while (current < endDate && iterations < maxIterations) {
             iterations++;
 
-            if (!this.isWorkDay(current, config)) {
+            if (!this.isWorkDay(current, config, holidaySet)) {
                 current.setDate(current.getDate() + 1);
                 current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
                 continue;

@@ -89,7 +89,12 @@ export class HardwareRequestQueryService {
                 requester: true,
                 recipient: true,
                 site: true,
-                schedules: true,
+                schedules: {
+                    technician: true,
+                    items: {
+                        item: true,
+                    },
+                },
             },
         });
         if (!found) throw new HardwareRequestNotFoundError(id);
@@ -115,7 +120,12 @@ export class HardwareRequestQueryService {
                 requester: true,
                 recipient: true,
                 site: true,
-                schedules: true,
+                schedules: {
+                    technician: true,
+                    items: {
+                        item: true,
+                    },
+                },
             },
         });
         if (!found) throw new HardwareRequestNotFoundError(id);

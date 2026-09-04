@@ -52,7 +52,7 @@ export function ProcurementPanel({ request }: ProcurementPanelProps) {
   };
 
   return (
-    <SectionCard title="Procurement Decision">
+    <SectionCard title="Keputusan SPP / Procurement">
       <ItemDecisionList
         items={request.items}
         decisions={decisions}

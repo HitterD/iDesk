@@ -20,10 +20,12 @@ export interface ZoomOverflowPopoverProps {
     open: boolean;
     onClose: () => void;
     onSelectBooking: (bookingId: string) => void;
-    onBookSlot: () => void;
+    onBookSlot?: () => void;
     bookings: OverflowBooking[];
-    timeRange: string;
+    timeRange?: string;
+    timeSlot?: string;
     date: string;
+    anchorRef?: { current: HTMLElement | null };
 }
 
 export function ZoomOverflowPopover({
@@ -32,7 +34,7 @@ export function ZoomOverflowPopover({
     onSelectBooking,
     onBookSlot,
     bookings,
-    timeRange,
+    timeRange = '',
     date,
 }: ZoomOverflowPopoverProps) {
     return (

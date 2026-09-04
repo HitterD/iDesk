@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
+import api from '@/lib/api';
+import { resolveAudioUrl } from '@/lib/media';
 
-type NotificationEventType =
+export type NotificationEventType =
     | 'NEW_TICKET'
     | 'MESSAGE'
     | 'ASSIGNED'
@@ -26,6 +28,14 @@ const DEFAULT_SOUNDS: Record<NotificationEventType, string> = {
     SLA_BREACH: '/sounds/default/sla-breach.mp3',
 };
 
+const normalizeEventKey = (key: string): NotificationEventType => {
+    const k = String(key || '').toUpperCase().replace(/[-\s]/g, '_');
+    if (k in DEFAULT_SOUNDS) {
+        return k as NotificationEventType;
+    }
+    return 'NEW_TICKET';
+};
+
 // Cache for sound URLs from API
 const soundUrlCache: Map<NotificationEventType, string> = new Map();
 
@@ -45,42 +55,51 @@ export const useSoundNotification = () => {
     }, [settings]);
 
     // Fetch sound URL from API or use cached/default
-    const getSoundUrl = useCallback(async (eventType: NotificationEventType): Promise<string> => {
+    const getSoundUrl = useCallback(async (rawEventType: NotificationEventType | string): Promise<string> => {
+        const eventKey = normalizeEventKey(rawEventType);
         // Check cache first
-        if (soundUrlCache.has(eventType)) {
-            return soundUrlCache.get(eventType)!;
+        if (soundUrlCache.has(eventKey)) {
+            return soundUrlCache.get(eventKey)!;
         }
 
         try {
-            const response = await fetch(`/api/sounds/active/${eventType}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
-
-            if (response.ok) {
-                const url = await response.text();
-                if (url && url.startsWith('/')) {
-                    soundUrlCache.set(eventType, url);
-                    return url;
+            const response = await api.get(`/sounds/active/${eventKey}`);
+            if (response.data) {
+                const url = typeof response.data === 'string' ? response.data : response.data.soundUrl;
+                if (url && typeof url === 'string') {
+                    const resolved = resolveAudioUrl(url);
+                    soundUrlCache.set(eventKey, resolved);
+                    return resolved;
                 }
             }
         } catch (error) {
-            console.warn('Failed to fetch sound URL:', error);
+            console.debug('Failed to fetch sound URL, using default:', error);
         }
 
         // Fallback to default
-        return DEFAULT_SOUNDS[eventType];
+        return DEFAULT_SOUNDS[eventKey] || '/sounds/default/new-ticket.mp3';
     }, []);
 
+    // Play sound from a specific URL (for preview or testing)
+    const previewSoundUrl = useCallback(async (url: string) => {
+        try {
+            const resolvedUrl = resolveAudioUrl(url);
+            const audio = new Audio(resolvedUrl);
+            audio.volume = settings.volume;
+            await audio.play();
+        } catch (error) {
+            console.debug('Audio preview playback failed:', error);
+        }
+    }, [settings.volume]);
+
     // Play sound for event type
-    const playSound = useCallback(async (eventType: NotificationEventType) => {
+    const playSound = useCallback(async (rawEventType: NotificationEventType | string) => {
         if (!settings.enabled) {
             return;
         }
 
         try {
-            const soundUrl = await getSoundUrl(eventType);
+            const soundUrl = await getSoundUrl(rawEventType);
             const audio = new Audio(soundUrl);
             audio.volume = settings.volume;
 
@@ -162,6 +181,7 @@ export const useSoundNotification = () => {
         playCriticalSound,
         playAssignedSound,
         playResolvedSound,
+        previewSoundUrl,
 
         // Settings
         setEnabled,

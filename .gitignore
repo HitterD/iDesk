@@ -83,3 +83,9 @@ apps/backend/hris-*.json
 fix_numbers.py
 update_blueprint*.py
 .playwright-mcp/
+hive/
+palace/
+roster.json
+hallways.json
+roster-backups/
+kb-landing-desktop.png

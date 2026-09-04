@@ -66,6 +66,7 @@ describe('ZoomBookingService.checkAvailability', () => {
 
         expect(result).toEqual({
             available: false,
+            canDoubleBook: expect.any(Boolean),
             reason: expect.stringContaining('Semua akun penuh'),
         });
     });

@@ -63,6 +63,7 @@ export interface InstallationSchedule {
     proposedBy: string; confirmedBy: string | null;
     locationDetail: string | null;
     startedAt: string | null; completedAt: string | null;
+    ticketId?: string | null;
     items?: InstallationScheduleItem[];
 }
 
@@ -70,6 +71,7 @@ export interface InstallationScheduleItem {
     id: string;
     scheduleId: string;
     itemId: string;
+    item?: HardwareRequestItem;
 }
 
 export interface HardwareAsset {
@@ -101,7 +103,7 @@ export interface HardwareRequest {
 }
 
 export interface HardwareRequestActivity {
-    id: string; requestId: string; actorId: string; actor?: UserLite;
+    id: string; requestId: string; actorId?: string | null; actor?: UserLite | null;
     action: string; fromStatus?: RequestStatus | null; toStatus?: RequestStatus | null;
     metadata?: Record<string, unknown>;
     createdAt: string;

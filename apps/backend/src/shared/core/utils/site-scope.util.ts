@@ -18,6 +18,8 @@ export const CROSS_SITE_ROLES: readonly UserRole[] = [
 export const TICKET_CROSS_SITE_ROLES: readonly UserRole[] = [
   ...CROSS_SITE_ROLES,
   UserRole.AGENT_ORACLE,
+  UserRole.AGENT_WEB_DEV,
+  UserRole.AGENT_MOBILE_DEV,
 ];
 
 export type SiteActor = {

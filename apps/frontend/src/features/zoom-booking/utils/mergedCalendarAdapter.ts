@@ -29,8 +29,6 @@ function mergedSlotToCalendarSlot(slot: MergedCalendarSlot): CalendarSlot {
         date: slot.date,
         time: slot.time,
         endTime: slot.endTime,
-        // Keep 'available' / 'blocked' / 'external' as-is; collapse 'my_booking'
-        // semantics into the singular `booking` for downstream rendering.
         status: slot.status === 'my_booking' ? 'my_booking' : slot.status,
         booking: first
             ? {
@@ -42,16 +40,29 @@ function mergedSlotToCalendarSlot(slot: MergedCalendarSlot): CalendarSlot {
                   endTime: first.endTime,
                   isExternal: first.isExternal,
                   joinUrl: first.joinUrl,
+                  zoomAccountId: first.zoomAccountId,
+                  zoomAccount: {
+                      id: first.zoomAccountId,
+                      colorHex: first.accountColorHex,
+                  },
               }
             : undefined,
-        // Carry overflow + extra bookings for components that need them
-        // (e.g. ZoomOverflowPopover). `CalendarSlot` doesn't declare these but
-        // existing code (ZoomWeekView / ZoomOverflowPopover) reads them via
-        // runtime checks — see processBookingsForDayV2 in ZoomCalendarGrid.
-        // Cast to the broader merged-slot type so downstream consumers can
-        // branch on `isMyBooking` / `extraBookings` without TS complaints.
         ...({
-            extraBookings: rest,
+            extraBookings: rest.map((r) => ({
+                id: r.id,
+                title: r.title,
+                bookedBy: r.bookedBy,
+                durationMinutes: r.durationMinutes,
+                startTime: r.startTime,
+                endTime: r.endTime,
+                isExternal: r.isExternal,
+                joinUrl: r.joinUrl,
+                zoomAccountId: r.zoomAccountId,
+                zoomAccount: {
+                    id: r.zoomAccountId,
+                    colorHex: r.accountColorHex,
+                },
+            })),
             overflowCount: slot.bookingsOverflow + rest.length,
             isMyBooking: slot.isMyBooking,
         } as Partial<MergedCalendarSlot>),

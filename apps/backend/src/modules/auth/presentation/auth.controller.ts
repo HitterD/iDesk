@@ -6,6 +6,10 @@ import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LocalAuthGuard } from '../infrastructure/guards/local-auth.guard';
 import { JwtAuthGuard } from '../infrastructure/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../infrastructure/guards/optional-jwt-auth.guard';
+import { RolesGuard } from '../../../shared/core/guards/roles.guard';
+import { Roles } from '../../../shared/core/decorators/roles.decorator';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { setCsrfCookie } from '../../../shared/core/middleware/csrf.middleware';
 import {
@@ -15,10 +19,32 @@ import {
     withCookieMaxAge,
 } from './cookie-options';
 
+import { extractClientIp } from '../../../shared/security/client-ip';
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
     constructor(private authService: AuthService) { }
+
+    @Get('ip-debug')
+    @ApiOperation({ summary: 'Diagnostic endpoint to check incoming proxy headers and resolved client IP' })
+    async getIpDebug(@Request() req: any) {
+        return {
+            resolvedClientIp: extractClientIp(req),
+            headers: {
+                'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+                'x-real-ip': req.headers['x-real-ip'] || null,
+                'x-client-ip': req.headers['x-client-ip'] || null,
+                'x-cluster-client-ip': req.headers['x-cluster-client-ip'] || null,
+                'cf-connecting-ip': req.headers['cf-connecting-ip'] || null,
+                'forwarded': req.headers['forwarded'] || null,
+                'host': req.headers['host'] || null,
+                'user-agent': req.headers['user-agent'] || null,
+            },
+            expressIp: req.ip || null,
+            socketRemoteAddress: req.socket?.remoteAddress || null,
+        };
+    }
 
     @UseGuards(LocalAuthGuard)
     @Post('login')
@@ -53,14 +79,16 @@ export class AuthController {
     }
 
     @Post('logout')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(OptionalJwtAuthGuard)
     @HttpCode(200)
     @ApiOperation({ summary: 'User logout - clears HttpOnly cookie' })
     @ApiResponse({ status: 200, description: 'Logged out successfully' })
     async logout(@Request() req: any, @Res() res: Response) {
-        await this.authService.logout(req.user, req);
+        if (req.user) {
+            await this.authService.logout(req.user, req);
+        }
 
-        // Clear the auth cookie
+        // Clear the auth cookie unconditionally
         res.clearCookie(ACCESS_COOKIE_NAME, clearCookieOptions());
         res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions());
 
@@ -68,7 +96,7 @@ export class AuthController {
     }
 
     @Post('refresh')
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Throttle({ default: { limit: 30, ttl: 60000 } })
     @ApiOperation({ summary: 'Refresh access token' })
     @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
     async refresh(@Request() req: any, @Res() res: Response) {
@@ -101,8 +129,14 @@ export class AuthController {
     }
 
     @Post('register')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 registrations per minute
-    @ApiOperation({ summary: 'User registration' })
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'User registration (Admin only)' })
+    @ApiResponse({ status: 201, description: 'User created successfully.' })
+    @ApiResponse({ status: 401, description: 'Unauthorized.' })
+    @ApiResponse({ status: 403, description: 'Forbidden.' })
     async register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto);
     }

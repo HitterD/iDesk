@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError } from '../../hris-gateway/hris-gateway.adapter';
+import { HrisGatewayAdapter, HrisInvalidResponseError, HrisUnavailableError, HrisVerifyResult, isHrisLoginVerifyEnabled } from '../../hris-gateway/hris-gateway.adapter';
 import { HrisProvisioningService } from './hris-provisioning.service';
 import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { UsersService } from '../../users/users.service';
@@ -66,25 +66,59 @@ export class CredentialValidatorService {
     }
 
     private async validateNik(nik: string, pass: string, request?: Request): Promise<LoginValidationResult> {
-        let verification;
+        // Development escape hatch: skip the gateway entirely so an unreachable HRIS
+        // cannot stall every NIK login for the request timeout.
+        if (!isHrisLoginVerifyEnabled()) {
+            return this.validateNikLocal(nik, pass, 'HRIS verification disabled, local only', request);
+        }
+
+        let verification: HrisVerifyResult;
         try {
             verification = await this.hrisGateway.verifyPassword(nik, pass);
         } catch (error) {
             if (error instanceof HrisUnavailableError || error instanceof HrisInvalidResponseError) {
-                return this.logNikFailure(nik, 'USER_NOT_FOUND', 'HRIS unavailable', request);
+                // HRIS unreachable: fall back to the locally stored password so admin-reset
+                // credentials still work while the gateway is down.
+                return this.validateNikLocal(nik, pass, 'HRIS unavailable, local fallback', request);
             }
             throw error;
         }
-        if (!verification.valid) return this.logNikFailure(nik, 'USER_NOT_FOUND', 'not found in HRIS', request);
-        if (!verification.eligible) return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'not eligible in HRIS', request);
 
-        let user = await this.usersService.findByEmployeeId(nik);
-        if (verification.match !== true) {
-            return this.logNikFailure(nik, user ? 'WRONG_PASSWORD' : 'USER_NOT_FOUND', 'password rejected', request, user?.id);
+        // HRIS is the authority on employment status: an employee it marks ineligible
+        // (e.g. resigned) is denied even if a local password would match.
+        if (verification.valid && !verification.eligible) {
+            return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'not eligible in HRIS', request);
         }
-        if (!user) user = await this.hrisProvisioning.provision(nik);
-        if (!user) return this.logNikFailure(nik, 'USER_NOT_FOUND', 'profile unavailable for provisioning', request);
-        if (user.isActive === false) return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'account disabled locally', request, user.id);
+
+        // Primary path: the HRIS password itself matched.
+        if (verification.valid && verification.eligible && verification.match === true) {
+            let user = await this.usersService.findByEmployeeId(nik);
+            if (!user) user = await this.hrisProvisioning.provision(nik);
+            if (!user) return this.logNikFailure(nik, 'USER_NOT_FOUND', 'profile unavailable for provisioning', request);
+            if (user.isActive === false) return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'account disabled locally', request, user.id);
+            return { success: true, user: toValidatedUser(user) };
+        }
+
+        // HRIS did not authenticate the password (wrong HRIS password, or NIK absent from HRIS):
+        // fall back to the locally stored password, which covers admin password resets.
+        const reason = verification.valid ? 'HRIS password rejected, local fallback' : 'NIK not in HRIS, local fallback';
+        return this.validateNikLocal(nik, pass, reason, request);
+    }
+
+    /**
+     * Verify a NIK login against the locally stored password. Used as a fallback when HRIS
+     * does not authenticate the credential (rejected password, NIK absent from HRIS, or the
+     * gateway being unavailable). A fixed dummy hash keeps timing uniform for unknown NIKs.
+     */
+    private async validateNikLocal(nik: string, pass: string, reason: string, request?: Request): Promise<LoginValidationResult> {
+        const user = await this.usersService.findByEmployeeId(nik);
+        const valid = await verifyPassword(pass, user?.password ?? DUMMY_PASSWORD_HASH);
+        if (!user || !valid) {
+            return this.logNikFailure(nik, user ? 'WRONG_PASSWORD' : 'USER_NOT_FOUND', reason, request, user?.id);
+        }
+        if (user.isActive === false) {
+            return this.logNikFailure(nik, 'ACCOUNT_DISABLED', 'account disabled locally', request, user.id);
+        }
         return { success: true, user: toValidatedUser(user) };
     }
 

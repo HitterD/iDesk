@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { Ticket } from './ticket.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum SlaAdjustmentType {
     EXTEND = 'EXTEND',
@@ -46,10 +47,14 @@ export class SlaAdjustment {
     @Column({ type: 'timestamp', nullable: true })
     newTarget: Date | null;
 
-    @Column({ type: 'varchar', nullable: true })
+    @Column({ type: 'uuid', nullable: true })
     actorId: string | null;
 
-    @Column({ type: 'varchar', nullable: true })
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'actorId' })
+    actor: User;
+
+    @Column({ type: 'uuid', nullable: true })
     approvedById: string | null;
 
     @CreateDateColumn()

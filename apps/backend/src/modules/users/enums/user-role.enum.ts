@@ -3,6 +3,8 @@ export enum UserRole {
     AGENT = 'AGENT', // Deprecated, but keeping for backward compatibility if needed, though we should migrate it
     AGENT_OPERATIONAL_SUPPORT = 'AGENT_OPERATIONAL_SUPPORT',
     AGENT_ORACLE = 'AGENT_ORACLE',
+    AGENT_WEB_DEV = 'AGENT_WEB_DEV',
+    AGENT_MOBILE_DEV = 'AGENT_MOBILE_DEV',
     AGENT_ADMIN = 'AGENT_ADMIN',
     USER = 'USER',
     MANAGER = 'MANAGER',

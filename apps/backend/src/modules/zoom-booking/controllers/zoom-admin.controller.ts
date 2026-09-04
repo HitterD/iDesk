@@ -23,6 +23,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 
 import { ZoomBookingService } from '../services/zoom-booking.service';
 import { ZoomAccountService } from '../services/zoom-account.service';
+import { extractClientIp } from '../../../shared/security/client-ip';
 import { ZoomSettingsService } from '../services/zoom-settings.service';
 import { ZoomAuditLogService } from '../services/zoom-audit-log.service';
 import { ZoomSyncService } from '../services/zoom-sync.service';
@@ -94,6 +95,8 @@ export class ZoomAdminController {
     }
 
     @Post('sync-meetings')
+    @Roles(UserRole.ADMIN, UserRole.USER, UserRole.MANAGER)
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @ApiOperation({ summary: 'Manually trigger sync meetings from all Zoom accounts' })
     async syncMeetings() {
         const updatedCount = await this.syncService.syncAllAccounts();
@@ -170,7 +173,7 @@ export class ZoomAdminController {
         @Req() req: Request,
     ) {
         const user = req.user as any;
-        const ipAddress = req.ip || req.socket.remoteAddress;
+        const ipAddress = extractClientIp(req);
         return this.bookingService.cancelBooking(id, dto, user, ipAddress);
     }
 
@@ -181,7 +184,7 @@ export class ZoomAdminController {
         @Req() req: Request,
     ) {
         const user = req.user as any;
-        const ipAddress = req.ip || req.socket.remoteAddress;
+        const ipAddress = extractClientIp(req);
         return this.bookingService.retryZoomMeeting(id, user, ipAddress);
     }
 
@@ -193,7 +196,7 @@ export class ZoomAdminController {
         @Req() req: Request,
     ) {
         const user = req.user as any;
-        const ipAddress = req.ip || req.socket.remoteAddress;
+        const ipAddress = extractClientIp(req);
         return this.bookingService.rescheduleBooking(id, dto, user, ipAddress);
     }
 

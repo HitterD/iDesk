@@ -176,82 +176,74 @@ Jika masalah belum teratasi, hubungi IT Support ext. 1234 atau buat tiket di hel
             authorName: 'IT Support Team',
         },
         {
-            title: 'Panduan Instalasi VPN untuk Remote Working',
-            content: `## Tentang VPN Perusahaan
-VPN (Virtual Private Network) digunakan untuk mengakses jaringan internal perusahaan secara aman saat bekerja dari luar kantor.
+            title: 'Panduan Instalasi & Penggunaan WatchGuard Mobile VPN with SSL (WG SSL)',
+            content: `## Tentang WatchGuard SSL VPN (WG SSL)
+WatchGuard Mobile VPN with SSL (WG SSL) digunakan oleh seluruh karyawan untuk mengakses jaringan internal kantor, file server, database Oracle, dan aplikasi internal secara aman saat bekerja dari luar kantor (WFH / Remote).
 
 ## Persyaratan
-- Windows 10/11 atau macOS 10.14+
-- Koneksi internet yang stabil
-- Akun VPN dari IT Department
-- Microsoft Authenticator app terinstall di smartphone
+- Laptop/PC dengan sistem operasi Windows 10/11 atau macOS
+- Koneksi internet publik yang stabil
+- Akun domain Windows/Active Directory yang aktif
+- File installer WatchGuard SSL VPN Client
 
-## Download VPN Client
+## Langkah Unduh & Instalasi
 
-### Windows
-1. Download GlobalProtect dari: https://vpn.company.com
-2. Atau hubungi IT Support untuk installer
+### Step 1: Unduh Installer WatchGuard SSL VPN
+1. Buka browser dan akses portal SSL VPN Firebox kantor:
+\`\`\`
+https://vpn.perusahaan.com/sslvpn.html
+\`\`\`
+*(Atau gunakan installer yang telah disediakan di folder Shared IT)*
+2. Login menggunakan username dan password domain Anda.
+3. Klik tombol **Download** untuk mengunduh file installer \`MobileVPN_with_SSL.exe\`.
 
-### macOS
-1. Download dari App Store: "GlobalProtect"
-2. Atau download dari portal VPN
+### Step 2: Instalasi Client di Windows
+1. Klik kanan pada file installer \`MobileVPN_with_SSL.exe\` → Pilih **Run as administrator**
+2. Ikuti instruksi wizard instalasi: Klik **Next** → Setujui License Agreement → **Next** → **Install**
+3. Izinkan instalasi driver **TAP-Windows Adapter V9** jika muncul notifikasi dari Windows Security.
+4. Klik **Finish** setelah instalasi selesai.
 
-## Langkah Instalasi
+## Langkah Menghubungkan VPN (Koneksi)
 
-### Windows
-1. Jalankan installer GlobalProtect
-2. Klik Next → Next → Install
-3. Tunggu proses instalasi selesai
-4. Klik Finish
+### Step 1: Buka WatchGuard Mobile VPN with SSL
+1. Cari dan buka aplikasi **WatchGuard Mobile VPN with SSL** dari Start Menu.
+2. Pada jendela login WatchGuard, masukkan konfigurasi berikut:
+   - **Server**: \`vpn.perusahaan.com\` *(atau IP Publik Firebox kantor)*
+   - **User Name**: username domain Anda (contoh: \`budi.santoso\`)
+   - **Password**: password akun Windows/Domain Anda
+3. Klik tombol **Connect**.
 
-### macOS
-1. Buka file .pkg yang didownload
-2. Ikuti wizard instalasi
-3. Berikan permission yang diminta
-4. Restart jika diperlukan
+### Step 2: Periksa Indikator Status (Traffic Light)
+Perhatikan ikon WatchGuard pada System Tray di pojok kanan bawah taskbar Windows:
+- 🔴 **Merah**: VPN terputus (*Disconnected*).
+- 🟡 **Kuning**: Sedang melakukan autentikasi / inisialisasi koneksi (*Connecting*).
+- 🟢 **Hijau**: Berhasil terhubung (*Connected*). Anda sudah dapat mengakses jaringan kantor.
 
-## Cara Koneksi VPN
+## Verifikasi Akses Internal
+Setelah ikon berubah menjadi hijau, lakukan tes koneksi ke resource internal:
+1. Akses File Server: Buka File Explorer dan ketik \`\\\\10.10.1.5\\SharedDepartment\`
+2. Akses Web Intranet / Oracle / Dashboard iDesk internal.
 
-1. Buka aplikasi GlobalProtect
-2. Masukkan Portal Address: **vpn.company.com**
-3. Klik Connect
-4. Masukkan credentials:
-   - Username: email perusahaan (tanpa @company.com)
-   - Password: password email Anda
-5. Buka Microsoft Authenticator di HP
-6. Approve notifikasi yang muncul
-7. Tunggu hingga status "Connected"
+## Troubleshooting Kendala Umum WG SSL
 
-## Verifikasi Koneksi
-Setelah connected, coba akses:
-- Intranet: http://intranet.company.local
-- File Server: \\\\fileserver\\shared
+### 1. Error: "Virtual Adapter Failure" atau Status Kuning Macet
+**Penyebab:** Driver TAP Adapter dinonaktifkan oleh Windows atau bentrok dengan VPN lain.
+**Solusi:**
+1. Buka Run (\`Win + R\`) → ketik \`ncpa.cpl\` → Enter.
+2. Cari adapter bernama **WatchGuard SSL VPN** atau **TAP-Windows Adapter V9**.
+3. Jika statusnya *Disabled*, klik kanan lalu pilih **Enable**.
+4. Restart aplikasi WatchGuard SSL VPN dengan klik kanan → **Run as administrator**.
 
-## Troubleshooting
+### 2. Error: "Authentication Failed"
+- Pastikan penulisan username dan password tidak ada spasi tambahan.
+- Pastikan Caps Lock tidak aktif.
+- Jika password baru saja diubah di Office 365 / Windows, gunakan password baru tersebut.
 
-### "Connection Failed"
-1. Pastikan internet aktif
-2. Coba disconnect dan connect ulang
-3. Restart aplikasi GlobalProtect
-4. Restart komputer
-
-### "Authentication Failed"
-1. Pastikan username dan password benar
-2. Cek apakah password email expired
-3. Pastikan Microsoft Authenticator sudah setup dengan benar
-
-### Koneksi Lambat
-1. Coba disconnect dan pilih server terdekat
-2. Hindari aktivitas bandwidth tinggi (streaming, download besar)
-3. Gunakan koneksi internet yang lebih stabil
-
-## Kebijakan Penggunaan VPN
-- Gunakan hanya untuk keperluan kerja
-- Jangan share credentials VPN
-- Disconnect saat tidak digunakan
-- Laporkan jika ada aktivitas mencurigakan`,
+### 3. Koneksi Terputus Tiba-tiba
+- WatchGuard memiliki fitur *idle timeout*. Jika tidak ada aktivitas jaringan dalam waktu tertentu, VPN akan otomatis disconnect.
+- Cukup klik kanan ikon WatchGuard di system tray → Pilih **Connect** kembali.`,
             category: 'Network',
-            tags: ['vpn', 'remote', 'security', 'network', 'work-from-home'],
+            tags: ['vpn', 'wg-ssl', 'watchguard', 'remote', 'network', 'wfh'],
             status: ArticleStatus.PUBLISHED,
             visibility: ArticleVisibility.PUBLIC,
             authorName: 'IT Support Team',
@@ -656,7 +648,316 @@ Jika spesifikasi di bawah minimum, pertimbangkan request upgrade ke IT.`,
             visibility: ArticleVisibility.PUBLIC,
             authorName: 'IT Support Team',
         },
+        {
+            title: 'Panduan Akses Folder Shared Network Drive (File Server)',
+            content: `## Gejala & Kebutuhan
+Karyawan perlu mengakses dokumen bersama departemen di server lokal (Shared Drive / Map Network Drive), namun muncul error "Network path was not found" atau folder tidak muncul di File Explorer.
+
+## Langkah Mapping Network Drive
+
+### Step 1: Pastikan Terhubung ke Jaringan Kantor
+- Jika di kantor: Pastikan terhubung ke kabel LAN atau WiFi kantor.
+- Jika WFH / Remote: Pastikan **VPN GlobalProtect** sudah dalam status "Connected".
+
+### Step 2: Buka This PC dan Map Network Drive
+1. Buka File Explorer (tekan tombol Windows + E)
+2. Klik kanan pada "This PC" di panel sebelah kiri → Pilih **Map network drive...**
+3. Pilih Drive Letter (misal: Z: atau Y:)
+4. Pada kolom **Folder**, ketik alamat server departemen Anda:
+\`\`\`
+\\\\10.10.1.5\\SharedDepartment
+\`\`\`
+*(Ganti IP / nama folder sesuai instruksi tim IT)*
+5. Centang opsi "Reconnect at sign-in"
+6. Klik **Finish**
+
+### Step 3: Masukkan Kredensial Domain
+1. Saat diminta username & password, gunakan format: \`DOMAIN\\username\`
+2. Masukkan password akun Windows Anda
+3. Centang "Remember my credentials" → Klik OK
+
+## Solusi Error Umum
+- **Error: "The network location cannot be reached"**: Cek status koneksi LAN/VPN Anda.
+- **Error: "Access Denied"**: Anda belum memiliki izin akses ke folder tersebut. Silakan buat form pengajuan E-Form Access di iDesk.`,
+            category: 'Network',
+            tags: ['shared-drive', 'network', 'file-server', 'mapping', 'folder'],
+            status: ArticleStatus.PUBLISHED,
+            visibility: ArticleVisibility.PUBLIC,
+            authorName: 'IT Support Team',
+        },
+        {
+            title: 'Cara Mengatasi Outlook Error Not Responding atau Tidak Bisa Kirim Email',
+            content: `## Gejala
+- Microsoft Outlook macet (*Not Responding*) saat dibuka
+- Email tertahan di Outbox dan tidak terkirim
+- Muncul peringatan "Mailbox is full" atau "Enter Network Password" berulang kali
+
+## Solusi Cepat
+
+### Step 1: Buka Outlook dalam Safe Mode
+1. Tekan tombol \`Windows + R\` pada keyboard untuk membuka dialog Run
+2. Ketik perintah berikut dan tekan Enter:
+\`\`\`
+outlook.exe /safe
+\`\`\`
+3. Pilih profile default (Outlook) dan klik OK.
+4. Jika Outlook terbuka normal dalam safe mode, masalah disebabkan oleh add-in pihak ketiga yang bermasalah.
+
+### Step 2: Disable Add-in yang Tidak Perlu
+1. Buka menu **File** → **Options** → **Add-ins**
+2. Pada bagian bawah (Manage), pilih **COM Add-ins** lalu klik **Go...**
+3. Hapus centang pada add-in yang tidak dipakai (misal antivirus scanner add-in atau third-party toolbar)
+4. Klik OK lalu restart Outlook secara normal.
+
+### Step 3: Cek Ukuran Email di Outbox
+Email dengan lampiran file besar (>25MB) seringkali menyebabkan Outbox macet:
+1. Putuskan sementara koneksi internet (set Outlook ke *Work Offline* di tab Send/Receive)
+2. Buka folder **Outbox**, hapus atau pindahkan email berlampiran besar ke Drafts
+3. Matikan *Work Offline* dan klik **Send/Receive All Folders**.
+
+## Tips Pemeliharaan
+- Bersihkan folder *Deleted Items* dan *Junk Email* secara berkala.
+- Arsipkan email lama ke arsip online / file PST jika kapasitas mailbox hampir penuh.`,
+            category: 'Software',
+            tags: ['outlook', 'email', 'office', 'software', 'troubleshooting'],
+            status: ArticleStatus.PUBLISHED,
+            visibility: ArticleVisibility.PUBLIC,
+            authorName: 'IT Support Team',
+        },
+        {
+            title: 'Panduan Mengaktifkan Multi-Factor Authentication (MFA) Microsoft Authenticator',
+            content: `## Pendahuluan
+Multi-Factor Authentication (MFA) adalah lapisan keamanan wajib untuk melindungi akun email dan data perusahaan dari peretasan dan kebocoran data.
+
+## Langkah Aktivasi
+
+### Step 1: Unduh Aplikasi Microsoft Authenticator
+1. Unduh aplikasi **Microsoft Authenticator** resmi dari Google Play Store (Android) atau Apple App Store (iOS) pada smartphone Anda.
+
+### Step 2: Konfigurasi Akun di Komputer
+1. Buka browser dan kunjungi: \`https://aka.ms/mfasetup\`
+2. Login menggunakan email dan password kantor Anda
+3. Pada halaman "More information required", klik **Next**
+4. Pilih metode **Authenticator app** → Klik **Next**
+5. Pada layar komputer akan muncul QR Code setup.
+
+### Step 3: Pindai QR Code di Smartphone
+1. Buka aplikasi Microsoft Authenticator di smartphone
+2. Pilih tanda **+ (Tambah Akun)** → Pilih **Work or school account**
+3. Pilih **Scan QR code** dan arahkan kamera ke layar monitor komputer
+4. Masukkan nomor verifikasi 2-digit yang muncul di layar komputer ke aplikasi smartphone.
+
+## Catatan Penting
+- Jangan pernah menyetujui prompt verifikasi di handphone jika Anda sedang tidak melakukan login.
+- Jika Anda mengganti handphone, segera hubungi IT Support untuk reset konfigurasi MFA akun Anda.`,
+            category: 'Security',
+            tags: ['mfa', 'security', 'authenticator', 'password', 'login'],
+            status: ArticleStatus.PUBLISHED,
+            visibility: ArticleVisibility.PUBLIC,
+            authorName: 'IT Support Team',
+        },
+        {
+            title: 'Panduan Pengajuan Perangkat Kerja dan Hak Akses Sistem (E-Form)',
+            content: `## Kapan Menggunakan Layanan Ini?
+Gunakan menu **Request Center** di iDesk jika Anda membutuhkan:
+1. Penggantian/peminjaman laptop, monitor, keyboard, atau mouse (**Hardware Requests**)
+2. Permintaan hak akses akun baru, folder server, atau VPN (**E-Form Access**)
+3. Pelaporan barang hilang atau penemuan barang di area kantor (**Lost & Found**)
+
+## Alur Pengajuan
+
+### 1. Hardware Request
+1. Masuk ke menu **Request Center → Hardware Requests**
+2. Klik tombol **+ New Request**
+3. Pilih kategori barang dan masukkan justifikasi kebutuhan kerja Anda
+4. Kirim pengajuan untuk diproses dan dijadwalkan oleh tim IT Hardware.
+
+### 2. E-Form Hak Akses Sistem
+1. Masuk ke menu **Request Center → E-Form Access**
+2. Pilih jenis akses (contoh: Akses VPN, Shared Folder, Email Domain, atau Software)
+3. Isi data pengaju dan atasan langsung
+4. Lakukan tanda tangan digital langsung pada layar
+5. Tiket akan diverifikasi oleh Atasan dan Admin IT sebelum kredensial diserahkan.
+
+## Estimasi Waktu Proses (SLA)
+| Jenis Pengajuan | Estimasi Waktu Kerja |
+|-----------------|----------------------|
+| Reset Password / Akses Standar | 1 - 2 Jam Kerja |
+| Pengajuan Akses Folder / VPN | 1x24 Jam Kerja |`,
+            category: 'General',
+            tags: ['eform', 'access', 'guidelines', 'idesk'],
+            status: ArticleStatus.PUBLISHED,
+            visibility: ArticleVisibility.PUBLIC,
+            authorName: 'IT Support Team',
+        },
+        {
+            title: 'Panduan Lengkap Penggunaan Portal User iDesk Enterprise',
+            content: `## Selamat Datang di iDesk Enterprise Platform
+Portal Layanan Mandiri iDesk Enterprise dirancang untuk mempermudah seluruh karyawan (**Role: USER / Client**) dalam mengajukan bantuan IT, memesan ruang Zoom meeting, mengajukan E-Form akses sistem, hingga memanfaatkan solusi mandiri troubleshooting secara cepat dan terintegrasi.
+
+---
+
+## 1. Akses & Login Sistem
+
+Untuk mengakses portal iDesk, buka browser Anda dan kunjungi URL resmi sistem:
+- **URL Resmi Portal**: \`https://idesk.santos.co.id/login\`
+
+![Halaman Login Portal iDesk](/kb/user-guide/01_login_page.png)
+
+### 📌 Langkah Login:
+1. Masukkan **NIK Karyawan** atau **Email Perusahaan** terdaftar (Contoh: \`user.spj@idesk.com\`).
+2. Masukkan **Kata Sandi** akun Anda.
+3. Tekan tombol **\`Continue\`** atau tekan tombol keyboard **\`Enter\`** untuk langsung masuk.
+
+---
+
+## 2. Dashboard Tiket Saya (My Tickets)
+
+Setelah berhasil masuk, Anda akan diarahkan ke halaman utama **My Tickets (\`/client/my-tickets\`)** yang berfungsi sebagai dashboard pemantauan tiket layanan Anda.
+
+![Dashboard Tiket Saya](/kb/user-guide/02_my_tickets.png)
+
+### 📊 Fitur Utama Dashboard:
+1. **Bento Stat Cards**: Menampilkan ringkasan jumlah tiket berstatus *Open* (Menunggu), *In Progress* (Diproses), dan *Resolved* (Selesai).
+2. **Kotak Pencarian & Filter**: Mempermudah pelacakan tiket berdasarkan kata kunci, judul permohonan, maupun status penanganan.
+3. **Daftar Tiket Interaktif**: Klik pada salah satu baris tiket untuk membuka ruang percakapan (*chat*), melacak histori penanganan, dan memantau status SLA teknisi.
+
+---
+
+## 3. Pembuatan Tiket Layanan & Bantuan
+
+Untuk membuat tiket baru, klik tombol **\`+ Buat Tiket Baru\`** pada sudut kanan atas dashboard. Anda akan diarahkan ke halaman pemilihan kategori permohonan (**\`/client/create\`**).
+
+![Pilihan Kategori Pembuatan Tiket](/kb/user-guide/03_create_ticket_selection.png)
+
+### 3.1 Pilihan Divisi Layanan:
+1. 🎫 **Service Ticket (General Support)**: Layanan IT kantor umum, mencakup permasalahan komputer, laptop, software standar, printer, email, dan jaringan lokal.
+2. 🌐 **Access Request (E-Form Access)**: Permohonan izin akses akun VPN, jaringan khusus, atau sistem kerja terproteksi.
+3. 📦 **Oracle / K2 Request (Enterprise System)**: Bantuan modul sistem ERP Oracle EBS, update peran (*role*) K2 Workflow, maupun kendala validasi data bisnis.
+4. 💻 **Web Developer Request**: Permintaan perbaikan bug, penambahan fitur, atau integrasi pada portal web internal perusahaan.
+5. 📱 **Mobile Developer Request**: Laporan kendala aplikasi mobile Android/iOS, error sinkronisasi data lapangan, atau update versi APK.
+
+---
+
+### 3.2 Formulir Tiket IT Support Umum
+Jika Anda memilih kartu **Service Ticket**, Anda akan diarahkan ke formulir pembuatan tiket IT Support (**\`/client/create?type=service\`**).
+
+![Formulir Tiket IT Support](/kb/user-guide/04_create_it_support_form.png)
+
+### 📌 Panduan Pengisian:
+1. **Template Cepat (*Quick Template*)**: Gunakan tombol template (\`Email Issue\`, \`Printer Fault\`, \`Slow System\`, \`No Network\`, \`Software Error\`, \`Login Issue\`) untuk pengisian otomatis.
+2. **Subject / Judul Tiket (Wajib)**: Tuliskan ringkasan kendala dengan jelas (misal: *"Komputer tidak bisa terhubung ke printer lantai 2"*).
+3. **Detail Masalah (Wajib)**: Jelaskan kronologi kejadian dan pesan error yang muncul.
+4. **Lampiran Berkas**: Klik tombol **\`Lampirkan\`** atau tekan kombinasi **\`Ctrl + V\`** untuk menempelkan tangkapan layar (*screenshot*) error secara langsung.
+5. **Prioritas & Perangkat**: Tentukan urgensi kendala (*Low*, *Medium*, *High*, *Critical*) serta spesifikasi perangkat terkait.
+6. **Kirim Tiket**: Tekan tombol **\`KIRIM SERVICE TIKET\`** untuk mengirim permohonan ke antrean teknisi.
+
+---
+
+### 3.3 Formulir Tiket Oracle K2, Web, & Mobile Dev
+Untuk kebutuhan sistem perusahaan atau pengembangan perangkat lunak, pilih formulir khusus pengembang (**\`/client/create?type=oracle-request\`**).
+
+![Formulir Dev & Enterprise Request](/kb/user-guide/05_create_dev_ticket_form.png)
+
+- **Template Khusus**: Dilengkapi template siap pakai seperti \`Login Issue\`, \`Role Update\`, \`System Error\`, dan \`Sync Error\`.
+- **Pintasan Keyboard Cepat**: Tekan kombinasi tombol **\`Ctrl + Enter\`** pada keyboard untuk mengirim tiket langsung tanpa mouse.
+
+---
+
+## 4. Pelacakan Tiket, Chat Interaktif, & Rating Kepuasan
+
+Setelah tiket terkirim, Anda dapat berkomunikasi langsung dengan teknisi pada halaman **Ticket Detail (\`/client/tickets/:id\`)**.
+
+![Detail Tiket & Ruang Chat](/kb/user-guide/06_ticket_detail_chat_rating.png)
+
+### 🌟 Fitur Halaman Detail Tiket:
+1. **SLA Countdown Timer**: Memantau batas waktu respon pertama (*First Response SLA*) dan estimasi penyelesaian (*Resolution SLA*).
+2. **Ruang Chat Real-Time**: Kirim pesan klarifikasi, tanyakan status perbaikan, atau lampirkan foto/file tambahan.
+3. **Kolaborator Tim**: Tambahkan rekan kerja divisi Anda menggunakan tombol \`+ Tambah\` agar dapat ikut memantau tiket.
+4. **Rating Kepuasan (1-5 Bintang)**: Berikan umpan balik dan penilaian bintang saat tiket telah berstatus *Resolved*.
+
+---
+
+## 5. Pemesanan Ruang Meeting Zoom (Zoom Calendar)
+
+Portal iDesk menyediakan integrasi jadwal meeting virtual melalui menu **Zoom Calendar (\`/client/zoom-calendar\`)**.
+
+![Tata Letak Pemesanan Ruang Zoom](/kb/user-guide/07_zoom_booking_calendar.png)
+
+### 📌 Prosedur 5 Langkah Pemesanan Ruang Zoom:
+1. **Isi Topik / Judul Meeting**: Masukkan agenda meeting pada kolom *Judul meeting*.
+2. **Tentukan Tanggal & Jam Mulai**: Pilih hari pelaksanaan dan dropdown waktu mulai (contoh: \`09:00\`).
+3. **Pilih Durasi Meeting**: Tentukan estimasi durasi (misal: \`60 menit (1 jam)\`). Sistem akan menampilkan rentang ketersediaan waktu.
+4. **Aktifkan Opsi Berulang / Recurring (Jika Rutin)**: Aktifkan sakelar toggle *Berulang?* jika meeting diadakan mingguan/bulanan.
+5. **Klik "Buat meeting 🎥"**: Sistem iDesk akan otomatis mengalokasikan akun lisensi Zoom resmi dan menghasilkan tautan meeting (*Join URL*), *Meeting ID*, serta *Passcode*.
+
+---
+
+### 💡 Simulasi Formulir Pemesanan & Opsi Berulang (Recurring)
+
+Berikut adalah contoh simulasi formulir pemesanan Zoom yang telah diisi lengkap dengan opsi jadwal berulang aktif serta sinkronisasi daftar meeting:
+
+![Simulasi Formulir Zoom Terisi Lengkap](/kb/user-guide/07b_zoom_booking_simulated.png)
+
+- **Sinkronisasi Otomatis**: Daftar jadwal meeting Anda di panel kanan akan langsung terupdate pada tab *Mendatang*, *Semua*, atau *Selesai*.
+
+---
+
+## 6. Pengajuan E-Form Akses Jaringan & Sistem
+
+Permintaan izin akses khusus dikelola melalui portal **E-Form Access (\`/client/eform-access\`)**.
+
+### 6.1 Memantau Status Pengajuan E-Form
+![Daftar E-Form Access](/kb/user-guide/08_eform_access_list.png)
+
+- Pantau ringkasan status formulir: *Menunggu Atasan*, *Diproses ICT*, *Akses Siap*, maupun *Ditolak*.
+- Tekan tombol **\`+ Ajukan Akses\`** untuk membuat permohonan baru.
+
+---
+
+### 6.2 Formulir Pengajuan Akses Baru
+Halaman pengajuan akses baru (**\`/client/eform-access/new\`**) memiliki alur validasi formulir terstruktur.
+
+![Formulir Pengajuan E-Form Akses Baru](/kb/user-guide/09_eform_access_new.png)
+
+1. **Pilih Jenis Akses**: *Akses VPN*, *Akses Website*, atau *Akses Jaringan*.
+2. **Masa Berlaku**: Tentukan periode izin akses (\`+1 Bln\`, \`+3 Bln\`, \`+6 Bln\`, \`+12 Bln\`).
+3. **Alasan & Kebutuhan**: Uraikan justifikasi operasional pekerjaan.
+4. **Approval Otomatis**: Permohonan akan otomatis diteruskan secara berjenjang ke email Head of Department (HOD) Anda.
+
+---
+
+## 7. Pusat Bantuan & Solusi Mandiri (Knowledge Base)
+
+Gunakan portal **Knowledge Base (\`/client/kb\`)** untuk menemukan panduan penanganan mandiri (*Self-Resolution*).
+
+![Pusat Bantuan Knowledge Base](/kb/user-guide/10_client_knowledge_base.png)
+
+- Cari artikel berdasarkan kata kunci (\`wifi\`, \`vpn\`, \`printer\`, \`outlook\`, \`password\`, \`teams\`).
+- Manfaatkan filter kategori dan tag populer untuk menemukan solusi instan.
+
+---
+
+## 8. Notifikasi & Pengaturan Profil Pengguna
+
+Kelola data akun dan saluran notifikasi Anda pada menu **Profile (\`/client/profile\`)**.
+
+![Pengaturan Profil Pengguna](/kb/user-guide/11_notification_and_profile.png)
+
+1. **Tab Profile**: Periksa data kepegawaian dan perbarui nomor WhatsApp aktif.
+2. **Tab Password**: Ubah kata sandi login secara berkala.
+3. **Tab Telegram**: Hubungkan iDesk Bot untuk menerima update tiket instan di ponsel pintar.
+4. **Tema Tampilan**: Ubah tema antarmuka antara **Light Mode** dan **Dark Mode** via tombol toggle di kanan atas.`,
+            category: 'General',
+            tags: ['user-guide', 'panduan', 'tutorial', 'portal', 'idesk', 'client'],
+            status: ArticleStatus.PUBLISHED,
+            visibility: ArticleVisibility.PUBLIC,
+            authorName: 'iDesk Administrator',
+        },
     ];
+
+    // Delete obsolete old VPN article if present
+    await articleRepo.delete({ title: 'Panduan Instalasi VPN untuk Remote Working' });
 
     for (const articleData of articles) {
         const existing = await articleRepo.findOne({ where: { title: articleData.title } });
@@ -665,7 +966,9 @@ Jika spesifikasi di bawah minimum, pertimbangkan request upgrade ke IT.`,
             await articleRepo.save(article);
             console.log(`✅ Created article: ${articleData.title}`);
         } else {
-            console.log(`⏭️ Skipped (exists): ${articleData.title}`);
+            Object.assign(existing, articleData);
+            await articleRepo.save(existing);
+            console.log(`🔄 Updated article: ${articleData.title}`);
         }
     }
 

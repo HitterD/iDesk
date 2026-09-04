@@ -12,5 +12,7 @@ export class TicketCreatedEvent {
         public readonly userFullName: string,
         public readonly userEmail: string | undefined,
         public readonly createdAt: Date,
+        public readonly siteId?: string | null,
+        public readonly ticketType?: string | null,
     ) { }
 }

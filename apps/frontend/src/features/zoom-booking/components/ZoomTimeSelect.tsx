@@ -10,6 +10,10 @@ export interface TimeSlotOption {
     joinUrl?: string;
     accountName?: string;
     bookedByName?: string;
+    availableAccountsCount?: number;
+    totalAccountsCount?: number;
+    reason?: string;
+    exceedsOperatingHours?: boolean;
 }
 
 export interface ZoomTimeSelectProps {
@@ -19,6 +23,10 @@ export interface ZoomTimeSelectProps {
     placeholder?: string;
     label?: string;
     testId?: string;
+    isLoading?: boolean;
+    disableUnavailable?: boolean;
+    align?: 'left' | 'right';
+    dropdownClassName?: string;
     /** Called when the user clicks "Lihat detail" on the info card
      *  for an unavailable slot. Should open an info card / detail view. */
     onViewBookedTime?: (opt: TimeSlotOption) => void;
@@ -37,11 +45,16 @@ export function ZoomTimeSelect({
     placeholder = 'Pilih waktu',
     label,
     testId = 'zoom-time-select',
+    isLoading = false,
+    disableUnavailable = false,
+    align = 'left',
+    dropdownClassName,
     onViewBookedTime,
 }: ZoomTimeSelectProps) {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const listRef = useRef<HTMLUListElement | null>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -59,6 +72,16 @@ export function ZoomTimeSelect({
             document.removeEventListener('mousedown', onClickOutside);
             document.removeEventListener('keydown', onEsc);
         };
+    }, [open]);
+
+    useEffect(() => {
+        if (!open || !listRef.current) return;
+        const targetEl =
+            listRef.current.querySelector('[aria-selected="true"]') ||
+            listRef.current.querySelector('[aria-disabled="false"]');
+        if (targetEl && typeof (targetEl as HTMLElement).scrollIntoView === 'function') {
+            (targetEl as HTMLElement).scrollIntoView({ block: 'nearest' });
+        }
     }, [open]);
 
     useEffect(() => {
@@ -90,10 +113,10 @@ export function ZoomTimeSelect({
     };
 
     return (
-        <div className="space-y-1.5" ref={containerRef}>
+        <div className="relative space-y-1.5" ref={containerRef}>
             {label && (
-                <label className="text-xs font-semibold inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                <label className="text-xs font-semibold inline-flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    <Clock className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
                     {label}
                 </label>
             )}
@@ -103,79 +126,129 @@ export function ZoomTimeSelect({
                 data-testid={testId}
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                className="w-full h-9 px-3 flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/70 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs transition-colors"
             >
-                <span className={cn('truncate', !value && 'text-slate-400')}>
-                    {value || placeholder}
+                <span className={cn('truncate', !value && 'text-slate-400 font-normal')}>
+                    {isLoading ? 'Memuat ketersediaan jam...' : (value || placeholder)}
                 </span>
                 <ChevronDown
-                    className={cn('h-4 w-4 text-slate-400 transition-transform', open && 'rotate-180')}
+                    className={cn('h-3.5 w-3.5 text-slate-400 transition-transform duration-200', open && 'rotate-180')}
                     aria-hidden="true"
                 />
             </button>
 
             {open && (
                 <ul
+                    ref={listRef}
                     role="listbox"
                     data-testid={`${testId}-options`}
-                    className="relative z-50 mt-1 max-h-[260px] overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg"
-                >
-                    {options.length === 0 && (
-                        <li className="px-3 py-2 text-xs text-slate-500">Tidak ada waktu tersedia</li>
+                    className={cn(
+                        "absolute top-full z-50 mt-1 max-h-[270px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 shadow-xl p-1 divide-y divide-slate-100 dark:divide-slate-800/60 backdrop-blur-sm max-w-[calc(100vw-2rem)]",
+                        align === 'right' ? 'right-0' : 'left-0',
+                        dropdownClassName || "w-full min-w-[280px] sm:min-w-[320px]"
                     )}
-                    {options.map((opt) => {
-                        const unavailable = !!opt.isUnavailable;
-                        const handleSelect = () => {
-                            if (unavailable) {
+                >
+                    {isLoading ? (
+                        <li className="px-3 py-3 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                            <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            <span>Memeriksa ketersediaan jam...</span>
+                        </li>
+                    ) : options.length === 0 ? (
+                        <li className="px-3 py-2 text-xs text-slate-500">Tidak ada waktu tersedia</li>
+                    ) : (
+                        options.map((opt) => {
+                            const unavailable = !!opt.isUnavailable;
+                            const isPast = unavailable && opt.reason === 'Waktu sudah terlewat';
+
+                            const handleSelect = (e: React.MouseEvent) => {
+                                if (unavailable && disableUnavailable) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toast.error(
+                                        opt.exceedsOperatingHours
+                                            ? `Jam ${opt.time} melebihi batas jam operasional sistem.`
+                                            : `Jam ${opt.time} tidak tersedia (${opt.reason || 'seluruh akun Zoom sedang terpakai'}). Silakan pilih jam lain.`
+                                    );
+                                    return;
+                                }
                                 onChange(opt.time);
                                 setOpen(false);
-                                return;
-                            }
-                            onChange(opt.time);
-                            setOpen(false);
-                        };
-                        return (
-                            <li
-                                key={opt.time}
-                                role="option"
-                                aria-selected={value === opt.time}
-                                aria-disabled={unavailable}
-                                onClick={handleSelect}
-                                data-testid={`${testId}-option-${opt.time}`}
-                                className={cn(
-                                    'px-3 py-1.5 text-sm flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0',
-                                    unavailable
-                                        ? 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 cursor-not-allowed'
-                                        : 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30',
-                                    value === opt.time && !unavailable && 'bg-blue-50 dark:bg-blue-950/30',
-                                )}
-                            >
-                                <span
+                            };
+
+                            return (
+                                <li
+                                    key={opt.time}
+                                    role="option"
+                                    aria-selected={value === opt.time}
+                                    aria-disabled={unavailable}
+                                    onClick={handleSelect}
+                                    data-testid={`${testId}-option-${opt.time}`}
                                     className={cn(
-                                        'font-mono shrink-0',
-                                        unavailable && 'line-through text-red-400',
+                                        'px-2.5 py-2 text-xs flex items-center justify-between gap-2 transition-colors rounded-lg',
+                                        isPast
+                                            ? 'bg-slate-50/60 dark:bg-slate-800/30 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none'
+                                            : unavailable
+                                                ? 'bg-rose-500/5 text-muted-foreground cursor-not-allowed select-none'
+                                                : 'cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/80 text-foreground',
+                                        value === opt.time && !unavailable && 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold',
+                                        value === opt.time && unavailable && 'bg-slate-100 dark:bg-slate-800 font-bold',
                                     )}
                                 >
-                                    {opt.time}
-                                </span>
-                                {unavailable ? (
-                                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                        <span className="text-xs text-red-400 shrink-0">Terpakai</span>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span
+                                            className={cn(
+                                                'font-mono shrink-0 text-xs',
+                                                isPast
+                                                    ? 'text-slate-400 dark:text-slate-500 line-through'
+                                                    : unavailable
+                                                        ? 'font-semibold text-rose-500/90 dark:text-rose-400/90 line-through'
+                                                        : 'font-semibold text-foreground',
+                                            )}
+                                        >
+                                            {opt.time}
+                                        </span>
                                         {opt.bookingTitle && (
                                             <span
-                                                className="text-xs text-slate-500 truncate"
+                                                className="text-xs text-muted-foreground truncate max-w-[140px]"
                                                 title={opt.bookingTitle}
                                             >
                                                 · {opt.bookingTitle}
                                             </span>
                                         )}
                                     </div>
-                                ) : (
-                                    <span className="ml-auto text-xs text-slate-400">Tersedia</span>
-                                )}
-                            </li>
-                        );
-                    })}
+
+                                    {unavailable ? (
+                                        <div className="shrink-0 flex items-center gap-1">
+                                            <span className={cn(
+                                                "text-[10px] px-2 py-0.5 rounded-full border shadow-2xs",
+                                                isPast
+                                                    ? "font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                                                    : opt.exceedsOperatingHours
+                                                        ? "font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                                        : "font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                            )}>
+                                                {isPast
+                                                    ? 'Terlewat'
+                                                    : opt.exceedsOperatingHours
+                                                        ? 'Melebihi jam tutup'
+                                                        : opt.totalAccountsCount
+                                                            ? `Penuh (${opt.totalAccountsCount} akun)`
+                                                            : 'Penuh'}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="shrink-0 flex items-center gap-1">
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                {opt.availableAccountsCount !== undefined
+                                                    ? `Tersedia · ${opt.availableAccountsCount} akun`
+                                                    : 'Tersedia'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </li>
+                            );
+                        })
+                    )}
                 </ul>
             )}
 

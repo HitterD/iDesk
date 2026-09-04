@@ -13,7 +13,7 @@ import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 
-const ICT_ROLES = [UserRole.ADMIN, UserRole.AGENT_ADMIN];
+const ICT_ROLES = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN];
 
 @Injectable()
 export class EFormRequestService {

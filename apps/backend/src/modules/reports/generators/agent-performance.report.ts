@@ -45,27 +45,40 @@ export class AgentPerformanceReport {
     /**
      * Generate agent performance metrics using optimized SQL aggregation
      * Single query instead of N queries (one per agent)
+     *
+     * @param dateRange - Date range to generate report for
+     * @param options - Optional filters
+     * @param options.siteId - Filter to a specific site (strict site scoping for scheduled reports)
+     * @param options.agentCategory - Filter agents: 'REGULAR' (non-oracle), 'ORACLE', or 'ALL' (default)
      */
-    async generate(dateRange: DateRange): Promise<ReportResult<AgentMetrics[]>> {
+    async generate(
+        dateRange: DateRange,
+        options?: { siteId?: string; agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL' }
+    ): Promise<ReportResult<AgentMetrics[]>> {
         // Single optimized query with GROUP BY for all metrics
-        const rawMetrics = await this.ticketRepo
+        const qb = this.ticketRepo
             .createQueryBuilder('ticket')
             .select('ticket.assignedToId', 'agentId')
             .addSelect('user.fullName', 'agentName')
             .addSelect('COUNT(ticket.id)', 'totalAssigned')
             .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'totalResolved')
             .addSelect(`
-                AVG(CASE 
-                    WHEN ticket.status = 'RESOLVED' 
-                    THEN EXTRACT(EPOCH FROM (ticket.updatedAt - ticket.createdAt)) / 60 
-                    ELSE NULL 
+                AVG(CASE
+                    WHEN ticket.status = 'RESOLVED'
+                    THEN EXTRACT(EPOCH FROM (ticket.updatedAt - ticket.createdAt)) / 60
+                    ELSE NULL
                 END)
             `, 'avgResolutionTimeMinutes')
+            // NOTE: keep each `ticket.<prop>` away from a line break. TypeORM's
+            // property-name replacer matches with `[^ =(),]+`, which does not
+            // exclude newlines, so a property at end-of-line swallows the `\n`,
+            // misses the column map, and reaches Postgres unquoted as
+            // `ticket.slatarget` → 42703 "column does not exist".
             .addSelect(`
-                SUM(CASE 
-                    WHEN ticket.slaTarget IS NOT NULL AND ticket.updatedAt > ticket.slaTarget 
-                    THEN 1 
-                    ELSE 0 
+                SUM(CASE
+                    WHEN ticket.slaTarget IS NOT NULL
+                         AND ticket.updatedAt > ticket.slaTarget THEN 1
+                    ELSE 0
                 END)
             `, 'slaBreached')
             .innerJoin('ticket.assignedTo', 'user')
@@ -73,14 +86,36 @@ export class AgentPerformanceReport {
                 startDate: dateRange.startDate,
                 endDate: dateRange.endDate,
             })
-            .andWhere('ticket.assignedToId IS NOT NULL')
+            .andWhere('ticket.assignedToId IS NOT NULL');
+
+        // Apply site filter if provided (critical for scheduled reports site isolation)
+        if (options?.siteId) {
+            qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
+        }
+
+        // Apply agent category filter (REGULAR vs ORACLE vs DEV vs ALL separation)
+        if (options?.agentCategory && options.agentCategory !== 'ALL') {
+            if (options.agentCategory === 'REGULAR') {
+                qb.andWhere("user.role IN (:...regularRoles)", {
+                    regularRoles: ['AGENT', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT']
+                });
+            } else if (options.agentCategory === 'ORACLE') {
+                qb.andWhere("user.role = :oracleRole", { oracleRole: 'AGENT_ORACLE' });
+            } else if (options.agentCategory === 'DEV') {
+                qb.andWhere("user.role IN (:...devRoles)", {
+                    devRoles: ['AGENT_WEB_DEV', 'AGENT_MOBILE_DEV']
+                });
+            }
+        }
+
+        const rawMetrics = await qb
             .groupBy('ticket.assignedToId')
             .addGroupBy('user.fullName')
             .orderBy('COUNT(ticket.id)', 'DESC')
             .getRawMany();
 
         // Get priority breakdown per agent (separate query for detailed breakdown)
-        const priorityBreakdown = await this.ticketRepo
+        const priorityQb = this.ticketRepo
             .createQueryBuilder('ticket')
             .select('ticket.assignedToId', 'agentId')
             .addSelect('ticket.priority', 'priority')
@@ -89,7 +124,13 @@ export class AgentPerformanceReport {
                 startDate: dateRange.startDate,
                 endDate: dateRange.endDate,
             })
-            .andWhere('ticket.assignedToId IS NOT NULL')
+            .andWhere('ticket.assignedToId IS NOT NULL');
+
+        if (options?.siteId) {
+            priorityQb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
+        }
+
+        const priorityBreakdown = await priorityQb
             .groupBy('ticket.assignedToId')
             .addGroupBy('ticket.priority')
             .getRawMany();
@@ -104,7 +145,7 @@ export class AgentPerformanceReport {
         }
 
         // Get average first response time (requires messages relation)
-        const responseTimeData = await this.getAverageResponseTimes(dateRange);
+        const responseTimeData = await this.getAverageResponseTimes(dateRange, options?.siteId);
 
         // Transform raw results to AgentMetrics
         const metrics: AgentMetrics[] = rawMetrics.map(row => {
@@ -146,31 +187,38 @@ export class AgentPerformanceReport {
      * Calculate average first response time per agent
      * This still requires message data but is optimized with aggregation
      */
-    private async getAverageResponseTimes(dateRange: DateRange): Promise<Map<string, number>> {
+    private async getAverageResponseTimes(dateRange: DateRange, siteId?: string): Promise<Map<string, number>> {
         const responseMap = new Map<string, number>();
 
         try {
             // Query for first response times using window function approach
-            const responseData = await this.ticketRepo
+            const qb = this.ticketRepo
                 .createQueryBuilder('ticket')
                 .select('ticket.assignedToId', 'agentId')
+                // The subquery is raw SQL over ticket_messages (entity TicketMessage),
+                // so its own columns must be hand-quoted; only `ticket.*` goes
+                // through TypeORM's replacer — and must not sit at end-of-line.
                 .addSelect(`
                     AVG(
                         EXTRACT(EPOCH FROM (
-                            (SELECT MIN(m.createdAt) 
-                             FROM message m 
-                             WHERE m.ticketId = ticket.id 
-                               AND m.senderId = ticket.assignedToId
-                               AND m.isSystemMessage = false
-                            ) - ticket.createdAt
-                        )) / 60
+                            (SELECT MIN(m."createdAt")
+                             FROM ticket_messages m
+                             WHERE m."ticketId" = ticket.id
+                               AND m."senderId" = ticket.assignedToId AND m."isSystemMessage" = false
+                            ) - ticket.createdAt )) / 60
                     )
                 `, 'avgResponseMinutes')
                 .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
                     startDate: dateRange.startDate,
                     endDate: dateRange.endDate,
                 })
-                .andWhere('ticket.assignedToId IS NOT NULL')
+                .andWhere('ticket.assignedToId IS NOT NULL');
+
+            if (siteId) {
+                qb.andWhere('ticket.siteId = :siteId', { siteId });
+            }
+
+            const responseData = await qb
                 .groupBy('ticket.assignedToId')
                 .getRawMany();
 

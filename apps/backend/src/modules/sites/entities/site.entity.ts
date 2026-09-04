@@ -42,6 +42,18 @@ export class Site {
     ringtoneNewTicket: string | null;
 
     @Column({ type: 'varchar', nullable: true })
+    ringtoneNewTicketSupport: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    ringtoneNewTicketOracle: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    ringtoneNewTicketWebDev: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    ringtoneNewTicketMobileDev: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
     ringtoneInProgress: string | null;
 
     @Column({ type: 'varchar', nullable: true })

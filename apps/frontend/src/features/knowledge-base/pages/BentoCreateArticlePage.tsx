@@ -27,14 +27,16 @@ export const BentoCreateArticlePage = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <Link
-                to="/kb"
-                className="inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
-            >
-                <ArrowLeft className="w-4 h-4 mr-1.5 group-hover:-translate-x-0.5 transition-transform" />
-                <span>Kembali ke Knowledge Base</span>
-            </Link>
+        <div className="space-y-6 pb-12">
+            <div className="flex items-center justify-between gap-4">
+                <Link
+                    to="/kb"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-foreground hover:bg-muted font-semibold text-xs transition-all shadow-2xs group cursor-pointer"
+                >
+                    <ArrowLeft className="w-3.5 h-3.5 text-muted-foreground group-hover:-translate-x-0.5 group-hover:text-foreground transition-all" />
+                    <span>Kembali ke Knowledge Base</span>
+                </Link>
+            </div>
 
             <ArticleForm
                 onSubmit={handleSubmit}

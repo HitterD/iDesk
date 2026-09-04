@@ -48,7 +48,7 @@ export const EformStatusPipeline: React.FC<EformStatusPipelineProps> = ({
 
       <ol className="relative flex justify-between gap-2">
         {/* Rail */}
-        <div className="absolute left-5 right-5 top-5 h-px bg-border" aria-hidden="true">
+        <div className="absolute left-4 right-4 sm:left-5 sm:right-5 top-4 sm:top-5 h-px bg-border" aria-hidden="true">
           {!isRejected && (
             <div
               className="h-full bg-primary transition-[width] duration-500 ease-out"
@@ -69,9 +69,9 @@ export const EformStatusPipeline: React.FC<EformStatusPipelineProps> = ({
             >
               <span
                 className={cn(
-                  'flex h-10 w-10 items-center justify-center rounded-full border text-sm font-bold transition-colors',
+                  'flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border text-xs sm:text-sm font-bold transition-colors shrink-0',
                   isCompleted && 'border-primary bg-primary text-primary-foreground',
-                  isActive && 'border-primary bg-background text-primary ring-4 ring-primary/15',
+                  isActive && 'border-primary bg-background text-primary ring-3 sm:ring-4 ring-primary/15',
                   !isActive && !isCompleted && 'border-border bg-muted text-muted-foreground',
                 )}
               >
@@ -79,7 +79,7 @@ export const EformStatusPipeline: React.FC<EformStatusPipelineProps> = ({
               </span>
               <span
                 className={cn(
-                  'mt-3 text-sm font-bold',
+                  'mt-2 sm:mt-3 text-xs sm:text-sm font-bold truncate max-w-full px-0.5',
                   isActive || isCompleted ? 'text-foreground' : 'text-muted-foreground',
                 )}
               >

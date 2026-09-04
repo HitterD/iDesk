@@ -7,7 +7,6 @@ import { RequestStatus } from '../domain/enums/request-status.enum';
 import { HardwareRequestCommandService } from '../services/hardware-request-command.service';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
-const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 @Injectable()
 export class InstallAutoConfirmCron {
@@ -35,7 +34,7 @@ export class InstallAutoConfirmCron {
         let fail = 0;
         for (const r of rows) {
             try {
-                await this.cmdSvc.autoConfirmInstallation(r.id, SYSTEM_ACTOR_ID);
+                await this.cmdSvc.autoConfirmInstallation(r.id);
                 ok += 1;
             } catch (err) {
                 fail += 1;

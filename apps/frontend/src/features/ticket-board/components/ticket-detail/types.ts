@@ -28,11 +28,17 @@ export interface TicketDetail {
     priority: string;
     category: string;
     ticketType?: string;
-    handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | string;
+    handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV' | string;
     device?: string;
+    criticalReason?: string;
     createdAt: string;
     updatedAt: string;
     slaTarget?: string;
+    slaStartedAt?: string;
+    firstResponseAt?: string;
+    firstResponseTarget?: string;
+    isFirstResponseBreached?: boolean;
+    targetResolutionDate?: string;
     // Hardware Installation fields
     isHardwareInstallation?: boolean;
     scheduledDate?: string;
@@ -76,6 +82,35 @@ export interface TicketDetail {
     }[];
     participants?: TicketParticipant[];
     isParticipant?: boolean;
+    slaAdjustments?: SlaAdjustment[];
+}
+
+export type SlaAdjustmentReasonCategory =
+    | 'WAITING_USER'
+    | 'WAITING_VENDOR'
+    | 'WAITING_APPROVAL'
+    | 'TECHNICAL_COMPLEXITY'
+    | 'EXTERNAL_DEPENDENCY'
+    | 'OTHER';
+
+export interface SlaAdjustment {
+    id: string;
+    ticketId: string;
+    type: 'EXTEND';
+    minutes: number;
+    reasonCategory: SlaAdjustmentReasonCategory;
+    reasonText: string;
+    previousTarget: string | null;
+    newTarget: string | null;
+    actorId: string | null;
+    actor?: {
+        id: string;
+        fullName: string;
+        email?: string;
+        avatarUrl?: string | null;
+    };
+    approvedById?: string | null;
+    createdAt: string;
 }
 
 export interface Agent {
@@ -89,3 +124,4 @@ export interface Agent {
         code?: string;
     };
 }
+

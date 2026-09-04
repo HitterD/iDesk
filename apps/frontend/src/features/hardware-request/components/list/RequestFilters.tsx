@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, X, ChevronDown } from 'lucide-react';
+import { Search, X, ChevronDown, Filter, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ListFilters, RequestStatus, ItemCategory } from '../../types';
 import { getStatusMeta } from '../../utils/status.util';
+import { cn } from '@/lib/utils';
 
 const STATUSES: RequestStatus[] = [
     'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'PROCUREMENT',
-    'INSTALLATION', 'COMPLETED', 'REJECTED', 'CANCELLED',
+    'AWAITING_DELIVERY', 'INSTALLATION', 'AWAITING_USER_CONFIRMATION',
+    'COMPLETED', 'REJECTED', 'CANCELLED',
 ];
+
 const CATS: ItemCategory[] = ['LAPTOP', 'DESKTOP', 'MONITOR', 'ACCESSORY', 'NETWORK', 'SOFTWARE', 'OTHER'];
 
 const CAT_ICON: Record<ItemCategory, string> = {
@@ -15,15 +18,21 @@ const CAT_ICON: Record<ItemCategory, string> = {
     NETWORK: '🌐', SOFTWARE: '📦', OTHER: '📋',
 };
 
+interface RequestFiltersProps {
+    value: ListFilters;
+    onChange: (v: ListFilters) => void;
+    scopeVisible: boolean;
+    view?: 'table' | 'card';
+    onViewChange?: (view: 'table' | 'card') => void;
+}
+
 export function RequestFilters({
     value,
     onChange,
     scopeVisible,
-}: {
-    value: ListFilters;
-    onChange: (v: ListFilters) => void;
-    scopeVisible: boolean;
-}) {
+    view = 'table',
+    onViewChange,
+}: RequestFiltersProps) {
     const [searchTerm, setSearchTerm] = useState(value.search ?? '');
     const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -37,7 +46,7 @@ export function RequestFilters({
             if (valueRef.current.search !== searchTerm) {
                 onChangeRef.current({ ...valueRef.current, search: searchTerm || undefined, page: 1 });
             }
-        }, 400);
+        }, 300);
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
@@ -60,18 +69,22 @@ export function RequestFilters({
 
     return (
         <div className="flex flex-col gap-3">
-            {/* Command Row */}
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                {/* Search */}
-                <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+            {/* Bento Command Toolbar */}
+            <div
+                className="flex flex-col lg:flex-row lg:items-center gap-2.5 p-2 bg-card rounded-2xl border border-border relative z-20 shadow-xs"
+                role="search"
+                aria-label="Cari dan filter hardware request"
+            >
+                {/* Search Bar */}
+                <div className="relative flex-1 bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
                     <input
-                        type="text"
-                        placeholder="Cari nomor, nama, atau justifikasi..."
-                        className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-[13px] font-medium text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary dark:focus:border-primary transition-all"
+                        type="search"
+                        placeholder="Cari nomor request, pemohon, atau justifikasi..."
+                        className="w-full pl-10 pr-10 py-2.5 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        aria-label="Cari request"
+                        aria-label="Cari hardware request"
                     />
                     <AnimatePresence>
                         {searchTerm && (
@@ -81,7 +94,8 @@ export function RequestFilters({
                                 exit={{ opacity: 0, scale: 0.8 }}
                                 transition={{ duration: 0.15 }}
                                 onClick={() => setSearchTerm('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
+                                aria-label="Hapus teks pencarian"
                             >
                                 <X className="size-3.5" />
                             </motion.button>
@@ -89,59 +103,107 @@ export function RequestFilters({
                     </AnimatePresence>
                 </div>
 
-                {/* Scope toggle */}
-                {scopeVisible && (
-                    <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800/60 p-0.5 border border-slate-200 dark:border-slate-700/60 shrink-0">
-                        {(['all', 'my'] as const).map((s) => (
-                            <button
-                                key={s}
-                                onClick={() => onChangeRef.current({ ...valueRef.current, scope: s })}
-                                className={`px-3.5 py-1.5 rounded-[9px] text-xs font-bold uppercase tracking-wider transition-all duration-200
-                                    ${value.scope === s
-                                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                    }`}
+                <div className="w-px h-8 bg-border hidden lg:block mx-1" />
+
+                {/* Right controls: Scope + Filter toggle + Clear + View switcher */}
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+                    {/* Scope toggle (Admin/Manager/Staff only) */}
+                    {scopeVisible && (
+                        <div className="inline-flex rounded-xl bg-muted/50 p-1 border border-border shrink-0">
+                            {(['all', 'my'] as const).map((s) => {
+                                const isSelected = (value.scope ?? 'all') === s;
+                                return (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => onChangeRef.current({ ...valueRef.current, scope: s, page: 1 })}
+                                        className={cn(
+                                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer',
+                                            isSelected
+                                                ? 'bg-card text-foreground shadow-xs'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        {s === 'all' ? 'Semua' : 'Milik Saya'}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Filter Dropdown Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setFiltersOpen((o) => !o)}
+                        className={cn(
+                            'flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold border transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98]',
+                            filtersOpen || totalActive > 0
+                                ? 'border-primary bg-primary/10 text-primary font-bold'
+                                : 'border-border bg-card hover:bg-muted/50 text-foreground'
+                        )}
+                        aria-expanded={filtersOpen}
+                    >
+                        <Filter className="size-3.5" />
+                        <span>Filter</span>
+                        {totalActive > 0 && (
+                            <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-primary-foreground text-[10px] font-black">
+                                {totalActive}
+                            </span>
+                        )}
+                        <ChevronDown className={cn('size-3.5 transition-transform duration-200', filtersOpen && 'rotate-180')} />
+                    </button>
+
+                    {/* Clear all */}
+                    <AnimatePresence>
+                        {hasFilters && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                onClick={clearAll}
+                                className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer shrink-0"
+                                title="Reset semua filter"
                             >
-                                {s === 'all' ? 'Semua' : 'Milik Saya'}
+                                <X className="size-3.5" />
+                                <span>Reset</span>
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+
+                    {/* View Switcher (Desktop) */}
+                    {onViewChange && (
+                        <div className="hidden md:inline-flex rounded-xl bg-muted/50 p-1 border border-border shrink-0 ml-auto sm:ml-0">
+                            <button
+                                type="button"
+                                onClick={() => onViewChange('table')}
+                                aria-label="Tampilan tabel"
+                                title="Tampilan Tabel"
+                                className={cn(
+                                    'p-1.5 rounded-lg transition-all cursor-pointer',
+                                    view === 'table'
+                                        ? 'bg-card text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                )}
+                            >
+                                <ListIcon className="size-4" />
                             </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Filter toggle */}
-                <button
-                    onClick={() => setFiltersOpen((o) => !o)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-bold shrink-0 transition-all duration-200
-                        ${filtersOpen || totalActive > 0
-                            ? 'border-primary bg-primary/10 dark:bg-primary/20 text-primary'
-                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-slate-300'
-                        }`}
-                    aria-expanded={filtersOpen}
-                >
-                    Filter
-                    {totalActive > 0 && (
-                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-white text-xs font-black">
-                            {totalActive}
-                        </span>
+                            <button
+                                type="button"
+                                onClick={() => onViewChange('card')}
+                                aria-label="Tampilan grid card"
+                                title="Tampilan Grid Card"
+                                className={cn(
+                                    'p-1.5 rounded-lg transition-all cursor-pointer',
+                                    view === 'card'
+                                        ? 'bg-card text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                )}
+                            >
+                                <LayoutGrid className="size-4" />
+                            </button>
+                        </div>
                     )}
-                    <ChevronDown className={`size-3.5 transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Clear all */}
-                <AnimatePresence>
-                    {hasFilters && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            onClick={clearAll}
-                            className="flex items-center gap-1 text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors shrink-0"
-                        >
-                            <X className="size-3" />
-                            Reset
-                        </motion.button>
-                    )}
-                </AnimatePresence>
+                </div>
             </div>
 
             {/* Active filter chips summary */}
@@ -152,30 +214,33 @@ export function RequestFilters({
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="flex flex-wrap gap-1.5 overflow-hidden"
+                        className="flex flex-wrap items-center gap-1.5 overflow-hidden px-1"
                     >
+                        <span className="text-xs font-semibold text-muted-foreground mr-1">Filter aktif:</span>
                         {(value.status ?? []).map((s) => {
                             const m = getStatusMeta(s);
                             return (
                                 <button
                                     key={s}
+                                    type="button"
                                     onClick={() => toggle('status', s)}
-                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition-all hover:opacity-80"
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all hover:opacity-80 cursor-pointer shadow-xs"
                                     style={{ backgroundColor: `${m.hex}15`, borderColor: `${m.hex}40`, color: m.hex }}
                                 >
-                                    {m.label}
-                                    <X className="size-2.5" />
+                                    <span>{m.label}</span>
+                                    <X className="size-3" />
                                 </button>
                             );
                         })}
                         {(value.category ?? []).map((c) => (
                             <button
                                 key={c}
+                                type="button"
                                 onClick={() => toggle('category', c)}
-                                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/30 transition-all hover:opacity-80"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30 transition-all hover:opacity-80 cursor-pointer shadow-xs"
                             >
-                                {CAT_ICON[c] ?? ''} {c}
-                                <X className="size-2.5" />
+                                <span>{CAT_ICON[c] ?? ''} {c}</span>
+                                <X className="size-3" />
                             </button>
                         ))}
                     </motion.div>
@@ -192,23 +257,28 @@ export function RequestFilters({
                         transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                         className="overflow-hidden"
                     >
-                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 p-3 flex flex-col gap-3">
-                            {/* Status */}
-                            <div className="flex items-start gap-3">
-                                <span className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pt-1 shrink-0 w-14">
+                        <div className="border border-border rounded-2xl bg-card p-4 flex flex-col gap-4 shadow-xs">
+                            {/* Status Section */}
+                            <div className="flex flex-col sm:flex-row sm:items-start gap-2.5">
+                                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground sm:w-20 pt-1 shrink-0">
                                     Status
                                 </span>
-                                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter status">
+                                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter status hardware request">
                                     {STATUSES.map((s) => {
                                         const on = value.status?.includes(s);
                                         const meta = getStatusMeta(s);
                                         return (
                                             <button
                                                 key={s}
+                                                type="button"
                                                 onClick={() => toggle('status', s)}
-                                                className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-all duration-150
-                                                    ${on ? 'shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}
-                                                style={on ? { backgroundColor: meta.hex, color: '#fff', borderColor: meta.hex } : {}}
+                                                className={cn(
+                                                    'text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-150 cursor-pointer',
+                                                    on
+                                                        ? 'shadow-xs font-bold text-white'
+                                                        : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                                                )}
+                                                style={on ? { backgroundColor: meta.hex, borderColor: meta.hex } : {}}
                                             >
                                                 {meta.label}
                                             </button>
@@ -217,28 +287,30 @@ export function RequestFilters({
                                 </div>
                             </div>
 
-                            {/* Divider */}
-                            <div className="border-t border-slate-200 dark:border-slate-700/60" />
+                            <div className="border-t border-border" />
 
-                            {/* Kategori */}
-                            <div className="flex items-start gap-3">
-                                <span className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pt-1 shrink-0 w-14">
+                            {/* Kategori Section */}
+                            <div className="flex flex-col sm:flex-row sm:items-start gap-2.5">
+                                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground sm:w-20 pt-1 shrink-0">
                                     Kategori
                                 </span>
-                                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter kategori">
+                                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter kategori item">
                                     {CATS.map((c) => {
                                         const on = value.category?.includes(c);
                                         return (
                                             <button
                                                 key={c}
+                                                type="button"
                                                 onClick={() => toggle('category', c)}
-                                                className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border transition-all duration-150
-                                                    ${on
-                                                        ? 'bg-primary text-white border-primary shadow-sm'
-                                                        : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-primary/50'
-                                                    }`}
+                                                className={cn(
+                                                    'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-150 cursor-pointer',
+                                                    on
+                                                        ? 'bg-primary text-primary-foreground border-primary shadow-xs font-bold'
+                                                        : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                                                )}
                                             >
-                                                {CAT_ICON[c]} {c}
+                                                <span>{CAT_ICON[c]}</span>
+                                                <span>{c}</span>
                                             </button>
                                         );
                                     })}

@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Loader2, Camera } from 'lucide-react';
+import { Save, Loader2, Camera, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
 import { useAuth } from '../../../stores/useAuth';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { validateImageFile, FILE_SIZE_LIMITS } from '@/lib/file-validation';
+import { ChangeEmailDialog } from './ChangeEmailDialog';
 
 interface Department {
     id: string;
@@ -17,10 +18,13 @@ interface Department {
     code: string;
 }
 
+/**
+ * Only the fields PATCH /users/me accepts (UpdateProfileDto). Email is changed
+ * through its own endpoint via ChangeEmailDialog, and employeeId is the HRIS
+ * matching key — both are shown read-only here, never submitted.
+ */
 interface ProfileFormValues {
     fullName: string;
-    email: string;
-    employeeId: string;
     jobTitle: string;
     phoneNumber: string;
     departmentId: string;
@@ -29,11 +33,10 @@ interface ProfileFormValues {
 export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
     const queryClient = useQueryClient();
     const { updateUser } = useAuth();
+    const [emailDialogOpen, setEmailDialogOpen] = useState(false);
     const { register, handleSubmit, reset } = useForm<ProfileFormValues>({
         defaultValues: {
             fullName: user?.fullName || '',
-            email: user?.email || '',
-            employeeId: user?.employeeId || '',
             jobTitle: user?.jobTitle || '',
             phoneNumber: user?.phoneNumber || '',
             departmentId: user?.departmentId || '',
@@ -44,8 +47,6 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
         if (user) {
             reset({
                 fullName: user.fullName || '',
-                email: user.email || '',
-                employeeId: user.employeeId || '',
                 jobTitle: user.jobTitle || '',
                 phoneNumber: user.phoneNumber || '',
                 departmentId: user.departmentId || '',
@@ -161,19 +162,32 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-slate-600 dark:text-slate-300">Alamat Email</Label>
-                        <Input
-                            {...register('email')}
-                            readOnly
-                            className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 h-11 text-slate-500 cursor-not-allowed"
-                        />
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0 flex items-center h-11 px-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                                    {user?.email}
+                                </span>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setEmailDialogOpen(true)}
+                                className="h-11 shrink-0 rounded-lg"
+                            >
+                                <Mail className="w-4 h-4 mr-2" />
+                                Ubah
+                            </Button>
+                        </div>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-slate-600 dark:text-slate-300">ID Pegawai (NIP)</Label>
                         <Input
-                            {...register('employeeId')}
-                            className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 h-11"
-                            placeholder="e.g. EMP-2024-001"
+                            value={user?.employeeId || ''}
+                            readOnly
+                            placeholder="Belum terdaftar"
+                            className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 h-11 text-slate-500 cursor-not-allowed"
                         />
+                        <p className="text-xs text-slate-400">Dikelola HRIS. Hubungi admin bila keliru.</p>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-slate-600 dark:text-slate-300">Jabatan</Label>
@@ -218,6 +232,12 @@ export const ProfileSettingsForm: React.FC<{ user: any }> = ({ user }) => {
                     </Button>
                 </div>
             </form>
+
+            <ChangeEmailDialog
+                open={emailDialogOpen}
+                onOpenChange={setEmailDialogOpen}
+                currentEmail={user?.email || ''}
+            />
         </div>
     );
 };

@@ -21,25 +21,45 @@ import { SiteTabs } from '@/components/site/SiteTabs';
 import { workloadApi, AgentWorkloadDto } from '@/lib/api/workload.api';
 import { toast } from 'sonner';
 import { PriorityWeightsDialog } from '../components/PriorityWeightsDialog';
+import { AgentPersonalWorkloadCard } from '../components/AgentPersonalWorkloadCard';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { useAuth } from '@/stores/useAuth';
 import { formatDistanceToNow, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { RefreshCw, Users, Shield, Zap } from 'lucide-react';
 
 type FilterStatus = 'ALL' | 'STANDBY' | 'ACTIVE';
 type SortOption = 'POINTS_ASC' | 'POINTS_DESC' | 'NAME_ASC' | 'TICKETS_DESC';
 
 export const AdminWorkloadDashboard: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+
+    const isAdmin = user?.role === 'ADMIN';
+    const isManager = user?.role === 'MANAGER';
+    const isAgentOps = user?.role === 'AGENT_OPERATIONAL_SUPPORT' || user?.role === 'AGENT' || user?.role === 'AGENT_ADMIN';
+
     const [agents, setAgents] = useState<AgentWorkloadDto[]>([]);
     const [loading, setLoading] = useState(true);
     const [recalculating, setRecalculating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [activeSiteId, setActiveSiteId] = useState<string>('');
+    
+    // For non-cross-site roles (agents), default immediately to user's site
+    const [activeSiteId, setActiveSiteId] = useState<string>(
+        !isAdmin && !isManager && user?.siteId ? user.siteId : ''
+    );
 
     // Filter & Search states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<FilterStatus>('ALL');
     const [sortBy, setSortBy] = useState<SortOption>('POINTS_ASC');
+
+    // If non-admin/non-manager logs in and activeSiteId was not yet set from user.siteId
+    useEffect(() => {
+        if (!isAdmin && !isManager && user?.siteId && !activeSiteId) {
+            setActiveSiteId(user.siteId);
+        }
+    }, [isAdmin, isManager, user?.siteId, activeSiteId]);
 
     useEffect(() => {
         if (activeSiteId) {
@@ -65,7 +85,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
     };
 
     const handleRecalculate = async (agentId: string) => {
-        if (!activeSiteId) return;
+        if (!activeSiteId || !isAdmin) return;
         setRecalculating(agentId);
         try {
             await workloadApi.recalculateAgentWorkload(agentId, activeSiteId);
@@ -78,6 +98,12 @@ export const AdminWorkloadDashboard: React.FC = () => {
             setRecalculating(null);
         }
     };
+
+    // Personal workload of the logged-in agent (if agent)
+    const myPersonalWorkload = useMemo(() => {
+        if (!user?.id) return null;
+        return agents.find(a => a.agentId === user.id) || null;
+    }, [agents, user?.id]);
 
     // Calculate aggregated metrics
     const metrics = useMemo(() => {
@@ -167,7 +193,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
                 );
             case 'AGENT_OPERATIONAL_SUPPORT':
                 return (
-                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40 font-medium text-xs px-2 py-0.5">
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40 font-medium text-xs px-2 py-0.5">
                         Operational Support
                     </Badge>
                 );
@@ -245,76 +271,114 @@ export const AdminWorkloadDashboard: React.FC = () => {
     return (
         <TooltipProvider>
             <div className="space-y-6 animate-fade-in-up pb-10">
-                {/* Header */}
+                {/* Header Section */}
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-                            Workload
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                            {isAgentOps && !isAdmin ? 'Workload Operasional' : 'Workload Tim Agen'}
                         </h1>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                            Distribusi beban kerja agen per site
+                            {isAgentOps && !isAdmin
+                                ? 'Ringkasan kapasitas beban kerja Anda & distribusi antrean rekan tim di site'
+                                : 'Distribusi dan pemantauan beban kerja agen harian per site'}
                         </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <SiteTabs
-                            selectedSiteId={activeSiteId}
-                            onSelectionChange={setActiveSiteId}
-                        />
-                        <PriorityWeightsDialog />
+                        {/* SiteTabs is only for Cross-Site roles (Admin & Manager) */}
+                        {(isAdmin || isManager) && (
+                            <SiteTabs
+                                selectedSiteId={activeSiteId}
+                                onSelectionChange={setActiveSiteId}
+                            />
+                        )}
+
+                        {/* Priority weights configuration is strictly for ADMIN */}
+                        {isAdmin && <PriorityWeightsDialog />}
+
                         <Button
                             variant="outline"
                             onClick={fetchWorkloads}
                             disabled={!activeSiteId || loading}
-                            className="rounded-lg h-9 px-4"
+                            className="rounded-xl h-9 px-4 text-xs font-medium gap-1.5 shadow-xs"
                         >
+                            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                             Segarkan
                         </Button>
                     </div>
                 </div>
 
-                {/* Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Agen */}
-                    <div className="rounded-3xl border border-[hsl(var(--border))] bg-white/40 dark:bg-white/5 p-1.5">
-                        <div className="bg-[hsl(var(--card))] rounded-[20px] p-6">
-                            <div className="font-mono text-4xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                                {metrics.totalAgents}
+                {/* Personal Workload Hero Section (Shown for Agent Operational Support / Non-Admin logged-in Agent) */}
+                {isAgentOps && (
+                    <AgentPersonalWorkloadCard
+                        workload={myPersonalWorkload}
+                        siteName={agents[0]?.siteName}
+                        loading={loading}
+                    />
+                )}
+
+                {/* Metrics Cards (Shown for Admin / Manager, or supplementary stats for Agents) */}
+                {(isAdmin || isManager) && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Agen */}
+                        <div className="rounded-3xl border border-[hsl(var(--border))] bg-white/40 dark:bg-white/5 p-1.5 shadow-xs">
+                            <div className="bg-[hsl(var(--card))] rounded-[20px] p-6">
+                                <div className="font-mono text-4xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                    {metrics.totalAgents}
+                                </div>
+                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Total Agen Terdaftar</div>
+                                <div className="mt-4 flex gap-3 text-xs">
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{metrics.standbyAgents} standby</span>
+                                    <span className="text-blue-600 dark:text-blue-400 font-medium">{metrics.activeAgents} aktif bertugas</span>
+                                </div>
                             </div>
-                            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Agen</div>
-                            <div className="mt-4 flex gap-3 text-xs">
-                                <span className="text-emerald-600 dark:text-emerald-400">{metrics.standbyAgents} standby</span>
-                                <span className="text-blue-600 dark:text-blue-400">{metrics.activeAgents} aktif</span>
+                        </div>
+
+                        {/* Poin */}
+                        <div className="rounded-3xl border border-[hsl(var(--border))] bg-white/40 dark:bg-white/5 p-1.5 shadow-xs">
+                            <div className="bg-[hsl(var(--card))] rounded-[20px] p-6">
+                                <div className="font-mono text-4xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                    {metrics.totalPoints}
+                                </div>
+                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Total Akumulasi Poin</div>
+                                <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                                    rata-rata {metrics.avgPoints} poin per agen
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tiket */}
+                        <div className="rounded-3xl border border-[hsl(var(--border))] bg-white/40 dark:bg-white/5 p-1.5 shadow-xs">
+                            <div className="bg-[hsl(var(--card))] rounded-[20px] p-6">
+                                <div className="font-mono text-4xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                    {metrics.totalTickets}
+                                </div>
+                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Tiket Aktif Dalam Proses</div>
+                                <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                                    dialokasikan di seluruh agen site
+                                </div>
                             </div>
                         </div>
                     </div>
+                )}
 
-                    {/* Poin */}
-                    <div className="rounded-3xl border border-[hsl(var(--border))] bg-white/40 dark:bg-white/5 p-1.5">
-                        <div className="bg-[hsl(var(--card))] rounded-[20px] p-6">
-                            <div className="font-mono text-4xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                                {metrics.totalPoints}
+                {/* Team Workload Table Section */}
+                <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl shadow-xs overflow-hidden">
+                    {/* Table Header Section Title (For Agent View) */}
+                    {isAgentOps && (
+                        <div className="px-6 py-4 border-b border-[hsl(var(--border))] bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4 text-primary" />
+                                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                                    Distribusi Beban Rekan Tim Se-Site ({agents.length} Agen)
+                                </h2>
                             </div>
-                            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Total poin</div>
-                            <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                                rata-rata {metrics.avgPoints} per agen
-                            </div>
+                            <span className="text-xs text-slate-500">
+                                {metrics.standbyAgents} Standby • {metrics.activeAgents} Bertugas
+                            </span>
                         </div>
-                    </div>
+                    )}
 
-                    {/* Tiket */}
-                    <div className="rounded-3xl border border-[hsl(var(--border))] bg-white/40 dark:bg-white/5 p-1.5">
-                        <div className="bg-[hsl(var(--card))] rounded-[20px] p-6">
-                            <div className="font-mono text-4xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                                {metrics.totalTickets}
-                            </div>
-                            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Tiket aktif</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Table Card */}
-                <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl shadow-sm overflow-hidden">
                     {/* Table Toolbar (Search, Filter, Sort) */}
                     <div className="p-4 border-b border-[hsl(var(--border))] bg-slate-50/40 dark:bg-slate-900/20 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                         {/* Search & Filter pills */}
@@ -391,23 +455,30 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                     <TableHead className="w-[180px] text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider h-11">
                                         Penugasan Terakhir
                                     </TableHead>
-                                    <TableHead className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider h-11 pr-6">
-                                        Aksi
-                                    </TableHead>
+                                    {isAdmin && (
+                                        <TableHead className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider h-11 pr-6">
+                                            Aksi
+                                        </TableHead>
+                                    )}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loading && agents.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-64 text-center text-sm text-slate-500">
-                                            Memuat…
+                                        <TableCell colSpan={isAdmin ? 7 : 6} className="h-64 text-center text-sm text-slate-500">
+                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                <RefreshCw className="w-5 h-5 animate-spin text-primary opacity-60" />
+                                                <span>Memuat data beban kerja...</span>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredAgents.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-56 text-center text-slate-500">
+                                        <TableCell colSpan={isAdmin ? 7 : 6} className="h-56 text-center text-slate-500">
                                             <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
-                                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                                                    <Users className="w-6 h-6" />
+                                                </div>
                                                 <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">
                                                     Tidak ada data agen yang cocok
                                                 </div>
@@ -416,7 +487,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                                 </p>
                                                 {searchTerm && (
                                                     <button onClick={() => setSearchTerm('')} className="text-xs mt-2 underline text-slate-500 hover:text-slate-700">
-                                                        reset
+                                                        reset filter
                                                     </button>
                                                 )}
                                             </div>
@@ -427,6 +498,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                         const points = agent.totalPoints || 0;
                                         const status = getWorkloadStatus(points);
                                         const isMinWorkload = points === metrics.minPoints && metrics.totalAgents > 1;
+                                        const isMe = user?.id === agent.agentId;
                                         const tickets = agent.activeTickets || [];
                                         const displayTickets = tickets.slice(0, 2);
                                         const remainingCount = tickets.length - displayTickets.length;
@@ -434,7 +506,11 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                         return (
                                             <TableRow
                                                 key={agent.agentId}
-                                                className="group hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] border-[hsl(var(--border))]"
+                                                className={`group transition-colors duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] border-[hsl(var(--border))] ${
+                                                    isMe
+                                                        ? 'bg-primary/[0.03] hover:bg-primary/[0.06] dark:bg-primary/[0.05]'
+                                                        : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'
+                                                }`}
                                             >
                                                 {/* Agent Information */}
                                                 <TableCell className="py-3.5 pl-6">
@@ -445,13 +521,18 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                                                 fullName: agent.agentName,
                                                             }}
                                                             size="md"
-                                                            className="ring-2 ring-[hsl(var(--border))]"
+                                                            className={`ring-2 ${isMe ? 'ring-primary/40' : 'ring-[hsl(var(--border))]'}`}
                                                         />
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="font-semibold text-sm text-slate-900 dark:text-white leading-tight">
                                                                     {agent.agentName}
                                                                 </span>
+                                                                {isMe && (
+                                                                    <Badge variant="secondary" className="text-[10px] font-bold px-1.5 py-0 bg-primary/10 text-primary border-none">
+                                                                        Saya
+                                                                    </Badge>
+                                                                )}
                                                                 {isMinWorkload && (
                                                                     <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                                                                         next
@@ -556,8 +637,8 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                                                                     >
                                                                                         <div className="flex items-center justify-between gap-1 mb-0.5">
                                                                                             <span className="font-mono text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getPriorityDot(t.priority)}`} />
-                                                                                                {t.ticketNumber}
+                                                                                                                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getPriorityDot(t.priority)}`} />
+                                                                                                                                {t.ticketNumber}
                                                                                             </span>
                                                                                             <span className="text-xs uppercase font-semibold text-slate-500">
                                                                                                 {t.priority}
@@ -596,16 +677,19 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Actions */}
-                                                <TableCell className="py-3.5 pr-6 text-right">
-                                                    <button
-                                                        onClick={() => handleRecalculate(agent.agentId)}
-                                                        disabled={recalculating === agent.agentId}
-                                                        className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 px-2 py-1 rounded transition-colors"
-                                                    >
-                                                        {recalculating === agent.agentId ? '…' : 'sync'}
-                                                    </button>
-                                                </TableCell>
+                                                {/* Actions (ADMIN Only) */}
+                                                {isAdmin && (
+                                                    <TableCell className="py-3.5 pr-6 text-right">
+                                                        <button
+                                                            onClick={() => handleRecalculate(agent.agentId)}
+                                                            disabled={recalculating === agent.agentId}
+                                                            title="Sinkronisasi ulang beban agen dari tiket aktif"
+                                                            className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 px-2.5 py-1 rounded-lg border border-[hsl(var(--border))] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs"
+                                                        >
+                                                            {recalculating === agent.agentId ? '…' : 'Sync'}
+                                                        </button>
+                                                    </TableCell>
+                                                )}
                                             </TableRow>
                                         );
                                     })

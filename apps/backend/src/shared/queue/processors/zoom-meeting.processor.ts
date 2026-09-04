@@ -28,6 +28,15 @@ export interface CancelZoomMeetingJob {
 export class ZoomMeetingProcessor {
     private readonly logger = new Logger(ZoomMeetingProcessor.name);
 
+    @Process()
+    async handleDefault(job: Job<any>) {
+        this.logger.debug(`Processing default zoom-meeting job ${job.id}`);
+        if (job.data && job.data.bookingId && job.data.zoomAccountId) {
+            return this.handleCreateMeeting(job as any);
+        }
+        return { success: true, handled: '__default__', jobId: job.id };
+    }
+
     @Process('create-meeting')
     async handleCreateMeeting(job: Job<CreateZoomMeetingJob>): Promise<any> {
         const { bookingId, zoomAccountId, title, startTime, duration } = job.data;
@@ -71,7 +80,7 @@ export class ZoomMeetingProcessor {
         this.logger.log(`Processing reminder job for booking ${bookingId} (${minutesBefore}min before)`);
 
         try {
-            // Process reminder logic here
+            this.logger.log(`Scheduled reminder reached: booking ${bookingId}, ${minutesBefore} minutes before meeting.`);
             return { success: true, bookingId, minutesBefore };
         } catch (error) {
             this.logger.error(`Failed to send reminder for booking ${bookingId}: ${error.message}`);

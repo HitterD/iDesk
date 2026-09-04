@@ -8,11 +8,23 @@ import {
     Delete,
     Query,
     UseGuards,
+    UseInterceptors,
+    UploadedFile,
     ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { SynologyService } from './synology.service';
-import { CreateBackupConfigDto, UpdateBackupConfigDto, TestConnectionDto, ManualBackupDto } from './dto';
+import {
+    CreateBackupConfigDto,
+    UpdateBackupConfigDto,
+    TestConnectionDto,
+    ManualBackupDto,
+    ListFoldersDto,
+    RestoreFromHistoryDto,
+    RestoreFromNasDto,
+    RestoreUploadDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
@@ -73,6 +85,12 @@ export class SynologyController {
         return this.synologyService.testConnection(dto);
     }
 
+    @Post('list-folders')
+    @ApiOperation({ summary: 'List folders on Synology NAS via FileStation' })
+    listFolders(@Body() dto: ListFoldersDto) {
+        return this.synologyService.listFolders(dto);
+    }
+
     // ==========================================
     // Backup Execution
     // ==========================================
@@ -84,6 +102,13 @@ export class SynologyController {
         @Body() dto: ManualBackupDto,
     ) {
         return this.synologyService.executeBackup(configId, true);
+    }
+
+    @Post('sync-uploads')
+    @ApiOperation({ summary: 'Sync all local uploads (attachments, telegram, avatars) to Synology NAS' })
+    @ApiQuery({ name: 'configId', required: false })
+    syncUploads(@Query('configId') configId?: string) {
+        return this.synologyService.syncUploadsToSynology(configId);
     }
 
     // ==========================================
@@ -105,5 +130,35 @@ export class SynologyController {
     @ApiOperation({ summary: 'Get last backup status for all configurations' })
     getStatus() {
         return this.synologyService.getLastBackupStatus();
+    }
+
+    // ==========================================
+    // Restore Operations
+    // ==========================================
+
+    @Post('restore/history/:historyId')
+    @ApiOperation({ summary: 'Restore database from a backup history entry' })
+    restoreFromHistory(
+        @Param('historyId', ParseUUIDPipe) historyId: string,
+        @Body() dto: RestoreFromHistoryDto,
+    ) {
+        return this.synologyService.restoreFromHistory(historyId, dto.createSnapshot ?? true);
+    }
+
+    @Post('restore/nas')
+    @ApiOperation({ summary: 'Restore database from Synology NAS file path' })
+    restoreFromNas(@Body() dto: RestoreFromNasDto) {
+        return this.synologyService.restoreFromNas(dto);
+    }
+
+    @Post('restore/upload')
+    @ApiOperation({ summary: 'Restore database from uploaded .sql or .sql.gz file' })
+    @ApiConsumes('multipart/form-data')
+    @UseInterceptors(FileInterceptor('file'))
+    restoreFromUpload(
+        @UploadedFile() file: Express.Multer.File,
+        @Body() dto: RestoreUploadDto,
+    ) {
+        return this.synologyService.restoreFromUploadedFile(file, dto.createSnapshot ?? true);
     }
 }

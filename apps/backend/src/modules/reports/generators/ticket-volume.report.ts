@@ -38,14 +38,31 @@ export class TicketVolumeReport {
         private readonly ticketRepo: Repository<Ticket>,
     ) {}
 
-    async generate(dateRange: DateRange): Promise<ReportResult<TicketVolumeData>> {
-        // Fetch all tickets in date range
-        const tickets = await this.ticketRepo.find({
-            where: {
-                createdAt: Between(dateRange.startDate, dateRange.endDate),
-            },
-            order: { createdAt: 'ASC' },
-        });
+    /**
+     * Generate ticket volume data for a date range.
+     *
+     * @param dateRange - Start and end dates (inclusive on start, exclusive-ish on end depending on caller)
+     * @param options - Optional filters
+     * @param options.siteId - Filter tickets to a specific site (required for scheduled reports site isolation)
+     */
+    async generate(
+        dateRange: DateRange,
+        options?: { siteId?: string }
+    ): Promise<ReportResult<TicketVolumeData>> {
+        // Build query with optional site filter
+        const qb = this.ticketRepo
+            .createQueryBuilder('ticket')
+            .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+            })
+            .orderBy('ticket.createdAt', 'ASC');
+
+        if (options?.siteId) {
+            qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
+        }
+
+        const tickets = await qb.getMany();
 
         // Calculate daily volume
         const daily = this.calculateDailyVolume(tickets, dateRange);

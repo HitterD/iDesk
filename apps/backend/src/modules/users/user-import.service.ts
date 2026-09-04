@@ -96,8 +96,17 @@ export class UserImportService {
             throw new BadRequestException(`Failed to parse file: ${error.message}`);
         }
 
-        const existingUsers = await this.userRepo.find({ select: ['id', 'email', 'employeeId', 'jobTitle', 'phoneNumber'] });
+        const existingUsers = await this.userRepo.find({
+            select: ['id', 'email', 'employeeId', 'jobTitle', 'phoneNumber', 'emailOverriddenAt'],
+        });
         const existingEmailMap = new Map(existingUsers.map(u => [u.email, u]));
+        // Matching on email alone creates duplicates once a user changes their
+        // own address: a later import carrying the original address would find
+        // nobody and insert a second account. Employee ID is the stable key, so
+        // it is consulted first and email is only the fallback.
+        const existingEmployeeIdMap = new Map(
+            existingUsers.filter(u => u.employeeId).map(u => [u.employeeId, u]),
+        );
 
         const deduplicatedResults: any[] = [];
         const seenEmailsInFile = new Set<string>();
@@ -133,7 +142,10 @@ export class UserImportService {
                         throw new BadRequestException(`Invalid role: ${row.role}. Must be ADMIN, MANAGER, AGENT, or USER`);
                     }
 
-                    const existingUser = existingEmailMap.get(row.email);
+                    const rowEmployeeId = row.employeeId?.trim();
+                    const existingUser =
+                        (rowEmployeeId ? existingEmployeeIdMap.get(rowEmployeeId) : undefined)
+                        ?? existingEmailMap.get(row.email);
 
                     if (existingUser && !upsert) {
                         throw new ConflictException(`Email ${row.email} already exists`);
@@ -166,6 +178,19 @@ export class UserImportService {
 
                     if (existingUser && upsert) {
                         // ── UPSERT: update existing user ──
+                        // `email` is never written here. When the row carries a
+                        // different address for someone who deliberately set
+                        // their own, say so in the report rather than failing the
+                        // row — the rest of the columns still apply.
+                        if (
+                            existingUser.emailOverriddenAt &&
+                            row.email &&
+                            row.email.toLowerCase().trim() !== existingUser.email.toLowerCase()
+                        ) {
+                            errors.push(
+                                `Email for ${existingUser.email} kept as-is (changed by user); other fields updated`,
+                            );
+                        }
                         await this.userRepo.update(existingUser.id, {
                             fullName: row.fullName.trim(),
                             role,

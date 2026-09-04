@@ -38,14 +38,19 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null): Promise<TicketMessage[]> {
+    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<TicketMessage[]> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            select: ['id', 'category', 'ticketType', 'siteId'],
+            relations: ['participants'],
+            select: ['id', 'category', 'ticketType', 'siteId', 'userId'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         if (userRole) assertTicketRoleAccess(ticket, userRole);
-        if (userRole) validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
+        const isOwner = userId ? ticket.userId === userId : false;
+        const isParticipant = userId ? ticket.participants?.some(p => p.userId === userId) : false;
+        if (userRole && !isOwner && !isParticipant) {
+            validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
+        }
 
         return this.messageRepo.find({
             where: {
@@ -68,17 +73,23 @@ export class TicketMessagingService {
         limit: number = 20,
         userRole?: UserRole,
         userSiteId: string | null = null,
+        userId?: string,
     ): Promise<{
         data: TicketMessage[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            select: ['id', 'category', 'ticketType', 'siteId'],
+            relations: ['participants'],
+            select: ['id', 'category', 'ticketType', 'siteId', 'userId'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         if (userRole) assertTicketRoleAccess(ticket, userRole);
-        if (userRole) validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
+        const isOwner = userId ? ticket.userId === userId : false;
+        const isParticipant = userId ? ticket.participants?.some(p => p.userId === userId) : false;
+        if (userRole && !isOwner && !isParticipant) {
+            validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
+        }
 
         const skip = (page - 1) * limit;
 
@@ -133,7 +144,7 @@ export class TicketMessagingService {
         const { savedMessage, ticket, user } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
-                relations: ['user', 'assignedTo'],
+                relations: ['user', 'assignedTo', 'participants'],
             });
             if (!ticket) {
                 throw new NotFoundException('Ticket not found');
@@ -144,7 +155,11 @@ export class TicketMessagingService {
                 throw new NotFoundException('User not found');
             }
             assertTicketRoleAccess(ticket, user.role);
-            validateTicketSiteAccess(user.role as any, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+            const isOwner = ticket.userId === userId;
+            const isParticipant = ticket.participants?.some(p => p.userId === userId);
+            if (!isOwner && !isParticipant) {
+                validateTicketSiteAccess(user.role as any, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+            }
 
             // Create Message
             const message = manager.create(TicketMessage, {

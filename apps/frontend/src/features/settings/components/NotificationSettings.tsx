@@ -14,6 +14,11 @@ import {
     ChevronUp,
     AlertCircle,
     Filter,
+    Ticket,
+    HardDrive,
+    FileText,
+    RotateCcw,
+    Video,
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePushNotifications } from '../../../hooks/usePushNotifications';
@@ -69,12 +74,12 @@ const CHANNEL_KEY_MAP: Record<string, string> = {
 // Helper to get type setting with fallback to default
 // Backend stores with snake_case keys, so we need to convert
 const ACTION_ITEM_CATEGORIES = [
-    { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas' },
-    { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Approval, schedule, procurement' },
-    { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses menunggu proses' },
-    { key: 'RENEWAL', label: 'Renewal', desc: 'Kontrak mendekati expired' },
-    { key: 'ZOOM', label: 'Zoom', desc: 'Booking dan jadwal meeting' },
-] satisfies Array<{ key: keyof CategorySettings; label: string; desc: string }>;
+    { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas, atau konfirmasi resolusi tiket', icon: Ticket, color: 'text-blue-500 bg-blue-50 dark:bg-blue-500/10' },
+    { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Persetujuan manajer, jadwal instalasi, atau konfirmasi serah terima barang', icon: HardDrive, color: 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' },
+    { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses sistem yang menunggu persetujuan pejabat berwenang', icon: FileText, color: 'text-purple-500 bg-purple-50 dark:bg-purple-500/10' },
+    { key: 'ZOOM', label: 'Zoom Meeting', desc: 'Jadwal meeting Zoom terkonfirmasi hari ini', icon: Video, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-500/10' },
+    { key: 'RENEWAL', label: 'Renewal Kontrak', desc: 'Kontrak vendor atau lisensi mendekati masa expired (< 7 hari)', icon: RotateCcw, color: 'text-rose-500 bg-rose-50 dark:bg-rose-500/10' },
+] satisfies Array<{ key: keyof CategorySettings; label: string; desc: string; icon: any; color: string }>;
 
 const getTypeSetting = (
     typeSettings: Record<string, Record<string, boolean>> | undefined,
@@ -432,21 +437,27 @@ export const NotificationSettings: React.FC = () => {
                     </div>
                 ) : categorySettings ? (
                     <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                        {ACTION_ITEM_CATEGORIES.map(({ key, label, desc }) => (
-                            <div key={key} className="flex items-center justify-between px-4 py-3">
-                                <div>
-                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{desc}</p>
+                        {ACTION_ITEM_CATEGORIES.map(({ key, label, desc, icon: Icon, color }) => (
+                            <div key={key} className="flex items-center justify-between px-4 py-3 gap-3">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${color}`}>
+                                        <Icon className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
+                                    </div>
                                 </div>
                                 <button
                                     onClick={() => updateSettings({ [key]: !categorySettings[key] })}
-                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
                                         categorySettings[key]
                                             ? 'bg-primary'
                                             : 'bg-slate-300 dark:bg-slate-600'
                                     }`}
+                                    aria-label={`Toggle ${label}`}
                                 >
-                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-xs ${
                                         categorySettings[key] ? 'translate-x-4' : 'translate-x-0.5'
                                     }`} />
                                 </button>

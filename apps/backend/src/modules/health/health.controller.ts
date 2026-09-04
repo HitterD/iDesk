@@ -8,6 +8,8 @@ import { Response } from 'express';
 
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { HealthService } from './health.service';
+import { TraceCollectorService } from './services/trace-collector.service';
+import { RealTraceRecord } from './dto/trace.dto';
 import {
     BasicHealthStatus,
     DetailedHealthStatus,
@@ -22,7 +24,10 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class HealthController {
-    constructor(private readonly healthService: HealthService) { }
+    constructor(
+        private readonly healthService: HealthService,
+        private readonly traceCollector: TraceCollectorService,
+    ) { }
 
     /**
      * Basic health check (backward compatible)
@@ -99,4 +104,14 @@ export class HealthController {
         res.status(readiness.ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
         return readiness;
     } // readiness status is explicit for Compose/Kubernetes probes
+
+    /**
+     * Recent APM End-to-End Traces for Service Map
+     */
+    @Get('traces')
+    @ApiOperation({ summary: 'Get recent real APM traces' })
+    @ApiResponse({ status: 200, description: 'List of recent HTTP traces' })
+    getRecentTraces(): RealTraceRecord[] {
+        return this.traceCollector.getRecentTraces();
+    }
 }

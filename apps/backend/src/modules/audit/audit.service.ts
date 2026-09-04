@@ -4,6 +4,7 @@ import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, ILike } from 'ty
 import { AuditLog, AuditAction } from './entities/audit-log.entity';
 import { Request } from 'express';
 import * as ExcelJS from 'exceljs';
+import { extractClientIp } from '../../shared/security/client-ip';
 
 export interface LogOptions {
     userId: string;
@@ -51,6 +52,13 @@ export class AuditService {
     async log(options: LogOptions): Promise<AuditLog> {
         const { userId, action, entityType, entityId, oldValue, newValue, description, request } = options;
 
+        const resolvedIp = request ? this.getClientIp(request) : null;
+        if (request && (action === AuditAction.USER_LOGIN || action === AuditAction.USER_LOGOUT)) {
+            this.logger.log(
+                `[AuditAuthIP] Action=${action} User=${userId} ResolvedIP=${resolvedIp} | Headers: x-forwarded-for="${request.headers['x-forwarded-for'] || ''}", x-real-ip="${request.headers['x-real-ip'] || ''}", cf-connecting-ip="${request.headers['cf-connecting-ip'] || ''}", req.ip="${request.ip || ''}", remoteAddress="${request.socket?.remoteAddress || ''}"`
+            );
+        }
+
         const auditLog = this.auditRepo.create({
             userId,
             action,
@@ -59,7 +67,7 @@ export class AuditService {
             oldValue,
             newValue,
             description,
-            ipAddress: request ? this.getClientIp(request) : null,
+            ipAddress: resolvedIp,
             userAgent: request?.headers['user-agent'] || null,
         } as Partial<AuditLog>);
 
@@ -323,10 +331,6 @@ export class AuditService {
     }
 
     private getClientIp(request: Request): string {
-        const forwarded = request.headers['x-forwarded-for'];
-        if (typeof forwarded === 'string') {
-            return forwarded.split(',')[0].trim();
-        }
-        return request.ip || request.socket?.remoteAddress || 'unknown';
+        return extractClientIp(request);
     }
 }

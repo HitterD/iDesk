@@ -1,10 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Eye, Tag, ThumbsUp, ThumbsDown, BookOpen, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import {
+    ArrowLeft,
+    Calendar,
+    Eye,
+    ThumbsUp,
+    User,
+    LifeBuoy,
+    Plus,
+    Share2,
+    Check,
+    ListTree,
+    ChevronRight,
+    Printer as PrintIcon,
+    HelpCircle,
+    CheckCircle2,
+    Zap,
+    Lightbulb,
+    Target,
+    Users
+} from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ArticleMarkdownViewer, slugify } from '@/features/knowledge-base/components/ArticleMarkdownViewer';
+import { ArticleViewersStack } from '@/features/knowledge-base/components/ArticleViewersStack';
+import { getCategoryMeta } from '@/components/ui/ArticleCard';
+import { useKBSocket } from '@/features/knowledge-base/hooks/useKBSocket';
+import { useAuth } from '@/stores/useAuth';
+import { cn } from '@/lib/utils';
 
 interface Article {
     id: string;
@@ -13,31 +37,76 @@ interface Article {
     category: string;
     tags?: string[];
     viewCount: number;
+    helpfulCount: number;
     createdAt: string;
     updatedAt: string;
+    authorName?: string;
     author?: { fullName: string };
     featuredImage?: string;
     images?: string[];
 }
 
-/**
- * Resolve image URL - handles both relative and absolute URLs
- */
+interface TocItem {
+    id: string;
+    title: string;
+    level: number;
+    stepNumber?: string;
+}
+
 const getImageUrl = (url: string): string => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
         return url;
     }
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5050';
+    if (url.startsWith('/kb/') || url.startsWith('/assets/') || url.startsWith('/sounds/') || url.startsWith('/images/')) {
+        return url;
+    }
+    const apiUrl = import.meta.env.VITE_API_URL || '';
     return `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
+function formatIndonesianDate(dateStr?: string): string {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        });
+    } catch {
+        return dateStr;
+    }
+}
+
 export const ClientArticleDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
-    const [feedback, setFeedback] = useState<'helpful' | 'not-helpful' | null>(null);
+    const { user } = useAuth();
+    const [isHelpfulClicked, setIsHelpfulClicked] = useState(false);
+    const [selectedReaction, setSelectedReaction] = useState<string | null>(null);
+    const [copiedShare, setCopiedShare] = useState(false);
+    const [activeTocId, setActiveTocId] = useState<string>('');
+    const [completedSteps, setCompletedSteps] = useState<Record<string, boolean>>({});
+    const [scrollProgress, setScrollProgress] = useState(0);
 
-    const { data: article, isLoading, isError, refetch } = useQuery<Article>({
+    // Realtime WebSocket synchronization
+    useKBSocket(id);
+
+    // Track scroll progress
+    useEffect(() => {
+        const handleScroll = () => {
+            const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+            if (totalHeight > 0) {
+                const current = (window.scrollY / totalHeight) * 100;
+                setScrollProgress(Math.min(100, Math.max(0, current)));
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    const { data: article, isLoading } = useQuery<Article>({
         queryKey: ['kb-article', id],
         queryFn: async () => {
             const res = await api.get(`/kb/articles/${id}`);
@@ -45,258 +114,501 @@ export const ClientArticleDetailPage: React.FC = () => {
         },
         enabled: !!id,
         retry: 2,
-        retryDelay: 1000,
     });
 
-    // Feedback mutation
-    const feedbackMutation = useMutation({
-        mutationFn: async (isHelpful: boolean) => {
-            return api.post(`/kb/articles/${id}/feedback`, { isHelpful });
+    // Fetch viewers list
+    const { data: viewersData } = useQuery({
+        queryKey: ['kb-viewers', id],
+        queryFn: async () => {
+            const res = await api.get(`/kb/articles/${id}/viewers`);
+            return res.data;
         },
-        onSuccess: (_, isHelpful) => {
-            setFeedback(isHelpful ? 'helpful' : 'not-helpful');
-            toast.success('Terima kasih atas feedback Anda!');
-        },
-        onError: () => {
-            toast.error('Gagal mengirim feedback. Silakan coba lagi.');
-        },
+        enabled: !!id,
+        staleTime: 10000,
     });
 
-    // Track view
+    // Deduplicated session-based view tracking with user context
     useEffect(() => {
-        if (id) {
+        if (!id) return;
+        const sessionKey = `idusk_kb_viewed_${id}`;
+        const hasViewedInSession = sessionStorage.getItem(sessionKey);
+
+        if (!hasViewedInSession) {
+            sessionStorage.setItem(sessionKey, '1');
+            // Viewer identity is taken from the session cookie on the server.
             api.post(`/kb/articles/${id}/view`).catch(() => { });
         }
-    }, [id]);
+    }, [id, user]);
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
+    // Extract Table of Contents & total steps
+    const { tocItems, totalSteps } = useMemo(() => {
+        if (!article?.content) return { tocItems: [], totalSteps: 0 };
+        const lines = article.content.split('\n');
+        const items: TocItem[] = [];
+        let stepCount = 0;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('## ')) {
+                const title = trimmed.replace(/^##\s*/, '').trim();
+                items.push({
+                    id: slugify(title),
+                    title,
+                    level: 2,
+                });
+            } else if (trimmed.startsWith('### ')) {
+                const title = trimmed.replace(/^###\s*/, '').trim();
+                const stepMatch = title.match(/^(?:Step|Langkah)\s*(\d+)[:\s]*(.*)/i);
+                if (stepMatch) {
+                    stepCount++;
+                    const stepNum = stepMatch[1];
+                    const stepTitle = stepMatch[2] || `Langkah ${stepNum}`;
+                    items.push({
+                        id: slugify(`step-${stepNum}-${stepTitle}`),
+                        title: `Langkah ${stepNum}: ${stepTitle}`,
+                        level: 3,
+                        stepNumber: stepNum,
+                    });
+                } else {
+                    items.push({
+                        id: slugify(title),
+                        title,
+                        level: 3,
+                    });
+                }
+            }
+        }
+        return { tocItems: items, totalSteps: stepCount };
+    }, [article?.content]);
+
+    // Handle Step Completion Toggle
+    const handleToggleStep = useCallback((stepNumber: string) => {
+        setCompletedSteps((prev) => {
+            const next = { ...prev, [stepNumber]: !prev[stepNumber] };
+            if (next[stepNumber]) {
+                toast.success(`Langkah ${stepNumber} ditandai selesai! 🎉`);
+            }
+            return next;
         });
+    }, []);
+
+    const completedCount = useMemo(() => {
+        return Object.values(completedSteps).filter(Boolean).length;
+    }, [completedSteps]);
+
+    const stepProgressPercent = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+
+    const handleScrollTo = (slugId: string) => {
+        setActiveTocId(slugId);
+        const element = document.getElementById(slugId);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
+    const handleReaction = async (reactionKey: string, label: string) => {
+        setSelectedReaction(reactionKey);
+        if (!isHelpfulClicked && id) {
+            try {
+                await api.post(`/kb/articles/${id}/helpful`);
+                setIsHelpfulClicked(true);
+                toast.success(`Terima kasih atas feedback "${label}"! ✨`);
+            } catch {
+                setIsHelpfulClicked(true);
+                toast.success(`Feedback tercatat! ✨`);
+            }
+        }
+    };
+
+    const handleShare = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            setCopiedShare(true);
+            toast.success('Link artikel disalin!');
+            setTimeout(() => setCopiedShare(false), 2000);
+        } catch {
+            toast.error('Gagal menyalin link');
+        }
+    };
+
+    const handlePrint = () => {
+        window.print();
     };
 
     if (isLoading) {
         return (
-            <div className="max-w-4xl mx-auto space-y-6 animate-pulse">
-                <div className="h-6 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
-                <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 md:p-12 shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="flex gap-3 mb-6">
-                        <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded-full" />
-                        <div className="h-6 w-32 bg-slate-100 dark:bg-slate-800 rounded" />
-                        <div className="h-6 w-24 bg-slate-100 dark:bg-slate-800 rounded" />
-                    </div>
-                    <div className="h-10 w-3/4 bg-slate-200 dark:bg-slate-700 rounded mb-6" />
-                    <div className="h-48 w-full bg-slate-200 dark:bg-slate-700 rounded-2xl mb-8" />
-                    <div className="space-y-4">
-                        <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded" />
-                        <div className="h-4 w-5/6 bg-slate-100 dark:bg-slate-800 rounded" />
-                        <div className="h-4 w-4/5 bg-slate-100 dark:bg-slate-800 rounded" />
-                        <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded" />
-                    </div>
-                </div>
+            <div className="max-w-6xl mx-auto p-12 text-center text-muted-foreground animate-pulse space-y-4">
+                <div className="h-6 w-48 bg-muted rounded-md mx-auto" />
+                <div className="h-64 bg-card rounded-2xl border border-border" />
             </div>
         );
     }
-
-    if (isError) {
-        return (
-            <div className="max-w-4xl mx-auto">
-                <ErrorState
-                    title="Gagal Memuat Artikel"
-                    message="Terjadi kesalahan saat memuat artikel. Silakan coba lagi."
-                    onRetry={() => refetch()}
-                />
-            </div>
-        );
-    }
-
-
 
     if (!article) {
         return (
-            <div className="text-center py-12">
-                <BookOpen className="w-16 h-16 text-slate-200 dark:text-slate-600 mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Article not found</h2>
-                <Link to="/client/kb" className="text-primary hover:underline">Back to Help Center</Link>
+            <div className="max-w-xl mx-auto p-12 text-center space-y-4">
+                <h2 className="text-xl font-bold text-foreground">Artikel Tidak Ditemukan</h2>
+                <p className="text-sm text-muted-foreground">Artikel yang Anda cari mungkin telah dipindahkan atau dihapus.</p>
+                <Link
+                    to="/client/kb"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold cursor-pointer"
+                >
+                    <ArrowLeft className="w-4 h-4" /> Kembali ke Pusat Bantuan
+                </Link>
             </div>
         );
     }
 
+    const meta = getCategoryMeta(article.category);
+    const IconComponent = meta.icon;
+    const authorDisplayName = article.authorName || article.author?.fullName || 'IT Support Team';
+
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            {/* Back Button */}
-            <button
-                onClick={() => navigate('/client/kb')}
-                className="inline-flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-medium"
-            >
-                <ArrowLeft className="w-5 h-5" />
-                Back to Help Center
-            </button>
+        <div className="max-w-6xl mx-auto space-y-6 pb-16 relative">
+            {/* Top Reading Progress Bar */}
+            <div
+                className="fixed top-0 left-0 h-1 bg-primary z-50 transition-all duration-75 shadow-sm"
+                style={{ width: `${scrollProgress}%` }}
+                aria-hidden="true"
+            />
 
-            {/* Article Card */}
-            <article className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 md:p-12 shadow-sm border border-slate-100 dark:border-slate-700">
-                {/* Meta */}
-                <div className="flex flex-wrap items-center gap-3 mb-6">
-                    <span className="px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-bold border border-primary/20 flex items-center gap-1">
-                        <Tag className="w-3 h-3" />
-                        {article.category}
-                    </span>
-                    <span className="flex items-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-                        <Clock className="w-4 h-4 mr-1.5" />
-                        {formatDate(article.updatedAt)}
-                    </span>
-                    <span className="flex items-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-                        <Eye className="w-4 h-4 mr-1.5" />
-                        {article.viewCount} views
-                    </span>
-                </div>
+            {/* Breadcrumb Navigation & Top Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+                <div className="flex items-center flex-wrap gap-2 text-xs">
+                    <Link
+                        to="/client/kb"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-foreground hover:bg-muted font-semibold transition-all shadow-2xs group cursor-pointer"
+                    >
+                        <ArrowLeft className="w-3.5 h-3.5 text-muted-foreground group-hover:-translate-x-0.5 group-hover:text-foreground transition-all" />
+                        <span>Kembali ke Knowledge Base</span>
+                    </Link>
 
-                {/* Title */}
-                <h1 className="text-3xl md:text-4xl font-bold text-slate-800 dark:text-white mb-6 leading-tight">
-                    {article.title}
-                </h1>
-
-                {/* Featured Image */}
-                {article.featuredImage && (
-                    <div className="mb-6">
-                        <img
-                            src={getImageUrl(article.featuredImage)}
-                            alt={article.title}
-                            className="w-full max-h-96 object-cover rounded-2xl"
-                            onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* Images Gallery */}
-                {article.images && article.images.length > 0 && (
-                    <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {article.images.map((imageUrl, index) => (
-                            <img
-                                key={index}
-                                src={getImageUrl(imageUrl)}
-                                alt={`Article image ${index + 1}`}
-                                className="w-full h-48 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(getImageUrl(imageUrl), '_blank')}
-                                onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                }}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {/* Content */}
-                <div className="prose prose-lg prose-slate dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap text-slate-600 dark:text-slate-300 leading-relaxed text-base">
-                        {article.content.split(/!\[([^\]]*)\]\(([^)]+)\)/).map((part, index) => {
-                            // Every 3rd element starting from index 2 is the URL
-                            if (index % 3 === 2) {
-                                const altText = article.content.split(/!\[([^\]]*)\]\(([^)]+)\)/)[index - 1];
-                                return (
-                                    <img
-                                        key={index}
-                                        src={getImageUrl(part)}
-                                        alt={altText || 'Article image'}
-                                        className="my-4 rounded-xl max-w-full"
-                                        onError={(e) => {
-                                            const target = e.target as HTMLImageElement;
-                                            target.style.display = 'none';
-                                        }}
-                                    />
-                                );
-                            }
-                            // Skip alt text parts (index % 3 === 1)
-                            if (index % 3 === 1) return null;
-                            // Render text parts
-                            return part;
-                        })}
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
+                        <span className="font-semibold text-foreground">{article.category}</span>
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
+                        <span className="truncate max-w-[220px] text-muted-foreground">
+                            {article.title}
+                        </span>
                     </div>
                 </div>
 
-                {/* Tags */}
-                {article.tags && article.tags.length > 0 && (
-                    <div className="mt-12 pt-8 border-t border-slate-100 dark:border-slate-700">
-                        <div className="flex flex-wrap gap-2">
-                            {article.tags.map((tag, i) => (
-                                <span
-                                    key={i}
-                                    className="flex items-center px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-sm font-medium border border-slate-100 dark:border-slate-700"
-                                >
-                                    <Tag className="w-3 h-3 mr-1.5" />
-                                    {tag}
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border text-foreground hover:bg-muted font-medium transition-all rounded-lg text-xs shadow-2xs cursor-pointer"
+                    >
+                        {copiedShare ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                        <span>{copiedShare ? 'Tersalin' : 'Bagikan'}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handlePrint}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border text-foreground hover:bg-muted font-medium transition-all rounded-lg text-xs shadow-2xs cursor-pointer"
+                        title="Cetak / Simpan PDF"
+                    >
+                        <PrintIcon className="w-3.5 h-3.5" />
+                        <span>Cetak</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* 2-Column Documentation Grid (Content 8 Cols + Sticky Sidebar 4 Cols) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Area: Main Article Content (8 Columns) */}
+                <div className="lg:col-span-8 space-y-6">
+                    <article className="rounded-3xl border border-border bg-card p-6 md:p-10 shadow-xs space-y-6">
+                        {/* Meta Badges + Avatar Stack */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/60">
+                            <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider border", meta.colorClass)}>
+                                <IconComponent className="w-3.5 h-3.5" />
+                                <span>{article.category}</span>
+                            </div>
+
+                            {/* Live Realtime Views Badge & Readers Avatar Stack */}
+                            <div className="flex items-center flex-wrap gap-3 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1 font-medium">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    {formatIndonesianDate(article.updatedAt || article.createdAt)}
                                 </span>
-                            ))}
+
+                                <span className="flex items-center gap-1.5 font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span>{article.viewCount} views</span>
+                                </span>
+
+                                {/* Readers Avatar Stack */}
+                                {viewersData?.recentViewers && viewersData.recentViewers.length > 0 && (
+                                    <div className="border-l border-border/80 pl-3">
+                                        <ArticleViewersStack
+                                            viewers={viewersData.recentViewers}
+                                            totalCount={viewersData.totalViewers || article.viewCount}
+                                            articleTitle={article.title}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Article Title & Author Header */}
+                        <div className="space-y-2.5">
+                            <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
+                                {article.title}
+                            </h1>
+
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1.5 font-medium text-foreground">
+                                    <User className="w-3.5 h-3.5 text-foreground/70" />
+                                    {authorDisplayName}
+                                </span>
+                                <span>•</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                    ✓ Terverifikasi IT Helpdesk
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Featured Banner */}
+                        {article.featuredImage && (
+                            <div className="rounded-2xl overflow-hidden border border-border">
+                                <img
+                                    src={getImageUrl(article.featuredImage)}
+                                    alt={article.title}
+                                    className="w-full h-64 md:h-72 object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Rich Content Viewer with Step Checklist Toggle */}
+                        <div className="pt-2">
+                            <ArticleMarkdownViewer
+                                content={article.content}
+                                completedSteps={completedSteps}
+                                onToggleStep={handleToggleStep}
+                            />
+                        </div>
+
+                        {/* Article Tags */}
+                        {article.tags && article.tags.length > 0 && (
+                            <div className="pt-6 border-t border-border flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground mr-1">Tags:</span>
+                                {article.tags.map((tag) => (
+                                    <span
+                                        key={tag}
+                                        className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-xs font-mono border border-border"
+                                    >
+                                        #{tag}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Interactive Reactions Widget */}
+                        <div className="pt-6 border-t border-border space-y-3.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                <span className="text-xs md:text-sm font-bold text-foreground">
+                                    Bagaimana panduan ini membantu Anda?
+                                </span>
+                                {article.helpfulCount > 0 && (
+                                    <span className="text-[11px] font-mono text-muted-foreground">
+                                        {article.helpfulCount} orang terbantu dengan artikel ini
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleReaction('fast', 'Solutif & Cepat')}
+                                    className={cn(
+                                        "flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                                        selectedReaction === 'fast'
+                                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-2xs font-bold"
+                                            : "bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                                    <span>Solutif</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleReaction('clear', 'Sangat Jelas')}
+                                    className={cn(
+                                        "flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                                        selectedReaction === 'clear'
+                                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-2xs font-bold"
+                                            : "bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <Lightbulb className="w-3.5 h-3.5 text-yellow-500" />
+                                    <span>Jelas</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleReaction('target', 'Tepat Sasaran')}
+                                    className={cn(
+                                        "flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                                        selectedReaction === 'target'
+                                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-2xs font-bold"
+                                            : "bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <Target className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>Tepat Sasaran</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleReaction('helpful', 'Membantu')}
+                                    className={cn(
+                                        "flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                                        selectedReaction === 'helpful'
+                                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-2xs font-bold"
+                                            : "bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <ThumbsUp className="w-3.5 h-3.5 text-primary" />
+                                    <span>Membantu</span>
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+
+                    {/* Bottom Escalation CTA */}
+                    <div className="rounded-2xl border border-border bg-card p-5 md:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xs">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center text-foreground shrink-0">
+                                <LifeBuoy className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-foreground">Kendala Belum Terselesaikan?</h4>
+                                <p className="text-xs text-muted-foreground">Buat tiket agar tim IT Helpdesk dapat memberikan asistensi langsung.</p>
+                            </div>
+                        </div>
+
+                        <Link
+                            to="/client/tickets/create"
+                            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Buat Tiket Bantuan</span>
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Right Area: Sticky Table of Contents, Step Tracker & Quick Summary (4 Columns) */}
+                <div className="lg:col-span-4 space-y-4 sticky top-6">
+                    {/* Step Tracker Card */}
+                    {totalSteps > 0 && (
+                        <div className="p-4 rounded-2xl border border-border bg-card space-y-2.5 shadow-2xs">
+                            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-foreground">
+                                <span className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                    <span>Progres Solusi</span>
+                                </span>
+                                <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                                    {completedCount}/{totalSteps} Selesai
+                                </span>
+                            </div>
+
+                            <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/80">
+                                <div
+                                    className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                                    style={{ width: `${stepProgressPercent}%` }}
+                                />
+                            </div>
+
+                            <p className="text-[11px] text-muted-foreground">
+                                {completedCount === totalSteps
+                                    ? '🎉 Selamat! Semua langkah telah Anda selesaikan.'
+                                    : 'Klik tombol "Tandai Selesai" pada setiap langkah untuk memantau kemajuan Anda.'}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Table of Contents (Daftar Isi) */}
+                    {tocItems.length > 0 && (
+                        <div className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-2xs">
+                            <div className="flex items-center gap-2 pb-2 border-b border-border text-xs font-bold uppercase tracking-wider text-foreground">
+                                <ListTree className="w-4 h-4 text-muted-foreground" />
+                                <span>Daftar Isi Panduan</span>
+                            </div>
+
+                            <nav className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                                {tocItems.map((item, idx) => {
+                                    const isStepDone = item.stepNumber ? !!completedSteps[item.stepNumber] : false;
+                                    return (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => handleScrollTo(item.id)}
+                                            className={cn(
+                                                "w-full text-left text-xs py-1.5 px-2 rounded-lg transition-colors cursor-pointer flex items-center justify-between gap-1",
+                                                item.level === 3 ? "pl-4 text-muted-foreground hover:text-foreground" : "font-semibold text-foreground/90 hover:bg-muted/50",
+                                                activeTocId === item.id && "bg-muted text-primary font-bold"
+                                            )}
+                                            title={item.title}
+                                        >
+                                            <span className={cn("truncate", isStepDone && "line-through opacity-75")}>
+                                                {item.title}
+                                            </span>
+                                            {isStepDone && (
+                                                <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </nav>
+                        </div>
+                    )}
+
+                    {/* Quick Guide Info Card */}
+                    <div className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-2xs text-xs">
+                        <div className="flex items-center gap-2 pb-2 border-b border-border font-bold uppercase tracking-wider text-foreground">
+                            <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                            <span>Informasi Panduan</span>
+                        </div>
+
+                        <div className="space-y-2 text-muted-foreground">
+                            <div className="flex items-center justify-between">
+                                <span>Tipe Solusi:</span>
+                                <span className="font-semibold text-foreground">Mandiri (Self-Service)</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span>Tingkat Kesulitan:</span>
+                                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Mudah / Pemula</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span>Diperbarui:</span>
+                                <span className="font-mono text-foreground">{formatIndonesianDate(article.updatedAt || article.createdAt)}</span>
+                            </div>
                         </div>
                     </div>
-                )}
 
-                {/* Feedback */}
-                <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <span className="text-slate-400 dark:text-slate-500 text-sm font-medium">
-                        Was this article helpful?
-                    </span>
-                    <div className="flex gap-3" role="group" aria-label="Article feedback">
-                        <button
-                            onClick={() => feedbackMutation.mutate(true)}
-                            disabled={feedback !== null || feedbackMutation.isPending}
-                            aria-pressed={feedback === 'helpful'}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${feedback === 'helpful'
-                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium'
-                                    : feedback !== null
-                                        ? 'opacity-50 cursor-not-allowed text-slate-300 dark:text-slate-600'
-                                        : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-slate-400 hover:text-green-600'
-                                }`}
+                    {/* Direct Helpdesk Shortcut */}
+                    <div className="p-4 rounded-2xl border border-border bg-muted/20 space-y-2.5 text-xs">
+                        <span className="font-bold text-foreground block">Butuh bantuan IT langsung?</span>
+                        <p className="text-muted-foreground leading-relaxed">
+                            Jika langkah-langkah di atas tidak berhasil, segera buat tiket bantuan di sistem.
+                        </p>
+                        <Link
+                            to="/client/tickets/create"
+                            className="w-full flex items-center justify-center gap-1.5 p-2 rounded-xl bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
                         >
-                            {feedbackMutation.isPending && feedbackMutation.variables === true ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <ThumbsUp className="w-5 h-5" />
-                            )}
-                            Helpful
-                        </button>
-                        <button
-                            onClick={() => feedbackMutation.mutate(false)}
-                            disabled={feedback !== null || feedbackMutation.isPending}
-                            aria-pressed={feedback === 'not-helpful'}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${feedback === 'not-helpful'
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium'
-                                    : feedback !== null
-                                        ? 'opacity-50 cursor-not-allowed text-slate-300 dark:text-slate-600'
-                                        : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                }`}
-                        >
-                            {feedbackMutation.isPending && feedbackMutation.variables === false ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <ThumbsDown className="w-5 h-5" />
-                            )}
-                            Not helpful
-                        </button>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Buat Tiket Sekarang</span>
+                        </Link>
                     </div>
                 </div>
-            </article>
-
-
-            {/* Still need help? */}
-            <div className="bg-gradient-to-br from-primary/20 to-primary/5 dark:from-primary/10 dark:to-transparent rounded-2xl border border-primary/20 p-6 text-center">
-                <h3 className="font-bold text-slate-800 dark:text-white mb-2">Still have questions?</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-                    Our support team is here to help you
-                </p>
-                <Link
-                    to="/client/create"
-                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
-                >
-                    Contact Support
-                </Link>
             </div>
         </div>
     );
 };
+
+export default ClientArticleDetailPage;

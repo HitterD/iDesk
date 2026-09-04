@@ -300,9 +300,8 @@ maybeDescribe('ZoomBookingService.getMergedCalendar (integration)', () => {
         expect(slot!.bookings[1].bookedBy).toBe('User B');
     });
 
-    it('caps visible bookings at 4 and reports overflow count for "+N lainnya"', async () => {
+    it('returns all overlapping bookings across accounts for complete calendar visibility', async () => {
         // 16:00–17:00 — six overlapping bookings across three accounts.
-        // Visible cap is 4, so bookingsOverflow should be 2.
         const accountIds = [account1Id, account2Id, account3Id];
         for (let i = 0; i < 6; i++) {
             await bookingRepo.save(bookingRepo.create({
@@ -320,8 +319,7 @@ maybeDescribe('ZoomBookingService.getMergedCalendar (integration)', () => {
         const merged = await service.getMergedCalendar(testDate, testDate, userAId);
         const slot = findSlot(merged[0], '16:00');
         expect(slot).toBeDefined();
-        expect(slot!.bookings).toHaveLength(4);
-        expect(slot!.bookingsOverflow).toBe(2);
+        expect(slot!.bookings).toHaveLength(6);
         expect(slot!.status).toBe('booked');
     });
 

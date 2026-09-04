@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Copy, Play, RefreshCw, Trash2, Tv, Upload } from 'lucide-react';
+import { Copy, Play, RefreshCw, Trash2, Tv, Upload, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { resolveAudioUrl } from '@/lib/media';
 
 interface Site {
     id: string;
@@ -10,17 +11,75 @@ interface Site {
     isActive: boolean;
     tvToken: string | null;
     ringtoneNewTicket: string | null;
+    ringtoneNewTicketSupport?: string | null;
+    ringtoneNewTicketOracle?: string | null;
+    ringtoneNewTicketWebDev?: string | null;
+    ringtoneNewTicketMobileDev?: string | null;
     ringtoneInProgress: string | null;
     ringtoneClosing: string | null;
     closingTime: string | null;
 }
 
-type RingtoneSlot = 'newTicket' | 'inProgress' | 'closing';
+type RingtoneSlot = 
+    | 'newTicket' 
+    | 'newTicketSupport'
+    | 'newTicketOracle'
+    | 'newTicketWebDev'
+    | 'newTicketMobileDev'
+    | 'inProgress' 
+    | 'closing';
 
-const RINGTONE_SLOTS: Array<{ slot: RingtoneSlot; field: keyof Site; label: string }> = [
-    { slot: 'newTicket', field: 'ringtoneNewTicket', label: 'Tiket Masuk' },
-    { slot: 'inProgress', field: 'ringtoneInProgress', label: 'In Progress' },
-    { slot: 'closing', field: 'ringtoneClosing', label: 'Jam Pulang' },
+interface SlotConfig {
+    slot: RingtoneSlot;
+    field: keyof Site;
+    label: string;
+    defaultUrl: string;
+    defaultLabel: string;
+}
+
+const RINGTONE_SLOTS: SlotConfig[] = [
+    { 
+        slot: 'newTicketSupport', 
+        field: 'ringtoneNewTicketSupport', 
+        label: 'Tiket IT Support',
+        defaultUrl: '/sounds/divisions/new-ticket-it-support.mp3',
+        defaultLabel: 'Bawaan: Chime + "New Ticket IT Support"',
+    },
+    { 
+        slot: 'newTicketOracle', 
+        field: 'ringtoneNewTicketOracle', 
+        label: 'Tiket Oracle / K2',
+        defaultUrl: '/sounds/divisions/new-ticket-oracle.mp3',
+        defaultLabel: 'Bawaan: Chime + "New Ticket Oracle K2"',
+    },
+    { 
+        slot: 'newTicketWebDev', 
+        field: 'ringtoneNewTicketWebDev', 
+        label: 'Tiket Web Dev',
+        defaultUrl: '/sounds/divisions/new-ticket-web-dev.mp3',
+        defaultLabel: 'Bawaan: Chime + "New Ticket Web Developer"',
+    },
+    { 
+        slot: 'newTicketMobileDev', 
+        field: 'ringtoneNewTicketMobileDev', 
+        label: 'Tiket Mobile Dev',
+        defaultUrl: '/sounds/divisions/new-ticket-mobile-dev.mp3',
+        defaultLabel: 'Bawaan: Chime + "New Ticket Mobile Developer"',
+    },
+    { 
+        slot: 'inProgress', 
+        field: 'ringtoneInProgress', 
+        label: 'In Progress',
+        defaultUrl: '/sounds/default/assigned.mp3',
+        defaultLabel: 'Bawaan: Chime Assigned',
+    },
+    { 
+        slot: 'closing', 
+        field: 'ringtoneClosing', 
+        label: 'Jam Pulang',
+        defaultUrl: '/sounds/default/new-ticket.mp3',
+        defaultLabel: 'Bawaan: Chime Pulang',
+    },
 ];
 
 export function TvBoardSettings() {
@@ -118,7 +177,7 @@ export function TvBoardSettings() {
         try {
             const res = await api.delete(`/sites/${siteId}/tv-ringtone/${slot}`);
             replaceSite(res.data);
-            toast.success('Ringtone dihapus');
+            toast.success('Ringtone kustom dihapus, kembali ke default');
         } catch {
             toast.error('Gagal menghapus ringtone');
         } finally {
@@ -127,7 +186,8 @@ export function TvBoardSettings() {
     };
 
     const handlePreview = (url: string) => {
-        new Audio(url).play().catch(() => toast.error('Gagal memutar. Cek apakah file masih ada.'));
+        const resolved = resolveAudioUrl(url);
+        new Audio(resolved).play().catch(() => toast.error('Gagal memutar. Cek apakah file masih ada.'));
     };
 
     const handleClosingTime = async (siteId: string, closingTime: string) => {
@@ -150,12 +210,10 @@ export function TvBoardSettings() {
                 <Tv className="w-6 h-6" /> TV Board
             </h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-                Generate link kanban tiket per site untuk ditayangkan di layar TV. Generate ulang akan otomatis membatalkan link lama.
-                Ringtone diputar di halaman TV saat tiket masuk, saat tiket mulai dikerjakan, dan pada jam pulang.
-                Agar suara berbunyi tanpa klik, jalankan browser TV dengan flag <code>--autoplay-policy=no-user-gesture-required</code>.
+                Generate link kanban tiket per site untuk ditayangkan di layar TV. Ringtone otomatis berbunyi per divisi saat ada tiket masuk, saat tiket mulai dikerjakan, dan pada jam pulang. Setiap slot memiliki suara default bawaan yang bisa Anda uji dengar atau timpa dengan file audio sendiri.
             </p>
             {sites.map((site) => (
-                <div key={site.id} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div key={site.id} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-white">{site.code} — {site.name}</p>
@@ -196,28 +254,42 @@ export function TvBoardSettings() {
                         </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
-                        {RINGTONE_SLOTS.map(({ slot, field, label }) => {
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pengaturan Suara Notifikasi Per Divisi</span>
+                        </div>
+                        {RINGTONE_SLOTS.map(({ slot, field, label, defaultUrl, defaultLabel }) => {
                             const url = site[field] as string | null;
+                            const activeUrl = url || defaultUrl;
+
                             return (
-                                <div key={slot} className="flex items-center justify-between gap-3">
-                                    <span className="text-sm text-slate-600 dark:text-slate-300 w-28 shrink-0">{label}</span>
-                                    <span className="text-xs text-slate-400 truncate flex-1">
-                                        {url ?? 'Belum ada ringtone'}
-                                    </span>
+                                <div key={slot} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 w-36 shrink-0">{label}</span>
+                                    {url ? (
+                                        <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                            <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold shrink-0">
+                                                Kustom
+                                            </span>
+                                            <span className="text-xs text-slate-600 dark:text-slate-300 truncate" title={url}>
+                                                {url}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-slate-400 dark:text-slate-500 truncate flex-1 italic">
+                                            {defaultLabel}
+                                        </span>
+                                    )}
                                     <div className="flex items-center gap-1 shrink-0">
-                                        {url && (
-                                            <button
-                                                onClick={() => handlePreview(url)}
-                                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
-                                                title="Uji dengar"
-                                            >
-                                                <Play className="w-4 h-4" />
-                                            </button>
-                                        )}
+                                        <button
+                                            onClick={() => handlePreview(activeUrl)}
+                                            className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 transition-colors"
+                                            title={url ? "Uji dengar ringtone kustom" : "Uji dengar suara bawaan (default)"}
+                                        >
+                                            <Play className="w-4 h-4" />
+                                        </button>
                                         <label
-                                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                                            title="Unggah ringtone"
+                                            className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer text-slate-600 dark:text-slate-300 transition-colors"
+                                            title="Unggah ringtone kustom"
                                         >
                                             <Upload className="w-4 h-4" />
                                             <input
@@ -235,8 +307,8 @@ export function TvBoardSettings() {
                                             <button
                                                 onClick={() => handleClearRingtone(site.id, slot)}
                                                 disabled={busyId === site.id}
-                                                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600"
-                                                title="Hapus ringtone"
+                                                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 transition-colors"
+                                                title="Hapus kustom (kembali ke bawaan)"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
@@ -247,7 +319,7 @@ export function TvBoardSettings() {
                         })}
 
                         <div className="flex items-center justify-between gap-3 pt-2">
-                            <span className="text-sm text-slate-600 dark:text-slate-300 w-28 shrink-0">Jam pulang</span>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200 w-36 shrink-0">Jam pulang</span>
                             <input
                                 type="time"
                                 defaultValue={site.closingTime ?? ''}

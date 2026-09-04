@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     TrendingUp,
@@ -447,6 +447,10 @@ export const BentoDashboardPage = () => {
         refetchStats();
         toast.success('Dashboard refreshed');
     };
+
+    if (user?.role === 'AGENT_ORACLE') {
+        return <Navigate to="/tickets/oracle-k2" replace />;
+    }
 
     // Error state
     if (ticketsError || statsError) {

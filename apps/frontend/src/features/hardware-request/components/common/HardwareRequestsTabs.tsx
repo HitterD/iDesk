@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { m, useReducedMotion } from 'framer-motion';
 import { List as ListIcon, BarChart2, CalendarDays, BookOpen } from 'lucide-react';
 import { useHardwareRequestsCount } from '../../hooks/useHardwareRequestsCount';
 import { usePermissions, useHardwareRole } from '../../hooks/usePermissions';
+import { cn } from '@/lib/utils';
 import type { HardwareRole } from '../../types';
 
 interface TabDef {
@@ -23,12 +23,11 @@ const TABS: TabDef[] = [
 ];
 
 export function HardwareRequestsTabs() {
-  const reduce = useReducedMotion();
   const { openCount } = useHardwareRequestsCount();
   const { role } = useHardwareRole();
   const { isIctLead } = usePermissions();
-  
-  const visibleTabs = TABS.filter(t => {
+
+  const visibleTabs = TABS.filter((t) => {
     if (t.roles && !t.roles.includes(role)) return false;
     if (t.ictLeadOnly && !isIctLead) return false;
     return true;
@@ -37,36 +36,37 @@ export function HardwareRequestsTabs() {
   return (
     <nav
       aria-label="Hardware requests navigation"
-      className="sticky top-0 z-10 bg-[hsl(var(--background))]/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-700/80 -mx-4 sm:-mx-6 px-4 sm:px-6 flex items-center gap-0"
+      className="flex w-fit max-w-full overflow-x-auto gap-1 rounded-2xl border border-border bg-card p-1 shadow-xs"
     >
       {visibleTabs.map((tab) => (
         <NavLink
           key={tab.to}
           to={tab.to}
           end={tab.end}
-          className={({ isActive }) => `relative flex items-center gap-1.5 px-3.5 py-3 text-[12px] font-bold transition-colors duration-150 focus-visible:outline-none ${
-            isActive
-              ? 'text-primary'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-          }`}
+          className={({ isActive }) =>
+            cn(
+              'relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 focus-visible:outline-none shrink-0 cursor-pointer shadow-xs active:scale-[0.98]',
+              isActive
+                ? 'bg-primary text-primary-foreground font-bold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            )
+          }
         >
           {({ isActive }) => (
             <>
-              <tab.icon className="size-3.5" />
+              <tab.icon className="size-4 shrink-0" aria-hidden="true" />
               <span>{tab.label}</span>
               {tab.showBadge && openCount > 0 && (
-                <span className={`ml-1 rounded-full px-1.5 py-0.5 text-xs font-bold ${
-                  isActive ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}>
+                <span
+                  className={cn(
+                    'ml-1 rounded-full px-2 py-0.5 text-xs font-bold transition-colors',
+                    isActive
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  )}
+                >
                   {openCount}
                 </span>
-              )}
-              {isActive && (
-                <m.span
-                  layoutId="hr-tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full"
-                  transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40 }}
-                />
               )}
             </>
           )}

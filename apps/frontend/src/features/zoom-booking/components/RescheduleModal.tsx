@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import type { ZoomBooking } from '../types';
 import { useRescheduleOwnBooking, useZoomCalendar, usePublicZoomSettings } from '../hooks/useZoomBooking';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { ZOOM_DURATION_OPTIONS } from '../constants/duration-constants';
 
 interface RescheduleModalProps {
     booking: ZoomBooking | null;
@@ -122,8 +123,20 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
         });
     }, [calendarData, selectedDate, selectedTime, selectedDuration, booking]);
 
+    const isPastMidnight = useMemo(() => {
+        if (!selectedTime || !booking) return false;
+        const duration = selectedDuration || booking.durationMinutes;
+        const [startH, startM] = selectedTime.split(':').map(Number);
+        return (startH * 60 + startM + duration) > 24 * 60;
+    }, [selectedTime, selectedDuration, booking]);
+
     const handleSubmit = async () => {
         if (!booking || !selectedDate || !selectedTime) return;
+
+        if (isPastMidnight) {
+            toast.error('Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.');
+            return;
+        }
 
         try {
             await reschedule.mutateAsync({
@@ -233,15 +246,25 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
                             <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 hover:border-blue-500/50 shadow-none transition-all">
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl">
-                                {(settings?.allowedDurations || [30, 60, 90, 120]).map(d => (
-                                    <SelectItem key={d} value={d.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
-                                        <span className="font-medium">{d} menit</span>
+                            <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-60 shadow-xl">
+                                {ZOOM_DURATION_OPTIONS.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
+                                        <span className="font-medium">{opt.label}</span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Midnight Warning */}
+                    {isPastMidnight && (
+                        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs shadow-sm">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                            <p className="font-medium leading-relaxed">
+                                Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Conflict Warning */}
                     {hasConflict && (
@@ -266,7 +289,7 @@ export function RescheduleModal({ booking, isOpen, onClose }: RescheduleModalPro
                     <Button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={!isChanged || hasConflict || reschedule.isPending}
+                        disabled={!isChanged || hasConflict || isPastMidnight || reschedule.isPending}
                         className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-500/20 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {reschedule.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}

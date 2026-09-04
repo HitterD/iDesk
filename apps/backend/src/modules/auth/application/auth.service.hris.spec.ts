@@ -114,32 +114,42 @@ describe('AuthService HRIS NIK login', () => {
         });
     });
 
-    it('never falls back to the local password hash when HRIS rejects the password', async () => {
+    it('falls back to the local password when HRIS rejects the password (admin reset)', async () => {
         gateway.verifyPassword.mockResolvedValue({ valid: true, eligible: true, match: false });
         users.findByEmployeeId.mockResolvedValue(user);
         (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
-        await expect(service.validateUserWithDetails('00000024', '123456')).resolves.toMatchObject({
+        await expect(service.validateUserWithDetails('00000024', 'admin-reset-pass')).resolves.toMatchObject({
+            success: true,
+            user: expect.not.objectContaining({ password: expect.anything() }),
+        });
+        expect(bcrypt.compare).toHaveBeenCalled();
+    });
+
+    it('rejects when both HRIS and the local password fail', async () => {
+        gateway.verifyPassword.mockResolvedValue({ valid: true, eligible: true, match: false });
+        users.findByEmployeeId.mockResolvedValue(user);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+        await expect(service.validateUserWithDetails('00000024', 'wrong')).resolves.toMatchObject({
             success: false,
             errorCode: 'WRONG_PASSWORD',
         });
-        expect(bcrypt.compare).not.toHaveBeenCalled();
     });
 
     it.each([
         [new HrisUnavailableError(), 'unreachable Gateway'],
         [new HrisInvalidResponseError(), 'malformed Gateway response'],
-    ])('fails closed on %s instead of using the local password', async (error) => {
+    ])('falls back to the local password on %s', async (error) => {
         gateway.verifyPassword.mockRejectedValue(error);
         users.findByEmployeeId.mockResolvedValue(user);
         (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
-        await expect(service.validateUserWithDetails('00000024', '123456')).resolves.toMatchObject({
-            success: false,
-            errorCode: 'USER_NOT_FOUND',
+        await expect(service.validateUserWithDetails('00000024', 'admin-reset-pass')).resolves.toMatchObject({
+            success: true,
         });
-        expect(bcrypt.compare).not.toHaveBeenCalled();
-        expect(users.findByEmployeeId).not.toHaveBeenCalled();
+        expect(bcrypt.compare).toHaveBeenCalled();
+        expect(users.findByEmployeeId).toHaveBeenCalled();
     });
 
     it('provisions a new NIK user only after Gateway match succeeds', async () => {

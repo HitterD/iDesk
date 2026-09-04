@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { EFormRequest } from '../entities/eform-request.entity';
 import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { Site } from '../../sites/entities/site.entity';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
@@ -56,14 +57,14 @@ export class EFormNotificationListener {
   async handleEFormManagerApproved(payload: { request: EFormRequest }) {
     const siteId = (payload.request as any).siteId as string | null;
     try {
-      await this.notificationCenter.sendToRoleAtSite('ADMIN', siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title: 'Provisioning Akses Diperlukan', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' telah disetujui dan siap diproses.', referenceId: payload.request.id });
-      await this.notificationCenter.sendToRoleAtSite('AGENT_ADMIN', siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title: 'Provisioning Akses Diperlukan', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' telah disetujui dan siap diproses.', referenceId: payload.request.id });
+      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title: 'Provisioning Akses Diperlukan', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' telah disetujui dan siap diproses.', referenceId: payload.request.id });
     } catch (error: any) { this.logger.error('Failed to notify ICT for eform.manager-approved: ' + error.message); }
     try {
       const siteLabel = await this.resolveSiteLabel(siteId);
-      let ictUsers: any[] = [];
-      if (siteId) ictUsers = await this.userRepo.find({ where: [{ role: 'ADMIN' as any, siteId } as any, { role: 'AGENT_ADMIN' as any, siteId } as any] } as any);
-      if (!ictUsers.length) ictUsers = await this.userRepo.find({ where: [{ role: 'ADMIN' as any }, { role: 'AGENT_ADMIN' as any }] } as any);
+      // Fail-closed: only query operational support users for the specific site (or cross-site with null siteId).
+      const ictUsers: any[] = siteId
+        ? await this.userRepo.find({ where: [{ role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId, isActive: true } as any, { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: IsNull(), isActive: true } as any] } as any)
+        : await this.userRepo.find({ where: { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, isActive: true } as any });
       for (const u of ictUsers) if (u.email) await this.mailDispatch.send({ to: u.email, subject: siteLabel + 'Provisioning Diperlukan - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: u.fullName || u.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.manager-approved failed: ' + e.message); }
   }

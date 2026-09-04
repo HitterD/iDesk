@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenEx
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, HandlingTeam } from '../entities/ticket.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
@@ -22,6 +22,7 @@ import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { assertTicketRoleAccess, isOracleTicket } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
+import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
 
 @Injectable()
 export class TicketUpdateService {
@@ -49,6 +50,7 @@ export class TicketUpdateService {
         @InjectDataSource()
         private readonly dataSource: DataSource,
         private readonly workloadService: WorkloadService,
+        private readonly assignmentPolicy: ModuleAssignmentPolicyService,
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
@@ -272,15 +274,6 @@ export class TicketUpdateService {
                 throw new NotFoundException('Assigner not found');
             }
 
-            if (isOracle) {
-                if (assigner.role && assigner.role !== UserRole.AGENT_ORACLE && assigner.role !== UserRole.ADMIN) {
-                    throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can assign Oracle/K2 tickets');
-                }
-            } else {
-                if (assigner.role === UserRole.AGENT_ORACLE) {
-                    throw new ForbiddenException('AGENT_ORACLE cannot assign general support tickets');
-                }
-            }
             assertTicketRoleAccess(ticket, assigner.role);
             validateTicketSiteAccess(assigner.role as UserRole, (assigner as any).siteId ?? null, (ticket as any).siteId ?? null);
 
@@ -341,35 +334,51 @@ export class TicketUpdateService {
             assignee.role !== UserRole.AGENT_OPERATIONAL_SUPPORT &&
             assignee.role !== UserRole.AGENT_ADMIN &&
             assignee.role !== UserRole.AGENT_ORACLE &&
+            assignee.role !== UserRole.AGENT_WEB_DEV &&
+            assignee.role !== UserRole.AGENT_MOBILE_DEV &&
             assignee.role !== UserRole.AGENT &&
             assignee.role !== UserRole.ADMIN
         ) {
-            throw new BadRequestException('Assignee must be an operational support agent, oracle agent, or admin');
+            throw new BadRequestException('Assignee must be an operational support agent, developer agent, or admin');
         }
 
-        if (isOracle) {
-            if (assignee.role !== UserRole.AGENT_ORACLE && assignee.role !== UserRole.ADMIN) {
-                throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can be assigned to Oracle/K2 tickets');
+        const team = ticket.handlingTeam ?? HandlingTeam.OPS_SUPPORT;
+
+        if (team === HandlingTeam.ORACLE_DEV || team === HandlingTeam.WEB_DEV || team === HandlingTeam.MOBILE_DEV) {
+            const allowedDevRoles = [
+                UserRole.AGENT_ORACLE,
+                UserRole.AGENT_WEB_DEV,
+                UserRole.AGENT_MOBILE_DEV,
+                UserRole.ADMIN,
+            ];
+            if (!allowedDevRoles.includes(assignee.role)) {
+                throw new ForbiddenException('Only Developer agents or ADMIN can be assigned to developer tickets');
             }
         } else {
-            if (assignee.role === UserRole.AGENT_ORACLE) {
-                throw new ForbiddenException('General support tickets cannot be assigned to AGENT_ORACLE');
+            if (
+                assignee.role === UserRole.AGENT_ORACLE ||
+                assignee.role === UserRole.AGENT_WEB_DEV ||
+                assignee.role === UserRole.AGENT_MOBILE_DEV
+            ) {
+                throw new ForbiddenException('General support tickets cannot be assigned to Developer agents');
             }
+        }
+
+        // Per-module isolation. When an admin curated an explicit assignee list
+        // for this module, that list binds the API too — a dropdown that merely
+        // hides names while the endpoint still accepts them is cosmetic.
+        const assignable = this.assignmentPolicy.toAssignable(ticket);
+        const eligible = await this.assignmentPolicy.isUserEligible(assignable, assignee.id);
+        if (!eligible) {
+            const moduleName = await this.assignmentPolicy.describeModule(assignable);
+            throw new ForbiddenException(
+                `${assignee.fullName} tidak terdaftar sebagai agent yang dapat ditugaskan di ${moduleName}`,
+            );
         }
 
         const assigner = await this.userRepo.findOne({ where: { id: userId } });
         if (!assigner) {
             throw new NotFoundException('Assigner not found');
-        }
-
-        if (isOracle) {
-            if (assigner.role && assigner.role !== UserRole.AGENT_ORACLE && assigner.role !== UserRole.ADMIN) {
-                throw new ForbiddenException('Only AGENT_ORACLE or ADMIN can assign Oracle/K2 tickets');
-            }
-        } else {
-            if (assigner.role === UserRole.AGENT_ORACLE) {
-                throw new ForbiddenException('AGENT_ORACLE cannot assign general support tickets');
-            }
         }
 
         assertTicketRoleAccess(ticket, assigner.role);
@@ -434,6 +443,8 @@ export class TicketUpdateService {
                 assigner.fullName,
                 ticket.title,
                 ticket.status,
+                ticket.user?.email,
+                ticket.user?.fullName,
             ),
         );
 
@@ -684,6 +695,60 @@ export class TicketUpdateService {
             }
 
             await this.cacheInvalidationService.onTicketChange('bulk');
+        }
+
+        return { updated: updated.length, failed };
+    }
+
+    /**
+     * Bulk-assign tickets to a single assignee.
+     *
+     * IMPORTANT: Reuses the single-ticket assignTicket path per ticket so that
+     * per-team authorization (assertTicketRoleAccess + handlingTeam checks),
+     * site isolation (validateTicketSiteAccess), workload recalculation,
+     * system messages, WS events, domain events, and audit logs are preserved.
+     * This inherits whatever PROD-9 finalizes for oracle/dev team access.
+     */
+    async bulkAssign(
+        ticketIds: string[],
+        assigneeId: string,
+        userId: string,
+        reason?: string,
+    ): Promise<{ updated: number; failed: string[] }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const assignee = await this.userRepo.findOne({ where: { id: assigneeId } });
+        if (!assignee) {
+            throw new NotFoundException('Assignee not found');
+        }
+
+        // Fail-fast: validate assignee is an allowed role for assignment.
+        if (
+            assignee.role !== UserRole.AGENT_OPERATIONAL_SUPPORT &&
+            assignee.role !== UserRole.AGENT_ADMIN &&
+            assignee.role !== UserRole.AGENT_ORACLE &&
+            assignee.role !== UserRole.AGENT_WEB_DEV &&
+            assignee.role !== UserRole.AGENT_MOBILE_DEV &&
+            assignee.role !== UserRole.AGENT &&
+            assignee.role !== UserRole.ADMIN
+        ) {
+            throw new BadRequestException('Assignee must be an operational support agent, developer agent, or admin');
+        }
+
+        const updated: string[] = [];
+        const failed: string[] = [];
+
+        for (const ticketId of ticketIds) {
+            try {
+                await this.assignTicket(ticketId, assigneeId, userId, reason);
+                updated.push(ticketId);
+            } catch (error) {
+                this.logger.error(`Bulk assign failed for ticket ${ticketId}: ${error?.message || error}`);
+                failed.push(ticketId);
+            }
         }
 
         return { updated: updated.length, failed };

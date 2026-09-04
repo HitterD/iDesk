@@ -8,6 +8,7 @@ import { SettingsService, StorageSettings } from './settings.service';
 import { UploadService } from '../../shared/upload/upload.service';
 import * as path from 'path';
 import * as fs from 'fs';
+import sharp from 'sharp';
 
 export interface CleanupPreview {
     attachments: { count: number; sizeBytes: number; files: string[] };
@@ -15,10 +16,30 @@ export interface CleanupPreview {
     discussions: { count: number };
 }
 
+export interface ImageCompressionResult {
+    totalScanned: number;
+    compressedCount: number;
+    skippedCount: number;
+    originalSizeBytes: number;
+    compressedSizeBytes: number;
+    freedBytes: number;
+    savingsPercentage: number;
+    errors: string[];
+    executedAt: Date;
+}
+
+export interface ImageCompressionPreview {
+    eligibleCount: number;
+    totalSizeBytes: number;
+    estimatedSavingsBytes: number;
+    files: Array<{ url: string; sizeBytes: number; createdAt: string }>;
+}
+
 export interface CleanupResult {
     attachments: { deleted: number; freedBytes: number; errors: string[] };
     notes: { deleted: number };
     discussions: { deleted: number };
+    imageCompression?: ImageCompressionResult;
     executedAt: Date;
     executedBy?: string;
 }
@@ -97,6 +118,17 @@ export class StorageCleanupService {
             const cutoffDate = new Date(now.getTime() - settings.discussions.retentionDays * 24 * 60 * 60 * 1000);
             const discussResult = await this.cleanupDiscussions(cutoffDate, settings.discussions.onlyResolvedTickets);
             result.discussions = discussResult;
+        }
+
+        // Compress old images (>90 days by default)
+        if (settings.imageCompression?.enabled && settings.imageCompression.retentionDays > 0) {
+            const compressionResult = await this.compressImages({
+                olderThanDays: settings.imageCompression.retentionDays,
+                onlyResolvedTickets: settings.imageCompression.onlyResolvedTickets,
+                quality: settings.imageCompression.quality,
+                maxWidth: settings.imageCompression.maxWidth,
+            });
+            result.imageCompression = compressionResult;
         }
 
         return result;
@@ -389,5 +421,167 @@ export class StorageCleanupService {
         } catch {
             return null;
         }
+    }
+
+    private isImageFile(filePathOrUrl: string): boolean {
+        if (!filePathOrUrl) return false;
+        const ext = path.extname(filePathOrUrl).toLowerCase();
+        return ['.png', '.jpg', '.jpeg', '.bmp', '.tiff'].includes(ext);
+    }
+
+    /**
+     * Preview image compression for images older than specified days
+     */
+    async previewImageCompression(options: {
+        olderThanDays?: number;
+        onlyResolvedTickets?: boolean;
+    }): Promise<ImageCompressionPreview> {
+        const olderThanDays = options.olderThanDays ?? 90;
+        const cutoffDate = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
+        const ticketFilter = options.onlyResolvedTickets !== false
+            ? await this.getResolvedTicketIds()
+            : null;
+
+        const messages = await this.getMessagesWithAttachments(new Date(0), cutoffDate, ticketFilter);
+        const files: Array<{ url: string; sizeBytes: number; createdAt: string }> = [];
+        let totalSizeBytes = 0;
+
+        for (const msg of messages) {
+            if (!msg.attachments || msg.attachments.length === 0) continue;
+            for (const att of msg.attachments) {
+                if (this.isImageFile(att)) {
+                    const filePath = this.getFilePath(att);
+                    if (filePath && fs.existsSync(filePath)) {
+                        const stat = fs.statSync(filePath);
+                        totalSizeBytes += stat.size;
+                        files.push({
+                            url: att,
+                            sizeBytes: stat.size,
+                            createdAt: msg.createdAt ? msg.createdAt.toISOString() : new Date().toISOString(),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Estimated ~75% savings when converting to WebP
+        const estimatedSavingsBytes = Math.round(totalSizeBytes * 0.75);
+
+        return {
+            eligibleCount: files.length,
+            totalSizeBytes,
+            estimatedSavingsBytes,
+            files: files.slice(0, 100),
+        };
+    }
+
+    /**
+     * Compress eligible images older than specified days into high-quality WebP
+     */
+    async compressImages(options: {
+        olderThanDays?: number;
+        onlyResolvedTickets?: boolean;
+        quality?: number;
+        maxWidth?: number;
+    }): Promise<ImageCompressionResult> {
+        const olderThanDays = options.olderThanDays ?? 90;
+        const quality = options.quality ?? 80;
+        const maxWidth = options.maxWidth ?? 1600;
+        const cutoffDate = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
+        const ticketFilter = options.onlyResolvedTickets !== false
+            ? await this.getResolvedTicketIds()
+            : null;
+
+        const messages = await this.getMessagesWithAttachments(new Date(0), cutoffDate, ticketFilter);
+
+        let totalScanned = 0;
+        let compressedCount = 0;
+        let skippedCount = 0;
+        let originalSizeBytes = 0;
+        let compressedSizeBytes = 0;
+        const errors: string[] = [];
+
+        for (const msg of messages) {
+            if (!msg.attachments || msg.attachments.length === 0) continue;
+
+            let messageUpdated = false;
+            const updatedAttachments: string[] = [];
+
+            for (const att of msg.attachments) {
+                totalScanned++;
+
+                if (!this.isImageFile(att)) {
+                    updatedAttachments.push(att);
+                    skippedCount++;
+                    continue;
+                }
+
+                const filePath = this.getFilePath(att);
+                if (!filePath || !fs.existsSync(filePath)) {
+                    updatedAttachments.push(att);
+                    skippedCount++;
+                    continue;
+                }
+
+                try {
+                    const origStat = fs.statSync(filePath);
+                    originalSizeBytes += origStat.size;
+
+                    // Prepare WebP destination
+                    const dir = path.dirname(filePath);
+                    const ext = path.extname(filePath);
+                    const baseName = path.basename(filePath, ext);
+                    const webpFilename = `${baseName}.webp`;
+                    const webpFilePath = path.join(dir, webpFilename);
+
+                    // Compress using Sharp
+                    const buffer = await sharp(filePath)
+                        .resize({ width: maxWidth, withoutEnlargement: true })
+                        .webp({ quality })
+                        .toBuffer();
+
+                    fs.writeFileSync(webpFilePath, buffer);
+                    const newStat = fs.statSync(webpFilePath);
+                    compressedSizeBytes += newStat.size;
+
+                    // Delete original file if it had a different extension (png, jpg, etc.)
+                    if (filePath !== webpFilePath && fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+
+                    // Update URL extension in attachments
+                    const newUrl = att.replace(new RegExp(`\\${ext}$`, 'i'), '.webp');
+                    updatedAttachments.push(newUrl);
+                    compressedCount++;
+                    messageUpdated = true;
+                } catch (err: any) {
+                    this.logger.error(`Error compressing image ${filePath}: ${err.message}`);
+                    errors.push(`Failed to compress ${att}: ${err.message}`);
+                    updatedAttachments.push(att);
+                }
+            }
+
+            if (messageUpdated) {
+                await this.messageRepo.update(msg.id, { attachments: updatedAttachments });
+            }
+        }
+
+        const freedBytes = Math.max(0, originalSizeBytes - compressedSizeBytes);
+        const savingsPercentage = originalSizeBytes > 0 ? Math.round((freedBytes / originalSizeBytes) * 100) : 0;
+
+        const result: ImageCompressionResult = {
+            totalScanned,
+            compressedCount,
+            skippedCount,
+            originalSizeBytes,
+            compressedSizeBytes,
+            freedBytes,
+            savingsPercentage,
+            errors,
+            executedAt: new Date(),
+        };
+
+        this.logger.log(`Image compression completed: ${JSON.stringify(result)}`);
+        return result;
     }
 }
