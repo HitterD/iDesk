@@ -139,7 +139,7 @@ export function BookingModal({
         return (settings?.allowedDurations && settings.allowedDurations.length > 0)
             ? settings.allowedDurations
             : (durations && durations.length > 0)
-                ? durations.map((d) => d.minutes)
+                ? durations
                 : [30, 60, 90, 120, 150, 180, 240];
     }, [settings, durations]);
 
