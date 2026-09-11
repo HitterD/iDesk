@@ -47,7 +47,6 @@ namespace SJANotificationApp
         private Label _lblStatusInfo = null!;
         private GlassButton _btnRefresh = null!;
         private GlassButton _btnClose = null!;
-        private GlassButton _btnMax = null!;
         private GlassButton _btnMin = null!;
 
         public Action<DeviceDirectoryItem>? OnConnectRequested;
@@ -123,42 +122,35 @@ namespace SJANotificationApp
 
             _btnClose = new GlassButton
             {
-                Text = "✕",
-                Size = new Size(32, 32),
-                Location = new Point(Width - 46, 16),
+                Size = new Size(28, 28),
+                Location = new Point(Width - 44, 16),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Variant = GlassButtonVariant.Ghost,
-                Radius = 6
+                GlyphOnly = true,
+                Glyph = "close",
+                Radius = 6,
+                Cursor = Cursors.Hand
             };
+            var tipClose = new ToolTip();
+            tipClose.SetToolTip(_btnClose, "Tutup (Esc)");
             _btnClose.Click += (s, e) => Close();
-
-            _btnMax = new GlassButton
-            {
-                Text = "🗖",
-                Size = new Size(32, 32),
-                Location = new Point(Width - 82, 16),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Variant = GlassButtonVariant.Ghost,
-                Radius = 6
-            };
-            _btnMax.Click += (s, e) =>
-            {
-                WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
-                _btnMax.Text = WindowState == FormWindowState.Maximized ? "🗗" : "🗖";
-            };
 
             _btnMin = new GlassButton
             {
-                Text = "—",
-                Size = new Size(32, 32),
-                Location = new Point(Width - 118, 16),
+                Size = new Size(28, 28),
+                Location = new Point(Width - 76, 16),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Variant = GlassButtonVariant.Ghost,
-                Radius = 6
+                GlyphOnly = true,
+                Glyph = "minimize",
+                Radius = 6,
+                Cursor = Cursors.Hand
             };
+            var tipMin = new ToolTip();
+            tipMin.SetToolTip(_btnMin, "Minimize");
             _btnMin.Click += (s, e) => WindowState = FormWindowState.Minimized;
 
-            _pnlHeader.Controls.AddRange(new Control[] { lblTitle, lblSubtitle, _btnMin, _btnMax, _btnClose });
+            _pnlHeader.Controls.AddRange(new Control[] { lblTitle, lblSubtitle, _btnMin, _btnClose });
             _pnlHeader.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             lblTitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             lblSubtitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
@@ -257,10 +249,8 @@ namespace SJANotificationApp
 
             Resize += (s, e) =>
             {
-                _btnClose.Location = new Point(Width - 46, 16);
-                _btnMax.Location = new Point(Width - 82, 16);
-                _btnMin.Location = new Point(Width - 118, 16);
-                _btnMax.Text = WindowState == FormWindowState.Maximized ? "🗗" : "🗖";
+                _btnClose.Location = new Point(Width - 44, 16);
+                _btnMin.Location = new Point(Width - 76, 16);
                 RenderCards();
             };
         }
