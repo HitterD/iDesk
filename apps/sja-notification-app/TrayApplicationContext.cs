@@ -224,6 +224,7 @@ namespace SJANotificationApp
                     DateTime expiresAt = payload.TryGetProperty("expiresAt", out var exp) && DateTime.TryParse(exp.GetString(), out var parsedExpiry)
                         ? parsedExpiry.ToUniversalTime() : DateTime.UtcNow.AddHours(1);
                     var images = ParseSlideshowImages(payload);
+                    var media = ParseOverlayMedia(payload);
 
                     if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(sessionSecret) || string.IsNullOrWhiteSpace(agentDeviceId))
                     {
@@ -232,7 +233,7 @@ namespace SJANotificationApp
                     }
 
                     _remoteHostEngine?.AuthorizeSession(sessionId, sessionSecret, agentDeviceId, agentIp, expiresAt, countdown);
-                    _uiSyncContext?.Post(_ => ShowRemoteOverlay(agentName, agentIp, images, countdown), null);
+                    _uiSyncContext?.Post(_ => ShowRemoteOverlay(agentName, agentIp, images, countdown, media.contentType, media.videoUrl), null);
                 }
                 else if (action == "REMOTE_SIGNAL")
                 {
@@ -242,6 +243,18 @@ namespace SJANotificationApp
                         _remoteHostEngine.OnRelayFrameReady -= SendRelayFrame;
                         _remoteHostEngine.OnRelayFrameReady += SendRelayFrame;
                         _remoteHostEngine.EnableRelayCapture();
+                    }
+                    else if (signal == "SET_OVERLAY_MODE")
+                    {
+                        // Hanya operator (agent) yang boleh mengubah tampilan overlay user.
+                        string overlayMode = payload.TryGetProperty("overlayMode", out var om) ? om.GetString() ?? "FULL" : "FULL";
+                        string contentType = payload.TryGetProperty("contentType", out var ctProp) ? ctProp.GetString() ?? "" : "";
+                        string mediaUrl = payload.TryGetProperty("mediaUrl", out var mu) ? mu.GetString() ?? "" : "";
+                        _uiSyncContext?.Post(_ =>
+                        {
+                            try { _activePrivacyOverlay?.ApplyOperatorOverlayMode(overlayMode, contentType, mediaUrl); }
+                            catch (Exception ex) { AppLogger.Warn($"[RemoteHost] Gagal terapkan mode overlay: {ex.Message}"); }
+                        }, null);
                     }
                 }
                 else if (action == "REMOTE_INPUT")
@@ -316,10 +329,32 @@ namespace SJANotificationApp
             }, _cts.Token);
         }
 
-        private void ShowRemoteOverlay(string agentName, string agentIp, List<string>? images, int countdown)
+        private static (string contentType, string videoUrl) ParseOverlayMedia(JsonElement payload)
+        {
+            string contentType = "IMAGE";
+            string videoUrl = "";
+            if (payload.TryGetProperty("mediaConfig", out var mediaConfig))
+            {
+                if (mediaConfig.TryGetProperty("mode", out var mode) &&
+                    string.Equals(mode.GetString(), "video", StringComparison.OrdinalIgnoreCase))
+                {
+                    contentType = "VIDEO";
+                }
+                if (mediaConfig.TryGetProperty("videoUrl", out var url) &&
+                    Uri.TryCreate(url.GetString(), UriKind.Absolute, out var uri) &&
+                    (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                {
+                    videoUrl = url.GetString() ?? "";
+                }
+            }
+            if (contentType == "VIDEO" && string.IsNullOrWhiteSpace(videoUrl)) contentType = "IMAGE";
+            return (contentType, videoUrl);
+        }
+
+        private void ShowRemoteOverlay(string agentName, string agentIp, List<string>? images, int countdown, string contentType = "IMAGE", string videoUrl = "")
         {
             CloseRemoteOverlay();
-            _activePrivacyOverlay = new RemotePrivacyOverlayForm(agentName, agentIp, images, countdown);
+            _activePrivacyOverlay = new RemotePrivacyOverlayForm(agentName, agentIp, images, countdown, contentType, videoUrl);
             _activePrivacyOverlay.OnConsentGranted += () => _remoteHostEngine?.GrantConsent();
             _activePrivacyOverlay.OnSessionTerminatedByUser += () =>
             {

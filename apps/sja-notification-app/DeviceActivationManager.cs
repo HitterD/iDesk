@@ -146,6 +146,7 @@ namespace SJANotificationApp
                                 session.EmployeeId = empProp.TryGetProperty("nik", out var nikProp) ? nikProp.GetString() ?? "" : "";
                                 session.FullName = empProp.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "" : "";
                                 session.SiteCode = empProp.TryGetProperty("siteCode", out var siteProp) ? siteProp.GetString() ?? "SPJ" : "SPJ";
+                                session.Role = empProp.TryGetProperty("role", out var roleProp) ? roleProp.GetString() ?? "" : "";
                             }
 
                             DeviceSecurityStorage.SaveSession(session);

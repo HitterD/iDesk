@@ -44,10 +44,14 @@ namespace SJANotificationApp
         private Label _lblStatus = null!;
         private GlassButton _btnDisconnect = null!;
         private GlassButton _btnSendFile = null!;
+        private GlassButton _btnOverlaySize = null!;
+        private GlassButton _btnOverlayContent = null!;
         private GlassButton _btnFullscreen = null!;
         private GlassButton _btnMax = null!;
         private GlassButton _btnMin = null!;
         private GlassButton _btnClose = null!;
+        private string _overlayMode = "FULL"; // FULL | PIP (tampilan overlay di sisi user)
+        private string _overlayContent = "IMAGE"; // IMAGE | VIDEO
         private bool _isFullscreen;
         private FormBorderStyle _prevBorderStyle;
         private FormWindowState _prevWindowState;
@@ -169,7 +173,21 @@ namespace SJANotificationApp
             };
             _btnSendFile.Click += (s, e) => OpenSendFileDialog();
 
-            _pnlHeader.Controls.AddRange(new Control[] { lblTitle, _lblStatus, _btnSendFile, _btnDisconnect, _btnFullscreen, _btnMin, _btnMax, _btnClose });
+            _btnOverlaySize = new GlassButton
+            {
+                Text = "Overlay: Penuh", Size = new Size(130, 32), Location = new Point(Width - 622, 10),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+            };
+            _btnOverlaySize.Click += (s, e) => ToggleOperatorOverlaySize();
+
+            _btnOverlayContent = new GlassButton
+            {
+                Text = "Konten: Gambar", Size = new Size(140, 32), Location = new Point(Width - 776, 10),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+            };
+            _btnOverlayContent.Click += (s, e) => ToggleOperatorOverlayContent();
+
+            _pnlHeader.Controls.AddRange(new Control[] { lblTitle, _lblStatus, _btnOverlayContent, _btnOverlaySize, _btnSendFile, _btnDisconnect, _btnFullscreen, _btnMin, _btnMax, _btnClose });
             _pnlHeader.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             lblTitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             _lblStatus.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
@@ -182,6 +200,8 @@ namespace SJANotificationApp
                 _btnFullscreen.Location = new Point(Width - 238, 10);
                 _btnDisconnect.Location = new Point(Width - 360, 10);
                 _btnSendFile.Location = new Point(Width - 478, 10);
+                _btnOverlaySize.Location = new Point(Width - 622, 10);
+                _btnOverlayContent.Location = new Point(Width - 776, 10);
                 _btnMax.Text = WindowState == FormWindowState.Maximized ? "🗗" : "🗖";
             };
 
@@ -345,6 +365,36 @@ namespace SJANotificationApp
             _lblStatus.Text = "🟢 Relay WebSocket Aktif • Menunggu frame";
             AppLogger.Info($"[Viewer] Secure WS relay activated for session {_sessionId}");
             return true;
+        }
+
+        private void ToggleOperatorOverlaySize()
+        {
+            _overlayMode = _overlayMode == "FULL" ? "PIP" : "FULL";
+            _btnOverlaySize.Text = _overlayMode == "FULL" ? "Overlay: Penuh" : "Overlay: Kecil";
+            SendOverlayModeSignal();
+        }
+
+        private void ToggleOperatorOverlayContent()
+        {
+            _overlayContent = _overlayContent == "IMAGE" ? "VIDEO" : "IMAGE";
+            _btnOverlayContent.Text = _overlayContent == "IMAGE" ? "Konten: Gambar" : "Konten: Video";
+            SendOverlayModeSignal();
+        }
+
+        private void SendOverlayModeSignal()
+        {
+            if (_sharedWsClient == null || _cts == null || string.IsNullOrWhiteSpace(_sessionId)) return;
+            AppLogger.Info($"[Viewer] Operator mengubah overlay user: mode={_overlayMode}, konten={_overlayContent}");
+            _ = _sharedWsClient.SendJsonAsync(new
+            {
+                action = "REMOTE_SIGNAL",
+                targetDeviceId = _targetDev.id,
+                sessionId = _sessionId,
+                sessionSecret = _sessionSecret,
+                signal = "SET_OVERLAY_MODE",
+                overlayMode = _overlayMode,
+                contentType = _overlayContent
+            }, _cts.Token);
         }
 
         private void HandleRelayMessage(string action, JsonElement message)

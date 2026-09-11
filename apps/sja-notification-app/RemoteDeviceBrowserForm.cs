@@ -54,6 +54,10 @@ namespace SJANotificationApp
 
         public RemoteDeviceBrowserForm(AppConfig config)
         {
+            if (!RemoteAccessPolicy.IsRemoteOperator(DeviceSecurityStorage.LoadSession()?.Role))
+            {
+                throw new UnauthorizedAccessException("Fitur Remote Desktop hanya tersedia untuk akun ADMIN atau AGENT.");
+            }
             _config = config;
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 

@@ -217,6 +217,7 @@ namespace SJANotificationApp
                             session.FullName = userProp.TryGetProperty("name", out var empName) ? empName.GetString() ?? "" : "";
                             session.Email = userProp.TryGetProperty("email", out var empEmail) ? empEmail.GetString() ?? "" : "";
                             session.SiteCode = userProp.TryGetProperty("siteCode", out var empSite) ? empSite.GetString() ?? "SPJ" : "SPJ";
+                            session.Role = userProp.TryGetProperty("role", out var empRole) ? empRole.GetString() ?? "" : "";
                         }
                         DeviceSecurityStorage.SaveSession(session);
                         TrayApplicationContext.Instance?.ReconnectWithToken(deviceToken);

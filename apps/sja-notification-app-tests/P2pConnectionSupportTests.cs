@@ -141,4 +141,23 @@ public class P2pConnectionSupportTests
         await RemoteHostEngine.WriteCommandAsync(stream, new { t = "mm", x = 100, y = 100 }, cts.Token);
         await Task.Delay(50);
     }
+
+    [Theory]
+    [InlineData("ADMIN", true)]
+    [InlineData("admin", true)]
+    [InlineData("AGENT", true)]
+    [InlineData("agent", true)]
+    [InlineData("AGENT_OPERATIONAL_SUPPORT", true)]
+    [InlineData("AGENT_ORACLE", true)]
+    [InlineData("AGENT_WEB_DEV", true)]
+    [InlineData("AGENT_ADMIN", true)]
+    [InlineData("USER", false)]
+    [InlineData("MANAGER", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    [InlineData("UNKNOWN_ROLE", false)]
+    public void RemoteAccessPolicy_IsRemoteOperator_ValidatesRolesCorrectly(string? role, bool expected)
+    {
+        Assert.Equal(expected, RemoteAccessPolicy.IsRemoteOperator(role));
+    }
 }

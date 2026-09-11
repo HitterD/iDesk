@@ -84,6 +84,9 @@ apps/sja-notification-app/dist-package/*.exe
 apps/sja-notification-app/dist-package/*.pdb
 apps/sja-notification-app-tests/bin/
 apps/sja-notification-app-tests/obj/
+apps/sja-notification-app/popup-preview.png
+apps/sja-notification-app/popup-visible-preview.png
+apps/sja-notification-app/test-popup.ps1
 
 # Temporary & Dump files
 *.tmp

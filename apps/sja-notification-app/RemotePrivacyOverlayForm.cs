@@ -27,6 +27,10 @@ namespace SJANotificationApp
         private const int WM_NCHITTEST = 0x0084;
         private const int HTTRANSPARENT = -1;
 
+        private const int OverlayPipWidth = 480;
+        private const int OverlayPipHeight = 270;
+        private const int OverlayBarHeightActive = 170;
+
         [DllImport("user32.dll")]
         private static extern uint SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
@@ -48,22 +52,32 @@ namespace SJANotificationApp
         private int _remainingSeconds = 10;
 
         private PictureBox _picSlide = null!;
+        private Panel _pnlMedia = null!;
+        private AxWMPLib.AxWindowsMediaPlayer? _videoPlayer;
         private Panel _pnlBottom = null!;
         private Label _lblStatusTitle = null!;
         private Label _lblAgentInfo = null!;
         private Label _lblCountdown = null!;
+        private Label _lblCountdownBig = null!;
         private GlassButton _btnAllowNow = null!;
         private GlassButton _btnDisconnect = null!;
-        private GlassButton _btnMinimize = null!;
+        private string _videoUrl = string.Empty;
+        private string _contentType = "IMAGE"; // IMAGE | VIDEO
+        private bool _consentGranted;
+        private Rectangle _prevBounds;
+        private FormWindowState _prevWindowState = FormWindowState.Maximized;
+        private Size _prevMediaSize = Size.Empty;
 
         public event Action? OnConsentGranted;
         public event Action? OnSessionTerminatedByUser;
 
-        public RemotePrivacyOverlayForm(string agentName, string agentIp, List<string>? images = null, int countdownSeconds = 10)
+        public RemotePrivacyOverlayForm(string agentName, string agentIp, List<string>? images = null, int countdownSeconds = 10, string contentType = "IMAGE", string videoUrl = "")
         {
             _agentName = string.IsNullOrWhiteSpace(agentName) ? "Santos ICT Support" : agentName;
             _agentIp = string.IsNullOrWhiteSpace(agentIp) ? "10.10.x.x" : agentIp;
             _remainingSeconds = countdownSeconds > 0 ? countdownSeconds : 10;
+            _contentType = string.Equals(contentType, "VIDEO", StringComparison.OrdinalIgnoreCase) ? "VIDEO" : "IMAGE";
+            _videoUrl = videoUrl?.Trim() ?? "";
 
             _slideshowUrls = images != null && images.Count > 0 ? images : new List<string>
             {
@@ -81,6 +95,7 @@ namespace SJANotificationApp
             _picSlide.Image = GenerateCorporateOfflineShieldImage();
 
             StartSlideshowAsync();
+            ApplyContentVisibility();
             StartCountdown();
         }
 
@@ -133,78 +148,109 @@ namespace SJANotificationApp
             ForeColor = Color.White;
             DoubleBuffered = true;
 
-            // Background / Slideshow Display
+            // Media area: slideshow gambar atau video (mode awal dari server)
+            _pnlMedia = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(15, 23, 42)
+            };
             _picSlide = new PictureBox
             {
                 Dock = DockStyle.Fill,
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(15, 23, 42)
+                BackColor = Color.FromArgb(15, 23, 42),
+                Enabled = false // jangan menelan klik/mouse: input agent harus tembus ke desktop
             };
-            Controls.Add(_picSlide);
+            _pnlMedia.Controls.Add(_picSlide);
+            Controls.Add(_pnlMedia);
 
-            // Overlay Bottom Bar with Status & Putuskan Sesi
+            try
+            {
+                _videoPlayer = new AxWMPLib.AxWindowsMediaPlayer();
+                ((System.ComponentModel.ISupportInitialize)_videoPlayer).BeginInit();
+                _videoPlayer.Dock = DockStyle.Fill;
+                _videoPlayer.Enabled = true;
+                _videoPlayer.Visible = false;
+                _pnlMedia.Controls.Add(_videoPlayer);
+                ((System.ComponentModel.ISupportInitialize)_videoPlayer).EndInit();
+                _videoPlayer.settings.mute = true;
+                _videoPlayer.settings.autoStart = true;
+                _videoPlayer.uiMode = "none";
+                _videoPlayer.stretchToFit = true;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warn($"[PrivacyOverlay] Player video tidak tersedia, fallback ke gambar: {ex.Message}");
+                _videoPlayer = null;
+            }
+
+            // Bottom bar status & aksi (lebih tinggi agar teks besar terbaca jelas)
             _pnlBottom = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 110,
+                Height = OverlayBarHeightActive,
                 BackColor = Color.FromArgb(220, 15, 23, 42),
-                Padding = new Padding(32, 16, 32, 16)
+                Padding = new Padding(32, 18, 32, 18)
             };
 
             _lblStatusTitle = new Label
             {
-                Text = "🔒 SESI BANTUAN REMOTE SANTOS ICT AKTIF",
-                Font = FluentTheme.SubTitle,
+                Text = "PERMINTAAN BANTUAN REMOTE SANTOS ICT",
+                Font = new Font(FluentTheme.Body.FontFamily, 20f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(59, 130, 246),
-                Location = new Point(32, 18),
+                Location = new Point(32, 16),
                 AutoSize = true
             };
 
             _lblAgentInfo = new Label
             {
-                Text = $"Petugas: {_agentName}  •  Alamat IP: {_agentIp}  •  Layar kerja Anda terproteksi dari intipan luar",
-                Font = FluentTheme.Body,
+                Text = $"Petugas: {_agentName}  •  Alamat IP: {_agentIp}",
+                Font = new Font(FluentTheme.Body.FontFamily, 13f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(226, 232, 240),
-                Location = new Point(32, 48),
+                Location = new Point(32, 54),
                 AutoSize = true
             };
 
             _lblCountdown = new Label
             {
-                Text = $"Memulai dalam {_remainingSeconds} detik... (Klik 'Tolak' untuk membatalkan)",
-                Font = FluentTheme.Caption,
+                Text = "Petugas meminta izin mengendalikan komputer ini.",
+                Font = new Font(FluentTheme.Body.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(251, 191, 36),
-                Location = new Point(32, 74),
+                Location = new Point(32, 84),
+                AutoSize = true
+            };
+
+            _lblCountdownBig = new Label
+            {
+                Text = _remainingSeconds.ToString(),
+                Font = new Font(FluentTheme.Body.FontFamily, 30f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(251, 191, 36),
+                Location = new Point(32, 112),
                 AutoSize = true
             };
 
             _btnAllowNow = new GlassButton
             {
-                Text = "Izinkan Segera",
-                Size = new Size(150, 48),
+                Text = "IZINKAN SEKARANG",
+                Size = new Size(260, 60),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 380, 28),
+                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 300, 55),
                 Variant = GlassButtonVariant.Accent,
-                Radius = 8
+                Radius = 10,
+                Font = new Font(FluentTheme.Body.FontFamily, 13f, FontStyle.Bold)
             };
-            _btnAllowNow.Click += (s, e) =>
-            {
-                _countdownTimer?.Stop();
-                _btnAllowNow.Visible = false;
-                _lblCountdown.Text = "Sesi remote aktif. Anda dapat memutuskan kendali kapan saja.";
-                _lblCountdown.ForeColor = Color.FromArgb(52, 211, 153);
-                _btnDisconnect.Text = "Putuskan Sesi Remote";
-                OnConsentGranted?.Invoke();
-            };
+            _btnAllowNow.Click += (s, e) => GrantConsentFromUser();
+            AcceptButton = _btnAllowNow;
 
             _btnDisconnect = new GlassButton
             {
-                Text = "Tolak Akses (10s)",
-                Size = new Size(180, 48),
+                Text = $"TOLAK AKSES ({_remainingSeconds}s)",
+                Size = new Size(260, 60),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 220, 28),
+                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 580, 55),
                 Variant = GlassButtonVariant.Danger,
-                Radius = 8
+                Radius = 10,
+                Font = new Font(FluentTheme.Body.FontFamily, 13f, FontStyle.Bold)
             };
             _btnDisconnect.Click += (s, e) =>
             {
@@ -212,46 +258,156 @@ namespace SJANotificationApp
                 Close();
             };
 
-            _btnMinimize = new GlassButton
-            {
-                Text = "Pantau Layar 🗕",
-                Size = new Size(160, 48),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 560, 28),
-                Variant = GlassButtonVariant.Ghost,
-                Radius = 8
-            };
-            _btnMinimize.Click += (s, e) =>
-            {
-                WindowState = FormWindowState.Minimized;
-            };
-
-            _pnlBottom.Controls.AddRange(new Control[] { _lblStatusTitle, _lblAgentInfo, _lblCountdown, _btnMinimize, _btnAllowNow, _btnDisconnect });
+            _pnlBottom.Controls.AddRange(new Control[] { _lblStatusTitle, _lblAgentInfo, _lblCountdown, _lblCountdownBig, _btnAllowNow, _btnDisconnect });
             Controls.Add(_pnlBottom);
             _pnlBottom.BringToFront();
 
             Resize += (s, e) =>
             {
-                _btnDisconnect.Location = new Point(Width - 220, 28);
-                _btnAllowNow.Location = new Point(Width - 390, 28);
-                _btnMinimize.Location = new Point(Width - 560, 28);
+                _btnAllowNow.Location = new Point(Width - 300, 55);
+                _btnDisconnect.Location = new Point(Width - 580, 55);
+                // PiP selalu terkunci di kanan-bawah, tidak bisa di-resize user
+                if (WindowState == FormWindowState.Normal && _prevMediaSize != Size.Empty)
+                {
+                    var work = Screen.FromControl(this).WorkingArea;
+                    Location = new Point(work.Right - Width - 16, work.Bottom - Height - 16);
+                }
             };
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                // Click-through OS-level: overlay TIDAK PERNAH menelan klik/mouse,
+                // baik dari user lokal maupun input agent (mouse_event/keybd_event).
+                // Panel bawah dikecualikan via WM_NCHITTEST di bawah agar tombol tetap bisa diklik.
+                if (_consentGranted) cp.ExStyle |= WS_EX_TRANSPARENT;
+                return cp;
+            }
         }
 
         protected override void WndProc(ref Message m)
         {
-            // Transparent click-through passthrough for picture area so remote agent can click background desktop
+            // Area tombol bawah harus tetap bisa diklik; area media tembus ke desktop
+            // HANYA setelah consent (sebelum consent overlay menahan semua klik).
             if (m.Msg == WM_NCHITTEST)
             {
                 base.WndProc(ref m);
-                Point pt = PointToClient(new Point(m.LParam.ToInt32() & 0xFFFF, m.LParam.ToInt32() >> 16));
-                if (_pnlBottom != null && !_pnlBottom.ClientRectangle.Contains(_pnlBottom.PointToClient(PointToScreen(pt))))
+                if (!_consentGranted) return; // fase countdown: blokir semua klik
+                if (_pnlBottom != null && _pnlBottom.ClientRectangle.Contains(_pnlBottom.PointToClient(PointToScreen(
+                    PointToClient(new Point(m.LParam.ToInt32() & 0xFFFF, m.LParam.ToInt32() >> 16))))))
                 {
-                    m.Result = (IntPtr)HTTRANSPARENT;
-                    return;
+                    return; // biarkan hasil hit-test normal (tombol bisa diklik)
                 }
+                m.Result = (IntPtr)HTTRANSPARENT;
+                return;
             }
             base.WndProc(ref m);
+        }
+
+        private void GrantConsentFromUser()
+        {
+            if (_consentGranted) return;
+            _consentGranted = true;
+            _countdownTimer?.Stop();
+            _btnAllowNow.Visible = false;
+            _lblCountdownBig.Visible = false;
+            _lblStatusTitle.Text = "SESI BANTUAN REMOTE AKTIF";
+            _lblCountdown.Text = "Petugas sedang mengendalikan komputer ini. Anda tetap bisa melihat layarnya.";
+            _lblCountdown.ForeColor = Color.FromArgb(52, 211, 153);
+            _btnDisconnect.Text = "PUTUSKAN SESI REMOTE";
+            _btnDisconnect.Size = new Size(300, 60);
+            _btnDisconnect.Location = new Point(Width - 340, 55);
+            // Terapkan click-through OS-level sekarang (RecreateHandle agar CreateParams dibaca ulang)
+            try { RecreateHandle(); ApplyDisplayAffinityProtection(); } catch { }
+            OnConsentGranted?.Invoke();
+        }
+
+        /// <summary>
+        /// Dipanggil HANYA via sinyal agent/admin (REMOTE_SIGNAL SET_OVERLAY_MODE).
+        /// User lokal tidak memiliki tombol untuk ini.
+        /// </summary>
+        public void ApplyOperatorOverlayMode(string overlayMode, string? contentType = null, string? mediaUrl = null)
+        {
+            if (IsDisposed) return;
+            if (!string.IsNullOrWhiteSpace(contentType)) SetContentType(contentType, mediaUrl);
+            bool pip = string.Equals(overlayMode, "PIP", StringComparison.OrdinalIgnoreCase);
+            if (InvokeRequired) { BeginInvoke(new Action(() => ApplyOperatorOverlayMode(overlayMode, null, null))); return; }
+
+            if (pip)
+            {
+                if (WindowState != FormWindowState.Normal || _prevMediaSize == Size.Empty)
+                {
+                    _prevBounds = Bounds;
+                    _prevWindowState = WindowState;
+                    _prevMediaSize = _pnlMedia.Size;
+                }
+                FormBorderStyle = FormBorderStyle.SizableToolWindow;
+                MaximizeBox = false;
+                MinimizeBox = false;
+                TopMost = true;
+                ShowInTaskbar = true;
+                WindowState = FormWindowState.Normal;
+                Size = new Size(OverlayPipWidth, OverlayPipHeight + _pnlBottom.Height);
+                var work = Screen.FromControl(this).WorkingArea;
+                Location = new Point(work.Right - Width - 16, work.Bottom - Height - 16);
+            }
+            else
+            {
+                FormBorderStyle = FormBorderStyle.None;
+                TopMost = true;
+                WindowState = FormWindowState.Maximized;
+                _prevMediaSize = Size.Empty;
+            }
+            AppLogger.Info($"[PrivacyOverlay] Mode overlay diubah operator menjadi {(pip ? "PIP" : "FULL")}, konten={_contentType}");
+        }
+
+        public void SetContentType(string contentType, string? mediaUrl = null)
+        {
+            bool wantVideo = string.Equals(contentType, "VIDEO", StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(mediaUrl)) _videoUrl = mediaUrl.Trim();
+            if (wantVideo && string.IsNullOrWhiteSpace(_videoUrl))
+            {
+                AppLogger.Warn("[PrivacyOverlay] Mode VIDEO diminta tanpa URL, fallback ke IMAGE");
+                wantVideo = false;
+            }
+            if (wantVideo && _videoPlayer == null)
+            {
+                AppLogger.Warn("[PrivacyOverlay] Player video tidak tersedia, fallback ke IMAGE");
+                wantVideo = false;
+            }
+            _contentType = wantVideo ? "VIDEO" : "IMAGE";
+            if (InvokeRequired) { BeginInvoke(new Action(() => ApplyContentVisibility())); return; }
+            ApplyContentVisibility();
+        }
+
+        private void ApplyContentVisibility()
+        {
+            bool showVideo = _contentType == "VIDEO" && _videoPlayer != null && !string.IsNullOrWhiteSpace(_videoUrl);
+            if (_videoPlayer != null) _videoPlayer.Visible = showVideo;
+            _picSlide.Visible = !showVideo;
+            if (showVideo)
+            {
+                try
+                {
+                    _videoPlayer!.settings.mute = true;
+                    _videoPlayer!.URL = _videoUrl;
+                    _videoPlayer!.Ctlcontrols.play();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warn($"[PrivacyOverlay] Gagal memutar video, fallback ke gambar: {ex.Message}");
+                    _contentType = "IMAGE";
+                    _videoPlayer!.Visible = false;
+                    _picSlide.Visible = true;
+                }
+            }
+            else
+            {
+                try { if (_videoPlayer != null) _videoPlayer.Ctlcontrols.stop(); } catch { }
+            }
         }
 
         private void ApplyDisplayAffinityProtection()
@@ -305,23 +461,19 @@ namespace SJANotificationApp
 
         private void StartCountdown()
         {
+            _lblCountdownBig.Text = _remainingSeconds.ToString();
             _countdownTimer = new System.Windows.Forms.Timer { Interval = 1000 };
             _countdownTimer.Tick += (s, e) =>
             {
                 _remainingSeconds--;
                 if (_remainingSeconds > 0)
                 {
-                    _lblCountdown.Text = $"Memulai dalam {_remainingSeconds} detik... (Klik 'Tolak' untuk membatalkan)";
-                    _btnDisconnect.Text = $"Tolak Akses ({_remainingSeconds}s)";
+                    _lblCountdownBig.Text = _remainingSeconds.ToString();
+                    _btnDisconnect.Text = $"TOLAK AKSES ({_remainingSeconds}s)";
                 }
                 else
                 {
-                    _countdownTimer.Stop();
-                    _btnAllowNow.Visible = false;
-                    _lblCountdown.Text = "Sesi remote aktif. Anda dapat memutuskan kendali kapan saja.";
-                    _lblCountdown.ForeColor = Color.FromArgb(52, 211, 153);
-                    _btnDisconnect.Text = "Putuskan Sesi Remote";
-                    OnConsentGranted?.Invoke();
+                    GrantConsentFromUser();
                 }
             };
             _countdownTimer.Start();
@@ -333,6 +485,8 @@ namespace SJANotificationApp
             _slideTimer?.Dispose();
             _countdownTimer?.Stop();
             _countdownTimer?.Dispose();
+            try { if (_videoPlayer != null) _videoPlayer.Ctlcontrols.stop(); } catch { }
+            try { if (_videoPlayer != null) _videoPlayer.close(); } catch { }
             _picSlide.Image?.Dispose();
             foreach (var image in _loadedImages)
             {

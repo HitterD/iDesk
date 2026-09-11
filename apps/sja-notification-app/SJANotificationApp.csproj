@@ -18,6 +18,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+    <Reference Include="AxWMPLib">
+      <HintPath>libs\AxWMPLib.dll</HintPath>
+    </Reference>
+    <Reference Include="WMPLib">
+      <HintPath>libs\WMPLib.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

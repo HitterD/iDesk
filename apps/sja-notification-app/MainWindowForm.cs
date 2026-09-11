@@ -1132,6 +1132,11 @@ namespace SJANotificationApp
 
         private void OpenRemoteDeviceBrowser()
         {
+            if (!RemoteAccessPolicy.IsRemoteOperator(DeviceSecurityStorage.LoadSession()?.Role))
+            {
+                ShowAlert("Fitur Remote Desktop hanya tersedia untuk akun ADMIN atau AGENT.", isError: true);
+                return;
+            }
             try
             {
                 var browser = new RemoteDeviceBrowserForm(_config);
@@ -1152,6 +1157,11 @@ namespace SJANotificationApp
 
         private void StartRemoteSession(DeviceDirectoryItem targetDev)
         {
+            if (!RemoteAccessPolicy.IsRemoteOperator(DeviceSecurityStorage.LoadSession()?.Role))
+            {
+                ShowAlert("Fitur Remote Desktop hanya tersedia untuk akun ADMIN atau AGENT.", isError: true);
+                return;
+            }
             try
             {
                 ShowAlert($"Memulai koneksi Remote Desktop ke {targetDev.deviceName} ({targetDev.ipAddress})...", isError: false);
@@ -1319,6 +1329,9 @@ namespace SJANotificationApp
                 string n = !string.IsNullOrWhiteSpace(_session.EmployeeId) ? _session.EmployeeId : _session.Email;
                 _lblUserDetail.Text = $"{n} • {Environment.MachineName}";
                 _lblSiteBadge.Text = !string.IsNullOrWhiteSpace(_session.SiteCode) ? _session.SiteCode : "SPJ";
+
+                // Fail-closed: tombol Remote hanya untuk ADMIN / AGENT*.
+                _btnRemote.Visible = RemoteAccessPolicy.IsRemoteOperator(_session.Role);
 
                 if (_isConnected)
                 {
