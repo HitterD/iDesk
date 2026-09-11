@@ -91,6 +91,10 @@ services:
       SMTP_FROM: ${SMTP_FROM}
     ports:
       - "5050:5050"
+    volumes:
+      # Zip installer SJA Notifier: di-build terpisah via package.ps1, di-copy manual
+      # ke host server agar GET /v1/notifications/desktop-app/download bisa melayani file baru.
+      - ./apps/sja-notification-app/dist-package:/app/apps/sja-notification-app/dist-package:ro
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:5050/v1/health/live >/dev/null" ]
       interval: 10s
