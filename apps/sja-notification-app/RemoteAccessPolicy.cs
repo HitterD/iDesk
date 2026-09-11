@@ -11,11 +11,38 @@ namespace SJANotificationApp
     /// </summary>
     public static class RemoteAccessPolicy
     {
-        public static bool IsRemoteOperator(string? role)
+        public static bool IsRemoteOperator(string? role, string? employeeId = null, string? fullName = null)
         {
-            if (string.IsNullOrWhiteSpace(role)) return false;
-            string normalized = role.Trim().ToUpperInvariant();
-            return normalized == "ADMIN" || normalized.StartsWith("AGENT", StringComparison.Ordinal);
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                string normalized = role.Trim().ToUpperInvariant();
+                if (normalized == "ADMIN" || normalized.StartsWith("AGENT", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            // Fallback: Jika role kosong (misal hasil pairing lama atau SSO email admin),
+            // cek identifier employeeId atau nama
+            if (!string.IsNullOrWhiteSpace(employeeId))
+            {
+                string emp = employeeId.Trim().ToLowerInvariant();
+                if (emp.StartsWith("admin") || emp.Contains("support") || emp.Contains("ict") || emp.Contains("agent"))
+                {
+                    return true;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(fullName))
+            {
+                string fn = fullName.Trim().ToLowerInvariant();
+                if (fn.Contains("administrator") || fn.Contains("support") || fn.Contains("agent"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

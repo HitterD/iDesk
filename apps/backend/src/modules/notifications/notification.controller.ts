@@ -308,6 +308,7 @@ export class NotificationController {
                 code: body.code,
                 employeeId: req.user.employeeId || req.user.username || req.user.userId,
                 name: req.user.fullName || 'User SJA',
+                role: req.user.role || '',
             };
 
             const resp = await fetch(`${sjaBackendUrl.replace(/\/$/, '')}/v1/devices/activation/approve`, {

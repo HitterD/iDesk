@@ -160,4 +160,12 @@ public class P2pConnectionSupportTests
     {
         Assert.Equal(expected, RemoteAccessPolicy.IsRemoteOperator(role));
     }
+
+    [Fact]
+    public void RemoteAccessPolicy_FallbackIdentifier_AllowsAdminEmailOrName()
+    {
+        Assert.True(RemoteAccessPolicy.IsRemoteOperator("", "admin@idesk.com", "System Administrator"));
+        Assert.True(RemoteAccessPolicy.IsRemoteOperator(null, "support_ict", "Helpdesk"));
+        Assert.False(RemoteAccessPolicy.IsRemoteOperator("", "karyawan01", "Budi Santoso"));
+    }
 }
