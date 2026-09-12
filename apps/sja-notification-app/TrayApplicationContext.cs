@@ -609,13 +609,12 @@ namespace SJANotificationApp
             {
                 var logoutItem = new ToolStripMenuItem("Sign out", FluentTheme.GetMenuIcon("exit", FluentTheme.ThemeStatusCritical), (s, e) =>
                 {
-                    var confirm = MessageBox.Show(
-                        "Are you sure you want to sign out from this device?\n\nYou will need to sign in again to receive notifications.",
-                        "Sign Out",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question
-                    );
-                    if (confirm == DialogResult.Yes)
+                    if (AppDialogs.Confirm(
+                        null,
+                        "Sign out?",
+                        "You will need to sign in again to receive notifications on this device.",
+                        "Sign out",
+                        isDestructive: true))
                     {
                         LogoutCurrentSession();
                     }
@@ -628,14 +627,12 @@ namespace SJANotificationApp
 
             var exitItem = new ToolStripMenuItem("Quit notifier", FluentTheme.GetMenuIcon("exit", FluentTheme.ThemeStatusCritical), (s, e) =>
             {
-                var confirm = MessageBox.Show(
-                    "Exiting SJA Notifier will stop real-time desktop notifications.\n\nAre you sure you want to quit?",
-                    "Quit Notifier",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning,
-                    MessageBoxDefaultButton.Button2
-                );
-                if (confirm == DialogResult.Yes)
+                if (AppDialogs.Confirm(
+                    null,
+                    "Quit notifier?",
+                    "You will stop receiving notifications until the app is started again.",
+                    "Quit",
+                    isDestructive: true))
                 {
                     ExitApplication();
                 }

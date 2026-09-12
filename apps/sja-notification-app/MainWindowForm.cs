@@ -1265,14 +1265,12 @@ namespace SJANotificationApp
 
         private void HandleLogoutAction()
         {
-            var confirm = MessageBox.Show(
-                "Apakah Anda yakin ingin keluar dari akun ini di SJA Notifier?\n\nAplikasi akan tetap standby di latar belakang dan dapat login kembali kapan saja.",
-                "Konfirmasi Logout",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question
-            );
-
-            if (confirm == DialogResult.Yes)
+            if (AppDialogs.Confirm(
+                this,
+                "Sign out?",
+                "You will need to sign in again to receive notifications on this device.",
+                "Sign out",
+                isDestructive: true))
             {
                 TrayApplicationContext.Instance?.LogoutCurrentSession();
                 RefreshDataState();
@@ -1528,13 +1526,12 @@ namespace SJANotificationApp
                 };
                 itemDelete.Click += (s, e) =>
                 {
-                    var confirm = MessageBox.Show(
-                        $"Are you sure you want to delete profile '{active.Name}'?\nSession token data for this profile will be removed from this PC.",
-                        "Delete Profile",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Warning
-                    );
-                    if (confirm == DialogResult.Yes)
+                    if (AppDialogs.Confirm(
+                        this,
+                        "Delete profile?",
+                        $"Session token data for profile '{active.Name}' will be removed from this PC.",
+                        "Delete",
+                        isDestructive: true))
                     {
                         if (ProfileStore.Instance.RemoveProfile(active.Id, out string? err))
                         {
