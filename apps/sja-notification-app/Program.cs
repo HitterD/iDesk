@@ -57,6 +57,16 @@ namespace SJANotificationApp
             // Pastikan thread aplikasi terhubung ke desktop interaktif Windows (WinSta0\Default)
             EnsureInteractiveDesktop();
 
+            // --test-render-settings dan --test-render-history dialihkan ke jendela utama
+            // (SettingsForm/HistoryForm dihapus; satu jendela, tiga halaman).
+            if (args != null && args.Length > 0 &&
+                (args[0] == "--test-render-settings" || args[0] == "--test-render-history"))
+            {
+                string page = args[0] == "--test-render-settings" ? "settings" : "history";
+                string theme = args.Length > 1 ? args[1] : "dark";
+                args = new[] { "--test-render-main", page, theme };
+            }
+
             if (args != null && args.Length > 0 && args[0] == "--test-render-main")
             {
                 Application.SetHighDpiMode(HighDpiMode.SystemAware);
@@ -66,6 +76,20 @@ namespace SJANotificationApp
                 string mode = args.Length > 1 ? args[1] : "dashboard";
                 bool isLight = args.Length > 2 && args[2].Equals("light", StringComparison.OrdinalIgnoreCase);
                 FluentTheme.SetThemeOverride(!isLight);
+
+                if (string.Equals(mode, "history", StringComparison.OrdinalIgnoreCase) &&
+                    LocalNotificationHistory.LoadAll().Count == 0)
+                {
+                    LocalNotificationHistory.Add(new NotificationData
+                    {
+                        App = "iDesk Support",
+                        TicketNumber = "TKT-2026-1042",
+                        Title = "Tiket Baru #TKT-2026-1042: Kendala Printer Lantai 2",
+                        Message = "Dear Tim IT, printer jaringan di lantai 2 SPJ mendadak offline dan antrean cetak macet.",
+                        Priority = "high",
+                        Timestamp = DateTime.Now.AddMinutes(-12)
+                    });
+                }
 
                 var config = new AppConfig();
                 using var form = new MainWindowForm(config, true);
@@ -177,7 +201,7 @@ namespace SJANotificationApp
                 return;
             }
 
-            if (args != null && args.Length > 0 && args[0] == "--test-render-settings")
+            if (args != null && args.Length > 0 && args[0] == "--test-render-remote")
             {
                 Application.SetHighDpiMode(HighDpiMode.SystemAware);
                 Application.EnableVisualStyles();
@@ -187,10 +211,11 @@ namespace SJANotificationApp
                 FluentTheme.SetThemeOverride(!isLight);
 
                 var config = new AppConfig();
-                using var form = new SettingsForm(config);
+                using var form = new RemoteDeviceBrowserForm(config);
                 form.StartPosition = FormStartPosition.Manual;
                 form.Location = new System.Drawing.Point(-2000, -2000);
                 form.Show();
+                form.SeedMockDevices();
                 Application.DoEvents();
 
                 using var bmp = new System.Drawing.Bitmap(form.Width, form.Height);
@@ -198,7 +223,7 @@ namespace SJANotificationApp
 
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string themeLabel = isLight ? "light" : "dark";
-                string outFilename = $"settings-window-{themeLabel}-preview.png";
+                string outFilename = $"remote-browser-{themeLabel}-preview.png";
                 string outPath = Path.Combine(baseDir, outFilename);
                 bmp.Save(outPath, System.Drawing.Imaging.ImageFormat.Png);
                 Console.WriteLine($"PREVIEW_SAVED:{outPath}");
@@ -206,7 +231,7 @@ namespace SJANotificationApp
                 return;
             }
 
-            if (args != null && args.Length > 0 && args[0] == "--test-render-history")
+            if (args != null && args.Length > 0 && args[0] == "--test-render-remote-viewer")
             {
                 Application.SetHighDpiMode(HighDpiMode.SystemAware);
                 Application.EnableVisualStyles();
@@ -215,19 +240,15 @@ namespace SJANotificationApp
                 bool isLight = args.Length > 1 && args[1].Equals("light", StringComparison.OrdinalIgnoreCase);
                 FluentTheme.SetThemeOverride(!isLight);
 
-                // Populate a mock item if empty
-                LocalNotificationHistory.Add(new NotificationData
-                {
-                    App = "iDesk Support",
-                    TicketNumber = "TKT-2026-1042",
-                    Title = "Tiket Baru #TKT-2026-1042: Kendala Printer Lantai 2",
-                    Message = "Dear Tim IT, printer jaringan di lantai 2 SPJ mendadak offline dan antrean cetak macet.",
-                    Priority = "high",
-                    Timestamp = DateTime.Now.AddMinutes(-12)
-                });
-
                 var config = new AppConfig();
-                using var form = new HistoryForm(config);
+                var dev = new DeviceDirectoryItem
+                {
+                    deviceName = "SPJ-IT-014",
+                    employeeName = "Bagas IT Infrastructure",
+                    ipAddress = "10.10.4.21",
+                    isOnline = true
+                };
+                using var form = new RemoteViewerForm(config, dev);
                 form.StartPosition = FormStartPosition.Manual;
                 form.Location = new System.Drawing.Point(-2000, -2000);
                 form.Show();
@@ -237,9 +258,34 @@ namespace SJANotificationApp
                 form.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, form.Width, form.Height));
 
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string themeLabel = isLight ? "light" : "dark";
-                string outFilename = $"history-window-{themeLabel}-preview.png";
-                string outPath = Path.Combine(baseDir, outFilename);
+                string outPath = Path.Combine(baseDir, $"remote-viewer-{(isLight ? "light" : "dark")}-preview.png");
+                bmp.Save(outPath, System.Drawing.Imaging.ImageFormat.Png);
+                Console.WriteLine($"PREVIEW_SAVED:{outPath}");
+                Process.GetCurrentProcess().Kill();
+                return;
+            }
+
+            if (args != null && args.Length > 0 && args[0] == "--test-render-remote-privacy")
+            {
+                Application.SetHighDpiMode(HighDpiMode.SystemAware);
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                bool isLight = args.Length > 1 && args[1].Equals("light", StringComparison.OrdinalIgnoreCase);
+                FluentTheme.SetThemeOverride(!isLight);
+
+                using var form = new RemotePrivacyOverlayForm("Santos ICT Support", "10.10.4.21");
+                form.StartPosition = FormStartPosition.Manual;
+                form.Location = new System.Drawing.Point(-2000, -2000);
+                form.TopMost = false;
+                form.Show();
+                Application.DoEvents();
+
+                using var bmp = new System.Drawing.Bitmap(form.Width, form.Height);
+                form.DrawToBitmap(bmp, new System.Drawing.Rectangle(0, 0, form.Width, form.Height));
+
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string outPath = Path.Combine(baseDir, $"remote-privacy-{(isLight ? "light" : "dark")}-preview.png");
                 bmp.Save(outPath, System.Drawing.Imaging.ImageFormat.Png);
                 Console.WriteLine($"PREVIEW_SAVED:{outPath}");
                 Process.GetCurrentProcess().Kill();
