@@ -17,6 +17,7 @@ namespace SJANotificationApp
         public bool StartWithWindows { get; set; } = true;
         public string DefaultDisplayMode { get; set; } = "both"; // "toast" | "popup" | "both"
         public int AutoDismissSeconds { get; set; } = 12; // 0 = manual close only, >0 = seconds
+        public string ThemeMode { get; set; } = "light"; // "light" | "dark" | "system" (default: light)
 
         private static readonly string ConfigDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

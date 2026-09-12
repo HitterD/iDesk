@@ -68,6 +68,25 @@ Write-Host "[5/5] Mendaftarkan autostart & mengonfigurasi system tray..." -Foreg
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 Set-ItemProperty -Path $regPath -Name "SJANotifier" -Value "`"$destExe`"" -Force
 
+# Daftarkan AUMID Toast Action Center & sinkronkan cache icon resmi Santos
+try {
+    $aumid = "SantosJayaAbadi.Idesk.Notifier"
+    $compatDir = Join-Path $env:LOCALAPPDATA "ToastNotificationManagerCompat\Apps\$aumid"
+    if (-not (Test-Path $compatDir)) { New-Item -ItemType Directory -Path $compatDir -Force | Out-Null }
+    $santosLogo = Join-Path $targetDir "assets\santos-logo.png"
+    $cachedIcon = Join-Path $compatDir "Icon.png"
+    if (Test-Path $santosLogo) {
+        Copy-Item $santosLogo $cachedIcon -Force
+    }
+
+    $aumidReg = "HKCU:\Software\Classes\AppUserModelId\$aumid"
+    if (-not (Test-Path $aumidReg)) { New-Item -Path $aumidReg -Force | Out-Null }
+    Set-ItemProperty -Path $aumidReg -Name "DisplayName" -Value "SJA Notifier" -Force
+    Set-ItemProperty -Path $aumidReg -Name "IconUri" -Value $cachedIcon -Force
+    Set-ItemProperty -Path $aumidReg -Name "IconBackgroundColor" -Value "00000000" -Force
+    Set-ItemProperty -Path $aumidReg -Name "ShowInSettings" -Value 1 -Type DWord -Force
+} catch {}
+
 # Tweak Explorer agar System Tray icon selalu unhidden/pinned
 try {
     $explorerPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer"

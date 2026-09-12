@@ -141,14 +141,57 @@ namespace SJANotificationApp
             try
             {
                 string aumid = Program.AppUserModelId;
+
+                // 1. Pastikan pengaturan banner dan action center aktif di Windows
                 string regPath = $@"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\{aumid}";
-                using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(regPath);
-                if (key != null)
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(regPath))
                 {
-                    key.SetValue("Enabled", 1, Microsoft.Win32.RegistryValueKind.DWord);
-                    key.SetValue("ShowInActionCenter", 1, Microsoft.Win32.RegistryValueKind.DWord);
-                    key.SetValue("ShowBanners", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                    if (key != null)
+                    {
+                        key.SetValue("Enabled", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                        key.SetValue("ShowInActionCenter", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                        key.SetValue("ShowBanners", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
                 }
+
+                // 2. Timpa cache icon ToastNotificationManagerCompat agar logo resmi Santos Jaya Abadi muncul (bukan logo .NET)
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string sourceLogo = Path.Combine(baseDir, "assets", "santos-logo.png");
+                if (!File.Exists(sourceLogo))
+                {
+                    sourceLogo = Path.Combine(baseDir, "assets", "idesk-logo.png");
+                }
+
+                string compatDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "ToastNotificationManagerCompat",
+                    "Apps",
+                    aumid
+                );
+                if (!Directory.Exists(compatDir))
+                {
+                    Directory.CreateDirectory(compatDir);
+                }
+
+                string cachedIconPath = Path.Combine(compatDir, "Icon.png");
+                if (File.Exists(sourceLogo))
+                {
+                    File.Copy(sourceLogo, cachedIconPath, overwrite: true);
+                }
+
+                // 3. Daftarkan identitas AUMID di registry Software\Classes\AppUserModelId
+                string aumidRegPath = $@"Software\Classes\AppUserModelId\{aumid}";
+                using (var aumidKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(aumidRegPath))
+                {
+                    if (aumidKey != null)
+                    {
+                        aumidKey.SetValue("DisplayName", "SJA Notifier", Microsoft.Win32.RegistryValueKind.String);
+                        aumidKey.SetValue("IconUri", File.Exists(cachedIconPath) ? cachedIconPath : sourceLogo, Microsoft.Win32.RegistryValueKind.String);
+                        aumidKey.SetValue("IconBackgroundColor", "00000000", Microsoft.Win32.RegistryValueKind.String);
+                        aumidKey.SetValue("ShowInSettings", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
+                }
+                AppLogger.Info($"[ToastNotifier] AUMID identity registered with official Santos icon at '{cachedIconPath}'");
             }
             catch (Exception ex)
             {
