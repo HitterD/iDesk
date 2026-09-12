@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -29,27 +30,86 @@ namespace SJANotificationApp
 
     /// <summary>
     /// Jendela Modern Windows 11 Fluent 2 untuk Direktori Perangkat Santos.
-    /// Menampilkan daftar seluruh PC dengan SJA Notifier, IP address, status online/offline, dan tombol Remote Desktop.
+    /// Mengadopsi Double-Bezel frosted canvas, glass search well, glass dropdown,
+    /// pill stats counter, serta visual card yang selaras dengan dashboard utama.
     /// </summary>
     public class RemoteDeviceBrowserForm : Form
     {
         private readonly AppConfig _config;
         private readonly HttpClient _httpClient;
+        private bool _loadFailed;
         private List<DeviceDirectoryItem> _allDevices = new();
         private List<DeviceDirectoryItem> _filteredDevices = new();
+        private bool _acrylicActive;
+        private Action? _themeChangedHandler;
+        private bool _searchFocused;
 
         private Panel _pnlHeader = null!;
-        private Panel _pnlContent = null!;
-        private Panel _pnlCards = null!;
-        private FluentScrollBar _scrollBar = null!;
-        private TextBox _txtSearch = null!;
-        private ComboBox _cbSite = null!;
-        private Label _lblStatusInfo = null!;
-        private GlassButton _btnRefresh = null!;
+        private Panel _pnlCountPill = null!;
         private GlassButton _btnClose = null!;
         private GlassButton _btnMin = null!;
 
+        private Panel _pnlFilter = null!;
+        private Panel _pnlSearchBox = null!;
+        private TextBox _txtSearch = null!;
+        private GlassDropdown _cbSite = null!;
+        private GlassButton _btnRefresh = null!;
+
+        private Panel _pnlContent = null!;
+        private Panel _pnlCards = null!;
+        private FluentScrollBar _scrollBar = null!;
+
         public Action<DeviceDirectoryItem>? OnConnectRequested;
+
+        public void SeedMockDevices()
+        {
+            _allDevices = new List<DeviceDirectoryItem>
+            {
+                new DeviceDirectoryItem
+                {
+                    id = "DEV-001",
+                    deviceName = "SPJ-IT-NB-BAGAS",
+                    employeeName = "Bagas IT Infrastructure",
+                    employeeId = "SJA-09124",
+                    windowsUsername = "bagas.it",
+                    ipAddress = "192.168.10.45",
+                    siteCode = "SPJ",
+                    clientVersion = "v2.1.4",
+                    isOnline = true,
+                    status = "ACTIVE",
+                    lastHeartbeat = "1 minute ago"
+                },
+                new DeviceDirectoryItem
+                {
+                    id = "DEV-002",
+                    deviceName = "KRW-PROD-PC-01",
+                    employeeName = "Siti Rahmawati",
+                    employeeId = "SJA-04812",
+                    windowsUsername = "siti.r",
+                    ipAddress = "10.20.4.112",
+                    siteCode = "KRW",
+                    clientVersion = "v2.1.4",
+                    isOnline = true,
+                    status = "ACTIVE",
+                    lastHeartbeat = "Just now"
+                },
+                new DeviceDirectoryItem
+                {
+                    id = "DEV-003",
+                    deviceName = "JTB-QC-LAB-03",
+                    employeeName = "Ahmad Wahyudi",
+                    employeeId = "SJA-07331",
+                    windowsUsername = "ahmad.w",
+                    ipAddress = "10.30.1.88",
+                    siteCode = "JTB",
+                    clientVersion = "v2.1.3",
+                    isOnline = false,
+                    status = "ACTIVE",
+                    lastHeartbeat = "2 hours ago"
+                }
+            };
+            ApplyFilter();
+        }
 
         public RemoteDeviceBrowserForm(AppConfig config)
         {
@@ -62,19 +122,60 @@ namespace SJANotificationApp
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
             InitializeComponent();
-            FluentTheme.ApplyWindows11Styles(Handle);
+            _acrylicActive = FluentTheme.TryApplyDarkAcrylic(Handle);
+            _themeChangedHandler = OnThemeChangedSafe;
+            FluentTheme.ThemeChanged += _themeChangedHandler;
+
             _ = LoadDevicesAsync();
+        }
+
+        /// <summary>
+        /// Handler tema yang aman: abaikan event bila form sudah dilepas agar tidak melempar ObjectDisposedException.
+        /// </summary>
+        private void OnThemeChangedSafe()
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            try
+            {
+                if (InvokeRequired) BeginInvoke(new Action(ApplyTheme));
+                else ApplyTheme();
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            if (_themeChangedHandler != null)
+            {
+                FluentTheme.ThemeChanged -= _themeChangedHandler;
+                _themeChangedHandler = null;
+            }
+            base.OnFormClosed(e);
+        }
+
+        private void ApplyTheme()
+        {
+            _acrylicActive = FluentTheme.TryApplyDarkAcrylic(Handle);
+            BackColor = FluentTheme.ThemeCanvasBottom;
+            ForeColor = FluentTheme.ThemeTextPrimary;
+            if (_txtSearch != null)
+            {
+                _txtSearch.BackColor = FluentTheme.ThemeInputWell;
+                _txtSearch.ForeColor = FluentTheme.ThemeTextPrimary;
+            }
+            Invalidate(true);
         }
 
         private void InitializeComponent()
         {
-            Text = "SJA Remote Desktop • Direktori Perangkat Santos";
+            Text = "SJA Remote Desktop";
             Size = new Size(1100, 720);
-            MinimumSize = new Size(720, 520);
-            FormBorderStyle = FormBorderStyle.Sizable;
+            MinimumSize = new Size(760, 540);
+            FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
             Font = FluentTheme.Body;
-            BackColor = FluentTheme.ThemeCanvasTop;
+            BackColor = FluentTheme.ThemeCanvasBottom;
             ForeColor = FluentTheme.ThemeTextPrimary;
             ShowInTaskbar = true;
             DoubleBuffered = true;
@@ -87,45 +188,75 @@ namespace SJANotificationApp
             }
             catch { Icon = SystemIcons.Application; }
 
-            var pnlRoot = new Panel
+            // Root Canvas Enclosure with frosted glass background & double-bezel hairline edge
+            var pnlCanvas = new Panel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(1),
-                BackColor = FluentTheme.ThemeCanvasTop
+                Padding = new Padding(20, 14, 20, 16),
+                BackColor = Color.Transparent
             };
+            pnlCanvas.Paint += (s, e) =>
+            {
+                FluentTheme.PaintFrostedCanvas(e.Graphics, pnlCanvas.ClientRectangle, _acrylicActive);
+                using var borderPen = new Pen(FluentTheme.ThemeCardHairlineStrong, 1f);
+                e.Graphics.DrawRectangle(borderPen, 0, 0, pnlCanvas.Width - 1, pnlCanvas.Height - 1);
+            };
+            Controls.Add(pnlCanvas);
 
-            // ================= HEADER =================
+            // ================= 1. HEADER (BRAND LOGO, TITLE, PILL STATS & CONTROLS) =================
             _pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 68,
-                BackColor = FluentTheme.ThemeCardFill,
-                Padding = new Padding(18, 12, 14, 12)
+                Height = 54,
+                BackColor = Color.Transparent
             };
-
-            var lblTitle = new Label
+            _pnlHeader.Paint += (s, e) =>
             {
-                Text = "SJA Remote Desktop",
-                Font = FluentTheme.SubTitle,
+                using var pen = new Pen(FluentTheme.ThemeCardHairline, 1f);
+                e.Graphics.DrawLine(pen, 0, _pnlHeader.Height - 1, _pnlHeader.Width, _pnlHeader.Height - 1);
+            };
+            _pnlHeader.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
+
+            var picLogo = new PictureBox
+            {
+                Size = new Size(32, 32),
+                Location = new Point(0, 10),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Image = LoadSantosLogo()
+            };
+            picLogo.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
+            _pnlHeader.Controls.Add(picLogo);
+
+            var lblBrand = new Label
+            {
+                Text = "PT Santos Jaya Abadi",
+                Font = FluentTheme.CaptionBold,
+                ForeColor = FluentTheme.ThemeTextMuted,
+                Location = new Point(42, 6),
+                AutoSize = true,
+                BackColor = Color.Transparent,
+                UseMnemonic = false
+            };
+            lblBrand.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
+            _pnlHeader.Controls.Add(lblBrand);
+
+            var lblSuite = new Label
+            {
+                Text = "Remote Desktop",
+                Font = FluentTheme.Title,
                 ForeColor = FluentTheme.ThemeTextPrimary,
+                Location = new Point(42, 24),
                 AutoSize = true,
-                Location = new Point(18, 14)
+                BackColor = Color.Transparent,
+                UseMnemonic = false
             };
+            lblSuite.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
+            _pnlHeader.Controls.Add(lblSuite);
 
-            var lblSubtitle = new Label
-            {
-                Text = "Pilih perangkat Santos yang online untuk memulai kendali jarak jauh (AnyDesk-style)",
-                Font = FluentTheme.Caption,
-                ForeColor = FluentTheme.ThemeTextSecondary,
-                AutoSize = true,
-                Location = new Point(18, 38)
-            };
-
+            // Close & Minimize Window Controls
             _btnClose = new GlassButton
             {
                 Size = new Size(28, 28),
-                Location = new Point(Width - 44, 16),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Variant = GlassButtonVariant.Ghost,
                 GlyphOnly = true,
                 Glyph = "close",
@@ -133,14 +264,13 @@ namespace SJANotificationApp
                 Cursor = Cursors.Hand
             };
             var tipClose = new ToolTip();
-            tipClose.SetToolTip(_btnClose, "Tutup (Esc)");
+            tipClose.SetToolTip(_btnClose, "Close (Esc)");
             _btnClose.Click += (s, e) => Close();
+            _pnlHeader.Controls.Add(_btnClose);
 
             _btnMin = new GlassButton
             {
                 Size = new Size(28, 28),
-                Location = new Point(Width - 76, 16),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Variant = GlassButtonVariant.Ghost,
                 GlyphOnly = true,
                 Glyph = "minimize",
@@ -150,108 +280,178 @@ namespace SJANotificationApp
             var tipMin = new ToolTip();
             tipMin.SetToolTip(_btnMin, "Minimize");
             _btnMin.Click += (s, e) => WindowState = FormWindowState.Minimized;
+            _pnlHeader.Controls.Add(_btnMin);
 
-            _pnlHeader.Controls.AddRange(new Control[] { lblTitle, lblSubtitle, _btnMin, _btnClose });
-            _pnlHeader.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
-            lblTitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
-            lblSubtitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
+            // Header Status Pill (matches Gateway Online Pill style from MainWindowForm)
+            _pnlCountPill = new Panel
+            {
+                Size = new Size(180, 26),
+                BackColor = Color.Transparent
+            };
+            _pnlCountPill.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                var rect = new Rectangle(0, 0, _pnlCountPill.Width - 1, _pnlCountPill.Height - 1);
 
-            // ================= FILTER / TOOLBAR =================
-            var pnlFilter = new Panel
+                int onlineCount = _allDevices.Count(d => d.isOnline);
+                bool anyOnline = onlineCount > 0;
+
+                Color bg = anyOnline ? FluentTheme.ThemeStatusOnlineBg : FluentTheme.ThemeSurfaceSoft;
+                Color border = anyOnline ? Color.FromArgb(64, FluentTheme.ThemeStatusOnline) : FluentTheme.ThemeCardHairline;
+                Color dotColor = anyOnline ? FluentTheme.ThemeStatusOnline : FluentTheme.ThemeTextMuted;
+                Color textColor = anyOnline ? FluentTheme.ThemeStatusOnline : FluentTheme.ThemeTextSecondary;
+                string text = $"{onlineCount} online • {_filteredDevices.Count} devices";
+
+                using (var brush = new SolidBrush(bg))
+                {
+                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 12);
+                }
+                using (var pen = new Pen(border, 1f))
+                {
+                    FluentTheme.DrawRoundedRectangle(e.Graphics, pen, rect, 12);
+                }
+
+                using (var dotBrush = new SolidBrush(dotColor))
+                {
+                    e.Graphics.FillEllipse(dotBrush, 8, (_pnlCountPill.Height - 8) / 2, 8, 8);
+                }
+                using (var textBrush = new SolidBrush(textColor))
+                using (var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
+                {
+                    e.Graphics.DrawString(text, FluentTheme.CaptionBold, textBrush, new RectangleF(22, 0, _pnlCountPill.Width - 24, _pnlCountPill.Height), sf);
+                }
+            };
+            _pnlHeader.Controls.Add(_pnlCountPill);
+
+            _pnlHeader.Resize += (s, e) =>
+            {
+                int r = _pnlHeader.ClientSize.Width;
+                _btnClose.Location = new Point(r - _btnClose.Width, 14);
+                _btnMin.Location = new Point(r - _btnClose.Width - _btnMin.Width - 4, 14);
+                _pnlCountPill.Location = new Point(_btnMin.Left - _pnlCountPill.Width - 10, 15);
+            };
+
+            pnlCanvas.Controls.Add(_pnlHeader);
+
+            // ================= 2. FILTER & TOOLBAR =================
+            _pnlFilter = new Panel
             {
                 Dock = DockStyle.Top,
                 Height = 52,
-                BackColor = FluentTheme.ThemeCanvasTop,
-                Padding = new Padding(18, 10, 18, 8)
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 8, 0, 8)
+            };
+
+            // Custom Glass Search Well with focused hairline accent
+            _pnlSearchBox = new Panel
+            {
+                Location = new Point(0, 8),
+                Size = new Size(380, 36),
+                BackColor = Color.Transparent
+            };
+            _pnlSearchBox.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                var rect = new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1);
+                using (var brush = new SolidBrush(FluentTheme.ThemeInputWell))
+                {
+                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 8);
+                }
+                Color border = _searchFocused ? FluentTheme.ThemeAccent : FluentTheme.ThemeInputBorder;
+                float w = _searchFocused ? 1.5f : 1f;
+                using var pen = new Pen(border, w);
+                FluentTheme.DrawRoundedRectangle(e.Graphics, pen, rect, 8);
             };
 
             _txtSearch = new TextBox
             {
-                Location = new Point(18, 12),
-                Width = 320,
-                Height = 28,
-                Font = FluentTheme.Body,
-                BackColor = FluentTheme.ThemeCardFill,
+                Location = new Point(12, 9),
+                Size = new Size(380 - 24, 20),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BorderStyle = BorderStyle.None,
+                BackColor = FluentTheme.ThemeInputWell,
+                Font = FluentTheme.GetFont(9.5F, FontStyle.Regular),
                 ForeColor = FluentTheme.ThemeTextPrimary,
-                BorderStyle = BorderStyle.FixedSingle,
-                PlaceholderText = "Cari nama PC, NIK, nama karyawan, atau IP..."
+                PlaceholderText = "Search by PC name, employee ID, name, or IP address"
             };
+            _txtSearch.Enter += (s, e) => { _searchFocused = true; _pnlSearchBox.Invalidate(); };
+            _txtSearch.Leave += (s, e) => { _searchFocused = false; _pnlSearchBox.Invalidate(); };
             _txtSearch.TextChanged += (s, e) => ApplyFilter();
+            _pnlSearchBox.Click += (s, e) => _txtSearch.Focus();
+            _pnlSearchBox.Controls.Add(_txtSearch);
 
-            _cbSite = new ComboBox
+            // Custom GlassDropdown replacing standard Win32 ComboBox
+            _cbSite = new GlassDropdown
             {
-                Location = new Point(350, 12),
-                Width = 140,
-                Height = 28,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = FluentTheme.Body,
-                BackColor = FluentTheme.ThemeCardFill,
-                ForeColor = FluentTheme.ThemeTextPrimary
+                Location = new Point(392, 8),
+                Size = new Size(180, 36)
             };
-            _cbSite.Items.AddRange(new object[] { "Semua Site (ALL)", "SPJ (Sepanjang)", "KRW (Karawang)", "JTB (Jatake)", "SMG (Semarang)" });
+            _cbSite.Items.Add("All sites");
+            _cbSite.Items.Add("SPJ — Sepanjang");
+            _cbSite.Items.Add("KRW — Karawang");
+            _cbSite.Items.Add("JTB — Jatake");
+            _cbSite.Items.Add("SMG — Semarang");
             _cbSite.SelectedIndex = 0;
             _cbSite.SelectedIndexChanged += (s, e) => ApplyFilter();
 
             _btnRefresh = new GlassButton
             {
-                Text = "Segarkan",
-                Glyph = "test",
-                Size = new Size(100, 28),
-                Location = new Point(500, 12),
+                Text = "Refresh",
+                Glyph = "refresh",
+                Size = new Size(110, 36),
+                Location = new Point(582, 8),
                 Variant = GlassButtonVariant.Ghost,
-                Radius = 6
+                Radius = 8
             };
             _btnRefresh.Click += async (s, e) => await LoadDevicesAsync();
 
-            _lblStatusInfo = new Label
-            {
-                Location = new Point(610, 16),
-                AutoSize = true,
-                Font = FluentTheme.Caption,
-                ForeColor = FluentTheme.ThemeTextSecondary,
-                Text = "Memuat data..."
-            };
+            _pnlFilter.Controls.AddRange(new Control[] { _pnlSearchBox, _cbSite, _btnRefresh });
+            pnlCanvas.Controls.Add(_pnlFilter);
+            _pnlFilter.BringToFront();
 
-            pnlFilter.Controls.AddRange(new Control[] { _txtSearch, _cbSite, _btnRefresh, _lblStatusInfo });
-
-            // ================= BODY & CARD LIST =================
+            // ================= 3. CONTENT AREA & CARD FEED =================
             _pnlContent = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = FluentTheme.ThemeCanvasTop,
-                Padding = new Padding(18, 0, 18, 14)
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 6, 0, 0)
             };
 
             _pnlCards = new Panel
             {
-                Dock = DockStyle.Fill,
+                Location = new Point(0, 0),
                 AutoScroll = false,
-                BackColor = FluentTheme.ThemeCanvasTop
+                BackColor = Color.Transparent
             };
 
             _scrollBar = new FluentScrollBar
             {
                 Dock = DockStyle.Right,
-                Width = 8,
+                Width = 10,
                 Visible = false
             };
             _scrollBar.ValueChanged += (s, e) =>
             {
-                _pnlCards.AutoScrollPosition = new Point(0, _scrollBar.Value);
+                _pnlCards.Top = -_scrollBar.Value;
             };
 
             _pnlContent.Controls.Add(_pnlCards);
             _pnlContent.Controls.Add(_scrollBar);
+            pnlCanvas.Controls.Add(_pnlContent);
+            _pnlContent.BringToFront();
 
-            pnlRoot.Controls.Add(_pnlContent);
-            pnlRoot.Controls.Add(pnlFilter);
-            pnlRoot.Controls.Add(_pnlHeader);
-            Controls.Add(pnlRoot);
-
-            Resize += (s, e) =>
+            _pnlCards.MouseWheel += (s, e) =>
             {
-                _btnClose.Location = new Point(Width - 44, 16);
-                _btnMin.Location = new Point(Width - 76, 16);
+                _scrollBar.DoMouseWheel(e.Delta);
+            };
+            _pnlContent.MouseWheel += (s, e) =>
+            {
+                _scrollBar.DoMouseWheel(e.Delta);
+            };
+
+            _pnlContent.Resize += (s, e) =>
+            {
                 RenderCards();
             };
         }
@@ -259,7 +459,6 @@ namespace SJANotificationApp
         private async Task LoadDevicesAsync()
         {
             _btnRefresh.Enabled = false;
-            _lblStatusInfo.Text = "Menghubungi server...";
 
             try
             {
@@ -277,13 +476,14 @@ namespace SJANotificationApp
                 }
                 else
                 {
-                    _lblStatusInfo.Text = $"Gagal ({res.StatusCode})";
+                    _pnlCountPill.Invalidate();
                 }
             }
             catch (Exception ex)
             {
-                _lblStatusInfo.Text = "Koneksi terputus";
                 AppLogger.Error("Gagal mengambil data perangkat dari server", ex);
+                _loadFailed = true;
+                _pnlCountPill.Invalidate();
             }
             finally
             {
@@ -314,9 +514,7 @@ namespace SJANotificationApp
                 .ThenBy(d => d.deviceName)
                 .ToList();
 
-            int onlineCount = _allDevices.Count(d => d.isOnline);
-            _lblStatusInfo.Text = $"{onlineCount} Online • {_filteredDevices.Count} Ditampilkan";
-
+            _pnlCountPill.Invalidate();
             RenderCards();
         }
 
@@ -325,26 +523,31 @@ namespace SJANotificationApp
             _pnlCards.SuspendLayout();
             _pnlCards.Controls.Clear();
 
-            if (_filteredDevices.Count == 0)
+            int availWidth = Math.Max(200, _pnlContent.ClientSize.Width - 14);
+            _pnlCards.Width = availWidth;
+
+            if (_loadFailed)
             {
-                var lblEmpty = new Label
-                {
-                    Text = "Tidak ada perangkat yang cocok dengan kriteria pencarian.",
-                    Font = FluentTheme.Body,
-                    ForeColor = FluentTheme.ThemeTextSecondary,
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Dock = DockStyle.Fill
-                };
-                _pnlCards.Controls.Add(lblEmpty);
+                RenderStatePanel("warning", "Could not load devices", "Check your connection to the SJA server, then try again.", "Try again", async () => await LoadDevicesAsync());
+                _pnlCards.Height = 220;
                 _pnlCards.ResumeLayout();
                 _scrollBar.Visible = false;
                 return;
             }
 
-            int cardHeight = 82;
-            int gap = 8;
+            if (_filteredDevices.Count == 0)
+            {
+                RenderStatePanel("search", "No devices found", "No devices match your search. Try a different keyword or site filter.", null, null);
+                _pnlCards.Height = 220;
+                _pnlCards.ResumeLayout();
+                _scrollBar.Visible = false;
+                return;
+            }
+
+            int cardHeight = 88;
+            int gap = 10;
             int y = 4;
-            int cardWidth = _pnlCards.Width - (_scrollBar.Visible ? 14 : 4);
+            int cardWidth = availWidth - 8;
             if (cardWidth < 200) cardWidth = 600;
 
             foreach (var dev in _filteredDevices)
@@ -355,11 +558,58 @@ namespace SJANotificationApp
                 y += cardHeight + gap;
             }
 
-            _pnlCards.AutoScrollMinSize = new Size(0, y + 10);
-            _scrollBar.Maximum = Math.Max(0, y - _pnlCards.Height + 10);
-            _scrollBar.Visible = _scrollBar.Maximum > 0;
+            int contentHeight = y + 10;
+            _pnlCards.Height = Math.Max(_pnlContent.ClientSize.Height, contentHeight);
+            int maxScroll = Math.Max(0, contentHeight - _pnlContent.ClientSize.Height);
+            _scrollBar.Maximum = maxScroll;
+            _scrollBar.Visible = maxScroll > 0;
+            _pnlCards.Top = -Math.Min(_scrollBar.Value, maxScroll);
 
             _pnlCards.ResumeLayout();
+        }
+
+        private void RenderStatePanel(string iconKey, string title, string body, string? actionLabel, Action? onAction)
+        {
+            int availWidth = _pnlCards.Width;
+            var pnlEmpty = new Panel
+            {
+                Location = new Point(2, 20),
+                Size = new Size(availWidth - 4, 180),
+                BackColor = Color.Transparent
+            };
+            pnlEmpty.Paint += (s, e) =>
+            {
+                FluentTheme.PaintGlassCard(e.Graphics, pnlEmpty.ClientRectangle, 12, FluentTheme.ThemeCardFillSoft, FluentTheme.ThemeCardHairline, false);
+
+                using var ico = FluentTheme.GetMenuIcon(iconKey, iconKey == "warning" ? FluentTheme.ThemeStatusWarn : FluentTheme.ThemeTextMuted, 24);
+                e.Graphics.DrawImage(ico, (pnlEmpty.Width - 24) / 2, 28);
+
+                using var fontTitle = FluentTheme.GetFont(11F, FontStyle.Bold);
+                using var brushTitle = new SolidBrush(FluentTheme.ThemeTextPrimary);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                e.Graphics.DrawString(title, fontTitle, brushTitle, new RectangleF(20, 58, pnlEmpty.Width - 40, 24), sf);
+
+                using var fontBody = FluentTheme.Caption;
+                using var brushBody = new SolidBrush(FluentTheme.ThemeTextMuted);
+                e.Graphics.DrawString(body, fontBody, brushBody, new RectangleF(30, 84, pnlEmpty.Width - 60, 36), sf);
+            };
+
+            if (!string.IsNullOrEmpty(actionLabel) && onAction != null)
+            {
+                var btnAction = new GlassButton
+                {
+                    Text = actionLabel,
+                    Variant = GlassButtonVariant.Accent,
+                    Font = FluentTheme.CaptionBold,
+                    Radius = 8,
+                    Size = new Size(110, 32),
+                    Location = new Point((pnlEmpty.Width - 110) / 2, 128)
+                };
+                btnAction.Click += (s, e) => onAction();
+                pnlEmpty.Controls.Add(btnAction);
+            }
+
+            _pnlCards.Controls.Add(pnlEmpty);
         }
 
         private Panel CreateDeviceCard(DeviceDirectoryItem dev, int width, int height)
@@ -368,89 +618,162 @@ namespace SJANotificationApp
             {
                 Size = new Size(width, height),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = FluentTheme.ThemeCardFill,
-                Padding = new Padding(14, 10, 14, 10)
+                BackColor = Color.Transparent,
+                Padding = new Padding(16, 12, 16, 12)
             };
 
-            // Status Indicator Circle
-            Color statusColor = dev.isOnline ? Color.FromArgb(16, 185, 129) : Color.FromArgb(156, 163, 175);
-            var pnlIndicator = new Panel
+            // 1. Squircle Device Status Avatar (42x42)
+            Color statusColor = dev.isOnline ? FluentTheme.StatusOnline : FluentTheme.StatusOffline;
+            var picCategory = new PictureBox
             {
-                Size = new Size(12, 12),
-                Location = new Point(14, 18),
+                Size = new Size(44, 44),
+                Location = new Point(16, (height - 44) / 2),
                 BackColor = Color.Transparent
             };
-            pnlIndicator.Paint += (s, e) =>
+            picCategory.Paint += (s, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using var b = new SolidBrush(statusColor);
-                e.Graphics.FillEllipse(b, 1, 1, 10, 10);
-            };
+                var r = new Rectangle(0, 0, picCategory.Width - 1, picCategory.Height - 1);
 
-            // Device & Employee Title
+                Color bg = dev.isOnline ? FluentTheme.ThemeStatusOnlineBg : FluentTheme.ThemeSurfaceSoft;
+                Color border = dev.isOnline ? Color.FromArgb(48, FluentTheme.ThemeStatusOnline) : FluentTheme.ThemeCardHairline;
+
+                using (var b = new SolidBrush(bg))
+                {
+                    FluentTheme.FillRoundedRectangle(e.Graphics, b, r, 10);
+                }
+                using (var p = new Pen(border, 1f))
+                {
+                    FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 10);
+                }
+
+                using var ico = FluentTheme.GetMenuIcon("remote", dev.isOnline ? FluentTheme.StatusOnline : FluentTheme.ThemeTextMuted, 20);
+                e.Graphics.DrawImage(ico, (picCategory.Width - 20) / 2, (picCategory.Height - 20) / 2);
+
+                // Small live status dot at bottom right
+                int dotX = picCategory.Width - 12;
+                int dotY = picCategory.Height - 12;
+                using (var ringBrush = new SolidBrush(FluentTheme.ThemeCardFill))
+                {
+                    e.Graphics.FillEllipse(ringBrush, dotX - 2, dotY - 2, 12, 12);
+                }
+                using (var dotBrush = new SolidBrush(statusColor))
+                {
+                    e.Graphics.FillEllipse(dotBrush, dotX, dotY, 8, 8);
+                }
+            };
+            pnl.Controls.Add(picCategory);
+
+            // 2. Device Name & Title
             var lblDevName = new Label
             {
                 Text = dev.deviceName,
                 Font = FluentTheme.SubTitle,
                 ForeColor = FluentTheme.ThemeTextPrimary,
-                Location = new Point(34, 12),
-                AutoSize = true
+                Location = new Point(72, 18),
+                AutoSize = true,
+                BackColor = Color.Transparent,
+                UseMnemonic = false
             };
+            pnl.Controls.Add(lblDevName);
 
+            // 3. Site Badge
             var lblBadge = new Label
             {
                 Text = dev.siteCode ?? "SPJ",
-                Font = FluentTheme.Caption,
-                ForeColor = FluentTheme.ThemeAccent,
-                BackColor = Color.FromArgb(20, FluentTheme.ThemeAccent),
-                Padding = new Padding(4, 2, 4, 2),
-                AutoSize = true,
-                Location = new Point(lblDevName.Right + 8, 14)
+                Font = FluentTheme.CaptionBold,
+                ForeColor = FluentTheme.ThemeTextSecondary,
+                BackColor = FluentTheme.ThemeSurfaceSoft,
+                Size = new Size(46, 22),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(lblDevName.Right + 8, 18),
+                UseMnemonic = false
             };
+            lblBadge.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                var r = new Rectangle(0, 0, lblBadge.Width - 1, lblBadge.Height - 1);
+                using var p = new Pen(FluentTheme.ThemeCardHairline, 1f);
+                FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 6);
+            };
+            pnl.Controls.Add(lblBadge);
 
-            // Subtitle: User & IP info
-            string statusStr = dev.isOnline ? "Aktif Sekarang" : $"Terakhir: {dev.lastHeartbeat}";
+            // 4. Subtitle / Metadata
+            string statusStr = dev.isOnline ? "Active now" : $"Last seen: {dev.lastHeartbeat}";
+            string ipText = string.IsNullOrWhiteSpace(dev.ipAddress) ? "N/A" : dev.ipAddress;
             var lblMeta = new Label
             {
-                Text = $"Karyawan: {dev.employeeName} ({dev.employeeId})  •  IP: {dev.ipAddress}  •  Status: {statusStr}",
+                Text = $"Employee: {dev.employeeName} ({dev.employeeId})   •   IP: {ipText}   •   {statusStr}",
                 Font = FluentTheme.Caption,
                 ForeColor = FluentTheme.ThemeTextSecondary,
-                Location = new Point(34, 38),
-                AutoSize = true
+                Location = new Point(72, 46),
+                AutoSize = true,
+                BackColor = Color.Transparent,
+                UseMnemonic = false
             };
+            pnl.Controls.Add(lblMeta);
 
-            // Action Button: Remote Desktop
+            // 5. Action Button: Remote Desktop
             var btnRemote = new GlassButton
             {
-                Text = "Mulai Remote",
+                Text = dev.isOnline ? "Connect" : "Offline",
                 Glyph = "remote",
                 Variant = dev.isOnline ? GlassButtonVariant.Accent : GlassButtonVariant.Ghost,
-                Size = new Size(130, 36),
-                Location = new Point(width - 150, (height - 36) / 2),
+                Size = new Size(156, 38),
+                Location = new Point(width - 172, (height - 38) / 2),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Radius = 6,
+                Radius = 8,
+                Font = FluentTheme.SubTextBold,
                 Enabled = dev.isOnline
             };
             btnRemote.Click += (s, e) =>
             {
                 OnConnectRequested?.Invoke(dev);
             };
+            pnl.Controls.Add(btnRemote);
 
-            pnl.Controls.AddRange(new Control[] { pnlIndicator, lblDevName, lblBadge, lblMeta, btnRemote });
+            pnl.Resize += (s, e) =>
+            {
+                btnRemote.Location = new Point(pnl.ClientSize.Width - 172, (pnl.ClientSize.Height - 38) / 2);
+            };
 
             pnl.Paint += (s, e) =>
             {
-                FluentTheme.PaintGlassCard(e.Graphics, pnl.ClientRectangle, 8);
+                FluentTheme.PaintGlassCard(e.Graphics, pnl.ClientRectangle, 12);
             };
+
+            AttachWheelRecursive(pnl);
 
             return pnl;
         }
 
-        protected override void OnPaint(PaintEventArgs e)
+        private void AttachWheelRecursive(Control ctrl)
         {
-            base.OnPaint(e);
-            using var pen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-            e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            ctrl.MouseWheel += (s, e) => _scrollBar.DoMouseWheel(e.Delta);
+            foreach (Control c in ctrl.Controls)
+            {
+                AttachWheelRecursive(c);
+            }
+        }
+
+        private Image LoadSantosLogo()
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string path = Path.Combine(baseDir, "assets", "santos-logo.png");
+                if (File.Exists(path))
+                {
+                    return Image.FromFile(path);
+                }
+            }
+            catch { }
+
+            var bmp = new Bitmap(40, 40);
+            using var g = Graphics.FromImage(bmp);
+            using var b = new SolidBrush(FluentTheme.NavyBrand);
+            g.FillEllipse(b, 0, 0, 39, 39);
+            return bmp;
         }
     }
 }
