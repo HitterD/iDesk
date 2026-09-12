@@ -206,7 +206,7 @@ namespace SJANotificationApp
 
         private static string GetBestFontFamily()
         {
-            string[] candidates = { "SF Pro Display", "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Inter", "Arial" };
+            string[] candidates = { "Segoe UI Variable Text", "Segoe UI", "Arial" };
             foreach (var name in candidates)
             {
                 try

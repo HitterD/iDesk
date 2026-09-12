@@ -74,5 +74,21 @@ namespace SJANotificationApp.Tests
             Assert.NotEqual(Color.FromArgb(220, 38, 38), urgent.Text);
             Assert.Equal(Color.FromArgb(201, 37, 45), urgent.Text);
         }
+
+        [Fact]
+        public void FontFamily_NeverResolvesToApplePlatformFonts()
+        {
+            using var font = FluentTheme.GetFont(9F);
+            Assert.DoesNotContain("SF Pro", font.Name);
+        }
+
+        [Fact]
+        public void FontFamily_IsAWindowsSystemFace()
+        {
+            using var font = FluentTheme.GetFont(9F);
+            Assert.True(
+                font.Name.StartsWith("Segoe UI") || font.Name == "Arial",
+                $"Font tak terduga: {font.Name}");
+        }
     }
 }
