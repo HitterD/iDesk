@@ -15,64 +15,10 @@ namespace SJANotificationApp
     public static class FluentTheme
     {
         // ================= 1. COLOR TOKENS =================
-        public static readonly Color Background = Color.FromArgb(244, 246, 248);     // Slate-50/100 #F4F6F8
-        public static readonly Color Surface = Color.FromArgb(255, 255, 255);        // Pure White #FFFFFF
-        public static readonly Color SubtleSurface = Color.FromArgb(241, 245, 249); // Slate-100 #F1F5F9
-        public static readonly Color HoverSurface = Color.FromArgb(241, 245, 249);  // Slate-100 #F1F5F9
-        public static readonly Color SelectedSurface = Color.FromArgb(226, 232, 240);// Slate-200 #E2E8F0
+        // Nilai mentah ada di ThemeTokens.cs. Semua akses lewat properti adaptif di bawah.
 
-        // Borders
-        public static readonly Color BorderSubtle = Color.FromArgb(226, 232, 240);  // Slate-200 #E2E8F0
-        public static readonly Color BorderStrong = Color.FromArgb(203, 213, 225);  // Slate-300 #CBD5E1
-
-        // Typography Colors
-        public static readonly Color TextPrimary = Color.FromArgb(15, 23, 42);      // Slate-900 #0F172A
-        public static readonly Color TextSecondary = Color.FromArgb(71, 85, 105);   // Slate-600 #475569
-        public static readonly Color TextMuted = Color.FromArgb(148, 163, 184);     // Slate-400 #94A3B8
-
-        // Santos Deep Navy Brand
-        public static readonly Color NavyBrand = Color.FromArgb(15, 58, 117);       // Santos Deep Navy #0F3A75
-        public static readonly Color NavyHover = Color.FromArgb(30, 78, 148);       // Navy Hover #1E4E94
-        public static readonly Color NavyPressed = Color.FromArgb(10, 42, 85);      // Deep Navy Pressed #0A2A55
-
-        // Dark Enterprise Theme Tokens
-        public static readonly Color DarkMenuBackground = Color.FromArgb(24, 24, 27);    // Zinc-900 #18181B
-        public static readonly Color DarkMenuSurface = Color.FromArgb(34, 34, 38);       // Dark Surface #222226
-        public static readonly Color DarkMenuHover = Color.FromArgb(45, 45, 52);         // Dark Hover #2D2D34
-        public static readonly Color DarkMenuSelected = Color.FromArgb(56, 56, 64);      // Dark Pressed #383840
-        public static readonly Color DarkMenuBorder = Color.FromArgb(45, 45, 52);        // Subtle Border #2D2D34
-        public static readonly Color DarkMenuBorderStrong = Color.FromArgb(63, 63, 70);  // Medium Border #3F3F46
-        public static readonly Color DarkMenuTextPrimary = Color.FromArgb(244, 244, 245); // Zinc-100 #F4F4F5
-        public static readonly Color DarkMenuTextSecondary = Color.FromArgb(161, 161, 170);// Zinc-400 #A1A1AA
-        public static readonly Color DarkMenuTextMuted = Color.FromArgb(113, 113, 122);  // Zinc-500 #71717A
-        public static readonly Color DarkLiveDot = Color.FromArgb(16, 185, 129);          // Emerald-500 #10B981
-        public static readonly Color DarkLiveDotHalo = Color.FromArgb(18, 16, 185, 129);  // Subtle Emerald Halo
-        public static readonly Color DarkBadgeBg = Color.FromArgb(38, 38, 44);           // Subtle Pill #26262C
-
-        // Clean Modern Canvas & Card Tokens
-        public static readonly Color GlassCanvasTop = Color.FromArgb(24, 24, 27);        // Zinc-900 #18181B
-        public static readonly Color GlassCanvasBottom = Color.FromArgb(18, 18, 20);     // Zinc-950 #121214
-        public static readonly Color GlassCardFill = Color.FromArgb(34, 34, 38);         // Zinc-850 #222226
-        public static readonly Color GlassCardFillSoft = Color.FromArgb(27, 27, 30);     // Zinc-900 #1B1B1E
-        public static readonly Color GlassHairline = Color.FromArgb(55, 55, 62);         // Subtle hairline #37373E
-        public static readonly Color GlassHairlineStrong = Color.FromArgb(75, 75, 84);   // Strong hairline #4B4B54
-        public static readonly Color GlassHover = Color.FromArgb(45, 45, 52);            // Hover #2D2D34
-        public static readonly Color GlassPressed = Color.FromArgb(56, 56, 64);          // Pressed #383840
-        public static readonly Color GlassInset = Color.FromArgb(18, 18, 20);            // Input well #121214
-
-        // Accent tuned for dark surfaces
-        public static readonly Color Accent = Color.FromArgb(37, 99, 235);               // Royal Blue #2563EB
-        public static readonly Color AccentHover = Color.FromArgb(59, 130, 246);          // Blue Hover #3B82F6
-        public static readonly Color AccentPressed = Color.FromArgb(29, 78, 216);         // Blue Pressed #1D4ED8
-        public static readonly Color AccentSoft = Color.FromArgb(30, 41, 59);             // Slate-800 #1E293B
-        public static readonly Color AccentGlow = Color.FromArgb(20, 37, 99, 235);        // Subtle glow
-        public static readonly Color AccentText = Color.FromArgb(96, 165, 250);          // Blue-400 #60A5FA
-
-        // Destructive tokens on dark
-        public static readonly Color DangerText = Color.FromArgb(239, 68, 68);           // Red-500 #EF4444
-        public static readonly Color DangerFill = Color.FromArgb(30, 239, 68, 68);        // Red @ 12%
-        public static readonly Color DangerHairline = Color.FromArgb(60, 239, 68, 68);    // Red @ 24%
-        public static readonly Color DangerHover = Color.FromArgb(45, 239, 68, 68);       // Red @ 18%
+        /// <summary>Navy merek Santos. Hanya untuk logo — bukan warna antarmuka.</summary>
+        public static readonly Color NavyBrand = ThemeTokens.NavyBrand;
 
         // ================= 1b. DYNAMIC ADAPTIVE THEME ENGINE (WINDOWS SYNC) =================
         private static bool? _themeOverride;
@@ -87,11 +33,24 @@ namespace SJANotificationApp
                 {
                     if (e.Category == UserPreferenceCategory.General || e.Category == UserPreferenceCategory.Color)
                     {
-                        ThemeChanged?.Invoke();
+                        if (_themeMode == "system")
+                        {
+                            ThemeChanged?.Invoke();
+                        }
                     }
                 };
             }
             catch { }
+        }
+
+        private static string _themeMode = "light"; // "light" | "dark" | "system"
+
+        public static string CurrentThemeMode => _themeMode;
+
+        public static void SetThemeMode(string mode)
+        {
+            _themeMode = string.IsNullOrWhiteSpace(mode) ? "light" : mode.Trim().ToLowerInvariant();
+            ThemeChanged?.Invoke();
         }
 
         public static void SetThemeOverride(bool? isDark)
@@ -105,90 +64,141 @@ namespace SJANotificationApp
             get
             {
                 if (_themeOverride.HasValue) return _themeOverride.Value;
+                if (_themeMode == "light") return false;
+                if (_themeMode == "dark") return true;
+
+                // "system" mode: read Windows registry
                 try
                 {
                     object? val = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1);
                     if (val is int i) return i == 0;
                 }
                 catch { }
-                return false; // Default to clean light enterprise theme if registry cannot be read
+                return false; // Default to light mode if unreadable
             }
         }
 
         // Adaptive Canvas & Card Tokens
-        public static Color ThemeCanvasTop => IsDarkTheme ? GlassCanvasTop : Color.FromArgb(246, 248, 250);
-        public static Color ThemeCanvasBottom => IsDarkTheme ? GlassCanvasBottom : Color.FromArgb(240, 243, 246);
-        public static Color ThemeCardFill => IsDarkTheme ? GlassCardFill : Color.FromArgb(255, 255, 255);
-        public static Color ThemeCardFillSoft => IsDarkTheme ? GlassCardFillSoft : Color.FromArgb(246, 248, 250);
-        public static Color ThemeCardHairline => IsDarkTheme ? GlassHairline : Color.FromArgb(226, 232, 240);
-        public static Color ThemeCardHairlineStrong => IsDarkTheme ? GlassHairlineStrong : Color.FromArgb(203, 213, 225);
-        public static Color ThemeCardHighlight => IsDarkTheme ? Color.FromArgb(12, 255, 255, 255) : Color.Transparent;
-        public static Color ThemeInputWell => IsDarkTheme ? Color.FromArgb(20, 20, 23) : Color.FromArgb(255, 255, 255);
-        public static Color ThemeInputBorder => IsDarkTheme ? GlassHairline : Color.FromArgb(203, 213, 225);
+        public static Color ThemeCanvasTop => IsDarkTheme ? ThemeTokens.DarkCanvas : ThemeTokens.LightCanvas;
+        public static Color ThemeCanvasBottom => IsDarkTheme ? ThemeTokens.DarkCanvasBottom : ThemeTokens.LightCanvasBottom;
+        public static Color ThemeSidebar => IsDarkTheme ? ThemeTokens.DarkSidebar : ThemeTokens.LightSidebar;
+        public static Color ThemeSurface => IsDarkTheme ? ThemeTokens.DarkSurface : ThemeTokens.LightSurface;
+        public static Color ThemeSurfaceSoft => IsDarkTheme ? ThemeTokens.DarkSurfaceSoft : ThemeTokens.LightSurfaceSoft;
+        public static Color ThemeCardFill => IsDarkTheme ? ThemeTokens.DarkSurface : ThemeTokens.LightSurface;
+        public static Color ThemeCardFillSoft => IsDarkTheme ? ThemeTokens.DarkSurfaceSoft : ThemeTokens.LightSurfaceSoft;
+        public static Color ThemeCardHairline => IsDarkTheme ? ThemeTokens.DarkHairline : ThemeTokens.LightHairline;
+        public static Color ThemeCardHairlineStrong => IsDarkTheme ? ThemeTokens.DarkHairlineStrong : ThemeTokens.LightHairlineStrong;
+        public static Color ThemeCardHighlight => IsDarkTheme ? ThemeTokens.DarkHighlight : ThemeTokens.LightHighlight;
+        public static Color ThemeHover => IsDarkTheme ? ThemeTokens.DarkHover : ThemeTokens.LightHover;
+        public static Color ThemeInputWell => IsDarkTheme ? ThemeTokens.DarkWell : ThemeTokens.LightWell;
+        public static Color ThemeInputBorder => IsDarkTheme ? ThemeTokens.DarkInputBorder : ThemeTokens.LightInputBorder;
 
         // Adaptive Typography Tokens
-        public static Color ThemeTextPrimary => IsDarkTheme ? DarkMenuTextPrimary : Color.FromArgb(15, 23, 42); // Slate-900 #0F172A
-        public static Color ThemeTextSecondary => IsDarkTheme ? DarkMenuTextSecondary : Color.FromArgb(71, 85, 105); // Slate-600 #475569
-        public static Color ThemeTextMuted => IsDarkTheme ? DarkMenuTextMuted : Color.FromArgb(148, 163, 184); // Slate-400 #94A3B8
+        public static Color ThemeTextPrimary => IsDarkTheme ? ThemeTokens.DarkTextPrimary : ThemeTokens.LightTextPrimary;
+        public static Color ThemeTextSecondary => IsDarkTheme ? ThemeTokens.DarkTextSecondary : ThemeTokens.LightTextSecondary;
+        public static Color ThemeTextMuted => IsDarkTheme ? ThemeTokens.DarkTextMuted : ThemeTokens.LightTextMuted;
 
-        // Adaptive Accent Tokens (Dual-Tone: Santos Deep Navy on light, Royal Blue on dark)
-        public static Color ThemeAccent => IsDarkTheme ? Accent : NavyBrand;
-        public static Color ThemeAccentHover => IsDarkTheme ? AccentHover : NavyHover;
-        public static Color ThemeAccentPressed => IsDarkTheme ? AccentPressed : NavyPressed;
-        public static Color ThemeAccentSoft => IsDarkTheme ? AccentSoft : Color.FromArgb(239, 246, 255);
-        public static Color ThemeAccentText => IsDarkTheme ? AccentText : NavyBrand;
+        // Adaptive Accent Tokens
+        public static Color ThemeAccent => IsDarkTheme ? ThemeTokens.DarkAccent : ThemeTokens.LightAccent;
+        public static Color ThemeAccentHover => IsDarkTheme ? ThemeTokens.DarkAccentHover : ThemeTokens.LightAccentHover;
+        public static Color ThemeAccentPressed => IsDarkTheme ? ThemeTokens.DarkAccentPressed : ThemeTokens.LightAccentPressed;
+        public static Color ThemeAccentSoft => IsDarkTheme ? ThemeTokens.DarkAccentSoft : ThemeTokens.LightAccentSoft;
+        public static Color ThemeAccentText => ThemeAccent;
 
         // Adaptive Menu & Dropdown Tokens
-        public static Color ThemeMenuBackground => IsDarkTheme ? DarkMenuBackground : Color.FromArgb(255, 255, 255);
-        public static Color ThemeMenuSurface => IsDarkTheme ? DarkMenuSurface : Color.FromArgb(248, 250, 252);
-        public static Color ThemeMenuHover => IsDarkTheme ? DarkMenuHover : Color.FromArgb(241, 245, 249);
-        public static Color ThemeMenuSelected => IsDarkTheme ? DarkMenuSelected : Color.FromArgb(226, 232, 240);
-        public static Color ThemeMenuBorder => IsDarkTheme ? DarkMenuBorder : Color.FromArgb(226, 232, 240);
-        public static Color ThemeMenuBorderStrong => IsDarkTheme ? DarkMenuBorderStrong : Color.FromArgb(203, 213, 225);
-        public static Color ThemeMenuTextPrimary => IsDarkTheme ? DarkMenuTextPrimary : Color.FromArgb(15, 23, 42);
-        public static Color ThemeMenuTextSecondary => IsDarkTheme ? DarkMenuTextSecondary : Color.FromArgb(71, 85, 105);
+        public static Color ThemeMenuBackground => IsDarkTheme ? ThemeTokens.DarkMenuBackground : ThemeTokens.LightMenuBackground;
+        public static Color ThemeMenuSurface => IsDarkTheme ? ThemeTokens.DarkMenuSurface : ThemeTokens.LightMenuSurface;
+        public static Color ThemeMenuHover => IsDarkTheme ? ThemeTokens.DarkMenuHover : ThemeTokens.LightMenuHover;
+        public static Color ThemeMenuSelected => IsDarkTheme ? ThemeTokens.DarkMenuSelected : ThemeTokens.LightMenuSelected;
+        public static Color ThemeMenuBorder => IsDarkTheme ? ThemeTokens.DarkMenuBorder : ThemeTokens.LightMenuBorder;
+        public static Color ThemeMenuBorderStrong => IsDarkTheme ? ThemeTokens.DarkMenuBorderStrong : ThemeTokens.LightMenuBorderStrong;
+        public static Color ThemeMenuTextPrimary => ThemeTextPrimary;
+        public static Color ThemeMenuTextSecondary => ThemeTextSecondary;
 
-        // Status Indicators (Solid Muted Corporate, NO Neon Blur)
-        public static readonly Color StatusOnline = Color.FromArgb(16, 185, 129); // Emerald-500 #10B981
-        public static readonly Color StatusOffline = Color.FromArgb(239, 68, 68); // Rose-500 #EF4444
-        public static readonly Color StatusPending = Color.FromArgb(245, 158, 11); // Amber-500 #F59E0B
-        public static Color ThemeStatusOnlineBg => IsDarkTheme ? Color.FromArgb(6, 78, 59) : Color.FromArgb(236, 253, 245);
-        public static Color ThemeStatusOfflineBg => IsDarkTheme ? Color.FromArgb(127, 29, 29) : Color.FromArgb(254, 242, 242);
+        // Status Tokens
+        public static Color ThemeStatusOnline => IsDarkTheme ? ThemeTokens.DarkOnline : ThemeTokens.LightOnline;
+        public static Color ThemeStatusWarn => IsDarkTheme ? ThemeTokens.DarkWarn : ThemeTokens.LightWarn;
+        public static Color ThemeStatusCritical => IsDarkTheme ? ThemeTokens.DarkCritical : ThemeTokens.LightCritical;
+        public static Color ThemeStatusCriticalText => IsDarkTheme ? ThemeTokens.DarkCriticalInk : ThemeTokens.LightCriticalInk;
+        public static Color ThemeStatusOnlineBg => Color.FromArgb(IsDarkTheme ? 28 : 24, ThemeStatusOnline);
+        public static Color ThemeStatusOfflineBg => Color.FromArgb(IsDarkTheme ? 28 : 24, ThemeStatusCritical);
 
-        // Status & Priority Tokens (Background, Text, Border)
-        public static readonly (Color Bg, Color Text, Color Border) PriorityUrgent = (
-            Color.FromArgb(254, 242, 242), // Red-50
-            Color.FromArgb(220, 38, 38),   // Red-600
-            Color.FromArgb(252, 165, 165)  // Red-300
-        );
+        // Kompatibilitas pemanggil lama — dipetakan ke token status.
+        public static Color StatusOnline => ThemeStatusOnline;
+        public static Color StatusOffline => ThemeStatusCritical;
+        public static Color StatusPending => ThemeStatusWarn;
 
-        public static readonly (Color Bg, Color Text, Color Border) PriorityHigh = (
-            Color.FromArgb(255, 251, 235), // Amber-50
-            Color.FromArgb(217, 119, 6),   // Amber-600
-            Color.FromArgb(253, 230, 138)  // Amber-300
-        );
-
-        public static readonly (Color Bg, Color Text, Color Border) PriorityNormal = (
-            Color.FromArgb(239, 246, 255), // Blue-50
-            Color.FromArgb(37, 99, 235),   // Blue-600
-            Color.FromArgb(191, 219, 254)  // Blue-200
-        );
-
-        public static readonly (Color Bg, Color Text, Color Border) PrioritySuccess = (
-            Color.FromArgb(236, 253, 245), // Emerald-50
-            Color.FromArgb(5, 150, 105),   // Emerald-600
-            Color.FromArgb(167, 243, 208)  // Emerald-200
-        );
-
+        // Status & Priority Tokens
         public static (Color Bg, Color Text, Color Border) GetPriorityTheme(string? priority)
         {
-            return (priority?.ToLowerInvariant()) switch
-            {
-                "urgent" => PriorityUrgent,
-                "high" => PriorityHigh,
-                "low" => PrioritySuccess,
-                _ => PriorityNormal
-            };
+            string p = priority?.ToLowerInvariant() ?? "";
+
+            Color accent;
+            if (p == "critical" || p == "blocker") accent = ThemeStatusCritical;
+            else if (p == "high" || p == "urgent") accent = ThemeStatusWarn;
+            else if (p == "low") accent = ThemeStatusOnline;
+            else accent = ThemeAccent;
+
+            return (
+                Color.FromArgb(IsDarkTheme ? 32 : 22, accent),
+                accent,
+                Color.FromArgb(IsDarkTheme ? 72 : 64, accent)
+            );
+        }
+
+        // ---- Alias sementara (dihapus di Task 12 setelah semua pemanggil dimigrasi) ----
+        public static Color Background => ThemeCanvasTop;
+        public static Color Surface => ThemeSurface;
+        public static Color SubtleSurface => ThemeSurfaceSoft;
+        public static Color HoverSurface => ThemeMenuHover;
+        public static Color SelectedSurface => ThemeMenuSelected;
+        public static Color BorderSubtle => ThemeCardHairline;
+        public static Color BorderStrong => ThemeCardHairlineStrong;
+        public static Color TextPrimary => ThemeTextPrimary;
+        public static Color TextSecondary => ThemeTextSecondary;
+        public static Color TextMuted => ThemeTextMuted;
+        public static Color NavyHover => ThemeAccentHover;
+        public static Color NavyPressed => ThemeAccentPressed;
+        public static Color DarkMenuBackground => ThemeMenuBackground;
+        public static Color DarkMenuSurface => ThemeMenuSurface;
+        public static Color DarkMenuHover => ThemeMenuHover;
+        public static Color DarkMenuSelected => ThemeMenuSelected;
+        public static Color DarkMenuBorder => ThemeMenuBorder;
+        public static Color DarkMenuBorderStrong => ThemeMenuBorderStrong;
+        public static Color DarkMenuTextPrimary => ThemeTextPrimary;
+        public static Color DarkMenuTextSecondary => ThemeTextSecondary;
+        public static Color DarkMenuTextMuted => ThemeTextMuted;
+        public static Color DarkLiveDot => ThemeStatusOnline;
+        public static Color DarkLiveDotHalo => ThemeStatusOnlineBg;
+        public static Color DarkBadgeBg => ThemeSurfaceSoft;
+        public static Color GlassCanvasTop => ThemeCanvasTop;
+        public static Color GlassCanvasBottom => ThemeCanvasBottom;
+        public static Color GlassCardFill => ThemeCardFill;
+        public static Color GlassCardFillSoft => ThemeCardFillSoft;
+        public static Color GlassHairline => ThemeCardHairline;
+        public static Color GlassHairlineStrong => ThemeCardHairlineStrong;
+        public static Color GlassHover => ThemeMenuHover;
+        public static Color GlassPressed => ThemeMenuSelected;
+        public static Color GlassInset => ThemeInputWell;
+        public static Color Accent => ThemeAccent;
+        public static Color AccentHover => ThemeAccentHover;
+        public static Color AccentPressed => ThemeAccentPressed;
+        public static Color AccentSoft => ThemeAccentSoft;
+        public static Color AccentGlow => Color.FromArgb(20, ThemeAccent);
+        public static Color AccentText => ThemeAccentText;
+        public static Color DangerText => ThemeStatusCritical;
+        public static Color DangerFill => Color.FromArgb(32, ThemeStatusCritical);
+        public static Color DangerHairline => Color.FromArgb(64, ThemeStatusCritical);
+        public static Color DangerHover => Color.FromArgb(48, ThemeStatusCritical);
+
+        public static string GetPriorityDisplayLabel(string? priority)
+        {
+            string p = priority?.ToLowerInvariant() ?? "";
+            if (p == "critical" || p == "blocker") return "Blocker";
+            if (p == "high" || p == "urgent") return "Urgent";
+            if (p == "low") return "Low";
+            if (p == "medium" || p == "normal") return "Normal";
+            return !string.IsNullOrWhiteSpace(priority) ? priority.ToUpperInvariant() : "INFO";
         }
 
         // ================= 2. TYPOGRAPHY ENGINE =================
@@ -196,10 +206,20 @@ namespace SJANotificationApp
 
         private static string GetBestFontFamily()
         {
-            using var testFont = new Font("Segoe UI Variable Text", 9F, FontStyle.Regular);
-            return testFont.Name.Equals("Segoe UI Variable Text", StringComparison.OrdinalIgnoreCase)
-                ? "Segoe UI Variable Text"
-                : "Segoe UI";
+            string[] candidates = { "SF Pro Display", "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Inter", "Arial" };
+            foreach (var name in candidates)
+            {
+                try
+                {
+                    using var testFont = new Font(name, 9F, FontStyle.Regular);
+                    if (testFont.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return name;
+                    }
+                }
+                catch { }
+            }
+            return "Segoe UI";
         }
 
         public static Font GetFont(float size, FontStyle style = FontStyle.Regular)
@@ -325,6 +345,15 @@ namespace SJANotificationApp
             }
         }
 
+        /// <summary>
+        /// Cubic Ease-Out curve for ultra-smooth 60 FPS Apple-like transitions.
+        /// </summary>
+        public static float EaseOutCubic(float t)
+        {
+            float f = Math.Clamp(t, 0.0f, 1.0f) - 1.0f;
+            return f * f * f + 1.0f;
+        }
+
         // ================= 4b. CLEAN MODERN ENTERPRISE CANVAS PAINTER =================
         /// <summary>
         /// Paints the modern enterprise canvas: clean background with subtle border.
@@ -337,14 +366,13 @@ namespace SJANotificationApp
             g.SmoothingMode = SmoothingMode.AntiAlias;
             bool dark = IsDarkTheme;
 
-            Color bgTop = dark ? GlassCanvasTop : Color.FromArgb(246, 248, 250);
-            Color bgBot = dark ? GlassCanvasBottom : Color.FromArgb(240, 243, 246);
+            Color bgTop = ThemeCanvasTop;
+            Color bgBot = ThemeCanvasBottom;
 
             if (acrylicActive)
             {
-                Color tintColor = dark
-                    ? Color.FromArgb(210, GlassCanvasBottom)
-                    : Color.FromArgb(235, 246, 248, 250);
+                // Semi-translucent tint allowing Windows 11 DWM Acrylic/Mica to breathe through
+                Color tintColor = Color.FromArgb(dark ? 170 : 175, ThemeCanvasBottom);
                 using var tint = new SolidBrush(tintColor);
                 g.FillRectangle(tint, bounds);
             }
@@ -386,23 +414,65 @@ namespace SJANotificationApp
         }
 
         /// <summary>
-        /// Draws a clean enterprise card: flat or subtle fill with crisp 1px hairline edge.
+        /// Draws a modern macOS Sequoia Translucent Glass card:
+        /// Frosted glass surface, multi-pass ambient shadow, and 1px specular top highlight.
         /// </summary>
-        public static void PaintGlassCard(Graphics g, Rectangle rect, int radius, Color? fill = null, Color? hairline = null)
+        public static void PaintGlassCard(Graphics g, Rectangle rect, int radius, Color? fill = null, Color? hairline = null, bool drawShadow = true)
         {
             if (rect.Width <= 0 || rect.Height <= 0) return;
 
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var body = new Rectangle(rect.X, rect.Y, rect.Width - 1, rect.Height - 1);
 
-            using (var brush = new SolidBrush(fill ?? ThemeCardFill))
+            if (drawShadow && rect.Height > 10 && rect.Width > 10)
+            {
+                if (!IsDarkTheme)
+                {
+                    // Multi-pass soft Apple ambient shadow
+                    var shadow1 = new Rectangle(rect.X, rect.Y + 1, rect.Width - 1, rect.Height);
+                    using var b1 = new SolidBrush(Color.FromArgb(10, 0, 0, 0));
+                    FillRoundedRectangle(g, b1, shadow1, radius);
+
+                    var shadow2 = new Rectangle(rect.X, rect.Y + 3, rect.Width - 1, rect.Height);
+                    using var b2 = new SolidBrush(Color.FromArgb(5, 0, 0, 0));
+                    FillRoundedRectangle(g, b2, shadow2, radius);
+                }
+                else
+                {
+                    var shadowDark = new Rectangle(rect.X, rect.Y + 2, rect.Width - 1, rect.Height);
+                    using var bDark = new SolidBrush(Color.FromArgb(28, 0, 0, 0));
+                    FillRoundedRectangle(g, bDark, shadowDark, radius);
+                }
+            }
+
+            // Glass Fill
+            Color cardFill = fill ?? ThemeCardFill;
+            using (var brush = new SolidBrush(cardFill))
             {
                 FillRoundedRectangle(g, brush, body, radius);
             }
 
-            using (var edge = new Pen(hairline ?? ThemeCardHairline, 1f))
+            // Outer Hairline Border
+            Color edgeColor = hairline ?? ThemeCardHairline;
+            using (var edge = new Pen(edgeColor, 1f))
             {
                 DrawRoundedRectangle(g, edge, body, radius);
+            }
+
+            // Specular Top Highlight (macOS physical glass inner reflection along top border)
+            if (body.Width > 14 && body.Height > 14)
+            {
+                Color specularColor = IsDarkTheme
+                    ? Color.FromArgb(32, 255, 255, 255)
+                    : Color.FromArgb(175, 255, 255, 255);
+                using var specularPen = new Pen(specularColor, 1f);
+                int d = Math.Max(2, (radius - 1) * 2);
+                int arcH = Math.Min(body.Height - 2, d);
+                using var path = new GraphicsPath();
+                path.AddArc(body.X + 1, body.Y + 1, d, arcH, 180, 90);
+                path.AddLine(body.X + 1 + radius, body.Y + 1, body.Right - 1 - radius, body.Y + 1);
+                path.AddArc(body.Right - 1 - d, body.Y + 1, d, arcH, 270, 90);
+                g.DrawPath(specularPen, path);
             }
         }
 
@@ -436,25 +506,130 @@ namespace SJANotificationApp
             g.DrawImage(img, targetRect);
             g.Clip = oldClip;
 
-            using var borderPen = new Pen(BorderSubtle, 1);
+            using var borderPen = new Pen(ThemeCardHairline, 1);
             g.DrawPath(borderPen, path);
         }
 
-        // ================= 5. VECTOR GLYPH GENERATOR (16x16 Menu Icons) =================
-        public static Bitmap GetMenuIcon(string iconName, Color? tintColor = null)
+        // ================= 5. VECTOR GLYPH GENERATOR (Adaptive Size Vector Icons) =================
+        private const int GearTeeth = 8;
+        private const float GearCenter = 7.75f;
+        private const float GearOuterRadius = 6.3f;
+        private const float GearRootRadius = 4.6f;
+        private const float GearHubRadius = 2.2f;
+
+        /// <summary>
+        /// Menggambar ikon gear (cogwheel) 8 gigi pada kanvas glyph 16x16.
+        /// Profil gigi dihitung trigonometris agar simetris di semua ukuran skala.
+        /// </summary>
+        private static void DrawGearGlyph(Graphics g, Pen pen)
         {
-            var bmp = new Bitmap(16, 16);
+            using var path = new GraphicsPath();
+            float step = (float)(Math.PI * 2.0 / GearTeeth);
+            float half = step / 2f;
+            float toothSpan = half * 0.52f;
+            var points = new System.Collections.Generic.List<PointF>();
+
+            for (int i = 0; i < GearTeeth; i++)
+            {
+                float mid = i * step;
+                points.Add(GearPoint(mid - toothSpan, GearOuterRadius));
+                points.Add(GearPoint(mid + toothSpan, GearOuterRadius));
+                points.Add(GearPoint(mid + half - toothSpan * 0.55f, GearRootRadius));
+                points.Add(GearPoint(mid + half + toothSpan * 0.55f, GearRootRadius));
+            }
+
+            path.AddPolygon(points.ToArray());
+            g.DrawPath(pen, path);
+            g.DrawEllipse(pen, GearCenter - GearHubRadius, GearCenter - GearHubRadius, GearHubRadius * 2f, GearHubRadius * 2f);
+        }
+
+        private static PointF GearPoint(float angleRadians, float radius)
+        {
+            return new PointF(
+                GearCenter + radius * (float)Math.Cos(angleRadians),
+                GearCenter + radius * (float)Math.Sin(angleRadians));
+        }
+
+        public static Bitmap GetMenuIcon(string iconName, Color? tintColor = null, int size = 16)
+        {
+            if (size <= 0) size = 16;
+            var bmp = new Bitmap(size, size);
             using var g = Graphics.FromImage(bmp);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.Clear(Color.Transparent);
 
-            Color c = tintColor ?? TextSecondary;
+            if (size != 16)
+            {
+                float scale = size / 16f;
+                g.ScaleTransform(scale, scale);
+            }
+
+            Color c = tintColor ?? ThemeTextSecondary;
             using var pen = new Pen(c, 1.3f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
             using var brush = new SolidBrush(c);
 
             switch (iconName.ToLowerInvariant())
             {
+                case "home":
+                    g.DrawLine(pen, 2.5f, 7.5f, 8f, 2.5f);
+                    g.DrawLine(pen, 8f, 2.5f, 13.5f, 7.5f);
+                    g.DrawLine(pen, 4f, 7f, 4f, 13.5f);
+                    g.DrawLine(pen, 12f, 7f, 12f, 13.5f);
+                    g.DrawLine(pen, 4f, 13.5f, 12f, 13.5f);
+                    g.DrawRectangle(pen, 6.5f, 9.5f, 3f, 4f);
+                    break;
+
+                case "sun":
+                    g.DrawEllipse(pen, 5f, 5f, 6f, 6f);
+                    g.DrawLine(pen, 8f, 1.5f, 8f, 3.5f);
+                    g.DrawLine(pen, 8f, 12.5f, 8f, 14.5f);
+                    g.DrawLine(pen, 1.5f, 8f, 3.5f, 8f);
+                    g.DrawLine(pen, 12.5f, 8f, 14.5f, 8f);
+                    g.DrawLine(pen, 3.5f, 3.5f, 5f, 5f);
+                    g.DrawLine(pen, 11f, 11f, 12.5f, 12.5f);
+                    g.DrawLine(pen, 3.5f, 12.5f, 5f, 11f);
+                    g.DrawLine(pen, 11f, 5f, 12.5f, 3.5f);
+                    break;
+
+                case "moon":
+                    using (var moonPath = new GraphicsPath())
+                    {
+                        moonPath.AddArc(3f, 2.5f, 10f, 11f, -80, 230);
+                        moonPath.AddArc(5.5f, 4f, 7.5f, 8f, 130, -180);
+                        moonPath.CloseFigure();
+                        g.DrawPath(pen, moonPath);
+                    }
+                    break;
+
+                case "lock":
+                    g.DrawArc(pen, 5f, 2.5f, 6f, 6f, 180, 180);
+                    g.DrawLine(pen, 5f, 5.5f, 5f, 7f);
+                    g.DrawLine(pen, 11f, 5.5f, 11f, 7f);
+                    g.DrawRectangle(pen, 3.5f, 7f, 9f, 6.5f);
+                    g.FillEllipse(brush, 7f, 9.5f, 2f, 2f);
+                    break;
+
+                case "plus":
+                    g.DrawLine(pen, 8f, 3.5f, 8f, 12.5f);
+                    g.DrawLine(pen, 3.5f, 8f, 12.5f, 8f);
+                    break;
+
+                case "trash":
+                    g.DrawLine(pen, 3f, 4.5f, 13f, 4.5f);
+                    g.DrawLine(pen, 6f, 2.5f, 10f, 2.5f);
+                    g.DrawLine(pen, 4.5f, 4.5f, 5.2f, 13.5f);
+                    g.DrawLine(pen, 11.5f, 4.5f, 10.8f, 13.5f);
+                    g.DrawLine(pen, 5.2f, 13.5f, 10.8f, 13.5f);
+                    g.DrawLine(pen, 7f, 6.5f, 7f, 11.5f);
+                    g.DrawLine(pen, 9f, 6.5f, 9f, 11.5f);
+                    break;
+
+                case "check":
+                    g.DrawLine(pen, 3.5f, 8f, 6.5f, 11.5f);
+                    g.DrawLine(pen, 6.5f, 11.5f, 12.5f, 4.5f);
+                    break;
+
                 case "user":
                     g.DrawEllipse(pen, 5f, 2f, 5f, 5f);
                     g.DrawArc(pen, 2.5f, 8.5f, 10f, 6.5f, 190, 160);
@@ -500,11 +675,8 @@ namespace SJANotificationApp
                     break;
 
                 case "settings":
-                    g.DrawEllipse(pen, 4f, 4f, 7f, 7f);
-                    g.DrawLine(pen, 7.5f, 1.5f, 7.5f, 4f);
-                    g.DrawLine(pen, 7.5f, 11f, 7.5f, 13.5f);
-                    g.DrawLine(pen, 1.5f, 7.5f, 4f, 7.5f);
-                    g.DrawLine(pen, 11f, 7.5f, 13.5f, 7.5f);
+                    // Cogwheel/gear: 8 gigi mengelilingi lubang poros di tengah.
+                    DrawGearGlyph(g, pen);
                     break;
 
                 case "startup":
