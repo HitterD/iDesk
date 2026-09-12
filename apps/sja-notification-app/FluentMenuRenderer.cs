@@ -70,15 +70,15 @@ namespace SJANotificationApp
                 if (e.Item.Selected && e.Item.Enabled)
                 {
                     using var brush = new SolidBrush(FluentTheme.ThemeMenuHover);
-                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 5);
+                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 6);
 
                     using var borderPen = new Pen(FluentTheme.ThemeMenuBorder, 1);
-                    FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, rect, 5);
+                    FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, rect, 6);
                 }
                 else if (e.Item.Pressed)
                 {
                     using var brush = new SolidBrush(FluentTheme.ThemeMenuSelected);
-                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 5);
+                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 6);
                 }
             }
             else

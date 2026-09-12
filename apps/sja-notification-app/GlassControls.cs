@@ -219,12 +219,8 @@ namespace SJANotificationApp
                 return Variant switch
                 {
                     GlassButtonVariant.Accent => (FluentTheme.ThemeAccentPressed, Color.Transparent, Color.White),
-                    GlassButtonVariant.Danger => dark
-                        ? (FluentTheme.DangerHover, FluentTheme.DangerHairline, FluentTheme.DangerText)
-                        : (Color.FromArgb(254, 226, 226), Color.FromArgb(254, 202, 202), Color.FromArgb(185, 28, 28)),
-                    _ => dark
-                        ? (FluentTheme.GlassPressed, FluentTheme.ThemeCardHairlineStrong, FluentTheme.ThemeTextPrimary)
-                        : (Color.FromArgb(226, 232, 240), FluentTheme.ThemeCardHairlineStrong, FluentTheme.ThemeTextPrimary)
+                    GlassButtonVariant.Danger => (Color.FromArgb(48, FluentTheme.ThemeStatusCritical), Color.FromArgb(80, FluentTheme.ThemeStatusCritical), FluentTheme.ThemeStatusCritical),
+                    _ => (FluentTheme.ThemeMenuSelected, FluentTheme.ThemeCardHairlineStrong, FluentTheme.ThemeTextPrimary)
                 };
             }
 
@@ -236,21 +232,15 @@ namespace SJANotificationApp
                     Color.Transparent,
                     Color.White),
 
-                GlassButtonVariant.Danger => dark
-                    ? (BlendColor(FluentTheme.DangerFill, FluentTheme.DangerHover, _hoverProgress),
-                       FluentTheme.DangerHairline,
-                       FluentTheme.DangerText)
-                    : (BlendColor(Color.FromArgb(254, 242, 242), Color.FromArgb(254, 226, 226), _hoverProgress),
-                       Color.FromArgb(254, 202, 202),
-                       Color.FromArgb(185, 28, 28)),
+                GlassButtonVariant.Danger => (
+                    BlendColor(Color.FromArgb(24, FluentTheme.ThemeStatusCritical), Color.FromArgb(40, FluentTheme.ThemeStatusCritical), _hoverProgress),
+                    Color.FromArgb(64, FluentTheme.ThemeStatusCritical),
+                    FluentTheme.ThemeStatusCritical),
 
-                _ => dark
-                    ? (BlendColor(FluentTheme.ThemeCardFill, FluentTheme.GlassHover, _hoverProgress),
-                       BlendColor(FluentTheme.ThemeCardHairline, FluentTheme.ThemeCardHairlineStrong, _hoverProgress),
-                       FluentTheme.ThemeTextPrimary)
-                    : (BlendColor(FluentTheme.ThemeCardFill, Color.FromArgb(241, 245, 249), _hoverProgress),
-                       BlendColor(FluentTheme.ThemeCardHairline, FluentTheme.ThemeCardHairlineStrong, _hoverProgress),
-                       FluentTheme.ThemeTextPrimary)
+                _ => (
+                    BlendColor(FluentTheme.ThemeCardFill, FluentTheme.ThemeMenuHover, _hoverProgress),
+                    BlendColor(FluentTheme.ThemeCardHairline, FluentTheme.ThemeCardHairlineStrong, _hoverProgress),
+                    FluentTheme.ThemeTextPrimary)
             };
         }
 
@@ -468,11 +458,11 @@ namespace SJANotificationApp
     /// </summary>
     internal class GlassDropdownList : Control
     {
-        private const int ItemHeight = 36;
-        private const int ListPadding = 5;
-        private const int ItemInset = 4;
-        private const int ItemRadius = 7;
-        private const int TextPadding = 12;
+        private const int RowHeight = 34;
+        private const int PanelRadius = 8;
+        private const int RowRadius = 6;
+        private const int CheckSlotWidth = 17;
+        private const int PanelPadding = 6;
         private const int CheckSize = 16;
 
         private readonly List<string> _items;
@@ -497,7 +487,7 @@ namespace SJANotificationApp
 
             Font = FluentTheme.Body;
             TabStop = true;
-            Size = new Size(width, items.Count * ItemHeight + ListPadding * 2);
+            Size = new Size(width, items.Count * RowHeight + PanelPadding * 2);
         }
 
         internal void SetAcrylicActive(bool active)
@@ -570,7 +560,7 @@ namespace SJANotificationApp
 
         private int IndexFromPoint(int y)
         {
-            int index = (y - ListPadding) / ItemHeight;
+            int index = (y - PanelPadding) / RowHeight;
             return index >= 0 && index < _items.Count ? index : -1;
         }
 
@@ -584,35 +574,35 @@ namespace SJANotificationApp
 
             using (var edge = new Pen(FluentTheme.ThemeCardHairline, 1f))
             {
-                g.DrawRectangle(edge, 0, 0, Width - 1, Height - 1);
+                FluentTheme.DrawRoundedRectangle(g, edge, new Rectangle(0, 0, Width - 1, Height - 1), PanelRadius);
             }
 
             for (int i = 0; i < _items.Count; i++)
             {
-                var row = new Rectangle(ItemInset, ListPadding + i * ItemHeight, Width - ItemInset * 2, ItemHeight);
+                var row = new Rectangle(PanelPadding, PanelPadding + i * RowHeight, Width - PanelPadding * 2, RowHeight);
                 bool isHover = i == _hoverIndex;
                 bool isSelected = i == _selectedIndex;
 
                 if (isHover)
                 {
                     using var hover = new SolidBrush(FluentTheme.ThemeMenuHover);
-                    FluentTheme.FillRoundedRectangle(g, hover, row, ItemRadius);
+                    FluentTheme.FillRoundedRectangle(g, hover, row, RowRadius);
                 }
                 else if (isSelected)
                 {
                     using var selected = new SolidBrush(FluentTheme.ThemeAccentSoft);
-                    FluentTheme.FillRoundedRectangle(g, selected, row, ItemRadius);
+                    FluentTheme.FillRoundedRectangle(g, selected, row, RowRadius);
                 }
-
-                Color textColor = isSelected ? FluentTheme.ThemeAccentText : FluentTheme.ThemeTextPrimary;
-                var textRect = new Rectangle(row.X + TextPadding, row.Y, row.Width - TextPadding - CheckSize - 10, row.Height);
-                TextRenderer.DrawText(g, _items[i], Font, textRect, textColor,
-                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
                 if (isSelected)
                 {
-                    FluentTheme.DrawCheckmark(g, new Point(row.Right - CheckSize - 8, row.Y + (row.Height - CheckSize) / 2), FluentTheme.ThemeAccent);
+                    FluentTheme.DrawCheckmark(g, new Point(row.X + 4, row.Y + (row.Height - CheckSize) / 2), FluentTheme.ThemeAccent);
                 }
+
+                Color textColor = isSelected ? FluentTheme.ThemeAccentText : FluentTheme.ThemeTextPrimary;
+                var textRect = new Rectangle(row.X + CheckSlotWidth + 8, row.Y, row.Width - CheckSlotWidth - 12, row.Height);
+                TextRenderer.DrawText(g, _items[i], Font, textRect, textColor,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
             }
         }
     }
@@ -668,7 +658,7 @@ namespace SJANotificationApp
                 ControlStyles.ResizeRedraw,
                 true);
 
-            Size = new Size(42, 22);
+            Size = new Size(40, 22);
             Cursor = Cursors.Hand;
             BackColor = Color.Transparent;
         }
@@ -686,12 +676,11 @@ namespace SJANotificationApp
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            bool dark = FluentTheme.IsDarkTheme;
-            int h = Height - 2;
-            int w = Width - 2;
+            int h = 22;
+            int w = 40;
             int radius = h / 2;
 
-            var trackRect = new Rectangle(1, 1, w, h);
+            var trackRect = new Rectangle(0, (Height - h) / 2, w, h);
 
             Color trackColor;
             Color borderColor = Color.Transparent;
@@ -702,10 +691,8 @@ namespace SJANotificationApp
             }
             else
             {
-                trackColor = dark
-                    ? (_hovered ? Color.FromArgb(50, 50, 58) : Color.FromArgb(38, 38, 44))
-                    : (_hovered ? Color.FromArgb(203, 213, 225) : Color.FromArgb(226, 232, 240));
-                borderColor = dark ? Color.FromArgb(65, 65, 75) : Color.FromArgb(203, 213, 225);
+                trackColor = _hovered ? FluentTheme.ThemeMenuHover : FluentTheme.ThemeSurfaceSoft;
+                borderColor = FluentTheme.ThemeInputBorder;
             }
 
             using (var brush = new SolidBrush(trackColor))
@@ -716,17 +703,15 @@ namespace SJANotificationApp
             if (!_checked && borderColor != Color.Transparent)
             {
                 using var borderPen = new Pen(borderColor, 1f);
-                FluentTheme.DrawRoundedRectangle(g, borderPen, trackRect, radius);
+                FluentTheme.DrawRoundedRectangle(g, borderPen, new Rectangle(trackRect.X, trackRect.Y, trackRect.Width - 1, trackRect.Height - 1), radius);
             }
 
             // Knob
-            int thumbSize = h - 6;
-            int thumbX = _checked ? (trackRect.Right - thumbSize - 3) : (trackRect.Left + 3);
-            int thumbY = trackRect.Top + 3;
+            int thumbSize = 14;
+            int thumbX = _checked ? (trackRect.Right - thumbSize - 4) : (trackRect.Left + 4);
+            int thumbY = trackRect.Top + (h - thumbSize) / 2;
 
-            Color thumbColor = _checked
-                ? Color.White
-                : (dark ? Color.FromArgb(210, 210, 215) : Color.FromArgb(100, 116, 139));
+            Color thumbColor = _checked ? Color.White : FluentTheme.ThemeTextSecondary;
 
             using (var thumbBrush = new SolidBrush(thumbColor))
             {
@@ -737,7 +722,7 @@ namespace SJANotificationApp
 
     /// <summary>
     /// Smooth Minimalist Windows 11 Overlay Scrollbar.
-    /// Thin rounded pill thumb, transparent track, smooth hover state.
+    /// Thin rounded pill thumb (4px idle, 8px active), transparent track, smooth wheel easing.
     /// </summary>
     public class FluentScrollBar : Control
     {
@@ -749,8 +734,16 @@ namespace SJANotificationApp
 
         private bool _isThumbHovered;
         private bool _isThumbDragging;
+        private bool _isBarHovered;
+        private bool _isScrolling;
         private int _dragStartY;
         private int _dragStartValue;
+
+        // Smooth scroll animation engine
+        private readonly System.Windows.Forms.Timer _animTimer;
+        private float _currentScrollPos = 0;
+        private float _targetScrollPos = 0;
+        private int _idleCounter = 0;
 
         public event EventHandler? ValueChanged;
 
@@ -758,14 +751,25 @@ namespace SJANotificationApp
         public int Minimum
         {
             get => _minimum;
-            set { _minimum = value; Invalidate(); }
+            set
+            {
+                _minimum = value;
+                Invalidate();
+            }
         }
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Maximum
         {
             get => _maximum;
-            set { _maximum = Math.Max(_minimum, value); Invalidate(); }
+            set
+            {
+                _maximum = Math.Max(_minimum, value);
+                if (_value > _maximum) Value = _maximum;
+                _targetScrollPos = Math.Min(_targetScrollPos, _maximum);
+                _currentScrollPos = Math.Min(_currentScrollPos, _maximum);
+                Invalidate();
+            }
         }
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -778,6 +782,11 @@ namespace SJANotificationApp
                 if (_value != clamped)
                 {
                     _value = clamped;
+                    if (!_animTimer.Enabled)
+                    {
+                        _currentScrollPos = clamped;
+                        _targetScrollPos = clamped;
+                    }
                     Invalidate();
                     ValueChanged?.Invoke(this, EventArgs.Empty);
                 }
@@ -791,6 +800,13 @@ namespace SJANotificationApp
             set { _largeChange = Math.Max(1, value); Invalidate(); }
         }
 
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int SmallChange
+        {
+            get => _smallChange;
+            set { _smallChange = Math.Max(1, value); }
+        }
+
         public FluentScrollBar()
         {
             SetStyle(
@@ -801,9 +817,71 @@ namespace SJANotificationApp
                 ControlStyles.ResizeRedraw,
                 true);
 
-            Width = 8;
+            Width = 10;
             BackColor = Color.Transparent;
             Cursor = Cursors.Default;
+
+            _animTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            _animTimer.Tick += OnAnimTick;
+        }
+
+        /// <summary>
+        /// Applies smooth animated mouse-wheel scroll easing.
+        /// </summary>
+        public void DoMouseWheel(int delta, int step = 45)
+        {
+            if (!Visible || _maximum <= _minimum) return;
+            int direction = delta < 0 ? 1 : -1;
+            int notches = Math.Max(1, Math.Abs(delta) / 120);
+            _targetScrollPos = Math.Max(_minimum, Math.Min(_maximum, _targetScrollPos + direction * step * notches));
+            _isScrolling = true;
+            _idleCounter = 0;
+            if (!_animTimer.Enabled)
+            {
+                _animTimer.Start();
+            }
+            Invalidate();
+        }
+
+        private void OnAnimTick(object? sender, EventArgs e)
+        {
+            float diff = _targetScrollPos - _currentScrollPos;
+            if (Math.Abs(diff) < 0.5f)
+            {
+                _currentScrollPos = _targetScrollPos;
+                int intVal = (int)Math.Round(_currentScrollPos);
+                if (_value != intVal)
+                {
+                    _value = intVal;
+                    ValueChanged?.Invoke(this, EventArgs.Empty);
+                }
+
+                if (!_isBarHovered && !_isThumbDragging && !_isThumbHovered)
+                {
+                    _idleCounter++;
+                    if (_idleCounter > 25)
+                    {
+                        _isScrolling = false;
+                        _animTimer.Stop();
+                        Invalidate();
+                    }
+                }
+                else
+                {
+                    _animTimer.Stop();
+                }
+            }
+            else
+            {
+                _currentScrollPos += diff * 0.32f;
+                int intVal = (int)Math.Round(_currentScrollPos);
+                if (_value != intVal)
+                {
+                    _value = intVal;
+                    ValueChanged?.Invoke(this, EventArgs.Empty);
+                }
+                Invalidate();
+            }
         }
 
         private Rectangle GetThumbRectangle()
@@ -823,21 +901,24 @@ namespace SJANotificationApp
             float percent = scrollRange > 0 ? (float)(_value - _minimum) / scrollRange : 0f;
 
             int thumbY = 2 + (int)(percent * availableScroll);
-            int thumbWidth = _isThumbHovered || _isThumbDragging ? Width - 2 : Width - 4;
-            int thumbX = (Width - thumbWidth) / 2;
+
+            bool isActive = _isThumbHovered || _isThumbDragging || _isBarHovered || _isScrolling;
+            int thumbWidth = isActive ? Math.Max(6, Width - 2) : Math.Max(3, Width - 6);
+            int thumbX = Width - thumbWidth - 1;
 
             return new Rectangle(thumbX, thumbY, thumbWidth, thumbHeight);
         }
 
         protected override void OnMouseEnter(EventArgs e)
         {
-            _isThumbHovered = true;
+            _isBarHovered = true;
             Invalidate();
             base.OnMouseEnter(e);
         }
 
         protected override void OnMouseLeave(EventArgs e)
         {
+            _isBarHovered = false;
             if (!_isThumbDragging)
             {
                 _isThumbHovered = false;
@@ -921,26 +1002,50 @@ namespace SJANotificationApp
             if (thumbRect.IsEmpty) return;
 
             bool dark = FluentTheme.IsDarkTheme;
-            Color thumbColor;
+            bool isActive = _isThumbHovered || _isThumbDragging || _isBarHovered || _isScrolling;
 
+            // Draw subtle track when active
+            if (isActive)
+            {
+                var trackRect = new Rectangle(Width - 9, 2, 8, Height - 4);
+                using var trackBrush = new SolidBrush(FluentTheme.ThemeHover);
+                FluentTheme.FillRoundedRectangle(g, trackBrush, trackRect, 4);
+            }
+
+            Color thumbColor;
             if (_isThumbDragging)
             {
-                thumbColor = dark ? Color.FromArgb(120, 120, 130) : Color.FromArgb(100, 116, 139);
+                thumbColor = FluentTheme.ThemeTextPrimary;
             }
             else if (_isThumbHovered)
             {
-                thumbColor = dark ? Color.FromArgb(90, 90, 100) : Color.FromArgb(148, 163, 184);
+                thumbColor = FluentTheme.ThemeTextSecondary;
+            }
+            else if (isActive)
+            {
+                thumbColor = FluentTheme.ThemeTextMuted;
             }
             else
             {
-                thumbColor = dark ? Color.FromArgb(60, 60, 68) : Color.FromArgb(203, 213, 225);
+                // Idle thin pill
+                thumbColor = FluentTheme.ThemeCardHairlineStrong;
             }
 
-            int radius = thumbRect.Width / 2;
+            int radius = Math.Max(2, thumbRect.Width / 2);
             using (var brush = new SolidBrush(thumbColor))
             {
                 FluentTheme.FillRoundedRectangle(g, brush, thumbRect, radius);
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _animTimer.Stop();
+                _animTimer.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 
