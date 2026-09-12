@@ -45,6 +45,7 @@ namespace SJANotificationApp
             _mainThreadId = Thread.CurrentThread.ManagedThreadId;
             _uiSyncContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
             _config = AppConfig.Load();
+            FluentTheme.SetThemeMode(_config.ThemeMode);
 
             // Background task: Auto-discover best SJA server (idesk.santos.co.id -> 10.10.6.13 -> localhost)
             Task.Run(async () =>
@@ -146,11 +147,11 @@ namespace SJANotificationApp
             }
         }
 
-        public void ShowMainWindow()
+        public void ShowMainWindow(string? tabKey = null)
         {
             if (Thread.CurrentThread.ManagedThreadId != _mainThreadId)
             {
-                _uiSyncContext?.Post(_ => ShowMainWindow(), null);
+                _uiSyncContext?.Post(_ => ShowMainWindow(tabKey), null);
                 return;
             }
 
@@ -165,10 +166,18 @@ namespace SJANotificationApp
                         UpdateContextMenu();
                     };
                     _mainWindow.FormClosed += (s, e) => _mainWindow = null;
+                    if (!string.IsNullOrEmpty(tabKey))
+                    {
+                        _mainWindow.SwitchNavTab(tabKey);
+                    }
                     _mainWindow.Show();
                 }
                 else
                 {
+                    if (!string.IsNullOrEmpty(tabKey))
+                    {
+                        _mainWindow.SwitchNavTab(tabKey);
+                    }
                     _mainWindow.UpdateConnectionState(_isConnected);
                     _mainWindow.WindowState = FormWindowState.Normal;
                     _mainWindow.BringToFront();
@@ -476,7 +485,8 @@ namespace SJANotificationApp
                 Font = FluentTheme.Body,
                 ShowImageMargin = true,
                 ShowCheckMargin = false,
-                BackColor = FluentTheme.ThemeMenuBackground
+                BackColor = FluentTheme.ThemeMenuBackground,
+                MinimumSize = new Size(330, 0)
             };
 
             // Anti-auto-close mechanism for interactive/toggle items
@@ -493,14 +503,14 @@ namespace SJANotificationApp
             menu.Items.Add(CreateHeaderControlHost());
 
             // 2. Blok 1: Workspace & Dashboard
-            var dashboardItem = new ToolStripMenuItem("Buka Dashboard Status...", FluentTheme.GetMenuIcon("portal", FluentTheme.ThemeMenuTextSecondary), (s, e) => ShowMainWindow())
+            var dashboardItem = new ToolStripMenuItem("Open dashboard", FluentTheme.GetMenuIcon("portal", FluentTheme.ThemeMenuTextSecondary), (s, e) => ShowMainWindow("home"))
             {
                 Font = FluentTheme.BodyBold,
                 ForeColor = FluentTheme.ThemeMenuTextPrimary
             };
             menu.Items.Add(dashboardItem);
 
-            var openIdeskItem = new ToolStripMenuItem("Buka Portal Web iDesk", FluentTheme.GetMenuIcon("globe", FluentTheme.ThemeMenuTextSecondary), (s, e) =>
+            var openIdeskItem = new ToolStripMenuItem("Open iDesk portal", FluentTheme.GetMenuIcon("globe", FluentTheme.ThemeMenuTextSecondary), (s, e) =>
             {
                 ToastNotifier.OpenUrlInBrowser(_config.IdeskServerUrl);
             })
@@ -512,20 +522,18 @@ namespace SJANotificationApp
             menu.Items.Add(new ToolStripSeparator());
 
             // 3. Blok 2: Riwayat, Pengaturan & Uji
-            var openHistoryItem = new ToolStripMenuItem("Riwayat Notifikasi Desktop...", FluentTheme.GetMenuIcon("history", FluentTheme.ThemeMenuTextSecondary), (s, e) =>
+            var openHistoryItem = new ToolStripMenuItem("Notification history", FluentTheme.GetMenuIcon("history", FluentTheme.ThemeMenuTextSecondary), (s, e) =>
             {
-                var historyForm = new HistoryForm(_config);
-                historyForm.ShowDialog();
+                ShowMainWindow("history");
             })
             {
                 ForeColor = FluentTheme.ThemeMenuTextPrimary
             };
             menu.Items.Add(openHistoryItem);
 
-            var settingsItem = new ToolStripMenuItem("Pengaturan Notifikasi...", FluentTheme.GetMenuIcon("settings", FluentTheme.ThemeMenuTextSecondary), (s, e) =>
+            var settingsItem = new ToolStripMenuItem("Settings", FluentTheme.GetMenuIcon("settings", FluentTheme.ThemeMenuTextSecondary), (s, e) =>
             {
-                var settingsForm = new SettingsForm(_config);
-                settingsForm.ShowDialog();
+                ShowMainWindow("settings");
             })
             {
                 ForeColor = FluentTheme.ThemeMenuTextPrimary
@@ -533,7 +541,7 @@ namespace SJANotificationApp
             menu.Items.Add(settingsItem);
 
             // Sub-menu Uji Notifikasi
-            var testMenu = new ToolStripMenuItem("Uji Notifikasi", FluentTheme.GetMenuIcon("test", FluentTheme.ThemeMenuTextSecondary))
+            var testMenu = new ToolStripMenuItem("Test notification", FluentTheme.GetMenuIcon("test", FluentTheme.ThemeMenuTextSecondary))
             {
                 ForeColor = FluentTheme.ThemeMenuTextPrimary
             };
@@ -549,7 +557,7 @@ namespace SJANotificationApp
                 }
             };
 
-            var testToast = new ToolStripMenuItem("Tes Toast Windows", null, (s, e) =>
+            var testToast = new ToolStripMenuItem("Windows toast", null, (s, e) =>
             {
                 _keepMenuOpenRequested = true;
                 ToastNotifier.ShowTestNotification("toast");
@@ -557,7 +565,7 @@ namespace SJANotificationApp
             {
                 ForeColor = FluentTheme.ThemeMenuTextPrimary
             };
-            var testPopup = new ToolStripMenuItem("Tes Popup Window", null, (s, e) =>
+            var testPopup = new ToolStripMenuItem("Popup window", null, (s, e) =>
             {
                 _keepMenuOpenRequested = true;
                 ToastNotifier.ShowTestNotification("popup");
@@ -565,7 +573,7 @@ namespace SJANotificationApp
             {
                 ForeColor = FluentTheme.ThemeMenuTextPrimary
             };
-            var testBoth = new ToolStripMenuItem("Tes Keduanya", null, (s, e) =>
+            var testBoth = new ToolStripMenuItem("Both", null, (s, e) =>
             {
                 _keepMenuOpenRequested = true;
                 ToastNotifier.ShowTestNotification("both");
@@ -583,7 +591,7 @@ namespace SJANotificationApp
 
             // 4. Blok 3: Sistem & Preferensi
             bool isAutoStart = CheckAutoStartEnabled();
-            var autoStartItem = new ToolStripMenuItem("Jalankan Saat Windows Start")
+            var autoStartItem = new ToolStripMenuItem("Start with Windows")
             {
                 Checked = isAutoStart,
                 CheckOnClick = true,
@@ -599,11 +607,11 @@ namespace SJANotificationApp
             string? token = DeviceSecurityStorage.LoadToken();
             if (!string.IsNullOrEmpty(token))
             {
-                var logoutItem = new ToolStripMenuItem("Keluar Akun (Logout)...", FluentTheme.GetMenuIcon("exit", Color.FromArgb(248, 113, 113)), (s, e) =>
+                var logoutItem = new ToolStripMenuItem("Sign out", FluentTheme.GetMenuIcon("exit", FluentTheme.ThemeStatusCritical), (s, e) =>
                 {
                     var confirm = MessageBox.Show(
-                        "Apakah Anda yakin ingin keluar dari akun ini di SJA Notification?\n\nAplikasi akan tetap berjalan di background untuk menerima notifikasi saat akun lain login.",
-                        "Keluar Akun",
+                        "Are you sure you want to sign out from this device?\n\nYou will need to sign in again to receive notifications.",
+                        "Sign Out",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question
                     );
@@ -613,16 +621,16 @@ namespace SJANotificationApp
                     }
                 })
                 {
-                    ForeColor = Color.FromArgb(248, 113, 113)
+                    ForeColor = FluentTheme.ThemeStatusCritical
                 };
                 menu.Items.Add(logoutItem);
             }
 
-            var exitItem = new ToolStripMenuItem("Tutup Notifier (Exit)", FluentTheme.GetMenuIcon("exit", Color.FromArgb(248, 113, 113)), (s, e) =>
+            var exitItem = new ToolStripMenuItem("Quit notifier", FluentTheme.GetMenuIcon("exit", FluentTheme.ThemeStatusCritical), (s, e) =>
             {
                 var confirm = MessageBox.Show(
-                    "Menutup SJA Notifier akan menonaktifkan penerimaan notifikasi desktop secara real-time.\n\nApakah Anda yakin ingin keluar dari aplikasi?",
-                    "Tutup SJA Notifier",
+                    "Exiting SJA Notifier will stop real-time desktop notifications.\n\nAre you sure you want to quit?",
+                    "Quit Notifier",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2
@@ -633,7 +641,7 @@ namespace SJANotificationApp
                 }
             })
             {
-                ForeColor = Color.FromArgb(248, 113, 113)
+                ForeColor = FluentTheme.ThemeStatusCritical
             };
             menu.Items.Add(exitItem);
 
@@ -642,12 +650,13 @@ namespace SJANotificationApp
 
         private ToolStripControlHost CreateHeaderControlHost()
         {
-            var session = DeviceSecurityStorage.LoadSession();
+            var activeProfile = ProfileStore.Instance.GetActiveProfile();
+            var session = activeProfile.Session;
             bool hasUser = session != null && !string.IsNullOrWhiteSpace(session.FullName);
 
             var pnl = new Panel
             {
-                Size = new Size(296, 84),
+                Size = new Size(330, 92),
                 BackColor = Color.Transparent,
                 Padding = new Padding(12, 10, 12, 8)
             };
@@ -671,15 +680,15 @@ namespace SJANotificationApp
                 Color dotColor = connected ? FluentTheme.StatusOnline : FluentTheme.StatusOffline;
                 using (var dotBrush = new SolidBrush(dotColor))
                 {
-                    e.Graphics.FillEllipse(dotBrush, 54, 56, 6, 6);
+                    e.Graphics.FillEllipse(dotBrush, 56, 61, 7, 7);
                 }
 
-                string statusText = connected ? "Gateway Terhubung (Live WSS)" : "Gateway Terputus (Offline)";
+                string statusText = connected ? "Connected" : (hasUser ? "Disconnected" : "Not signed in");
                 Color statusTextColor = connected
-                    ? (FluentTheme.IsDarkTheme ? Color.FromArgb(52, 211, 153) : Color.FromArgb(5, 150, 105))
-                    : (FluentTheme.IsDarkTheme ? Color.FromArgb(248, 113, 113) : Color.FromArgb(220, 38, 38));
+                    ? FluentTheme.ThemeStatusOnline
+                    : FluentTheme.ThemeStatusCritical;
                 using var font = FluentTheme.CaptionBold;
-                var textRect = new Rectangle(66, 50, pnl.Width - 72, 20);
+                var textRect = new Rectangle(68, 55, pnl.Width - 76, 22);
                 TextRenderer.DrawText(e.Graphics, statusText, font, textRect, statusTextColor,
                     TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.EndEllipsis);
             };
@@ -687,7 +696,7 @@ namespace SJANotificationApp
             // Avatar circle on left
             var picAvatar = new PictureBox
             {
-                Size = new Size(36, 36),
+                Size = new Size(38, 38),
                 Location = new Point(12, 12),
                 BackColor = Color.Transparent
             };
@@ -695,51 +704,52 @@ namespace SJANotificationApp
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 var r = new Rectangle(0, 0, picAvatar.Width - 1, picAvatar.Height - 1);
-                using var b = new SolidBrush(FluentTheme.ThemeAccentSoft);
+                Color avColor = ColorTranslator.FromHtml(activeProfile.AvatarColorHex ?? "#0071E3");
+                using var b = new SolidBrush(avColor);
                 {
-                    FluentTheme.FillRoundedRectangle(e.Graphics, b, r, 18);
+                    FluentTheme.FillRoundedRectangle(e.Graphics, b, r, 12);
                 }
                 using var p = new Pen(FluentTheme.ThemeCardHairline, 1f);
                 {
-                    FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 18);
+                    FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 12);
                 }
 
-                string initial = hasUser && !string.IsNullOrWhiteSpace(session!.FullName)
-                    ? session.FullName.Substring(0, 1).ToUpper()
-                    : "S";
-                using var font = FluentTheme.GetFont(11F, FontStyle.Bold);
-                using var textBrush = new SolidBrush(FluentTheme.ThemeAccentText);
+                string initial = !string.IsNullOrWhiteSpace(activeProfile.Name)
+                    ? activeProfile.Name.Substring(0, 1).ToUpper()
+                    : "P";
+                using var font = FluentTheme.GetFont(11.5F, FontStyle.Bold);
+                using var textBrush = new SolidBrush(Color.White);
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                e.Graphics.DrawString(initial, font, textBrush, new RectangleF(0, 0, 36, 36), sf);
+                e.Graphics.DrawString(initial, font, textBrush, new RectangleF(0, 0, 38, 38), sf);
             };
             pnl.Controls.Add(picAvatar);
 
-            // User name / title
-            string userDisplay = hasUser ? session!.FullName : "iDesk Notifier";
+            // User name / profile title
+            string userDisplay = hasUser ? session!.FullName : activeProfile.Name;
             var lblUser = new Label
             {
                 Text = userDisplay,
                 Font = FluentTheme.BodyBold,
                 ForeColor = FluentTheme.ThemeTextPrimary,
-                Location = new Point(54, 10),
-                Size = new Size(hasUser && !string.IsNullOrWhiteSpace(session?.SiteCode) ? 186 : 230, 18),
+                Location = new Point(56, 11),
+                Size = new Size(hasUser && !string.IsNullOrWhiteSpace(session?.SiteCode) ? 218 : 260, 22),
                 AutoEllipsis = true,
                 BackColor = Color.Transparent
             };
             pnl.Controls.Add(lblUser);
 
-            // Sub info (NIK • MachineName)
+            // Sub info (Profile Name • NIK / MachineName)
             string subInfo = hasUser
-                ? $"{session!.EmployeeId} • {Environment.MachineName}"
-                : $"Versi 2.0 • {Environment.MachineName}";
+                ? $"{activeProfile.Name} • {session!.EmployeeId}"
+                : $"{activeProfile.Name} • Not signed in";
 
             var lblSub = new Label
             {
                 Text = subInfo,
                 Font = FluentTheme.Caption,
                 ForeColor = FluentTheme.ThemeTextMuted,
-                Location = new Point(54, 30),
-                Size = new Size(230, 15),
+                Location = new Point(56, 33),
+                Size = new Size(260, 18),
                 AutoEllipsis = true,
                 BackColor = Color.Transparent
             };
@@ -752,10 +762,10 @@ namespace SJANotificationApp
                 {
                     Text = session.SiteCode,
                     Font = FluentTheme.CaptionBold,
-                    ForeColor = FluentTheme.IsDarkTheme ? Color.FromArgb(147, 197, 253) : Color.FromArgb(30, 41, 59),
-                    BackColor = FluentTheme.IsDarkTheme ? FluentTheme.DarkBadgeBg : Color.FromArgb(241, 245, 249),
-                    Location = new Point(pnl.Width - 46, 10),
-                    Size = new Size(36, 18),
+                    ForeColor = FluentTheme.ThemeAccentText,
+                    BackColor = FluentTheme.ThemeSurfaceSoft,
+                    Location = new Point(pnl.Width - 48, 11),
+                    Size = new Size(38, 20),
                     TextAlign = ContentAlignment.MiddleCenter
                 };
                 lblSite.Paint += (s, e) =>
@@ -763,7 +773,7 @@ namespace SJANotificationApp
                     e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                     var r = new Rectangle(0, 0, lblSite.Width - 1, lblSite.Height - 1);
                     using var p = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                    FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 4);
+                    FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 5);
                 };
                 pnl.Controls.Add(lblSite);
             }
@@ -771,7 +781,7 @@ namespace SJANotificationApp
             return new ToolStripControlHost(pnl)
             {
                 AutoSize = false,
-                Size = new Size(296, 84),
+                Size = pnl.Size,
                 Margin = Padding.Empty,
                 Padding = Padding.Empty
             };
@@ -873,6 +883,35 @@ namespace SJANotificationApp
             catch (Exception ex)
             {
                 AppLogger.Error("Gagal reconnect with token", ex);
+            }
+        }
+
+        public void SyncActiveProfileSession()
+        {
+            if (Thread.CurrentThread.ManagedThreadId != _mainThreadId)
+            {
+                _uiSyncContext?.Post(_ => SyncActiveProfileSession(), null);
+                return;
+            }
+
+            try
+            {
+                _wsClient?.Disconnect();
+                _wsClient = null;
+                _isConnected = false;
+
+                string? token = DeviceSecurityStorage.LoadToken();
+                if (!string.IsNullOrEmpty(token))
+                {
+                    InitializeConnection();
+                }
+
+                UpdateContextMenu();
+                _mainWindow?.RefreshDataState();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Gagal sinkronisasi sesi profil aktif", ex);
             }
         }
 
