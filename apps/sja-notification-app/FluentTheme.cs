@@ -660,7 +660,8 @@ namespace SJANotificationApp
                     break;
 
                 case "archive":
-                    g.DrawRectangle(pen, 2f, 3f, 11f, 9f);
+                    using (var arcPath = CreateRoundedPath(new Rectangle(2, 3, 11, 9), 2))
+                        g.DrawPath(pen, arcPath);
                     g.DrawLine(pen, 2f, 6.5f, 13f, 6.5f);
                     g.DrawLine(pen, 6f, 9f, 9f, 9f);
                     break;
@@ -680,21 +681,19 @@ namespace SJANotificationApp
                     break;
 
                 case "startup":
-                    g.DrawRectangle(pen, 2.5f, 2.5f, 10f, 10f);
+                    using (var stPath = CreateRoundedPath(new Rectangle(2, 2, 11, 11), 2))
+                        g.DrawPath(pen, stPath);
                     g.DrawLine(pen, 4.5f, 7.5f, 6.5f, 9.5f);
                     g.DrawLine(pen, 6.5f, 9.5f, 10.5f, 5.5f);
                     break;
 
                 case "exit":
-                    using (var redPen = new Pen(Color.FromArgb(239, 68, 68), 1.3f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
-                    {
-                        g.DrawLine(redPen, 7f, 2.5f, 3f, 2.5f);
-                        g.DrawLine(redPen, 3f, 2.5f, 3f, 12.5f);
-                        g.DrawLine(redPen, 3f, 12.5f, 7f, 12.5f);
-                        g.DrawLine(redPen, 6f, 7.5f, 13f, 7.5f);
-                        g.DrawLine(redPen, 10.5f, 5f, 13f, 7.5f);
-                        g.DrawLine(redPen, 10.5f, 10f, 13f, 7.5f);
-                    }
+                    g.DrawLine(pen, 7f, 2.5f, 3f, 2.5f);
+                    g.DrawLine(pen, 3f, 2.5f, 3f, 12.5f);
+                    g.DrawLine(pen, 3f, 12.5f, 7f, 12.5f);
+                    g.DrawLine(pen, 6f, 7.5f, 13f, 7.5f);
+                    g.DrawLine(pen, 10.5f, 5f, 13f, 7.5f);
+                    g.DrawLine(pen, 10.5f, 10f, 13f, 7.5f);
                     break;
 
                 case "remote":
@@ -734,6 +733,62 @@ namespace SJANotificationApp
                         new PointF(8f, 10f),
                         new PointF(11.5f, 6.5f)
                     });
+                    break;
+
+                case "chevron-right":
+                    g.DrawLines(pen, new[]
+                    {
+                        new PointF(6.5f, 4.5f),
+                        new PointF(10f, 8f),
+                        new PointF(6.5f, 11.5f)
+                    });
+                    break;
+
+                case "maximize":
+                    g.DrawRectangle(pen, 4f, 4f, 8f, 8f);
+                    break;
+
+                case "restore":
+                    g.DrawRectangle(pen, 3f, 6f, 7f, 7f);
+                    g.DrawLine(pen, 6f, 3.5f, 12.5f, 3.5f);
+                    g.DrawLine(pen, 12.5f, 3.5f, 12.5f, 10f);
+                    break;
+
+                case "external":
+                    g.DrawLine(pen, 7f, 3f, 3.5f, 3f);
+                    g.DrawLine(pen, 3.5f, 3f, 3.5f, 12.5f);
+                    g.DrawLine(pen, 3.5f, 12.5f, 13f, 12.5f);
+                    g.DrawLine(pen, 13f, 12.5f, 13f, 9f);
+                    g.DrawLine(pen, 8.5f, 7.5f, 13f, 3f);
+                    g.DrawLine(pen, 9.5f, 3f, 13f, 3f);
+                    g.DrawLine(pen, 13f, 3f, 13f, 6.5f);
+                    break;
+
+                case "search":
+                    g.DrawEllipse(pen, 3f, 3f, 8f, 8f);
+                    g.DrawLine(pen, 10f, 10f, 13.5f, 13.5f);
+                    break;
+
+                case "refresh":
+                    g.DrawArc(pen, 3f, 3f, 10f, 10f, 60, 250);
+                    g.DrawLines(pen, new[]
+                    {
+                        new PointF(9.5f, 1.5f),
+                        new PointF(12.8f, 4.2f),
+                        new PointF(9.3f, 6f)
+                    });
+                    break;
+
+                case "warning":
+                    g.DrawLines(pen, new[]
+                    {
+                        new PointF(8f, 2.5f),
+                        new PointF(14f, 13f),
+                        new PointF(2f, 13f),
+                        new PointF(8f, 2.5f)
+                    });
+                    g.DrawLine(pen, 8f, 6f, 8f, 9.5f);
+                    g.FillEllipse(brush, 7.2f, 10.8f, 1.6f, 1.6f);
                     break;
             }
 
