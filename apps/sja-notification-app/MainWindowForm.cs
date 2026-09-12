@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -30,7 +30,6 @@ namespace SJANotificationApp
 
         // Shared Header & Window Controls
         private Panel _pnlHeader = null!;
-        private Panel _pnlGatewayPill = null!;
         private GlassButton _btnClose = null!;
         private GlassButton _btnMin = null!;
 
@@ -61,33 +60,19 @@ namespace SJANotificationApp
         private Label _lblSuite = null!;
 
         // Dashboard View Controls
-        private Panel _pnlProfileCard = null!;
-        private PictureBox _picAvatar = null!;
-        private Label _lblUserName = null!;
-        private Label _lblUserDetail = null!;
-        private Label _lblSiteBadge = null!;
-        private Label _lblDashGatewayStatus = null!;
-        private Panel _pnlDashDot = null!;
-        private TableLayoutPanel _tblActions = null!;
-        private Panel _pnlWebHeroCard = null!;
-        private TableLayoutPanel _tblBentoCards = null!;
-        private Panel _pnlTestBentoCard = null!;
-        private Panel _pnlRemoteBentoCard = null!;
         private Panel _pnlRail = null!;
         private Panel _pnlViewsContainer = null!;
-        private Panel _pnlHomeTab = null!;
+        private HomeControlPanel? _pnlHomeTab;
         private HistoryControlPanel? _pnlHistoryTab;
         private SettingsControlPanel? _pnlSettingsTab;
-        private GlassButton _btnGear = null!;
-        private GlassButton _btnThemeToggle = null!;
         private Panel _pnlRailProfile = null!;
+        private Panel _pnlRailGatewayStatus = null!;
         private ContextMenuStrip? _profileContextMenu;
         private string _currentNavTab = "home"; // "home" | "history" | "settings"
         private readonly System.Collections.Generic.Dictionary<string, Panel> _navButtons = new();
-        private GlassButton _btnRemote = null!;
-        private GlassButton _btnTestNotif = null!;
-        private GlassButton _btnOpenWeb = null!;
-        private GlassButton _btnLogout = null!;
+
+        private const string RemoteAccessDeniedMessage =
+            "Remote Desktop is available to Admin and Agent accounts only.";
 
         public event Action? OnSessionChanged;
 
@@ -137,13 +122,6 @@ namespace SJANotificationApp
 
             if (_lblBrand != null) _lblBrand.ForeColor = FluentTheme.ThemeTextSecondary;
             if (_lblSuite != null) _lblSuite.ForeColor = FluentTheme.ThemeTextPrimary;
-            if (_lblUserName != null) _lblUserName.ForeColor = FluentTheme.ThemeTextPrimary;
-            if (_lblUserDetail != null) _lblUserDetail.ForeColor = FluentTheme.ThemeTextSecondary;
-            if (_lblSiteBadge != null)
-            {
-                _lblSiteBadge.ForeColor = FluentTheme.IsDarkTheme ? Color.FromArgb(147, 197, 253) : Color.FromArgb(71, 85, 105);
-                _lblSiteBadge.BackColor = FluentTheme.IsDarkTheme ? Color.FromArgb(38, 38, 44) : Color.FromArgb(241, 245, 249);
-            }
 
             if (_txtNik != null)
             {
@@ -164,10 +142,9 @@ namespace SJANotificationApp
         {
             foreach (Control c in parent.Controls)
             {
-                if (c is Label lbl && c != _lblSiteBadge && c != _lblDashGatewayStatus)
+                if (c is Label lbl)
                 {
                     if (lbl == _lblBrand) lbl.ForeColor = FluentTheme.ThemeTextSecondary;
-                    else if (lbl == _lblUserDetail) lbl.ForeColor = FluentTheme.ThemeTextSecondary;
                     else if (lbl.ForeColor.A != 0 && (lbl.ForeColor == Color.White || lbl.ForeColor == Color.FromArgb(245, 245, 247) || lbl.ForeColor == Color.FromArgb(29, 29, 31) || lbl.ForeColor == Color.FromArgb(15, 23, 42)))
                     {
                         lbl.ForeColor = FluentTheme.ThemeTextPrimary;
@@ -305,100 +282,11 @@ namespace SJANotificationApp
             _btnMin.Click += (s, e) => WindowState = FormWindowState.Minimized;
             _pnlHeader.Controls.Add(_btnMin);
 
-            _btnThemeToggle = new GlassButton
-            {
-                Size = new Size(30, 30),
-                Variant = GlassButtonVariant.Ghost,
-                GlyphOnly = true,
-                Glyph = FluentTheme.IsDarkTheme ? "sun" : "moon",
-                Radius = 8,
-                Cursor = Cursors.Hand
-            };
-            var themeTip = new ToolTip();
-            themeTip.SetToolTip(_btnThemeToggle, "Ganti Tema (Terang / Gelap)");
-            _btnThemeToggle.Click += (s, e) =>
-            {
-                bool nextDark = !FluentTheme.IsDarkTheme;
-                string newMode = nextDark ? "dark" : "light";
-                _config.ThemeMode = newMode;
-                _config.Save();
-                FluentTheme.SetThemeMode(newMode);
-                _btnThemeToggle.Glyph = nextDark ? "sun" : "moon";
-                _btnThemeToggle.Invalidate();
-            };
-            _pnlHeader.Controls.Add(_btnThemeToggle);
-
-            _btnGear = new GlassButton
-            {
-                Size = new Size(30, 30),
-                Variant = GlassButtonVariant.Ghost,
-                GlyphOnly = true,
-                Glyph = "settings",
-                Radius = 8,
-                Cursor = Cursors.Hand
-            };
-            var gearTip = new ToolTip();
-            gearTip.SetToolTip(_btnGear, "Buka Pengaturan & Preferensi");
-            _btnGear.Click += (s, e) =>
-            {
-                SwitchNavTab("settings");
-            };
-            _pnlHeader.Controls.Add(_btnGear);
-
-            // Gateway Live Status Capsule (Top Right)
-            _pnlGatewayPill = new Panel
-            {
-                Size = new Size(142, 26),
-                BackColor = Color.Transparent
-            };
-            _pnlGatewayPill.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-                var rect = new Rectangle(0, 0, _pnlGatewayPill.Width - 1, _pnlGatewayPill.Height - 1);
-
-                bool dark = FluentTheme.IsDarkTheme;
-                Color bg = _isConnected
-                    ? (dark ? Color.FromArgb(20, 52, 199, 89) : Color.FromArgb(236, 253, 245))
-                    : (dark ? Color.FromArgb(24, 255, 59, 48) : Color.FromArgb(254, 242, 242));
-                Color border = _isConnected
-                    ? (dark ? Color.FromArgb(50, 52, 199, 89) : Color.FromArgb(187, 247, 208))
-                    : (dark ? Color.FromArgb(60, 255, 59, 48) : Color.FromArgb(254, 202, 202));
-                Color dotColor = _isConnected ? FluentTheme.StatusOnline : FluentTheme.StatusOffline;
-                Color textColor = _isConnected
-                    ? (dark ? Color.FromArgb(52, 211, 153) : Color.FromArgb(5, 150, 105))
-                    : (dark ? Color.FromArgb(248, 113, 113) : Color.FromArgb(220, 38, 38));
-                string text = _isConnected ? "Gateway Online" : "Gateway Offline";
-
-                using (var brush = new SolidBrush(bg))
-                {
-                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, rect, 13);
-                }
-                using (var pen = new Pen(border, 1f))
-                {
-                    FluentTheme.DrawRoundedRectangle(e.Graphics, pen, rect, 13);
-                }
-
-                using (var dotBrush = new SolidBrush(dotColor))
-                {
-                    e.Graphics.FillEllipse(dotBrush, 10, (_pnlGatewayPill.Height - 8) / 2, 8, 8);
-                }
-                using (var textBrush = new SolidBrush(textColor))
-                using (var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
-                {
-                    e.Graphics.DrawString(text, FluentTheme.CaptionBold, textBrush, new RectangleF(24, 0, _pnlGatewayPill.Width - 26, _pnlGatewayPill.Height), sf);
-                }
-            };
-            _pnlHeader.Controls.Add(_pnlGatewayPill);
-
             _pnlHeader.Resize += (s, e) =>
             {
                 int r = _pnlHeader.ClientSize.Width;
                 _btnClose.Location = new Point(r - _btnClose.Width, 11);
                 _btnMin.Location = new Point(_btnClose.Left - _btnMin.Width - 4, 11);
-                _btnThemeToggle.Location = new Point(_btnMin.Left - _btnThemeToggle.Width - 4, 11);
-                _btnGear.Location = new Point(_btnThemeToggle.Left - _btnGear.Width - 4, 11);
-                _pnlGatewayPill.Location = new Point(_btnGear.Left - _pnlGatewayPill.Width - 10, 13);
             };
 
             pnlCanvas.Controls.Add(_pnlHeader);
@@ -496,15 +384,14 @@ namespace SJANotificationApp
             };
             _pnlWebQuickCard.Paint += (s, e) =>
             {
-                bool dark = FluentTheme.IsDarkTheme;
-                Color fill = dark ? Color.FromArgb(28, 38, 54) : Color.FromArgb(240, 246, 255);
-                Color border = dark ? Color.FromArgb(50, 80, 130) : Color.FromArgb(205, 226, 255);
+                Color fill = FluentTheme.ThemeAccentSoft;
+                Color border = FluentTheme.ThemeCardHairline;
                 FluentTheme.PaintGlassCard(e.Graphics, _pnlWebQuickCard.ClientRectangle, 10, fill, border);
             };
 
             var lblWebPrompt = new Label
             {
-                Text = "Koneksi Cepat Sesi Web iDesk",
+                Text = "Fast Connect via Browser",
                 Font = FluentTheme.CaptionBold,
                 ForeColor = FluentTheme.ThemeAccentText,
                 Location = new Point(12, 8),
@@ -517,7 +404,7 @@ namespace SJANotificationApp
             {
                 Location = new Point(12, 28),
                 Size = new Size(388, 32),
-                Text = "Hubungkan Sesi dari Browser ➔",
+                Text = "Connect session from browser",
                 Variant = GlassButtonVariant.Accent,
                 Glyph = "browser",
                 Radius = 7,
@@ -543,7 +430,7 @@ namespace SJANotificationApp
                 using var pen = new Pen(FluentTheme.ThemeCardHairline, 1f);
                 e.Graphics.DrawLine(pen, 0, midY, pnlDivider.Width, midY);
 
-                string text = "ATAU MASUK MANUAL DENGAN NIK";
+                string text = "OR SIGN IN WITH EMPLOYEE ID";
                 using var font = FluentTheme.CaptionBold;
                 using var textBrush = new SolidBrush(FluentTheme.ThemeTextMuted);
                 using var bgBrush = new SolidBrush(FluentTheme.ThemeCardFill);
@@ -559,7 +446,7 @@ namespace SJANotificationApp
             // 4. Manual NIK Field
             var lblNik = new Label
             {
-                Text = "NIK atau Email Karyawan Santos:",
+                Text = "Employee ID or Santos Email:",
                 Font = FluentTheme.CaptionBold,
                 ForeColor = FluentTheme.ThemeTextPrimary,
                 Location = new Point(24, y),
@@ -597,7 +484,7 @@ namespace SJANotificationApp
                 BackColor = FluentTheme.ThemeInputWell,
                 Font = FluentTheme.GetFont(9.5F, FontStyle.Regular),
                 ForeColor = FluentTheme.ThemeTextPrimary,
-                PlaceholderText = "Contoh: 00061058 atau user.spj@idesk.com"
+                PlaceholderText = "e.g. 00061058 or user.spj@idesk.com"
             };
             _txtNik.Enter += (s, e) => { _nikFocused = true; _pnlNikBox.Invalidate(); };
             _txtNik.Leave += (s, e) => { _nikFocused = false; _pnlNikBox.Invalidate(); };
@@ -610,7 +497,7 @@ namespace SJANotificationApp
             // 5. Password Field
             var lblPass = new Label
             {
-                Text = "Kata Sandi Akun (iDesk / HRIS):",
+                Text = "Password:",
                 Font = FluentTheme.CaptionBold,
                 ForeColor = FluentTheme.ThemeTextPrimary,
                 Location = new Point(24, y),
@@ -660,7 +547,7 @@ namespace SJANotificationApp
             {
                 Location = new Point(412 - 54, 4),
                 Size = new Size(50, 26),
-                Text = "Lihat",
+                Text = "Show",
                 Variant = GlassButtonVariant.Ghost,
                 Font = FluentTheme.CaptionBold,
                 Radius = 6
@@ -717,7 +604,7 @@ namespace SJANotificationApp
             {
                 Location = new Point(24, y),
                 Size = new Size(412, 38),
-                Text = "Masuk & Hubungkan Perangkat ➔",
+                Text = "Sign in and pair device",
                 Variant = GlassButtonVariant.Accent,
                 Radius = 8,
                 Font = FluentTheme.SubTextBold
@@ -742,7 +629,7 @@ namespace SJANotificationApp
                 ForeColor = FluentTheme.ThemeTextMuted,
                 TextAlign = ContentAlignment.MiddleCenter,
                 BackColor = Color.Transparent,
-                Text = "🔒 Terenkripsi dengan Windows DPAPI di komputer ini.",
+                Text = "Protected with Windows DPAPI on this device.",
                 UseMnemonic = false
             };
             _pnlNote.Controls.Add(lblNote);
@@ -807,9 +694,7 @@ namespace SJANotificationApp
             };
             _pnlRail.Paint += (s, e) =>
             {
-                bool dark = FluentTheme.IsDarkTheme;
-                Color sidebarBg = dark ? Color.FromArgb(24, 24, 26) : Color.FromArgb(242, 242, 245);
-                using (var brush = new SolidBrush(sidebarBg))
+                using (var brush = new SolidBrush(FluentTheme.ThemeSidebar))
                 {
                     e.Graphics.FillRectangle(brush, 0, 0, _pnlRail.Width, _pnlRail.Height);
                 }
@@ -847,7 +732,7 @@ namespace SJANotificationApp
                 {
                     FluentTheme.FillRoundedRectangle(e.Graphics, b, rAvatar, 10);
                 }
-                using (var p = new Pen(Color.FromArgb(40, 255, 255, 255), 1f))
+                using (var p = new Pen(FluentTheme.ThemeCardHairline, 1f))
                 {
                     FluentTheme.DrawRoundedRectangle(e.Graphics, p, rAvatar, 10);
                 }
@@ -858,7 +743,7 @@ namespace SJANotificationApp
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 e.Graphics.DrawString(initial, font, textBrush, new RectangleF(10, 10, 32, 32), sf);
 
-                string displayName = !string.IsNullOrWhiteSpace(activeP.Name) ? activeP.Name : "Profil Pengguna";
+                string displayName = !string.IsNullOrWhiteSpace(activeP.Name) ? activeP.Name : "User Profile";
                 using var nameFont = FluentTheme.GetFont(8.5F, FontStyle.Bold);
                 using var nameBrush = new SolidBrush(FluentTheme.ThemeTextPrimary);
                 using var sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
@@ -866,27 +751,61 @@ namespace SJANotificationApp
 
                 using var subFont = FluentTheme.Caption;
                 using var subBrush = new SolidBrush(FluentTheme.ThemeTextMuted);
-                e.Graphics.DrawString("Ganti Profil ▾", subFont, subBrush, new RectangleF(48, 25, _pnlRailProfile.Width - 54, 14), sfLeft);
+                e.Graphics.DrawString("Switch profile", subFont, subBrush, new RectangleF(48, 25, _pnlRailProfile.Width - 74, 14), sfLeft);
+
+                using var chev = FluentTheme.GetMenuIcon("chevron-down", FluentTheme.ThemeTextMuted, 12);
+                e.Graphics.DrawImage(chev, _pnlRailProfile.Width - 24, 26);
             };
             _pnlRailProfile.Click += (s, e) => ShowProfileSwitcherFlyout(_pnlRailProfile);
             _pnlRail.Controls.Add(_pnlRailProfile);
 
-            // Rail Navigation Buttons (Horizontal macOS Rows)
+            // Bottom Sidebar: Gateway Connection Status
+            _pnlRailGatewayStatus = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 30,
+                BackColor = Color.Transparent,
+                Padding = new Padding(12, 4, 12, 4)
+            };
+            _pnlRailGatewayStatus.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+                Color dotColor = _isConnected ? FluentTheme.ThemeStatusOnline : FluentTheme.ThemeStatusCritical;
+                using (var dotBrush = new SolidBrush(dotColor))
+                {
+                    e.Graphics.FillEllipse(dotBrush, 12, (_pnlRailGatewayStatus.Height - 8) / 2, 8, 8);
+                }
+
+                string statusText = _isConnected ? "Connected" : "Disconnected";
+                Color textColor = _isConnected ? FluentTheme.ThemeStatusOnline : FluentTheme.ThemeStatusCritical;
+                using var font = FluentTheme.CaptionBold;
+                using var textBrush = new SolidBrush(textColor);
+                using var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap };
+                e.Graphics.DrawString(statusText, font, textBrush, new RectangleF(26, 0, _pnlRailGatewayStatus.Width - 30, _pnlRailGatewayStatus.Height), sf);
+            };
+            _pnlRail.Controls.Add(_pnlRailGatewayStatus);
+
+            // Rail Navigation Buttons
             int railY = 8;
-            AddRailNavButton("home", "Beranda", "home", ref railY, () => SwitchNavTab("home"));
-            AddRailNavButton("history", "Riwayat", "history", ref railY, () => SwitchNavTab("history"));
-            AddRailNavButton("remote", "Remote", "remote", ref railY, () =>
+            AddRailNavButton("home", "Home", "home", ref railY, () => SwitchNavTab("home"));
+            AddRailNavButton("history", "History", "history", ref railY, () => SwitchNavTab("history"));
+            AddRailNavButton("settings", "Settings", "settings", ref railY, () => SwitchNavTab("settings"));
+
+            AddRailGroupLabel("Opens in another window", ref railY);
+
+            AddRailNavButton("remote", "Remote Desktop", "remote", ref railY, () =>
             {
                 var curSession = DeviceSecurityStorage.LoadSession();
                 if (!RemoteAccessPolicy.IsRemoteOperator(curSession?.Role, curSession?.EmployeeId, curSession?.FullName))
                 {
-                    ShowAlert("Fitur Remote Desktop hanya dapat diakses akun berhak akses Admin / Agent.", isError: true);
+                    ShowAlert(RemoteAccessDeniedMessage, isError: true);
                     return;
                 }
                 OpenRemoteDeviceBrowser();
-            });
-            AddRailNavButton("settings", "Setelan", "settings", ref railY, () => SwitchNavTab("settings"));
-            AddRailNavButton("portal", "iDesk", "idesk", ref railY, async () => await HandleOpenWebWithSsoAsync());
+            }, isExternal: true);
+            AddRailNavButton("portal", "iDesk Portal", "idesk", ref railY, async () => await HandleOpenWebWithSsoAsync(), isExternal: true);
 
             pnl.Controls.Add(_pnlRail);
 
@@ -908,7 +827,24 @@ namespace SJANotificationApp
             return pnl;
         }
 
-        private void AddRailNavButton(string key, string label, string icon, ref int y, Action onClick)
+        private void AddRailGroupLabel(string text, ref int y)
+        {
+            var lbl = new Label
+            {
+                Text = text,
+                Font = FluentTheme.GetFont(7.5F, FontStyle.Bold),
+                ForeColor = FluentTheme.ThemeTextMuted,
+                Location = new Point(14, y + 8),
+                Size = new Size(166, 18),
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleLeft,
+                UseMnemonic = false
+            };
+            _pnlRail.Controls.Add(lbl);
+            y += 28;
+        }
+
+        private void AddRailNavButton(string key, string label, string icon, ref int y, Action onClick, bool isExternal = false)
         {
             var btnPnl = new Panel
             {
@@ -946,10 +882,16 @@ namespace SJANotificationApp
                     e.Graphics.DrawImage(ico, 12, (btnPnl.Height - 18) / 2);
                 }
 
+                if (isExternal)
+                {
+                    using var extIco = FluentTheme.GetMenuIcon("external", isHover ? FluentTheme.ThemeTextSecondary : FluentTheme.ThemeTextMuted, 14);
+                    e.Graphics.DrawImage(extIco, btnPnl.Width - 24, (btnPnl.Height - 14) / 2);
+                }
+
                 using var font = FluentTheme.GetFont(9F, isSelected ? FontStyle.Bold : FontStyle.Regular);
                 using var textBrush = new SolidBrush(itemColor);
                 using var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap };
-                e.Graphics.DrawString(label, font, textBrush, new RectangleF(38, 0, btnPnl.Width - 42, btnPnl.Height), sf);
+                e.Graphics.DrawString(label, font, textBrush, new RectangleF(38, 0, btnPnl.Width - 66, btnPnl.Height), sf);
             };
 
             btnPnl.Click += (s, e) => onClick();
@@ -958,380 +900,10 @@ namespace SJANotificationApp
             y += 40;
         }
 
-        private Panel BuildHomeTab()
+        private HomeControlPanel BuildHomeTab()
         {
-            var pnl = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Transparent,
-                Padding = new Padding(0)
-            };
-
-            int y = 4;
-
-            // ================= 1. EMPLOYEE IDENTITY CARD (APPLE BENTO CARD) =================
-            _pnlProfileCard = new Panel
-            {
-                Location = new Point(0, y),
-                Size = new Size(pnl.ClientSize.Width > 0 ? pnl.ClientSize.Width : 620, 102),
-                BackColor = Color.Transparent,
-                Padding = new Padding(16, 12, 16, 12)
-            };
-            _pnlProfileCard.Paint += (s, e) =>
-            {
-                FluentTheme.PaintGlassCard(e.Graphics, _pnlProfileCard.ClientRectangle, 14, drawShadow: true);
-                using var divPen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                e.Graphics.DrawLine(divPen, 16, 66, _pnlProfileCard.Width - 16, 66);
-            };
-
-            _picAvatar = new PictureBox
-            {
-                Size = new Size(40, 40),
-                Location = new Point(16, 14),
-                BackColor = Color.Transparent
-            };
-            _picAvatar.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                var r = new Rectangle(0, 0, _picAvatar.Width - 1, _picAvatar.Height - 1);
-                using var b = new SolidBrush(FluentTheme.ThemeAccentSoft);
-                FluentTheme.FillRoundedRectangle(e.Graphics, b, r, 12);
-
-                using var p = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 12);
-
-                string initial = !string.IsNullOrWhiteSpace(_session?.FullName)
-                    ? _session.FullName.Substring(0, 1).ToUpper()
-                    : "S";
-                using var font = FluentTheme.GetFont(11.5F, FontStyle.Bold);
-                using var textBrush = new SolidBrush(FluentTheme.ThemeAccentText);
-                var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                e.Graphics.DrawString(initial, font, textBrush, new RectangleF(0, 0, 40, 40), sf);
-            };
-            _pnlProfileCard.Controls.Add(_picAvatar);
-
-            _lblUserName = new Label
-            {
-                Text = "Karyawan Santos",
-                Font = FluentTheme.GetFont(12F, FontStyle.Bold),
-                ForeColor = FluentTheme.ThemeTextPrimary,
-                Location = new Point(66, 11),
-                Size = new Size(360, 26),
-                AutoEllipsis = true,
-                BackColor = Color.Transparent
-            };
-            _pnlProfileCard.Controls.Add(_lblUserName);
-
-            _lblUserDetail = new Label
-            {
-                Text = "00000000 • PC-NAME",
-                Font = FluentTheme.SubText,
-                ForeColor = FluentTheme.ThemeTextSecondary,
-                Location = new Point(66, 38),
-                Size = new Size(360, 20),
-                AutoEllipsis = true,
-                BackColor = Color.Transparent
-            };
-            _pnlProfileCard.Controls.Add(_lblUserDetail);
-
-            _lblSiteBadge = new Label
-            {
-                Text = "SPJ",
-                Font = FluentTheme.CaptionBold,
-                ForeColor = FluentTheme.IsDarkTheme ? Color.FromArgb(147, 197, 253) : Color.FromArgb(71, 85, 105),
-                BackColor = FluentTheme.IsDarkTheme ? Color.FromArgb(38, 38, 44) : Color.FromArgb(241, 245, 249),
-                Location = new Point(_pnlProfileCard.Width - 58, 14),
-                Size = new Size(44, 22),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            _lblSiteBadge.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                var r = new Rectangle(0, 0, _lblSiteBadge.Width - 1, _lblSiteBadge.Height - 1);
-                using var p = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                FluentTheme.DrawRoundedRectangle(e.Graphics, p, r, 11);
-            };
-            _pnlProfileCard.Controls.Add(_lblSiteBadge);
-
-            _pnlDashDot = new Panel
-            {
-                Size = new Size(14, 14),
-                Location = new Point(16, 75),
-                BackColor = Color.Transparent
-            };
-            _pnlDashDot.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Color dotColor = _isConnected ? FluentTheme.StatusOnline : FluentTheme.StatusOffline;
-                using var b = new SolidBrush(dotColor);
-                e.Graphics.FillEllipse(b, 3, 3, 8, 8);
-            };
-            _pnlProfileCard.Controls.Add(_pnlDashDot);
-
-            _lblDashGatewayStatus = new Label
-            {
-                Text = "Memeriksa status gateway...",
-                Font = FluentTheme.SubTextBold,
-                ForeColor = FluentTheme.ThemeTextSecondary,
-                Location = new Point(34, 74),
-                Size = new Size(480, 18),
-                AutoEllipsis = true,
-                BackColor = Color.Transparent
-            };
-            _pnlProfileCard.Controls.Add(_lblDashGatewayStatus);
-
-            pnl.Controls.Add(_pnlProfileCard);
-
-            y += 114;
-
-            // ================= 2. HERO BENTO TILE: WEB PORTAL IDESK =================
-            _pnlWebHeroCard = new Panel
-            {
-                Location = new Point(0, y),
-                Size = new Size(pnl.ClientSize.Width > 0 ? pnl.ClientSize.Width : 620, 84),
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand
-            };
-            bool heroHover = false;
-            bool heroPressed = false;
-            _pnlWebHeroCard.MouseEnter += (s, e) => { heroHover = true; _pnlWebHeroCard.Invalidate(); };
-            _pnlWebHeroCard.MouseLeave += (s, e) => { heroHover = false; heroPressed = false; _pnlWebHeroCard.Invalidate(); };
-            _pnlWebHeroCard.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) { heroPressed = true; _pnlWebHeroCard.Invalidate(); } };
-            _pnlWebHeroCard.MouseUp += (s, e) => { if (heroPressed) { heroPressed = false; _pnlWebHeroCard.Invalidate(); } };
-
-            _pnlWebHeroCard.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-
-                var cardBounds = _pnlWebHeroCard.ClientRectangle;
-                if (heroPressed)
-                {
-                    cardBounds.Inflate(-1, -1);
-                }
-
-                Color cardBorder = heroHover ? FluentTheme.ThemeAccent : FluentTheme.ThemeCardHairline;
-                Color cardFill = heroHover ? FluentTheme.ThemeMenuHover : FluentTheme.ThemeCardFill;
-                FluentTheme.PaintGlassCard(e.Graphics, cardBounds, 14, fill: cardFill, hairline: cardBorder, drawShadow: true);
-
-                // Cupertino Blue squircle icon badge
-                var badgeRect = new Rectangle(cardBounds.X + 16, cardBounds.Y + 22, 40, 40);
-                using (var brush = new SolidBrush(FluentTheme.ThemeAccent))
-                {
-                    FluentTheme.FillRoundedRectangle(e.Graphics, brush, badgeRect, 11);
-                }
-                using (var ico = FluentTheme.GetMenuIcon("portal", Color.White, 20))
-                {
-                    e.Graphics.DrawImage(ico, badgeRect.X + (40 - 20) / 2, badgeRect.Y + (40 - 20) / 2);
-                }
-
-                // Title & Subtitle
-                using var titleFont = FluentTheme.GetFont(11F, FontStyle.Bold);
-                using var titleBrush = new SolidBrush(FluentTheme.ThemeTextPrimary);
-                e.Graphics.DrawString("Portal Web iDesk", titleFont, titleBrush, new PointF(cardBounds.X + 68, cardBounds.Y + 20));
-
-                using var subFont = FluentTheme.SubText;
-                using var subBrush = new SolidBrush(FluentTheme.ThemeTextSecondary);
-                int maxSubW = _btnOpenWeb != null ? _btnOpenWeb.Left - 78 : _pnlWebHeroCard.Width - 190;
-                using var sfSub = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-                e.Graphics.DrawString("Akses tiket, e-form, dan layanan iDesk lengkap di browser.", subFont, subBrush, new RectangleF(cardBounds.X + 68, cardBounds.Y + 44, maxSubW > 100 ? maxSubW : 300, 20), sfSub);
-            };
-            _pnlWebHeroCard.Click += async (s, e) => await HandleOpenWebWithSsoAsync();
-
-            _btnOpenWeb = new GlassButton
-            {
-                Size = new Size(106, 32),
-                Location = new Point(_pnlWebHeroCard.Width - 122, 26),
-                Text = "Buka ➔",
-                Variant = GlassButtonVariant.Ghost,
-                Radius = 16,
-                Font = FluentTheme.CaptionBold
-            };
-            _btnOpenWeb.Click += async (s, e) => await HandleOpenWebWithSsoAsync();
-            _pnlWebHeroCard.Controls.Add(_btnOpenWeb);
-
-            pnl.Controls.Add(_pnlWebHeroCard);
-
-            y += 94;
-
-            // ================= 3. TWO BENTO ACTION TILES (ROW 2) =================
-            _tblBentoCards = new TableLayoutPanel
-            {
-                Location = new Point(0, y),
-                Size = new Size(pnl.ClientSize.Width > 0 ? pnl.ClientSize.Width : 620, 88),
-                ColumnCount = 2,
-                RowCount = 1,
-                BackColor = Color.Transparent,
-                Margin = new Padding(0),
-                Padding = new Padding(0)
-            };
-            _tblBentoCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            _tblBentoCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-
-            // 3a. Uji Notifikasi Bento Tile
-            _pnlTestBentoCard = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Transparent,
-                Margin = new Padding(0, 0, 6, 0),
-                Cursor = Cursors.Hand
-            };
-            bool testHover = false;
-            bool testPressed = false;
-            _pnlTestBentoCard.MouseEnter += (s, e) => { testHover = true; _pnlTestBentoCard.Invalidate(); };
-            _pnlTestBentoCard.MouseLeave += (s, e) => { testHover = false; testPressed = false; _pnlTestBentoCard.Invalidate(); };
-            _pnlTestBentoCard.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) { testPressed = true; _pnlTestBentoCard.Invalidate(); } };
-            _pnlTestBentoCard.MouseUp += (s, e) => { if (testPressed) { testPressed = false; _pnlTestBentoCard.Invalidate(); } };
-
-            _pnlTestBentoCard.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-
-                var bounds = _pnlTestBentoCard.ClientRectangle;
-                if (testPressed) bounds.Inflate(-1, -1);
-
-                Color border = testHover ? FluentTheme.ThemeAccent : FluentTheme.ThemeCardHairline;
-                Color fill = testHover ? FluentTheme.ThemeMenuHover : FluentTheme.ThemeCardFill;
-                FluentTheme.PaintGlassCard(e.Graphics, bounds, 14, fill: fill, hairline: border, drawShadow: true);
-
-                // Badge icon
-                bool dark = FluentTheme.IsDarkTheme;
-                Color badgeBg = dark ? Color.FromArgb(36, 45, 62) : Color.FromArgb(235, 244, 255);
-                Color iconColor = dark ? Color.FromArgb(96, 165, 250) : Color.FromArgb(0, 113, 227);
-                var rBadge = new Rectangle(bounds.X + 14, bounds.Y + 18, 36, 36);
-                using (var b = new SolidBrush(badgeBg))
-                {
-                    FluentTheme.FillRoundedRectangle(e.Graphics, b, rBadge, 10);
-                }
-                using (var ico = FluentTheme.GetMenuIcon("bell", iconColor, 18))
-                {
-                    e.Graphics.DrawImage(ico, rBadge.X + (36 - 18) / 2, rBadge.Y + (36 - 18) / 2);
-                }
-
-                // Texts
-                using var fontTitle = FluentTheme.GetFont(10F, FontStyle.Bold);
-                using var brushTitle = new SolidBrush(FluentTheme.ThemeTextPrimary);
-                e.Graphics.DrawString("Uji Notifikasi", fontTitle, brushTitle, new PointF(bounds.X + 58, bounds.Y + 17));
-
-                using var fontSub = FluentTheme.Caption;
-                using var brushSub = new SolidBrush(FluentTheme.ThemeTextMuted);
-                using var sf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-                e.Graphics.DrawString("Tes banner pop-up & suara", fontSub, brushSub, new RectangleF(bounds.X + 58, bounds.Y + 39, _pnlTestBentoCard.Width - 68, 18), sf);
-            };
-            _pnlTestBentoCard.Click += (s, e) => ToastNotifier.ShowTestNotification(_config.DefaultDisplayMode);
-            _tblBentoCards.Controls.Add(_pnlTestBentoCard, 0, 0);
-
-            // 3b. Remote Desktop Bento Tile
-            _pnlRemoteBentoCard = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Transparent,
-                Margin = new Padding(6, 0, 0, 0),
-                Cursor = Cursors.Hand
-            };
-            bool remoteHover = false;
-            bool remotePressed = false;
-            _pnlRemoteBentoCard.MouseEnter += (s, e) => { remoteHover = true; _pnlRemoteBentoCard.Invalidate(); };
-            _pnlRemoteBentoCard.MouseLeave += (s, e) => { remoteHover = false; remotePressed = false; _pnlRemoteBentoCard.Invalidate(); };
-            _pnlRemoteBentoCard.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) { remotePressed = true; _pnlRemoteBentoCard.Invalidate(); } };
-            _pnlRemoteBentoCard.MouseUp += (s, e) => { if (remotePressed) { remotePressed = false; _pnlRemoteBentoCard.Invalidate(); } };
-
-            _pnlRemoteBentoCard.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-
-                var bounds = _pnlRemoteBentoCard.ClientRectangle;
-                if (remotePressed) bounds.Inflate(-1, -1);
-
-                Color border = remoteHover ? FluentTheme.ThemeAccent : FluentTheme.ThemeCardHairline;
-                Color fill = remoteHover ? FluentTheme.ThemeMenuHover : FluentTheme.ThemeCardFill;
-                FluentTheme.PaintGlassCard(e.Graphics, bounds, 14, fill: fill, hairline: border, drawShadow: true);
-
-                // Badge icon (Cupertino Blue & Santos Navy, strictly no purple)
-                bool dark = FluentTheme.IsDarkTheme;
-                Color badgeBg = dark ? Color.FromArgb(24, 44, 76) : Color.FromArgb(235, 244, 255);
-                Color iconColor = dark ? Color.FromArgb(10, 132, 255) : Color.FromArgb(0, 113, 227);
-                var rBadge = new Rectangle(bounds.X + 14, bounds.Y + 18, 36, 36);
-                using (var b = new SolidBrush(badgeBg))
-                {
-                    FluentTheme.FillRoundedRectangle(e.Graphics, b, rBadge, 10);
-                }
-                using (var ico = FluentTheme.GetMenuIcon("remote", iconColor, 18))
-                {
-                    e.Graphics.DrawImage(ico, rBadge.X + (36 - 18) / 2, rBadge.Y + (36 - 18) / 2);
-                }
-
-                // Texts
-                using var fontTitle = FluentTheme.GetFont(10F, FontStyle.Bold);
-                using var brushTitle = new SolidBrush(FluentTheme.ThemeTextPrimary);
-                e.Graphics.DrawString("Remote Desktop", fontTitle, brushTitle, new PointF(bounds.X + 58, bounds.Y + 17));
-
-                using var fontSub = FluentTheme.Caption;
-                using var brushSub = new SolidBrush(FluentTheme.ThemeTextSecondary);
-                using var sf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-                e.Graphics.DrawString("Akses perangkat jarak jauh Santos", fontSub, brushSub, new RectangleF(bounds.X + 58, bounds.Y + 39, _pnlRemoteBentoCard.Width - 68, 18), sf);
-            };
-            _pnlRemoteBentoCard.Click += (s, e) =>
-            {
-                var curSession = DeviceSecurityStorage.LoadSession();
-                if (!RemoteAccessPolicy.IsRemoteOperator(curSession?.Role, curSession?.EmployeeId, curSession?.FullName))
-                {
-                    ShowAlert("Fitur Remote Desktop hanya dapat diakses akun berhak akses Admin / Agent.", isError: true);
-                    return;
-                }
-                OpenRemoteDeviceBrowser();
-            };
-            _tblBentoCards.Controls.Add(_pnlRemoteBentoCard, 1, 0);
-
-            // Dummy controls assigned so existing references don't break
-            _btnTestNotif = new GlassButton { Visible = false, Size = new Size(0, 0) };
-            _btnRemote = new GlassButton { Visible = false, Size = new Size(0, 0) };
-            _tblActions = new TableLayoutPanel { Visible = false, Size = new Size(0, 0) };
-
-            pnl.Controls.Add(_tblBentoCards);
-
-            y += 100;
-
-            // ================= 4. LOGOUT ACTION (ELEGANT APPLE MINIMAL ROW) =================
-            _btnLogout = new GlassButton
-            {
-                Location = new Point(pnl.ClientSize.Width > 170 ? pnl.ClientSize.Width - 140 : 0, y),
-                Size = new Size(140, 32),
-                Text = "Keluar Akun",
-                Glyph = "exit",
-                Variant = GlassButtonVariant.Danger,
-                Radius = 8,
-                Font = FluentTheme.CaptionBold
-            };
-            _btnLogout.Click += (s, e) => HandleLogoutAction();
-            pnl.Controls.Add(_btnLogout);
-
-            _pnlProfileCard.Resize += (s, e) =>
-            {
-                _lblSiteBadge.Location = new Point(_pnlProfileCard.ClientSize.Width - _lblSiteBadge.Width - 16, 14);
-                int textW = _lblSiteBadge.Left - 76;
-                if (textW > 100)
-                {
-                    _lblUserName.Width = textW;
-                    _lblUserDetail.Width = textW;
-                }
-                _lblDashGatewayStatus.Width = _pnlProfileCard.ClientSize.Width - 44;
-            };
-
-            pnl.Resize += (s, e) =>
-            {
-                int w = pnl.ClientSize.Width;
-                if (w <= 0) return;
-                _pnlProfileCard.Width = w;
-                _pnlWebHeroCard.Width = w;
-                _btnOpenWeb.Location = new Point(_pnlWebHeroCard.Width - _btnOpenWeb.Width - 16, (_pnlWebHeroCard.Height - _btnOpenWeb.Height) / 2);
-                _tblBentoCards.Width = w;
-                _btnLogout.Location = new Point(w - _btnLogout.Width, _btnLogout.Top);
-            };
-
-            return pnl;
+            var home = new HomeControlPanel(_config, () => SwitchNavTab("history"));
+            return home;
         }
         #endregion
 
@@ -1504,7 +1076,6 @@ namespace SJANotificationApp
 
         private async Task HandleOpenWebWithSsoAsync()
         {
-            _btnOpenWeb.Enabled = false;
             try
             {
                 string id = _session?.EmployeeId ?? _session?.Email ?? "";
@@ -1544,10 +1115,6 @@ namespace SJANotificationApp
                 AppLogger.Error("Gagal membuka web with SSO", ex);
                 ToastNotifier.OpenUrlInBrowser(_config.IdeskServerUrl);
             }
-            finally
-            {
-                _btnOpenWeb.Enabled = true;
-            }
         }
 
         private void OpenRemoteDeviceBrowser()
@@ -1555,7 +1122,7 @@ namespace SJANotificationApp
             var curSession = DeviceSecurityStorage.LoadSession();
             if (!RemoteAccessPolicy.IsRemoteOperator(curSession?.Role, curSession?.EmployeeId, curSession?.FullName))
             {
-                ShowAlert("Fitur Remote Desktop hanya tersedia untuk akun ADMIN atau AGENT.", isError: true);
+                ShowAlert(RemoteAccessDeniedMessage, isError: true);
                 return;
             }
             try
@@ -1569,10 +1136,14 @@ namespace SJANotificationApp
                 };
                 browser.Show(this);
             }
+            catch (UnauthorizedAccessException)
+            {
+                ShowAlert(RemoteAccessDeniedMessage, isError: true);
+            }
             catch (Exception ex)
             {
                 AppLogger.Error("Gagal membuka Remote Device Browser", ex);
-                ShowAlert($"Gagal membuka browser perangkat: {ex.Message}", isError: true);
+                ShowAlert($"Could not open the device browser: {ex.Message}", isError: true);
             }
         }
 
@@ -1581,12 +1152,12 @@ namespace SJANotificationApp
             var curSession = DeviceSecurityStorage.LoadSession();
             if (!RemoteAccessPolicy.IsRemoteOperator(curSession?.Role, curSession?.EmployeeId, curSession?.FullName))
             {
-                ShowAlert("Fitur Remote Desktop hanya tersedia untuk akun ADMIN atau AGENT.", isError: true);
+                ShowAlert(RemoteAccessDeniedMessage, isError: true);
                 return;
             }
             try
             {
-                ShowAlert($"Memulai koneksi Remote Desktop ke {targetDev.deviceName} ({targetDev.ipAddress})...", isError: false);
+                ShowAlert($"Connecting to {targetDev.deviceName} ({targetDev.ipAddress})…", isError: false);
                 // Engine viewer window will be instantiated in Phase 3
                 var viewer = new RemoteViewerForm(_config, targetDev, TrayApplicationContext.Instance?.GetWebSocketClient());
                 viewer.Show();
@@ -1676,17 +1247,17 @@ namespace SJANotificationApp
         {
             if (isError)
             {
-                _pnlAlert.BackColor = Color.FromArgb(254, 242, 242);
-                _alertBorderColor = Color.FromArgb(254, 202, 202);
-                _lblAlertText.ForeColor = Color.FromArgb(220, 38, 38);
-                _lblAlertText.Text = "⚠ " + message;
+                _pnlAlert.BackColor = Color.FromArgb(24, FluentTheme.ThemeStatusCritical);
+                _alertBorderColor = Color.FromArgb(64, FluentTheme.ThemeStatusCritical);
+                _lblAlertText.ForeColor = FluentTheme.ThemeStatusCritical;
+                _lblAlertText.Text = "• " + message;
             }
             else
             {
-                _pnlAlert.BackColor = Color.FromArgb(239, 246, 255);
-                _alertBorderColor = Color.FromArgb(191, 219, 254);
-                _lblAlertText.ForeColor = Color.FromArgb(30, 64, 175);
-                _lblAlertText.Text = "⏳ " + message;
+                _pnlAlert.BackColor = FluentTheme.ThemeAccentSoft;
+                _alertBorderColor = Color.FromArgb(64, FluentTheme.ThemeAccent);
+                _lblAlertText.ForeColor = FluentTheme.ThemeAccentText;
+                _lblAlertText.Text = "• " + message;
             }
             _pnlAlert.Visible = true;
             _pnlAlert.Invalidate();
@@ -1736,8 +1307,8 @@ namespace SJANotificationApp
             }
             bool hasSession = _session != null && !string.IsNullOrWhiteSpace(_session.Token);
 
-            // 1. Redraw Header Gateway Pill
-            _pnlGatewayPill.Invalidate();
+            // 1. Redraw Sidebar Gateway Status
+            _pnlRailGatewayStatus?.Invalidate();
 
             // 2. Switch Views
             if (hasSession)
@@ -1745,47 +1316,9 @@ namespace SJANotificationApp
                 _pnlLoginView.Visible = false;
                 _pnlDashboardView.Visible = true;
                 _pnlDashboardView.BringToFront();
-                AcceptButton = _btnOpenWeb;
 
-                _lblUserName.Text = !string.IsNullOrWhiteSpace(_session!.FullName) ? _session.FullName : "Karyawan Santos";
-                _lblUserName.ForeColor = FluentTheme.ThemeTextPrimary;
-                string n = !string.IsNullOrWhiteSpace(_session.EmployeeId) ? _session.EmployeeId : _session.Email;
-                _lblUserDetail.Text = $"{n} • {Environment.MachineName}";
-                _lblUserDetail.ForeColor = FluentTheme.ThemeTextSecondary;
-                _lblSiteBadge.Text = !string.IsNullOrWhiteSpace(_session.SiteCode) ? _session.SiteCode : "SPJ";
-
-                // Fail-closed: tombol Remote hanya untuk ADMIN / AGENT*.
-                bool isOperator = RemoteAccessPolicy.IsRemoteOperator(_session.Role, _session.EmployeeId, _session.FullName);
-                _btnRemote.Visible = isOperator;
-                if (_pnlRemoteBentoCard != null && _tblBentoCards != null)
-                {
-                    _pnlRemoteBentoCard.Visible = isOperator;
-                    if (!isOperator)
-                    {
-                        _tblBentoCards.ColumnStyles[0].Width = 100F;
-                        _tblBentoCards.ColumnStyles[1].Width = 0F;
-                    }
-                    else
-                    {
-                        _tblBentoCards.ColumnStyles[0].Width = 50F;
-                        _tblBentoCards.ColumnStyles[1].Width = 50F;
-                    }
-                }
-
-                if (_isConnected)
-                {
-                    _lblDashGatewayStatus.Text = "Gateway SJA: Terhubung (Real-Time WSS Aktif)";
-                    _lblDashGatewayStatus.ForeColor = FluentTheme.IsDarkTheme ? Color.FromArgb(52, 211, 153) : Color.FromArgb(5, 150, 105);
-                }
-                else
-                {
-                    _lblDashGatewayStatus.Text = "Gateway SJA: Terputus (Menghubungkan...)";
-                    _lblDashGatewayStatus.ForeColor = FluentTheme.IsDarkTheme ? Color.FromArgb(248, 113, 113) : Color.FromArgb(220, 38, 38);
-                }
-
-                _picAvatar.Invalidate();
-                _pnlDashDot.Invalidate();
                 _pnlRailProfile?.Invalidate();
+                _pnlRailGatewayStatus?.Invalidate();
             }
             else
             {
@@ -1901,6 +1434,7 @@ namespace SJANotificationApp
             switch (_currentNavTab)
             {
                 case "home":
+                    _pnlHomeTab?.RefreshData();
                     _pnlHomeTab?.Show();
                     _pnlHomeTab?.BringToFront();
                     break;
@@ -1943,7 +1477,7 @@ namespace SJANotificationApp
             var profiles = ProfileStore.Instance.GetAllProfiles();
             var active = ProfileStore.Instance.GetActiveProfile();
 
-            var lblHeader = new ToolStripLabel("PROFIL PENGGUNA PC")
+            var lblHeader = new ToolStripLabel("PC USER PROFILES")
             {
                 Font = FluentTheme.CaptionBold,
                 ForeColor = FluentTheme.ThemeTextMuted
@@ -1953,20 +1487,23 @@ namespace SJANotificationApp
             foreach (var p in profiles)
             {
                 bool isActive = p.Id == active.Id;
-                string check = isActive ? " ✓" : "";
-                string lockStr = p.HasPin ? " 🔒" : "";
-                var item = new ToolStripMenuItem($"{p.Name}{lockStr}{check}")
+                string lockStr = p.HasPin ? " (PIN)" : "";
+                var item = new ToolStripMenuItem($"{p.Name}{lockStr}")
                 {
                     Font = isActive ? FluentTheme.SubTextBold : FluentTheme.SubText,
                     ForeColor = isActive ? FluentTheme.ThemeAccentText : FluentTheme.ThemeTextPrimary
                 };
+                if (isActive)
+                {
+                    item.Image = FluentTheme.GetMenuIcon("check", FluentTheme.ThemeAccent, 14);
+                }
                 item.Click += (s, e) => SwitchToProfileInteractive(p);
                 _profileContextMenu.Items.Add(item);
             }
 
             _profileContextMenu.Items.Add(new ToolStripSeparator());
 
-            var itemAdd = new ToolStripMenuItem("➕ Tambah Profil Baru...")
+            var itemAdd = new ToolStripMenuItem("Add new profile...", FluentTheme.GetMenuIcon("plus", FluentTheme.ThemeAccentText, 14))
             {
                 Font = FluentTheme.SubTextBold,
                 ForeColor = FluentTheme.ThemeAccentText
@@ -1974,7 +1511,7 @@ namespace SJANotificationApp
             itemAdd.Click += (s, e) => ShowAddProfileModal();
             _profileContextMenu.Items.Add(itemAdd);
 
-            var itemPin = new ToolStripMenuItem(active.HasPin ? "🔒 Ubah / Hapus PIN Profil Ini" : "🔒 Pasang PIN Pengaman Profil")
+            var itemPin = new ToolStripMenuItem(active.HasPin ? "Change or remove PIN" : "Set profile PIN protection", FluentTheme.GetMenuIcon("lock", FluentTheme.ThemeTextSecondary, 14))
             {
                 Font = FluentTheme.SubText,
                 ForeColor = FluentTheme.ThemeTextSecondary
@@ -1984,16 +1521,16 @@ namespace SJANotificationApp
 
             if (profiles.Count > 1)
             {
-                var itemDelete = new ToolStripMenuItem("🗑 Hapus Profil Ini...")
+                var itemDelete = new ToolStripMenuItem("Delete this profile...", FluentTheme.GetMenuIcon("trash", FluentTheme.ThemeStatusCritical, 14))
                 {
                     Font = FluentTheme.SubText,
-                    ForeColor = Color.FromArgb(239, 68, 68)
+                    ForeColor = FluentTheme.ThemeStatusCritical
                 };
                 itemDelete.Click += (s, e) =>
                 {
                     var confirm = MessageBox.Show(
-                        $"Apakah Anda yakin ingin menghapus profil '{active.Name}'?\nData token sesi profil ini akan dihapus dari komputer.",
-                        "Hapus Profil",
+                        $"Are you sure you want to delete profile '{active.Name}'?\nSession token data for this profile will be removed from this PC.",
+                        "Delete Profile",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Warning
                     );
@@ -2007,7 +1544,7 @@ namespace SJANotificationApp
                         }
                         else
                         {
-                            MessageBox.Show(err ?? "Gagal menghapus profil.", "Perhatian", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show(err ?? "Could not delete profile.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                     }
                 };
