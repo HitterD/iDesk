@@ -265,6 +265,7 @@ namespace SJANotificationApp
                 }
                 catch {}
 
+                FluentTheme.TryApplyDarkAcrylic(Handle, smallCorners: false);
                 StartSlideInAnimation();
             }
             catch (Exception ex)
@@ -277,7 +278,7 @@ namespace SJANotificationApp
         private void StartSlideInAnimation()
         {
             _animStep = 0;
-            _animTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            _animTimer = new System.Windows.Forms.Timer { Interval = 16 };
             _animTimer.Tick += (s, e) =>
             {
                 _animStep++;
@@ -293,11 +294,11 @@ namespace SJANotificationApp
                 }
                 else
                 {
-                    // Ease out quadratic
-                    float ease = 1f - (1f - progress) * (1f - progress);
-                    int curY = _targetY + (int)(24 * (1f - ease));
+                    // 60 FPS Apple-like cubic ease-out slide and fade
+                    float ease = FluentTheme.EaseOutCubic(progress);
+                    int curY = _targetY + (int)(32 * (1f - ease));
                     Location = new Point(_targetX, curY);
-                    Opacity = ease;
+                    Opacity = Math.Clamp(ease, 0.05, 1.0);
                 }
             };
             _animTimer.Start();
@@ -389,46 +390,34 @@ namespace SJANotificationApp
             {
                 Dock = DockStyle.Fill,
                 Padding = new Padding(1),
-                BackColor = FluentTheme.ThemeCanvasTop
+                BackColor = Color.Transparent
+            };
+            pnlRoot.Paint += (s, e) =>
+            {
+                FluentTheme.PaintGlassCard(e.Graphics, pnlRoot.ClientRectangle, 18, fill: FluentTheme.ThemeCardFill, hairline: FluentTheme.ThemeCardHairline, drawShadow: true);
             };
             Controls.Add(pnlRoot);
-
-            // Priority Accent Line
-            Color priorityStripeColor = FluentTheme.ThemeAccent;
-            if (!string.IsNullOrWhiteSpace(_data.Priority))
-            {
-                var pTheme = FluentTheme.GetPriorityTheme(_data.Priority);
-                priorityStripeColor = pTheme.Text;
-            }
-
-            var pnlStripe = new Panel
-            {
-                Dock = DockStyle.Left,
-                Width = 4,
-                BackColor = priorityStripeColor
-            };
-            pnlRoot.Controls.Add(pnlStripe);
 
             // ================= 2. HEADER BAR =================
             var pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 66,
-                BackColor = FluentTheme.ThemeCardFill,
-                Padding = new Padding(16, 12, 14, 10)
+                Height = 60,
+                BackColor = Color.Transparent,
+                Padding = new Padding(16, 10, 14, 10)
             };
             pnlHeader.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             pnlHeader.Paint += (s, e) =>
             {
                 using var linePen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                e.Graphics.DrawLine(linePen, 0, pnlHeader.Height - 1, pnlHeader.Width, pnlHeader.Height - 1);
+                e.Graphics.DrawLine(linePen, 16, pnlHeader.Height - 1, pnlHeader.Width - 16, pnlHeader.Height - 1);
             };
 
             // Avatar / Brand Mark
             var picAvatar = new PictureBox
             {
-                Size = new Size(38, 38),
-                Location = new Point(14, 14),
+                Size = new Size(36, 36),
+                Location = new Point(16, 12),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.Transparent
             };
@@ -442,25 +431,27 @@ namespace SJANotificationApp
                 Text = $"{(_data.App ?? "iDesk Support").ToUpperInvariant()} • PT SANTOS JAYA ABADI",
                 Font = FluentTheme.CaptionBold,
                 ForeColor = FluentTheme.ThemeTextSecondary,
-                Location = new Point(60, 13),
+                Location = new Point(62, 11),
                 AutoSize = true,
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                UseMnemonic = false
             };
             lblBrand.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             pnlHeader.Controls.Add(lblBrand);
 
             // Headline Title
-            string cleanTitle = !string.IsNullOrWhiteSpace(_data.Title) ? _data.Title : "Notifikasi Masuk";
+            string cleanTitle = !string.IsNullOrWhiteSpace(_data.Title) ? _data.Title : "Incoming Notification";
             var lblTitle = new Label
             {
                 Text = cleanTitle,
-                Font = FluentTheme.Headline,
+                Font = FluentTheme.GetFont(10.5F, FontStyle.Bold),
                 ForeColor = FluentTheme.ThemeTextPrimary,
-                Location = new Point(60, 31),
-                Size = new Size(pnlHeader.Width - 110, 24),
+                Location = new Point(62, 28),
+                Size = new Size(pnlHeader.Width - 112, 34),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 AutoEllipsis = true,
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                UseMnemonic = false
             };
             lblTitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             pnlHeader.Controls.Add(lblTitle);
@@ -469,12 +460,12 @@ namespace SJANotificationApp
             var btnCloseX = new GlassButton
             {
                 Size = new Size(28, 28),
-                Location = new Point(pnlHeader.Width - 38, 17),
+                Location = new Point(pnlHeader.Width - 38, 16),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Variant = GlassButtonVariant.Ghost,
                 GlyphOnly = true,
                 Glyph = "close",
-                Radius = 6,
+                Radius = 8,
                 Cursor = Cursors.Hand
             };
             btnCloseX.Click += (s, e) => Close();
@@ -487,22 +478,22 @@ namespace SJANotificationApp
             {
                 Dock = DockStyle.Bottom,
                 Height = 52,
-                BackColor = FluentTheme.ThemeCardFillSoft,
-                Padding = new Padding(14, 10, 14, 10)
+                BackColor = Color.Transparent,
+                Padding = new Padding(16, 9, 16, 9)
             };
             pnlFooter.Paint += (s, e) =>
             {
                 using var linePen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                e.Graphics.DrawLine(linePen, 0, 0, pnlFooter.Width, 0);
+                e.Graphics.DrawLine(linePen, 16, 0, pnlFooter.Width - 16, 0);
             };
 
             // Timestamp Label
             var lblTimestamp = new Label
             {
-                Text = $"Terkirim: {_data.Timestamp:HH:mm} WIB",
+                Text = $"{_data.Timestamp:HH:mm}",
                 ForeColor = FluentTheme.ThemeTextMuted,
                 Font = FluentTheme.SubText,
-                Location = new Point(14, 18),
+                Location = new Point(16, 17),
                 AutoSize = true,
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left
             };
@@ -511,28 +502,28 @@ namespace SJANotificationApp
             // Close Button (Secondary)
             var btnClose = new GlassButton
             {
-                Text = "Tutup",
-                Size = new Size(80, 34),
-                Location = new Point(pnlFooter.Width - 96, 10),
+                Text = "Close",
+                Size = new Size(84, 34),
+                Location = new Point(pnlFooter.Width - 100, 9),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
                 Variant = GlassButtonVariant.Ghost,
-                Radius = 6,
+                Radius = 8,
                 Font = FluentTheme.SubTextBold
             };
             btnClose.Click += (s, e) => Close();
             pnlFooter.Controls.Add(btnClose);
 
-            // Primary Action Button (Buka Tiket)
+            // Primary Action Button (Open Ticket)
             if (!string.IsNullOrWhiteSpace(_data.Url))
             {
                 var btnOpenWeb = new GlassButton
                 {
-                    Text = "Buka Tiket ➔",
-                    Size = new Size(140, 34),
-                    Location = new Point(pnlFooter.Width - 246, 10),
+                    Text = "Open ticket",
+                    Size = new Size(110, 34),
+                    Location = new Point(pnlFooter.Width - 220, 9),
                     Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
                     Variant = GlassButtonVariant.Accent,
-                    Radius = 6,
+                    Radius = 8,
                     Font = FluentTheme.SubTextBold
                 };
                 btnOpenWeb.Click += (s, e) =>
@@ -550,8 +541,8 @@ namespace SJANotificationApp
             var pnlBody = new Panel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(12, 10, 12, 10),
-                BackColor = FluentTheme.ThemeCanvasTop
+                Padding = new Padding(16, 10, 16, 10),
+                BackColor = Color.Transparent
             };
             pnlRoot.Controls.Add(pnlBody);
             pnlBody.BringToFront();
@@ -559,14 +550,12 @@ namespace SJANotificationApp
             var pnlCard = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = FluentTheme.ThemeCardFill,
-                Padding = new Padding(12, 10, 12, 10)
+                BackColor = Color.Transparent,
+                Padding = new Padding(0)
             };
             pnlCard.Paint += (s, e) =>
             {
-                var rect = new Rectangle(0, 0, pnlCard.Width - 1, pnlCard.Height - 1);
-                using var borderPen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, rect, 8);
+                // Clean transparent surface without heavy rectangular border
             };
 
             // Metadata Strip: Ticket ID Badge, Priority Pill, Category
@@ -592,15 +581,16 @@ namespace SJANotificationApp
                 AutoSize = false,
                 Size = new Size(badgeWidth, 22),
                 Location = new Point(0, 1),
-                TextAlign = ContentAlignment.MiddleCenter
+                TextAlign = ContentAlignment.MiddleCenter,
+                UseMnemonic = false
             };
             lblTicketBadge.Paint += (s, e) =>
             {
                 var r = new Rectangle(0, 0, lblTicketBadge.Width - 1, lblTicketBadge.Height - 1);
                 using var bgBrush = new SolidBrush(FluentTheme.ThemeAccentSoft);
                 using var borderPen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-                FluentTheme.FillRoundedRectangle(e.Graphics, bgBrush, r, 4);
-                FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, r, 4);
+                FluentTheme.FillRoundedRectangle(e.Graphics, bgBrush, r, 6);
+                FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, r, 6);
 
                 using var textBrush = new SolidBrush(FluentTheme.ThemeAccentText);
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -610,32 +600,33 @@ namespace SJANotificationApp
 
             int metaLeft = badgeWidth + 8;
 
-            if (!string.IsNullOrWhiteSpace(_data.Priority) && !_data.Priority.Equals("normal", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(_data.Priority))
             {
-                var pTheme = FluentTheme.GetPriorityTheme(_data.Priority);
-                string priorityLabel = _data.Priority.ToUpperInvariant();
-                int prioWidth = TextRenderer.MeasureText(priorityLabel, FluentTheme.CaptionBold).Width + 14;
+                var (pBg, pText, pBorder) = FluentTheme.GetPriorityTheme(_data.Priority);
+                string priorityLabel = FluentTheme.GetPriorityDisplayLabel(_data.Priority);
+                int prioWidth = Math.Max(58, TextRenderer.MeasureText(priorityLabel, FluentTheme.CaptionBold).Width + 16);
 
                 var lblPriority = new Label
                 {
                     Text = priorityLabel,
                     Font = FluentTheme.CaptionBold,
-                    ForeColor = pTheme.Text,
+                    ForeColor = pText,
                     BackColor = Color.Transparent,
                     AutoSize = false,
                     Size = new Size(prioWidth, 22),
                     Location = new Point(metaLeft, 1),
-                    TextAlign = ContentAlignment.MiddleCenter
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    UseMnemonic = false
                 };
                 lblPriority.Paint += (s, e) =>
                 {
                     var r = new Rectangle(0, 0, lblPriority.Width - 1, lblPriority.Height - 1);
-                    using var bgBrush = new SolidBrush(pTheme.Bg);
-                    using var borderPen = new Pen(pTheme.Border, 1f);
-                    FluentTheme.FillRoundedRectangle(e.Graphics, bgBrush, r, 4);
-                    FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, r, 4);
+                    using var bgBrush = new SolidBrush(pBg);
+                    using var borderPen = new Pen(pBorder, 1f);
+                    FluentTheme.FillRoundedRectangle(e.Graphics, bgBrush, r, 6);
+                    FluentTheme.DrawRoundedRectangle(e.Graphics, borderPen, r, 6);
 
-                    using var textBrush = new SolidBrush(pTheme.Text);
+                    using var textBrush = new SolidBrush(pText);
                     var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     e.Graphics.DrawString(priorityLabel, FluentTheme.CaptionBold, textBrush, new RectangleF(0, 0, lblPriority.Width, lblPriority.Height), sf);
                 };
@@ -652,7 +643,8 @@ namespace SJANotificationApp
                 Size = new Size(Math.Max(50, pnlCard.Width - metaLeft - 20), 20),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 AutoEllipsis = true,
-                TextAlign = ContentAlignment.MiddleLeft
+                TextAlign = ContentAlignment.MiddleLeft,
+                UseMnemonic = false
             };
             pnlMeta.Controls.Add(lblMetaDetails);
 
@@ -672,19 +664,21 @@ namespace SJANotificationApp
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
-                BackColor = FluentTheme.ThemeCardFill,
+                BackColor = Color.Transparent,
                 Padding = new Padding(0, 6, 2, 6)
             };
             pnlScrollContent.HorizontalScroll.Enabled = false;
             pnlScrollContent.HorizontalScroll.Visible = false;
 
             int availTextWidth = cardInnerWidth - 10;
-            int textH = TextRenderer.MeasureText(
+            int maxMsgH = 58; // approx 3 lines
+            int measuredH = TextRenderer.MeasureText(
                 _data.Message ?? "",
                 FluentTheme.GetFont(9.5F, FontStyle.Regular),
                 new Size(availTextWidth, 0),
                 TextFormatFlags.WordBreak
             ).Height;
+            int textH = Math.Min(maxMsgH, measuredH);
 
             var lblMessage = new Label
             {
@@ -693,6 +687,7 @@ namespace SJANotificationApp
                 ForeColor = FluentTheme.ThemeTextPrimary,
                 BackColor = Color.Transparent,
                 AutoSize = false,
+                AutoEllipsis = true,
                 Size = new Size(availTextWidth, textH + 4),
                 Location = new Point(0, 4)
             };
@@ -741,14 +736,14 @@ namespace SJANotificationApp
                     var drawRect = new Rectangle(dx, dy, dw, dh);
                     FluentTheme.DrawRoundedImage(e.Graphics, _loadedImage, drawRect, 6);
 
-                    string badgeText = "🔍 Klik untuk gambar penuh";
+                    string badgeText = "Click to view full image";
                     using var badgeFont = FluentTheme.CaptionBold;
                     var badgeSize = TextRenderer.MeasureText(badgeText, badgeFont);
                     int bw = badgeSize.Width + 16;
                     int bh = badgeSize.Height + 6;
                     var badgeRect = new Rectangle(targetRect.Width - bw - 10, targetRect.Height - bh - 8, bw, bh);
 
-                    using var badgeBg = new SolidBrush(Color.FromArgb(210, 15, 23, 42));
+                    using var badgeBg = new SolidBrush(Color.FromArgb(210, FluentTheme.IsDarkTheme ? ThemeTokens.DarkSurface : ThemeTokens.DarkCanvas));
                     FluentTheme.FillRoundedRectangle(e.Graphics, badgeBg, badgeRect, 4);
                     TextRenderer.DrawText(e.Graphics, badgeText, badgeFont, badgeRect, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 };
@@ -845,18 +840,19 @@ namespace SJANotificationApp
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
+            var rect = new Rectangle(0, 0, 35, 35);
             using var bgBrush = new SolidBrush(FluentTheme.ThemeCardFillSoft);
-            g.FillEllipse(bgBrush, 0, 0, 35, 35);
+            FluentTheme.FillRoundedRectangle(g, bgBrush, rect, 8);
 
             using var borderPen = new Pen(FluentTheme.ThemeCardHairline, 1f);
-            g.DrawEllipse(borderPen, 0, 0, 35, 35);
+            FluentTheme.DrawRoundedRectangle(g, borderPen, rect, 8);
 
             if (File.Exists(logoToUse))
             {
                 try
                 {
                     using var src = Image.FromFile(logoToUse);
-                    g.DrawImage(src, new Rectangle(5, 5, 26, 26));
+                    g.DrawImage(src, new Rectangle(4, 4, 28, 28));
                     return bmp;
                 }
                 catch { }
