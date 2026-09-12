@@ -156,51 +156,6 @@ namespace SJANotificationApp
         public static Color FixedDarkWarn => ThemeTokens.DarkWarn;
         public static Color FixedDarkCritical => ThemeTokens.DarkCritical;
 
-        // ---- Alias sementara (dihapus di Task 12 setelah semua pemanggil dimigrasi) ----
-        public static Color Background => ThemeCanvasTop;
-        public static Color Surface => ThemeSurface;
-        public static Color SubtleSurface => ThemeSurfaceSoft;
-        public static Color HoverSurface => ThemeMenuHover;
-        public static Color SelectedSurface => ThemeMenuSelected;
-        public static Color BorderSubtle => ThemeCardHairline;
-        public static Color BorderStrong => ThemeCardHairlineStrong;
-        public static Color TextPrimary => ThemeTextPrimary;
-        public static Color TextSecondary => ThemeTextSecondary;
-        public static Color TextMuted => ThemeTextMuted;
-        public static Color NavyHover => ThemeAccentHover;
-        public static Color NavyPressed => ThemeAccentPressed;
-        public static Color DarkMenuBackground => ThemeMenuBackground;
-        public static Color DarkMenuSurface => ThemeMenuSurface;
-        public static Color DarkMenuHover => ThemeMenuHover;
-        public static Color DarkMenuSelected => ThemeMenuSelected;
-        public static Color DarkMenuBorder => ThemeMenuBorder;
-        public static Color DarkMenuBorderStrong => ThemeMenuBorderStrong;
-        public static Color DarkMenuTextPrimary => ThemeTextPrimary;
-        public static Color DarkMenuTextSecondary => ThemeTextSecondary;
-        public static Color DarkMenuTextMuted => ThemeTextMuted;
-        public static Color DarkLiveDot => ThemeStatusOnline;
-        public static Color DarkLiveDotHalo => ThemeStatusOnlineBg;
-        public static Color DarkBadgeBg => ThemeSurfaceSoft;
-        public static Color GlassCanvasTop => ThemeCanvasTop;
-        public static Color GlassCanvasBottom => ThemeCanvasBottom;
-        public static Color GlassCardFill => ThemeCardFill;
-        public static Color GlassCardFillSoft => ThemeCardFillSoft;
-        public static Color GlassHairline => ThemeCardHairline;
-        public static Color GlassHairlineStrong => ThemeCardHairlineStrong;
-        public static Color GlassHover => ThemeMenuHover;
-        public static Color GlassPressed => ThemeMenuSelected;
-        public static Color GlassInset => ThemeInputWell;
-        public static Color Accent => ThemeAccent;
-        public static Color AccentHover => ThemeAccentHover;
-        public static Color AccentPressed => ThemeAccentPressed;
-        public static Color AccentSoft => ThemeAccentSoft;
-        public static Color AccentGlow => Color.FromArgb(20, ThemeAccent);
-        public static Color AccentText => ThemeAccentText;
-        public static Color DangerText => ThemeStatusCritical;
-        public static Color DangerFill => Color.FromArgb(32, ThemeStatusCritical);
-        public static Color DangerHairline => Color.FromArgb(64, ThemeStatusCritical);
-        public static Color DangerHover => Color.FromArgb(48, ThemeStatusCritical);
-
         public static string GetPriorityDisplayLabel(string? priority)
         {
             string p = priority?.ToLowerInvariant() ?? "";
