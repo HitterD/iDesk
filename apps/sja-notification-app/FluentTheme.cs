@@ -146,6 +146,16 @@ namespace SJANotificationApp
             );
         }
 
+        // ---- Token gelap tetap, untuk permukaan yang selalu gelap (viewer remote) ----
+        public static Color FixedDarkCanvas => ThemeTokens.DarkCanvas;
+        public static Color FixedDarkSurface => ThemeTokens.DarkSurface;
+        public static Color FixedDarkTextPrimary => ThemeTokens.DarkTextPrimary;
+        public static Color FixedDarkTextSecondary => ThemeTokens.DarkTextSecondary;
+        public static Color FixedDarkHairline => ThemeTokens.DarkHairline;
+        public static Color FixedDarkOnline => ThemeTokens.DarkOnline;
+        public static Color FixedDarkWarn => ThemeTokens.DarkWarn;
+        public static Color FixedDarkCritical => ThemeTokens.DarkCritical;
+
         // ---- Alias sementara (dihapus di Task 12 setelah semua pemanggil dimigrasi) ----
         public static Color Background => ThemeCanvasTop;
         public static Color Surface => ThemeSurface;

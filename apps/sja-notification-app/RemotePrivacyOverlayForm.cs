@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -79,200 +79,7 @@ namespace SJANotificationApp
             _contentType = string.Equals(contentType, "VIDEO", StringComparison.OrdinalIgnoreCase) ? "VIDEO" : "IMAGE";
             _videoUrl = videoUrl?.Trim() ?? "";
 
-            _slideshowUrls = images != null && images.Count > 0 ? images : new List<string>
-            {
-                "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1200&auto=format&fit=crop",
-                "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=1200&auto=format&fit=crop",
-                "https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1200&auto=format&fit=crop",
-                "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=1200&auto=format&fit=crop",
-                "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=1200&auto=format&fit=crop"
-            };
-
-            InitializeComponent();
-            ApplyDisplayAffinityProtection();
-
-            // Set default high-res corporate wallpaper immediately (100% offline safety)
-            _picSlide.Image = GenerateCorporateOfflineShieldImage();
-
-            StartSlideshowAsync();
-            ApplyContentVisibility();
-            StartCountdown();
-        }
-
-        private Image GenerateCorporateOfflineShieldImage()
-        {
-            int w = Math.Max(1920, Screen.PrimaryScreen?.Bounds.Width ?? 1920);
-            int h = Math.Max(1080, Screen.PrimaryScreen?.Bounds.Height ?? 1080);
-            var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-            using var g = Graphics.FromImage(bmp);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // Corporate deep navy gradient
-            using (var brush = new LinearGradientBrush(new Rectangle(0, 0, w, h),
-                Color.FromArgb(15, 58, 117), Color.FromArgb(11, 19, 43), 45f))
-            {
-                g.FillRectangle(brush, 0, 0, w, h);
-            }
-
-            // Subtle geometric accent lines
-            using var pen = new Pen(Color.FromArgb(20, 255, 255, 255), 1.5f);
-            for (int x = -h; x < w + h; x += 140)
-            {
-                g.DrawLine(pen, x, 0, x + h, h);
-            }
-
-            // Center shield text
-            using var titleFont = new Font("Segoe UI", 30f, FontStyle.Bold);
-            using var subFont = new Font("Segoe UI", 15f, FontStyle.Regular);
-            using var descFont = new Font("Segoe UI", 12f, FontStyle.Regular);
-            using var brushWhite = new SolidBrush(Color.White);
-            using var brushAccent = new SolidBrush(Color.FromArgb(96, 165, 250));
-            using var brushSub = new SolidBrush(Color.FromArgb(203, 213, 225));
-            using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-
-            g.DrawString("PT SANTOS JAYA ABADI", titleFont, brushWhite, new RectangleF(0, h / 2 - 80, w, 50), sf);
-            g.DrawString("🔒 ICT REMOTE ASSISTANCE & PRIVACY SHIELD", subFont, brushAccent, new RectangleF(0, h / 2 - 20, w, 35), sf);
-            g.DrawString("Layar kerja Anda terproteksi dari intipan luar selama sesi bantuan teknis berlangsung.", descFont, brushSub, new RectangleF(0, h / 2 + 25, w, 30), sf);
-
-            return bmp;
-        }
-
-        private void InitializeComponent()
-        {
-            Text = "SJA Remote Assistance • Privacy Shield";
-            FormBorderStyle = FormBorderStyle.None;
-            WindowState = FormWindowState.Maximized;
-            TopMost = true;
-            ShowInTaskbar = true;
-            BackColor = Color.FromArgb(15, 23, 42);
-            ForeColor = Color.White;
-            DoubleBuffered = true;
-
-            // Media area: slideshow gambar atau video (mode awal dari server)
-            _pnlMedia = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(15, 23, 42)
-            };
-            _picSlide = new PictureBox
-            {
-                Dock = DockStyle.Fill,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(15, 23, 42),
-                Enabled = false // jangan menelan klik/mouse: input agent harus tembus ke desktop
-            };
-            _pnlMedia.Controls.Add(_picSlide);
-            Controls.Add(_pnlMedia);
-
-            try
-            {
-                _videoPlayer = new AxWMPLib.AxWindowsMediaPlayer();
-                ((System.ComponentModel.ISupportInitialize)_videoPlayer).BeginInit();
-                _videoPlayer.Dock = DockStyle.Fill;
-                _videoPlayer.Enabled = true;
-                _videoPlayer.Visible = false;
-                _pnlMedia.Controls.Add(_videoPlayer);
-                ((System.ComponentModel.ISupportInitialize)_videoPlayer).EndInit();
-                _videoPlayer.settings.mute = true;
-                _videoPlayer.settings.autoStart = true;
-                _videoPlayer.uiMode = "none";
-                _videoPlayer.stretchToFit = true;
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Warn($"[PrivacyOverlay] Player video tidak tersedia, fallback ke gambar: {ex.Message}");
-                _videoPlayer = null;
-            }
-
-            // Bottom bar status & aksi (lebih tinggi agar teks besar terbaca jelas)
-            _pnlBottom = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = OverlayBarHeightActive,
-                BackColor = Color.FromArgb(220, 15, 23, 42),
-                Padding = new Padding(32, 18, 32, 18)
-            };
-
-            _lblStatusTitle = new Label
-            {
-                Text = "PERMINTAAN BANTUAN REMOTE SANTOS ICT",
-                Font = new Font(FluentTheme.Body.FontFamily, 20f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(59, 130, 246),
-                Location = new Point(32, 16),
-                AutoSize = true
-            };
-
-            _lblAgentInfo = new Label
-            {
-                Text = $"Petugas: {_agentName}  •  Alamat IP: {_agentIp}",
-                Font = new Font(FluentTheme.Body.FontFamily, 13f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(226, 232, 240),
-                Location = new Point(32, 54),
-                AutoSize = true
-            };
-
-            _lblCountdown = new Label
-            {
-                Text = "Petugas meminta izin mengendalikan komputer ini.",
-                Font = new Font(FluentTheme.Body.FontFamily, 14f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(251, 191, 36),
-                Location = new Point(32, 84),
-                AutoSize = true
-            };
-
-            _lblCountdownBig = new Label
-            {
-                Text = _remainingSeconds.ToString(),
-                Font = new Font(FluentTheme.Body.FontFamily, 30f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(251, 191, 36),
-                Location = new Point(32, 112),
-                AutoSize = true
-            };
-
-            _btnAllowNow = new GlassButton
-            {
-                Text = "IZINKAN SEKARANG",
-                Size = new Size(260, 60),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 300, 55),
-                Variant = GlassButtonVariant.Accent,
-                Radius = 10,
-                Font = new Font(FluentTheme.Body.FontFamily, 13f, FontStyle.Bold)
-            };
-            _btnAllowNow.Click += (s, e) => GrantConsentFromUser();
-            AcceptButton = _btnAllowNow;
-
-            _btnDisconnect = new GlassButton
-            {
-                Text = $"TOLAK AKSES ({_remainingSeconds}s)",
-                Size = new Size(260, 60),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point((Screen.PrimaryScreen?.Bounds.Width ?? 1000) - 580, 55),
-                Variant = GlassButtonVariant.Danger,
-                Radius = 10,
-                Font = new Font(FluentTheme.Body.FontFamily, 13f, FontStyle.Bold)
-            };
-            _btnDisconnect.Click += (s, e) =>
-            {
-                OnSessionTerminatedByUser?.Invoke();
-                Close();
-            };
-
-            _pnlBottom.Controls.AddRange(new Control[] { _lblStatusTitle, _lblAgentInfo, _lblCountdown, _lblCountdownBig, _btnAllowNow, _btnDisconnect });
-            Controls.Add(_pnlBottom);
-            _pnlBottom.BringToFront();
-
-            Resize += (s, e) =>
-            {
-                _btnAllowNow.Location = new Point(Width - 300, 55);
-                _btnDisconnect.Location = new Point(Width - 580, 55);
-                // PiP selalu terkunci di kanan-bawah, tidak bisa di-resize user
-                if (WindowState == FormWindowState.Normal && _prevMediaSize != Size.Empty)
-                {
-                    var work = Screen.FromControl(this).WorkingArea;
-                    Location = new Point(work.Right - Width - 16, work.Bottom - Height - 16);
-                }
-            };
+            _slideshowUrls = images != null && images.Count > 0 ? images : new List<string>();
         }
 
         protected override CreateParams CreateParams
@@ -314,12 +121,13 @@ namespace SJANotificationApp
             _countdownTimer?.Stop();
             _btnAllowNow.Visible = false;
             _lblCountdownBig.Visible = false;
-            _lblStatusTitle.Text = "SESI BANTUAN REMOTE AKTIF";
-            _lblCountdown.Text = "Petugas sedang mengendalikan komputer ini. Anda tetap bisa melihat layarnya.";
-            _lblCountdown.ForeColor = Color.FromArgb(52, 211, 153);
-            _btnDisconnect.Text = "PUTUSKAN SESI REMOTE";
-            _btnDisconnect.Size = new Size(300, 60);
-            _btnDisconnect.Location = new Point(Width - 340, 55);
+            _lblStatusTitle.Text = "Remote assistance session active";
+            _lblCountdown.Text = "A technician is controlling this computer. You can still see the screen.";
+            _lblCountdown.ForeColor = FluentTheme.FixedDarkOnline;
+            _btnDisconnect.Text = "End remote session";
+            int discW = TextRenderer.MeasureText(_btnDisconnect.Text, _btnDisconnect.Font).Width + 48;
+            _btnDisconnect.Size = new Size(discW, 52);
+            _btnDisconnect.Location = new Point(Width - discW - 40, 58);
             // Terapkan click-through OS-level sekarang (RecreateHandle agar CreateParams dibaca ulang)
             try { RecreateHandle(); ApplyDisplayAffinityProtection(); } catch { }
             OnConsentGranted?.Invoke();
@@ -469,7 +277,7 @@ namespace SJANotificationApp
                 if (_remainingSeconds > 0)
                 {
                     _lblCountdownBig.Text = _remainingSeconds.ToString();
-                    _btnDisconnect.Text = $"TOLAK AKSES ({_remainingSeconds}s)";
+                    _btnDisconnect.Text = $"Deny access ({_remainingSeconds}s)";
                 }
                 else
                 {

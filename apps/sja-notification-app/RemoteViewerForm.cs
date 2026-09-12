@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Net.Http;
@@ -17,8 +17,20 @@ namespace SJANotificationApp
     /// Requests a server-authorized session, authenticates the P2P connection,
     /// renders tile-diff frames, and performs streamed file transfer without size limits.
     /// </summary>
+    public enum RemoteSessionState
+    {
+        Requesting,
+        Authenticating,
+        AwaitingConsent,
+        Connecting,
+        Connected,
+        Disconnected,
+        Failed
+    }
+
     public class RemoteViewerForm : Form
     {
+        private RemoteSessionState _state = RemoteSessionState.Requesting;
         private const int ConnectTimeoutMs = 5000;
         private static readonly TimeSpan AuthenticationTimeout = TimeSpan.FromSeconds(5);
         private const int FileChunkSize = 64 * 1024;
@@ -75,16 +87,80 @@ namespace SJANotificationApp
             _ = ConnectToTargetAsync();
         }
 
+        private const int WM_NCHITTEST = 0x84;
+        private const int HTCLIENT = 1;
+        private const int HTLEFT = 10;
+        private const int HTRIGHT = 11;
+        private const int HTTOP = 12;
+        private const int HTTOPLEFT = 13;
+        private const int HTTOPRIGHT = 14;
+        private const int HTBOTTOM = 15;
+        private const int HTBOTTOMLEFT = 16;
+        private const int HTBOTTOMRIGHT = 17;
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_NCHITTEST && !_isFullscreen)
+            {
+                base.WndProc(ref m);
+                if (m.Result.ToInt32() == HTCLIENT)
+                {
+                    Point pt = PointToClient(new Point(m.LParam.ToInt32() & 0xFFFF, m.LParam.ToInt32() >> 16));
+                    int border = 6;
+                    bool left = pt.X <= border;
+                    bool right = pt.X >= ClientSize.Width - border;
+                    bool top = pt.Y <= border;
+                    bool bottom = pt.Y >= ClientSize.Height - border;
+
+                    if (top && left) m.Result = (IntPtr)HTTOPLEFT;
+                    else if (top && right) m.Result = (IntPtr)HTTOPRIGHT;
+                    else if (bottom && left) m.Result = (IntPtr)HTBOTTOMLEFT;
+                    else if (bottom && right) m.Result = (IntPtr)HTBOTTOMRIGHT;
+                    else if (left) m.Result = (IntPtr)HTLEFT;
+                    else if (right) m.Result = (IntPtr)HTRIGHT;
+                    else if (top) m.Result = (IntPtr)HTTOP;
+                    else if (bottom) m.Result = (IntPtr)HTBOTTOM;
+                }
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        private void SetState(RemoteSessionState state, string? detail = null)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => SetState(state, detail)));
+                return;
+            }
+
+            _state = state;
+            (string text, Color color) = state switch
+            {
+                RemoteSessionState.Requesting => ("Requesting a secure session…", FluentTheme.FixedDarkTextSecondary),
+                RemoteSessionState.Authenticating => ("Authenticating…", FluentTheme.FixedDarkTextSecondary),
+                RemoteSessionState.AwaitingConsent => ("Waiting for user consent…", FluentTheme.FixedDarkWarn),
+                RemoteSessionState.Connecting => ("Connecting…", FluentTheme.FixedDarkTextSecondary),
+                RemoteSessionState.Connected => ("Connected • Session active", FluentTheme.FixedDarkOnline),
+                RemoteSessionState.Disconnected => ("Session disconnected", FluentTheme.FixedDarkCritical),
+                RemoteSessionState.Failed => ("Connection failed", FluentTheme.FixedDarkCritical),
+                _ => ("", FluentTheme.FixedDarkTextSecondary)
+            };
+
+            _lblStatus.Text = string.IsNullOrEmpty(detail) ? text : $"{text} — {detail}";
+            _lblStatus.ForeColor = color;
+        }
         private void InitializeComponent()
         {
             Text = $"SJA Remote • {_targetDev.deviceName} ({_targetDev.ipAddress})";
             Size = new Size(1366, 820);
             MinimumSize = new Size(800, 600);
-            FormBorderStyle = FormBorderStyle.Sizable;
+            FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
             Font = FluentTheme.Body;
-            BackColor = Color.FromArgb(18, 20, 24);
-            ForeColor = Color.White;
+            BackColor = FluentTheme.FixedDarkCanvas;
+            ForeColor = FluentTheme.FixedDarkTextPrimary;
             ShowInTaskbar = true;
             DoubleBuffered = true;
             KeyPreview = true;
@@ -99,40 +175,53 @@ namespace SJANotificationApp
             _pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 52,
-                BackColor = Color.FromArgb(24, 26, 32),
-                Padding = new Padding(16, 8, 16, 8)
+                Height = 44,
+                BackColor = FluentTheme.FixedDarkSurface,
+                Padding = new Padding(16, 6, 12, 6)
             };
+
+            var picIcon = new PictureBox
+            {
+                Size = new Size(18, 18),
+                Location = new Point(14, 13),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Image = FluentTheme.GetMenuIcon("remote", FluentTheme.FixedDarkTextSecondary, 18)
+            };
+            _pnlHeader.Controls.Add(picIcon);
 
             var lblTitle = new Label
             {
-                Text = $"💻 {_targetDev.deviceName}  •  {_targetDev.employeeName} ({_targetDev.ipAddress})",
-                Font = FluentTheme.SubTitle,
-                ForeColor = Color.White,
-                Location = new Point(16, 14),
-                AutoSize = true
+                Text = $"{_targetDev.deviceName}  •  {_targetDev.employeeName} ({_targetDev.ipAddress})",
+                Font = FluentTheme.GetFont(10.5F, FontStyle.Bold),
+                ForeColor = FluentTheme.FixedDarkTextPrimary,
+                Location = new Point(38, 12),
+                AutoSize = true,
+                BackColor = Color.Transparent
             };
-
-            _lblStatus = new Label
-            {
-                Text = "Meminta sesi aman...",
-                Font = FluentTheme.Caption,
-                ForeColor = Color.FromArgb(156, 163, 175),
-                Location = new Point(420, 16),
-                AutoSize = true
-            };
+            _pnlHeader.Controls.Add(lblTitle);
 
             _btnClose = new GlassButton
             {
-                Text = "✕", Size = new Size(32, 32), Location = new Point(Width - 46, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+                Size = new Size(28, 28),
+                Location = new Point(Width - 36, 8),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                GlyphOnly = true,
+                Glyph = "close",
+                Radius = 6
             };
             _btnClose.Click += (s, e) => Close();
+            _pnlHeader.Controls.Add(_btnClose);
 
             _btnMax = new GlassButton
             {
-                Text = "🗖", Size = new Size(32, 32), Location = new Point(Width - 82, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+                Size = new Size(28, 28),
+                Location = new Point(Width - 68, 8),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                GlyphOnly = true,
+                Glyph = "maximize",
+                Radius = 6
             };
             _btnMax.Click += (s, e) =>
             {
@@ -140,69 +229,134 @@ namespace SJANotificationApp
                 else
                 {
                     WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
-                    _btnMax.Text = WindowState == FormWindowState.Maximized ? "🗗" : "🗖";
+                    _btnMax.Glyph = WindowState == FormWindowState.Maximized ? "restore" : "maximize";
                 }
             };
+            _pnlHeader.Controls.Add(_btnMax);
 
             _btnMin = new GlassButton
             {
-                Text = "—", Size = new Size(32, 32), Location = new Point(Width - 118, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+                Size = new Size(28, 28),
+                Location = new Point(Width - 100, 8),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                GlyphOnly = true,
+                Glyph = "minimize",
+                Radius = 6
             };
             _btnMin.Click += (s, e) => WindowState = FormWindowState.Minimized;
+            _pnlHeader.Controls.Add(_btnMin);
 
-            _btnFullscreen = new GlassButton
+            Controls.Add(_pnlHeader);
+
+            // 2. Toolbar Panel
+            var pnlToolbar = new Panel
             {
-                Text = "Fullscreen ⛶", Size = new Size(110, 32), Location = new Point(Width - 238, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+                Dock = DockStyle.Top,
+                Height = 44,
+                BackColor = FluentTheme.FixedDarkCanvas,
+                Padding = new Padding(12, 6, 12, 6)
             };
-            _btnFullscreen.Click += (s, e) => ToggleFullscreen();
+            pnlToolbar.Paint += (s, e) =>
+            {
+                using var p = new Pen(FluentTheme.FixedDarkHairline, 1f);
+                e.Graphics.DrawLine(p, 0, pnlToolbar.Height - 1, pnlToolbar.Width, pnlToolbar.Height - 1);
+            };
+
+            _lblStatus = new Label
+            {
+                Text = "Requesting a secure session…",
+                Font = FluentTheme.CaptionBold,
+                ForeColor = FluentTheme.FixedDarkTextSecondary,
+                Location = new Point(14, 13),
+                AutoSize = true,
+                BackColor = Color.Transparent
+            };
+            pnlToolbar.Controls.Add(_lblStatus);
 
             _btnDisconnect = new GlassButton
             {
-                Text = "Putuskan Sesi", Size = new Size(115, 32), Location = new Point(Width - 360, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Danger, Radius = 6
+                Text = "Disconnect",
+                Size = new Size(95, 30),
+                Location = new Point(Width - 110, 7),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Danger,
+                Radius = 6,
+                Font = FluentTheme.CaptionBold
             };
             _btnDisconnect.Click += (s, e) => Close();
+            pnlToolbar.Controls.Add(_btnDisconnect);
 
             _btnSendFile = new GlassButton
             {
-                Text = "Kirim File 📁", Size = new Size(110, 32), Location = new Point(Width - 478, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6,
+                Text = "Send file",
+                Glyph = "plus",
+                Size = new Size(95, 30),
+                Location = new Point(Width - 212, 7),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                Radius = 6,
+                Font = FluentTheme.CaptionBold,
                 Enabled = false
             };
             _btnSendFile.Click += (s, e) => OpenSendFileDialog();
+            pnlToolbar.Controls.Add(_btnSendFile);
+
+            _btnFullscreen = new GlassButton
+            {
+                Text = "Fullscreen",
+                Size = new Size(90, 30),
+                Location = new Point(Width - 308, 7),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                Radius = 6,
+                Font = FluentTheme.CaptionBold
+            };
+            _btnFullscreen.Click += (s, e) => ToggleFullscreen();
+            pnlToolbar.Controls.Add(_btnFullscreen);
 
             _btnOverlaySize = new GlassButton
             {
-                Text = "Overlay: Penuh", Size = new Size(130, 32), Location = new Point(Width - 622, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+                Text = "Overlay: Full",
+                Size = new Size(110, 30),
+                Location = new Point(Width - 424, 7),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                Radius = 6,
+                Font = FluentTheme.CaptionBold
             };
             _btnOverlaySize.Click += (s, e) => ToggleOperatorOverlaySize();
+            pnlToolbar.Controls.Add(_btnOverlaySize);
 
             _btnOverlayContent = new GlassButton
             {
-                Text = "Konten: Gambar", Size = new Size(140, 32), Location = new Point(Width - 776, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right, Variant = GlassButtonVariant.Ghost, Radius = 6
+                Text = "Media: Image",
+                Size = new Size(110, 30),
+                Location = new Point(Width - 540, 7),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Variant = GlassButtonVariant.Ghost,
+                Radius = 6,
+                Font = FluentTheme.CaptionBold
             };
             _btnOverlayContent.Click += (s, e) => ToggleOperatorOverlayContent();
+            pnlToolbar.Controls.Add(_btnOverlayContent);
 
-            _pnlHeader.Controls.AddRange(new Control[] { lblTitle, _lblStatus, _btnOverlayContent, _btnOverlaySize, _btnSendFile, _btnDisconnect, _btnFullscreen, _btnMin, _btnMax, _btnClose });
+            Controls.Add(pnlToolbar);
+
             _pnlHeader.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
             lblTitle.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
-            _lblStatus.MouseDown += (s, e) => FluentTheme.EnableWindowDrag(Handle, e);
 
             Resize += (s, e) =>
             {
-                _btnClose.Location = new Point(Width - 46, 10);
-                _btnMax.Location = new Point(Width - 82, 10);
-                _btnMin.Location = new Point(Width - 118, 10);
-                _btnFullscreen.Location = new Point(Width - 238, 10);
-                _btnDisconnect.Location = new Point(Width - 360, 10);
-                _btnSendFile.Location = new Point(Width - 478, 10);
-                _btnOverlaySize.Location = new Point(Width - 622, 10);
-                _btnOverlayContent.Location = new Point(Width - 776, 10);
-                _btnMax.Text = WindowState == FormWindowState.Maximized ? "🗗" : "🗖";
+                _btnClose.Location = new Point(Width - 36, 8);
+                _btnMax.Location = new Point(Width - 68, 8);
+                _btnMin.Location = new Point(Width - 100, 8);
+                _btnDisconnect.Location = new Point(Width - 110, 7);
+                _btnSendFile.Location = new Point(Width - 212, 7);
+                _btnFullscreen.Location = new Point(Width - 308, 7);
+                _btnOverlaySize.Location = new Point(Width - 424, 7);
+                _btnOverlayContent.Location = new Point(Width - 540, 7);
+                _btnMax.Glyph = WindowState == FormWindowState.Maximized ? "restore" : "maximize";
             };
 
             _picScreen = new PictureBox
@@ -237,24 +391,22 @@ namespace SJANotificationApp
         {
             if (!_isFullscreen)
             {
-                _prevBorderStyle = FormBorderStyle;
                 _prevWindowState = WindowState;
                 _prevBounds = Bounds;
 
-                FormBorderStyle = FormBorderStyle.None;
                 WindowState = FormWindowState.Normal;
                 Bounds = Screen.FromControl(this).Bounds;
-                TopMost = false;
+                _pnlHeader.Visible = false;
                 _isFullscreen = true;
-                _btnFullscreen.Text = "Jendela 🗗";
+                _btnFullscreen.Text = "Exit Full";
             }
             else
             {
-                FormBorderStyle = _prevBorderStyle;
                 WindowState = _prevWindowState;
                 Bounds = _prevBounds;
+                _pnlHeader.Visible = true;
                 _isFullscreen = false;
-                _btnFullscreen.Text = "Fullscreen ⛶";
+                _btnFullscreen.Text = "Fullscreen";
             }
         }
 
@@ -287,7 +439,7 @@ namespace SJANotificationApp
                     await _tcpClient.ConnectAsync(_targetDev.ipAddress, RemoteHostEngine.TCP_PORT, connectCts.Token);
 
                     _stream = _tcpClient.GetStream();
-                    _lblStatus.Text = "Mengautentikasi koneksi P2P...";
+                    SetState(RemoteSessionState.Authenticating, "P2P");
                     await RemoteHostEngine.WriteCommandAsync(_stream, new
                     {
                         t = "auth",
@@ -315,7 +467,7 @@ namespace SJANotificationApp
 
                 _isAuthenticated = true;
                 _btnSendFile.Enabled = true;
-                _lblStatus.Text = "🟡 Terautentikasi • Menunggu persetujuan/countdown pengguna";
+                SetState(RemoteSessionState.AwaitingConsent);
                 AppLogger.Info($"[Viewer] Sesi P2P terautentikasi ke {_targetDev.ipAddress}:{RemoteHostEngine.TCP_PORT}");
 
                 await ReceiveFramesLoopAsync(_cts.Token);
@@ -324,7 +476,7 @@ namespace SJANotificationApp
             {
                 if (!_cts.IsCancellationRequested)
                 {
-                    _lblStatus.Text = "P2P dan relay WS tidak dapat dihubungi";
+                    SetState(RemoteSessionState.Failed, "Cannot reach host");
                 }
             }
             catch (Exception ex)
@@ -344,7 +496,7 @@ namespace SJANotificationApp
             _useRelay = true;
             _isAuthenticated = true;
             _btnSendFile.Enabled = false; // File transfer remains direct-stream only; no false success via relay.
-            _lblStatus.Text = "🟡 P2P gagal • Memulai relay WebSocket aman";
+            SetState(RemoteSessionState.Connecting, "Relay");
 
             bool sent = await _sharedWsClient.SendJsonAsync(new
             {
@@ -362,7 +514,7 @@ namespace SJANotificationApp
                 return false;
             }
 
-            _lblStatus.Text = "🟢 Relay WebSocket Aktif • Menunggu frame";
+            SetState(RemoteSessionState.Connected, "WS Relay");
             AppLogger.Info($"[Viewer] Secure WS relay activated for session {_sessionId}");
             return true;
         }
@@ -370,14 +522,14 @@ namespace SJANotificationApp
         private void ToggleOperatorOverlaySize()
         {
             _overlayMode = _overlayMode == "FULL" ? "PIP" : "FULL";
-            _btnOverlaySize.Text = _overlayMode == "FULL" ? "Overlay: Penuh" : "Overlay: Kecil";
+            _btnOverlaySize.Text = _overlayMode == "FULL" ? "Overlay: Full" : "Overlay: PIP";
             SendOverlayModeSignal();
         }
 
         private void ToggleOperatorOverlayContent()
         {
             _overlayContent = _overlayContent == "IMAGE" ? "VIDEO" : "IMAGE";
-            _btnOverlayContent.Text = _overlayContent == "IMAGE" ? "Konten: Gambar" : "Konten: Video";
+            _btnOverlayContent.Text = _overlayContent == "IMAGE" ? "Media: Image" : "Media: Video";
             SendOverlayModeSignal();
         }
 
@@ -510,7 +662,7 @@ namespace SJANotificationApp
                     if (magic == RemoteHostEngine.FRAME_MAGIC_TILES)
                     {
                         await ReceiveTileBatchAsync(_stream, ct);
-                        if (_lblStatus.Text.StartsWith("🟡")) _lblStatus.Text = "🟢 Terhubung • Sesi Aktif";
+                        if (_state == RemoteSessionState.AwaitingConsent || _state == RemoteSessionState.Connecting) SetState(RemoteSessionState.Connected);
                     }
                     else if (magic == RemoteHostEngine.FRAME_MAGIC_FULL)
                     {
@@ -533,7 +685,7 @@ namespace SJANotificationApp
                 }
             }
 
-            if (!IsDisposed) BeginInvoke(() => _lblStatus.Text = "🔴 Sesi Terputus");
+            if (!IsDisposed) BeginInvoke(() => SetState(RemoteSessionState.Disconnected));
         }
 
         private async Task ReceiveHostCommandAsync(Stream stream, CancellationToken ct)
@@ -743,8 +895,8 @@ namespace SJANotificationApp
             if (!_isAuthenticated || _stream == null || _cts == null) return;
             using var dialog = new OpenFileDialog
             {
-                Title = "Pilih Berkas untuk Dikirim ke Perangkat Target",
-                Filter = "Semua Berkas (*.*)|*.*"
+                Title = "Choose a file to send",
+                Filter = "All files (*.*)|*.*"
             };
             if (dialog.ShowDialog() != DialogResult.OK) return;
 
@@ -799,7 +951,7 @@ namespace SJANotificationApp
             }
             catch (Exception ex)
             {
-                _lblStatus.Text = "Gagal mengirim file";
+                _lblStatus.Text = "File transfer failed";
                 AppLogger.Error("Gagal mentransfer file ke host", ex);
                 await SendCommandAsync(new { t = "file_cancel", transferId }, CancellationToken.None);
             }
