@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEformDetail, useGetCredentials, useSubmitCredentials } from '../api/eform-request.api';
 import { EFormStatus } from '../components/eform/EformStatusPipeline';
-import { EformTypeBadge, getTypeConfig, ICT_ROLES } from '../components/eform/eform-vocabulary';
+import { EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
 
-const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
+const CREDENTIAL_ADMIN_ROLES = ['ADMIN', 'AGENT_ADMIN'];
 
 const MASK = '••••••••••';
 
@@ -19,7 +19,7 @@ export const EformCredentialPage: React.FC = () => {
   const { user } = useAuth();
   const { data: eform, isLoading } = useEformDetail(id!);
 
-  const isICT = ICT_ROLES.includes(user?.role || '');
+  const isICT = CREDENTIAL_ADMIN_ROLES.includes(user?.role || '');
   const isRequester = eform?.requesterId === user?.id;
   const canView = isICT || isRequester;
 

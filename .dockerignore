@@ -18,7 +18,9 @@
 **/*.key
 
 # Uploads/backups/logs — data runtime
-**/uploads
+/uploads
+apps/backend/uploads
+!**/src/**/uploads
 **/backups
 **/logs
 **/*.log

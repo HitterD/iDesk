@@ -35,7 +35,7 @@ export const EformAccessDetailPage: React.FC = () => {
 
   const isCurrentApprover = request?.currentApproverId === user?.id;
   const isRequester = request?.requesterId === user?.id;
-  const isICT = ICT_ROLES.includes(user?.role || '');
+  const isICT = (ICT_ROLES as readonly string[]).includes(user?.role || '');
 
   const basePath = location.pathname.startsWith('/admin') ? '/admin' : '/portal';
 
