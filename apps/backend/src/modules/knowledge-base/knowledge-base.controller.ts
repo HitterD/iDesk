@@ -7,8 +7,12 @@ import { existsSync, mkdirSync } from 'fs';
 
 // Ensure upload directory exists
 const uploadDir = join(process.cwd(), 'uploads', 'kb');
-if (!existsSync(uploadDir)) {
-    mkdirSync(uploadDir, { recursive: true });
+try {
+    if (!existsSync(uploadDir)) {
+        mkdirSync(uploadDir, { recursive: true });
+    }
+} catch {
+    // Directory is initialized by container entrypoint or on first upload
 }
 import { KnowledgeBaseService, ArticleFilters, ArticleSort } from './knowledge-base.service';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';

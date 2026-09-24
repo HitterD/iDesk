@@ -106,6 +106,7 @@ export class HealthController {
     /**
      * Readiness probe for container orchestration
      */
+    @Public()
     @Get('ready')
     @ApiOperation({ summary: 'Readiness probe' })
     @ApiResponse({ status: 200, description: 'Service is ready' })
