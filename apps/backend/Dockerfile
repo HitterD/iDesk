@@ -26,4 +26,4 @@ RUN npm ci --only=production
 
 EXPOSE 5050
 
-CMD ["node", "dist/main"]
+CMD ["sh", "-c", "if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi"]
