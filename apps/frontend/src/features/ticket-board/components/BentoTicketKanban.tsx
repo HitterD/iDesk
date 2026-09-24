@@ -178,9 +178,9 @@ const EnhancedKanbanCard: React.FC<{
                             <span className={cn(
                                 "text-[10px] px-1.5 py-0.5 rounded font-semibold inline-flex items-center gap-1 border",
                                 priorityConfig.badgeColor || 'bg-muted text-muted-foreground border-border'
-                            )}>
+                            )} title={priorityConfig.label}>
                                 {PriorityIcon && <PriorityIcon className="w-2.5 h-2.5" />}
-                                <span>{priorityConfig.label}</span>
+                                <span>{priorityConfig.shortLabel || priorityConfig.label}</span>
                             </span>
 
                             {/* Quick Actions (visible on hover) */}

@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Clock, Save } from 'lucide-react';
+import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 
 interface SlaConfig {
     id: string;
@@ -89,7 +90,7 @@ export const SlaSettingsPage: React.FC = () => {
                                                 config.priority === 'MEDIUM' ? 'bg-yellow-500' :
                                                     'bg-blue-500'
                                             }`} />
-                                        {config.priority}
+                                        {PRIORITY_CONFIG[config.priority]?.label || config.priority}
                                     </div>
                                 </TableCell>
                                 <TableCell>

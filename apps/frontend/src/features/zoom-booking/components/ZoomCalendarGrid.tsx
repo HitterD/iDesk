@@ -48,6 +48,7 @@ export interface ProcessedBookingV2 {
     rowIndex: number;
     totalRows: number;
     overflowCount: number;
+    hasRecording?: boolean;
 }
 
 /**
@@ -176,6 +177,7 @@ export interface ProcessedBooking {
     isExternal: boolean;
     columnIndex: number;
     totalColumns: number;
+    hasRecording?: boolean;
 }
 
 export function processBookingsForDay(day: CalendarDay): ProcessedBooking[] {
@@ -185,6 +187,7 @@ export function processBookingsForDay(day: CalendarDay): ProcessedBooking[] {
     day.slots.forEach((slot, index) => {
         if (slot.booking && !processedSlots.has(slot.booking.id)) {
             const rowSpan = Math.max(1, Math.ceil(slot.booking.durationMinutes / SLOT_INTERVAL));
+            const slotAnyBooking = slot.booking as any;
             bookings.push({
                 id: slot.booking.id,
                 title: slot.booking.title,
@@ -198,6 +201,7 @@ export function processBookingsForDay(day: CalendarDay): ProcessedBooking[] {
                 isExternal: slot.booking.isExternal || false,
                 columnIndex: 0,
                 totalColumns: 1,
+                hasRecording: !!(slotAnyBooking?.meeting?.recordingUrl || slotAnyBooking?.recordingUrl),
             });
             processedSlots.add(slot.booking.id);
         }
@@ -483,10 +487,12 @@ export function ZoomCalendarGrid({
                 {calendar.map((day, dayIndex) => {
                     const bookings = processBookingsForDay(day);
 
-                    return bookings.map((booking) => (
+                    return bookings.map((booking) => {
+                        const hasRecording = !!booking.hasRecording;
+                        return (
                         <div
                             key={booking.id}
-                            title={`${booking.title}\n${booking.startTime} - ${booking.endTime} (${booking.durationMinutes} min)\nBooked by: ${booking.bookedBy}\nKlik untuk lihat link Zoom`}
+                            title={`${booking.title}\n${booking.startTime} - ${booking.endTime} (${booking.durationMinutes} min)\nBooked by: ${booking.bookedBy}${hasRecording ? '\n📹 Rekaman Cloud Zoom Tersedia' : ''}\nKlik untuk lihat link Zoom`}
                             className={cn(
                                 "absolute rounded-xl cursor-pointer select-none",
                                 "transition-all duration-150 ease-out",
@@ -510,9 +516,19 @@ export function ZoomCalendarGrid({
                                 "h-full flex flex-col min-w-0 flex-1 overflow-hidden",
                                 booking.rowSpan === 1 ? "p-1.5" : "p-2"
                             )}>
-                                <div className="font-bold text-xs truncate flex items-center gap-1">
-                                    <Video className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{booking.title}</span>
+                                <div className="font-bold text-xs truncate flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1 min-w-0 truncate">
+                                        <Video className="h-3 w-3 shrink-0" />
+                                        <span className="truncate">{booking.title}</span>
+                                    </div>
+                                    {hasRecording && (
+                                        <span
+                                            className="shrink-0 inline-flex items-center px-1 rounded bg-emerald-500/90 text-white text-[8px] font-bold shadow-2xs"
+                                            title="Rekaman Cloud Zoom Tersedia"
+                                        >
+                                            REC
+                                        </span>
+                                    )}
                                 </div>
                                 {booking.rowSpan >= 2 && (
                                     <div className="flex flex-col min-h-0 mt-0.5">
@@ -526,7 +542,8 @@ export function ZoomCalendarGrid({
                                 )}
                             </div>
                         </div>
-                    ));
+                    );
+                });
                 })}
             </div>
 

@@ -177,9 +177,9 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                 };
             default:
                 return {
-                    bg: 'bg-blue-50 dark:bg-blue-950/40',
-                    text: 'text-blue-700 dark:text-blue-400',
-                    border: 'border-blue-200 dark:border-blue-900/60',
+                    bg: 'bg-primary/10 dark:bg-primary/20',
+                    text: 'text-primary',
+                    border: 'border-primary/20 dark:border-primary/30',
                     icon: Clock,
                 };
         }
@@ -216,16 +216,16 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
             )}
 
             <header className={cn(
-                "px-3.5 py-3 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
+                "px-3.5 py-2.5 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
                 isTerminal && 'bg-slate-50/50 dark:bg-slate-900/50'
             )}>
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-4">
                 {/* Left: Back button + Badges + Title */}
                 <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                     <button
                         type="button"
                         onClick={handleBack}
-                        className="mt-0.5 sm:mt-1 p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
+                        className="mt-0.5 p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
                         title="Kembali"
                     >
                         <ArrowLeft className="w-4 h-4" />
@@ -237,7 +237,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                             <button
                                 type="button"
                                 onClick={handleCopyNumber}
-                                className="group inline-flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                className="group inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                 title="Click to copy ticket number"
                             >
                                 <span>#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
@@ -264,8 +264,19 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                                 {priorityConfig.label}
                             </span>
 
+                            {/* Compact SLA badge for mobile directly inline */}
+                            <span className={cn(
+                                "sm:hidden px-2 py-0.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 border shadow-2xs",
+                                slaColors.bg,
+                                slaColors.text,
+                                slaColors.border
+                            )}>
+                                <SlaIcon className={cn("w-3 h-3", slaStatus === 'overdue' && "animate-pulse")} />
+                                <span>SLA: {resolutionTime}</span>
+                            </span>
+
                             {ticket.category && (
-                                <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
+                                <span className="hidden sm:inline-flex px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
                                     {ticket.category.replace(/_/g, ' ')}
                                 </span>
                             )}
@@ -277,22 +288,46 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                             )}
 
                             {ticket.participants && ticket.participants.length > 0 && (
-                                <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 inline-flex items-center gap-1.5 shadow-2xs">
-                                    <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                <span className="hidden sm:inline-flex px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary/30 items-center gap-1.5 shadow-2xs">
+                                    <Users className="w-3.5 h-3.5 text-primary" />
                                     <span>{1 + ticket.participants.length} Anggota</span>
                                 </span>
                             )}
                         </div>
 
                         {/* Ticket Title */}
-                        <h1 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                        <h1 className="text-sm sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words pt-0.5">
                             {ticket.title}
                         </h1>
                     </div>
+
+                    {/* Mobile quick cancel / terminal button */}
+                    <div className="sm:hidden shrink-0 mt-0.5">
+                        {isTerminal ? (
+                            <span className={cn(
+                                "p-1.5 rounded-xl text-xs border inline-flex items-center justify-center",
+                                isResolved
+                                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50"
+                                    : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50"
+                            )} title={isResolved ? 'Resolved' : 'Cancelled'}>
+                                {isResolved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                            </span>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={onCancel}
+                                className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/50 transition-colors cursor-pointer"
+                                title="Cancel Ticket"
+                                aria-label="Cancel Ticket"
+                            >
+                                <XCircle className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Right: SLA Pill + Cancel Action + Toggle Sidebar */}
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
+                {/* Right: SLA Pill + Cancel Action + Toggle Sidebar (Desktop only) */}
+                <div className="hidden sm:flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
                     {/* SLA Resolution Pill */}
                     <div className={cn(
                         "px-3 py-1.5 rounded-xl border inline-flex items-center gap-2 text-xs font-bold shadow-2xs transition-all",
@@ -355,14 +390,17 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
     const assignedAgent = ticket.assignedTo;
 
     const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
-    const isAgentOracle = user?.role === 'AGENT_ORACLE';
-    const isAdmin = user?.role === 'ADMIN';
-    const canManageParticipants = isAgentOracle || isAdmin;
+    const isStaff =
+        user?.role === 'ADMIN' ||
+        user?.role === 'AGENT' ||
+        Boolean(user?.role?.startsWith('AGENT_')) ||
+        user?.role === 'MANAGER';
+    const canManageParticipants = isStaff;
     const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
         ticket.handlingTeam === 'MOBILE_DEV' ||
         ticket.handlingTeam === 'WEB_DEV' ||
         (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST' || ticket.ticketType === 'WEB_DEV_REQUEST' || ticket.ticketType === 'MOBILE_DEV_REQUEST'));
-    const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
+    const canAddParticipants = canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id));
 
     const handleCopyEmail = () => {
         if (assignedAgent?.email) {
@@ -388,7 +426,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
                             <div className="relative shrink-0">
-                                <div className="w-11 h-11 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-sm shadow-xs">
+                                <div className="w-11 h-11 rounded-2xl bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary font-bold flex items-center justify-center text-sm shadow-xs">
                                     {assignedAgent.fullName.charAt(0).toUpperCase()}
                                 </div>
                                 <PresenceDot userId={assignedAgent.id} userName={assignedAgent.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
@@ -412,7 +450,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                                         <button
                                             type="button"
                                             onClick={handleCopyEmail}
-                                            className="p-0.5 hover:text-blue-600 transition-colors shrink-0 cursor-pointer"
+                                            className="p-0.5 hover:text-primary transition-colors shrink-0 cursor-pointer"
                                             title="Copy Agent Email"
                                         >
                                             {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-slate-400" />}
@@ -444,17 +482,15 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                 )}
             </div>
 
-            {/* 1.5. Ticket Participants (Oracle Tickets / Multi-user Group) */}
-            {(isOracleTicket || (ticket.participants && ticket.participants.length > 0)) && (
-                <TicketParticipantsSection
-                    ticketId={ticket.id}
-                    creator={ticket.user}
-                    participants={ticket.participants}
-                    canManageUsers={canManageParticipants}
-                    canAddUsers={canAddParticipants}
-                    isClosed={isClosed}
-                />
-            )}
+            {/* 1.5. Ticket Participants (All Tickets / Multi-user Group) */}
+            <TicketParticipantsSection
+                ticketId={ticket.id}
+                creator={ticket.user}
+                participants={ticket.participants}
+                canManageUsers={canManageParticipants}
+                canAddUsers={canAddParticipants}
+                isClosed={isClosed}
+            />
 
             {/* 2. Ticket Properties Card */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3.5">
@@ -496,7 +532,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                             <div className="mt-2.5 p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-xs">
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
                                     <AlertCircle className="w-3 h-3 text-rose-500" />
-                                    Catatan Alasan Kritis:
+                                    Catatan Alasan Blocker (Critical):
                                 </p>
                                 <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
                                     {ticket.criticalReason}
@@ -512,7 +548,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                                 <Tag className="w-3.5 h-3.5 text-slate-400" /> Category
                             </span>
                             <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                                <Tag className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
                                 <span>{ticket.category.replace(/_/g, ' ')}</span>
                             </div>
                         </div>
@@ -525,7 +561,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                                 <Monitor className="w-3.5 h-3.5 text-slate-400" /> Device / Asset
                             </span>
                             <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                                <Monitor className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <Monitor className="w-3.5 h-3.5 text-primary shrink-0" />
                                 <span>{ticket.device}</span>
                             </div>
                         </div>
@@ -560,7 +596,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                     {ticket.slaTarget && (
                         <div className="flex items-center justify-between py-1">
                             <span className="text-slate-400">SLA Target</span>
-                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                            <span className="font-semibold text-primary">
                                 {formatDateTimeID(ticket.slaTarget)}
                             </span>
                         </div>
@@ -752,7 +788,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 className={cn(
                                     "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
                                     mainTab === 'chat'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        ? "border-primary text-primary"
                                         : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                 )}
                             >
@@ -761,7 +797,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 <span className={cn(
                                     "px-2 py-0.5 rounded-full text-[10px] font-bold",
                                     mainTab === 'chat'
-                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                        ? "bg-primary/10 dark:bg-primary/20 text-primary"
                                         : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                                 )}>
                                     {messageCount}
@@ -774,7 +810,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 className={cn(
                                     "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
                                     mainTab === 'activity'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        ? "border-primary text-primary"
                                         : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                 )}
                             >
@@ -791,7 +827,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 className={cn(
                                     "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
                                     mainTab === 'chat'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        ? "border-primary text-primary"
                                         : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                 )}
                             >
@@ -800,7 +836,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 <span className={cn(
                                     "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
                                     mainTab === 'chat'
-                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                        ? "bg-primary/10 dark:bg-primary/20 text-primary"
                                         : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                                 )}>
                                     {messageCount}
@@ -813,7 +849,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 className={cn(
                                     "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
                                     mainTab === 'properties'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        ? "border-primary text-primary"
                                         : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                 )}
                             >
@@ -827,7 +863,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 className={cn(
                                     "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
                                     mainTab === 'activity'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                                        ? "border-primary text-primary"
                                         : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                 )}
                             >

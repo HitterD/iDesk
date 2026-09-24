@@ -311,13 +311,13 @@ export const BentoMyTicketsPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Stats Cards - Bento Style identical to Agent page */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
+            {/* Stats Cards - Bento Style identical to Agent page (Hidden on mobile for cleaner view) */}
+            <div className="hidden sm:grid sm:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
                 <StatsCard
                     icon={TrendingUp}
                     label="Total"
                     value={statsData?.total ?? meta?.total ?? 0}
-                    color="text-primary dark:text-blue-400"
+                    color="text-primary"
                     bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20"
                     animationIndex={0}
                     onClick={() => handleStatusChange('all')}
@@ -524,23 +524,23 @@ export const BentoMyTicketsPage: React.FC = () => {
 
                                                 {/* Joined Ticket Badge */}
                                                 {ticket.isParticipant && (
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/60">
-                                                        <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 dark:bg-primary/20 px-1.5 py-0.5 rounded border border-primary/20 dark:border-primary/30">
+                                                        <Users className="w-3.5 h-3.5 text-primary" />
                                                         Joined
                                                     </span>
                                                 )}
 
                                                 {/* Priority Badge */}
                                                 {ticket.priority === 'CRITICAL' && (
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800/50">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800/50" title={priorityConfig.label}>
                                                         <Flame className="w-3 h-3" />
-                                                        Critical
+                                                        Blocker
                                                     </span>
                                                 )}
                                                 {ticket.priority === 'HIGH' && (
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800/50">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800/50" title={priorityConfig.label}>
                                                         <AlertTriangle className="w-3 h-3" />
-                                                        High
+                                                        Urgent
                                                     </span>
                                                 )}
                                             </div>
@@ -610,8 +610,8 @@ export const BentoMyTicketsPage: React.FC = () => {
                                                         </span>
                                                     )}
                                                     {ticket.isParticipant && (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/60 shadow-2xs">
-                                                            <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 dark:bg-primary/20 px-2 py-0.5 rounded-md border border-primary/20 dark:border-primary/30 shadow-2xs">
+                                                            <Users className="w-3.5 h-3.5 text-primary" />
                                                             Joined
                                                         </span>
                                                     )}
@@ -637,9 +637,9 @@ export const BentoMyTicketsPage: React.FC = () => {
 
                                         {/* Column 2: Priority */}
                                         <div>
-                                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-border/80 bg-background", priorityConfig.color)}>
+                                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-border/80 bg-background", priorityConfig.color)} title={priorityConfig.label}>
                                                 <span className={cn("w-1.5 h-1.5 rounded-full", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
-                                                {priorityConfig.label}
+                                                {priorityConfig.shortLabel || priorityConfig.label}
                                             </span>
                                         </div>
 

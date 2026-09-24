@@ -41,7 +41,7 @@ export function TopCategoriesBar({ data, loading }: { data?: Row[]; loading?: bo
     <div className="bg-card border border-border rounded-3xl p-6 shadow-2xs flex flex-col justify-between">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+          <div className="p-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
             <Layers className="size-4" />
           </div>
           <div>

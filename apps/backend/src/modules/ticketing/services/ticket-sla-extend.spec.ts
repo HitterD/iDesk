@@ -107,21 +107,24 @@ describe('TicketSlaExtendService', () => {
         await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('SLA can only be extended');
     });
 
-    it('rejects an extension exceeding the cap (2x + 8h business)', async () => {
-        // Cap = 2x480 + 480 = 1440. elapsed 1400 + 60 = 1460 > 1440
-        businessHoursService.calculateBusinessMinutes = jest.fn(async () => 1400);
-        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('melebihi batas yang diizinkan');
+    it('allows long extensions exceeding old business hours cap (e.g. 30 days ahead)', async () => {
+        const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        businessHoursService.calculateBusinessMinutes = jest.fn(async () => 14400); // 30 days of business minutes
+
+        const result = await service.extendSla('t1', {
+            ...dto,
+            newTargetDate: thirtyDaysLater.toISOString(),
+        }, actor);
+
+        expect(result.ticket.slaTarget).toEqual(thirtyDaysLater);
+        expect(result.ticket.isOverdue).toBe(false);
     });
 
-    it('rejects an extension when prior extends already push the total over cap', async () => {
-        adjustmentRepo.createQueryBuilder = jest.fn(() => ({
-            select: jest.fn().mockReturnThis(),
-            where: jest.fn().mockReturnThis(),
-            getRawOne: jest.fn().mockResolvedValue({ total: '1400' }),
-        }));
+    it('rejects an extension exceeding the 90-day sanity limit', async () => {
+        const ninetyOneDaysLater = new Date(Date.now() + 92 * 24 * 60 * 60 * 1000);
         await expect(
-            service.extendSla('t1', { ...dto, minutes: 100 }, actor)
-        ).rejects.toThrow('melebihi batas yang diizinkan');
+            service.extendSla('t1', { ...dto, newTargetDate: ninetyOneDaysLater.toISOString() }, actor)
+        ).rejects.toThrow('tidak boleh melebihi 90 hari ke depan');
     });
 
     it('extends the target by manual newTargetDate and creates system message', async () => {

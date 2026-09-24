@@ -25,7 +25,7 @@ import { ZoomSyncService } from '../services/zoom-sync.service';
  */
 @ApiTags('Zoom Webhooks')
 @ApiExcludeController() // Hide from Swagger docs (security)
-@Controller('zoom-webhooks')
+@Controller(['zoom-webhooks', 'zoom/webhook'])
 export class ZoomWebhookController {
     private readonly logger = new Logger(ZoomWebhookController.name);
 
@@ -70,6 +70,10 @@ export class ZoomWebhookController {
 
                 case 'meeting.deleted':
                     await this.syncService.handleWebhookMeetingDeleted(payload);
+                    break;
+
+                case 'recording.completed':
+                    await this.syncService.handleWebhookRecordingCompleted(payload);
                     break;
 
                 case 'meeting.ended':

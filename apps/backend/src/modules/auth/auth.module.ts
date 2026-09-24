@@ -41,6 +41,7 @@ export class AuthMetricsListener {
     onReuse(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.REFRESH_REUSED, payload); }
 }
 import { OptionalJwtAuthGuard } from './infrastructure/guards/optional-jwt-auth.guard';
+import { S2sAuthGuard } from './infrastructure/guards/s2s-auth.guard';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
@@ -76,6 +77,7 @@ assertRefreshSessionConfig();
         JwtStrategy,
         LocalStrategy,
         OptionalJwtAuthGuard,
+        S2sAuthGuard,
         RefreshSessionStore,
         TokenService,
         SessionService,
@@ -86,6 +88,6 @@ assertRefreshSessionConfig();
         AuthMetricsListener,
     ],
     controllers: [AuthController],
-    exports: [AuthService, PassportModule, JwtModule, AuthEventPublisher, OptionalJwtAuthGuard],
+    exports: [AuthService, PassportModule, JwtModule, AuthEventPublisher, OptionalJwtAuthGuard, S2sAuthGuard],
 })
 export class AuthModule { }

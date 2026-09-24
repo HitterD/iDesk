@@ -4,6 +4,8 @@ import { SearchFilters } from '../hooks/useSearch';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { format, parseISO } from 'date-fns';
 
+import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+
 interface SearchFilterPanelProps {
     filters: SearchFilters;
     onFiltersChange: (filters: SearchFilters) => void;
@@ -11,7 +13,7 @@ interface SearchFilterPanelProps {
 }
 
 const STATUSES = ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR', 'RESOLVED', 'CANCELLED'];
-const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
     filters,
@@ -103,19 +105,25 @@ export const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
             <div className="mb-4">
                 <label className="block text-xs text-slate-400 mb-2">Priority</label>
                 <div className="flex flex-wrap gap-1">
-                    {PRIORITIES.map(priority => (
-                        <button
-                            key={priority}
-                            onClick={() => togglePriority(priority)}
-                            className={`px-2 py-1 text-xs rounded transition-colors ${
-                                filters.priority?.includes(priority)
-                                    ? 'bg-orange-500 text-white'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                            }`}
-                        >
-                            {priority}
-                        </button>
-                    ))}
+                    {PRIORITIES.map(priority => {
+                        const cfg = PRIORITY_CONFIG[priority];
+                        const isSelected = filters.priority?.includes(priority);
+                        return (
+                            <button
+                                key={priority}
+                                type="button"
+                                title={cfg?.label || priority}
+                                onClick={() => togglePriority(priority)}
+                                className={`px-2 py-1 text-xs rounded transition-colors ${
+                                    isSelected
+                                        ? 'bg-orange-500 text-white font-semibold'
+                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                }`}
+                            >
+                                {cfg?.shortLabel || cfg?.label || priority}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 

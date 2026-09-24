@@ -111,7 +111,7 @@ export const useCreateEformRequest = () => {
       networkPurpose?: string;
       termsAccepted: boolean;
       signatureData: string;
-      managerId: string;
+      managerId?: string;
     }) => {
       const { data } = await api.post(API_BASE, payload);
       return data;
@@ -165,6 +165,26 @@ export const useSubmitCredentials = () => {
   });
 };
 
+
+export const useFulfillRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      notes: string;
+      accountName?: string;
+    }) => {
+      const { id, ...body } = payload;
+      const { data } = await api.post(`${API_BASE}/${id}/fulfill`, body);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['eform-request', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['eform-requests'] });
+    },
+  });
+};
+
 export const useGetCredentials = (id: string, enabled = false) => {
   return useQuery<EFormCredentials>({
     queryKey: ['eform-credentials', id],
@@ -207,4 +227,88 @@ export const useGetEformPdf = (id: string) => {
     await downloadEformPdf(id);
   };
 };
+
+export interface NasServer {
+  id: 'JKT' | 'KRW' | 'SMG' | 'SPJ';
+  name: string;
+  location: string;
+  host: string;
+  port: number;
+}
+
+export interface NasFolderItem {
+  name: string;
+  path: string;
+  isDir: boolean;
+}
+
+export interface NasBrowseResult {
+  success: boolean;
+  serverId: string;
+  path?: string;
+  folders: NasFolderItem[];
+  message?: string;
+}
+
+export interface NasFolderRequestItem {
+  nasId: 'JKT' | 'KRW' | 'SMG' | 'SPJ';
+  nasName: string;
+  folderPath: string;
+  accessLevel: 'READ_ONLY' | 'READ_WRITE';
+  isManualInput?: boolean;
+  isAutoParent?: boolean;
+}
+
+export const useNasServers = () => {
+  return useQuery<NasServer[]>({
+    queryKey: ['eform-nas-servers'],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_BASE}/nas/servers`);
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const browseNasFolders = async (serverId: string, path?: string): Promise<NasBrowseResult> => {
+  const { data } = await api.post(`${API_BASE}/nas/browse`, { serverId, path });
+  return data;
+};
+
+export interface NasSearchResult {
+  success: boolean;
+  serverId: string;
+  query: string;
+  count: number;
+  folders: NasFolderItem[];
+  message?: string;
+}
+
+export const searchNasFolders = async (serverId: string, query: string, maxDepth = 4): Promise<NasSearchResult> => {
+  const { data } = await api.post(`${API_BASE}/nas/search`, { serverId, query, maxDepth });
+  return data;
+};
+
+export interface NasCacheStatus {
+  serverId: string;
+  serverName: string;
+  lastSyncedAt: string | null;
+  isSyncing: boolean;
+  totalFolders: number;
+}
+
+export const getNasCacheStatus = async (serverId?: string): Promise<NasCacheStatus[]> => {
+  const { data } = await api.get(`${API_BASE}/nas/status`, { params: serverId ? { serverId } : undefined });
+  return Array.isArray(data) ? data : [];
+};
+
+export const triggerNasSync = async (
+  serverId: string,
+  force = false
+): Promise<{ success: boolean; message: string; isSyncing: boolean }> => {
+  const { data } = await api.post(`${API_BASE}/nas/sync`, { serverId, force });
+  return data;
+};
+
+
 

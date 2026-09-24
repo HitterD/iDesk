@@ -169,6 +169,10 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     };
 
     const handleRowKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+        // Cegah event bubbling dari input, textarea, button, atau modal portal di dalam baris
+        if (event.target !== event.currentTarget) {
+            return;
+        }
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             handleRowClick();

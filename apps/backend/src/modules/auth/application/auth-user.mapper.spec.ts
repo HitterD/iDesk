@@ -61,6 +61,27 @@ describe('auth user mappers', () => {
             role: UserRole.ADMIN,
             fullName: 'Test User',
             siteId: null,
+            employeeId: null,
+        });
+    });
+
+    it('preserves employeeId in authenticated user identity when present', () => {
+        const mapped = toAuthenticatedUser({
+            id: 'user-2',
+            email: 'user2@example.com',
+            fullName: 'Employee User',
+            role: UserRole.USER,
+            siteId: 'site-uuid-1',
+            employeeId: '00061058',
+        });
+
+        expect(mapped).toEqual({
+            userId: 'user-2',
+            username: 'user2@example.com',
+            role: UserRole.USER,
+            fullName: 'Employee User',
+            siteId: 'site-uuid-1',
+            employeeId: '00061058',
         });
     });
 });

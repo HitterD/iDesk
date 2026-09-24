@@ -48,7 +48,7 @@ export function TechnicianWorkload({ data, loading }: { data?: Row[]; loading?: 
     <div className="bg-card border border-border rounded-3xl p-6 shadow-2xs flex flex-col justify-between">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+          <div className="p-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
             <Wrench className="size-4" />
           </div>
           <div>
@@ -88,7 +88,7 @@ export function TechnicianWorkload({ data, loading }: { data?: Row[]; loading?: 
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
                     {r.openCount} aktif
                   </span>
                   {r.todayCount > 0 && (
@@ -103,7 +103,7 @@ export function TechnicianWorkload({ data, loading }: { data?: Row[]; loading?: 
               {/* Progress Bar */}
               <div className="h-2 rounded-full bg-muted/60 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-indigo-500 to-primary transition-all duration-300 rounded-full"
+                  className="h-full bg-primary transition-all duration-300 rounded-full"
                   style={{ width: `${percent}%` }}
                 />
               </div>

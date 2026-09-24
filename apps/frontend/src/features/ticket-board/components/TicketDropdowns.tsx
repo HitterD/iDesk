@@ -73,22 +73,22 @@ export const PriorityDropdown: React.FC<PriorityDropdownProps> = ({ value, onCha
 
     if (disabled || isSystemLocked) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium whitespace-nowrap text-slate-700 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium whitespace-nowrap text-slate-700 dark:text-slate-300" title={config.label}>
                 {Icon && <Icon className={cn("w-3 h-3", config.iconClass)} />}
                 <span className={cn("w-1.5 h-1.5 rounded-full", config.dot)} />
-                {config.label}
+                {config.shortLabel || config.label}
             </span>
         );
     }
 
     return (
         <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="h-7 w-auto min-w-0 border border-slate-200 bg-white dark:border-slate-700/60 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-1 focus:ring-primary/50 shadow-sm text-xs font-medium px-2 gap-1.5 transition-all duration-200 ease-out [&>svg]:hidden text-slate-700 dark:text-slate-300">
+            <SelectTrigger className="h-7 w-auto min-w-0 border border-slate-200 bg-white dark:border-slate-700/60 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-1 focus:ring-primary/50 shadow-sm text-xs font-medium px-2 gap-1.5 transition-all duration-200 ease-out [&>svg]:hidden text-slate-700 dark:text-slate-300" title={config.label}>
                 <SelectValue>
                     <span className="inline-flex items-center gap-1.5">
                         {Icon && <Icon className={cn("w-3 h-3", config.iconClass)} />}
                         <span className={cn("w-1.5 h-1.5 rounded-full", config.dot)} />
-                        {config.label}
+                        {config.shortLabel || config.label}
                     </span>
                 </SelectValue>
             </SelectTrigger>

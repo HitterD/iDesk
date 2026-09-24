@@ -22,6 +22,7 @@ const booking = {
 
 vi.mock('../../hooks', () => ({
     useBookingDetails: vi.fn(),
+    useSyncRecording: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/stores/useAuth', () => ({

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useNotificationCenter } from '../../notifications/hooks/useNotificationCenter';
 import { NotificationItem } from '../../../components/notifications/NotificationItem';
 import { NotificationSkeleton } from '../../../components/notifications/NotificationSkeleton';
+import { DesktopAppDownloadBanner } from '../../../components/notifications/DesktopAppDownloadBanner';
 import { groupNotificationsByDate } from '../../../components/notifications/utils/notification.utils';
 
 export const ClientNotificationCenter: React.FC = () => {
@@ -102,6 +103,15 @@ export const ClientNotificationCenter: React.FC = () => {
 
                 <div className="flex items-center gap-2">
                     <Button
+                        variant="outline"
+                        onClick={() => navigate('/notifications/history')}
+                        className="rounded-xl px-3.5 h-10 font-bold gap-2 text-xs border-slate-200 dark:border-slate-800"
+                        title="Lihat format tabel riwayat notifikasi lengkap"
+                    >
+                        <span>Riwayat Notifikasi</span>
+                    </Button>
+
+                    <Button
                         variant="ghost"
                         size="icon"
                         onClick={toggleSound}
@@ -123,8 +133,11 @@ export const ClientNotificationCenter: React.FC = () => {
                 </div>
             </div>
 
+            {/* Desktop App Tray / Toast Banner */}
+            <DesktopAppDownloadBanner showAdminTools={false} />
+
             {/* Main Content Area */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl overflow-hidden flex flex-col min-h-[500px]">
+            <div className="bg-card dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs overflow-hidden flex flex-col min-h-[500px]">
                 {/* Toolbar */}
                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="relative flex-1 max-w-md">
@@ -134,20 +147,20 @@ export const ClientNotificationCenter: React.FC = () => {
                             placeholder="Search notifications..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 text-sm font-medium bg-slate-50 dark:bg-slate-800/50 border-none rounded-xl focus:ring-2 focus:ring-primary/20 transition-colors duration-150 placeholder:text-slate-400"
+                            className="w-full pl-10 pr-4 py-2 text-sm font-medium bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:outline-none transition-colors duration-150 placeholder:text-slate-400 text-slate-900 dark:text-slate-100"
                         />
                     </div>
 
-                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200/60 dark:border-slate-700/50">
                         {(['all', 'unread', 'read'] as const).map((filter) => (
                             <button
                                 key={filter}
                                 onClick={() => setReadFilter(filter)}
                                 className={cn(
-                                    "px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors duration-150 flex items-center gap-2",
+                                    "px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-all duration-150 flex items-center gap-1.5 cursor-pointer",
                                     readFilter === filter 
-                                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" 
-                                        : "text-slate-500 hover:text-slate-700"
+                                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs border border-slate-200/80 dark:border-slate-600" 
+                                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                                 )}
                             >
                                 {filter}

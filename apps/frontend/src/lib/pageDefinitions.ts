@@ -39,6 +39,7 @@ export const AGENT_PAGES: PageDefinition[] = [
     { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', adminOnly: true },
     { key: 'audit_logs', name: 'Audit Logs', icon: 'Shield', route: '/audit-logs', adminOnly: true },
     { key: 'system_health', name: 'System Health', icon: 'Activity', route: '/system-health', adminOnly: true },
+    { key: 'data_wipe', name: 'Hapus Data', icon: 'Trash2', route: '/data-wipe', adminOnly: true },
     { key: 'settings', name: 'Settings', icon: 'Settings', route: '/settings', adminOnly: true },
 ];
 

@@ -29,6 +29,7 @@ interface StatusConfig {
 
 interface PriorityConfig {
     label: string;
+    shortLabel?: string;
     color: string;
     dot: string;
     barColor: string;
@@ -41,15 +42,15 @@ interface PriorityConfig {
 export const STATUS_CONFIG: Record<string, StatusConfig> = {
     TODO: {
         label: 'Open',
-        color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+        color: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
         icon: Inbox,
-        bgColor: 'bg-slate-100 dark:bg-slate-700',
-        textColor: 'text-slate-600 dark:text-slate-300',
-        columnColor: 'bg-slate-500',
+        bgColor: 'bg-slate-100 dark:bg-slate-800',
+        textColor: 'text-slate-700 dark:text-slate-300',
+        columnColor: 'bg-slate-400',
     },
     IN_PROGRESS: {
         label: 'In Progress',
-        color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+        color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
         icon: CircleDot,
         bgColor: 'bg-blue-100 dark:bg-blue-900/30',
         textColor: 'text-blue-600 dark:text-blue-400',
@@ -57,15 +58,15 @@ export const STATUS_CONFIG: Record<string, StatusConfig> = {
     },
     WAITING_VENDOR: {
         label: 'Waiting Vendor',
-        color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
+        color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
         icon: Hourglass,
-        bgColor: 'bg-orange-100 dark:bg-orange-900/30',
-        textColor: 'text-orange-600 dark:text-orange-400',
-        columnColor: 'bg-orange-500',
+        bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+        textColor: 'text-amber-600 dark:text-amber-400',
+        columnColor: 'bg-amber-500',
     },
     RESOLVED: {
         label: 'Resolved',
-        color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+        color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
         icon: CheckCircle2,
         bgColor: 'bg-green-100 dark:bg-green-900/30',
         textColor: 'text-green-600 dark:text-green-400',
@@ -83,7 +84,8 @@ export const STATUS_CONFIG: Record<string, StatusConfig> = {
 
 export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
     LOW: {
-        label: 'Low',
+        label: 'Low (Minor/Cosmetic)',
+        shortLabel: 'Low',
         color: 'text-slate-500 bg-slate-50 dark:bg-slate-800',
         dot: 'bg-slate-400',
         barColor: 'bg-slate-400',
@@ -91,7 +93,8 @@ export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
         icon: null,
     },
     MEDIUM: {
-        label: 'Medium',
+        label: 'Normal (Moderate)',
+        shortLabel: 'Normal',
         color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20',
         dot: 'bg-yellow-500',
         barColor: 'bg-yellow-500',
@@ -99,7 +102,8 @@ export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
         icon: null,
     },
     HIGH: {
-        label: 'High',
+        label: 'Urgent (Major Impact)',
+        shortLabel: 'Urgent',
         color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20',
         dot: 'bg-orange-500',
         barColor: 'bg-orange-500',
@@ -108,7 +112,8 @@ export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
         iconClass: 'text-orange-500',
     },
     CRITICAL: {
-        label: 'Critical',
+        label: 'Blocker (Critical)',
+        shortLabel: 'Blocker',
         color: 'text-red-600 bg-red-50 dark:bg-red-900/20',
         dot: 'bg-red-500 animate-pulse',
         barColor: 'bg-red-500',
@@ -117,7 +122,8 @@ export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
         iconClass: 'text-red-500 animate-pulse',
     },
     HARDWARE_INSTALLATION: {
-        label: 'Hardware',
+        label: 'Hardware Installation',
+        shortLabel: 'Hardware',
         color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
         dot: 'bg-amber-500',
         barColor: 'bg-amber-500',
@@ -128,6 +134,7 @@ export const PRIORITY_CONFIG: Record<string, PriorityConfig> = {
     },
     ORACLE_REQUEST: {
         label: 'Oracle/K2',
+        shortLabel: 'Oracle/K2',
         color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
         dot: 'bg-blue-500',
         barColor: 'bg-blue-500',

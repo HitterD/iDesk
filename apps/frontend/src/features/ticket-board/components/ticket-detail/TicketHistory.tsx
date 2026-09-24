@@ -322,8 +322,8 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
             case 'STATUS':
                 return {
                     icon: Activity,
-                    bg: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-500/20',
-                    dot: 'bg-blue-500',
+                    bg: 'bg-primary/10 text-primary border-primary/20',
+                    dot: 'bg-primary',
                     label: 'Status',
                 };
             case 'ASSIGNMENT':
@@ -589,14 +589,14 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
 
                                             {/* SLA Target Callout Box */}
                                             {activity.slaTarget && (
-                                                <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs space-y-1">
-                                                    <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
+                                                <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-xs space-y-1">
+                                                    <div className="flex items-center gap-1.5 text-primary font-bold">
                                                         <Clock className="w-3.5 h-3.5" />
                                                         <span>Target Resolusi SLA:</span>
                                                         <span className="font-mono">{formatDateTimeID(activity.slaTarget)}</span>
                                                     </div>
                                                     {activity.slaNote && (
-                                                        <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 pl-5">
+                                                        <p className="text-[11px] text-primary/80 pl-5">
                                                             {activity.slaNote}
                                                         </p>
                                                     )}

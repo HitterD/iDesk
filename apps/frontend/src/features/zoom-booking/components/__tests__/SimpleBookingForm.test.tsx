@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import { SimpleBookingForm, buildRecurrencePattern, calculateDuration, formatDurationLabel, computeEndTimeOptions } from '../SimpleBookingForm';
@@ -101,6 +101,22 @@ describe('SimpleBookingForm', () => {
         fireEvent.click(screen.getByTestId('zoom-time-select-option-10:00'));
 
         expect(screen.getByText('Jam ini tersedia')).toBeInTheDocument();
+    });
+
+    it('shows error warning instead of falsely claiming unavailable when availability query fails', () => {
+        vi.mocked(hooks.useCheckAvailability).mockReturnValue({
+            data: undefined,
+            isLoading: false,
+            isError: true,
+        } as any);
+
+        render(<SimpleBookingForm />);
+        fireEvent.click(screen.getByRole('button', { name: 'Tanggal' }));
+        fireEvent.click(screen.getByTestId('zoom-time-select'));
+        fireEvent.click(screen.getByTestId('zoom-time-select-option-10:00'));
+
+        expect(screen.getByText('Gagal mengecek ketersediaan jam')).toBeInTheDocument();
+        expect(screen.queryByText('Jam ini tidak tersedia')).not.toBeInTheDocument();
     });
 
     it('shows admin 1607 alert and allows emergency double booking when all 10 accounts are full', async () => {
@@ -306,6 +322,86 @@ describe('SimpleBookingForm', () => {
         await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
         const dto = mutateAsync.mock.calls[0][0];
         expect(dto.participantEmails).toEqual(['bagas@example.com', 'client@external.com']);
+    });
+
+    describe('Ongoing slot and end time computation', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+            // Set clock to today at 10:16 AM
+            vi.setSystemTime(new Date('2026-09-11T10:16:00'));
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it('computeEndTimeOptions allows future end times (10:30, 11:00) when starting from ongoing slot (10:00 at 10:16)', () => {
+            const slots = [
+                { time: '10:00', endTime: '10:30', available: true, availableAccountsCount: 5, totalAccountsCount: 10 },
+                { time: '10:30', endTime: '11:00', available: true, availableAccountsCount: 5, totalAccountsCount: 10 },
+                { time: '11:00', endTime: '11:30', available: true, availableAccountsCount: 5, totalAccountsCount: 10 },
+            ];
+
+            const options = computeEndTimeOptions(
+                '10:00',
+                '2026-09-11',
+                { slotStartTime: '08:00', slotEndTime: '18:00', slotIntervalMinutes: 30 } as any,
+                [30, 60, 90, 120],
+                slots as any
+            );
+
+            // 10:30, 11:00, 11:30, 12:00 must all be available (> 10:16)
+            expect(options.find(o => o.time === '10:30')?.isUnavailable).toBe(false);
+            expect(options.find(o => o.time === '11:00')?.isUnavailable).toBe(false);
+            expect(options.find(o => o.time === '11:30')?.isUnavailable).toBe(false);
+            expect(options.find(o => o.time === '12:00')?.isUnavailable).toBe(false);
+        });
+
+        it('computeEndTimeOptions disables past end times but keeps future end times available', () => {
+            // Suppose now is 10:35, and startTime is 10:00
+            vi.setSystemTime(new Date('2026-09-11T10:35:00'));
+
+            const slots = [
+                { time: '10:00', endTime: '10:30', available: true, availableAccountsCount: 5, totalAccountsCount: 10 },
+                { time: '10:30', endTime: '11:00', available: true, availableAccountsCount: 5, totalAccountsCount: 10 },
+                { time: '11:00', endTime: '11:30', available: true, availableAccountsCount: 5, totalAccountsCount: 10 },
+            ];
+
+            const options = computeEndTimeOptions(
+                '10:00',
+                '2026-09-11',
+                { slotStartTime: '08:00', slotEndTime: '18:00', slotIntervalMinutes: 30 } as any,
+                [30, 60, 90],
+                slots as any
+            );
+
+            // 10:30 (30 min) is in the past (10:30 <= 10:35) -> unavailable
+            expect(options.find(o => o.time === '10:30')?.isUnavailable).toBe(true);
+            expect(options.find(o => o.time === '10:30')?.reason).toBe('Waktu sudah terlewat');
+
+            // 11:00 (60 min) and 11:30 (90 min) are in the future -> available!
+            expect(options.find(o => o.time === '11:00')?.isUnavailable).toBe(false);
+            expect(options.find(o => o.time === '11:30')?.isUnavailable).toBe(false);
+        });
+
+        it('computeEndTimeOptions marks all end times as unavailable if startTime completely ended in the past', () => {
+            // At 10:16, startTime is 08:00 (which ended at 08:30)
+            const slots = [
+                { time: '08:00', endTime: '08:30', available: false, availableAccountsCount: 0, totalAccountsCount: 10, reason: 'Waktu sudah lewat' },
+                { time: '08:30', endTime: '09:00', available: false, availableAccountsCount: 0, totalAccountsCount: 10, reason: 'Waktu sudah lewat' },
+            ];
+
+            const options = computeEndTimeOptions(
+                '08:00',
+                '2026-09-11',
+                { slotStartTime: '08:00', slotEndTime: '18:00', slotIntervalMinutes: 30 } as any,
+                [30, 60, 90],
+                slots as any
+            );
+
+            expect(options.every(o => o.isUnavailable)).toBe(true);
+            expect(options[0].reason).toBe('Waktu sudah terlewat');
+        });
     });
 });
 

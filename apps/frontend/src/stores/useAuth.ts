@@ -16,6 +16,7 @@ interface User {
     departmentId?: string;
     siteId?: string;
     mustChangePassword?: boolean;
+    guidebookAcknowledgedAt?: string | null;
 }
 
 const parseExpiresAtMs = (value: unknown): number | null => {
@@ -100,7 +101,11 @@ try {
  * Call this instead of useAuth.logout() for full logout flow
  */
 export async function performLogout(): Promise<void> {
-    const { logout } = useAuth.getState();
+    const { user, logout } = useAuth.getState();
+    const logoutPayload = {
+        identifier: user?.email || '',
+        employeeId: user?.employeeId || '',
+    };
 
     // Cancel in-flight background queries before cookie removal
     try {
@@ -117,5 +122,51 @@ export async function performLogout(): Promise<void> {
 
     // Clear local state and query cache
     logout();
+
+    // Auto-logout SJA Desktop Notifier on local machine if active (port 18399)
+    // Kirim identitas akun yang sedang logout agar SJA Desktop Notifier tidak salah log out akun orang lain
+    try {
+        fetch('http://127.0.0.1:18399/session/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(logoutPayload),
+        }).catch(() => {});
+    } catch {}
 }
+
+// Cross-tab synchronization: keep all tabs in sync when user logs in/out in another tab
+if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'auth-storage') {
+            if (!event.newValue) {
+                useAuth.getState().logout();
+                return;
+            }
+            try {
+                const parsed = JSON.parse(event.newValue);
+                const storedState = parsed?.state;
+                if (!storedState?.isAuthenticated || !storedState?.user) {
+                    useAuth.getState().logout();
+                } else {
+                    const currentUserId = useAuth.getState().user?.id;
+                    if (currentUserId !== storedState.user.id) {
+                        useAuth.setState({
+                            user: storedState.user,
+                            isAuthenticated: true,
+                            expiresAt: storedState.expiresAt ?? null,
+                            justLoggedIn: false,
+                        });
+                        try {
+                            queryClient.cancelQueries();
+                            queryClient.clear();
+                        } catch {}
+                    }
+                }
+            } catch {
+                // Ignore json parse error
+            }
+        }
+    });
+}
+
 

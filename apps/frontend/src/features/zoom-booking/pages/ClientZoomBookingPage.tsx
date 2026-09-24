@@ -65,18 +65,32 @@ export function ClientZoomBookingPage() {
 
     return (
         <div className="w-full space-y-4 lg:space-y-6 animate-fade-in-up">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
-                <header className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
-                        Zoom
-                    </p>
-                    <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                        Booking Zoom
-                    </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Buat jadwal meeting Zoom baru dan kelola seluruh daftar meeting Anda.
-                    </p>
-                </header>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-1">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="relative shrink-0">
+                        <img
+                            src="/characters/mascot-calendar.png"
+                            alt="Zoom Calendar Mascot"
+                            className="w-14 h-14 sm:w-16 sm:h-16 object-contain filter drop-shadow-sm transition-transform hover:scale-105 duration-200"
+                            onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                            }}
+                        />
+                    </div>
+                    <header className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                                Zoom Schedule
+                            </span>
+                        </div>
+                        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-50">
+                            Booking Zoom
+                        </h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Buat jadwal meeting Zoom baru dan kelola seluruh daftar meeting Anda.
+                        </p>
+                    </header>
+                </div>
 
                 {/* Desktop Toggle: Focus Matrix / Expand View */}
                 <div className="hidden lg:flex items-center gap-2">
@@ -161,13 +175,23 @@ export function ClientZoomBookingPage() {
                     )}
                 >
                     <div className="mb-5 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                                Detail meeting
-                            </p>
-                            <h2 id="booking-form-heading" className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
-                                Buat meeting
-                            </h2>
+                        <div className="flex items-center gap-2.5">
+                            <img
+                                src="/characters/mascot-calendar.png"
+                                alt=""
+                                className="w-8 h-8 object-contain shrink-0 filter drop-shadow-xs"
+                                onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                }}
+                            />
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                                    Detail meeting
+                                </p>
+                                <h2 id="booking-form-heading" className="mt-0.5 text-base font-semibold text-slate-900 dark:text-slate-100">
+                                    Buat meeting
+                                </h2>
+                            </div>
                         </div>
                         <Button
                             type="button"

@@ -266,6 +266,61 @@ export function useSendBookingReminder() {
     });
 }
 
+/**
+ * Sync recording for a booking directly from Zoom API (on-demand fallback)
+ */
+export function useSyncRecording() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (bookingId: string) => {
+            const response = await api.post(`/zoom-booking/${bookingId}/sync-recording`);
+            return response.data as ZoomBooking;
+        },
+        onSuccess: (data, bookingId) => {
+            queryClient.setQueryData(['zoom-booking', bookingId], data);
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
+            if (data.meeting?.recordingUrl) {
+                toast.success('Rekaman Zoom berhasil disinkronkan!');
+            } else {
+                toast.info('Belum ada rekaman yang tersedia untuk meeting ini di Zoom.');
+            }
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || 'Gagal menyinkronkan rekaman Zoom.');
+        },
+    });
+}
+
+/**
+ * Batch sync recordings from Zoom API - Admin / Staff
+ */
+export function useSyncAllRecordings() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (days: number = 14) => {
+            const response = await api.post(`/admin/zoom/sync-recordings?days=${days}`);
+            return response.data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['zoom-calendar-merged'] });
+            queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
+            toast.success(`Sinkronisasi rekaman selesai: ${data.recordingCount || 0} rekaman diperbarui.`);
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || 'Gagal menyinkronkan rekaman Zoom.');
+        },
+    });
+}
+
 // ==================== ADMIN ====================
 
 /**

@@ -93,4 +93,55 @@ Diselesaikan oleh: BAGAS`;
         expect(screen.getByText(/Bukti Foto \/ Lampiran Penyelesaian \(2\)/i)).toBeInTheDocument();
         expect(screen.getByText('Lihat PDF')).toBeInTheDocument();
     });
+
+    it('renders clean SLA Extension Apple Sheet Card without emojis', () => {
+        const content = `Target SLA Diperpanjang
+
+Deadline Baru: Senin, 21 Sep 2026 15.44 WIB
+Kategori Kendala: Menunggu Vendor / Pihak Ketiga
+Penjelasan: Menunggu pihak eksternal menyelesaikan perbaikan server
+Diperpanjang oleh: System Administrator`;
+
+        render(
+            <SystemMessageEvent
+                content={content}
+                createdAt="2026-09-14T08:00:00.000Z"
+            />
+        );
+
+        expect(screen.getByText('Target SLA Diperpanjang')).toBeInTheDocument();
+        expect(screen.getByText('Target Baru')).toBeInTheDocument();
+        expect(screen.getByText('Senin, 21 Sep 2026 15.44 WIB')).toBeInTheDocument();
+        expect(screen.getByText('Kategori Kendala')).toBeInTheDocument();
+        expect(screen.getByText('Menunggu Vendor / Pihak Ketiga')).toBeInTheDocument();
+        expect(screen.getByText('Rincian Kendala')).toBeInTheDocument();
+        expect(screen.getByText(/"Menunggu pihak eksternal menyelesaikan perbaikan server"/i)).toBeInTheDocument();
+        expect(screen.getByText('System Administrator')).toBeInTheDocument();
+    });
+
+    it('sanitizes legacy SLA Extension messages containing emojis and markdown asterisks', () => {
+        const legacyContent = `⏱️ **Target SLA Diperpanjang**
+
+📅 **Deadline Baru:** Senin, 21 Sep 2026 15.44 WIB
+🏷️ **Kategori Kendala:** Menunggu Vendor / Pihak Ketiga
+📝 **Penjelasan:** menunggu pihak external menyelesaikan kendala servernya`;
+
+        render(
+            <SystemMessageEvent
+                content={legacyContent}
+                createdAt="2026-09-14T08:00:00.000Z"
+            />
+        );
+
+        expect(screen.getByText('Target SLA Diperpanjang')).toBeInTheDocument();
+        expect(screen.getByText('Senin, 21 Sep 2026 15.44 WIB')).toBeInTheDocument();
+        expect(screen.getByText('Menunggu Vendor / Pihak Ketiga')).toBeInTheDocument();
+        expect(screen.getByText(/"menunggu pihak external menyelesaikan kendala servernya"/i)).toBeInTheDocument();
+        // Ensure emojis like ⏱️, 📅, 🏷️, 📝 are not rendered in the card
+        expect(screen.queryByText(/⏱️/)).toBeNull();
+        expect(screen.queryByText(/📅/)).toBeNull();
+        expect(screen.queryByText(/🏷️/)).toBeNull();
+        expect(screen.queryByText(/📝/)).toBeNull();
+    });
 });
+

@@ -74,4 +74,28 @@ describe('BentoCreateTicketPage Permissions Filtering', () => {
         expect(screen.getByRole('heading', { name: 'Buat Tiket Baru' })).toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: 'Service Ticket' })).toBeInTheDocument();
     });
+
+    it('renders both Ticketing and Requests sections with character mascots', () => {
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={['/client/create']}>
+                    <BentoCreateTicketPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        // Section headings
+        expect(screen.getByRole('heading', { name: /tiket bantuan & kendala teknis/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /pengajuan layanan & akses/i })).toBeInTheDocument();
+
+        // Character mascots for visible cards
+        expect(screen.getByAltText('Maskot IT Support Agent')).toBeInTheDocument();
+        expect(screen.getByAltText('Maskot Oracle & K2')).toBeInTheDocument();
+        expect(screen.getByAltText('Maskot Web Developer')).toBeInTheDocument();
+        expect(screen.getByAltText('Maskot Mobile Developer')).toBeInTheDocument();
+        expect(screen.getByAltText('Maskot Izin Akses')).toBeInTheDocument();
+    });
 });
+

@@ -175,9 +175,9 @@ describe('BentoSidebar', () => {
         // In collapsed mode, full labels inside main aside should be hidden
         expect(screen.getByTitle(/Expand sidebar/i)).toBeInTheDocument();
 
-        // Ensure logo image uses the new logo asset (/idesk-logo.png)
-        const logoImg = screen.getByAltText('iDesk Logo');
-        expect(logoImg).toHaveAttribute('src', '/idesk-logo.png');
+        // Ensure logo image uses the dedicated icon asset (/idesk-icon.png) in collapsed mode
+        const logoImg = screen.getByAltText('iDesk Icon');
+        expect(logoImg).toHaveAttribute('src', '/idesk-icon.png');
     });
 
     it('keeps sidebar expanded by default on /tickets/web-developer', async () => {

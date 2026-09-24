@@ -32,7 +32,10 @@ describe('WorkloadService — per-module auto-assign policy', () => {
             find: jest.fn().mockResolvedValue([]),
             count: jest.fn().mockResolvedValue(0),
         };
-        userRepo = { find: jest.fn().mockResolvedValue([]) };
+        userRepo = {
+            find: jest.fn().mockResolvedValue([]),
+            findOne: jest.fn().mockResolvedValue(null),
+        };
         workloadRepo = {
             find: jest.fn().mockResolvedValue([]),
             findOne: jest.fn().mockResolvedValue({ id: 'w1', totalPoints: 2 }),
@@ -117,5 +120,61 @@ describe('WorkloadService — per-module auto-assign policy', () => {
         expect(userRepo.find).toHaveBeenCalledWith({
             where: { role: In([UserRole.AGENT_OPERATIONAL_SUPPORT]), siteId: 'site-1', isActive: true },
         });
+    });
+
+    it('strictly excludes ADMIN and AGENT_ADMIN even if they are in curated userIds', async () => {
+        assignmentPolicy.resolvePolicy.mockResolvedValue(
+            policy({ autoAssignEnabled: true, userIds: ['admin-1', 'agent-admin-1', 'ops-1'], module: { name: 'IT Support Tickets' } }),
+        );
+        userRepo.find.mockResolvedValue([
+            { id: 'admin-1', fullName: 'Sys Admin', role: UserRole.ADMIN, siteId: 'site-1', isActive: true },
+            { id: 'agent-admin-1', fullName: 'Alfith', role: UserRole.AGENT_ADMIN, siteId: 'site-1', isActive: true },
+            { id: 'ops-1', fullName: 'Beny', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', isActive: true },
+        ]);
+
+        const result = await service.autoAssignTicket('t1');
+
+        expect(result.assignedToId).toBe('ops-1');
+        expect(result.assignedTo?.fullName).toBe('Beny');
+    });
+
+    it('filters out ADMIN and AGENT_ADMIN from module roles so they are never queried', async () => {
+        assignmentPolicy.resolvePolicy.mockResolvedValue(
+            policy({
+                autoAssignEnabled: true,
+                userIds: [],
+                roles: [UserRole.ADMIN, UserRole.AGENT_ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT],
+                module: { name: 'IT Support Tickets' },
+            }),
+        );
+        userRepo.find.mockResolvedValue([
+            { id: 'ops-1', fullName: 'Beny', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', isActive: true },
+        ]);
+
+        const result = await service.autoAssignTicket('t1');
+
+        expect(result.assignedToId).toBe('ops-1');
+        // Role query must NOT contain ADMIN or AGENT_ADMIN
+        expect(userRepo.find).toHaveBeenCalledWith({
+            where: { role: In([UserRole.AGENT_OPERATIONAL_SUPPORT]), siteId: 'site-1', isActive: true },
+        });
+    });
+
+    it('does not increment workload or write to DB when target agent is ADMIN or AGENT_ADMIN', async () => {
+        userRepo.findOne = jest.fn().mockResolvedValue({
+            id: 'admin-1',
+            role: UserRole.ADMIN,
+            fullName: 'Sys Admin',
+        });
+
+        const workload = await service.incrementAgentWorkload(
+            { role: UserRole.ADMIN, siteId: 'site-1' },
+            'admin-1',
+            'site-1',
+            5,
+        );
+
+        expect(workload.totalPoints).toBe(0);
+        expect(workloadRepo.increment).not.toHaveBeenCalled();
     });
 });

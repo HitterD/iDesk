@@ -20,7 +20,7 @@ export interface HardwareCatalog {
     id: string; code: string; name: string;
     category: ItemCategory;
     defaultSpecs?: Record<string, unknown>;
-    requiredFields?: Record<string, { type: 'string'|'number'|'select'; label: string; options?: string[]; required?: boolean }>;
+    requiredFields?: Array<{ key: string; label: string; type: string; options?: string[]; required?: boolean }> | any[];
     active: boolean; displayOrder: number;
 }
 

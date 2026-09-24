@@ -154,11 +154,11 @@ export function CatalogAdminPage() {
           <div className="bg-card border border-border rounded-2xl p-4 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Kategori Terisi</span>
-              <div className="p-1.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+              <div className="p-1.5 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
                 <Layers className="size-3.5" />
               </div>
             </div>
-            <div className="mt-2 text-2xl font-black font-mono tracking-tight text-purple-600 dark:text-purple-400">
+            <div className="mt-2 text-2xl font-black font-mono tracking-tight text-sky-600 dark:text-sky-400">
               {stats.categoriesCount}
             </div>
           </div>
@@ -434,14 +434,24 @@ export function CatalogAdminPage() {
             try {
               if (editing.item) {
                 await update.mutateAsync({ id: editing.item.id, payload });
-                toast.success('Katalog diperbarui.');
+                toast.success('Katalog berhasil diperbarui.');
               } else {
                 await create.mutateAsync(payload as HardwareCatalog);
-                toast.success('Katalog dibuat.');
+                toast.success('Item katalog berhasil ditambahkan.');
               }
               setEditing({ open: false });
-            } catch (err) {
-              toast.error('Gagal simpan: ' + (err as Error).message);
+            } catch (err: any) {
+              const resData = err?.response?.data;
+              let detailedMsg = '';
+              if (resData?.errors && typeof resData.errors === 'object') {
+                  const errorValues = Object.values(resData.errors).flat();
+                  if (errorValues.length > 0) {
+                      detailedMsg = errorValues.join(', ');
+                  }
+              }
+              const resMsg = detailedMsg || resData?.message || err?.message;
+              const formattedMsg = Array.isArray(resMsg) ? resMsg.join(', ') : resMsg;
+              toast.error('Gagal simpan: ' + (formattedMsg || 'Terjadi kesalahan sistem'));
             }
           }}
         />

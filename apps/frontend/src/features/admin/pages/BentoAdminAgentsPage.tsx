@@ -13,6 +13,7 @@ import {
 } from '../components/agent-management';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { SyncSjatrDialog, type HrisSyncSummary } from '../components/SyncSjatrDialog';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,25 @@ export const BentoAdminAgentsPage: React.FC = () => {
     const [isBulkSiteChangeOpen, setIsBulkSiteChangeOpen] = useState(false);
     const [isBulkPresetOpen, setIsBulkPresetOpen] = useState(false);
     const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
+    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+    const [syncSummary, setSyncSummary] = useState<HrisSyncSummary | null>(null);
+
+    const syncSjatrMutation = useMutation({
+        mutationFn: async () => {
+            const response = await api.post<HrisSyncSummary>('/hris-sync/run');
+            return response.data;
+        },
+        onSuccess: (data) => {
+            setSyncSummary(data);
+            queryClient.invalidateQueries({ queryKey: ['admin-agents'] });
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            toast.success(`Sinkronisasi selesai: ${data.created} user baru ditambahkan`);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Gagal menyinkronkan data dari SJATR');
+        },
+    });
+
     const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(50); // P1-2: Configurable page size
@@ -606,6 +626,11 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 onBulkDelete={() => setIsBulkDeleteOpen(true)}
                 onExport={() => setIsExportPreviewOpen(true)}
                 onImport={() => setIsImportModalOpen(true)}
+                onSyncSjatr={() => {
+                    setSyncSummary(null);
+                    setIsSyncModalOpen(true);
+                }}
+                isSyncing={syncSjatrMutation.isPending}
                 onManagePresets={() => setIsPresetManageOpen(true)}
                 onAddUser={() => setIsAddUserModalOpen(true)}
             />
@@ -779,6 +804,15 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 totalUsers={users.length}
                 showOnboarding={showOnboarding}
                 onOnboardingComplete={() => setShowOnboarding(false)}
+            />
+
+            {/* SJATR HRIS Sync Dialog */}
+            <SyncSjatrDialog
+                isOpen={isSyncModalOpen}
+                onClose={() => setIsSyncModalOpen(false)}
+                onConfirmSync={() => syncSjatrMutation.mutate()}
+                isLoading={syncSjatrMutation.isPending}
+                summary={syncSummary}
             />
 
             {/* Keyboard Shortcuts Help */}

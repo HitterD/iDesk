@@ -126,7 +126,7 @@ export class EmailNotifierListener {
     @OnEvent(HR_EVT.INSTALL_COMPLETED)
     async onCompleted(e: HrInstallCompleted) {
         const r = await this.q.findById(e.requestId);
-        if (!r) return;
+        if (!r || (r.status as string) !== 'COMPLETED') return;
         const context = {
             requestNumber: r.requestNumber,
             title: 'Instalasi Selesai',

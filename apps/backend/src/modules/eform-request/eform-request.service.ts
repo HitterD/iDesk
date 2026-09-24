@@ -2,9 +2,9 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { EFormRequest, EFormStatus, EFormApproval, EFormSignature, EFormCredential } from './entities';
+import { EFormRequest, EFormStatus, EFormType, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormCredentialService } from './eform-credential.service';
-import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto } from './dto';
+import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto, FulfillRequestDto } from './dto';
 import { EFormPdfService } from './eform-pdf.service';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
@@ -12,8 +12,15 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
+import {
+  ICT_ROLES,
+  CREDENTIAL_READER_ROLES,
+  DIRECT_TO_ICT_FORM_TYPES,
+} from './eform-roles.constants';
 
-const ICT_ROLES = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN];
+/** Synology (and any future direct type) skips manager approval entirely. */
+const goesDirectToIct = (formType: EFormType): boolean =>
+  (DIRECT_TO_ICT_FORM_TYPES as readonly string[]).includes(formType);
 
 @Injectable()
 export class EFormRequestService {
@@ -59,9 +66,16 @@ export class EFormRequestService {
     const requester = await this.userRepo.findOne({ where: { id: userId } as any });
     const requesterSiteId = (requester as any)?.siteId ?? null;
     const requesterName = dto.requesterName?.trim() || userFullName;
+
+    // Synology goes straight to IT: no manager gate, so no approver to assign.
+    const directToIct = goesDirectToIct(dto.formType);
+    if (!directToIct && !dto.managerId) {
+      throw new BadRequestException('Atasan penyetuju wajib dipilih untuk jenis akses ini');
+    }
+
     const request = this.eformRequestRepository.create({
       formType: dto.formType,
-      status: EFormStatus.PENDING_MANAGER,
+      status: directToIct ? EFormStatus.PENDING_ICT : EFormStatus.PENDING_MANAGER,
       requesterId: userId,
       requesterName,
       requesterDepartment: dto.requesterDepartment || '',
@@ -69,7 +83,7 @@ export class EFormRequestService {
       requestedWebsites: dto.requestedWebsites,
       networkPurpose: dto.networkPurpose,
       termsAccepted: dto.termsAccepted,
-      currentApproverId: dto.managerId,
+      currentApproverId: directToIct ? null : dto.managerId,
       siteId: requesterSiteId,
       submittedAt: new Date(),
     });
@@ -84,6 +98,12 @@ export class EFormRequestService {
       signerRole: 'REQUESTER',
     });
 
+    if (directToIct) {
+      // Nobody is notified by the manager path, so tell IT directly.
+      this.eventEmitter.emit('eform.direct-to-ict', { request: savedRequest });
+      return savedRequest;
+    }
+
     await this.eformApprovalRepository.save({
       eformRequestId: savedRequest.id,
       approverId: dto.managerId,
@@ -93,6 +113,57 @@ export class EFormRequestService {
     });
 
     this.eventEmitter.emit('eform.submitted', { request: savedRequest, managerId: dto.managerId });
+
+    return savedRequest;
+  }
+
+  /**
+   * Mark a request fulfilled without issuing credentials.
+   *
+   * For access granted on an account the requester already owns (extra
+   * Synology shared folders), there is no username or password to hand over —
+   * `submitCredentials` would have no legitimate values to store, so this is
+   * the only route from PENDING_ICT to CONFIRMED for those requests.
+   */
+  async fulfillRequest(
+    actor: SiteActor,
+    requestId: string,
+    userId: string,
+    userRole: UserRole,
+    dto: FulfillRequestDto,
+  ) {
+    const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
+
+    assertSiteAccess(actor, request.siteId);
+
+    if (!ICT_ROLES.includes(userRole)) {
+      throw new ForbiddenException('Not authorized to fulfill this request');
+    }
+    if (request.status !== EFormStatus.PENDING_ICT) {
+      throw new BadRequestException('Invalid state');
+    }
+
+    request.formData = {
+      ...(request.formData ?? {}),
+      fulfillmentNotes: dto.notes,
+      ...(dto.accountName ? { fulfilledAccountName: dto.accountName } : {}),
+      fulfilledWithoutCredentials: true,
+    };
+    request.status = EFormStatus.CONFIRMED;
+    request.resolvedAt = new Date();
+    const savedRequest = await this.eformRequestRepository.save(request);
+
+    this.eventEmitter.emit('eform.fulfilled', { request: savedRequest });
+
+    this.auditService.logAsync({
+      userId,
+      action: AuditAction.EFORM_FULFILL,
+      entityType: 'EFormRequest',
+      entityId: requestId,
+      description: 'Fulfilled E-Form Request without credentials',
+      newValue: { notes: dto.notes },
+    });
 
     return savedRequest;
   }
@@ -175,7 +246,7 @@ export class EFormRequestService {
     // Enforce site isolation before any credential access
     assertSiteAccess(actor, request.siteId);
 
-    const isICT = ICT_ROLES.includes(userRole);
+    const isICT = CREDENTIAL_READER_ROLES.includes(userRole);
     const isRequester = request.requesterId === userId;
     if (!isICT && !isRequester) throw new ForbiddenException('Access denied');
 
@@ -222,23 +293,65 @@ export class EFormRequestService {
     });
   }
 
-  async getDetails(actor: SiteActor, id: string) {
+  async getDetails(actor: SiteActor, id: string, userId?: string) {
     const request = await this.eformRequestRepository.findOne({
       where: { id },
       relations: ['signatures', 'approvals'],
     });
     if (!request) throw new NotFoundException('Request not found');
-    assertSiteAccess(actor, request.siteId);
+
+    const isPrivileged = [
+      UserRole.ADMIN,
+      UserRole.MANAGER,
+      UserRole.AGENT_ADMIN,
+      UserRole.AGENT,
+      UserRole.AGENT_OPERATIONAL_SUPPORT,
+      UserRole.AGENT_ORACLE,
+      UserRole.AGENT_WEB_DEV,
+      UserRole.AGENT_MOBILE_DEV,
+    ].includes(actor.role);
+
+    const isRequester = Boolean(userId && request.requesterId === userId);
+    const isApprover = Boolean(
+      userId && (
+        request.currentApproverId === userId ||
+        request.approvals?.some((a: any) => a.approverId === userId)
+      )
+    );
+
+    if (!isPrivileged && !isRequester && !isApprover) {
+      throw new ForbiddenException('Access denied to this request');
+    }
+
+    if (!isRequester && !isApprover) {
+      assertSiteAccess(actor, request.siteId);
+    }
+
     return request;
   }
 
-  async rejectRequest(requestId: string, userId: string, reason: string) {
+  async rejectRequest(
+    actor: SiteActor,
+    requestId: string,
+    userId: string,
+    userRole: UserRole,
+    reason: string,
+  ) {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
 
-    // Authorization: only the assigned approver or ICT roles can reject
+    // Site first: the old approver-only check happened to keep rejections
+    // within a site, and role-based rejection would otherwise drop that.
+    assertSiteAccess(actor, request.siteId);
+
+    // Authorization: the assigned approver, or IT while the request sits with them.
     const isApprover = request.currentApproverId === userId;
-    if (!isApprover) throw new ForbiddenException('Not authorized to reject this request');
+    const isICT = ICT_ROLES.includes(userRole);
+    if (!isApprover && !isICT) throw new ForbiddenException('Not authorized to reject this request');
+
+    if (request.status === EFormStatus.CONFIRMED || request.status === EFormStatus.REJECTED) {
+      throw new BadRequestException('Invalid state');
+    }
 
     request.status = EFormStatus.REJECTED;
     request.rejectionReason = reason;
@@ -258,41 +371,70 @@ export class EFormRequestService {
     return savedRequest;
   }
 
-  async generatePdf(actor: SiteActor, id: string) {
+  async generatePdf(actor: SiteActor, id: string, userId?: string) {
     const request = await this.eformRequestRepository.findOne({
       where: { id },
       relations: ['signatures', 'approvals', 'requester', 'currentApprover'],
     });
     if (!request) throw new NotFoundException('Request not found');
 
-    // Enforce site isolation BEFORE attempting to decrypt any credentials (P0)
-    assertSiteAccess(actor, request.siteId);
+    const isPrivileged = [
+      UserRole.ADMIN,
+      UserRole.MANAGER,
+      UserRole.AGENT_ADMIN,
+      UserRole.AGENT,
+      UserRole.AGENT_OPERATIONAL_SUPPORT,
+      UserRole.AGENT_ORACLE,
+      UserRole.AGENT_WEB_DEV,
+      UserRole.AGENT_MOBILE_DEV,
+    ].includes(actor.role);
 
-    let credentialData: any = null;
-    const rawCred = await this.eformCredentialRepository.findOne({
-      where: { eformRequestId: id },
-      relations: ['provisionedBy'],
-    });
+    const isRequester = Boolean(userId && request.requesterId === userId);
+    const isApprover = Boolean(
+      userId && (
+        request.currentApproverId === userId ||
+        request.approvals?.some((a: any) => a.approverId === userId)
+      )
+    );
 
-    if (rawCred) {
-      try {
-        const username = this.credentialService.decrypt(rawCred.encryptedUsername, rawCred.iv, rawCred.authTag);
-        const password = this.credentialService.decrypt(rawCred.encryptedPassword, rawCred.passwordIv, rawCred.passwordAuthTag);
-        credentialData = {
-          username,
-          password,
-          vpnServer: rawCred.vpnServer,
-          notes: rawCred.notes,
-          provisionedAt: rawCred.provisionedAt,
-          accessCreatedAt: rawCred.accessCreatedAt,
-          accessExpiresAt: rawCred.accessExpiresAt,
-          provisionedByName: rawCred.provisionedBy?.fullName || rawCred.provisionedBy?.email || 'Admin ICT',
-        };
-      } catch {
-        // Continue if credential decryption fails
-      }
+    if (!isPrivileged && !isRequester && !isApprover) {
+      throw new ForbiddenException('Access denied to this request');
     }
 
+    // Enforce site isolation BEFORE attempting to decrypt any credentials (P0)
+    if (!isRequester && !isApprover) {
+      assertSiteAccess(actor, request.siteId);
+    }
+
+    let credentialData: any = null;
+    const isICT = [UserRole.ADMIN, UserRole.AGENT_ADMIN].includes(actor.role);
+
+    // Kredensial rahasia (username & password VPN) hanya diekspos ke ICT dan Pemohon
+    if (isICT || isRequester) {
+      const rawCred = await this.eformCredentialRepository.findOne({
+        where: { eformRequestId: id },
+        relations: ['provisionedBy'],
+      });
+
+      if (rawCred) {
+        try {
+          const username = this.credentialService.decrypt(rawCred.encryptedUsername, rawCred.iv, rawCred.authTag);
+          const password = this.credentialService.decrypt(rawCred.encryptedPassword, rawCred.passwordIv, rawCred.passwordAuthTag);
+          credentialData = {
+            username,
+            password,
+            vpnServer: rawCred.vpnServer,
+            notes: rawCred.notes,
+            provisionedAt: rawCred.provisionedAt,
+            accessCreatedAt: rawCred.accessCreatedAt,
+            accessExpiresAt: rawCred.accessExpiresAt,
+            provisionedByName: rawCred.provisionedBy?.fullName || rawCred.provisionedBy?.email || 'Admin ICT',
+          };
+        } catch {
+          // Continue if credential decryption fails
+        }
+      }
+    }
 
     return this.pdfService.generatePdf(request, credentialData);
   }

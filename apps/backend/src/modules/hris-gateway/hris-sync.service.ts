@@ -118,31 +118,12 @@ export class HrisSyncService {
         if (!employee.nik_hris || employee.tgl_keluar) return 'skipped';
 
         const existing = await this.userRepo.findOne({ where: { employeeId: employee.nik_hris } });
-        if (!existing) {
-            await this.provisionEmployeeFromSiteMap(employee, siteByCode);
-            return 'created';
+        if (existing) {
+            return 'skipped';
         }
 
-        // NOTE: `email` is deliberately absent from this update. A user (or an
-        // admin on their behalf) may change the address via PATCH /users/me/email,
-        // and re-applying the HRIS address here would silently revert it on the
-        // next nightly run. Locked by hris-sync.service.email-preservation.spec.ts.
-        const siteId = this.resolveSiteId(employee.lokasi, siteByCode);
-        existing.fullName = employee.nama_karyawan || existing.fullName;
-        existing.jobTitle = employee.nama_jabatan ?? existing.jobTitle;
-        existing.siteId = siteId as unknown as string;
-        existing.departmentId = (await this.findOrCreateDepartment(employee.nama_departemen, siteId)) as unknown as string;
-        if (!existing.appliedPresetId) {
-            const presetId = await this.permissionsService.resolveDefaultPresetId(existing.role as UserRole);
-            if (!presetId) {
-                throw new Error(`No active default permission preset for role ${existing.role}`);
-            }
-            const { presetName } = await this.permissionsService.applyPresetToUser(existing.id, presetId);
-            existing.appliedPresetId = presetId;
-            existing.appliedPresetName = presetName;
-        }
-        await this.userRepo.save(existing);
-        return 'updated';
+        await this.provisionEmployeeFromSiteMap(employee, siteByCode);
+        return 'created';
     }
 
     private async provisionEmployeeFromSiteMap(employee: HrisEmployee, siteByCode: Map<string, Site>): Promise<User> {
@@ -266,23 +247,34 @@ export class HrisSyncService {
     }
 
     private async resolveUniqueEmail(employee: HrisEmployee): Promise<string> {
-        const fallback = `${employee.nik_hris}@hris.local`;
+        const baseNik = (employee.nik_hris || 'user').trim().replace(/\s+/g, '.').toLowerCase();
         const email = employee.email?.trim().toLowerCase();
-        if (!email) return fallback;
+        if (email) {
+            const existing = await this.userRepo.findOne({
+                where: { email, employeeId: Not(employee.nik_hris) },
+            });
+            if (!existing) return email;
 
-        const existing = await this.userRepo.findOne({
-            where: { email, employeeId: Not(employee.nik_hris) },
+            this.logger.warn(
+                `HRIS email ${maskIdentifier(email)} for NIK ${maskIdentifier(employee.nik_hris)} ` +
+                `is already used by another user; falling back to @hris.local`,
+            );
+        }
+
+        const fallback = `${baseNik}@hris.local`;
+        const existingFallback = await this.userRepo.findOne({
+            where: { email: fallback, employeeId: Not(employee.nik_hris) },
         });
-        if (!existing) return email;
+        if (!existingFallback) return fallback;
 
-        // Now reachable in normal operation: another user may have claimed this
-        // address through the self-service email change. Provisioning still
-        // succeeds on the @hris.local fallback, but without this line an admin
-        // has no way to tell why a new hire has no real email.
-        this.logger.warn(
-            `HRIS email ${maskIdentifier(email)} for NIK ${maskIdentifier(employee.nik_hris)} ` +
-            `is already used by another user; falling back to ${maskIdentifier(fallback)}`,
-        );
-        return fallback;
+        for (let i = 1; i <= 100; i++) {
+            const candidate = `${baseNik}.${i}@hris.local`;
+            const taken = await this.userRepo.findOne({
+                where: { email: candidate, employeeId: Not(employee.nik_hris) },
+            });
+            if (!taken) return candidate;
+        }
+
+        return `${baseNik}.${Date.now()}@hris.local`;
     }
 }

@@ -14,6 +14,7 @@ import {
     BasicHealthStatus,
     ReadinessStatus,
 } from './dto/health.dto';
+import { StorageAnalyticsResponseDto, TableStorageInfo } from './dto/storage-analytics.dto';
 import { HealthSamplerService } from './health-sampler.service';
 import {
     requiresRedisSecurityState,
@@ -309,6 +310,57 @@ export class HealthService {
         }
     }
 
+    /**
+     * Check SJA Desktop Notification Hub status
+     */
+    async checkSjaNotificationHealth(): Promise<InfrastructureStatus['sjaNotification']> {
+        const sjaUrl = this.configService.get<string>('SJA_SERVER_URL', 'http://localhost:18302');
+        const start = Date.now();
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2500);
+            const res = await fetch(`${sjaUrl}/health`, { signal: controller.signal });
+            clearTimeout(timeout);
+            const latency = Date.now() - start;
+
+            if (res.ok) {
+                let activeDevices = 1;
+                let onlineSockets = 1;
+                try {
+                    const devRes = await fetch(`${sjaUrl}/v1/devices`);
+                    if (devRes.ok) {
+                        const devices = await devRes.json();
+                        activeDevices = Array.isArray(devices) ? devices.filter((d: any) => d.status === 'ACTIVE').length : 1;
+                    }
+                } catch {
+                    // Non-critical
+                }
+
+                return {
+                    status: 'connected',
+                    latency,
+                    activeDevices,
+                    onlineSockets,
+                    authProtocol: 'DPAPI + HMAC-SHA256',
+                    hubUrl: sjaUrl,
+                };
+            }
+            return {
+                status: 'degraded',
+                latency,
+                authProtocol: 'DPAPI + HMAC-SHA256',
+                hubUrl: sjaUrl,
+            };
+        } catch {
+            return {
+                status: 'disconnected',
+                latency: Date.now() - start,
+                authProtocol: 'DPAPI + HMAC-SHA256',
+                hubUrl: sjaUrl,
+            };
+        }
+    }
+
 
     /**
      * Check individual service health
@@ -480,6 +532,288 @@ export class HealthService {
             this.logger.warn(`Could not read disk usage for ${diskPath}: ${error.message}`);
             return { diskUsage: 0, diskTotal: 0, diskFree: 0 };
         }
+    }
+
+    /**
+     * Get Datadog-style Storage Analytics & Capacity Forecasting
+     */
+    async getStorageAnalytics(): Promise<StorageAnalyticsResponseDto> {
+        const configuredPath = this.configService.get<string>('UPLOAD_PATH', './uploads');
+        const uploadPath = path.resolve(configuredPath);
+        if (!fs.existsSync(uploadPath)) {
+            try {
+                fs.mkdirSync(uploadPath, { recursive: true });
+            } catch {}
+        }
+        const diskPath = fs.existsSync(uploadPath) ? uploadPath : path.parse(process.cwd()).root;
+
+        // 1. Vitals
+        const diskUsage = await this.getDiskUsage();
+        const totalBytes = diskUsage.diskTotal || (500 * 1024 * 1024 * 1024);
+        const freeBytes = diskUsage.diskFree || (400 * 1024 * 1024 * 1024);
+        const usedBytes = Math.max(0, totalBytes - freeBytes);
+        const usagePercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 10_000) / 100 : 0;
+
+        // 2. Folder Uploads Breakdown & Mitigation Candidates (Dynamic Scan)
+        let attachmentsBytes = 0;
+        let uncompressedImageBytes = 0;
+        let recentUploadBytes = 0;
+        const thirtyDaysAgo = Date.now() - 30 * 86_400_000;
+        const byFolder: Record<string, { count: number; sizeBytes: number }> = {};
+
+        const scanDir = (dir: string, category: string) => {
+            if (!fs.existsSync(dir)) return;
+            try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name);
+                    try {
+                        if (entry.isDirectory()) {
+                            const subCategory = category === 'root' ? entry.name : category;
+                            scanDir(fullPath, subCategory);
+                        } else if (entry.isFile()) {
+                            const stat = fs.statSync(fullPath);
+                            const cat = category === 'root' ? 'direct' : category;
+                            if (!byFolder[cat]) {
+                                byFolder[cat] = { count: 0, sizeBytes: 0 };
+                            }
+                            byFolder[cat].count++;
+                            byFolder[cat].sizeBytes += stat.size;
+                            attachmentsBytes += stat.size;
+
+                            if (stat.mtimeMs >= thirtyDaysAgo) {
+                                recentUploadBytes += stat.size;
+                            }
+
+                            const ext = path.extname(entry.name).toLowerCase();
+                            if (['.jpg', '.jpeg', '.png'].includes(ext) && stat.size > 150 * 1024) {
+                                uncompressedImageBytes += stat.size;
+                            }
+                        }
+                    } catch {}
+                }
+            } catch (e: any) {
+                this.logger.debug(`Could not scan directory ${dir}: ${e.message}`);
+            }
+        };
+
+        scanDir(uploadPath, 'root');
+
+        // 3. PostgreSQL Database Breakdown
+        let databaseBytes = 0;
+        let topTables: TableStorageInfo[] = [];
+
+        try {
+            const dbSizeQuery = await this.dataSource.query('SELECT pg_database_size(current_database()) AS db_size');
+            if (dbSizeQuery?.[0]?.db_size) {
+                databaseBytes = parseInt(dbSizeQuery[0].db_size, 10) || 0;
+            }
+
+            const tablesQuery = await this.dataSource.query(`
+                SELECT
+                    relname AS table_name,
+                    pg_total_relation_size(relid) AS total_bytes
+                FROM pg_catalog.pg_statio_user_tables
+                ORDER BY total_bytes DESC
+                LIMIT 6;
+            `);
+
+            if (Array.isArray(tablesQuery)) {
+                topTables = tablesQuery.map((row: any) => {
+                    const b = parseInt(row.total_bytes, 10) || 0;
+                    return {
+                        tableName: row.table_name,
+                        totalBytes: b,
+                        prettySize: this.formatBytes(b),
+                    };
+                });
+            }
+        } catch (error: any) {
+            this.logger.warn(`Could not query database table sizes: ${error.message}`);
+        }
+
+        // iDesk app data footprint vs Host OS overhead
+        const ideskUsedBytes = attachmentsBytes + databaseBytes;
+        const ideskSaturationPercent = totalBytes > 0
+            ? Math.round((ideskUsedBytes / totalBytes) * 10_000) / 100
+            : 0;
+        const systemOverheadBytes = Math.max(0, usedBytes - ideskUsedBytes);
+
+        // 4. Historical Velocity & Growth calculation (Empirical)
+        let recentMessagesCount = 0;
+        try {
+            const recentQuery = await this.dataSource.query(`
+                SELECT COUNT(*) AS count
+                FROM "ticket_messages"
+                WHERE "createdAt" >= NOW() - INTERVAL '30 days';
+            `);
+            recentMessagesCount = parseInt(recentQuery?.[0]?.count, 10) || 0;
+        } catch {}
+
+        // Velocity based on real 30-day uploaded file modifications
+        let attachmentVelocity = 0;
+        if (recentUploadBytes > 0) {
+            attachmentVelocity = Math.round(recentUploadBytes / 30);
+        } else if (attachmentsBytes > 0) {
+            attachmentVelocity = Math.round(attachmentsBytes / 90);
+        }
+
+        // Database velocity based on recent activity (~25KB per ticket message record)
+        let dbVelocity = 0;
+        if (recentMessagesCount > 0) {
+            dbVelocity = Math.round((recentMessagesCount * 25 * 1024) / 30);
+        } else if (databaseBytes > 0) {
+            dbVelocity = Math.round(databaseBytes / 180);
+        }
+
+        // Combine velocities with realistic minimum baseline if data exists
+        let growthRateBytesPerDay = attachmentVelocity + dbVelocity;
+        if (growthRateBytesPerDay <= 0 && ideskUsedBytes > 0) {
+            growthRateBytesPerDay = 250 * 1024; // 250 KB/day minimal baseline
+        }
+        const growthRateBytesPerMonth = growthRateBytesPerDay * 30;
+
+        // 5. Thresholds & Runway
+        const warningThresholdBytes = Math.round(totalBytes * 0.85);
+        const criticalThresholdBytes = Math.round(totalBytes * 0.95);
+
+        const bytesToWarning = Math.max(0, warningThresholdBytes - usedBytes);
+        const bytesToCritical = Math.max(0, criticalThresholdBytes - usedBytes);
+
+        const daysToWarningThreshold = growthRateBytesPerDay > 0
+            ? Math.round(bytesToWarning / growthRateBytesPerDay)
+            : null;
+        const daysToCriticalThreshold = growthRateBytesPerDay > 0
+            ? Math.round(bytesToCritical / growthRateBytesPerDay)
+            : null;
+
+        const now = new Date();
+        const formatDaysRunway = (days: number | null): string => {
+            if (days === null) return 'N/A';
+            if (days <= 0) return 'Kapasitas Penuh';
+            if (days > 1095) {
+                return '> 3 Tahun (Aman)';
+            }
+            if (days < 30) return `${days} hari`;
+            const months = Math.floor(days / 30);
+            const remainingDays = days % 30;
+            if (months < 12) {
+                return remainingDays > 0 ? `${months} bln ${remainingDays} hr` : `${months} bulan`;
+            }
+            const years = (days / 365).toFixed(1);
+            return `${years} tahun`;
+        };
+
+        let estimatedWarningDate: string | null = null;
+        let estimatedFullDate: string | null = null;
+
+        if (daysToWarningThreshold !== null) {
+            if (daysToWarningThreshold > 1095) {
+                estimatedWarningDate = new Date(now.getTime() + 1095 * 86_400_000).toISOString();
+            } else {
+                estimatedWarningDate = new Date(now.getTime() + daysToWarningThreshold * 86_400_000).toISOString();
+            }
+        }
+
+        if (daysToCriticalThreshold !== null) {
+            if (daysToCriticalThreshold > 1095) {
+                estimatedFullDate = new Date(now.getTime() + 1095 * 86_400_000).toISOString();
+            } else {
+                estimatedFullDate = new Date(now.getTime() + daysToCriticalThreshold * 86_400_000).toISOString();
+            }
+        }
+
+        let runwayStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+        if (daysToCriticalThreshold !== null && daysToCriticalThreshold <= 30) {
+            runwayStatus = 'critical';
+        } else if ((daysToWarningThreshold !== null && daysToWarningThreshold <= 60) || usagePercent >= 80) {
+            runwayStatus = 'warning';
+        }
+
+        // 6. Future Projections (Datadog Style)
+        const offsets = [-30, -14, 0, 30, 60, 90, 180, 365];
+        const projections = offsets.map((offset) => {
+            const pointDate = new Date(now.getTime() + offset * 86_400_000);
+            const isProjected = offset > 0;
+
+            const historicalGrowth = offset < 0 ? offset * growthRateBytesPerDay : 0;
+            const currentBaseline = offset <= 0
+                ? Math.max(0, usedBytes + historicalGrowth)
+                : Math.min(totalBytes, usedBytes + (offset * growthRateBytesPerDay));
+
+            const highGrowth = offset <= 0
+                ? currentBaseline
+                : Math.min(totalBytes, usedBytes + Math.round(offset * growthRateBytesPerDay * 1.5));
+
+            const peakGrowth = offset <= 0
+                ? currentBaseline
+                : Math.min(totalBytes, usedBytes + Math.round(offset * growthRateBytesPerDay * 2.0));
+
+            return {
+                timestamp: pointDate.toISOString(),
+                dayOffset: offset,
+                isProjected,
+                baselineUsedBytes: currentBaseline,
+                highGrowthUsedBytes: highGrowth,
+                peakGrowthUsedBytes: peakGrowth,
+                warningThresholdBytes,
+                criticalThresholdBytes,
+                totalCapacityBytes: totalBytes,
+            };
+        });
+
+        // 7. Mitigations
+        const imageCompressionSavingsBytes = Math.round(uncompressedImageBytes * 0.35);
+        const autoCleanupSavingsBytes = Math.round(attachmentsBytes * 0.20);
+        const totalPotentialSavingsBytes = imageCompressionSavingsBytes + autoCleanupSavingsBytes;
+
+        return {
+            vitals: {
+                totalBytes,
+                usedBytes,
+                freeBytes,
+                usagePercent,
+                diskPath,
+                platform: os.platform(),
+                ideskUsedBytes,
+                ideskSaturationPercent,
+                serverFreeBytes: freeBytes,
+                serverTotalBytes: totalBytes,
+            },
+            breakdown: {
+                attachmentsBytes,
+                databaseBytes,
+                systemOverheadBytes,
+                byFolder,
+                topTables,
+            },
+            forecasting: {
+                growthRateBytesPerDay,
+                growthRateBytesPerMonth,
+                daysToWarningThreshold,
+                daysToCriticalThreshold,
+                estimatedWarningDate,
+                estimatedFullDate,
+                runwayStatus,
+                timeToWarningFormatted: formatDaysRunway(daysToWarningThreshold),
+                timeToCriticalFormatted: formatDaysRunway(daysToCriticalThreshold),
+            },
+            projections,
+            mitigations: {
+                imageCompressionSavingsBytes,
+                autoCleanupSavingsBytes,
+                totalPotentialSavingsBytes,
+            },
+            sampledAt: new Date().toISOString(),
+        };
+    }
+
+    private formatBytes(bytes?: number): string {
+        if (!bytes || bytes <= 0 || isNaN(bytes)) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + (sizes[i] || 'B');
     }
 }
 

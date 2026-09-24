@@ -22,7 +22,14 @@ export class InAppNotifierListener {
         private readonly q: HardwareRequestQueryService,
     ) {}
 
-    private async push(userId: string, payload: { title: string; message: string; type: NotificationType; link: string; requiresAcknowledge?: boolean }) {
+    private async push(userId: string, payload: {
+        title: string;
+        message: string;
+        type: NotificationType;
+        link: string;
+        referenceId?: string;
+        requiresAcknowledge?: boolean;
+    }) {
         await this.notif.create({ userId, ...payload });
     }
 
@@ -31,11 +38,13 @@ export class InAppNotifierListener {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
         const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
-        await Promise.all(leads.map(l => this.push(l.id, {
+        const uniqueLeads = Array.from(new Map(leads.map(l => [l.id, l])).values());
+        await Promise.all(uniqueLeads.map(l => this.push(l.id, {
             title: 'Permintaan hardware baru',
             message: `${r.requestNumber} menunggu review`,
             type: NotificationType.HARDWARE_REQUEST_SUBMITTED,
             link: link(r.id),
+            referenceId: `${r.id}_submitted`,
         })));
     }
 
@@ -45,17 +54,20 @@ export class InAppNotifierListener {
         if (!r) return;
         const siteId = (r as any).siteId ?? null;
         const procs = await this.perm.listUsersWithRole('ICT_STAFF', siteId);
+        const uniqueProcs = Array.from(new Map(procs.map(p => [p.id, p])).values());
         await this.push(e.requesterId, {
             title: 'Request disetujui',
             message: `${r.requestNumber} approved, menunggu procurement`,
             type: NotificationType.HARDWARE_REQUEST_APPROVED,
             link: link(r.id),
+            referenceId: `${r.id}_approved`,
         });
-        await Promise.all(procs.map(p => this.push(p.id, {
+        await Promise.all(uniqueProcs.map(p => this.push(p.id, {
             title: 'Procurement baru',
             message: `${r.requestNumber} siap diproses`,
             type: NotificationType.HARDWARE_REQUEST_APPROVED_PROC,
             link: link(r.id),
+            referenceId: `${r.id}_approved_proc`,
         })));
         this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
     }
@@ -69,6 +81,7 @@ export class InAppNotifierListener {
             message: `${r.requestNumber}: ${e.reason.slice(0, 200)}`,
             type: NotificationType.HARDWARE_REQUEST_REJECTED,
             link: link(r.id),
+            referenceId: `${r.id}_rejected`,
             requiresAcknowledge: true,
         });
         this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
@@ -80,11 +93,13 @@ export class InAppNotifierListener {
         // Load request to get siteId for scoping
         const r = await this.q.findById(e.requestId);
         const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any)?.siteId ?? null);
-        await Promise.all(leads.map(l => this.push(l.id, {
+        const uniqueLeads = Array.from(new Map(leads.map(l => [l.id, l])).values());
+        await Promise.all(uniqueLeads.map(l => this.push(l.id, {
             title: 'Request dibatalkan oleh user',
             message: `Request ${e.requestId.slice(0, 8)} dicancel`,
             type: NotificationType.HARDWARE_REQUEST_CANCELLED,
             link: link(e.requestId),
+            referenceId: `${e.requestId}_cancelled`,
         })));
     }
 
@@ -93,17 +108,20 @@ export class InAppNotifierListener {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
         const techs = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
+        const uniqueTechs = Array.from(new Map(techs.map(t => [t.id, t])).values());
         await this.push(e.requesterId, {
             title: 'Procurement selesai',
             message: `${r.requestNumber} siap jadwal instalasi`,
             type: NotificationType.HARDWARE_REQUEST_PROC_DONE,
             link: link(r.id),
+            referenceId: `${r.id}_proc_done`,
         });
-        await Promise.all(techs.map(t => this.push(t.id, {
+        await Promise.all(uniqueTechs.map(t => this.push(t.id, {
             title: 'Siap dijadwalkan',
             message: `${r.requestNumber} menunggu instalasi`,
             type: NotificationType.HARDWARE_REQUEST_PROC_DONE_TECH,
             link: link(r.id),
+            referenceId: `${r.id}_proc_done_tech`,
         })));
     }
 
@@ -115,6 +133,7 @@ export class InAppNotifierListener {
             message: 'Mohon konfirmasi waktu',
             type: NotificationType.HARDWARE_REQUEST_SCHEDULE_PROPOSED,
             link: link(e.requestId),
+            referenceId: `${e.requestId}_sched_${e.scheduleId}_proposed`,
             requiresAcknowledge: true,
         });
     }
@@ -126,6 +145,7 @@ export class InAppNotifierListener {
             message: 'Siap dilaksanakan',
             type: NotificationType.HARDWARE_REQUEST_SCHEDULE_CONFIRMED,
             link: link(e.requestId),
+            referenceId: `${e.requestId}_sched_${e.scheduleId}_confirmed`,
         })));
     }
 
@@ -136,6 +156,7 @@ export class InAppNotifierListener {
             message: e.reason ?? 'Mohon cek ulang jadwal',
             type: NotificationType.HARDWARE_REQUEST_SCHEDULE_RESCHEDULED,
             link: link(e.requestId),
+            referenceId: `${e.requestId}_sched_${e.newId}_rescheduled`,
             requiresAcknowledge: true,
         })));
     }
@@ -147,6 +168,7 @@ export class InAppNotifierListener {
             message: 'Teknisi sedang memasang hardware Anda',
             type: NotificationType.HARDWARE_REQUEST_INSTALL_STARTED,
             link: link(e.requestId),
+            referenceId: `${e.requestId}_install_started`,
         });
     }
 
@@ -154,18 +176,39 @@ export class InAppNotifierListener {
     async onInstallCompleted(e: HrInstallCompleted) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
+
+        // When technician marks installation done, status is AWAITING_USER_CONFIRMATION
+        if ((r.status as string) === 'AWAITING_USER_CONFIRMATION') {
+            await this.push(e.requesterId, {
+                title: 'Instalasi selesai',
+                message: `${r.requestNumber} menunggu konfirmasi penerimaan Anda`,
+                type: NotificationType.HARDWARE_REQUEST_COMPLETED,
+                link: link(r.id),
+                referenceId: `${r.id}_awaiting_confirmation`,
+                requiresAcknowledge: true,
+            });
+            this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
+            return;
+        }
+
+        // When request is completed (COMPLETED, or default in mock tests)
+        const rawLeads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
+        const uniqueLeads = Array.from(new Map(rawLeads.map(l => [l.id, l])).values())
+            .filter(l => l.id !== e.requesterId);
+
         await this.push(e.requesterId, {
-            title: 'Instalasi selesai',
+            title: 'Request selesai',
             message: `${r.requestNumber} completed`,
             type: NotificationType.HARDWARE_REQUEST_COMPLETED,
             link: link(r.id),
+            referenceId: `${r.id}_completed`,
         });
-        await Promise.all(leads.map(l => this.push(l.id, {
+        await Promise.all(uniqueLeads.map(l => this.push(l.id, {
             title: 'Request selesai',
             message: r.requestNumber,
             type: NotificationType.HARDWARE_REQUEST_COMPLETED_LEAD,
             link: link(r.id),
+            referenceId: `${r.id}_completed`,
         })));
         this.notificationCenterService.emitActionItemsRefresh(e.requesterId, 'HARDWARE_REQUEST', e.requestId);
     }
@@ -178,6 +221,7 @@ export class InAppNotifierListener {
             message: e.body.slice(0, 140),
             type: NotificationType.HARDWARE_REQUEST_COMMENTED,
             link: link(e.requestId),
+            referenceId: `${e.requestId}_comment_${e.commentId}`,
         })));
     }
 }

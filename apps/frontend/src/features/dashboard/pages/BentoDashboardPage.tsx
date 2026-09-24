@@ -489,10 +489,10 @@ export const BentoDashboardPage = () => {
     ];
 
     const priorityData = [
-        { label: 'Critical', value: liveStats.byPriority.CRITICAL, color: 'hsl(var(--error-500))' },
-        { label: 'High', value: liveStats.byPriority.HIGH, color: 'hsl(var(--chart-3))' },
-        { label: 'Medium', value: liveStats.byPriority.MEDIUM, color: 'hsl(var(--chart-4))' },
-        { label: 'Low', value: liveStats.byPriority.LOW, color: 'hsl(var(--slate-400))' },
+        { label: 'Blocker (Critical)', value: liveStats.byPriority.CRITICAL, color: 'hsl(var(--error-500))' },
+        { label: 'Urgent (Major Impact)', value: liveStats.byPriority.HIGH, color: 'hsl(var(--chart-3))' },
+        { label: 'Normal (Moderate)', value: liveStats.byPriority.MEDIUM, color: 'hsl(var(--chart-4))' },
+        { label: 'Low (Minor/Cosmetic)', value: liveStats.byPriority.LOW, color: 'hsl(var(--slate-400))' },
     ];
 
     const categoryColors = [

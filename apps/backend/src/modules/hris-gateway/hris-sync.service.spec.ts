@@ -108,12 +108,12 @@ describe('HrisSyncService', () => {
         await service.provisionEmployee(employee({ email: null }));
         expect(userRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ email: '00000024@hris.local' }));
 
-        userRepo.findOne.mockImplementation(async ({ where }) => where.email ? { id: 'other-user' } : null);
+        userRepo.findOne.mockImplementation(async ({ where }) => where.email === 'christin@example.com' ? { id: 'other-user' } : null);
         await service.provisionEmployee(employee());
         expect(userRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ email: '00000024@hris.local' }));
     });
 
-    it('creates new, updates existing organization fields, and skips departed employees', async () => {
+    it('creates new, skips existing without modification, and skips departed employees', async () => {
         const existing = {
             id: 'existing-user',
             employeeId: '00000043',
@@ -135,15 +135,10 @@ describe('HrisSyncService', () => {
             ],
         });
 
-        await expect(service.syncAll()).resolves.toMatchObject({ created: 1, updated: 1, skipped: 1, errors: [] });
-        expect(userRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+        await expect(service.syncAll()).resolves.toMatchObject({ created: 1, updated: 0, skipped: 2, errors: [] });
+        // Existing user was skipped; save was only called for the newly created employee
+        expect(userRepo.save).not.toHaveBeenCalledWith(expect.objectContaining({
             id: 'existing-user',
-            fullName: 'NEW NAME',
-            siteId: 'krw-id',
-            email: 'admin-overridden@example.com',
-            password: 'admin-password-hash',
-            role: UserRole.ADMIN,
-            isActive: false,
         }));
     });
 

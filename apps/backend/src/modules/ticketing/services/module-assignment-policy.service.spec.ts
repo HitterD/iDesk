@@ -100,4 +100,12 @@ describe('ModuleAssignmentPolicyService', () => {
 
         await expect(service.isUserEligible({ handlingTeam: HandlingTeam.ORACLE_DEV }, 'anyone')).resolves.toBe(true);
     });
+
+    it('does not include ADMIN or AGENT_ADMIN in DEFAULT_OPS_ROLES fallback', async () => {
+        found = null;
+        const policy = await service.resolvePolicy({ handlingTeam: HandlingTeam.OPS_SUPPORT });
+        expect(policy.roles).not.toContain(UserRole.ADMIN);
+        expect(policy.roles).not.toContain(UserRole.AGENT_ADMIN);
+        expect(policy.roles).toEqual([UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT]);
+    });
 });

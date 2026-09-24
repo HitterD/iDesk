@@ -79,10 +79,12 @@ export function ReviewStep() {
                                 <Coins className="size-4 text-primary shrink-0 mt-0.5" />
                                 <div>
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                                        Kategori Anggaran
+                                        Kategori Pengajuan
                                     </span>
                                     <span className="text-xs font-bold text-foreground">
-                                        {v.requestType === 'NON_BUDGET'
+                                        {v.requestType === 'HARDWARE_INSTALLATION'
+                                            ? 'Penjadwalan Pemasangan Hardware (Tanpa Pengadaan)'
+                                            : v.requestType === 'NON_BUDGET'
                                             ? 'Pengajuan Budget Tambahan / Non-Tahunan'
                                             : 'Realisasi Budget Tahunan ICT'}
                                     </span>

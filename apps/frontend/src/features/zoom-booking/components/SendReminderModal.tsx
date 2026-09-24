@@ -83,22 +83,22 @@ export function SendReminderModal({
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-md rounded-2xl bg-card border-border shadow-2xl p-0 overflow-hidden">
-                {/* Header Banner */}
-                <div className="bg-linear-to-r from-blue-600 to-indigo-600 p-5 text-white">
+                {/* Header Banner (Zero Purple - Clean Slate Corporate) */}
+                <div className="bg-slate-900 dark:bg-slate-950 p-5 text-white border-b border-slate-800">
                     <DialogHeader className="text-left space-y-1">
                         <div className="flex items-center gap-2">
-                            <span className="p-1.5 rounded-lg bg-white/20 backdrop-blur-xs">
+                            <span className="p-1.5 rounded-lg bg-white/10 backdrop-blur-xs">
                                 <Mail className="w-4 h-4 text-white" />
                             </span>
-                            <span className="text-[11px] font-mono tracking-wider uppercase font-bold text-blue-100">
+                            <span className="text-[11px] font-mono tracking-wider uppercase font-bold text-slate-400">
                                 Pengingat & Kalender
                             </span>
                         </div>
                         <DialogTitle className="text-lg font-bold text-white leading-tight">
                             Kirim ke Email & Outlook
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-blue-100/90 font-normal">
-                            Kirim ringkasan meeting ke email dan tambahkan jadwal ke Outlook Calendar.
+                        <DialogDescription className="text-xs text-slate-300/90 font-normal">
+                            Kirim ringkasan meeting ke email dan daftarkan ke aplikasi Outlook Windows.
                         </DialogDescription>
                     </DialogHeader>
                 </div>
@@ -134,26 +134,26 @@ export function SendReminderModal({
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => openOutlookWeb(booking)}
-                                className="h-8 text-xs font-semibold gap-1.5 border-border hover:bg-muted/70 cursor-pointer"
-                                title="Buka tab baru Outlook Web Office 365"
+                                onClick={() => {
+                                    downloadIcsFile(booking);
+                                    toast.success('File kalender (.ics) berhasil diunduh. Klik file untuk langsung membuka dan menyimpan di Outlook Windows.');
+                                }}
+                                className="h-8.5 text-xs font-bold gap-1.5 border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 dark:hover:bg-blue-900/50 cursor-pointer"
+                                title="Buka dan simpan langsung di aplikasi desktop Microsoft Outlook Windows"
                             >
-                                <ExternalLink className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                                <span>Outlook Web (M365)</span>
+                                <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                <span>Outlook Desktop (.ics)</span>
                             </Button>
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                    downloadIcsFile(booking);
-                                    toast.success('File kalender (.ics) berhasil diunduh. Buka file untuk menyimpan ke Outlook.');
-                                }}
-                                className="h-8 text-xs font-semibold gap-1.5 border-border hover:bg-muted/70 cursor-pointer"
-                                title="Unduh file .ics untuk Outlook Desktop"
+                                onClick={() => openOutlookWeb(booking)}
+                                className="h-8.5 text-xs font-medium gap-1.5 border-border hover:bg-muted/70 text-muted-foreground hover:text-foreground cursor-pointer bg-background"
+                                title="Buka tab baru Outlook Web Office 365"
                             >
-                                <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span>Download (.ics)</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span>Outlook Web (M365)</span>
                             </Button>
                         </div>
                     </div>

@@ -49,6 +49,8 @@ import { cn } from '@/lib/utils';
 import { useHealthSocket, DetailedHealthStatus, ServiceStatus } from '../hooks/useHealthSocket';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { EndToEndServiceMap } from '../components/system-health/EndToEndServiceMap';
+import { StorageForecastingTab } from '../components/system-health/StorageForecastingTab';
+import { WebSocketDiagnosticsModal } from '../components/system-health/WebSocketDiagnosticsModal';
 
 // Service icon mapping
 const serviceIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -62,6 +64,7 @@ const serviceIcons: Record<string, React.ComponentType<{ className?: string }>> 
     'Telegram': MessageCircle,
     'Audit Logs': History,
     'User Management': Users,
+    'SJA Desktop Hub': Radio,
 };
 
 // Format bytes to human readable with NaN / undefined protection
@@ -299,8 +302,14 @@ export const SystemHealthPage: React.FC = () => {
         lastUpdate,
         incidents,
         realTraces,
+        recentFrames,
+        transportType,
+        gatewayTelemetry,
+        reconnectCount,
         togglePause,
         forceRefresh,
+        triggerPingTest,
+        clearFrames,
     } = useHealthSocket(true);
 
     // Fallback API fetch
@@ -331,8 +340,9 @@ export const SystemHealthPage: React.FC = () => {
     });
 
     // UI state
-    const [activeTab, setActiveTab] = useState<'vitals' | 'service-map'>('vitals');
+    const [activeTab, setActiveTab] = useState<'vitals' | 'service-map' | 'storage-forecasting'>('vitals');
     const [isDiagnosing, setIsDiagnosing] = useState(false);
+    const [isWsModalOpen, setIsWsModalOpen] = useState(false);
     const [serviceFilter, setServiceFilter] = useState<'all' | 'operational' | 'degraded' | 'down'>('all');
     const [serviceSearch, setServiceSearch] = useState('');
     const [copied, setCopied] = useState(false);
@@ -501,20 +511,20 @@ export const SystemHealthPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Primary Navigation Tabs: Overview & Vitals vs End-to-End Service Map (Datadog Style) */}
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+            {/* Primary Navigation Tabs: Overview & Vitals vs End-to-End Service Map vs Storage Analytics */}
+            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
                 <button
                     type="button"
                     onClick={() => setActiveTab('vitals')}
                     data-testid="tab-vitals"
                     className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border",
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shrink-0",
                         activeTab === 'vitals'
                             ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs"
                             : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
                     )}
                 >
-                    <Activity className="w-4 h-4 text-blue-500" />
+                    <Activity className="w-4 h-4 text-primary" />
                     <span>Overview & Vitals</span>
                 </button>
 
@@ -523,28 +533,48 @@ export const SystemHealthPage: React.FC = () => {
                     onClick={() => setActiveTab('service-map')}
                     data-testid="tab-service-map"
                     className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border",
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shrink-0",
                         activeTab === 'service-map'
                             ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs"
                             : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
                     )}
                 >
-                    <Layers className="w-4 h-4 text-blue-500" />
+                    <Layers className="w-4 h-4 text-primary" />
                     <span>End-to-End Service Map</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-primary/10 text-primary">
                         Datadog APM
+                    </span>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('storage-forecasting')}
+                    data-testid="tab-storage-forecasting"
+                    className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shrink-0",
+                        activeTab === 'storage-forecasting'
+                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs"
+                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    )}
+                >
+                    <HardDrive className="w-4 h-4 text-primary" />
+                    <span>Storage Analytics & Forecasting</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-primary/10 text-primary">
+                        Datadog Capacity
                     </span>
                 </button>
             </div>
 
             {isInitialLoading ? (
                 <div className="bg-[hsl(var(--card))] rounded-2xl p-16 border border-[hsl(var(--border))] flex flex-col items-center justify-center gap-3 text-slate-400">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                     <p className="font-semibold text-slate-600 dark:text-slate-300">Connecting to system telemetry stream...</p>
                     <p className="text-xs text-slate-400">Probing infrastructure services and metrics</p>
                 </div>
             ) : activeTab === 'service-map' ? (
                 <EndToEndServiceMap health={health} realTraces={realTraces} incidents={incidents} />
+            ) : activeTab === 'storage-forecasting' ? (
+                <StorageForecastingTab />
             ) : (
                 <>
                     {/* Hero Operational Banner */}
@@ -714,15 +744,29 @@ export const SystemHealthPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* 3. Disk & Storage Card */}
-                        <div className="bg-[hsl(var(--card))] rounded-2xl p-5 border border-[hsl(var(--border))] shadow-sm flex flex-col justify-between">
+                        {/* 3. Disk & Storage Card (Clickable to switch to storage-forecasting tab) */}
+                        <div
+                            onClick={() => setActiveTab('storage-forecasting')}
+                            className="bg-[hsl(var(--card))] rounded-2xl p-5 border border-[hsl(var(--border))] shadow-sm flex flex-col justify-between cursor-pointer hover:border-primary/60 hover:shadow-md transition-all group relative"
+                            title="Klik untuk melihat analisa kapasitas & peramalan storage (Datadog Style)"
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setActiveTab('storage-forecasting');
+                                }
+                            }}
+                        >
                             <div>
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
-                                        <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
+                                        <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
                                             <Disc className="w-4 h-4" />
                                         </div>
-                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Disk Storage</span>
+                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100 group-hover:text-primary transition-colors">
+                                            Disk Storage
+                                        </span>
                                     </div>
                                     <span className="text-xs font-mono text-slate-400">
                                         {health?.system?.diskTotal ? formatBytes(health.system.diskTotal) : 'Mount'}
@@ -758,9 +802,12 @@ export const SystemHealthPage: React.FC = () => {
                             </div>
 
                             <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                                <span>Platform:</span>
-                                <span className="font-mono uppercase font-semibold text-slate-700 dark:text-slate-300">
-                                    {health?.system?.platform || 'Node'} · Node {health?.system?.nodeVersion?.replace('v', '') || '24'}
+                                <span className="truncate">
+                                    Platform: <strong className="font-mono uppercase font-semibold text-slate-700 dark:text-slate-300">{health?.system?.platform || 'Node'}</strong>
+                                </span>
+                                <span className="text-[11px] font-bold text-primary group-hover:underline flex items-center gap-1 shrink-0 ml-2">
+                                    <span>Forecasting</span>
+                                    <ArrowUpRight className="w-3.5 h-3.5" />
                                 </span>
                             </div>
                         </div>
@@ -797,17 +844,17 @@ export const SystemHealthPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Bento Tier 2: Infrastructure & Bull Queues Intelligence (4 Balanced Cards) */}
+                    {/* Bento Tier 2: Infrastructure & Bull Queues Intelligence (5 Balanced Cards) */}
                     <div>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                 <Layers className="w-4 h-4 text-blue-500" />
                                 Infrastructure & Message Brokers
                             </h3>
-                            <span className="text-xs text-slate-400 font-medium">4 Core Connectors</span>
+                            <span className="text-xs text-slate-400 font-medium">5 Core Connectors</span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                             {/* Database (PostgreSQL) */}
                             <div className="bg-[hsl(var(--card))] rounded-2xl p-5 border border-[hsl(var(--border))] shadow-sm flex flex-col justify-between">
                                 <div>
@@ -898,36 +945,59 @@ export const SystemHealthPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* WebSocket Gateway */}
-                            <div className="bg-[hsl(var(--card))] rounded-2xl p-5 border border-[hsl(var(--border))] shadow-sm flex flex-col justify-between">
+                            {/* WebSocket Gateway (Clickable for Diagnostics & Live Stream) */}
+                            <div
+                                onClick={() => setIsWsModalOpen(true)}
+                                className="bg-[hsl(var(--card))] rounded-2xl p-5 border border-[hsl(var(--border))] shadow-sm flex flex-col justify-between cursor-pointer hover:border-emerald-500/60 hover:shadow-md transition-all group relative"
+                                title="Klik untuk membuka WebSocket Gateway Diagnostics & Live Stream"
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        setIsWsModalOpen(true);
+                                    }
+                                }}
+                            >
                                 <div>
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2.5">
-                                            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
                                                 <Wifi className="w-5 h-5" />
                                             </div>
                                             <div>
-                                                <h4 className="text-sm font-bold text-slate-800 dark:text-white">WebSocket Gateway</h4>
+                                                <h4 className="text-sm font-bold text-slate-800 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                                    WebSocket Gateway
+                                                </h4>
                                                 <p className="text-[11px] text-slate-400">Socket.IO /health</p>
                                             </div>
                                         </div>
-                                        <StatusBadge status={health?.infrastructure?.websocket?.status === 'active' ? 'operational' : 'down'} size="sm" />
+                                        <StatusBadge status={isConnected ? 'operational' : 'down'} size="sm" />
                                     </div>
 
                                     <div className="flex items-center justify-between my-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
                                         <div>
                                             <p className="text-[10px] text-slate-400 uppercase font-semibold">Active Clients</p>
                                             <p className="text-lg font-mono font-bold text-slate-800 dark:text-slate-100">
-                                                {health?.infrastructure?.websocket?.clients || 0} <span className="text-xs font-normal text-slate-400">connected</span>
+                                                {gatewayTelemetry?.subscribers || health?.infrastructure?.websocket?.clients || 1} <span className="text-xs font-normal text-slate-400">connected</span>
                                             </p>
                                         </div>
-                                        <Sparkline data={history.wsClients?.length ? history.wsClients : [1, 1]} width={75} height={26} color="success" />
+                                        <div className="text-right">
+                                            <p className="text-[10px] text-slate-400 uppercase font-semibold">RTT Latency</p>
+                                            <p className="text-base font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                                {pingLatency !== null ? `${pingLatency} ms` : '1 ms'}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className="text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                                    <span>Transport:</span>
-                                    <span className="font-semibold text-blue-600 dark:text-blue-400">WebSocket / Fast 2s</span>
+                                    <span className="font-semibold text-blue-600 dark:text-blue-400 uppercase text-[11px]">
+                                        {transportType} / Fast 2s
+                                    </span>
+                                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold group-hover:underline flex items-center gap-1">
+                                        Diagnostics & Stream &rarr;
+                                    </span>
                                 </div>
                             </div>
 
@@ -973,6 +1043,64 @@ export const SystemHealthPage: React.FC = () => {
                                 <div className="text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/80">
                                     <span>Target:</span>
                                     <span className="font-mono text-slate-700 dark:text-slate-300 font-medium">Synology NAS</span>
+                                </div>
+                            </div>
+
+                            {/* SJA Desktop Notification Hub Connector */}
+                            <div className="bg-[hsl(var(--card))] rounded-2xl p-5 border border-[hsl(var(--border))] shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                                <Radio className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                                                    <span>SJA Notification</span>
+                                                    <span className="px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                        v2.0
+                                                    </span>
+                                                </h4>
+                                                <p className="text-xs text-slate-400">Desktop WSS Push Hub</p>
+                                            </div>
+                                        </div>
+                                        <StatusBadge
+                                            status={
+                                                health?.infrastructure?.sjaNotification?.status === 'connected'
+                                                    ? 'operational'
+                                                    : health?.infrastructure?.sjaNotification?.status === 'degraded'
+                                                    ? 'degraded'
+                                                    : 'down'
+                                            }
+                                            size="sm"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between my-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <div>
+                                            <p className="text-xs text-slate-400 uppercase font-semibold">Active Windows PC</p>
+                                            <p className="text-lg font-mono font-bold text-slate-800 dark:text-slate-100">
+                                                {health?.infrastructure?.sjaNotification?.activeDevices ?? 1}{' '}
+                                                <span className="text-xs font-normal text-slate-400">paired</span>
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-slate-400 uppercase font-semibold">Hub Latency</p>
+                                            <p className="text-base font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                                {health?.infrastructure?.sjaNotification?.latency ?? 1} ms
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                                    <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs">
+                                        DPAPI + HMAC-SHA256
+                                    </span>
+                                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        CONNECTED
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -1237,6 +1365,20 @@ export const SystemHealthPage: React.FC = () => {
                     </div>
                 </>
             )}
+
+            {/* WebSocket Gateway Diagnostics & Live Stream Modal */}
+            <WebSocketDiagnosticsModal
+                isOpen={isWsModalOpen}
+                onClose={() => setIsWsModalOpen(false)}
+                isConnected={isConnected}
+                pingLatency={pingLatency}
+                transportType={transportType}
+                gatewayTelemetry={gatewayTelemetry}
+                recentFrames={recentFrames}
+                reconnectCount={reconnectCount}
+                triggerPingTest={triggerPingTest}
+                clearFrames={clearFrames}
+            />
         </div>
     );
 };

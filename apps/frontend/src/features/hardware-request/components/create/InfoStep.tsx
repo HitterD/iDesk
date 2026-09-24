@@ -11,6 +11,7 @@ import {
     Coins,
     FileCheck2,
     HelpCircle,
+    Wrench,
     Search,
     ChevronDown,
 } from 'lucide-react';
@@ -132,11 +133,11 @@ export function InfoStep() {
                 <div className="flex items-center gap-2 mb-3">
                     <Coins className="size-4 text-primary" />
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Kategori Anggaran Pengajuan
+                        Kategori Pengajuan Hardware
                     </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                         type="button"
                         onClick={() => setValue('requestType', 'BUDGET_ANNUAL')}
@@ -175,6 +176,27 @@ export function InfoStep() {
                             </span>
                             <span className="text-[11px] text-muted-foreground mt-0.5 block leading-relaxed">
                                 Kebutuhan mendesak atau proyek khusus di luar alokasi budget tahunan rutin.
+                            </span>
+                        </div>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setValue('requestType', 'HARDWARE_INSTALLATION')}
+                        className={cn(
+                            'flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer',
+                            requestType === 'HARDWARE_INSTALLATION'
+                                ? 'bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30'
+                                : 'bg-card border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                        )}
+                    >
+                        <Wrench className={cn('size-5 shrink-0 mt-0.5', requestType === 'HARDWARE_INSTALLATION' ? 'text-primary' : 'text-muted-foreground')} />
+                        <div>
+                            <span className="text-xs sm:text-sm font-bold text-foreground block">
+                                Penjadwalan Pemasangan Hardware
+                            </span>
+                            <span className="text-[11px] text-muted-foreground mt-0.5 block leading-relaxed">
+                                Pemasangan perangkat keras yang sudah tersedia / siap pasang tanpa proses pengadaan & persetujuan budget.
                             </span>
                         </div>
                     </button>

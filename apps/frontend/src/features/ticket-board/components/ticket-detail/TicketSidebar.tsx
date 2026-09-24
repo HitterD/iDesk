@@ -89,7 +89,7 @@ const PropertyRow: React.FC<{
                 <Icon className="w-3.5 h-3.5 text-slate-400" />
                 {label}
             </span>
-            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
             {!saving && saved && (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in zoom-in duration-200" />
             )}
@@ -121,13 +121,18 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const [reminderModalOpen, setReminderModalOpen] = useState(false);
     const [showSlaHistory, setShowSlaHistory] = useState(false);
 
-    const isAgentOracle = user?.role === 'AGENT_ORACLE';
-    const canManageParticipants = isAgentOracle || isAdmin;
+    const isStaff =
+        isAdmin ||
+        user?.role === 'AGENT' ||
+        Boolean(user?.role?.startsWith('AGENT_')) ||
+        user?.role === 'MANAGER' ||
+        ticket.assignedTo?.id === user?.id;
+    const canManageParticipants = isStaff;
     const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
         ticket.handlingTeam === 'MOBILE_DEV' ||
         ticket.handlingTeam === 'WEB_DEV' ||
         (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST' || ticket.ticketType === 'WEB_DEV_REQUEST' || ticket.ticketType === 'MOBILE_DEV_REQUEST'));
-    const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
+    const canAddParticipants = canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id));
 
     // Local optimistic state per field
     const [localAssigneeId, setLocalAssigneeId] = useState(ticket.assignedTo?.id || '');
@@ -291,7 +296,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-200/60 dark:border-blue-800/60 shadow-2xs">
+                        <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-2xs">
                             <Clock className="w-3.5 h-3.5" />
                         </div>
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
@@ -312,7 +317,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             </button>
                         )}
                         {ticket.slaTarget && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                                 Active SLA
                             </span>
                         )}
@@ -337,7 +342,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     {ticket.slaTarget && (
                         <div className="flex items-center justify-between py-1">
                             <span className="text-slate-400 dark:text-slate-500">SLA Target</span>
-                            <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/50 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-800/50 text-right">
+                            <span className="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 text-right">
                                 {formatDateTimeID(ticket.slaTarget)}
                             </span>
                         </div>
@@ -386,7 +391,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                     <button
                                         type="button"
                                         onClick={onExtendSla}
-                                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors shadow-2xs cursor-pointer"
+                                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors shadow-2xs cursor-pointer"
                                         title="Perpanjang target SLA"
                                     >
                                         <CalendarPlus className="w-3.5 h-3.5" />
@@ -402,15 +407,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                     className={cn(
                                         "w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer",
                                         nextReminder
-                                            ? "text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-950/60 border border-blue-300/90 dark:border-blue-700/80 hover:bg-blue-200/80 dark:hover:bg-blue-900/60"
+                                            ? "text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20"
                                             : "text-slate-700 dark:text-slate-300 bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-200/70 dark:hover:bg-slate-700/60"
                                     )}
                                     title="Atur pengingat email untuk agent"
                                 >
-                                    <Bell className={cn("w-3.5 h-3.5 text-blue-600 dark:text-blue-400", nextReminder && "fill-blue-600 dark:fill-blue-400")} />
+                                    <Bell className={cn("w-3.5 h-3.5 text-primary", nextReminder && "fill-primary")} />
                                     <span>{nextReminder ? 'Ubah Reminder' : 'Set Reminder'}</span>
                                     {nextReminder && (
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                                     )}
                                 </button>
                             </div>
@@ -421,14 +426,14 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     {showSlaHistory && ticket.slaAdjustments && ticket.slaAdjustments.length > 0 && (
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
                             <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                                <History className="w-3 h-3 text-blue-500" />
+                                <History className="w-3 h-3 text-primary" />
                                 <span>Riwayat Penundaan Target</span>
                             </div>
                             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                 {ticket.slaAdjustments.map((adj, idx) => (
                                     <div key={adj.id || idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 space-y-1 text-[11px]">
                                         <div className="flex items-center justify-between">
-                                            <span className="font-bold text-blue-600 dark:text-blue-400">
+                                            <span className="font-bold text-primary">
                                                 +{adj.minutes}m ({adj.reasonCategory})
                                             </span>
                                             <span className="text-[10px] text-slate-400">
@@ -466,7 +471,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
-                        <div className="w-11 h-11 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-sm shadow-xs">
+                        <div className="w-11 h-11 rounded-2xl bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary font-bold flex items-center justify-center text-sm shadow-xs">
                             {ticket.user.fullName.charAt(0).toUpperCase()}
                         </div>
                         <PresenceDot userId={ticket.user.id} userName={ticket.user.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
@@ -480,7 +485,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             <button
                                 type="button"
                                 onClick={handleCopyEmail}
-                                className="p-0.5 hover:text-blue-600 transition-colors shrink-0 cursor-pointer"
+                                className="p-0.5 hover:text-primary transition-colors shrink-0 cursor-pointer"
                                 title="Copy Email"
                             >
                                 {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
@@ -512,17 +517,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 </div>
             </div>
 
-            {/* 3. Ticket Participants (Oracle Tickets / Multi-user Group) */}
-            {(isOracleTicket || (ticket.participants && ticket.participants.length > 0)) && (
-                <TicketParticipantsSection
-                    ticketId={ticket.id}
-                    creator={ticket.user}
-                    participants={ticket.participants}
-                    canManageUsers={canManageParticipants}
-                    canAddUsers={canAddParticipants}
-                    isClosed={isClosed}
-                />
-            )}
+            {/* 3. Ticket Participants (All Tickets / Multi-user Group) */}
+            <TicketParticipantsSection
+                ticketId={ticket.id}
+                creator={ticket.user}
+                participants={ticket.participants}
+                canManageUsers={canManageParticipants}
+                canAddUsers={canAddParticipants}
+                isClosed={isClosed}
+            />
 
             {/* 4. Ticket Properties & Assignment Card */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs space-y-4">
@@ -555,7 +558,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                 {assignedAgent ? (
                                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                         <div className="relative shrink-0">
-                                            <div className="w-7 h-7 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-xs shadow-2xs">
+                                            <div className="w-7 h-7 rounded-xl bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary font-bold flex items-center justify-center text-xs shadow-2xs">
                                                 {assignedAgent.fullName.charAt(0).toUpperCase()}
                                             </div>
                                             <PresenceDot userId={assignedAgent.id} size="sm" className="absolute -bottom-0.5 -right-0.5" />
@@ -615,7 +618,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                             <span className={cn(
                                                 "w-2 h-2 rounded-full shrink-0",
                                                 opt.value === 'TODO' ? 'bg-slate-400' :
-                                                opt.value === 'IN_PROGRESS' ? 'bg-blue-500' :
+                                                opt.value === 'IN_PROGRESS' ? 'bg-primary' :
                                                 opt.value === 'WAITING_VENDOR' ? 'bg-amber-500' :
                                                 opt.value === 'RESOLVED' ? 'bg-emerald-500' : 'bg-rose-500'
                                             )} />
@@ -692,7 +695,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
                         <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                             <div className="flex items-center gap-2 truncate">
-                                <Tag className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
                                 <span className="font-semibold text-slate-900 dark:text-white truncate">{localCategory}</span>
                             </div>
                         </SelectTrigger>
@@ -713,7 +716,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <Select value={localDevice || 'none'} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
                         <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                             <div className="flex items-center gap-2 truncate">
-                                <Monitor className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <Monitor className="w-3.5 h-3.5 text-primary shrink-0" />
                                 <span className={cn("truncate font-semibold", localDevice ? "text-slate-900 dark:text-white" : "text-slate-400")}>
                                     {localDevice || 'None (Tidak Ada)'}
                                 </span>

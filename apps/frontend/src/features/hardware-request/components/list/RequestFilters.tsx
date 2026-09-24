@@ -1,5 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, X, ChevronDown, Filter, LayoutGrid, List as ListIcon } from 'lucide-react';
+import {
+    Search,
+    X,
+    ChevronDown,
+    Filter,
+    LayoutGrid,
+    List as ListIcon,
+    Laptop,
+    Monitor,
+    Tv,
+    Headphones,
+    Network,
+    Code2,
+    Box,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ListFilters, RequestStatus, ItemCategory } from '../../types';
 import { getStatusMeta } from '../../utils/status.util';
@@ -13,9 +27,14 @@ const STATUSES: RequestStatus[] = [
 
 const CATS: ItemCategory[] = ['LAPTOP', 'DESKTOP', 'MONITOR', 'ACCESSORY', 'NETWORK', 'SOFTWARE', 'OTHER'];
 
-const CAT_ICON: Record<ItemCategory, string> = {
-    LAPTOP: '💻', DESKTOP: '🖥', MONITOR: '🖵', ACCESSORY: '🎧',
-    NETWORK: '🌐', SOFTWARE: '📦', OTHER: '📋',
+const CATEGORY_ICONS: Record<ItemCategory, React.ElementType> = {
+    LAPTOP: Laptop,
+    DESKTOP: Monitor,
+    MONITOR: Tv,
+    ACCESSORY: Headphones,
+    NETWORK: Network,
+    SOFTWARE: Code2,
+    OTHER: Box,
 };
 
 interface RequestFiltersProps {
@@ -232,17 +251,21 @@ export function RequestFilters({
                                 </button>
                             );
                         })}
-                        {(value.category ?? []).map((c) => (
-                            <button
-                                key={c}
-                                type="button"
-                                onClick={() => toggle('category', c)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30 transition-all hover:opacity-80 cursor-pointer shadow-xs"
-                            >
-                                <span>{CAT_ICON[c] ?? ''} {c}</span>
-                                <X className="size-3" />
-                            </button>
-                        ))}
+                        {(value.category ?? []).map((c) => {
+                            const Icon = CATEGORY_ICONS[c] || Box;
+                            return (
+                                <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => toggle('category', c)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30 transition-all hover:opacity-80 cursor-pointer shadow-xs"
+                                >
+                                    <Icon className="size-3" />
+                                    <span>{c}</span>
+                                    <X className="size-3 ml-0.5" />
+                                </button>
+                            );
+                        })}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -297,23 +320,24 @@ export function RequestFilters({
                                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter kategori item">
                                     {CATS.map((c) => {
                                         const on = value.category?.includes(c);
+                                        const Icon = CATEGORY_ICONS[c] || Box;
                                         return (
                                             <button
-                                                key={c}
-                                                type="button"
-                                                onClick={() => toggle('category', c)}
-                                                className={cn(
-                                                    'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-150 cursor-pointer',
-                                                    on
-                                                        ? 'bg-primary text-primary-foreground border-primary shadow-xs font-bold'
-                                                        : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
-                                                )}
-                                            >
-                                                <span>{CAT_ICON[c]}</span>
-                                                <span>{c}</span>
-                                            </button>
-                                        );
-                                    })}
+                                                 key={c}
+                                                 type="button"
+                                                 onClick={() => toggle('category', c)}
+                                                 className={cn(
+                                                     'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-150 cursor-pointer',
+                                                     on
+                                                         ? 'bg-primary text-primary-foreground border-primary shadow-xs font-bold'
+                                                         : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                                                 )}
+                                             >
+                                                 <Icon className="size-3.5" />
+                                                 <span>{c}</span>
+                                             </button>
+                                         );
+                                     })}
                                 </div>
                             </div>
                         </div>

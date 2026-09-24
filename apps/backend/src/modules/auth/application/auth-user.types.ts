@@ -8,6 +8,7 @@ export interface ValidatedUser {
     role: UserRole;
     isActive: boolean;
     mustChangePassword: boolean;
+    guidebookAcknowledgedAt?: string | null;
     employeeId?: string | null;
     departmentId?: string | null;
     siteId?: string | null;
@@ -24,6 +25,8 @@ export interface AuthenticatedUser {
     fullName: string;
     /** Site the user belongs to; null for accounts without a site assignment. */
     siteId: string | null;
+    /** Employee NIK; optional on tokens issued before NIK identity migration. */
+    employeeId?: string | null;
 }
 
 export interface AuthenticatedClaims {
@@ -34,4 +37,6 @@ export interface AuthenticatedClaims {
     type: 'access';
     /** Absent on tokens issued before multi-site isolation shipped. */
     siteId?: string | null;
+    /** Absent on tokens issued before NIK identity migration. */
+    employeeId?: string | null;
 }

@@ -18,6 +18,7 @@ import { User } from '../../users/entities/user.entity';
 
 @Entity('zoom_bookings')
 @Index(['zoomAccountId', 'bookingDate', 'startTime'])
+@Index(['bookingDate', 'status', 'startTime'])
 @Index(['bookedByUserId'])
 @Index(['bookingDate'])
 @Index(['status'])

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, ILike } from 'typeorm';
-import { AuditLog, AuditAction } from './entities/audit-log.entity';
+import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 import { Request } from 'express';
 import * as ExcelJS from 'exceljs';
 import { extractClientIp } from '../../shared/security/client-ip';
@@ -15,6 +15,8 @@ export interface LogOptions {
     newValue?: Record<string, any>;
     description?: string;
     request?: Request;
+    /** Defaults to the column default (MEDIUM) when omitted. */
+    severity?: AuditSeverity;
 }
 
 export interface QueryOptions {
@@ -50,7 +52,7 @@ export class AuditService {
      * Log an audit event (synchronous)
      */
     async log(options: LogOptions): Promise<AuditLog> {
-        const { userId, action, entityType, entityId, oldValue, newValue, description, request } = options;
+        const { userId, action, entityType, entityId, oldValue, newValue, description, request, severity } = options;
 
         const resolvedIp = request ? this.getClientIp(request) : null;
         if (request && (action === AuditAction.USER_LOGIN || action === AuditAction.USER_LOGOUT)) {
@@ -69,6 +71,7 @@ export class AuditService {
             description,
             ipAddress: resolvedIp,
             userAgent: request?.headers['user-agent'] || null,
+            ...(severity ? { severity } : {}),
         } as Partial<AuditLog>);
 
         const saved = await this.auditRepo.save(auditLog);

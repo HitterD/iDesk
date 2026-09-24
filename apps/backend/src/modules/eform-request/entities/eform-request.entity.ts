@@ -7,6 +7,9 @@ export enum EFormType {
   VPN = 'VPN',
   WEBSITE = 'WEBSITE',
   NETWORK = 'NETWORK',
+  FLASHDISK = 'FLASHDISK',
+  EMAIL = 'EMAIL',
+  SYNOLOGY_NAS = 'SYNOLOGY_NAS',
 }
 
 export enum EFormStatus {

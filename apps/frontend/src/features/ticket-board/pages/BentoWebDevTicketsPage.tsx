@@ -596,10 +596,10 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                             icon={AlertTriangle}
                             options={[
                                 { value: 'ALL', label: 'All Priority' },
-                                { value: 'LOW', label: 'Low' },
-                                { value: 'MEDIUM', label: 'Medium' },
-                                { value: 'HIGH', label: 'High' },
-                                { value: 'CRITICAL', label: 'Critical' },
+                                { value: 'LOW', label: 'Low (Minor/Cosmetic)' },
+                                { value: 'MEDIUM', label: 'Normal (Moderate)' },
+                                { value: 'HIGH', label: 'Urgent (Major Impact)' },
+                                { value: 'CRITICAL', label: 'Blocker (Critical)' },
                             ]}
                         />
 

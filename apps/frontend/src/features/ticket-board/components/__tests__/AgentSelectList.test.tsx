@@ -89,4 +89,34 @@ describe('AgentSelectList', () => {
         fireEvent.click(screen.getByText('Unassigned (Lepas Penugasan)'));
         expect(onSelect).toHaveBeenCalledWith('');
     });
+
+    it('displays Admin badge for ADMIN and AGENT_ADMIN roles', () => {
+        const adminAgents: Agent[] = [
+            {
+                id: 'admin-1',
+                fullName: 'System Administrator',
+                email: 'admin@idesk.com',
+                role: 'ADMIN',
+                site: { code: 'SPJ', name: 'Santos Premium Jaya' },
+            },
+            {
+                id: 'agent-admin-1',
+                fullName: 'Alfith',
+                email: 'alfith@idesk.com',
+                role: 'AGENT_ADMIN',
+                site: { code: 'SPJ', name: 'Santos Premium Jaya' },
+            },
+        ];
+
+        render(
+            <AgentSelectList
+                agents={adminAgents}
+                isAdmin={true}
+                onSelect={vi.fn()}
+            />
+        );
+
+        const adminBadges = screen.getAllByText('Admin');
+        expect(adminBadges).toHaveLength(2);
+    });
 });

@@ -27,6 +27,7 @@ import { PushSubscriptionController } from './push-subscription.controller';
 // Related modules
 import { TicketingModule } from '../ticketing/ticketing.module';
 import { TelegramModule } from '../telegram/telegram.module';
+import { SjaAdapterModule } from '../sja-adapter/sja-adapter.module';
 import { TicketCreateService } from '../ticketing/services/ticket-create.service';
 import { TicketUpdateService } from '../ticketing/services/ticket-update.service';
 import { TicketMessagingService } from '../ticketing/services/ticket-messaging.service';
@@ -43,6 +44,7 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
         ]),
         forwardRef(() => TicketingModule),
         forwardRef(() => TelegramModule),
+        SjaAdapterModule,
     ],
     controllers: [
         NotificationController,

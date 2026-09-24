@@ -105,6 +105,14 @@ export class KnowledgeBaseController {
         return this.kbService.findFeatured(allowedVisibilities(req.user?.role));
     }
 
+    @Get('articles/portal-guidebook')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Get portal guidebook article for user onboarding' })
+    async getPortalGuidebook(@Request() req: any) {
+        return this.kbService.findPortalGuidebook(allowedVisibilities(req.user?.role));
+    }
+
     @Get('articles/popular')
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)

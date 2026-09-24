@@ -14,7 +14,7 @@ import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
-    requestType: z.enum(['BUDGET_ANNUAL', 'NON_BUDGET']),
+    requestType: z.enum(['BUDGET_ANNUAL', 'NON_BUDGET', 'HARDWARE_INSTALLATION']),
     division: z.string().min(1, 'Divisi penerima wajib diisi'),
     recipientNames: z.array(z.string()),
     recipientName: z.string().optional(),
@@ -60,10 +60,15 @@ export function CreateWizard() {
     const onSubmit = async (values: CreateFormValues, action: 'draft' | 'submit') => {
         try {
             setSaving(true);
+            const prefix = values.requestType === 'HARDWARE_INSTALLATION'
+                ? '[PENJADWALAN PEMASANGAN]'
+                : values.requestType === 'NON_BUDGET'
+                ? '[NON-BUDGET]'
+                : '[BUDGET TAHUNAN]';
             const payload = {
                 division: values.division,
                 recipientName: values.recipientNames?.length ? values.recipientNames.join(', ') : values.recipientName,
-                justification: `[${values.requestType === 'NON_BUDGET' ? 'NON-BUDGET' : 'BUDGET TAHUNAN'}] ${values.justification}`,
+                justification: `${prefix} ${values.justification}`,
                 items: values.items.map((i) => ({
                     catalogId: i.catalogId,
                     quantity: i.quantity,

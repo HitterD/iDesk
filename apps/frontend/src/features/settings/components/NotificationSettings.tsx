@@ -24,6 +24,12 @@ import api from '../../../lib/api';
 import { usePushNotifications } from '../../../hooks/usePushNotifications';
 import { useCategorySettings } from '../../../features/notifications/hooks/useCategorySettings';
 import type { CategorySettings } from '@/components/notifications/types/notification.types';
+import { DesktopAppDownloadBanner } from '@/components/notifications/DesktopAppDownloadBanner';
+import { cn } from '@/lib/utils';
+
+interface NotificationSettingsProps {
+    showAdminTools?: boolean;
+}
 
 interface NotificationPreference {
     id: string;
@@ -96,7 +102,7 @@ const getTypeSetting = (
     return value !== undefined ? value : (DEFAULT_TYPE_SETTINGS[channel] ?? true);
 };
 
-export const NotificationSettings: React.FC = () => {
+export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ showAdminTools }) => {
     const queryClient = useQueryClient();
     const [expandedSection, setExpandedSection] = useState<string | null>('channels');
     const { settings: categorySettings, isLoading: catLoading, updateSettings } = useCategorySettings();
@@ -243,8 +249,11 @@ export const NotificationSettings: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {/* Desktop App Tray / Toast Banner */}
+            <DesktopAppDownloadBanner showAdminTools={showAdminTools} />
+
             {/* Channel Settings */}
-            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <button
                     onClick={() => toggleSection('channels')}
                     className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -309,7 +318,7 @@ export const NotificationSettings: React.FC = () => {
             </div>
 
             {/* Digest Settings */}
-            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <button
                     onClick={() => toggleSection('digest')}
                     className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -374,7 +383,7 @@ export const NotificationSettings: React.FC = () => {
             </div>
 
             {/* Action Reminders */}
-            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <button
                     onClick={() => toggleSection('reminders')}
                     className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -420,7 +429,7 @@ export const NotificationSettings: React.FC = () => {
             </div>
 
             {/* Category Settings */}
-            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
                     <Filter className="w-4 h-4 text-slate-500" />
                     <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -468,7 +477,7 @@ export const NotificationSettings: React.FC = () => {
             </div>
 
             {/* Quiet Hours */}
-            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <button
                     onClick={() => toggleSection('quiet')}
                     className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -526,7 +535,7 @@ export const NotificationSettings: React.FC = () => {
             </div>
 
             {/* Per-Type Settings */}
-            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <button
                     onClick={() => toggleSection('types')}
                     className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -625,26 +634,38 @@ const ChannelToggle: React.FC<ChannelToggleProps> = ({
     disabled = false,
     loading = false,
 }) => (
-    <div className={`flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 ${disabled || loading ? 'opacity-50' : ''}`}>
+    <div className={cn(
+        "flex items-center justify-between p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 transition-colors",
+        (disabled || loading) && "opacity-50"
+    )}>
         <div className="flex items-center gap-3">
-            <div className="text-slate-400">{icon}</div>
+            <div className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 text-slate-500 dark:text-slate-400 shadow-2xs">
+                {icon}
+            </div>
             <div>
-                <div className="text-slate-800 dark:text-white font-medium">{label}</div>
-                <div className="text-xs text-slate-500">{description}</div>
+                <div className="text-slate-900 dark:text-white font-semibold text-sm">{label}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{description}</div>
             </div>
         </div>
         <button
+            type="button"
             onClick={() => !disabled && !loading && onChange(!enabled)}
             disabled={disabled || loading}
-            className={`relative w-12 h-6 rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'
-                } ${disabled || loading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+            className={cn(
+                "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none",
+                enabled ? "bg-primary" : "bg-slate-300 dark:bg-slate-700",
+                (disabled || loading) ? "cursor-not-allowed" : "cursor-pointer"
+            )}
+            aria-label={`Toggle ${label}`}
         >
             {loading ? (
-                <Loader2 className="absolute top-1 left-4 w-4 h-4 animate-spin text-white" />
+                <Loader2 className="absolute top-1 left-3.5 w-4 h-4 animate-spin text-white" />
             ) : (
                 <span
-                    className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? 'left-7' : 'left-1'
-                        }`}
+                    className={cn(
+                        "inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform",
+                        enabled ? "translate-x-6" : "translate-x-1"
+                    )}
                 />
             )}
         </button>

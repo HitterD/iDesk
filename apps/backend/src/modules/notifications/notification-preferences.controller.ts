@@ -165,6 +165,8 @@ export class NotificationPreferencesController {
                 [NotificationType.EFORM_ICT_CONFIRMED]: 'E-Form request confirmed by ICT',
                 [NotificationType.EFORM_REJECTED]: 'E-Form request rejected',
                 [NotificationType.EFORM_CREDENTIALS_READY]: 'E-Form VPN credentials are ready',
+                [NotificationType.EFORM_DIRECT_TO_ICT]: 'When an access request reaches IT without manager approval',
+                [NotificationType.EFORM_FULFILLED]: 'When IT grants access on an account you already have',
             },
         };
     }

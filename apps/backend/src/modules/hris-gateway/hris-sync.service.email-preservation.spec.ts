@@ -81,7 +81,7 @@ describe('HrisSyncService — email preservation on sync', () => {
         return service.syncAll();
     };
 
-    it('tidak menimpa email user yang sudah ada meski HRIS mengirim alamat berbeda', async () => {
+    it('tidak menimpa email user yang sudah ada dan melewati user tanpa perubahan', async () => {
         userRepo.findOne.mockResolvedValue({
             id: 'user-1',
             employeeId: '00000024',
@@ -95,13 +95,14 @@ describe('HrisSyncService — email preservation on sync', () => {
 
         const summary = await syncOnePage([employee()]);
 
-        expect(summary.updated).toBe(1);
-        const saved = userRepo.save.mock.calls[0][0];
-        expect(saved.email).toBe('chosen-by-user@gmail.com');
+        expect(summary.skipped).toBe(1);
+        expect(summary.created).toBe(0);
+        expect(summary.updated).toBe(0);
+        expect(userRepo.save).not.toHaveBeenCalled();
     });
 
-    it('tetap memperbarui nama, jabatan, site, dan departemen', async () => {
-        userRepo.findOne.mockResolvedValue({
+    it('tidak mengubah nama, jabatan, site, atau data apapun milik user yang sudah ada', async () => {
+        const existingUser = {
             id: 'user-1',
             employeeId: '00000024',
             email: 'chosen-by-user@gmail.com',
@@ -110,16 +111,13 @@ describe('HrisSyncService — email preservation on sync', () => {
             jobTitle: 'JABATAN LAMA',
             role: 'USER',
             appliedPresetId: 'preset-user',
-        });
+        };
+        userRepo.findOne.mockResolvedValue(existingUser);
 
-        await syncOnePage([employee()]);
+        const summary = await syncOnePage([employee()]);
 
-        expect(userRepo.save).toHaveBeenCalledWith(expect.objectContaining({
-            fullName: 'CHRISTHIN MAGDALENA',
-            jobTitle: 'GENERAL MANAGER',
-            siteId: 'spj-id',
-            departmentId: 'department-1',
-        }));
+        expect(summary.skipped).toBe(1);
+        expect(userRepo.save).not.toHaveBeenCalled();
     });
 
     it('tidak menimpa email bahkan untuk user yang belum pernah menggantinya', async () => {
@@ -133,9 +131,9 @@ describe('HrisSyncService — email preservation on sync', () => {
             appliedPresetId: 'preset-user',
         });
 
-        await syncOnePage([employee()]);
+        const summary = await syncOnePage([employee()]);
 
-        const saved = userRepo.save.mock.calls[0][0];
-        expect(saved.email).toBe('00000024@hris.local');
+        expect(summary.skipped).toBe(1);
+        expect(userRepo.save).not.toHaveBeenCalled();
     });
 });

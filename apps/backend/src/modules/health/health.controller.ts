@@ -18,6 +18,7 @@ import {
     SystemMetrics,
     SystemIncident,
 } from './dto/health.dto';
+import { StorageAnalyticsResponseDto } from './dto/storage-analytics.dto';
 
 @ApiTags('Health')
 @Controller('health')
@@ -58,6 +59,16 @@ export class HealthController {
     @ApiResponse({ status: 200, description: 'System metrics' })
     async getSystemMetrics(): Promise<SystemMetrics> {
         return this.healthService.getSystemMetrics();
+    }
+
+    /**
+     * Storage analytics & capacity forecasting (Datadog style)
+     */
+    @Get('storage-analytics')
+    @ApiOperation({ summary: 'Storage analytics and growth forecasting' })
+    @ApiResponse({ status: 200, description: 'Storage analytics and forecast data' })
+    async getStorageAnalytics(): Promise<StorageAnalyticsResponseDto> {
+        return this.healthService.getStorageAnalytics();
     }
 
     /**

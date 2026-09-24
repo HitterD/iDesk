@@ -212,6 +212,23 @@ export class KnowledgeBaseService {
     }
 
     /**
+     * Find portal user guidebook article for user onboarding.
+     */
+    async findPortalGuidebook(visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC]): Promise<Article | null> {
+        const article = await this.articleRepo.findOne({
+            where: {
+                title: ILike('%Panduan Lengkap Penggunaan Portal User%'),
+                status: ArticleStatus.PUBLISHED,
+                visibility: In(visibilities),
+            },
+            order: { createdAt: 'DESC' },
+        });
+        if (article) return article;
+
+        return this.findFeatured(visibilities);
+    }
+
+    /**
      * Pin or unpin the landing-page article. Pinning clears the previous one
      * in the same transaction, so the "exactly one featured article" rule holds
      * even if two admins press the button at the same time.

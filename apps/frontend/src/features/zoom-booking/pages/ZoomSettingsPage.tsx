@@ -41,10 +41,10 @@ import { BlockedDatesPicker } from '../components/BlockedDatesPicker';
 import { ZoomAuditLogsViewer } from '../components/ZoomAuditLogsViewer';
 import type { ZoomAccount, ZoomSettings as ZoomSettingsType, ZoomBooking } from '../types';
 
-// Color palette for accounts
+// Color palette for accounts (Executive Zero-Purple Palette)
 const COLOR_PALETTE = [
-    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+    '#2563EB', '#0D9488', '#D97706', '#0284C7', '#059669',
+    '#EA580C', '#475569', '#15803D', '#B45309', '#1E40AF',
 ];
 
 export function ZoomSettingsPage() {
@@ -136,12 +136,14 @@ export function ZoomSettingsPage() {
             const res = await syncMeetings.mutateAsync();
             refreshAll();
             if (res && res.updatedCount === 0) {
-                toast.success('Sinkronisasi selesai (tidak ada pembaruan)', {
-                    description: 'Jadwal Anda saat ini sudah yang paling baru.'
+                toast.info('Sinkronisasi selesai, data sudah mutakhir', {
+                    id: 'zoom-calendar-sync',
                 });
             }
         } catch (error) {
-            toast.error('Gagal melakukan sinkronisasi dengan Zoom');
+            toast.error('Gagal melakukan sinkronisasi dengan Zoom', {
+                id: 'zoom-calendar-sync',
+            });
         }
     };
 
@@ -334,6 +336,9 @@ export function ZoomSettingsPage() {
                                                     maxBookingPerUserPerDay: Number(e.target.value)
                                                 })}
                                             />
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                Khusus role ADMIN tidak dibatasi kuota harian (unlimited booking/hari).
+                                            </p>
                                         </div>
 
                                         <div className="space-y-2.5">

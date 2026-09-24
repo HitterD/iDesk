@@ -78,9 +78,11 @@ export function canUpdateDelivery(user: User, req: HardwareRequest): boolean {
 }
 
 export function canProposeSchedule(user: User, req: HardwareRequest): boolean {
-  return user.role === 'ICT_STAFF'
-    && (req.status === 'AWAITING_DELIVERY' || req.status === 'INSTALLATION')
-    && req.items.some((i) => i.deliveryStatus === 'ARRIVED');
+  if (user.role !== 'ICT_STAFF') return false;
+  if (!['AWAITING_DELIVERY', 'INSTALLATION'].includes(req.status)) return false;
+  const isDirectInstallation = String(req.justification || '').includes('[PENJADWALAN PEMASANGAN]');
+  if (isDirectInstallation) return true;
+  return req.items.some((i) => i.deliveryStatus === 'ARRIVED');
 }
 
 export function canSelectSlot(user: User, req: HardwareRequest, scheduleStatus: string): boolean {

@@ -58,6 +58,14 @@ export interface InfrastructureStatus {
         connected?: boolean;
         lastBackup?: string;
     };
+    sjaNotification?: {
+        status: 'connected' | 'degraded' | 'disconnected';
+        latency?: number;
+        activeDevices?: number;
+        onlineSockets?: number;
+        authProtocol?: string;
+        hubUrl?: string;
+    };
 }
 
 export interface ServiceStatus {
@@ -127,6 +135,24 @@ export interface HealthSnapshot extends DetailedHealthStatus {
     redisDetail?: RedisDetail;
 }
 
+export interface WebSocketFrame {
+    id: string;
+    timestamp: string;
+    event: string;
+    bytes: number;
+    direction: 'in' | 'out';
+    payloadPreview: string;
+    rawPayload?: any;
+}
+
+export interface GatewayTelemetry {
+    subscribers: number;
+    transport: string;
+    throughputPerSec: number;
+    uptimeSeconds: number;
+    activeRooms: string[];
+}
+
 export interface UseHealthSocketReturn {
     healthData: DetailedHealthStatus | null;
     uptime: number;
@@ -139,12 +165,18 @@ export interface UseHealthSocketReturn {
     lastUpdate: Date | null;
     incidents: SystemIncident[];
     realTraces: EndToEndTrace[];
+    recentFrames: WebSocketFrame[];
+    transportType: string;
+    gatewayTelemetry: GatewayTelemetry | null;
+    reconnectCount: number;
     connect: () => void;
     disconnect: () => void;
     subscribe: () => void;
     unsubscribe: () => void;
     togglePause: () => void;
     forceRefresh: () => Promise<void>;
+    triggerPingTest: () => Promise<number>;
+    clearFrames: () => void;
 }
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ||
@@ -191,10 +223,34 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
     const [uptime, setUptime] = useState(0);
     const [uptimeBase, setUptimeBase] = useState<{ uptime: number; receivedAt: number } | null>(null);
     const [lastFastUpdate, setLastFastUpdate] = useState<number | null>(null);
+    const [recentFrames, setRecentFrames] = useState<WebSocketFrame[]>([]);
+    const [transportType, setTransportType] = useState<string>('websocket');
+    const [gatewayTelemetry, setGatewayTelemetry] = useState<GatewayTelemetry | null>(null);
+    const [reconnectCount, setReconnectCount] = useState<number>(0);
 
     const socketRef = useRef<Socket | null>(null);
     const isPausedRef = useRef(false);
     isPausedRef.current = isPaused;
+
+    const logFrame = useCallback((event: string, payload: any, direction: 'in' | 'out' = 'in') => {
+        try {
+            const json = JSON.stringify(payload);
+            const frame: WebSocketFrame = {
+                id: `fr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                timestamp: new Date().toISOString(),
+                event,
+                bytes: json.length,
+                direction,
+                payloadPreview: json.length > 80 ? json.substring(0, 80) + '...' : json,
+                rawPayload: payload,
+            };
+            setRecentFrames((prev) => [frame, ...prev].slice(0, 30));
+        } catch {}
+    }, []);
+
+    const clearFrames = useCallback(() => {
+        setRecentFrames([]);
+    }, []);
 
     // Running local uptime ticker
     useEffect(() => {
@@ -214,15 +270,49 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         const pingInterval = window.setInterval(() => {
             if (socketRef.current?.connected) {
                 const startTime = Date.now();
-                socketRef.current.emit('health:ping', () => {
+                socketRef.current.emit('health:ping', (response: any) => {
                     const latency = Date.now() - startTime;
                     setPingLatency(latency);
+                    if (response) {
+                        setGatewayTelemetry({
+                            subscribers: response.subscribers || 1,
+                            transport: response.transport || 'websocket',
+                            throughputPerSec: response.throughputPerSec || 0,
+                            uptimeSeconds: response.uptimeSeconds || 0,
+                            activeRooms: response.activeRooms || ['health-updates'],
+                        });
+                        setTransportType(response.transport || 'websocket');
+                    }
                 });
             }
         }, 4_000);
 
         return () => window.clearInterval(pingInterval);
     }, [isConnected]);
+
+    const triggerPingTest = useCallback(async (): Promise<number> => {
+        if (!socketRef.current?.connected) return 0;
+        return new Promise<number>((resolve) => {
+            const startTime = Date.now();
+            logFrame('health:ping', { clientTime: startTime }, 'out');
+            socketRef.current?.emit('health:ping', (response: any) => {
+                const latency = Date.now() - startTime;
+                setPingLatency(latency);
+                if (response) {
+                    setGatewayTelemetry({
+                        subscribers: response.subscribers || 1,
+                        transport: response.transport || 'websocket',
+                        throughputPerSec: response.throughputPerSec || 0,
+                        uptimeSeconds: response.uptimeSeconds || 0,
+                        activeRooms: response.activeRooms || ['health-updates'],
+                    });
+                    setTransportType(response.transport || 'websocket');
+                    logFrame('health:pong', response, 'in');
+                }
+                resolve(latency);
+            });
+        });
+    }, [logFrame]);
 
     const isStale = Boolean(
         !isPaused && lastFastUpdate && Date.now() - lastFastUpdate > STALE_THRESHOLD_MS
@@ -245,6 +335,14 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
 
         newSocket.on('connect', () => {
             setIsConnected(true);
+            try {
+                const transport = (newSocket.io as any)?.engine?.transport?.name || 'websocket';
+                setTransportType(transport);
+            } catch {}
+        });
+
+        newSocket.io?.on?.('reconnect', () => {
+            setReconnectCount((c) => c + 1);
         });
 
         newSocket.on('disconnect', () => {
@@ -255,6 +353,7 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         });
 
         newSocket.on('health:snapshot', (snapshot: HealthSnapshot) => {
+            logFrame('health:snapshot', snapshot);
             if (isPausedRef.current) return;
             setHealthData(snapshot);
             setHistory({
@@ -271,6 +370,7 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         });
 
         newSocket.on('health:fast', (update: HealthFastUpdate) => {
+            logFrame('health:fast', update);
             if (isPausedRef.current) return;
             setHealthData((current) => current ? {
                 ...current,
@@ -304,6 +404,7 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         });
 
         newSocket.on('health:slow', (update: HealthSlowUpdate) => {
+            logFrame('health:slow', update);
             if (isPausedRef.current) return;
             setHealthData((current) => current ? {
                 ...current,
@@ -330,16 +431,18 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         });
 
         newSocket.on('health:incident', (incident: SystemIncident) => {
+            logFrame('health:incident', incident);
             setIncidents(prev => [incident, ...prev].slice(0, 50));
         });
 
         newSocket.on('telemetry:trace', (trace: EndToEndTrace) => {
+            logFrame('telemetry:trace', trace);
             setRealTraces(prev => [trace, ...prev.filter(t => t.traceId !== trace.traceId)].slice(0, 50));
         });
 
         socketRef.current = newSocket;
         setSocket(newSocket);
-    }, []);
+    }, [logFrame]);
 
     const disconnect = useCallback(() => {
         if (socketRef.current) {
@@ -356,23 +459,26 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
 
     const subscribe = useCallback(() => {
         if (socketRef.current?.connected) {
+            logFrame('health:subscribe', {}, 'out');
             socketRef.current.emit('health:subscribe');
             setIsSubscribed(true);
         }
-    }, []);
+    }, [logFrame]);
 
     const unsubscribe = useCallback(() => {
         if (socketRef.current?.connected) {
+            logFrame('health:unsubscribe', {}, 'out');
             socketRef.current.emit('health:unsubscribe');
             setIsSubscribed(false);
         }
-    }, []);
+    }, [logFrame]);
 
     const forceRefresh = useCallback(async (): Promise<void> => {
         if (socketRef.current?.connected) {
+            logFrame('health:force-refresh', {}, 'out');
             socketRef.current.emit('health:force-refresh');
         }
-    }, []);
+    }, [logFrame]);
 
     useEffect(() => {
         if (autoConnect) {
@@ -412,12 +518,18 @@ export function useHealthSocket(autoConnect = true): UseHealthSocketReturn {
         lastUpdate,
         incidents,
         realTraces,
+        recentFrames,
+        transportType,
+        gatewayTelemetry,
+        reconnectCount,
         connect,
         disconnect,
         subscribe,
         unsubscribe,
         togglePause,
         forceRefresh,
+        triggerPingTest,
+        clearFrames,
     };
 }
 

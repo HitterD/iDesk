@@ -11,6 +11,7 @@ import { useNotificationCenter } from '../../features/notifications/hooks/useNot
 import { NotificationItem } from './NotificationItem';
 import { NotificationSkeleton } from './NotificationSkeleton';
 import { NotificationStatCard } from './NotificationStatCard';
+import { DesktopAppDownloadBanner } from './DesktopAppDownloadBanner';
 import { groupNotificationsByDate } from './utils/notification.utils';
 
 const CriticalBanner: React.FC<{
@@ -144,6 +145,17 @@ export const NotificationCenter: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <Link to="/notifications/history">
+                        <Button
+                            variant="outline"
+                            className="rounded-xl px-4 font-bold gap-2 text-xs border-slate-200 dark:border-slate-700 h-11"
+                            title="Buka Tabel Riwayat Notifikasi Lengkap (Format Santos)"
+                        >
+                            <ListChecks className="w-4 h-4 text-[#2D4A8C]" />
+                            <span>Riwayat Notifikasi</span>
+                        </Button>
+                    </Link>
+
                     <Button
                         variant="outline"
                         size="icon"
@@ -180,6 +192,9 @@ export const NotificationCenter: React.FC = () => {
                     setActiveTab('all');
                 }}
             />
+
+            {/* Desktop App Tray / Toast Banner */}
+            <DesktopAppDownloadBanner showAdminTools={true} />
 
             {/* Stats / Tabs Section */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 shrink-0">

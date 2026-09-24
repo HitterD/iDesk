@@ -10,20 +10,27 @@ import {
     Truck,
     User,
     Wrench,
+    Laptop,
+    Monitor,
+    Tv,
+    Headphones,
+    Network,
+    Code2,
+    Box,
 } from 'lucide-react';
 import { SectionCard } from '../common/SectionCard';
 import { fmtIDR, fmtDate } from '../../utils/format.util';
 import type { HardwareRequest, ItemCategory } from '../../types';
 import { cn } from '@/lib/utils';
 
-const CAT_ICON: Record<string, string> = {
-    LAPTOP: '💻',
-    DESKTOP: '🖥',
-    MONITOR: '🖵',
-    ACCESSORY: '🎧',
-    NETWORK: '🌐',
-    SOFTWARE: '📦',
-    OTHER: '📋',
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+    LAPTOP: Laptop,
+    DESKTOP: Monitor,
+    MONITOR: Tv,
+    ACCESSORY: Headphones,
+    NETWORK: Network,
+    SOFTWARE: Code2,
+    OTHER: Box,
 };
 
 const DELIVERY_STATUS_META: Record<string, { label: string; color: string; icon: any }> = {
@@ -35,6 +42,7 @@ const DELIVERY_STATUS_META: Record<string, { label: string; color: string; icon:
 
 export function ItemsCard({ r, children }: { r: HardwareRequest; children?: React.ReactNode }) {
     const totalUnits = (r.items ?? []).reduce((acc, it) => acc + (it.quantity || 1), 0);
+    const isInstallationOnly = String(r.justification || '').includes('[PENJADWALAN PEMASANGAN]');
 
     return (
         <SectionCard
@@ -50,11 +58,14 @@ export function ItemsCard({ r, children }: { r: HardwareRequest; children?: Reac
                 {r.items.map((it, idx) => {
                     const snap = it.categorySnapshot || {};
                     const category = (snap.category || 'OTHER') as ItemCategory;
-                    const catIcon = CAT_ICON[category] || '📦';
+                    const CatIcon = CATEGORY_ICONS[category] || Box;
                     const snapCustom = (snap.customFields || {}) as Record<string, any>;
                     const recipientName = snapCustom.recipientName || (it as any).customFields?.recipientName;
                     const assets = (r.assets ?? []).filter((a) => a.itemId === it.id);
-                    const deliveryMeta = DELIVERY_STATUS_META[it.deliveryStatus || 'PENDING'] || DELIVERY_STATUS_META.PENDING;
+                    const rawDeliveryMeta = DELIVERY_STATUS_META[it.deliveryStatus || 'PENDING'] || DELIVERY_STATUS_META.PENDING;
+                    const deliveryMeta = (isInstallationOnly && (!it.deliveryStatus || it.deliveryStatus === 'PENDING'))
+                        ? { label: 'Siap Dipasang', color: 'bg-primary/10 text-primary border-primary/20', icon: Wrench }
+                        : rawDeliveryMeta;
                     const DeliveryIcon = deliveryMeta.icon;
 
                     return (
@@ -65,8 +76,8 @@ export function ItemsCard({ r, children }: { r: HardwareRequest; children?: Reac
                             {/* Card Top Row */}
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex items-start gap-3 min-w-0">
-                                    <div className="size-10 rounded-xl bg-muted/60 flex items-center justify-center text-lg shrink-0 shadow-2xs">
-                                        {catIcon}
+                                    <div className="size-10 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0 shadow-2xs">
+                                        <CatIcon className="size-5" />
                                     </div>
                                     <div className="min-w-0">
                                         <div className="text-xs sm:text-sm font-bold text-foreground leading-snug truncate">

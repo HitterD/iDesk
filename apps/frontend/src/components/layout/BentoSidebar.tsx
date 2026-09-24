@@ -27,6 +27,7 @@ import {
     Database,
     Code2,
     Smartphone,
+    Trash2,
     LucideIcon
 } from 'lucide-react';
 import { useAuth, performLogout } from '../../stores/useAuth';
@@ -541,6 +542,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 { key: 'automation', icon: Zap, label: 'Automation', path: '/automation' },
                 { key: 'audit_logs', icon: Shield, label: 'Audit Logs', path: '/audit-logs' },
                 { key: 'system_health', icon: Activity, label: 'System Health', path: '/system-health' },
+                { key: 'data_wipe', icon: Trash2, label: 'Hapus Data', path: '/data-wipe' },
             ]
         },
     ] as const, [isManager]);
@@ -565,7 +567,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
             AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
-            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
 
         const userRole = (user?.role || 'USER') as string;

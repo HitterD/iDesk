@@ -34,7 +34,12 @@ export class CreateEFormRequestDto {
   @IsNotEmpty()
   signatureData: string;
 
+  /**
+   * Required for every type except those that go straight to IT (Synology),
+   * where there is no manager step. Enforced in the service, which knows the
+   * form type.
+   */
   @IsUUID()
-  @IsNotEmpty()
-  managerId: string;
+  @IsOptional()
+  managerId?: string;
 }

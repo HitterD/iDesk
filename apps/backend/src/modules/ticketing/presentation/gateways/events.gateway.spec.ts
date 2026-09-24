@@ -49,13 +49,24 @@ describe('EventsGateway security boundary', () => {
         expect(gateway.handleIdentify(client, 'user-2')).toEqual({ status: 'error', message: 'Unauthorized' });
     });
 
+    // handleJoinTicket menolak id non-UUID sebelum menyentuh DB (tickets.id adalah
+    // PrimaryGeneratedColumn('uuid')), jadi fixture wajib UUID asli — bukan 'ticket-1'.
+    const TICKET_UUID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+
     it('allows owner ticket room and rejects another user', async () => {
         const client = socket();
         client.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
-        tickets.findById.mockResolvedValue({ id: 'ticket-1', userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
-        await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toMatchObject({ status: 'ok' });
+        tickets.findById.mockResolvedValue({ id: TICKET_UUID, userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
+        await expect(gateway.handleJoinTicket(client, TICKET_UUID)).resolves.toMatchObject({ status: 'ok' });
         client.data.userId = 'user-2';
-        await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toMatchObject({ status: 'error', message: 'Forbidden' });
+        await expect(gateway.handleJoinTicket(client, TICKET_UUID)).resolves.toMatchObject({ status: 'error', message: 'Forbidden' });
+    });
+
+    it('rejects a non-UUID ticket id before querying the database', async () => {
+        const client = socket();
+        client.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
+        await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toEqual({ status: 'error', message: 'Invalid ticket ID format' });
+        expect(tickets.findById).not.toHaveBeenCalled();
     });
 
     it('rejects non-admin admin-room join', () => {

@@ -155,7 +155,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
             {/* Section Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                         <Users className="w-3.5 h-3.5" />
                     </div>
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
@@ -172,7 +172,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                         <PopoverTrigger asChild>
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors cursor-pointer border border-blue-200/60 dark:border-blue-700/50"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors cursor-pointer border border-primary/20"
                             >
                                 <UserPlus className="w-3.5 h-3.5" />
                                 <span>+ Tambah</span>
@@ -186,7 +186,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                             <div className="space-y-2.5">
                                 <div className="flex items-center justify-between pb-1 border-b border-border">
                                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white">
-                                        <UserPlus className="w-4 h-4 text-blue-600" />
+                                        <UserPlus className="w-4 h-4 text-primary" />
                                         <span>Undang User ke Tiket</span>
                                     </div>
                                     <button
@@ -215,7 +215,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                 <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
                                     {isLoadingUsers ? (
                                         <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
                                             <span>Memuat daftar user...</span>
                                         </div>
                                     ) : filteredUsers.length === 0 ? (
@@ -233,7 +233,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                                     className={cn(
                                                         'w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition-colors cursor-pointer border',
                                                         isSelected
-                                                            ? 'bg-blue-50/80 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-200'
+                                                            ? 'bg-primary/10 border-primary/30 text-primary'
                                                             : 'bg-card hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent text-foreground'
                                                     )}
                                                 >
@@ -257,7 +257,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                                         className={cn(
                                                             'w-4 h-4 rounded flex items-center justify-center transition-colors ml-2 shrink-0',
                                                             isSelected
-                                                                ? 'bg-blue-600 text-white'
+                                                                ? 'bg-primary text-primary-foreground'
                                                                 : 'border border-slate-300 dark:border-slate-600'
                                                         )}
                                                     >
@@ -354,7 +354,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
                                         <p className="text-xs font-bold text-foreground truncate">{displayName}</p>
-                                        <span className="px-1.5 py-0.2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[9px] font-bold rounded-full">
+                                        <span className="px-1.5 py-0.2 bg-primary/10 text-primary border border-primary/20 text-[9px] font-bold rounded-full">
                                             Joined
                                         </span>
                                     </div>

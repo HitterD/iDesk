@@ -1,4 +1,4 @@
-import { CheckSquare, ChevronDown, Shield, MapPin, BarChart3, Trash2, LayoutGrid, List, Download, Upload, Settings, Plus, Sparkles } from 'lucide-react';
+import { CheckSquare, ChevronDown, Shield, MapPin, BarChart3, Trash2, LayoutGrid, List, Download, Upload, Settings, Plus, Sparkles, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
@@ -13,6 +13,8 @@ interface AgentManagementHeaderProps {
     onBulkDelete: () => void;
     onExport: () => void;
     onImport: () => void;
+    onSyncSjatr?: () => void;
+    isSyncing?: boolean;
     onManagePresets: () => void;
     onAddUser: () => void;
 }
@@ -28,6 +30,8 @@ export function AgentManagementHeader({
     onBulkDelete,
     onExport,
     onImport,
+    onSyncSjatr,
+    isSyncing = false,
     onManagePresets,
     onAddUser,
 }: AgentManagementHeaderProps) {
@@ -140,6 +144,18 @@ export function AgentManagementHeader({
                         <Upload className="w-4 h-4" aria-hidden="true" />
                         <span className="hidden sm:inline">Import</span>
                     </button>
+                    {onSyncSjatr && (
+                        <button
+                            type="button"
+                            onClick={onSyncSjatr}
+                            disabled={isSyncing}
+                            aria-label="Sinkronisasi data user dari SJATR"
+                            className="flex items-center gap-2 px-3 py-2 min-h-[44px] bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 text-blue-600 dark:text-blue-400 font-medium rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors duration-150 text-sm disabled:opacity-50"
+                        >
+                            <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} aria-hidden="true" />
+                            <span className="hidden sm:inline">Sync SJATR</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Manage Presets Button — opens PresetDrawer */}

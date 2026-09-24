@@ -26,10 +26,8 @@ export interface AssignmentPolicy {
 }
 
 const DEFAULT_OPS_ROLES: UserRole[] = [
-    UserRole.ADMIN,
     UserRole.AGENT,
     UserRole.AGENT_OPERATIONAL_SUPPORT,
-    UserRole.AGENT_ADMIN,
 ];
 
 /**

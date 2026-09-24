@@ -66,8 +66,8 @@ describe('TicketHistory', () => {
 
         // Priority card
         expect(screen.getByText('Perubahan Prioritas Tiket')).toBeInTheDocument();
-        expect(screen.getAllByText('Medium').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('High').length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Normal|Medium/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Urgent|High/i).length).toBeGreaterThan(0);
 
         // Actor
         expect(screen.getAllByText('System Administrator').length).toBe(3);

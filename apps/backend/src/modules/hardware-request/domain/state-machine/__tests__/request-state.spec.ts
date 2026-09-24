@@ -22,6 +22,10 @@ describe('Request state machine — AWAITING_DELIVERY', () => {
     expect(canTransition(RequestStatus.INSTALLATION, RequestStatus.AWAITING_USER_CONFIRMATION)).toBe(true);
   });
 
+  it('allows DRAFT → INSTALLATION for direct hardware installation requests', () => {
+    expect(canTransition(RequestStatus.DRAFT, RequestStatus.INSTALLATION)).toBe(true);
+  });
+
   it('still allows PROCUREMENT → REJECTED', () => {
     expect(canTransition(RequestStatus.PROCUREMENT, RequestStatus.REJECTED)).toBe(true);
   });

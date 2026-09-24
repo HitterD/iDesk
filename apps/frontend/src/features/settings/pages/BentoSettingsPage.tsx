@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes } from 'lucide-react';
+import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes, Radio } from 'lucide-react';
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
@@ -19,6 +19,7 @@ const ZoomSettingsTab = lazy(() => import('../../zoom-booking/pages/ZoomSettings
 const SoundSettingsTab = lazy(() => import('./SoundSettingsPage').then(m => ({ default: m.SoundSettingsPage })));
 const TvBoardSettingsTab = lazy(() => import('../components/TvBoardSettings').then(m => ({ default: m.TvBoardSettings })));
 const MailSettingsTab = lazy(() => import('./MailSettingsPage').then(m => ({ default: m.MailSettingsPage })));
+const WebhookIntegrationHubTab = lazy(() => import('../components/WebhookIntegrationHub'));
 
 
 export const BentoSettingsPage: React.FC = () => {
@@ -93,6 +94,7 @@ export const BentoSettingsPage: React.FC = () => {
                                         { value: 'zoom', icon: Video, label: 'Zoom Settings' },
                                         { value: 'mail', icon: Mail, label: 'Email' },
                                         { value: 'tv-board', icon: MonitorPlay, label: 'TV Board' },
+                                        { value: 'desktop-webhook', icon: Radio, label: 'Desktop & Webhook Hub' },
                                     ].map((tab) => (
                                         <Tabs.Trigger
                                             key={tab.value}
@@ -301,6 +303,21 @@ export const BentoSettingsPage: React.FC = () => {
                                     </div>
                                 }>
                                     <TicketModulesSettingsTab />
+                                </Suspense>
+                            </Tabs.Content>
+                        )}
+
+                        {user?.role === 'ADMIN' && (
+                            <Tabs.Content value="desktop-webhook" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <Suspense fallback={
+                                    <div className="flex items-center justify-center h-64">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                                            <p className="text-sm text-slate-400">Memuat...</p>
+                                        </div>
+                                    </div>
+                                }>
+                                    <WebhookIntegrationHubTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}

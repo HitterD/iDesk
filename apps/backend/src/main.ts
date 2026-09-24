@@ -1,4 +1,5 @@
 import 'dotenv/config'; // Load .env first
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger, VersioningType } from '@nestjs/common';
@@ -225,6 +226,51 @@ async function bootstrap() {
     app.use(new CorrelationMiddleware().use);
 
     app.useGlobalInterceptors(new LoggingInterceptor());
+
+    // URL compatibility middleware: strip /api prefix from /api/v1/ endpoints
+    // so clients or webhooks configured with either /api/v1/ or /v1/ reach Nest controllers seamlessly
+    app.use((req: any, res: any, next: any) => {
+        if (req.url && req.url.startsWith('/api/v1/')) {
+            req.url = req.url.replace(/^\/api/, '');
+        }
+        next();
+    });
+
+    // SJA Notification Proxy: forward /v1/devices/activation/* and /v1/devices/auth/* to SJA Backend
+    app.use(async (req: any, res: any, next: any) => {
+        // Endpoint SJA devices proxy (termasuk verifikasi sesi aktivasi berotentikasi)
+        const path = req.path || '';
+        if (path.startsWith('/v1/devices/activation/approve')) {
+            return res.status(403).json({
+                success: false,
+                statusCode: 403,
+                error: 'Forbidden',
+                message: 'Endpoint aktivasi perangkat tanpa otentikasi telah dinonaktifkan. Gunakan /v1/notifications/devices/activation/approve dengan sesi login iDesk.',
+            });
+        }
+        if (path.startsWith('/v1/devices/activation/') || path.startsWith('/v1/devices/auth/') || path === '/v1/devices') {
+            const sjaUrl = process.env.SJA_BACKEND_URL || 'http://127.0.0.1:18302';
+            try {
+                const targetUrl = `${sjaUrl.replace(/\/$/, '')}${req.url}`;
+                const fetchOptions: any = {
+                    method: req.method,
+                    headers: { 'Content-Type': 'application/json' },
+                };
+                if (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0) {
+                    fetchOptions.body = JSON.stringify(req.body);
+                }
+                const proxyResp = await fetch(targetUrl, fetchOptions);
+                const data = await proxyResp.json();
+                return res.status(proxyResp.status).json(data);
+            } catch (err: any) {
+                return res.status(502).json({
+                    success: false,
+                    error: `SJA Backend proxy error: ${err.message}`,
+                });
+            }
+        }
+        next();
+    });
 
     // Deprecation shim: ict-budget module replaced by hardware-requests
     app.use((req: any, res: any, next: any) => {

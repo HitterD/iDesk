@@ -14,6 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RateLimiter } from '../../../../shared/core/utils/rate-limiter';
 import { UserRole } from '../../../users/enums/user-role.enum';
+import { isUUID } from 'class-validator';
 import { TicketRepository } from '../../repositories/ticket.repository';
 import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
 import { extractClientIp } from '../../../../shared/security/client-ip';
@@ -238,6 +239,7 @@ export class EventsGateway
         const userId = client.data.userId as string | undefined;
         const role = client.data.role as UserRole | undefined;
         if (!userId || !ticketId || !role) return { status: 'error', message: 'Unauthorized' };
+        if (!isUUID(ticketId)) return { status: 'error', message: 'Invalid ticket ID format' };
         // Throttled before the DB round-trip: this handler is the only one that queries.
         if (!this.checkMessageRateLimit(client)) return { status: 'error', message: 'Rate limited' };
         const ticket = await this.ticketRepository.findById(ticketId, ['user', 'assignedTo']);

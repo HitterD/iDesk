@@ -170,8 +170,9 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleFormSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (isLoading) return;
         const note = resolutionNote.trim();
         if (!note && files.length === 0) {
             toast.error('Harap isi penjelasan tindakan yang dilakukan untuk menyelesaikan tiket');
@@ -179,6 +180,17 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
             return;
         }
         await onConfirm(note || 'Tiket telah diselesaikan.', files);
+    };
+
+    const handleModalKeyDown = (e: React.KeyboardEvent) => {
+        // Hentikan bubbling keyboard events ke parent component di React tree (e.g. TicketListRow)
+        e.stopPropagation();
+
+        // Shortcut Ctrl+Enter atau Cmd+Enter untuk konfirmasi penyelesaian tiket
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleFormSubmit();
+        }
     };
 
     if (typeof document === 'undefined') return null;
@@ -189,10 +201,12 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
             <div
                 className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
                 onClick={onClose}
+                onKeyDown={handleModalKeyDown}
             >
                 <div
                     className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden my-auto animate-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
+                    onKeyDown={handleModalKeyDown}
                 >
                     {/* Header Banner */}
                     <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent dark:from-emerald-950/40 p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-3">
@@ -220,7 +234,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                     </div>
 
                     {/* Form Body */}
-                    <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
+                    <form onSubmit={handleFormSubmit} className="p-4 sm:p-5 space-y-4">
                         {/* Quick Solution Templates */}
                         <div>
                             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
@@ -261,8 +275,15 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                     ref={textareaRef}
                                     value={resolutionNote}
                                     onChange={(e) => setResolutionNote(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        e.stopPropagation();
+                                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleFormSubmit();
+                                        }
+                                    }}
                                     onPaste={handlePaste}
-                                    placeholder="Jelaskan tindakan teknis atau solusi yang telah dilakukan untuk menyelesaikan tiket ini... (Bisa tempel screenshot dengan Ctrl+V)"
+                                    placeholder="Jelaskan tindakan teknis atau solusi yang telah dilakukan untuk menyelesaikan tiket ini..."
                                     rows={4}
                                     className="w-full text-xs bg-transparent border-0 resize-y outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 leading-relaxed font-sans"
                                 />
@@ -278,9 +299,6 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                             <Paperclip className="w-3.5 h-3.5" />
                                             <span>Lampirkan Bukti ({files.length}/{MAX_ATTACHMENTS})</span>
                                         </button>
-                                        <span className="text-[10px] text-slate-400 hidden sm:inline">
-                                            (Mendukung paste Ctrl+V)
-                                        </span>
                                     </div>
                                     <span className="text-[10px] text-slate-400 font-mono">
                                         {resolutionNote.length} karakter
@@ -369,32 +387,41 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                         )}
 
                         {/* Action Buttons */}
-                        <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                disabled={isLoading}
-                                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                            >
-                                Kembali
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Menyelesaikan...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        <span>Ya, Selesaikan Tiket</span>
-                                    </>
-                                )}
-                            </button>
+                        <div className="pt-3 flex items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800">
+                            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                                <span>Tekan</span>
+                                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-500 dark:text-slate-400">
+                                    Ctrl+Enter
+                                </kbd>
+                                <span>untuk kirim</span>
+                            </div>
+                            <div className="flex items-center gap-2 ml-auto">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    disabled={isLoading}
+                                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                                >
+                                    Kembali
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Menyelesaikan...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            <span>Ya, Selesaikan Tiket</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>

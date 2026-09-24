@@ -57,6 +57,15 @@ export class EFormPdfService {
         } else if (eformRequest.formType === EFormType.NETWORK) {
           formTitle = 'Permintaan Akses Jaringan';
           docNo = 'F/ICT/04-N';
+        } else if (eformRequest.formType === EFormType.FLASHDISK) {
+          formTitle = 'Permintaan Akses Flashdisk';
+          docNo = 'F/ICT/04-FD';
+        } else if (eformRequest.formType === EFormType.EMAIL) {
+          formTitle = 'Permintaan Akun Email Baru';
+          docNo = 'F/ICT/04-E';
+        } else if (eformRequest.formType === EFormType.SYNOLOGY_NAS) {
+          formTitle = 'Permintaan Akses Synology NAS';
+          docNo = 'F/ICT/04-NAS';
         }
 
         const formattedCreatedDate = formatDateId(eformRequest.createdAt);
@@ -241,11 +250,105 @@ export class EFormPdfService {
           doc.font('Helvetica').fontSize(7.5).fillColor('#000000')
             .text(eformRequest.requestedWebsites || '-', startX + 70, curY + 1, { width: 250 });
           nextDetailY = curY + 28;
-        } else {
+        } else if (eformRequest.formType === EFormType.NETWORK) {
           doc.font('Helvetica').fontSize(8).text('Target Jaringan:', startX, curY);
           doc.rect(startX + 65, curY - 2, 260, 24).lineWidth(0.6).stroke('#000000');
           doc.font('Helvetica').fontSize(7.5).fillColor('#000000')
             .text(eformRequest.networkPurpose || '-', startX + 70, curY + 1, { width: 250 });
+          nextDetailY = curY + 28;
+        } else if (eformRequest.formType === EFormType.FLASHDISK) {
+          const hostname = eformRequest.formData?.hostname || '-';
+          const accessLevel = eformRequest.formData?.accessLevel === 'READ_WRITE' ? 'Read & Write (Baca & Tulis)' : 'Read Only (Hanya Baca)';
+          const flashdiskInfo = eformRequest.formData?.flashdiskInfo || '-';
+
+          doc.font('Helvetica').fontSize(8).text('Hostname PC:', startX, curY);
+          doc.rect(startX + 65, curY - 2, 120, 15).lineWidth(0.6).stroke('#000000');
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000').text(hostname, startX + 70, curY + 1.5, { width: 110 });
+
+          doc.font('Helvetica').fontSize(8).text('Tipe Akses:', startX + 195, curY);
+          doc.rect(startX + 245, curY - 2, 140, 15).lineWidth(0.6).stroke('#000000');
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000').text(accessLevel, startX + 250, curY + 1.5, { width: 130 });
+
+          const infoY = curY + 18;
+          doc.font('Helvetica').fontSize(8).text('Info Media USB:', startX, infoY);
+          doc.rect(startX + 65, infoY - 2, 320, 15).lineWidth(0.6).stroke('#000000');
+          doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text(flashdiskInfo, startX + 70, infoY + 1.5, { width: 310 });
+
+          nextDetailY = infoY + 20;
+        } else if (eformRequest.formType === EFormType.EMAIL) {
+          const proposedEmail = eformRequest.formData?.proposedEmail || '-';
+          const emailDomain = eformRequest.formData?.emailDomain || '@kapalapi.co.id';
+          const fullEmail = proposedEmail.includes('@') ? proposedEmail : `${proposedEmail}${emailDomain}`;
+          const accountType = eformRequest.formData?.accountType === 'SHARING' ? 'Sharing / Departemen' : 'Personal / Karyawan';
+
+          doc.font('Helvetica').fontSize(8).text('Usulan Email:', startX, curY);
+          doc.rect(startX + 65, curY - 2, 160, 15).lineWidth(0.6).stroke('#000000');
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000').text(fullEmail, startX + 70, curY + 1.5, { width: 150 });
+
+          doc.font('Helvetica').fontSize(8).text('Tipe Akun:', startX + 235, curY);
+          doc.rect(startX + 285, curY - 2, 120, 15).lineWidth(0.6).stroke('#000000');
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000').text(accountType, startX + 290, curY + 1.5, { width: 110 });
+
+          const infoY = curY + 18;
+          doc.font('Helvetica').fontSize(8).text('Keterangan:', startX, infoY);
+          doc.rect(startX + 65, infoY - 2, 340, 15).lineWidth(0.6).stroke('#000000');
+          doc.font('Helvetica').fontSize(7).fillColor('#334155').text('Nama akun dan mailbox resmi dikonfigurasikan serta diterbitkan oleh Divisi ICT.', startX + 70, infoY + 2, { width: 330 });
+
+          nextDetailY = infoY + 20;
+        } else if (eformRequest.formType === EFormType.SYNOLOGY_NAS) {
+          const selections = Array.isArray(eformRequest.formData?.nasSelections) ? eformRequest.formData.nasSelections : [];
+
+          if (selections.length > 0) {
+            doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000').text('Daftar Folder Synology NAS yang Diminta:', startX, curY);
+
+            const tableY = curY + 12;
+            const colNoW = 22;
+            const colNasW = 85;
+            const colPathW = 215;
+            const colAccessW = 118;
+            const rowH = 14;
+
+            // Table Header
+            doc.rect(startX, tableY, 440, rowH).fillAndStroke('#f1f5f9', '#000000');
+            doc.font('Helvetica-Bold').fontSize(7).fillColor('#0f172a');
+            doc.text('No', startX + 2, tableY + 3.5, { width: colNoW, align: 'center' });
+            doc.text('Lokasi NAS', startX + colNoW + 4, tableY + 3.5, { width: colNasW - 8 });
+            doc.text('Direktori / Path Folder', startX + colNoW + colNasW + 4, tableY + 3.5, { width: colPathW - 8 });
+            doc.text('Hak Akses', startX + colNoW + colNasW + colPathW + 4, tableY + 3.5, { width: colAccessW - 8 });
+
+            let curRowY = tableY + rowH;
+            selections.forEach((sel: any, idx: number) => {
+              doc.rect(startX, curRowY, 440, rowH).fillAndStroke(idx % 2 === 0 ? '#ffffff' : '#f8fafc', '#000000');
+              doc.font('Helvetica').fontSize(7).fillColor('#000000');
+              doc.text(String(idx + 1), startX + 2, curRowY + 3.5, { width: colNoW, align: 'center' });
+              doc.font('Helvetica-Bold').text(sel.nasName || sel.nasId || 'NAS', startX + colNoW + 4, curRowY + 3.5, { width: colNasW - 8 });
+              doc.font('Helvetica').text(sel.folderPath || '-', startX + colNoW + colNasW + 4, curRowY + 3.5, { width: colPathW - 8 });
+              const accLabel = sel.accessLevel === 'READ_WRITE' ? 'Read & Write' : 'Read Only';
+              doc.font('Helvetica-Bold').text(accLabel, startX + colNoW + colNasW + colPathW + 4, curRowY + 3.5, { width: colAccessW - 8 });
+              curRowY += rowH;
+            });
+
+            nextDetailY = curRowY + 8;
+          } else {
+            const folderPath = eformRequest.formData?.folderPath || '-';
+            const accessLevel = eformRequest.formData?.accessLevel === 'READ_WRITE' ? 'Read & Write (Baca & Tulis)' : 'Read Only (Hanya Baca)';
+
+            doc.font('Helvetica').fontSize(8).text('Folder / Path NAS:', startX, curY);
+            doc.rect(startX + 80, curY - 2, 180, 15).lineWidth(0.6).stroke('#000000');
+            doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000').text(folderPath, startX + 85, curY + 1.5, { width: 170 });
+
+            doc.font('Helvetica').fontSize(8).text('Hak Akses:', startX + 270, curY);
+            doc.rect(startX + 320, curY - 2, 130, 15).lineWidth(0.6).stroke('#000000');
+            doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000').text(accessLevel, startX + 325, curY + 1.5, { width: 120 });
+
+            const infoY = curY + 18;
+            doc.font('Helvetica').fontSize(8).text('Tipe Akses:', startX, infoY);
+            doc.rect(startX + 80, infoY - 2, 370, 15).lineWidth(0.6).stroke('#000000');
+            doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text('Akun Sharing / Shared Folder Network Attached Storage (NAS)', startX + 85, infoY + 1.5, { width: 360 });
+
+            nextDetailY = infoY + 20;
+          }
+        } else {
           nextDetailY = curY + 28;
         }
 
@@ -306,6 +409,36 @@ export class EFormPdfService {
             '4. Pemohon bertanggung jawab penuh menjaga integritas data dan stabilitas perangkat jaringan, serta bersedia menerima sanksi sesuai ketentuan perusahaan apabila terjadi pelanggaran.',
             '5. Segala anomali jaringan, konflik alamat IP, atau indikasi serangan keamanan wajib dilaporkan sesegera mungkin kepada pihak ICT.',
           ];
+        } else if (eformRequest.formType === EFormType.FLASHDISK) {
+          termsTitle = 'Syarat & Ketentuan Akses Flashdisk PT.SANTOS JAYA ABADI';
+          termsAgreement = 'Saya mengerti dan menyetujui Syarat & Ketentuan Akses Flashdisk PT.SANTOS JAYA ABADI';
+          termsPoints = [
+            '1. Akses port USB / Flashdisk hanya dipergunakan untuk keperluan dinas dan transfer berkas resmi yang berkaitan langsung dengan pekerjaan.',
+            '2. Media penyimpanan Flashdisk/USB wajib dipindai (scan) menggunakan antivirus berpembaruan terkini (up-to-date) sebelum membuka atau mentransfer berkas di komputer perusahaan.',
+            '3. Dilarang keras memindahkan, menyalin (copy), atau menyebarluaskan data rahasia, informasi kepemilikan (proprietary), maupun data pelanggan perusahaan ke media penyimpanan eksternal pribadi tanpa izin tertulis dari manajemen berwenang.',
+            '4. Pemohon bertanggung jawab penuh atas keamanan perangkat kerja dan integritas data dari risiko infeksi malware, ransomware, maupun kebocoran informasi melalui media USB.',
+            '5. Segala insiden keamanan seperti kehilangan flashdisk yang memuat berkas kantor atau indikasi serangan malware melalui port USB wajib segera dilaporkan kepada Divisi ICT.',
+          ];
+        } else if (eformRequest.formType === EFormType.EMAIL) {
+          termsTitle = 'Syarat & Ketentuan Akun Email PT.SANTOS JAYA ABADI';
+          termsAgreement = 'Saya mengerti dan menyetujui Syarat & Ketentuan Akun Email PT.SANTOS JAYA ABADI';
+          termsPoints = [
+            '1. Akun email dinas (@kapalapi.co.id) merupakan fasilitas kerja resmi perusahaan dan hanya boleh digunakan untuk urusan pekerjaan.',
+            '2. Pemilik/pengguna akun wajib menjaga kerahasiaan password dan tidak diperkenankan membagikan kredensial login kepada pihak lain yang tidak berkepentingan.',
+            '3. Dilarang menggunakan email perusahaan untuk keperluan pribadi, pendaftaran layanan non-bisnis, maupun penyebaran konten spam, phishing, atau berkas berbahaya.',
+            '4. Seluruh komunikasi dan data pada server email perusahaan merupakan hak milik PT. SANTOS JAYA ABADI dan dapat diaudit sesuai kebijakan kepatuhan ICT.',
+            '5. Segala indikasi peretasan, aktivitas mencurigakan, atau kebocoran informasi melalui email wajib segera dilaporkan kepada Divisi ICT.',
+          ];
+        } else if (eformRequest.formType === EFormType.SYNOLOGY_NAS) {
+          termsTitle = 'Syarat & Ketentuan Akses Synology NAS PT.SANTOS JAYA ABADI';
+          termsAgreement = 'Saya mengerti dan menyetujui Syarat & Ketentuan Akses Synology NAS PT.SANTOS JAYA ABADI';
+          termsPoints = [
+            '1. Hak akses ke Shared Folder Synology NAS hanya diberikan untuk menunjang aktivitas kerja dan kolaborasi departemen resmi.',
+            '2. Pemohon wajib menjaga integritas dan kerahasiaan berkas yang tersimpan di dalam NAS, serta dilarang menghapus atau memindahkan dokumen kerja penting tanpa konfirmasi pemilik data.',
+            '3. Dilarang menyimpan file non-pekerjaan berukuran besar (seperti film, lagu pribadi, game, file installer ilegal) di dalam storage NAS.',
+            '4. Akses ke folder penyimpanan NAS dipantau dan diaudit melalui log sistem manajemen berkas Synology.',
+            '5. Segala insiden seperti kegagalan sinkronisasi, file corrupt, atau dugaan kebocoran data di shared folder wajib segera dilaporkan ke Divisi ICT.',
+          ];
         }
 
         doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#000000')
@@ -356,37 +489,44 @@ export class EFormPdfService {
         // ==========================================
         // 5. DISETUJUI KADEP & KADIV SECTION
         // ==========================================
-        curY = sigLineY + 12;
-        doc.font('Helvetica-Bold').fontSize(7.5).text('DISETUJUI KADEP & KADIV, MENGETAHUI (GM/DIRECTOR LEVEL)', startX, curY);
+        // Skipped for types that go straight to IT (Synology): with no manager
+        // in the flow this block would print three empty signature boxes.
+        const skipManagerApproval = eformRequest.formType === EFormType.SYNOLOGY_NAS;
+        let approvalLineY = sigLineY + 12;
 
-        curY += 10;
-        doc.font('Helvetica').fontSize(7.5);
-        doc.text('Menyetujui,', startX, curY, { width: sigColW, align: 'center' });
-        doc.text('Menyetujui,', startX + sigColW, curY, { width: sigColW, align: 'center' });
-        doc.text('Mengetahui,', startX + sigColW * 2, curY, { width: sigColW, align: 'center' });
+        if (!skipManagerApproval) {
+          curY = sigLineY + 12;
+          doc.font('Helvetica-Bold').fontSize(7.5).text('DISETUJUI KADEP & KADIV, MENGETAHUI (GM/DIRECTOR LEVEL)', startX, curY);
 
-        // Manager Approval Signature
-        const managerSig = eformRequest.signatures?.find(s => s.signerRole === 'MANAGER' || s.signerRole === 'MANAGER_1');
-        if (managerSig?.signatureData && managerSig.signatureData.startsWith('data:image')) {
-          try {
-            const base64Data = managerSig.signatureData.replace(/^data:image\/\w+;base64,/, '');
-            const imgBuffer = Buffer.from(base64Data, 'base64');
-            doc.image(imgBuffer, startX + (sigColW - 60) / 2, curY + 10, { width: 60, height: 26 });
-          } catch {
-            // fallback
+          curY += 10;
+          doc.font('Helvetica').fontSize(7.5);
+          doc.text('Menyetujui,', startX, curY, { width: sigColW, align: 'center' });
+          doc.text('Menyetujui,', startX + sigColW, curY, { width: sigColW, align: 'center' });
+          doc.text('Mengetahui,', startX + sigColW * 2, curY, { width: sigColW, align: 'center' });
+
+          // Manager Approval Signature
+          const managerSig = eformRequest.signatures?.find(s => s.signerRole === 'MANAGER' || s.signerRole === 'MANAGER_1');
+          if (managerSig?.signatureData && managerSig.signatureData.startsWith('data:image')) {
+            try {
+              const base64Data = managerSig.signatureData.replace(/^data:image\/\w+;base64,/, '');
+              const imgBuffer = Buffer.from(base64Data, 'base64');
+              doc.image(imgBuffer, startX + (sigColW - 60) / 2, curY + 10, { width: 60, height: 26 });
+            } catch {
+              // fallback
+            }
           }
+
+          const approverName = managerSig?.signerName || eformRequest.currentApprover?.fullName || '-';
+          approvalLineY = curY + 40;
+          doc.text(`Nama    : ${managerSig ? approverName : ''}`, startX + 10, approvalLineY);
+          doc.text(`Jabatan : ${managerSig ? 'Kepala Departemen' : ''}`, startX + 10, approvalLineY + 10);
+
+          doc.text('Nama    :', startX + sigColW + 10, approvalLineY);
+          doc.text('Jabatan :', startX + sigColW + 10, approvalLineY + 10);
+
+          doc.text('Nama    :', startX + sigColW * 2 + 10, approvalLineY);
+          doc.text('Jabatan :', startX + sigColW * 2 + 10, approvalLineY + 10);
         }
-
-        const approverName = managerSig?.signerName || eformRequest.currentApprover?.fullName || '-';
-        const approvalLineY = curY + 40;
-        doc.text(`Nama    : ${managerSig ? approverName : ''}`, startX + 10, approvalLineY);
-        doc.text(`Jabatan : ${managerSig ? 'Kepala Departemen' : ''}`, startX + 10, approvalLineY + 10);
-
-        doc.text('Nama    :', startX + sigColW + 10, approvalLineY);
-        doc.text('Jabatan :', startX + sigColW + 10, approvalLineY + 10);
-
-        doc.text('Nama    :', startX + sigColW * 2 + 10, approvalLineY);
-        doc.text('Jabatan :', startX + sigColW * 2 + 10, approvalLineY + 10);
 
         // ==========================================
         // 6. DIISI OLEH ICT SECTION

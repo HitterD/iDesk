@@ -13,11 +13,12 @@ import { EventsGateway } from '../presentation/gateways/events.gateway';
  */
 const EXTENDABLE_STATUSES: TicketStatus[] = [TicketStatus.IN_PROGRESS, TicketStatus.TODO];
 
-/** 8 business hours, in minutes: the flat part of the extension cap. */
-const EIGHT_BUSINESS_HOURS_MINUTES = 480;
-
-/** Absolute safety ceiling when no SlaConfig row exists for the priority. */
-const FALLBACK_CAP_MINUTES = 10080; // 7 * 24 * 60
+/**
+ * Maximum calendar days into the future for an SLA extension.
+ * Generous sanity ceiling to accommodate unpredictable external obstacles
+ * (e.g. waiting for vendor spare parts) while preventing accidental far-future typos.
+ */
+const MAX_EXTENSION_CALENDAR_DAYS = 90;
 
 const CATEGORY_LABELS: Record<string, string> = {
     [SlaAdjustmentReasonCategory.WAITING_USER]: 'Menunggu Respon / Feedback Pengguna',
@@ -80,13 +81,21 @@ export class TicketSlaExtendService {
         let newTarget: Date;
         let minutes: number;
 
+        const now = new Date();
+        const maxAllowedTarget = new Date(now.getTime() + MAX_EXTENSION_CALENDAR_DAYS * 24 * 60 * 60 * 1000);
+
         if (dto.newTargetDate) {
             const parsedTarget = new Date(dto.newTargetDate);
             if (isNaN(parsedTarget.getTime())) {
                 throw new BadRequestException('Format tanggal deadline baru tidak valid');
             }
-            if (parsedTarget.getTime() <= new Date().getTime()) {
+            if (parsedTarget.getTime() <= now.getTime()) {
                 throw new BadRequestException('Target deadline baru harus lebih lama dari waktu saat ini');
+            }
+            if (parsedTarget.getTime() > maxAllowedTarget.getTime()) {
+                throw new BadRequestException(
+                    `Target deadline baru tidak boleh melebihi ${MAX_EXTENSION_CALENDAR_DAYS} hari ke depan`,
+                );
             }
 
             const calculatedMinutes = await this.businessHoursService.calculateBusinessMinutes(
@@ -101,25 +110,13 @@ export class TicketSlaExtendService {
         } else if (dto.minutes && dto.minutes > 0) {
             minutes = dto.minutes;
             newTarget = await this.businessHoursService.calculateSlaTarget(previousTarget, minutes);
+            if (newTarget.getTime() > maxAllowedTarget.getTime()) {
+                throw new BadRequestException(
+                    `Target deadline baru tidak boleh melebihi ${MAX_EXTENSION_CALENDAR_DAYS} hari ke depan`,
+                );
+            }
         } else {
             throw new BadRequestException('Harap tentukan menit perpanjangan atau tanggal deadline baru');
-        }
-
-        const startedAt = new Date(ticket.slaStartedAt);
-        const now = new Date();
-        const elapsedBusinessMinutes = await this.businessHoursService.calculateBusinessMinutes(
-            startedAt,
-            now,
-        );
-        const alreadyExtended = await this.totalExtendedMinutes(ticketId);
-
-        const allowed = await this.allowedExtensionBusinessMinutes(ticket.priority);
-        const projected = elapsedBusinessMinutes + alreadyExtended + minutes;
-        if (projected > allowed) {
-            throw new BadRequestException(
-                `Perpanjangan melebihi batas yang diizinkan (Maksimal ${allowed} menit kerja; ` +
-                `${elapsedBusinessMinutes} berjalan + ${alreadyExtended} perpanjangan sebelumnya + ${minutes} permintaan baru = ${projected} menit)`,
-            );
         }
 
         if (!ticket.originalSlaTarget) {
@@ -159,10 +156,12 @@ export class TicketSlaExtendService {
                 minute: '2-digit',
             }) + ' WIB';
 
-            const systemMessageContent = `⏱️ **Target SLA Diperpanjang**\n\n` +
-                `📅 **Deadline Baru:** ${formattedNewDate}\n` +
-                `🏷️ **Kategori Kendala:** ${categoryLabel}\n` +
-                `📝 **Penjelasan:** ${dto.reasonText.trim()}`;
+            const actorName = actor.fullName || 'Teknisi';
+            const systemMessageContent = `Target SLA Diperpanjang\n\n` +
+                `Deadline Baru: ${formattedNewDate}\n` +
+                `Kategori Kendala: ${categoryLabel}\n` +
+                `Penjelasan: ${dto.reasonText.trim()}\n` +
+                `Diperpanjang oleh: ${actorName}`;
 
             const message = this.messageRepo.create({
                 content: systemMessageContent,
@@ -197,26 +196,6 @@ export class TicketSlaExtendService {
         );
 
         return { ticket: saved, adjustment: savedAdjustment };
-    }
-
-    /** Sum of all recorded EXTEND minutes on this ticket. */
-    private async totalExtendedMinutes(ticketId: string): Promise<number> {
-        const row = await this.adjustmentRepo
-            .createQueryBuilder('a')
-            .select('COALESCE(SUM(a.minutes), 0)', 'total')
-            .where('a."ticketId" = :ticketId', { ticketId })
-            .getRawOne();
-        return Number(row?.total || 0);
-    }
-
-    /** Cap: 2x the priority resolution budget + 8 business hours. */
-    private async allowedExtensionBusinessMinutes(priority: string): Promise<number> {
-        const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
-        if (!slaConfig) {
-            this.logger.warn(`No SlaConfig for priority ${priority}; using fallback cap`);
-            return FALLBACK_CAP_MINUTES;
-        }
-        return (slaConfig.resolutionTimeMinutes ?? 0) * 2 + EIGHT_BUSINESS_HOURS_MINUTES;
     }
 }
 

@@ -69,8 +69,17 @@ export class TicketParticipantService {
         }
 
         const isOracle = isOracleK2Category(ticket.category, ticket.ticketType);
-        const isAdmin = actorRole === UserRole.ADMIN;
-        const isAgentOracle = actorRole === UserRole.AGENT_ORACLE;
+        const isStaff =
+            actorRole === UserRole.ADMIN ||
+            actorRole === UserRole.MANAGER ||
+            actorRole === UserRole.AGENT ||
+            actorRole === UserRole.AGENT_ADMIN ||
+            actorRole === UserRole.AGENT_OPERATIONAL_SUPPORT ||
+            actorRole === UserRole.AGENT_ORACLE ||
+            actorRole === UserRole.AGENT_WEB_DEV ||
+            actorRole === UserRole.AGENT_MOBILE_DEV ||
+            ticket.assignedTo?.id === actorUserId ||
+            (ticket as any).assignedToId === actorUserId;
         const isCreator = ticket.userId === actorUserId;
 
         // Check if actor is an existing participant
@@ -78,8 +87,8 @@ export class TicketParticipantService {
             where: { ticketId, userId: actorUserId },
         });
 
-        // Any of: Admin, Agent Oracle, Creator, or existing participant can add
-        if (!isAdmin && !isAgentOracle && !isCreator && !existingActorParticipant) {
+        // Any of: Staff (IT Support / Agent / Admin), Creator, or existing participant can add
+        if (!isStaff && !isCreator && !existingActorParticipant) {
             throw new ForbiddenException('Anda tidak memiliki izin untuk menambahkan user ke tiket ini');
         }
 
@@ -170,10 +179,13 @@ export class TicketParticipantService {
 
                 // Send In-App Notification to the invited user
                 if (addedUser.id !== actorUserId) {
+                    const notifTitle = isOracle
+                        ? 'Anda Ditambahkan ke Tiket Oracle'
+                        : 'Anda Ditambahkan ke Tiket IT Support';
                     await this.notificationService.create({
                         userId: addedUser.id,
                         type: NotificationType.TICKET_CREATED,
-                        title: 'Anda Ditambahkan ke Tiket Oracle',
+                        title: notifTitle,
                         message: `${actorName} mengundang Anda ke tiket #${ticket.ticketNumber || ticket.id.slice(0, 8)}: ${ticket.title}`,
                         link: `/client/tickets/${ticket.id}`,
                     });
@@ -196,7 +208,7 @@ export class TicketParticipantService {
 
     /**
      * Remove a participant from a ticket.
-     * Restriction: Only AGENT_ORACLE and ADMIN can delete/remove participants!
+     * Restriction: IT Support Staff (Agent/Admin/Manager) can remove participants.
      */
     async removeParticipant(
         ticketId: string,
@@ -204,19 +216,29 @@ export class TicketParticipantService {
         actorUserId: string,
         actorRole: UserRole,
     ): Promise<{ success: boolean; message: string }> {
-        const isAdmin = actorRole === UserRole.ADMIN;
-        const isAgentOracle = actorRole === UserRole.AGENT_ORACLE;
-
-        if (!isAdmin && !isAgentOracle) {
-            throw new ForbiddenException('Khusus Agent Oracle dan Admin yang dapat menghapus partisipan dari tiket');
-        }
-
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
+            relations: ['assignedTo'],
         });
 
         if (!ticket) {
             throw new NotFoundException('Tiket tidak ditemukan');
+        }
+
+        const isStaff =
+            actorRole === UserRole.ADMIN ||
+            actorRole === UserRole.MANAGER ||
+            actorRole === UserRole.AGENT ||
+            actorRole === UserRole.AGENT_ADMIN ||
+            actorRole === UserRole.AGENT_OPERATIONAL_SUPPORT ||
+            actorRole === UserRole.AGENT_ORACLE ||
+            actorRole === UserRole.AGENT_WEB_DEV ||
+            actorRole === UserRole.AGENT_MOBILE_DEV ||
+            ticket.assignedTo?.id === actorUserId ||
+            (ticket as any).assignedToId === actorUserId;
+
+        if (!isStaff) {
+            throw new ForbiddenException('Khusus Tim IT Support dan Admin yang dapat menghapus partisipan dari tiket');
         }
 
         if (ticket.userId === targetUserId) {

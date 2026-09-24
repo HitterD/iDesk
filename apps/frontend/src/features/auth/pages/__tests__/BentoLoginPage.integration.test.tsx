@@ -206,4 +206,21 @@ describe('BentoLoginPage integration', () => {
     expect(await screen.findByText(/rate limit exceeded/i)).toBeInTheDocument();
     expect(screen.getByText(/wait \d+ seconds/i)).toBeInTheDocument();
   });
+
+  it('renders Kapal Api Group, PT Santos Jaya Abadi, and iDesk branding logos', () => {
+    render(
+      <MemoryRouter>
+        <BentoLoginPage />
+      </MemoryRouter>,
+    );
+
+    const kapalApiLogo = screen.getByAltText('Kapal Api Group');
+    const sjaLogo = screen.getByAltText('PT Santos Jaya Abadi');
+    const ideskLogo = screen.getByAltText('iDesk');
+
+    expect(kapalApiLogo).toBeInTheDocument();
+    expect(sjaLogo).toBeInTheDocument();
+    expect(ideskLogo).toBeInTheDocument();
+  });
 });
+

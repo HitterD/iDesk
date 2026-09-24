@@ -167,6 +167,18 @@ export const BASE_NODES: ServiceNodeData[] = [
         iconType: 'cloud',
         description: 'Zoom Video Communications REST',
     },
+    {
+        id: 'sja-desktop-notifier',
+        name: 'sja-desktop-notifier',
+        label: 'SJA Windows Client',
+        tier: 'external',
+        statusCode: 200,
+        execTimePercent: 2,
+        latencyMs: 14,
+        status: 'healthy',
+        iconType: 'desktop',
+        description: 'SJANotifier.exe Native Windows 11 Toast',
+    },
 ];
 
 export const MOCK_TRACES: EndToEndTrace[] = [
@@ -199,6 +211,7 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             'websocket-server',
             'smtp-mail-server',
             'telegram-bot-api',
+            'sja-desktop-notifier',
         ],
         // Strict Forward Flow (Left to Right Only)
         connections: [
@@ -209,6 +222,7 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             { from: 'ticketing-engine', to: 'websocket-server', status: 'healthy' },
             { from: 'redis-bull-queues', to: 'smtp-mail-server', status: 'healthy' },
             { from: 'redis-bull-queues', to: 'telegram-bot-api', status: 'healthy' },
+            { from: 'redis-bull-queues', to: 'sja-desktop-notifier', status: 'healthy' },
         ],
         nodeMetrics: {
             'idesk-web-client': { statusCode: 200, execTimePercent: 40, latencyMs: 55, status: 'healthy' },
@@ -219,6 +233,7 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             'websocket-server': { statusCode: 200, execTimePercent: 2, latencyMs: 3, status: 'healthy' },
             'smtp-mail-server': { statusCode: 200, execTimePercent: 4, latencyMs: 6, status: 'healthy' },
             'telegram-bot-api': { statusCode: 200, execTimePercent: 4, latencyMs: 6, status: 'healthy' },
+            'sja-desktop-notifier': { statusCode: 200, execTimePercent: 2, latencyMs: 14, status: 'healthy' },
         },
         events: [
             { id: '1', timestamp: '22:46:01.442', type: 'request', name: 'POST /api/v1/tickets/create', severity: 'Information', message: 'Payload parsed and validated against CreateTicketDto' },
@@ -227,6 +242,7 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             { id: '4', timestamp: '22:46:01.478', type: 'dependency', name: 'BullMQ.add("notifications")', severity: 'Information', message: 'Enqueued notification job for ticket creators and assigned agents' },
             { id: '5', timestamp: '22:46:01.495', type: 'dependency', name: 'Socket.emit("tv-board:update")', severity: 'Information', message: 'Broadcasted real-time ticket creation event to site TV screens' },
             { id: '6', timestamp: '22:46:01.512', type: 'dependency', name: 'SMTP.sendMail()', severity: 'Information', message: 'Confirmation email queued and handed off to mail exchange' },
+            { id: '7', timestamp: '22:46:01.526', type: 'dependency', name: 'SJA.pushToastEvent()', severity: 'Information', message: 'Dispatched Windows 11 Toast notification via WSS port 3005 to SJANotifier.exe' },
         ],
     },
 
@@ -454,6 +470,11 @@ export function syncNodesWithLiveHealth(
                 if (health.infrastructure.websocket.status === 'inactive') liveStatus = 'error';
             } else if (node.id === 'synology-storage' && health.infrastructure?.backup) {
                 if (!health.infrastructure.backup.configured) liveStatus = 'warning';
+            } else if (node.id === 'sja-desktop-notifier' && health.infrastructure?.sjaNotification) {
+                liveLatency = health.infrastructure.sjaNotification.latency ?? liveLatency;
+                if (health.infrastructure.sjaNotification.status === 'disconnected') liveStatus = 'error';
+                else if (health.infrastructure.sjaNotification.status === 'degraded') liveStatus = 'warning';
+                else liveStatus = 'healthy';
             }
         }
 

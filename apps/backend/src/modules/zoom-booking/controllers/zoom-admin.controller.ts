@@ -100,7 +100,18 @@ export class ZoomAdminController {
     @ApiOperation({ summary: 'Manually trigger sync meetings from all Zoom accounts' })
     async syncMeetings() {
         const updatedCount = await this.syncService.syncAllAccounts();
-        return { success: true, message: 'Sync process completed', updatedCount };
+        const recordingCount = await this.syncService.syncRecentRecordings(14);
+        return { success: true, message: 'Sync process completed', updatedCount, recordingCount };
+    }
+
+    @Post('sync-recordings')
+    @Roles(UserRole.ADMIN, UserRole.USER, UserRole.MANAGER)
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @ApiOperation({ summary: 'Manually trigger batch sync recordings from Zoom' })
+    async syncRecordings(@Query('days') days?: string) {
+        const daysBack = days ? parseInt(days, 10) || 14 : 14;
+        const recordingCount = await this.syncService.syncRecentRecordings(daysBack);
+        return { success: true, message: 'Recording sync completed', recordingCount };
     }
 
     @Post('accounts/initialize')
@@ -226,4 +237,11 @@ export class ZoomAdminController {
             },
         );
     }
+
+    @Post('sync-recurring')
+    @ApiOperation({ summary: 'Reconcile and sync active recurring booking series with Zoom cloud (convert legacy Type 2 to native Type 8)' })
+    async syncRecurringBookings() {
+        return this.bookingService.syncActiveRecurringSeries();
+    }
 }
+

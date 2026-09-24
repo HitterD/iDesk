@@ -1,8 +1,17 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TicketListRow, TicketRowData, Agent } from '../TicketListRow';
 import { MemoryRouter } from 'react-router-dom';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual('react-router-dom');
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
 
 const mockTicket: TicketRowData = {
     id: 'ticket-1',
@@ -136,5 +145,70 @@ describe('TicketListRow Assignee Popover', () => {
         fireEvent.click(agentOption);
 
         expect(onAssign).toHaveBeenCalledWith('ticket-1', 'agent-2');
+    });
+
+    describe('TicketListRow Keyboard Navigation', () => {
+        beforeEach(() => {
+            mockNavigate.mockClear();
+        });
+
+        it('navigates to ticket when Enter or Space is pressed on the row itself', () => {
+            render(
+                <MemoryRouter>
+                    <TicketListRow
+                        ticket={mockTicket}
+                        index={0}
+                        showSiteColumn={true}
+                        canEdit={true}
+                        isSelected={false}
+                        agents={mockAgents}
+                        onSelect={vi.fn()}
+                        onUpdatePriority={vi.fn()}
+                        onUpdateStatus={vi.fn()}
+                        onAssign={vi.fn()}
+                    />
+                </MemoryRouter>
+            );
+
+            const row = screen.getByRole('button', { name: /Open ticket 190826-GEN-0005/i });
+            fireEvent.keyDown(row, { key: ' ' });
+            expect(mockNavigate).toHaveBeenCalledTimes(1);
+            expect(mockNavigate).toHaveBeenCalledWith('/tickets/ticket-1', expect.any(Object));
+
+            mockNavigate.mockClear();
+            fireEvent.keyDown(row, { key: 'Enter' });
+            expect(mockNavigate).toHaveBeenCalledTimes(1);
+            expect(mockNavigate).toHaveBeenCalledWith('/tickets/ticket-1', expect.any(Object));
+        });
+
+        it('does not navigate to ticket when Space is pressed inside child element or modal', () => {
+            render(
+                <MemoryRouter>
+                    <TicketListRow
+                        ticket={mockTicket}
+                        index={0}
+                        showSiteColumn={true}
+                        canEdit={true}
+                        isSelected={false}
+                        agents={mockAgents}
+                        onSelect={vi.fn()}
+                        onUpdatePriority={vi.fn()}
+                        onUpdateStatus={vi.fn()}
+                        onAssign={vi.fn()}
+                    />
+                </MemoryRouter>
+            );
+
+            // Find a child button inside row, such as assignee or checkbox button
+            const assigneeButtons = screen.getAllByText('BENY SAPUTRA, S.KOM');
+            const button = assigneeButtons[0].closest('button');
+            expect(button).toBeInTheDocument();
+
+            if (button) {
+                fireEvent.keyDown(button, { key: ' ' });
+                // Should NOT trigger row navigation because event.target !== event.currentTarget
+                expect(mockNavigate).not.toHaveBeenCalled();
+            }
+        });
     });
 });

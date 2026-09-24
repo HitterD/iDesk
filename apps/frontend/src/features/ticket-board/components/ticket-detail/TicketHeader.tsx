@@ -82,46 +82,78 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         return () => clearInterval(timer);
     }, []);
 
-    // Determine target back navigation from query params or fallback
+    // Determine target back navigation from history state, query params, or queue fallback
     const targetInfo = useMemo(() => {
+        // 1. Prioritize location.state?.from (user navigated from list/kanban)
+        const stateFrom = (location.state as any)?.from;
+        if (typeof stateFrom === 'string' && stateFrom.startsWith('/')) {
+            const rawPath = stateFrom.split('?')[0];
+            let label = 'Kembali ke Daftar Tiket';
+            if (rawPath === '/kanban') {
+                label = 'Kembali ke Kanban';
+            } else if (rawPath === '/tickets/oracle-k2') {
+                label = 'Kembali ke Oracle K2';
+            } else if (rawPath === '/tickets/web-developer') {
+                label = 'Kembali ke Web Developer';
+            } else if (rawPath === '/tickets/mobile-developer') {
+                label = 'Kembali ke Mobile Developer';
+            } else if (rawPath.startsWith('/manager/tickets')) {
+                label = 'Kembali ke Tiket Manager';
+            } else if (rawPath.startsWith('/hardware-requests')) {
+                label = 'Kembali ke Hardware Request';
+            } else if (rawPath === '/client/my-tickets') {
+                label = 'Kembali ke Tiket Saya';
+            } else if (rawPath.startsWith('/tickets/queue/')) {
+                label = 'Kembali ke Antrian';
+            } else if (rawPath === '/dashboard' || rawPath === '/manager/dashboard') {
+                label = 'Kembali ke Dashboard';
+            }
+            return { path: stateFrom, label };
+        }
+
+        // 2. Query param ?from= (if provided in URL)
         const params = new URLSearchParams(location.search);
         const from = params.get('from');
 
         if (from === 'my-tickets') {
-            return { path: '/tickets/my-tickets', label: 'Kembali ke Tiket Saya' };
+            return { path: '/client/my-tickets', label: 'Kembali ke Tiket Saya' };
+        }
+        if (from === 'kanban') {
+            return { path: '/kanban', label: 'Kembali ke Kanban' };
         }
         if (from === 'oracle') {
             return { path: '/tickets/oracle-k2', label: 'Kembali ke Oracle K2' };
         }
-        if (from === 'web-dev') {
-            return { path: '/tickets/web-dev', label: 'Kembali ke Web Dev' };
+        if (from === 'web-dev' || from === 'web-developer') {
+            return { path: '/tickets/web-developer', label: 'Kembali ke Web Developer' };
         }
-        if (from === 'mobile-dev') {
-            return { path: '/tickets/mobile-dev', label: 'Kembali ke Mobile Dev' };
-        }
-        if (from === 'hardware') {
-            return { path: '/tickets/hardware', label: 'Kembali ke Hardware' };
+        if (from === 'mobile-dev' || from === 'mobile-developer') {
+            return { path: '/tickets/mobile-developer', label: 'Kembali ke Mobile Developer' };
         }
 
-        // Auto-detect based on ticket properties if no query param
+        // 3. Fallback based on ticket handling team
         if (ticket.handlingTeam === 'ORACLE_DEV') {
             return { path: '/tickets/oracle-k2', label: 'Kembali ke Oracle K2' };
         }
         if (ticket.handlingTeam === 'WEB_DEV') {
-            return { path: '/tickets/web-dev', label: 'Kembali ke Web Dev' };
+            return { path: '/tickets/web-developer', label: 'Kembali ke Web Developer' };
         }
         if (ticket.handlingTeam === 'MOBILE_DEV') {
-            return { path: '/tickets/mobile-dev', label: 'Kembali ke Mobile Dev' };
-        }
-        if (ticket.category?.toLowerCase().includes('hardware')) {
-            return { path: '/tickets/hardware', label: 'Kembali ke Hardware' };
+            return { path: '/tickets/mobile-developer', label: 'Kembali ke Mobile Developer' };
         }
 
-        return { path: '/tickets', label: 'Kembali ke Daftar Tiket' };
-    }, [location.search, ticket.category, ticket.handlingTeam]);
+        // 4. Default fallback: all regular tickets (including Hardware, Software, Network) go to Ticket List
+        return { path: '/tickets/list', label: 'Kembali ke Daftar Tiket' };
+    }, [location.state, location.search, ticket.handlingTeam]);
 
     const handleBack = () => {
-        navigate(targetInfo.path);
+        if (targetInfo.path) {
+            navigate(targetInfo.path);
+        } else if (window.history.length > 1) {
+            navigate(-1);
+        } else {
+            navigate('/tickets/list');
+        }
     };
 
     const handleCopyNumber = () => {
@@ -298,9 +330,9 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                     };
                 }
                 return {
-                    bg: 'bg-blue-50/90 dark:bg-blue-950/40',
-                    text: 'text-blue-700 dark:text-blue-400',
-                    border: 'border-blue-200 dark:border-blue-900/60',
+                    bg: 'bg-primary/10 dark:bg-primary/20',
+                    text: 'text-primary',
+                    border: 'border-primary/20 dark:border-primary/30',
                     icon: Clock,
                 };
         }
@@ -355,10 +387,10 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                             <button
                                 type="button"
                                 onClick={handleBack}
-                                className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200/90 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 text-xs font-bold transition-all shadow-2xs active:scale-[0.97] cursor-pointer shrink-0"
+                                className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-primary/10 text-slate-700 dark:text-slate-200 hover:text-primary border border-slate-200/90 dark:border-slate-700 hover:border-primary/30 text-xs font-bold transition-all shadow-2xs active:scale-[0.97] cursor-pointer shrink-0"
                                 title={targetInfo.label}
                             >
-                                <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-600 dark:text-slate-400 dark:group-hover:text-blue-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
+                                <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-primary group-hover:-translate-x-0.5 transition-transform shrink-0" />
                                 <span>{targetInfo.label}</span>
                             </button>
 
@@ -396,14 +428,14 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
                             {formattedCategory && (
                                 <span className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/90 dark:border-slate-700/80 inline-flex items-center gap-1.5 shadow-2xs select-none">
-                                    <Tag className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                                    <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                                     <span>{formattedCategory}</span>
                                 </span>
                             )}
 
                             {ticket.participants && ticket.participants.length > 0 && (
-                                <span className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-50/80 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/60 inline-flex items-center gap-1.5 shadow-2xs select-none">
-                                    <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                <span className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary/30 inline-flex items-center gap-1.5 shadow-2xs select-none">
+                                    <Users className="w-3.5 h-3.5 text-primary" />
                                     <span>{1 + ticket.participants.length} Anggota</span>
                                 </span>
                             )}

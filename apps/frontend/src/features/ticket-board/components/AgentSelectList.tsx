@@ -164,6 +164,7 @@ const AgentRow: React.FC<{
     showBadge: boolean;
 }> = ({ agent, selected, onSelect, showBadge }) => {
     const siteCode = agent.site?.code;
+    const isAdmin = agent.role === 'ADMIN' || agent.role === 'AGENT_ADMIN';
     const initials = agent.fullName
         .split(' ')
         .filter(Boolean)
@@ -194,6 +195,11 @@ const AgentRow: React.FC<{
             <div className="flex-1 min-w-0 leading-tight">
                 <div className="text-xs font-semibold truncate text-foreground flex items-center gap-1.5">
                     <span className="truncate">{agent.fullName}</span>
+                    {isAdmin && (
+                        <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            Admin
+                        </span>
+                    )}
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">{agent.email}</div>
             </div>

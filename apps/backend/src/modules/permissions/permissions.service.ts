@@ -57,6 +57,7 @@ const AGENT_PAGES: PageDefinition[] = [
     { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', roles: ['ADMIN'] },
     { key: 'audit_logs', name: 'Audit Logs', icon: 'Shield', route: '/audit-logs', roles: ['ADMIN'] },
     { key: 'system_health', name: 'System Health', icon: 'Activity', route: '/system-health', roles: ['ADMIN'] },
+    { key: 'data_wipe', name: 'Hapus Data', icon: 'Trash2', route: '/data-wipe', roles: ['ADMIN'] },
     { key: 'settings', name: 'Settings', icon: 'Settings', route: '/settings', roles: ['ADMIN'] },
 ];
 
@@ -465,6 +466,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             automation: true,
             audit_logs: true,
             system_health: true,
+            data_wipe: true,
             settings: true,
         },
         permissions: {

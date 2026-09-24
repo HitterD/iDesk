@@ -3,6 +3,12 @@ import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
 import { getErrorMessage, resolveNetworkOrServerError } from './errorMessages';
 
+declare module 'axios' {
+    export interface AxiosRequestConfig {
+        skipToast?: boolean;
+    }
+}
+
 // Generate unique request ID for error correlation
 const generateRequestId = (): string => {
     return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
@@ -214,6 +220,16 @@ api.interceptors.response.use(
                     return Promise.reject(error);
                 }
 
+                const shouldSuppressToast = Boolean(
+                    originalRequest?.skipToast ||
+                    originalRequest?.url?.includes('/tv/') ||
+                    (typeof window !== 'undefined' && window.location.pathname.startsWith('/tv'))
+                );
+
+                if (shouldSuppressToast) {
+                    return Promise.reject(error);
+                }
+
                 // Use centralized error messages
                 const errorCode = response.data?.errorCode || response.data?.code;
                 const serverMessage = response.data?.message;
@@ -229,9 +245,17 @@ api.interceptors.response.use(
             }
         } else if (!isLoginRequest) {
             // No response received (timeout, abort, network, server unreachable)
-            const { message, isSilent } = resolveNetworkOrServerError(error);
-            if (!isSilent && message) {
-                toast.error(message);
+            const shouldSuppressToast = Boolean(
+                originalRequest?.skipToast ||
+                originalRequest?.url?.includes('/tv/') ||
+                (typeof window !== 'undefined' && window.location.pathname.startsWith('/tv'))
+            );
+
+            if (!shouldSuppressToast) {
+                const { message, isSilent } = resolveNetworkOrServerError(error);
+                if (!isSilent && message) {
+                    toast.error(message);
+                }
             }
         }
 

@@ -54,6 +54,7 @@ export class User {
     })
     role: UserRole;
 
+    @Index('IDX_users_employee_id_unique', { unique: true, where: '"employeeId" IS NOT NULL' })
     @Column({ type: 'varchar', nullable: true })
     employeeId: string;
 
@@ -89,6 +90,10 @@ export class User {
     // Wajib ganti password saat login (default 123456 / first login / reset admin)
     @Column({ default: false })
     mustChangePassword: boolean;
+
+    // Timestamp konfirmasi panduan portal pengguna (role USER)
+    @Column({ type: 'timestamp', nullable: true })
+    guidebookAcknowledgedAt: Date | null;
 
     /**
      * Legacy refresh-token bcrypt hash. Superseded by the Redis refresh-session store

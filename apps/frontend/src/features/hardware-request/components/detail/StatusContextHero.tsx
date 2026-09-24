@@ -7,7 +7,6 @@ import {
     CheckCircle2,
     XCircle,
     Ban,
-    Coins,
     MapPin,
     Layers,
     Calendar,
@@ -85,107 +84,96 @@ const STATUS_EXPLANATIONS: Record<RequestStatus, StatusExplanation> = {
 
 export function StatusContextHero({ r }: { r: HardwareRequest }) {
     const meta = getStatusMeta(r.status);
-    const explanation = STATUS_EXPLANATIONS[r.status] || STATUS_EXPLANATIONS.SUBMITTED;
+    const isInstallationOnly = String(r.justification || '').includes('[PENJADWALAN PEMASANGAN]');
+    const isNonBudget = String(r.justification || '').includes('[NON-BUDGET]');
+
+    const activeSchedule = (r.schedules && r.schedules.length > 0)
+        ? [...r.schedules].reverse().find((s) => s.status !== 'CANCELLED') || r.schedules[r.schedules.length - 1]
+        : r.installationSchedule;
+    const hasConfirmedSchedule = activeSchedule && ['CONFIRMED', 'IN_PROGRESS', 'DONE'].includes(activeSchedule.status);
+    const hasProposedSchedule = activeSchedule && activeSchedule.status === 'PROPOSED_AWAITING_USER';
+
+    const getInstallationOnlyExplanation = () => {
+        if (hasConfirmedSchedule) {
+            return {
+                title: 'Pemasangan Hardware Terjadwal',
+                description: 'Jadwal pemasangan perangkat telah disepakati. Teknisi ICT akan hadir ke lokasi sesuai waktu yang telah dikonfirmasi.',
+                icon: CheckCircle2,
+            };
+        }
+        if (hasProposedSchedule) {
+            return {
+                title: 'Usulan Jadwal Siap — Menunggu Pilihan Anda',
+                description: 'Tim ICT telah mengusulkan pilihan slot waktu pemasangan. Silakan pilih salah satu jadwal yang sesuai pada panel aksi.',
+                icon: Calendar,
+            };
+        }
+        return {
+            title: 'Permintaan Diajukan — Menunggu Usulan Jadwal',
+            description: 'Pengajuan pemasangan hardware telah diterima. Tim ICT sedang mengoordinasikan teknisi dan akan segera mengusulkan pilihan slot waktu kepada Anda.',
+            icon: Clock,
+        };
+    };
+
+    const baseExplanation = STATUS_EXPLANATIONS[r.status] || STATUS_EXPLANATIONS.SUBMITTED;
+    const explanation = (r.status === 'INSTALLATION' && isInstallationOnly)
+        ? getInstallationOnlyExplanation()
+        : baseExplanation;
     const StatusIcon = explanation.icon;
 
     const stepIndex = REQUEST_PIPELINE.indexOf(r.status);
     const isPipelineStatus = stepIndex >= 0;
 
     const totalUnits = (r.items ?? []).reduce((acc, it) => acc + (it.quantity || 1), 0);
-    const isNonBudget = String(r.justification || '').includes('[NON-BUDGET]');
 
     return (
-        <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden mb-6">
-            {/* Top Accent Stripe */}
-            <div
-                className="h-1.5 w-full"
-                style={{
-                    background: `linear-gradient(90deg, ${meta.hex}, ${meta.hex}40)`,
-                }}
-            />
-
-            <div className="p-5 sm:p-6 space-y-6">
+        <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden mb-6">
+            <div className="p-5 sm:p-6 space-y-5">
                 {/* Status Explanation Banner */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-muted/20 border border-border/80">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-4.5 rounded-xl bg-muted/30 border border-border/70">
                     <div className="flex items-start gap-3.5 min-w-0">
                         <div
-                            className="size-11 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs"
+                            className="size-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs"
                             style={{
-                                backgroundColor: `${meta.hex}18`,
+                                backgroundColor: `${meta.hex}15`,
                                 color: meta.hex,
                             }}
                         >
-                            <StatusIcon className="size-6" />
+                            <StatusIcon className="size-5" />
                         </div>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <h2 className="text-sm sm:text-base font-extrabold text-foreground">
+                                <h2 className="text-sm sm:text-base font-bold text-foreground tracking-tight">
                                     {explanation.title}
                                 </h2>
                                 <StatusBadge status={r.status} size="sm" />
-                                {isPipelineStatus && (
-                                    <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
-                                        Tahap {stepIndex + 1} dari {REQUEST_PIPELINE.length}
-                                    </span>
-                                )}
                             </div>
-                            <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">
+                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                                 {explanation.description}
                             </p>
+                            <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground font-medium flex-wrap">
+                                <span className="inline-flex items-center gap-1 font-semibold text-foreground/90">
+                                    <Layers className="size-3 text-primary" />
+                                    <span>{r.items?.length || 0} Jenis ({totalUnits} Unit)</span>
+                                </span>
+                                <span>·</span>
+                                <span className="inline-flex items-center gap-1">
+                                    <MapPin className="size-3 text-slate-400" />
+                                    <span>{r.site?.name ?? '—'}</span>
+                                </span>
+                                <span>·</span>
+                                <span className="inline-flex items-center gap-1">
+                                    <Calendar className="size-3 text-slate-400" />
+                                    <span>Diajukan {fmtDate(r.submittedAt || r.createdAt)}</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* 8-Step Interactive Pipeline */}
+                {/* Minimalist Connected Stepper Pipeline */}
                 <div className="pt-1">
-                    <StatusPipeline current={r.status} />
-                </div>
-
-                {/* 4 Bento Mini-KPI Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-border/60">
-                    {/* Total Perangkat */}
-                    <div className="p-3 rounded-2xl bg-muted/20 border border-border/60 space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                            <Layers className="size-3 text-primary" />
-                            <span>Total Perangkat</span>
-                        </div>
-                        <div className="text-xs sm:text-sm font-extrabold text-foreground">
-                            {r.items?.length || 0} Jenis ({totalUnits} Unit)
-                        </div>
-                    </div>
-
-                    {/* Kategori Anggaran */}
-                    <div className="p-3 rounded-2xl bg-muted/20 border border-border/60 space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                            <Coins className="size-3 text-primary" />
-                            <span>Kategori Budget</span>
-                        </div>
-                        <div className="text-xs sm:text-sm font-extrabold text-foreground truncate">
-                            {isNonBudget ? 'Non-Budget' : 'Budget Tahunan'}
-                        </div>
-                    </div>
-
-                    {/* Lokasi Site */}
-                    <div className="p-3 rounded-2xl bg-muted/20 border border-border/60 space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                            <MapPin className="size-3 text-primary" />
-                            <span>Lokasi Site</span>
-                        </div>
-                        <div className="text-xs sm:text-sm font-extrabold text-foreground truncate">
-                            {r.site?.name ?? '—'}
-                        </div>
-                    </div>
-
-                    {/* Tanggal Pengajuan */}
-                    <div className="p-3 rounded-2xl bg-muted/20 border border-border/60 space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                            <Calendar className="size-3 text-primary" />
-                            <span>Diajukan</span>
-                        </div>
-                        <div className="text-xs sm:text-sm font-extrabold text-foreground">
-                            {fmtDate(r.submittedAt || r.createdAt)}
-                        </div>
-                    </div>
+                    <StatusPipeline current={r.status} isInstallationOnly={isInstallationOnly} />
                 </div>
             </div>
         </div>

@@ -72,7 +72,7 @@ export function StatusDonut({ data, loading }: { data?: Slice[]; loading?: boole
               {data.map((s) => (
                 <Cell
                   key={s.status}
-                  fill={STATUS_META[s.status]?.hex || '#6366f1'}
+                  fill={STATUS_META[s.status]?.hex || '#0284c7'}
                   stroke="transparent"
                 />
               ))}
@@ -109,7 +109,7 @@ export function StatusDonut({ data, loading }: { data?: Slice[]; loading?: boole
       {/* Legend list */}
       <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border max-h-28 overflow-y-auto custom-scrollbar">
         {data.map((s) => {
-          const hex = STATUS_META[s.status]?.hex || '#6366f1';
+          const hex = STATUS_META[s.status]?.hex || '#0284c7';
           const label = STATUS_LABELS_ID[s.status] || s.status;
           const percentage = totalCount > 0 ? Math.round((s.count / totalCount) * 100) : 0;
 

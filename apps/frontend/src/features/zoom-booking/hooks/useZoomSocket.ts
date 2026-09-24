@@ -84,7 +84,8 @@ export function useZoomSocket(accountId?: string) {
             queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
-            toast.info(`Calendar synced with Zoom (${data.updatedCount} updates)`, {
+            toast.info(`Jadwal Zoom diperbarui (${data.updatedCount} perubahan)`, {
+                id: 'zoom-calendar-sync',
                 icon: ic(RefreshCw),
             });
         }
@@ -99,18 +100,21 @@ export function useZoomSocket(accountId?: string) {
 
         socketRef.current = socket;
 
-        socket.on('connect', () => {
+        const handleConnect = () => {
             console.log('[Zoom Socket] Connected', { accountId });
 
             // Subscribe to specific account if provided
             if (accountId) {
                 socket.emit('subscribe:account', accountId);
             }
-        });
+        };
 
-        socket.on('disconnect', () => {
+        const handleDisconnect = () => {
             console.log('[Zoom Socket] Disconnected');
-        });
+        };
+
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
 
         // Register event handlers
         socket.on('calendar:updated', handleCalendarUpdate);
@@ -124,6 +128,13 @@ export function useZoomSocket(accountId?: string) {
             if (accountId) {
                 socket.emit('unsubscribe:account', accountId);
             }
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.off('calendar:updated', handleCalendarUpdate);
+            socket.off('settings:updated', handleSettingsUpdate);
+            socket.off('booking:created', handleBookingCreated);
+            socket.off('booking:cancelled', handleBookingCancelled);
+            socket.off('sync:completed', handleSyncCompleted);
             socket.disconnect();
         };
     }, [accountId, handleCalendarUpdate, handleSettingsUpdate, handleBookingCreated, handleBookingCancelled, handleSyncCompleted]);

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { AlertCircle, CalendarClock, CheckCircle2, Copy, ExternalLink, FileText, Trash2, Mail, Download, Shield, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CalendarClock, CheckCircle2, Copy, ExternalLink, FileText, Trash2, Mail, Download, Shield, AlertTriangle, Play, Video, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useBookingDetails } from '../hooks';
+import { useBookingDetails, useSyncRecording } from '../hooks';
 import { useAuth } from '@/stores/useAuth';
 import { CancelBookingModal } from './CancelBookingModal';
 import { RescheduleModal } from './RescheduleModal';
@@ -44,6 +44,7 @@ function statusClass(status: string): string {
 export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetailsModalProps) {
     const { user } = useAuth();
     const { data: booking, isLoading } = useBookingDetails(bookingId);
+    const syncRecordingMutation = useSyncRecording();
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
     const [showReminderModal, setShowReminderModal] = useState(false);
@@ -74,6 +75,13 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
 
     const isOwner = user?.id === booking.bookedByUserId;
     const isStaff = !!(user?.role && STAFF_ROLES.includes(user.role));
+    const isParticipant = Boolean(
+        user?.email &&
+        booking.participants?.some(
+            p => p.email?.toLowerCase() === user.email?.toLowerCase(),
+        ),
+    );
+    const canAccessMeeting = isOwner || isStaff || isParticipant;
     const isCancelled = booking.status === 'CANCELLED';
     const isPending = booking.status === 'PENDING';
     const canManage = (isOwner || isStaff) && !isCancelled && !booking.isExternal;
@@ -135,8 +143,8 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
                         <Metadata label="Dibooking oleh">{booking.bookedByUser?.fullName || 'Pengguna iDesk'}</Metadata>
                     </dl>
 
-                    {/* PRIVACY ENFORCEMENT: Only show meeting link if user is owner or staff */}
-                    {isOwner || isStaff ? (
+                    {/* PRIVACY ENFORCEMENT: Only show meeting link if user is owner, staff, or participant */}
+                    {canAccessMeeting ? (
                         booking.meeting ? (
                             <section className="space-y-4 rounded-2xl bg-blue-50/70 p-4 dark:bg-blue-950/25">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">Akses meeting</p>
@@ -199,18 +207,101 @@ export function BookingDetailsModal({ isOpen, onClose, bookingId }: BookingDetai
                         </div>
                     )}
 
+                    {/* CLOUD RECORDING SECTION (Owner, Staff, or Participant) */}
+                    {canAccessMeeting && booking.meeting?.recordingUrl && (
+                        <section className="space-y-3.5 rounded-2xl bg-emerald-50/70 p-4 border border-emerald-200/80 dark:bg-emerald-950/20 dark:border-emerald-900/60 shadow-2xs">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Video className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-800 dark:text-emerald-300">
+                                        Rekaman Cloud Zoom
+                                    </p>
+                                </div>
+                                <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-800">
+                                    Tersedia{booking.meeting.recordingDuration ? ` • ${booking.meeting.recordingDuration} menit` : ''}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    value={booking.meeting.recordingUrl}
+                                    readOnly
+                                    className="h-9 min-w-0 bg-white font-mono text-xs dark:bg-slate-900 border-emerald-200 dark:border-emerald-800 text-slate-800 dark:text-slate-200"
+                                />
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-9 w-9 shrink-0 rounded-full border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer"
+                                    aria-label="Salin link rekaman"
+                                    onClick={() => copyToClipboard(booking.meeting!.recordingUrl!, 'Link Rekaman')}
+                                >
+                                    <Copy className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="h-9 px-3 rounded-full font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs cursor-pointer shrink-0"
+                                    onClick={() => window.open(booking.meeting!.recordingUrl!, '_blank')}
+                                >
+                                    <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                                    <span>Buka Rekaman</span>
+                                </Button>
+                            </div>
+
+                            {booking.meeting.recordingPasscode && (
+                                <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40">
+                                    <CopyValue
+                                        label="Passcode Rekaman"
+                                        value={booking.meeting.recordingPasscode}
+                                        onCopy={() => copyToClipboard(booking.meeting!.recordingPasscode!, 'Passcode Rekaman')}
+                                    />
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {/* Check / Sync recording on-demand if recording is not yet present */}
+                    {canAccessMeeting && booking.meeting && !booking.meeting.recordingUrl && (
+                        <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/30 px-3.5 py-2.5 text-xs">
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                <Video className="h-4 w-4 shrink-0 text-slate-400" />
+                                <span>Belum ada link rekaman tercatat.</span>
+                            </div>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={syncRecordingMutation.isPending}
+                                onClick={() => syncRecordingMutation.mutate(booking.id)}
+                                className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                            >
+                                <RefreshCw className={cn("h-3 w-3 mr-1.5", syncRecordingMutation.isPending && "animate-spin")} />
+                                {syncRecordingMutation.isPending ? 'Mengecek...' : 'Cek Rekaman di Zoom'}
+                            </Button>
+                        </div>
+                    )}
+
                     {isCancelled && booking.cancellationReason && (
                         <Notice tone="red" title="Dibatalkan">Alasan: {booking.cancellationReason}</Notice>
                     )}
 
                     <footer className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-                        {(isOwner || isStaff) && booking.meeting && (
+                        {canAccessMeeting && booking.meeting && (
                             <Button variant="outline" className="rounded-full text-xs font-medium" onClick={() => window.open(booking.meeting!.joinUrl, '_blank')}>
                                 <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                                 Join meeting
                             </Button>
                         )}
-                        {(isOwner || isStaff) && booking.meeting && (
+                        {canAccessMeeting && booking.meeting?.recordingUrl && (
+                            <Button
+                                variant="outline"
+                                className="rounded-full text-xs font-semibold gap-1.5 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer"
+                                onClick={() => window.open(booking.meeting!.recordingUrl!, '_blank')}
+                                title="Buka rekaman cloud Zoom di tab baru"
+                            >
+                                <Play className="mr-1 h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                                Tonton Rekaman
+                            </Button>
+                        )}
+                        {canAccessMeeting && booking.meeting && (
                             <Button variant="outline" className={cn('rounded-full text-xs font-medium', copiedInv && 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300')} onClick={copyFullInvitation}>
                                 {copiedInv ? <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> : <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />}
                                 {copiedInv ? 'Undangan tersalin' : 'Salin undangan'}

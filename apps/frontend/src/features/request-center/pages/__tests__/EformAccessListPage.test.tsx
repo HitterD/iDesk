@@ -66,7 +66,7 @@ describe('EformAccessListPage', () => {
     expect(screen.getByText('ID & Jenis Akses')).toBeInTheDocument();
     expect(screen.getByText('Pemohon')).toBeInTheDocument();
     expect(screen.getByText('Diajukan')).toBeInTheDocument();
-    expect(screen.getByText('Berlaku Dari')).toBeInTheDocument();
+    expect(screen.getByText('Masa Berlaku')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.getByText('Aksi')).toBeInTheDocument();
 
@@ -79,5 +79,37 @@ describe('EformAccessListPage', () => {
     // Verify PDF button and Detail button rendered
     expect(screen.getAllByText(/PDF F-ICT-04/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Detail').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders Segera Berakhir count tile and toggles between Table and Calendar view', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/eform-access']}>
+          <EformAccessListPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    // Verify "Segera Berakhir" count tile is present
+    expect(screen.getByText('Segera Berakhir')).toBeInTheDocument();
+
+    // Verify View Switcher buttons
+    const tableBtn = screen.getByRole('button', { name: /Tabel/i });
+    const calendarBtn = screen.getByRole('button', { name: /Kalender & Timeline/i });
+    expect(tableBtn).toBeInTheDocument();
+    expect(calendarBtn).toBeInTheDocument();
+
+    // Switch to Calendar view
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.click(calendarBtn);
+
+    // In calendar view, the search filter bar is hidden and calendar layout is displayed
+    expect(screen.getByText(/Semua \(\d+\)/)).toBeInTheDocument(); // Type filter pill in calendar
+    expect(screen.getByText(/Monitoring Tenggat/i)).toBeInTheDocument(); // Agenda sidebar in calendar
+    expect(screen.getByText(/Segera \(/i)).toBeInTheDocument();
+
+    // Switch back to Table view
+    fireEvent.click(tableBtn);
+    expect(screen.getByPlaceholderText('Cari nama pemohon atau ID permintaan')).toBeInTheDocument();
   });
 });

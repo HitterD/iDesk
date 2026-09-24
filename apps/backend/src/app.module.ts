@@ -87,6 +87,7 @@ import { WorkloadModule } from './modules/workload/workload.module';
 // New modules for Phase 4
 import { SoundModule } from './modules/sound/sound.module';
 import { SynologyModule } from './modules/synology/synology.module';
+import { DataWipeModule } from './modules/data-wipe/data-wipe.module';
 
 // New modules for Phase 6
 import { ManagerModule } from './modules/manager/manager.module';
@@ -127,6 +128,7 @@ import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './
 import { SharedGuardsModule } from './shared/core/shared-guards.module';
 import { HardwareRequestModule } from './modules/hardware-request/hardware-request.module';
 import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
+import { SjaAdapterModule } from './modules/sja-adapter/sja-adapter.module';
 import authConfig from './config/auth.config';
 import { validateAuthEnvironment } from './config/auth.config';
 
@@ -231,6 +233,7 @@ import { validateAuthEnvironment } from './config/auth.config';
         WorkloadModule, // Phase 3: Auto-Assignment
         SoundModule, // Phase 4: Sound Notifications
         SynologyModule, // Phase 4: Synology Backup
+        DataWipeModule, // Danger zone: wipe transactional data for go-live
         ManagerModule, // Phase 6: Manager Dashboard
         IpWhitelistModule, // Phase 7: IP Whitelist Management
         ZoomBookingModule, // Phase 8: Zoom Booking Calendar
@@ -241,6 +244,7 @@ import { validateAuthEnvironment } from './config/auth.config';
         SharedGuardsModule, // Provides PageAccessGuard and FeatureAccessGuard with dependencies
         HardwareRequestModule,
         HrisGatewayModule,
+        SjaAdapterModule, // SJA Notification Center Outbox Adapter
         MailModule, // Database-backed SMTP transport
         EncryptionModule, // Provides CredentialCipherService (AES-256-GCM) for at-rest credential protection
         ThrottlerModule.forRoot([{

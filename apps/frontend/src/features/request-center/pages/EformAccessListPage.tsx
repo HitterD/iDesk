@@ -11,6 +11,9 @@ import {
     Ban,
     Inbox,
     Download,
+    CalendarDays,
+    List,
+    AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -26,6 +29,10 @@ import {
     getTypeConfig,
     EFORM_TYPES,
 } from '../components/eform/eform-vocabulary';
+import {
+    EformAccessCalendar,
+    calculateExpirationStatus,
+} from '../components/eform/EformAccessCalendar';
 
 type TabView = 'my-requests' | 'pending-approvals';
 
@@ -33,6 +40,7 @@ const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
 
 const STATUS_FILTERS = [
     { value: 'ALL', label: 'Semua status' },
+    { value: 'EXPIRING_SOON', label: 'Segera Berakhir (< 7 Hari)' },
     ...Object.values(EFormStatus).map(status => ({
         value: status as string,
         label: getStatusConfig(status).label,
@@ -95,6 +103,7 @@ export const EformAccessListPage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [typeFilter, setTypeFilter] = useState('ALL');
     const [tab, setTab] = useState<TabView>('my-requests');
+    const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
     const hasAutoSwitched = useRef(false);
 
     const isIct = ICT_ROLES.includes(user?.role || '');
@@ -125,7 +134,15 @@ export const EformAccessListPage: React.FC = () => {
                     !query ||
                     (req.requesterName?.toLowerCase() || '').includes(query) ||
                     req.id.toLowerCase().startsWith(query);
-                const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter;
+                const matchesStatus =
+                    statusFilter === 'ALL'
+                        ? true
+                        : statusFilter === 'EXPIRING_SOON'
+                            ? (() => {
+                                const exp = calculateExpirationStatus(req.formData?.sampaiTanggal, req.status);
+                                return !!(exp.isExpiringSoon || exp.isToday);
+                            })()
+                            : req.status === statusFilter;
                 const matchesType = typeFilter === 'ALL' || req.formType === typeFilter;
                 return matchesSearch && matchesStatus && matchesType;
             }),
@@ -138,6 +155,10 @@ export const EformAccessListPage: React.FC = () => {
             pendingManager: activeList.filter(r => r.status === EFormStatus.PENDING_MANAGER).length,
             pendingIct: activeList.filter(r => r.status === EFormStatus.PENDING_ICT).length,
             confirmed: activeList.filter(r => r.status === EFormStatus.CONFIRMED).length,
+            expiringSoon: activeList.filter(r => {
+                const exp = calculateExpirationStatus(r.formData?.sampaiTanggal, r.status);
+                return exp.isExpiringSoon || exp.isToday;
+            }).length,
             rejected: activeList.filter(r => r.status === EFormStatus.REJECTED).length,
         }),
         [activeList],
@@ -183,7 +204,7 @@ export const EformAccessListPage: React.FC = () => {
             </div>
 
             {/* Counts — clickable status filters */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
                 <CountTile
                     label="Total"
                     value={counts.total}
@@ -216,6 +237,14 @@ export const EformAccessListPage: React.FC = () => {
                     onClick={() => setStatusFilter(EFormStatus.CONFIRMED)}
                 />
                 <CountTile
+                    label="Segera Berakhir"
+                    value={counts.expiringSoon}
+                    icon={AlertTriangle}
+                    accent="text-amber-600 dark:text-amber-400"
+                    isActive={statusFilter === 'EXPIRING_SOON'}
+                    onClick={() => setStatusFilter(statusFilter === 'EXPIRING_SOON' ? 'ALL' : 'EXPIRING_SOON')}
+                />
+                <CountTile
                     label="Ditolak"
                     value={counts.rejected}
                     icon={Ban}
@@ -225,146 +254,190 @@ export const EformAccessListPage: React.FC = () => {
                 />
             </div>
 
-            {/* Tabs */}
-            <div role="tablist" aria-label="Tampilan permintaan" className="flex w-fit gap-1 rounded-xl border border-border bg-muted/50 p-1">
-                <button
-                    role="tab"
-                    aria-selected={!isApprovalTab}
-                    onClick={() => setTab('my-requests')}
-                    className={cn(
-                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-                        !isApprovalTab
-                            ? 'bg-card text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground',
-                    )}
-                >
-                    <FileText className="h-4 w-4" />
-                    Permintaan Saya
-                </button>
-                <button
-                    role="tab"
-                    aria-selected={isApprovalTab}
-                    onClick={() => setTab('pending-approvals')}
-                    className={cn(
-                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-                        isApprovalTab
-                            ? 'bg-card text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground',
-                    )}
-                >
-                    <Inbox className="h-4 w-4" />
-                    Perlu Persetujuan
-                    {pendingApprovals.length > 0 && (
-                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
-                            {pendingApprovals.length}
-                        </span>
-                    )}
-                </button>
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row">
-                <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                        type="search"
-                        aria-label="Cari permintaan"
-                        placeholder="Cari nama pemohon atau ID permintaan"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm font-medium text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
+            {/* Tabs & View Switcher */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                {/* Tabs */}
+                <div role="tablist" aria-label="Tampilan permintaan" className="flex w-fit gap-1 rounded-xl border border-border bg-muted/50 p-1">
+                    <button
+                        role="tab"
+                        aria-selected={!isApprovalTab}
+                        onClick={() => setTab('my-requests')}
+                        className={cn(
+                            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
+                            !isApprovalTab
+                                ? 'bg-card text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground',
+                        )}
+                    >
+                        <FileText className="h-4 w-4" />
+                        Permintaan Saya
+                    </button>
+                    <button
+                        role="tab"
+                        aria-selected={isApprovalTab}
+                        onClick={() => setTab('pending-approvals')}
+                        className={cn(
+                            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
+                            isApprovalTab
+                                ? 'bg-card text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground',
+                        )}
+                    >
+                        <Inbox className="h-4 w-4" />
+                        Perlu Persetujuan
+                        {pendingApprovals.length > 0 && (
+                            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
+                                {pendingApprovals.length}
+                            </span>
+                        )}
+                    </button>
                 </div>
-                <select
-                    aria-label="Saring jenis akses"
-                    value={typeFilter}
-                    onChange={e => setTypeFilter(e.target.value)}
-                    className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[170px]"
-                >
-                    <option value="ALL">Semua jenis</option>
-                    {EFORM_TYPES.map(({ id, label }) => (
-                        <option key={id} value={id}>{label}</option>
-                    ))}
-                </select>
-                <select
-                    aria-label="Saring status"
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value)}
-                    className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[190px]"
-                >
-                    {STATUS_FILTERS.map(({ value, label }) => (
-                        <option key={value} value={value}>{label}</option>
-                    ))}
-                </select>
+
+                {/* View Switcher: Tabel vs Kalender */}
+                <div className="flex items-center gap-1 rounded-xl border border-border bg-muted/50 p-1">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('table')}
+                        className={cn(
+                            'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                            viewMode === 'table'
+                                ? 'bg-card text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground'
+                        )}
+                    >
+                        <List className="w-3.5 h-3.5" />
+                        <span>Tabel</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('calendar')}
+                        className={cn(
+                            'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                            viewMode === 'calendar'
+                                ? 'bg-card text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground'
+                        )}
+                    >
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        <span>Kalender & Timeline</span>
+                    </button>
+                </div>
             </div>
 
-            {/* Results: Mobile Cards (md:hidden) & Desktop Table (hidden md:block) */}
-            <div className="md:hidden space-y-3">
-                {isLoading ? (
-                    Array.from({ length: 4 }, (_, i) => <SkeletonMobileCard key={i} />)
-                ) : filteredRequests.length === 0 ? (
-                    <div className="rounded-2xl border border-border bg-card p-6">
-                        <EmptyState
-                            isFiltered={isFiltered}
-                            isApprovalTab={isApprovalTab}
-                            onReset={resetFilters}
-                            onCreate={handleCreateNew}
-                        />
+            {viewMode === 'calendar' ? (
+                <EformAccessCalendar
+                    requests={activeList}
+                    isLoading={isLoading}
+                    basePath={basePath}
+                    onOpenDetail={handleViewDetail}
+                />
+            ) : (
+                <>
+                    {/* Filters */}
+                    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row">
+                        <div className="relative flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <input
+                                type="search"
+                                aria-label="Cari permintaan"
+                                placeholder="Cari nama pemohon atau ID permintaan"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm font-medium text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            />
+                        </div>
+                        <select
+                            aria-label="Saring jenis akses"
+                            value={typeFilter}
+                            onChange={e => setTypeFilter(e.target.value)}
+                            className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[170px]"
+                        >
+                            <option value="ALL">Semua jenis</option>
+                            {EFORM_TYPES.map(({ id, label }) => (
+                                <option key={id} value={id}>{label}</option>
+                            ))}
+                        </select>
+                        <select
+                            aria-label="Saring status"
+                            value={statusFilter}
+                            onChange={e => setStatusFilter(e.target.value)}
+                            className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[190px]"
+                        >
+                            {STATUS_FILTERS.map(({ value, label }) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
                     </div>
-                ) : (
-                    filteredRequests.map(req => (
-                        <EformMobileCard
-                            key={req.id}
-                            request={req}
-                            isApprovalTab={isApprovalTab}
-                            onOpen={() => handleViewDetail(req.id)}
-                        />
-                    ))
-                )}
-            </div>
 
-            {/* Desktop Results Table */}
-            <div className="hidden md:block overflow-hidden rounded-2xl border border-border bg-card shadow-2xs">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead>
-                            <tr className="border-b border-border bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                                <th className="px-5 py-3.5">ID & Jenis Akses</th>
-                                <th className="px-4 py-3.5">Pemohon</th>
-                                <th className="px-4 py-3.5">Diajukan</th>
-                                <th className="px-4 py-3.5">Berlaku Dari</th>
-                                <th className="px-4 py-3.5">Status</th>
-                                <th className="px-5 py-3.5 text-right">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/60">
-                            {isLoading ? (
-                                Array.from({ length: 5 }, (_, i) => <SkeletonTableRow key={i} />)
-                            ) : filteredRequests.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="p-0">
-                                        <EmptyState
-                                            isFiltered={isFiltered}
-                                            isApprovalTab={isApprovalTab}
-                                            onReset={resetFilters}
-                                            onCreate={handleCreateNew}
-                                        />
-                                    </td>
-                                </tr>
-                            ) : (
-                                filteredRequests.map(req => (
-                                    <EformListRow
-                                        key={req.id}
-                                        request={req}
-                                        isApprovalTab={isApprovalTab}
-                                        onOpen={() => handleViewDetail(req.id)}
-                                    />
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                    {/* Results: Mobile Cards (md:hidden) & Desktop Table (hidden md:block) */}
+                    <div className="md:hidden space-y-3">
+                        {isLoading ? (
+                            Array.from({ length: 4 }, (_, i) => <SkeletonMobileCard key={i} />)
+                        ) : filteredRequests.length === 0 ? (
+                            <div className="rounded-2xl border border-border bg-card p-6">
+                                <EmptyState
+                                    isFiltered={isFiltered}
+                                    isApprovalTab={isApprovalTab}
+                                    onReset={resetFilters}
+                                    onCreate={handleCreateNew}
+                                />
+                            </div>
+                        ) : (
+                            filteredRequests.map(req => (
+                                <EformMobileCard
+                                    key={req.id}
+                                    request={req}
+                                    isApprovalTab={isApprovalTab}
+                                    onOpen={() => handleViewDetail(req.id)}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    {/* Desktop Results Table */}
+                    <div className="hidden md:block overflow-hidden rounded-2xl border border-border bg-card shadow-2xs">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead>
+                                    <tr className="border-b border-border bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        <th className="px-5 py-3.5">ID & Jenis Akses</th>
+                                        <th className="px-4 py-3.5">Pemohon</th>
+                                        <th className="px-4 py-3.5">Diajukan</th>
+                                        <th className="px-4 py-3.5">Masa Berlaku</th>
+                                        <th className="px-4 py-3.5">Status</th>
+                                        <th className="px-5 py-3.5 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/60">
+                                    {isLoading ? (
+                                        Array.from({ length: 5 }, (_, i) => <SkeletonTableRow key={i} />)
+                                    ) : filteredRequests.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-0">
+                                                <EmptyState
+                                                    isFiltered={isFiltered}
+                                                    isApprovalTab={isApprovalTab}
+                                                    onReset={resetFilters}
+                                                    onCreate={handleCreateNew}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredRequests.map(req => (
+                                            <EformListRow
+                                                key={req.id}
+                                                request={req}
+                                                isApprovalTab={isApprovalTab}
+                                                onOpen={() => handleViewDetail(req.id)}
+                                            />
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
@@ -406,7 +479,9 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onO
     const type = getTypeConfig(request.formType);
     const TypeIcon = type.icon;
     const formattedDate = format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale });
-    const validFrom = request.formData?.dariTanggal || '—';
+    const dari = request.formData?.dariTanggal || '—';
+    const sampai = request.formData?.sampaiTanggal;
+    const exp = calculateExpirationStatus(sampai, request.status);
 
     return (
         <tr
@@ -457,11 +532,18 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onO
                 {formattedDate}
             </td>
 
-            {/* Berlaku Dari */}
-            <td className="px-4 py-3.5 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs font-semibold text-foreground">
-                    {validFrom}
-                </span>
+            {/* Masa Berlaku */}
+            <td className="px-4 py-3.5">
+                <div className="space-y-1">
+                    <div className="text-xs font-semibold text-foreground whitespace-nowrap">
+                        {dari} {sampai ? `s/d ${sampai}` : (request.formType === 'WEBSITE' ? '— Permanen' : '')}
+                    </div>
+                    <div>
+                        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[10px] font-bold border', exp.badgeClass)}>
+                            {exp.label}
+                        </span>
+                    </div>
+                </div>
             </td>
 
             {/* Status */}
@@ -503,7 +585,9 @@ const EformMobileCard: React.FC<EformListRowProps> = ({ request, isApprovalTab, 
     const type = getTypeConfig(request.formType);
     const TypeIcon = type.icon;
     const formattedDate = format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale });
-    const validFrom = request.formData?.dariTanggal || '—';
+    const dari = request.formData?.dariTanggal || '—';
+    const sampai = request.formData?.sampaiTanggal;
+    const exp = calculateExpirationStatus(sampai, request.status);
 
     return (
         <div
@@ -528,7 +612,7 @@ const EformMobileCard: React.FC<EformListRowProps> = ({ request, isApprovalTab, 
                 <EformStatusBadge status={request.status} />
             </div>
 
-            {/* Mid row: Requester Info */}
+            {/* Mid row: Requester Info & Masa Berlaku */}
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
                 <div className="min-w-0">
                     <div className="font-bold text-foreground truncate">
@@ -543,7 +627,12 @@ const EformMobileCard: React.FC<EformListRowProps> = ({ request, isApprovalTab, 
                 <div className="text-right shrink-0">
                     <div className="text-[11px] text-muted-foreground font-medium">Diajukan: {formattedDate}</div>
                     <div className="text-[11px] font-semibold text-foreground mt-0.5">
-                        Mulai: <span className="bg-muted px-1.5 py-0.5 rounded">{validFrom}</span>
+                        {dari} {sampai ? `s/d ${sampai}` : ''}
+                    </div>
+                    <div className="mt-1">
+                        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[10px] font-bold border', exp.badgeClass)}>
+                            {exp.label}
+                        </span>
                     </div>
                 </div>
             </div>

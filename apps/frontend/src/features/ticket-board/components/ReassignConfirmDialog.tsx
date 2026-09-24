@@ -107,10 +107,12 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
             onClick={() => {
                 if (!isLoading) onClose();
             }}
+            onKeyDown={(e) => e.stopPropagation()}
         >
             <div
                 className="relative w-full max-w-lg overflow-hidden bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
             >
                 {/* Header */}
                 <div className="flex items-start justify-between p-5 border-b border-border bg-muted/30">

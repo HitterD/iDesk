@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, getDay, parseISO } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Plus, Search, Filter, Calendar, Clock, X, Video, ExternalLink, Sparkles, UserCheck } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, Clock, X, Video, ExternalLink, Sparkles, UserCheck, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ZoomAccount } from '../types';
@@ -13,12 +13,34 @@ interface AccountDayBooking {
     title: string;
     startTime: string;
     endTime?: string;
+    durationMinutes?: number;
     joinUrl?: string;
     isMyBooking: boolean;
     bookedByName?: string;
     department?: string;
     email?: string;
     isDoubleBooking?: boolean;
+}
+
+function computeEndTime(startTime: string, endTime?: string, durationMinutes?: number): string {
+    if (endTime) return endTime.slice(0, 5);
+    if (!startTime) return '';
+    const dur = durationMinutes || 60;
+    const [h, m] = startTime.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return '';
+    const total = h * 60 + m + dur;
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+}
+
+function formatHumanDuration(durationMinutes?: number): string {
+    if (!durationMinutes || durationMinutes <= 0) return '';
+    const hours = Math.floor(durationMinutes / 60);
+    const mins = durationMinutes % 60;
+    if (hours > 0 && mins > 0) return `${hours} jam ${mins} mnt`;
+    if (hours > 0) return `${hours} jam`;
+    return `${mins} mnt`;
 }
 
 interface ZoomAccountsMatrixProps {
@@ -96,6 +118,7 @@ export function ZoomAccountsMatrix({
                             title: b.title,
                             startTime: b.startTime || slot.time,
                             endTime: (b as any).endTime,
+                            durationMinutes: (b as any).durationMinutes,
                             joinUrl: isMy ? (b as any).joinUrl : undefined,
                             isMyBooking: isMy,
                             bookedByName: b.bookedBy === 'Saya' ? 'Saya' : b.bookedBy || (b as any).bookedByUser?.fullName,
@@ -154,8 +177,8 @@ export function ZoomAccountsMatrix({
         return sum;
     }, [accountTotals]);
 
-    const DAY_COL_WIDTH = 38; // px, optimized for dense readability & fitting month on desktop
-    const LABEL_WIDTH = 155;  // px, accommodates account dot, name & monthly badges
+    const DAY_COL_WIDTH = 48; // px, expansive & legible with sidebar collapsed
+    const LABEL_WIDTH = 160;  // px, accommodates account dot, name & monthly badges
 
     // Active selected cell details for popover
     const activePopoverData = useMemo(() => {
@@ -447,19 +470,24 @@ export function ZoomAccountsMatrix({
                                                 <button
                                                     key={b.id}
                                                     type="button"
-                                                    title={`${b.startTime} · ${b.title}${b.isMyBooking ? ' (Bookingan Anda)' : ''}`}
+                                                    title={`${b.startTime.slice(0, 5)} · ${b.title}${b.isMyBooking ? ' (Bookingan Anda)' : ''}`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onBookingClick(b.id);
+                                                        setSelectedCell(isSelected ? null : {
+                                                            accountId: account.id,
+                                                            date: dateStr,
+                                                            alignRight,
+                                                            alignTop,
+                                                        });
                                                     }}
                                                     className={cn(
-                                                        'w-full h-4.5 px-0.5 rounded-sm transition-all text-[9px] font-mono font-bold text-white flex items-center justify-center shadow-2xs hover:scale-105 hover:opacity-90',
-                                                        b.isMyBooking && 'ring-2 ring-offset-0.5 ring-blue-500 font-black'
+                                                        'w-full h-5 px-1 rounded-md transition-all text-[9.5px] font-mono font-bold text-white flex items-center justify-center shadow-2xs hover:scale-105 hover:opacity-95 cursor-pointer',
+                                                        b.isMyBooking && 'ring-2 ring-offset-1 ring-primary font-black shadow-xs'
                                                     )}
-                                                    style={{ backgroundColor: account.colorHex || '#3b82f6' }}
+                                                    style={{ backgroundColor: account.colorHex || '#2563eb' }}
                                                 >
                                                     <span className="truncate leading-none">
-                                                        {b.startTime}
+                                                        {b.startTime.slice(0, 5)}
                                                     </span>
                                                 </button>
                                             ))}
@@ -582,60 +610,79 @@ export function ZoomAccountsMatrix({
                                     <p className="text-[11px]">Akun ini bebas sepanjang hari pada tanggal ini.</p>
                                 </div>
                             ) : (
-                                activePopoverData.bookings.map((booking: AccountDayBooking) => (
-                                    <div
-                                        key={booking.id}
-                                        onClick={() => {
-                                            setSelectedCell(null);
-                                            onBookingClick(booking.id);
-                                        }}
-                                        className={cn(
-                                            "w-full text-left p-2.5 rounded-xl text-xs font-medium cursor-pointer",
-                                            "border border-border/80 bg-background hover:bg-muted/70 hover:border-primary/40 transition-all shadow-2xs group flex flex-col gap-1.5"
-                                        )}
-                                        style={{ borderLeftWidth: '3.5px', borderLeftColor: activePopoverData.account?.colorHex || '#3b82f6' }}
-                                    >
-                                        <div className="flex items-center justify-between gap-1.5">
-                                            <span className="text-[11px] font-mono font-bold text-primary flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                <span>{booking.startTime}</span>
-                                                {booking.endTime && <span className="text-muted-foreground/70">– {booking.endTime}</span>}
-                                            </span>
-                                            <div className="flex items-center gap-1">
-                                                {booking.isDoubleBooking && (
-                                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                                                        DOBEL
-                                                    </span>
-                                                )}
-                                                {booking.isMyBooking ? (
-                                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-primary/10 text-primary border border-primary/20">
-                                                        SAYA
-                                                    </span>
-                                                ) : (
-                                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-muted text-muted-foreground truncate max-w-[120px]">
-                                                        {booking.bookedByName || 'User Lain'}
-                                                    </span>
-                                                )}
+                                activePopoverData.bookings.map((booking: AccountDayBooking) => {
+                                    const endTimeStr = computeEndTime(booking.startTime, booking.endTime, booking.durationMinutes);
+                                    const durationLabel = formatHumanDuration(booking.durationMinutes);
+                                    return (
+                                        <div
+                                            key={booking.id}
+                                            onClick={() => {
+                                                setSelectedCell(null);
+                                                onBookingClick(booking.id);
+                                            }}
+                                            className={cn(
+                                                "w-full text-left p-3 rounded-xl text-xs cursor-pointer transition-all duration-150",
+                                                "border border-border/80 bg-background hover:bg-slate-50 dark:hover:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs group flex flex-col gap-2"
+                                            )}
+                                            style={{ borderLeftWidth: '3.5px', borderLeftColor: activePopoverData.account?.colorHex || '#2563eb' }}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                                    <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                                    <span className="font-mono">{booking.startTime.slice(0, 5)}</span>
+                                                    {endTimeStr && <span className="text-slate-600 dark:text-slate-400 font-mono">– {endTimeStr} WIB</span>}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {durationLabel && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                                            {durationLabel}
+                                                        </span>
+                                                    )}
+                                                    {booking.isDoubleBooking && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                            DOBEL
+                                                        </span>
+                                                    )}
+                                                    {booking.isMyBooking ? (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                                            SAYA
+                                                        </span>
+                                                    ) : booking.bookedByName ? (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 max-w-[120px] truncate">
+                                                            {booking.bookedByName}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                            <div className="text-xs font-bold text-foreground line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                {booking.title}
+                                            </div>
+                                            <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground border-t border-border/40">
+                                                <div className="flex items-center gap-1 truncate">
+                                                    {!booking.isMyBooking && (
+                                                        <>
+                                                            <span>Dipesan:</span>
+                                                            <span className="font-medium text-foreground truncate">{booking.bookedByName || 'Pengguna'}</span>
+                                                            {booking.department && <span className="text-[10px]">({booking.department})</span>}
+                                                        </>
+                                                    )}
+                                                    {booking.isMyBooking && (
+                                                        <span className="text-blue-600 dark:text-blue-400 font-medium">Reservasi Anda</span>
+                                                    )}
+                                                    {booking.joinUrl && booking.isMyBooking && (
+                                                        <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium ml-2">
+                                                            <ExternalLink className="w-2.5 h-2.5" /> Link tersedia
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 shrink-0 ml-2">
+                                                    <span>Detail</span>
+                                                    <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-xs font-bold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-                                            {booking.title}
-                                        </div>
-                                        {!booking.isMyBooking && (
-                                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 pt-0.5">
-                                                <span>Pem-booking:</span>
-                                                <strong className="text-foreground">{booking.bookedByName || 'Pengguna Lain'}</strong>
-                                                {booking.department && <span>({booking.department})</span>}
-                                            </div>
-                                        )}
-                                        {booking.joinUrl && booking.isMyBooking && (
-                                            <div className="flex items-center gap-1 text-[10px] text-primary/80 font-medium pt-0.5">
-                                                <ExternalLink className="w-2.5 h-2.5" />
-                                                <span>Link Zoom tersedia</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
 
@@ -652,10 +699,10 @@ export function ZoomAccountsMatrix({
                                             onCellClick?.(accId, dt);
                                         }
                                     }}
-                                    className="w-full h-8 text-xs font-bold gap-1.5 rounded-lg bg-primary text-primary-foreground shadow-xs cursor-pointer hover:opacity-95"
+                                    className="w-full h-8.5 text-xs font-bold gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer transition-colors"
                                 >
                                     <Plus className="w-3.5 h-3.5" />
-                                    <span>+ Book di {activePopoverData.account?.name ?? 'Akun Ini'}</span>
+                                    <span>Jadwalkan di {activePopoverData.account?.name ?? 'Akun Ini'}</span>
                                 </Button>
                             </div>
                         )}

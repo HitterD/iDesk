@@ -45,11 +45,11 @@ const STATUS_BADGE_CONFIG: Record<string, { label: string; color: string; dot: s
     CANCELLED: { label: 'Cancelled', color: 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800', dot: 'bg-red-500' },
 };
 
-const PRIORITY_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
-    LOW: { label: 'Low', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
-    MEDIUM: { label: 'Medium', color: 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400' },
-    HIGH: { label: 'High', color: 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400' },
-    CRITICAL: { label: 'Critical', color: 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400' },
+const PRIORITY_BADGE_CONFIG: Record<string, { label: string; shortLabel?: string; color: string }> = {
+    LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
+    MEDIUM: { label: 'Normal (Moderate)', shortLabel: 'Normal', color: 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400' },
+    HIGH: { label: 'Urgent (Major Impact)', shortLabel: 'Urgent', color: 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400' },
+    CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', color: 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400' },
 };
 
 export const ManagerTicketActivityModal: React.FC<ManagerTicketActivityModalProps> = ({

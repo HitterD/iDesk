@@ -1,4 +1,4 @@
-import { Building2, Calendar, Coins, FileText, MapPin, User, Users, AlertTriangle } from 'lucide-react';
+import { Building2, Calendar, Coins, FileText, MapPin, User, Users, AlertTriangle, Wrench } from 'lucide-react';
 import { SectionCard } from '../common/SectionCard';
 import { fmtDateTime } from '../../utils/format.util';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -11,9 +11,10 @@ function getDeptName(dept: any): string {
 }
 
 export function RequestInfoCard({ r }: { r: HardwareRequest | any }) {
+    const isInstallationOnly = String(r.justification || '').includes('[PENJADWALAN PEMASANGAN]');
     const isNonBudget = String(r.justification || '').includes('[NON-BUDGET]');
     const cleanJustification = String(r.justification || '')
-        .replace(/^\[(BUDGET TAHUNAN|NON-BUDGET)\]\s*/i, '');
+        .replace(/^\[(BUDGET TAHUNAN|NON-BUDGET|PENJADWALAN PEMASANGAN)\]\s*/i, '');
 
     // Parse recipient names if comma separated
     const rawRecipients = r.recipientName || r.recipient?.fullName || '';
@@ -24,22 +25,32 @@ export function RequestInfoCard({ r }: { r: HardwareRequest | any }) {
     return (
         <SectionCard title="Informasi Permintaan">
             <div className="space-y-5">
-                {/* Budget Category Banner */}
+                {/* Category Banner */}
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-muted/30 border border-border/60">
                     <div className="flex items-center gap-2">
-                        <Coins className="size-4 text-primary" />
+                        {isInstallationOnly ? (
+                            <Wrench className="size-4 text-primary" />
+                        ) : (
+                            <Coins className="size-4 text-primary" />
+                        )}
                         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                            Kategori Anggaran
+                            Kategori Pengajuan
                         </span>
                     </div>
                     <span
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                            isNonBudget
+                            isInstallationOnly
+                                ? 'bg-primary/10 text-primary border border-primary/20'
+                                : isNonBudget
                                 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30'
                                 : 'bg-primary/10 text-primary border border-primary/20'
                         }`}
                     >
-                        {isNonBudget ? 'Pengajuan Budget Tambahan / Non-Tahunan' : 'Realisasi Budget Tahunan ICT'}
+                        {isInstallationOnly
+                            ? 'Penjadwalan Pemasangan Hardware'
+                            : isNonBudget
+                            ? 'Pengajuan Budget Tambahan / Non-Tahunan'
+                            : 'Realisasi Budget Tahunan ICT'}
                     </span>
                 </div>
 
@@ -112,8 +123,8 @@ export function RequestInfoCard({ r }: { r: HardwareRequest | any }) {
                         <FileText className="size-3.5 text-primary" />
                         <span>Justifikasi Kebutuhan & Keterangan</span>
                     </span>
-                    <div className="p-3.5 rounded-xl bg-muted/20 border border-border text-xs sm:text-sm text-foreground leading-relaxed italic whitespace-pre-wrap">
-                        "{cleanJustification || r.justification || '—'}"
+                    <div className="p-3.5 rounded-xl bg-muted/25 border border-border/80 text-xs sm:text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                        {cleanJustification.trim() || r.justification || '—'}
                     </div>
                 </div>
 

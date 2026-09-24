@@ -14,8 +14,18 @@ import {
     Query,
     BadRequestException,
     ParseIntPipe,
+    ParseUUIDPipe,
     Optional,
+    HttpCode,
+    Headers,
+    UnauthorizedException,
+    NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { timingSafeEqual } from 'crypto';
+import { Repository } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Public } from '../../../shared/core/decorators/public.decorator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TicketCreateService } from '../services/ticket-create.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
@@ -54,6 +64,17 @@ import { ForwardTicketDto } from '../dto/forward-ticket.dto';
 import { CreateTicketReminderDto } from '../dto/ticket-reminder.dto';
 import { TicketReminderService } from '../services/ticket-reminder.service';
 
+const TICKET_AGENT_ROLES = [
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.AGENT,
+    UserRole.AGENT_ADMIN,
+    UserRole.AGENT_OPERATIONAL_SUPPORT,
+    UserRole.AGENT_ORACLE,
+    UserRole.AGENT_WEB_DEV,
+    UserRole.AGENT_MOBILE_DEV,
+] as const;
+
 @ApiTags('Tickets')
 @Controller('tickets')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -70,6 +91,7 @@ export class TicketsController {
         private readonly ticketForwardService: TicketForwardService,
         private readonly ticketReminderService: TicketReminderService,
         private readonly kbService: KnowledgeBaseService,
+        @InjectRepository(User) private readonly userRepo: Repository<User>,
         @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
@@ -237,7 +259,7 @@ export class TicketsController {
     @Get(':id')
     @ApiOperation({ summary: 'Get ticket details' })
     @ApiResponse({ status: 200, description: 'Return ticket details.' })
-    async findOne(@Param('id') id: string, @Request() req: any) {
+    async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
         if (req?.user) {
             await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role, req.user.siteId ?? null);
         }
@@ -255,7 +277,7 @@ export class TicketsController {
     @Roles(UserRole.ADMIN, UserRole.AGENT)
     @ApiOperation({ summary: 'Suggest most relevant KB articles for a ticket' })
     @ApiResponse({ status: 200, description: 'Top relevant articles (max 3)' })
-    async getKbSuggestions(@Param('id') id: string, @Request() req: any) {
+    async getKbSuggestions(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
         const ticket = await this.ticketQueryService.findOne(id, {
             id: req.user?.userId || req.user?.id,
             role: req.user?.role,
@@ -268,7 +290,7 @@ export class TicketsController {
     @Get(':id/messages')
     @ApiOperation({ summary: 'Get ticket messages' })
     @ApiResponse({ status: 200, description: 'Return ticket messages.' })
-    async getMessages(@Param('id') id: string, @Request() req: any) {
+    async getMessages(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
         return this.ticketMessagingService.getMessages(id, req.user.role, req.user.siteId ?? null);
     }
 
@@ -278,7 +300,7 @@ export class TicketsController {
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20)' })
     async getMessagesPaginated(
-        @Param('id') ticketId: string,
+        @Param('id', ParseUUIDPipe) ticketId: string,
         @Query('page') page: number = 1,
         @Query('limit') limit: number = 20,
         @Request() req: any,
@@ -297,7 +319,7 @@ export class TicketsController {
     @UseGuards(JwtAuthGuard)
     @UseInterceptors(AttachmentMultiInterceptor())
     async replyToTicket(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Req() req: any,
         @Body('content') content: string,
         @Body('mentionedUserIds') mentionedUserIds: string | string[],
@@ -351,10 +373,84 @@ export class TicketsController {
         return result;
     }
 
+    @Post(':id/s2s-reply')
+    @Public()
+    @HttpCode(200)
+    @ApiOperation({ summary: 'S2S Quick Reply from SJA Notification Center' })
+    async replyToTicketS2S(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Headers('x-s2s-token') s2sToken: string,
+        @Body() body: { employeeId?: string; nik?: string; userId?: string; content: string },
+        @Req() req: any,
+    ) {
+        // Fail-closed: tanpa SJA_INTERNAL_SECRET yang diset di environment, endpoint
+        // ini menolak semua request. Secret tidak boleh punya nilai default di kode —
+        // nilai yang ikut ter-commit sama saja dengan tidak ada autentikasi.
+        const expectedSecret = process.env.SJA_INTERNAL_SECRET;
+        if (!expectedSecret) {
+            throw new UnauthorizedException('S2S reply endpoint is not configured: SJA_INTERNAL_SECRET is unset');
+        }
+
+        const incomingSecret = s2sToken || req.headers?.['x-internal-secret'] || req.headers?.['x-s2s-token'];
+        if (!incomingSecret || !this.isMatchingSecret(incomingSecret, expectedSecret)) {
+            throw new UnauthorizedException('Unauthorized S2S request: Invalid or missing x-s2s-token header');
+        }
+
+        const identifier = body.employeeId || body.nik || body.userId;
+        if (!identifier || !body.content?.trim()) {
+            throw new BadRequestException('identifier (employeeId/nik/userId) dan content wajib diisi');
+        }
+
+        let user: User | null = null;
+        if (identifier.includes('@')) {
+            user = await this.userRepo.findOne({ where: { email: identifier.toLowerCase() } });
+        } else {
+            user = await this.userRepo.findOne({ where: { employeeId: identifier } });
+            // Cegah syntax error PostgreSQL jika identifier bukan format UUID
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(identifier);
+            if (!user && isUuid) {
+                user = await this.userRepo.findOne({ where: { id: identifier } });
+            }
+        }
+
+        if (!user || user.isActive === false) {
+            throw new NotFoundException('User pemilik perangkat tidak ditemukan atau non-aktif di iDesk');
+        }
+
+        const result = await this.ticketMessagingService.replyToTicket(
+            id,
+            user.id,
+            body.content.trim(),
+            [],
+            [],
+            false,
+        );
+
+        return {
+            success: true,
+            message: result,
+        };
+    }
+
+    /**
+     * Membandingkan secret S2S dalam waktu konstan agar penyerang tidak bisa
+     * menebak isinya karakter demi karakter lewat selisih waktu respons.
+     * Memakai crypto bawaan Node, bukan implementasi sendiri.
+     */
+    private isMatchingSecret(incoming: unknown, expected: string): boolean {
+        if (typeof incoming !== 'string') return false;
+
+        const incomingBuf = Buffer.from(incoming, 'utf8');
+        const expectedBuf = Buffer.from(expected, 'utf8');
+        if (incomingBuf.length !== expectedBuf.length) return false;
+
+        return timingSafeEqual(incomingBuf, expectedBuf);
+    }
+
     @Get(':id/participants')
     @ApiOperation({ summary: 'Get participants of a ticket' })
     @ApiResponse({ status: 200, description: 'Return participants.' })
-    async getParticipants(@Param('id') id: string) {
+    async getParticipants(@Param('id', ParseUUIDPipe) id: string) {
         return this.ticketParticipantService.getParticipants(id);
     }
 
@@ -362,7 +458,7 @@ export class TicketsController {
     @ApiOperation({ summary: 'Add participants to a ticket' })
     @ApiResponse({ status: 200, description: 'Participants added successfully.' })
     async addParticipants(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() body: AddParticipantsDto,
         @Request() req: any,
     ) {
@@ -376,7 +472,7 @@ export class TicketsController {
     @ApiOperation({ summary: 'Remove a participant from a ticket (Developer Agent / Admin only)' })
     @ApiResponse({ status: 200, description: 'Participant removed successfully.' })
     async removeParticipant(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Param('userId') targetUserId: string,
         @Request() req: any,
     ) {
@@ -386,11 +482,11 @@ export class TicketsController {
     }
 
     @Patch(':id/status')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Update ticket status' })
     @ApiResponse({ status: 200, description: 'Ticket status updated.' })
     async updateStatus(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: UpdateTicketStatusDto,
         @Request() req: any,
     ) {
@@ -398,11 +494,11 @@ export class TicketsController {
     }
 
     @Patch(':id/priority')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Update ticket priority' })
     @ApiResponse({ status: 200, description: 'Ticket priority updated.' })
     async updatePriority(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: UpdateTicketPriorityDto,
         @Request() req: any,
     ) {
@@ -410,11 +506,11 @@ export class TicketsController {
     }
 
     @Patch(':id/category')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Update ticket category' })
     @ApiResponse({ status: 200, description: 'Ticket category updated.' })
     async updateCategory(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: UpdateTicketCategoryDto,
         @Request() req: any,
     ) {
@@ -422,22 +518,22 @@ export class TicketsController {
     }
 
     @Patch(':id/device')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Update ticket device' })
     @ApiResponse({ status: 200, description: 'Ticket device updated.' })
     async updateDevice(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: UpdateTicketDeviceDto,
         @Request() req: any,
     ) {
         return this.ticketUpdateService.updateTicket(id, { device: dto.device }, req.user.userId);
     }
     @Patch(':id/assign')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Assign ticket to an agent' })
     @ApiResponse({ status: 200, description: 'Ticket assigned successfully.' })
     async assignTicket(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: AssignTicketDto,
         @Request() req: any,
     ) {
@@ -448,7 +544,7 @@ export class TicketsController {
     @ApiOperation({ summary: 'Cancel a ticket' })
     @ApiResponse({ status: 200, description: 'Ticket cancelled successfully.' })
     async cancelTicket(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: CancelTicketDto,
         @Request() req: any,
     ) {
@@ -456,11 +552,11 @@ export class TicketsController {
     }
 
     @Post(':id/sla/extend')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Extend the SLA target of a ticket, recording the reason' })
     @ApiResponse({ status: 201, description: 'SLA extended' })
     async extendSla(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: ExtendSlaDto,
         @Request() req: any,
     ) {
@@ -472,11 +568,11 @@ export class TicketsController {
     }
 
     @Post(':id/forward')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Forward a ticket to the other handling team (ops <-> oracle)' })
     @ApiResponse({ status: 201, description: 'Ticket forwarded' })
     async forwardTicket(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: ForwardTicketDto,
         @Request() req: any,
     ) {
@@ -487,11 +583,11 @@ export class TicketsController {
     }
 
     @Post(':id/reminders')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Create a scheduled email reminder for this ticket' })
     @ApiResponse({ status: 201, description: 'Reminder created successfully' })
     async createReminder(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: CreateTicketReminderDto,
         @Request() req: any,
     ) {
@@ -502,19 +598,19 @@ export class TicketsController {
     }
 
     @Get(':id/reminders')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Get all scheduled reminders for this ticket' })
     @ApiResponse({ status: 200, description: 'Return all reminders for ticket' })
-    async getReminders(@Param('id') id: string) {
+    async getReminders(@Param('id', ParseUUIDPipe) id: string) {
         return this.ticketReminderService.getReminders(id);
     }
 
     @Delete(':id/reminders/:reminderId')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Cancel/delete an unsent reminder for this ticket' })
     @ApiResponse({ status: 200, description: 'Reminder cancelled successfully' })
     async deleteReminder(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Param('reminderId') reminderId: string,
         @Request() req: any,
     ) {
@@ -526,7 +622,7 @@ export class TicketsController {
     }
 
     @Patch('bulk/update')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Bulk update multiple tickets' })
     @ApiResponse({ status: 200, description: 'Tickets updated successfully.' })
     async bulkUpdate(
@@ -547,7 +643,7 @@ export class TicketsController {
     }
 
     @Patch('bulk/assign')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Bulk assign multiple tickets to one assignee (per-team authorization inherited)' })
     @ApiResponse({ status: 200, description: 'Tickets assigned successfully.' })
     async bulkAssign(
@@ -575,7 +671,7 @@ export class TicketsController {
     }
 
     @Post('merge')
-    @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
+    @Roles(...TICKET_AGENT_ROLES)
     @ApiOperation({ summary: 'Merge multiple tickets into one' })
     @ApiResponse({ status: 200, description: 'Tickets merged successfully.' })
     async mergeTickets(

@@ -20,10 +20,39 @@ interface ZoomMonthViewProps {
     currentDate: Date;
     calendar: CalendarDay[];
     accounts?: ZoomAccount[];
+    isGabungan?: boolean;
     onSlotClick: (day: CalendarDay, slot: CalendarSlot) => void;
     onDateDoubleClick: (date: Date) => void;
     onBookingClick: (bookingId: string, day: CalendarDay) => void;
     canBook?: boolean;
+}
+
+interface HourSlotUsage {
+    hour: number;
+    colorHex?: string;
+    accountName?: string;
+    hasMeeting: boolean;
+}
+
+function computeDayHeatmap(events: DayEvents[]): HourSlotUsage[] {
+    // 10 one-hour slots for working hours 08:00 - 18:00 (hours 8 to 17)
+    const slots: HourSlotUsage[] = [];
+    for (let h = 8; h <= 17; h++) {
+        const ev = events.find((e) => {
+            if (!e.startTime) return false;
+            const [startH] = e.startTime.split(':').map(Number);
+            const endH = e.endTime ? parseInt(e.endTime.split(':')[0], 10) : startH + 1;
+            return h >= startH && h < Math.max(startH + 1, endH);
+        });
+
+        slots.push({
+            hour: h,
+            colorHex: ev?.accountColorHex,
+            accountName: ev?.accountName,
+            hasMeeting: Boolean(ev),
+        });
+    }
+    return slots;
 }
 
 function getDaysGrid(currentDate: Date): Date[] {
@@ -100,6 +129,7 @@ export function ZoomMonthView({
     currentDate,
     calendar,
     accounts = [],
+    isGabungan = true,
     onSlotClick,
     onDateDoubleClick,
     onBookingClick,
@@ -166,12 +196,13 @@ export function ZoomMonthView({
                     const events = getDayEvents(calDay, accountsMap);
                     
                     // Adaptive pills: show at most 2 pills + 1 compact overflow chip
-                    const maxDisplay = events.length > 2 ? 2 : 2;
+                    const maxDisplay = 2;
                     const visibleEvents = events.slice(0, maxDisplay);
                     const overflow = events.length - visibleEvents.length;
                     const isBlocked = calDay?.isBlocked ?? false;
                     const isWeekend = !isWorkingDay(day, workingDays);
                     const isSelected = selectedDate === dateStr;
+                    const heatmap = computeDayHeatmap(events);
 
                     return (
                         <div
@@ -208,22 +239,6 @@ export function ZoomMonthView({
                                     {format(day, 'd')}
                                 </span>
 
-                                {/* Distinct account color indicator dots */}
-                                {events.length > 0 && !isBlocked && (
-                                    <div className="hidden sm:flex items-center gap-1 max-w-[65px] overflow-hidden shrink-0 px-1">
-                                        {Array.from(new Set(events.map(e => e.accountColorHex || '#3b82f6'))).slice(0, 5).map((color, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="w-1.5 h-1.5 rounded-full shrink-0 shadow-2xs ring-1 ring-background"
-                                                style={{ backgroundColor: color }}
-                                            />
-                                        ))}
-                                        {new Set(events.map(e => e.accountColorHex)).size > 5 && (
-                                            <span className="text-[8px] font-mono text-muted-foreground font-bold leading-none">+</span>
-                                        )}
-                                    </div>
-                                )}
-
                                 {isBlocked && (
                                     <span className="text-[9px] sm:text-[10px] font-bold text-destructive px-1.5 py-0.2 rounded-full bg-destructive/10">
                                         Blokir
@@ -257,30 +272,42 @@ export function ZoomMonthView({
                                     <div
                                         key={`${event.bookingId ?? eventIdx}`}
                                         className={cn(
-                                            "h-[22px] sm:h-[24px] px-1.5 rounded-md font-medium cursor-pointer transition-all border shadow-2xs group/pill flex items-center gap-1.5",
-                                            "bg-background hover:bg-muted/80 border-border/80 text-foreground"
+                                            "h-[22px] sm:h-[24px] px-1.5 rounded-md font-medium cursor-pointer transition-all border shadow-2xs group/pill flex items-center gap-1.5 text-foreground",
+                                            isGabungan
+                                                ? "bg-background hover:bg-muted/80 border-border/80"
+                                                : "hover:bg-background/90"
                                         )}
-                                        style={{ borderLeftWidth: '3.5px', borderLeftColor: event.accountColorHex || '#3b82f6' }}
+                                        style={{
+                                            borderLeftWidth: '3.5px',
+                                            borderLeftColor: event.accountColorHex || '#3b82f6',
+                                            backgroundColor: !isGabungan ? `${event.accountColorHex || '#3b82f6'}12` : undefined,
+                                            borderColor: !isGabungan ? `${event.accountColorHex || '#3b82f6'}30` : undefined,
+                                        }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (event.bookingId && calDay) {
                                                 onBookingClick(event.bookingId, calDay);
                                             }
                                         }}
-                                        title={`${event.title} (${event.startTime || ''}) - ${event.accountName || 'Zoom'}`}
+                                        title={`${event.title} (${(event.startTime || '').slice(0, 5)}) - ${event.accountName || 'Zoom'}`}
                                     >
-                                        {/* Account Tag Badge */}
-                                        <span
-                                            className="px-1 py-0.2 rounded text-[9px] font-black text-white shrink-0 shadow-2xs leading-none"
-                                            style={{ backgroundColor: event.accountColorHex || '#3b82f6' }}
-                                        >
-                                            {event.shortAccountName}
-                                        </span>
+                                        {/* Account Tag Badge (Shown in Mode Gabungan) */}
+                                        {isGabungan && (
+                                            <span
+                                                className="px-1 py-0.2 rounded text-[9px] font-black text-white shrink-0 shadow-2xs leading-none"
+                                                style={{ backgroundColor: event.accountColorHex || '#3b82f6' }}
+                                            >
+                                                {event.shortAccountName}
+                                            </span>
+                                        )}
 
                                         {/* Start Time */}
                                         {event.startTime && (
-                                            <span className="text-[10px] font-mono font-bold text-muted-foreground shrink-0 leading-none">
-                                                {event.startTime}
+                                            <span className={cn(
+                                                "text-[10px] font-mono shrink-0 leading-none",
+                                                isGabungan ? "font-bold text-muted-foreground" : "font-extrabold text-foreground"
+                                            )}>
+                                                {event.startTime.slice(0, 5)}
                                             </span>
                                         )}
 
@@ -311,6 +338,33 @@ export function ZoomMonthView({
                                     </button>
                                 )}
                             </div>
+
+                            {/* Mini Time-block Heatbar (08:00 - 18:00 indicator) */}
+                            {events.length > 0 && (
+                                <div
+                                    className="mt-1 pt-1 border-t border-border/40 flex items-center gap-1 px-0.5 shrink-0 z-10"
+                                    title={`${events.length} meeting · Heatbar jadwal jam 08:00 - 18:00`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedDate(dateStr);
+                                    }}
+                                >
+                                    <div className="flex-1 flex items-center gap-0.5 h-1.5 bg-muted/60 rounded-full p-0.2 overflow-hidden">
+                                        {heatmap.map((slot) => (
+                                            <div
+                                                key={slot.hour}
+                                                className={cn(
+                                                    "flex-1 h-full rounded-2xs transition-all",
+                                                    slot.hasMeeting ? "shadow-2xs" : "bg-transparent"
+                                                )}
+                                                style={{
+                                                    backgroundColor: slot.hasMeeting ? (slot.colorHex || '#3b82f6') : undefined,
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Book Hover Prompt on Empty Days */}
                             {canBook && !isWeekend && !isBlocked && events.length === 0 && (

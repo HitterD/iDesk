@@ -139,12 +139,49 @@ describe('BentoTvBoardPage', () => {
         ringtoneState.blocked = false;
     });
 
-    it('shows error page for invalid token', async () => {
+    it('shows error page for invalid token on initial load 404', async () => {
         const api = (await import('@/lib/api')).default;
         (api.get as any).mockRejectedValueOnce({ response: { status: 404 } });
 
         renderBoard('/tv/bad-token');
 
         expect(await screen.findByText(/Link tidak valid/i)).toBeInTheDocument();
+    });
+
+    it('shows reconnecting status when socket is disconnected without losing data', async () => {
+        socketState.isConnected = false;
+        renderBoard();
+
+        expect(await screen.findByText('Sampoerna Jaya')).toBeInTheDocument();
+        expect(await screen.findByTestId('tv-board-status-reconnecting')).toBeInTheDocument();
+        expect(screen.queryByTestId('tv-board-status-live')).toBeNull();
+
+        socketState.isConnected = true;
+    });
+
+    it('shows reconnecting on startup network error without crashing into fatal error screen', async () => {
+        const api = (await import('@/lib/api')).default;
+        (api.get as any).mockRejectedValueOnce(new Error('Network Error'));
+
+        renderBoard();
+
+        expect(await screen.findByText('Menghubungkan ke TV Monitoring Board...')).toBeInTheDocument();
+        expect(screen.queryByText(/Link tidak valid/i)).toBeNull();
+    });
+
+    it('retains board data when background poll fails after initial load', async () => {
+        const api = (await import('@/lib/api')).default;
+        renderBoard();
+
+        expect(await screen.findByText('Sampoerna Jaya')).toBeInTheDocument();
+        expect(screen.getByText('Akses Oracle gagal')).toBeInTheDocument();
+
+        // Subsequent poll encounters network failure
+        (api.get as any).mockRejectedValueOnce(new Error('Network Error'));
+
+        // Data stays intact on the screen without crashing
+        expect(screen.getByText('Sampoerna Jaya')).toBeInTheDocument();
+        expect(screen.getByText('Akses Oracle gagal')).toBeInTheDocument();
+        expect(screen.queryByText(/Link tidak valid/i)).toBeNull();
     });
 });

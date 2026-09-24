@@ -46,13 +46,15 @@ export function ZoomCalendar() {
         try {
             const res = await syncMeetings.mutateAsync();
             if (res && res.updatedCount === 0) {
-                toast.success('Sinkronisasi selesai (tidak ada pembaruan)', {
-                    description: 'Jadwal Anda saat ini sudah yang paling baru.'
+                toast.info('Sinkronisasi selesai, data sudah mutakhir', {
+                    id: 'zoom-calendar-sync',
                 });
             }
             // Note: success toast for > 0 is handled by useZoomSocket via 'sync:completed' event
         } catch (error) {
-            toast.error('Gagal melakukan sinkronisasi dengan Zoom');
+            toast.error('Gagal melakukan sinkronisasi dengan Zoom', {
+                id: 'zoom-calendar-sync',
+            });
         }
     };
 

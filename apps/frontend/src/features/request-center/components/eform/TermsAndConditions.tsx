@@ -3,7 +3,7 @@ import { Info, ShieldAlert, ArrowDown, CheckCircle2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-export type FormType = 'VPN' | 'WEBSITE' | 'NETWORK';
+export type FormType = 'VPN' | 'WEBSITE' | 'NETWORK' | 'FLASHDISK' | 'EMAIL' | 'SYNOLOGY_NAS';
 
 interface TermsAndConditionsProps {
   content?: string;
@@ -45,6 +45,39 @@ const DEFAULT_TERMS_BY_TYPE: Record<FormType, { title: string; points: string[];
       'Segala anomali jaringan, konflik alamat IP, atau indikasi serangan keamanan wajib dilaporkan sesegera mungkin kepada pihak ICT.',
     ],
     agreement: 'Saya mengerti dan menyetujui Syarat & Ketentuan Akses Jaringan PT.SANTOS JAYA ABADI',
+  },
+  FLASHDISK: {
+    title: 'Syarat & Ketentuan Akses Flashdisk PT.SANTOS JAYA ABADI',
+    points: [
+      'Akses USB Flashdisk pada komputer/laptop kerja PT. SANTOS JAYA ABADI hanya diberikan untuk menunjang kelancaran tugas dinas/pekerjaan resmi perusahaan.',
+      'Seluruh media flashdisk/eksternal storage wajib melalui pemindaian antivirus (scanning) resmi perusahaan sebelum digunakan untuk pertukaran data.',
+      'Dilarang keras menyalin, memindahkan, atau mendistribusikan data rahasia, sensitif, maupun hak kekayaan intelektual perusahaan ke flashdisk pribadi tanpa izin sah tertulis.',
+      'Pemohon bertanggung jawab penuh atas segala potensi infeksi malware/virus serta kebocoran data yang timbul akibat kelalaian penggunaan media flashdisk.',
+      'Apabila media flashdisk yang berisi data perusahaan hilang atau dicuri, pemohon wajib segera melaporkan kejadian tersebut kepada atasan dan Divisi ICT.',
+    ],
+    agreement: 'Saya mengerti dan menyetujui Syarat & Ketentuan Akses Flashdisk PT.SANTOS JAYA ABADI',
+  },
+  EMAIL: {
+    title: 'Syarat & Ketentuan Akun Email PT.SANTOS JAYA ABADI',
+    points: [
+      'Akun email dinas (@kapalapi.co.id) merupakan fasilitas kerja resmi perusahaan dan hanya boleh digunakan untuk urusan dinas dan pekerjaan.',
+      'Pemilik/pengguna akun wajib menjaga kerahasiaan password dan tidak diperkenankan membagikan kredensial login kepada pihak lain tanpa otorisasi.',
+      'Dilarang menggunakan email perusahaan untuk keperluan pribadi, pendaftaran akun non-bisnis, maupun penyebaran pesan berantai, spam, atau berkas berbahaya.',
+      'Seluruh komunikasi dan data pada server email perusahaan merupakan aset PT. SANTOS JAYA ABADI dan tunduk pada kebijakan audit kepatuhan ICT.',
+      'Segala indikasi peretasan, insiden phising, atau kebocoran informasi melalui email wajib segera dilaporkan kepada Divisi ICT.',
+    ],
+    agreement: 'Saya mengerti dan menyetujui Syarat & Ketentuan Akun Email PT.SANTOS JAYA ABADI',
+  },
+  SYNOLOGY_NAS: {
+    title: 'Syarat & Ketentuan Akses Synology NAS PT.SANTOS JAYA ABADI',
+    points: [
+      'Hak akses ke Shared Folder Synology NAS hanya diberikan untuk menunjang aktivitas pekerjaan dan kolaborasi resmi antar divisi.',
+      'Pemohon wajib menjaga integritas dan kerahasiaan berkas yang tersimpan di dalam server NAS, serta dilarang memindahkan atau menghapus dokumen kerja bersama tanpa konfirmasi.',
+      'Dilarang menyimpan berkas non-pekerjaan berukuran besar (media hiburan, berkas installer bajakan, file pribadi) di dalam storage NAS.',
+      'Seluruh aktivitas akses, transfer file, dan modifikasi data pada storage NAS tercatat dalam log audit sistem Synology.',
+      'Segala insiden keamanan seperti kerusakan berkas, kesalahan sinkronisasi, atau kecurigaan kebocoran data wajib segera dilaporkan kepada Divisi ICT.',
+    ],
+    agreement: 'Saya mengerti dan menyetujui Syarat & Ketentuan Akses Synology NAS PT.SANTOS JAYA ABADI',
   },
 };
 

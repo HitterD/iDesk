@@ -69,10 +69,10 @@ interface TicketAttributes {
 }
 
 const PRIORITY_OPTIONS = [
-    { id: 'LOW', label: 'LOW', dot: 'bg-emerald-500', activeRing: 'ring-emerald-500/30', activeBorder: 'border-emerald-500/60', activeBg: 'bg-emerald-500/10 dark:bg-emerald-500/15', activeText: 'text-emerald-600 dark:text-emerald-400' },
-    { id: 'MEDIUM', label: 'MEDIUM', dot: 'bg-blue-500', activeRing: 'ring-blue-500/30', activeBorder: 'border-blue-500/60', activeBg: 'bg-blue-500/10 dark:bg-blue-500/15', activeText: 'text-blue-600 dark:text-blue-400' },
-    { id: 'HIGH', label: 'HIGH', dot: 'bg-amber-500', activeRing: 'ring-amber-500/30', activeBorder: 'border-amber-500/60', activeBg: 'bg-amber-500/10 dark:bg-amber-500/15', activeText: 'text-amber-600 dark:text-amber-400' },
-    { id: 'CRITICAL', label: 'CRITICAL', dot: 'bg-rose-500', activeRing: 'ring-rose-500/30', activeBorder: 'border-rose-500/60', activeBg: 'bg-rose-500/10 dark:bg-rose-500/15', activeText: 'text-rose-600 dark:text-rose-400' },
+    { id: 'LOW', label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', dot: 'bg-emerald-500', activeRing: 'ring-emerald-500/30', activeBorder: 'border-emerald-500/60', activeBg: 'bg-emerald-500/10 dark:bg-emerald-500/15', activeText: 'text-emerald-600 dark:text-emerald-400' },
+    { id: 'MEDIUM', label: 'Normal (Moderate)', shortLabel: 'Normal', dot: 'bg-blue-500', activeRing: 'ring-blue-500/30', activeBorder: 'border-blue-500/60', activeBg: 'bg-blue-500/10 dark:bg-blue-500/15', activeText: 'text-blue-600 dark:text-blue-400' },
+    { id: 'HIGH', label: 'Urgent (Major Impact)', shortLabel: 'Urgent', dot: 'bg-amber-500', activeRing: 'ring-amber-500/30', activeBorder: 'border-amber-500/60', activeBg: 'bg-amber-500/10 dark:bg-amber-500/15', activeText: 'text-amber-600 dark:text-amber-400' },
+    { id: 'CRITICAL', label: 'Blocker (Critical)', shortLabel: 'Blocker', dot: 'bg-rose-500', activeRing: 'ring-rose-500/30', activeBorder: 'border-rose-500/60', activeBg: 'bg-rose-500/10 dark:bg-rose-500/15', activeText: 'text-rose-600 dark:text-rose-400' },
 ] as const;
 
 type TicketType = 'none' | 'service' | 'lost-item' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request';
@@ -121,108 +121,221 @@ interface TicketTypeCardActionArgs {
     getBasePath: () => string;
 }
 
-const TICKET_TYPE_CARDS: Array<{
+interface TicketCardConfig {
     key: string;
     pageKey?: string;
+    section: 'ticketing' | 'request';
     eyebrow: string;
     title: string;
     description: string;
+    mascotImg: string;
+    mascotAlt: string;
+    ctaLabel?: string;
     icon: typeof Ticket;
+    colorTheme: {
+        gradient: string;
+        badge: string;
+        hoverGlow: string;
+        iconBg: string;
+        hoverText: string;
+    };
     action: (args: TicketTypeCardActionArgs) => void;
-}> = [
+}
+
+const TICKETING_CARDS: TicketCardConfig[] = [
     {
         key: 'service',
         pageKey: 'tickets',
+        section: 'ticketing',
         eyebrow: 'General Support',
         title: 'Service Ticket',
         description: 'Laporkan masalah hardware, software, jaringan, atau kebutuhan IT support umum lainnya.',
+        mascotImg: '/characters/mascot-service.png',
+        mascotAlt: 'Maskot IT Support Agent',
+        ctaLabel: 'Buat Service Ticket',
         icon: Ticket,
+        colorTheme: {
+            gradient: 'from-blue-500/20 via-border/70 to-indigo-500/10 dark:from-blue-500/25 dark:via-border/70 dark:to-indigo-500/15',
+            badge: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20',
+            hoverGlow: 'hover:shadow-blue-500/15 hover:border-blue-500/40',
+            iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white',
+            hoverText: 'text-blue-600 dark:text-blue-400',
+        },
         action: ({ setTicketType }) => setTicketType('service'),
     },
     {
-        key: 'hardware-budget',
-        pageKey: 'hardware_requests',
-        eyebrow: 'Procurement',
-        title: 'Hardware & Budget',
-        description: 'Ajukan pembelian barang IT baru.',
-        icon: DollarSign,
-        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/hardware-requests`),
-    },
-    {
-        key: 'lost-item',
-        pageKey: 'lost_items',
-        eyebrow: 'Asset',
-        title: 'Lost Item Report',
-        description: 'Laporkan laptop, HP, ID card, kunci, atau barang hilang lainnya.',
-        icon: PackageX,
-        action: ({ setTicketType }) => setTicketType('lost-item'),
-    },
-    {
-        key: 'access-request',
-        pageKey: 'eform_access',
-        eyebrow: 'Network',
-        title: 'Access Request',
-        description: 'Minta akses WiFi, VPN, atau website dengan form approval.',
-        icon: Wifi,
-        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/eform-access/new`),
-    },
-    {
         key: 'oracle-request',
+        section: 'ticketing',
         eyebrow: 'Enterprise System',
         title: 'Oracle / K2 Request',
-        description: 'Bantuan sistem Oracle, update role K2, atau isu ERP.',
+        description: 'Bantuan sistem Oracle, update role K2, transaksi modul, atau kendala ERP.',
+        mascotImg: '/characters/mascot-oracle.png',
+        mascotAlt: 'Maskot Oracle & K2',
+        ctaLabel: 'Buat Tiket Oracle',
         icon: Box,
+        colorTheme: {
+            gradient: 'from-orange-500/20 via-border/70 to-amber-500/10 dark:from-orange-500/25 dark:via-border/70 dark:to-amber-500/15',
+            badge: 'text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20',
+            hoverGlow: 'hover:shadow-orange-500/15 hover:border-orange-500/40',
+            iconBg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 group-hover:bg-orange-600 group-hover:text-white',
+            hoverText: 'text-orange-600 dark:text-orange-400',
+        },
         action: ({ setTicketType }) => setTicketType('oracle-request'),
     },
     {
         key: 'web-dev-request',
+        section: 'ticketing',
         eyebrow: 'Web System',
         title: 'Web Developer Request',
-        description: 'Permintaan bug fix, fitur baru, atau integrasi web portal.',
+        description: 'Permintaan bug fix, fitur baru, integrasi web portal, atau kendala performa web.',
+        mascotImg: '/characters/mascot-webdev.png',
+        mascotAlt: 'Maskot Web Developer',
+        ctaLabel: 'Buat Tiket Web Dev',
         icon: Code2,
+        colorTheme: {
+            gradient: 'from-emerald-500/20 via-border/70 to-teal-500/10 dark:from-emerald-500/25 dark:via-border/70 dark:to-teal-500/15',
+            badge: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+            hoverGlow: 'hover:shadow-emerald-500/15 hover:border-emerald-500/40',
+            iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white',
+            hoverText: 'text-emerald-600 dark:text-emerald-400',
+        },
         action: ({ setTicketType }) => setTicketType('web-dev-request'),
     },
     {
         key: 'mobile-dev-request',
+        section: 'ticketing',
         eyebrow: 'Mobile App',
         title: 'Mobile Developer Request',
-        description: 'Permintaan perbaikan crash, update APK, atau fitur app mobile.',
+        description: 'Permintaan perbaikan crash aplikasi, update APK, notifikasi, atau fitur app mobile.',
+        mascotImg: '/characters/mascot-mobiledev.png',
+        mascotAlt: 'Maskot Mobile Developer',
+        ctaLabel: 'Buat Tiket Mobile Dev',
         icon: Smartphone,
+        colorTheme: {
+            gradient: 'from-purple-500/20 via-border/70 to-fuchsia-500/10 dark:from-purple-500/25 dark:via-border/70 dark:to-fuchsia-500/15',
+            badge: 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/20',
+            hoverGlow: 'hover:shadow-purple-500/15 hover:border-purple-500/40',
+            iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white',
+            hoverText: 'text-purple-600 dark:text-purple-400',
+        },
         action: ({ setTicketType }) => setTicketType('mobile-dev-request'),
+    },
+    {
+        key: 'lost-item',
+        pageKey: 'lost_items',
+        section: 'ticketing',
+        eyebrow: 'Asset Tracking',
+        title: 'Lost Item Report',
+        description: 'Laporkan laptop, HP, ID card, kunci, atau barang inventaris hilang lainnya.',
+        mascotImg: '/characters/mascot-lostitem.png',
+        mascotAlt: 'Maskot Lost Item Asset',
+        ctaLabel: 'Lapor Barang Hilang',
+        icon: PackageX,
+        colorTheme: {
+            gradient: 'from-cyan-500/20 via-border/70 to-sky-500/10 dark:from-cyan-500/25 dark:via-border/70 dark:to-sky-500/15',
+            badge: 'text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+            hoverGlow: 'hover:shadow-cyan-500/15 hover:border-cyan-500/40',
+            iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 group-hover:bg-cyan-600 group-hover:text-white',
+            hoverText: 'text-cyan-600 dark:text-cyan-400',
+        },
+        action: ({ setTicketType }) => setTicketType('lost-item'),
     },
 ];
 
+const REQUEST_CARDS: TicketCardConfig[] = [
+    {
+        key: 'hardware-budget',
+        pageKey: 'hardware_requests',
+        section: 'request',
+        eyebrow: 'Procurement',
+        title: 'Hardware & Budget',
+        description: 'Ajukan pembelian perangkat keras baru, upgrade spesifikasi laptop/PC, atau penggantian aset.',
+        mascotImg: '/characters/mascot-hardware.png',
+        mascotAlt: 'Maskot Pengadaan Hardware',
+        ctaLabel: 'Buka Form Pengadaan',
+        icon: DollarSign,
+        colorTheme: {
+            gradient: 'from-blue-600/20 via-border/70 to-indigo-600/10 dark:from-blue-600/25 dark:via-border/70 dark:to-indigo-600/15',
+            badge: 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+            hoverGlow: 'hover:shadow-indigo-500/15 hover:border-indigo-500/40',
+            iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white',
+            hoverText: 'text-indigo-600 dark:text-indigo-400',
+        },
+        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/hardware-requests`),
+    },
+    {
+        key: 'access-request',
+        pageKey: 'eform_access',
+        section: 'request',
+        eyebrow: 'Network & Access',
+        title: 'Access Request',
+        description: 'Minta akses WiFi, koneksi VPN, atau izin akses website/aplikasi dengan form approval resmi.',
+        mascotImg: '/characters/mascot-access.png',
+        mascotAlt: 'Maskot Izin Akses',
+        ctaLabel: 'Ajukan Form Akses',
+        icon: Wifi,
+        colorTheme: {
+            gradient: 'from-amber-500/20 via-border/70 to-yellow-500/10 dark:from-amber-500/25 dark:via-border/70 dark:to-yellow-500/15',
+            badge: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
+            hoverGlow: 'hover:shadow-amber-500/15 hover:border-amber-500/40',
+            iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 group-hover:text-white',
+            hoverText: 'text-amber-600 dark:text-amber-400',
+        },
+        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/eform-access/new`),
+    },
+];
+
+const TICKET_TYPE_CARDS: TicketCardConfig[] = [...TICKETING_CARDS, ...REQUEST_CARDS];
+
 const TicketTypeCard: React.FC<{
-    card: typeof TICKET_TYPE_CARDS[number];
+    card: TicketCardConfig;
     index: number;
     className?: string;
     style?: React.CSSProperties;
 } & TicketTypeCardActionArgs> = ({ card, index, className = '', style, setTicketType, navigate, getBasePath }) => (
-    <div style={style} className={`p-px rounded-[1.4rem] bg-gradient-to-br from-primary/25 via-border to-accent/20 dark:from-primary/30 dark:via-border dark:to-accent/20 ${className}`}>
+    <div style={style} className={cn("p-px rounded-[1.4rem] bg-gradient-to-br transition-all duration-300", card.colorTheme.gradient, className)}>
         <button
             type="button"
             onClick={() => card.action({ setTicketType, navigate, getBasePath })}
             aria-label={`Pilih ${card.title}`}
-            className="group relative flex flex-col justify-between w-full min-h-[44px] h-full overflow-hidden rounded-[calc(1.4rem-1px)] bg-card p-6 text-left shadow-xs ring-1 ring-black/[0.02] dark:ring-white/[0.02] transition-all duration-300 motion-reduce:transition-none ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10 motion-reduce:transform-none active:scale-[0.98] active:duration-100 cursor-pointer"
+            className={cn(
+                "group relative flex flex-col justify-between w-full min-h-[190px] h-full overflow-hidden rounded-[calc(1.4rem-1px)] bg-card p-6 text-left shadow-xs ring-1 ring-black/[0.03] dark:ring-white/[0.04] transition-all duration-300 motion-reduce:transition-none ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:shadow-xl motion-reduce:transform-none active:scale-[0.98] active:duration-100 cursor-pointer",
+                card.colorTheme.hoverGlow
+            )}
         >
-            <span className="absolute top-5 right-6 font-mono text-xs tracking-widest text-primary/25 dark:text-primary/30 select-none">
-                {String(index + 1).padStart(2, '0')}
-            </span>
+            {/* Mascot Character Floating at Top Right */}
+            <div className="absolute top-3 right-3.5 w-[76px] h-[76px] sm:w-[84px] sm:h-[84px] pointer-events-none flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-translate-y-1.5 group-hover:rotate-3">
+                <img
+                    src={card.mascotImg}
+                    alt={card.mascotAlt}
+                    className="w-full h-full object-contain filter drop-shadow-[0_6px_10px_rgba(0,0,0,0.14)] select-none"
+                    loading="lazy"
+                />
+            </div>
 
-            <div>
-                <div className="w-[3.25rem] h-[3.25rem] rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center mb-5 transition-colors duration-300 group-hover:bg-primary group-hover:ring-primary">
-                    <card.icon className="w-6 h-6 text-primary transition-colors duration-300 group-hover:text-primary-foreground" aria-hidden="true" />
+            {/* Top Row: Category Badge & Number Indicator */}
+            <div className="relative z-10 pr-20 sm:pr-24">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className={cn("text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-lg border", card.colorTheme.badge)}>
+                        {card.eyebrow}
+                    </span>
+                    <span className="font-mono text-xs font-semibold text-muted-foreground/50 select-none">
+                        #{String(index + 1).padStart(2, '0')}
+                    </span>
                 </div>
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-primary mb-1.5">{card.eyebrow}</p>
-                <h2 className="text-lg font-bold text-foreground mb-2 tracking-tight">{card.title}</h2>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+
+                <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight mb-1.5 group-hover:text-primary transition-colors">
+                    {card.title}
+                </h2>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
                     {card.description}
                 </p>
             </div>
 
-            <div className="flex items-center gap-1.5 mt-6 text-xs font-semibold text-primary opacity-0 -translate-x-1 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:opacity-100 group-hover:translate-x-0">
-                Pilih
-                <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-0.5">
+            {/* Bottom Row: Call to Action Arrow */}
+            <div className="relative z-10 flex items-center gap-2 mt-5 text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">
+                <span>{card.ctaLabel || 'Pilih Kategori'}</span>
+                <span className={cn("w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 group-hover:translate-x-1", card.colorTheme.iconBg)}>
                     <ArrowLeft className="w-3 h-3 rotate-180" aria-hidden="true" />
                 </span>
             </div>
@@ -683,7 +796,7 @@ export const BentoCreateTicketPage: React.FC = () => {
             AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
             AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
-            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'settings'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
 
         const userRole = (user?.role || 'USER') as string;
@@ -774,7 +887,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 <AlertCircle className={cn("w-3.5 h-3.5", legendClass)} aria-hidden="true" />
                 <span>Issue Urgency / Prioritas</span>
             </legend>
-            <div role="radiogroup" aria-label="Issue urgency" className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border/80 shadow-2xs">
+            <div role="radiogroup" aria-label="Issue urgency" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border/80 shadow-2xs">
                 {PRIORITY_OPTIONS.map((p) => {
                     const isSelected = formData.priority === p.id;
                     return (
@@ -786,14 +899,14 @@ export const BentoCreateTicketPage: React.FC = () => {
                                 aria-label={p.label}
                                 onClick={() => setFormData(prev => ({ ...prev, priority: p.id }))}
                                 className={cn(
-                                    "w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer border",
+                                    "w-full flex items-center justify-center gap-2 py-2.5 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border text-center",
                                     isSelected
                                         ? `${p.activeBg} ${p.activeBorder} ${p.activeText} shadow-xs ring-2 ${p.activeRing}`
                                         : "bg-card border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/80"
                                 )}
                             >
-                                <span className={cn("w-2.5 h-2.5 rounded-full", p.dot, isSelected && "animate-pulse")} />
-                                <span className="tracking-wider">{p.label}</span>
+                                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", p.dot, isSelected && "animate-pulse")} />
+                                <span className="leading-tight">{p.label}</span>
                             </button>
                         </PriorityHoverTip>
                     );
@@ -994,7 +1107,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 <div className="bg-rose-50/70 dark:bg-rose-950/20 rounded-2xl p-4 border border-rose-200/80 dark:border-rose-800/40 animate-in fade-in zoom-in-95 duration-200 space-y-2">
                     <label htmlFor="critical-reason" className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 uppercase tracking-wide">
                         <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Justifikasi Tiket Critical <span className="text-rose-500">*</span></span>
+                        <span>Justifikasi Tiket Blocker (Critical) <span className="text-rose-500">*</span></span>
                     </label>
                     <textarea
                         id="critical-reason"
@@ -1003,7 +1116,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                         value={formData.criticalReason}
                         onChange={(e) => setFormData(prev => ({ ...prev, criticalReason: e.target.value }))}
                         className="w-full px-4 py-2.5 bg-background border border-rose-300 dark:border-rose-700/60 rounded-xl text-sm font-medium focus:ring-4 focus:ring-rose-500/15 outline-none resize-none placeholder:text-muted-foreground/60 min-h-[70px]"
-                        placeholder="Jelaskan mengapa masalah ini mendesak / berdampak luas bagi operasional..."
+                        placeholder="Jelaskan mengapa masalah ini menjadi pemblokir (blocker) / berdampak kritis bagi operasional..."
                     />
                 </div>
             )}
@@ -1044,14 +1157,11 @@ export const BentoCreateTicketPage: React.FC = () => {
     // ==========================================
     if (ticketType === 'none') {
         const getBasePath = () => location.pathname.startsWith('/client') ? '/client' : location.pathname.startsWith('/manager') ? '/manager' : '';
-        const visibleCards = TICKET_TYPE_CARDS.filter(card => canAccessPage(card.pageKey));
-        const getCardGridClass = (_cardIndex: number, totalCards: number) => {
-            if (totalCards === 1) return 'sm:col-span-1 max-w-md mx-auto';
-            return 'sm:col-span-1';
-        };
+        const visibleTicketingCards = TICKETING_CARDS.filter(card => canAccessPage(card.pageKey));
+        const visibleRequestCards = REQUEST_CARDS.filter(card => canAccessPage(card.pageKey));
 
         return (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-8 lg:space-y-10 animate-in fade-in duration-500">
+            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-8 lg:space-y-10 animate-in fade-in duration-500 pb-8">
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <button
@@ -1063,37 +1173,97 @@ export const BentoCreateTicketPage: React.FC = () => {
                         <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </button>
                     <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-0.5">New Request</p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">iDesk · Service Catalog</span>
+                        </div>
                         <h1 className="text-2xl font-bold text-foreground tracking-tight">Buat Tiket Baru</h1>
-                        <p className="text-muted-foreground text-sm">Pilih jenis kebutuhan Anda di bawah ini</p>
+                        <p className="text-muted-foreground text-sm">Pilih jenis bantuan atau pengajuan kebutuhan Anda di bawah ini</p>
                     </div>
                 </div>
 
-                {/* Ticket Type Selection Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {visibleCards.map((card, idx) => (
-                        <TicketTypeCard
-                            key={card.key}
-                            card={card}
-                            index={idx}
-                            setTicketType={setTicketType}
-                            navigate={navigate}
-                            getBasePath={getBasePath}
-                            className={`animate-in fade-in slide-in-from-bottom-3 fill-mode-both ${getCardGridClass(idx, visibleCards.length)}`}
-                            style={{ animationDelay: `${idx * 60}ms`, animationDuration: '500ms' }}
-                        />
-                    ))}
-                </div>
+                {/* 1. SEKSI TIKETING (ATAS) */}
+                {visibleTicketingCards.length > 0 && (
+                    <section aria-labelledby="section-ticketing" className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-500/20 shrink-0" aria-hidden="true" />
+                                <div>
+                                    <h2 id="section-ticketing" className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
+                                        Tiket Bantuan & Kendala Teknis
+                                    </h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        Laporkan masalah operasional harian, bug aplikasi, atau kendala perangkat kerja
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="hidden sm:inline-flex text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-lg border border-border/80">
+                                {visibleTicketingCards.length} Jenis Tiket
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                            {visibleTicketingCards.map((card, idx) => (
+                                <TicketTypeCard
+                                    key={card.key}
+                                    card={card}
+                                    index={idx}
+                                    setTicketType={setTicketType}
+                                    navigate={navigate}
+                                    getBasePath={getBasePath}
+                                    className="animate-in fade-in slide-in-from-bottom-3 fill-mode-both"
+                                    style={{ animationDelay: `${idx * 60}ms`, animationDuration: '400ms' }}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* 2. SEKSI REQUEST (BAWAH) */}
+                {visibleRequestCards.length > 0 && (
+                    <section aria-labelledby="section-requests" className="space-y-4 pt-2">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-amber-500/20 shrink-0" aria-hidden="true" />
+                                <div>
+                                    <h2 id="section-requests" className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
+                                        Pengajuan Layanan & Akses (Requests)
+                                    </h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        Permohonan pengadaan barang IT baru atau persetujuan hak akses jaringan & sistem
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="hidden sm:inline-flex text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-lg border border-border/80">
+                                {visibleRequestCards.length} Formulir Request
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                            {visibleRequestCards.map((card, idx) => (
+                                <TicketTypeCard
+                                    key={card.key}
+                                    card={card}
+                                    index={visibleTicketingCards.length + idx}
+                                    setTicketType={setTicketType}
+                                    navigate={navigate}
+                                    getBasePath={getBasePath}
+                                    className="animate-in fade-in slide-in-from-bottom-3 fill-mode-both"
+                                    style={{ animationDelay: `${(visibleTicketingCards.length + idx) * 60}ms`, animationDuration: '400ms' }}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {/* Info Guidance Strip */}
-                <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent p-5 flex gap-4 items-center">
+                <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent p-4 sm:p-5 flex gap-4 items-center">
                     <div className="p-2.5 bg-card rounded-xl text-primary shadow-xs ring-1 ring-primary/10 shrink-0">
                         <AlertCircle className="w-5 h-5" />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-sm text-foreground mb-1">Pilih jenis tiket yang paling sesuai</h4>
+                        <h3 className="font-semibold text-sm text-foreground mb-0.5">Pilih jenis tiket yang paling sesuai</h3>
                         <p className="text-muted-foreground text-xs leading-relaxed">
-                            Tiap jenis tiket masuk ke antrean tim penanganan yang spesifik. Jika Anda membutuhkan bantuan IT kantor umum, pilih <span className="font-semibold text-foreground">Service Ticket</span>.
+                            Tiap jenis tiket diarahkan langsung ke antrean tim penanganan yang spesifik. Jika Anda membutuhkan bantuan IT umum di kantor/pabrik, pilih <span className="font-semibold text-foreground">Service Ticket</span>.
                         </p>
                     </div>
                 </div>
@@ -1763,9 +1933,9 @@ export const BentoCreateTicketPage: React.FC = () => {
                                                 )}
                                             >
                                                 <div className="flex items-center gap-2.5">
-                                                    <span className={cn("w-2.5 h-2.5 rounded-full", p.dot, isSelected && "animate-pulse")} />
-                                                    <span className={cn("font-bold text-xs uppercase tracking-wider", isSelected ? p.activeText : "text-foreground")}>
-                                                        {p.id}
+                                                    <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", p.dot, isSelected && "animate-pulse")} />
+                                                    <span className={cn("font-bold text-xs", isSelected ? p.activeText : "text-foreground")}>
+                                                        {p.label}
                                                     </span>
                                                 </div>
                                             </button>
@@ -1779,7 +1949,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                         {formData.priority === 'CRITICAL' && (
                             <div className="bg-rose-50/70 dark:bg-rose-950/20 rounded-2xl p-3.5 border border-rose-200/80 dark:border-rose-800/40 animate-in fade-in zoom-in-95 duration-200 space-y-1.5">
                                 <label htmlFor="service-critical-reason" className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 uppercase tracking-wide">
-                                    <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> Justifikasi Urgent
+                                    <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> Justifikasi Blocker (Critical)
                                 </label>
                                 <textarea
                                     id="service-critical-reason"
@@ -1788,7 +1958,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                     value={formData.criticalReason}
                                     onChange={(e) => setFormData({ ...formData, criticalReason: e.target.value })}
                                     className="w-full px-3 py-2 bg-background border border-rose-300 dark:border-rose-700/60 rounded-xl text-xs font-medium focus:ring-4 focus:ring-rose-500/15 outline-none resize-none placeholder:text-muted-foreground/60 min-h-[60px]"
-                                    placeholder="Jelaskan alasan urgensi critical..."
+                                    placeholder="Jelaskan alasan urgensi prioritas blocker (critical)..."
                                 />
                             </div>
                         )}

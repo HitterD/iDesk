@@ -707,10 +707,10 @@ export const ManagerTicketsPage: React.FC = () => {
                                                 <span className={cn(
                                                     "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-2xs",
                                                     priorityCfg.badgeColor
-                                                )}>
+                                                )} title={priorityCfg.label}>
                                                     {ticket.priority === 'CRITICAL' && <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" />}
                                                     {ticket.priority === 'HIGH' && <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />}
-                                                    {priorityCfg.label}
+                                                    {priorityCfg.shortLabel || priorityCfg.label}
                                                 </span>
                                             </TableCell>
 

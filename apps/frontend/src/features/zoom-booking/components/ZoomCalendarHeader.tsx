@@ -1,22 +1,25 @@
 import { useState } from 'react';
 import { format, startOfWeek, endOfWeek, setMonth, setYear, getYear } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, ListTodo, Plus, Globe, Users, Search, X, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Plus, Search, X, LayoutGrid, UserCheck, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ZoomViewSwitcher } from './ZoomViewSwitcher';
-import { ZoomAccountSwitcher, GABUNGAN_ID } from './ZoomAccountSwitcher';
 import { ModernCalendar } from '@/components/ui/ModernCalendar';
 import { cn } from '@/lib/utils';
 import type { CalendarView, AccountScope } from '../hooks/useCalendarView';
 import type { ZoomAccount } from '../types';
+
+export type ZoomCalendarDisplayMode = 'calendar' | 'matrix' | 'my-bookings';
 
 interface ZoomCalendarHeaderProps {
     view: CalendarView;
     currentDate: Date;
     selectedAccountId: string;
     accounts: ZoomAccount[];
+    meetingsPerAccount?: Map<string, number>;
     onViewChange: (view: CalendarView) => void;
+    activeMode?: ZoomCalendarDisplayMode;
+    onModeChange?: (mode: ZoomCalendarDisplayMode) => void;
     onPrev: () => void;
     onNext: () => void;
     onToday: () => void;
@@ -28,6 +31,8 @@ interface ZoomCalendarHeaderProps {
     onSearchChange?: (q: string) => void;
     canBook?: boolean;
     onBookMeeting?: () => void;
+    isSidebarOpen?: boolean;
+    onToggleSidebar?: () => void;
     className?: string;
 }
 
@@ -59,8 +64,11 @@ export function ZoomCalendarHeader({
     currentDate,
     selectedAccountId,
     accounts,
+    meetingsPerAccount,
     canBook,
     onViewChange,
+    activeMode,
+    onModeChange,
     onPrev,
     onNext,
     onToday,
@@ -71,26 +79,15 @@ export function ZoomCalendarHeader({
     searchQuery,
     onSearchChange,
     onBookMeeting,
+    isSidebarOpen = true,
+    onToggleSidebar,
     className,
 }: ZoomCalendarHeaderProps) {
     const title = getHeaderTitle(view, currentDate);
     const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
     const [pickerYear, setPickerYear] = useState(getYear(currentDate));
-    const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 
-    const showSwitcher = Boolean(accountScope !== undefined && onAccountScopeChange);
     const showSearch = Boolean(searchQuery !== undefined && onSearchChange);
-
-    const currentLabel =
-        accountScope === undefined
-            ? null
-            : accountScope === GABUNGAN_ID
-                ? 'Gabungan'
-                : accounts.find((a) => a.id === accountScope)?.name ?? accountScope;
-    const currentColor =
-        accountScope && accountScope !== GABUNGAN_ID
-            ? accounts.find((a) => a.id === accountScope)?.colorHex
-            : undefined;
 
     const MONTHS = [
         'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
@@ -236,36 +233,73 @@ export function ZoomCalendarHeader({
                     </div>
                 )}
 
-                {/* Account Switcher Button */}
-                {showSwitcher && (
+                {/* Unified Mode Switcher Tabs (Kalender Bulanan, Matriks Semua Akun, Bookingan Saya) */}
+                <div className="shrink-0 flex items-center gap-1 bg-muted/70 p-1 rounded-xl border border-border/70 shadow-inner">
+                    <button
+                        type="button"
+                        onClick={() => onModeChange ? onModeChange('calendar') : onViewChange('month')}
+                        className={cn(
+                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 sm:h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer outline-none",
+                            (activeMode === 'calendar' || (!activeMode && view === 'month'))
+                                ? "bg-background text-primary shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                        data-testid="mode-calendar"
+                    >
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        <span className="hidden md:inline">Kalender Bulanan</span>
+                        <span className="md:hidden">Bulan</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onModeChange ? onModeChange('matrix') : onViewChange('month')}
+                        className={cn(
+                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 sm:h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer outline-none",
+                            activeMode === 'matrix'
+                                ? "bg-background text-primary shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                        data-testid="mode-matrix"
+                    >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                        <span className="hidden md:inline">Matriks Semua Akun</span>
+                        <span className="md:hidden">Matriks</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onModeChange ? onModeChange('my-bookings') : onViewChange('my-bookings')}
+                        className={cn(
+                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 sm:h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer outline-none",
+                            (activeMode === 'my-bookings' || (!activeMode && view === 'my-bookings'))
+                                ? "bg-background text-primary shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                        data-testid="mode-my-bookings"
+                    >
+                        <UserCheck className="h-3.5 w-3.5 text-blue-500" />
+                        <span className="hidden md:inline">Bookingan Saya</span>
+                        <span className="md:hidden">Saya</span>
+                    </button>
+                </div>
+
+                {/* Sidebar Toggle Button */}
+                {onToggleSidebar && (
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsSwitcherOpen(true)}
-                        className="h-8 gap-1.5 text-xs font-bold border-border/80 rounded-lg shadow-2xs hover:bg-muted shrink-0"
-                        aria-label="Switch Zoom account"
-                        data-testid="open-account-switcher"
-                    >
-                        {accountScope === GABUNGAN_ID ? (
-                            <Globe className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                        ) : currentColor ? (
-                            <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
-                                style={{ backgroundColor: currentColor }}
-                                aria-hidden="true"
-                            />
-                        ) : (
-                            <Users className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                        onClick={onToggleSidebar}
+                        className={cn(
+                            "h-8 px-2.5 text-xs font-semibold border-border/80 rounded-lg shadow-2xs gap-1.5 transition-colors cursor-pointer shrink-0",
+                            isSidebarOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
                         )}
-                        <span className="max-w-[80px] sm:max-w-[110px] truncate">{currentLabel ?? 'Pilih akun'}</span>
-                        <ChevronRight className="h-3 w-3 rotate-90 text-muted-foreground/60" aria-hidden="true" />
+                        title={isSidebarOpen ? "Sembunyikan Panel Samping" : "Tampilkan Panel Samping"}
+                        aria-label="Toggle sidebar"
+                        data-testid="sidebar-toggle"
+                    >
+                        {isSidebarOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+                        <span className="hidden xl:inline">{isSidebarOpen ? 'Tutup Panel' : 'Buka Panel'}</span>
                     </Button>
                 )}
-
-                {/* View Switcher Tabs (Month, Week, Day, My Bookings) */}
-                <div className="shrink-0">
-                    <ZoomViewSwitcher view={view} onViewChange={onViewChange} />
-                </div>
 
                 {/* Primary CTA (Desktop) */}
                 {canBook && onBookMeeting && (
@@ -279,25 +313,6 @@ export function ZoomCalendarHeader({
                     </Button>
                 )}
             </div>
-
-            {/* Account switcher modal */}
-            {showSwitcher && (
-                <ZoomAccountSwitcher
-                    open={isSwitcherOpen}
-                    accounts={accounts.map((a) => ({
-                        id: a.id,
-                        name: a.name,
-                        colorHex: a.colorHex ?? '#3b82f6',
-                        meetingsAtTime: 0,
-                    }))}
-                    currentAccountId={accountScope!}
-                    onSelect={(id) => {
-                        onAccountScopeChange!(id as AccountScope);
-                        setIsSwitcherOpen(false);
-                    }}
-                    onClose={() => setIsSwitcherOpen(false)}
-                />
-            )}
         </div>
     );
 }

@@ -290,6 +290,12 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
                 icon: Activity,
             },
             {
+                key: 'data_wipe',
+                label: 'Hapus Data',
+                description: 'Area berbahaya untuk mengosongkan data transaksional saat go-live',
+                icon: Trash2,
+            },
+            {
                 key: 'settings',
                 label: 'System Settings',
                 description: 'Global system configurations, SLA targets, and site parameters',

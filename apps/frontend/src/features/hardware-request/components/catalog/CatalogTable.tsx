@@ -34,8 +34,8 @@ export const CATEGORY_ICONS: Record<ItemCategory, React.ElementType> = {
 
 export const CATEGORY_STYLES: Record<ItemCategory, { bg: string; text: string; border: string }> = {
   LAPTOP: { bg: 'bg-blue-500/10 dark:bg-blue-500/15', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-500/30' },
-  DESKTOP: { bg: 'bg-indigo-500/10 dark:bg-indigo-500/15', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-500/30' },
-  MONITOR: { bg: 'bg-purple-500/10 dark:bg-purple-500/15', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-500/30' },
+  DESKTOP: { bg: 'bg-cyan-500/10 dark:bg-cyan-500/15', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-500/30' },
+  MONITOR: { bg: 'bg-teal-500/10 dark:bg-teal-500/15', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-500/30' },
   ACCESSORY: { bg: 'bg-amber-500/10 dark:bg-amber-500/15', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-500/30' },
   NETWORK: { bg: 'bg-emerald-500/10 dark:bg-emerald-500/15', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-500/30' },
   SOFTWARE: { bg: 'bg-sky-500/10 dark:bg-sky-500/15', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-500/30' },
@@ -68,9 +68,15 @@ export function CatalogTable({ items, onEdit, onToggleActive, onDelete }: Props)
               >
                 {/* Kode */}
                 <td className="px-5 py-3.5">
-                  <span className="font-mono text-xs font-bold text-foreground bg-muted/60 px-2 py-1 rounded-lg border border-border/80">
-                    {i.code}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onEdit(i)}
+                    className="font-mono text-xs font-bold text-foreground bg-muted/60 hover:bg-primary/10 hover:text-primary hover:border-primary/30 px-2.5 py-1 rounded-lg border border-border/80 transition-all cursor-pointer inline-flex items-center gap-1.5 group/code"
+                    title="Klik untuk mengubah kode atau detail item"
+                  >
+                    <span>{i.code}</span>
+                    <Edit2 className="size-3 opacity-40 group-hover/code:opacity-100 transition-opacity" />
+                  </button>
                 </td>
 
                 {/* Nama Item */}

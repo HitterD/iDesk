@@ -65,13 +65,13 @@ const formatRoleBadge = (role?: string) => {
     case 'AGENT_OPERATIONAL_SUPPORT':
       return { label: 'Ops Support', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' };
     case 'AGENT_ADMIN':
-      return { label: 'Agent Admin', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30' };
+      return { label: 'Agent Admin', color: 'bg-primary/10 text-primary border-primary/30' };
     case 'ADMIN':
       return { label: 'Admin', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' };
     case 'MANAGER':
       return { label: 'Manager', color: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' };
     case 'AGENT_ORACLE':
-      return { label: 'Oracle', color: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30' };
+      return { label: 'Oracle', color: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' };
     default:
       return { label: 'Agent', color: 'bg-primary/10 text-primary border-primary/20' };
   }

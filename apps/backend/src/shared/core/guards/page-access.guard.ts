@@ -168,6 +168,7 @@ export class PageAccessGuard implements CanActivate {
                     automation: true,
                     audit_logs: true,
                     system_health: true,
+                    data_wipe: true,
                     settings: true,
                 };
             case UserRole.MANAGER:

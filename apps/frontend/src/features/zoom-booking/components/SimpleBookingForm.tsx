@@ -84,12 +84,24 @@ export function computeEndTimeOptions(
         : [30, 60, 90, 120, 150, 180, 210, 240];
 
     const isTodayBooking = bookingDate ? isSameDay(parseISO(bookingDate), new Date()) : false;
-    const nowStr = format(new Date(), 'HH:mm');
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const intervalStep = settings?.slotIntervalMinutes || 30;
 
+    // Check if the chosen startTime itself has completely finished in the past.
+    // If slots are provided and the startTime slot has reason 'Waktu sudah lewat',
+    // or if the slot's entire duration ended before now (e.g. startMins + intervalStep <= nowMinutes),
+    // then startTime is not ongoing but completely in the past.
+    const startSlotData = slots?.find((s) => s.time === startTime);
+    const isStartTimeCompletelyPast = isTodayBooking && (
+        startSlotData
+            ? (!startSlotData.available && (startSlotData.reason === 'Waktu sudah lewat' || startSlotData.reason === 'Waktu sudah terlewat'))
+            : (startMins + intervalStep <= nowMinutes)
+    );
+
     const options: EndTimeOption[] = [];
-    let encounterBlocker = false;
-    let blockerReason = '';
+    let encounterBlocker = isStartTimeCompletelyPast;
+    let blockerReason = isStartTimeCompletelyPast ? 'Waktu sudah terlewat' : '';
 
     for (const dur of intervals) {
         const endTotal = startMins + dur;
@@ -97,7 +109,7 @@ export function computeEndTimeOptions(
         const m = endTotal % 60;
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-        // 1. If an earlier sub-slot was already full/blocked, all subsequent end times are also blocked
+        // 1. If an earlier sub-slot was already full/blocked or start time completely past, all subsequent end times are also blocked
         if (encounterBlocker) {
             options.push({
                 value: timeStr,
@@ -124,7 +136,20 @@ export function computeEndTimeOptions(
             continue;
         }
 
-        // 3. Verify all sub-slots from startMins to endTotal
+        // 3. Check if this specific end time has already elapsed in today's clock
+        const isEndTimePast = isTodayBooking && (endTotal <= nowMinutes);
+        if (isEndTimePast) {
+            options.push({
+                value: timeStr,
+                time: timeStr,
+                durationMinutes: dur,
+                isUnavailable: true,
+                reason: 'Waktu sudah terlewat',
+            });
+            continue;
+        }
+
+        // 4. Verify all sub-slots from startMins to endTotal for real account conflicts
         let intervalBlocked = false;
         let intervalReason = '';
 
@@ -133,13 +158,6 @@ export function computeEndTimeOptions(
             const curH = Math.floor(curSlotMins / 60);
             const curM = curSlotMins % 60;
             const curSlotTime = `${curH.toString().padStart(2, '0')}:${curM.toString().padStart(2, '0')}`;
-
-            const isPast = isTodayBooking && curSlotTime < nowStr;
-            if (isPast) {
-                intervalBlocked = true;
-                intervalReason = 'Waktu sudah terlewat';
-                break;
-            }
 
             if (slots && slots.length > 0) {
                 const slotData = slots.find((s) => s.time === curSlotTime);
@@ -150,9 +168,13 @@ export function computeEndTimeOptions(
                         break;
                     }
                     if (!slotData.available || slotData.availableAccountsCount === 0) {
-                        intervalBlocked = true;
-                        intervalReason = slotData.reason || (slotData.totalAccountsCount ? `Penuh (${slotData.totalAccountsCount} akun)` : 'Penuh');
-                        break;
+                        // Skip if unavailable purely because of 'Waktu sudah lewat' on an ongoing slot
+                        const isPastReason = slotData.reason === 'Waktu sudah lewat' || slotData.reason === 'Waktu sudah terlewat';
+                        if (!isPastReason) {
+                            intervalBlocked = true;
+                            intervalReason = slotData.reason || (slotData.totalAccountsCount ? `Penuh (${slotData.totalAccountsCount} akun)` : 'Penuh');
+                            break;
+                        }
                     }
                 }
             }
@@ -268,17 +290,22 @@ export function SimpleBookingForm({
         }
 
         const isTodayBooking = isSameDay(parseISO(bookingDate), new Date());
-        const nowStr = format(new Date(), 'HH:mm');
+        const now = new Date();
+        const nowStr = format(now, 'HH:mm');
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
         if (daySlotsQuery.data?.slots?.length) {
             return daySlotsQuery.data.slots.map((slot) => {
-                const isPastSlot = isTodayBooking && slot.time < nowStr;
+                const isCompletelyPast = isTodayBooking && (slot.endTime ? slot.endTime <= nowStr : slot.time < nowStr);
+                const isOngoing = isTodayBooking && slot.time <= nowStr && (slot.endTime ? slot.endTime > nowStr : true);
+
                 return {
                     time: slot.time,
-                    isUnavailable: !slot.available || isPastSlot,
-                    availableAccountsCount: isPastSlot ? 0 : slot.availableAccountsCount,
+                    isUnavailable: !slot.available || isCompletelyPast,
+                    isOngoing: isOngoing && slot.available,
+                    availableAccountsCount: isCompletelyPast ? 0 : slot.availableAccountsCount,
                     totalAccountsCount: slot.totalAccountsCount,
-                    reason: isPastSlot ? 'Waktu sudah terlewat' : slot.reason,
+                    reason: isCompletelyPast ? 'Waktu sudah terlewat' : slot.reason,
                     exceedsOperatingHours: slot.exceedsOperatingHours,
                 };
             });
@@ -291,7 +318,16 @@ export function SimpleBookingForm({
         while (cur < end) {
             const h = Math.floor(cur / 60).toString().padStart(2, '0');
             const m = (cur % 60).toString().padStart(2, '0');
-            opts.push({ time: `${h}:${m}` });
+            const timeStr = `${h}:${m}`;
+            const slotEndMins = cur + interval;
+            const isCompletelyPast = isTodayBooking && slotEndMins <= nowMinutes;
+            const isOngoing = isTodayBooking && cur <= nowMinutes && slotEndMins > nowMinutes;
+            opts.push({
+                time: timeStr,
+                isUnavailable: isCompletelyPast,
+                isOngoing,
+                reason: isCompletelyPast ? 'Waktu sudah terlewat' : undefined,
+            });
             cur += interval;
         }
         return opts;
@@ -606,7 +642,9 @@ export function SimpleBookingForm({
                             ? "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-100"
                             : bookingDate && !isAllAccountsFull && availability.data?.available === false
                                 ? "bg-rose-50/70 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-800/40 text-rose-950 dark:text-rose-100"
-                                : "bg-blue-50/70 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-800/40 text-blue-950 dark:text-blue-100"
+                                : bookingDate && !isAllAccountsFull && availability.isError
+                                    ? "bg-amber-50/70 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/40 text-amber-950 dark:text-amber-100"
+                                    : "bg-blue-50/70 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-800/40 text-blue-950 dark:text-blue-100"
                     )}>
                         <div className="flex items-center justify-between gap-2">
                             <span className="font-medium text-slate-600 dark:text-slate-400">Waktu meeting:</span>
@@ -618,6 +656,8 @@ export function SimpleBookingForm({
                             <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-700/60 font-medium">
                                 {availability.isLoading ? (
                                     <><Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" /><span className="text-muted-foreground">Mengecek ketersediaan...</span></>
+                                ) : availability.isError ? (
+                                    <><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span className="font-semibold text-amber-700 dark:text-amber-300">Gagal mengecek ketersediaan jam</span></>
                                 ) : availability.data?.available ? (
                                     <><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" /><span className="font-semibold text-emerald-700 dark:text-emerald-300">Jam ini tersedia</span></>
                                 ) : (

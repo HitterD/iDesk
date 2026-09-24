@@ -6,6 +6,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { Notification, NotificationType, NotificationCategory } from './entities/notification.entity';
 import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
+import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +14,7 @@ export class NotificationService {
         @InjectRepository(Notification)
         private readonly notificationRepo: Repository<Notification>,
         private readonly eventsGateway: EventsGateway,
+        private readonly sjaAdapter: SjaAdapterService,
     ) { }
 
     async create(data: {
@@ -26,7 +28,7 @@ export class NotificationService {
         category?: NotificationCategory;
         requiresAcknowledge?: boolean;
     }): Promise<Notification> {
-        // DEDUP: Check existing notification with same type + referenceId + userId within 24h
+        // DEDUP 1: Check existing notification with same type + referenceId + userId within 24h
         if (data.referenceId) {
             const existing = await this.notificationRepo.findOne({
                 where: {
@@ -34,6 +36,21 @@ export class NotificationService {
                     type: data.type,
                     referenceId: data.referenceId,
                     createdAt: MoreThan(new Date(Date.now() - 24 * 60 * 60 * 1000)),
+                },
+            });
+            if (existing) {
+                // Skip duplicate — return existing notification
+                return existing;
+            }
+        } else {
+            // DEDUP 2 (Fallback): Prevent rapid duplicate notifications for same user + type + title + message within 5 minutes
+            const existing = await this.notificationRepo.findOne({
+                where: {
+                    userId: data.userId,
+                    type: data.type,
+                    title: data.title,
+                    message: data.message,
+                    createdAt: MoreThan(new Date(Date.now() - 5 * 60 * 1000)),
                 },
             });
             if (existing) {
@@ -77,6 +94,13 @@ export class NotificationService {
             userId: data.userId,
             notification: saved,
         }); } catch (e) { console.warn('Socket emit failed', e); }
+
+        // Dispatch to SJA Notification Center Outbox
+        try {
+            await this.sjaAdapter.dispatchNotification(saved);
+        } catch (sjaErr) {
+            console.warn('SJA dispatch failed', sjaErr);
+        }
 
         return saved;
     }
@@ -292,11 +316,17 @@ export class NotificationService {
     }
 
     async notifyTicketAssigned(userId: string, ticketId: string, ticketNumber: string, assignerName: string) {
+        // 'Auto-assign' adalah penanda sistem, bukan nama orang — jangan
+        // ditulis seolah-olah seseorang yang menugaskan.
+        const byWhom = assignerName === 'Auto-assign'
+            ? 'secara otomatis'
+            : `oleh ${assignerName}`;
+
         return this.create({
             userId,
             type: NotificationType.TICKET_ASSIGNED,
-            title: 'Ticket Assigned',
-            message: `You have been assigned to ticket #${ticketNumber} by ${assignerName}`,
+            title: 'Tiket Ditugaskan',
+            message: `Tiket #${ticketNumber} ditugaskan kepada Anda ${byWhom}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -324,12 +354,25 @@ export class NotificationService {
         });
     }
 
-    async notifyTicketReply(userId: string, ticketId: string, ticketNumber: string, senderName: string) {
+    async notifyTicketReply(
+        userId: string,
+        ticketId: string,
+        ticketNumber: string,
+        senderName: string,
+        contentSnippet?: string,
+    ) {
+        const cleanSnippet = contentSnippet
+            ? (contentSnippet.length > 140 ? contentSnippet.slice(0, 137) + '...' : contentSnippet)
+            : '';
+        const message = cleanSnippet
+            ? `${senderName}: "${cleanSnippet}"`
+            : `${senderName} membalas tiket #${ticketNumber}`;
+
         return this.create({
             userId,
             type: NotificationType.TICKET_REPLY,
-            title: 'New Reply',
-            message: `${senderName} replied to ticket #${ticketNumber}`,
+            title: `[#${ticketNumber}] Pesan Baru dari ${senderName}`,
+            message,
             ticketId,
             link: `/tickets/${ticketId}`,
         });

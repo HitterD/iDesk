@@ -22,6 +22,10 @@ export const Logo: React.FC<LogoProps> = ({
   className,
   animated = false
 }) => {
+  const isIconVariant = variant === 'icon';
+  const logoSrc = isIconVariant ? '/idesk-icon.png' : '/idesk-logo.png';
+  const logoAlt = isIconVariant ? 'iDesk Icon' : 'iDesk Logo';
+
   return (
     <div
       className={cn(
@@ -33,10 +37,10 @@ export const Logo: React.FC<LogoProps> = ({
       )}
     >
       <img
-        src="/idesk-logo.png"
-        alt="iDesk Logo"
+        src={logoSrc}
+        alt={logoAlt}
         className={cn(
-          "h-full w-auto object-contain filter drop-shadow-xs",
+          "h-full w-auto object-contain filter drop-shadow-xs select-none",
           variant === 'icon' ? "max-h-9 max-w-full" : ""
         )}
       />

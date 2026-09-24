@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: idesk-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:-idesk_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - idesk-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: idesk-redis
+    restart: always
+    command: >
+      redis-server --appendonly yes --maxmemory-policy noeviction
+      --requirepass "${REDIS_PASSWORD}"
+    volumes:
+      - redis_data:/data
+    networks:
+      - idesk-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/hitterd/idesk-backend:latest
+    container_name: idesk-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5050
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE:-idesk_db}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 60m
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      EFORM_ENCRYPTION_KEY: ${EFORM_ENCRYPTION_KEY}
+      FRONTEND_URL: ${FRONTEND_URL:-https://idesk.santos.co.id}
+      WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:-https://idesk.santos.co.id}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ZOOM_ACCOUNT_ID: ${ZOOM_ACCOUNT_ID:-}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID:-}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET:-}
+      HRIS_GATEWAY_BASE_URL: ${HRIS_GATEWAY_BASE_URL:-}
+      HRIS_GATEWAY_API_KEY: ${HRIS_GATEWAY_API_KEY:-}
+      HRIS_LOGIN_VERIFY_ENABLED: ${HRIS_LOGIN_VERIFY_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-mail.kapalapi.co.id}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-sysadmin.sja@kapalapi.co.id}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-iDesk Support <sysadmin.sja@kapalapi.co.id>}
+    volumes:
+      - backend_uploads:/app/uploads
+      - notifier_dist:/app/apps/sja-notification-app/dist-package
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - idesk-network
+
+  frontend:
+    image: ghcr.io/hitterd/idesk-frontend:latest
+    container_name: idesk-frontend
+    restart: always
+    ports:
+      - "3080:8080"
+    depends_on:
+      - backend
+    networks:
+      - idesk-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_uploads:
+  notifier_dist:
+
+networks:
+  idesk-network:
+    driver: bridge

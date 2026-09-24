@@ -117,7 +117,7 @@ describe('ClientTicketDetailPage', () => {
         // Header Badges & Actions
         expect(screen.getByText('#190826-GEN-0005')).toBeInTheDocument();
         expect(screen.getAllByText('In Progress').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Medium').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Normal (Moderate)').length).toBeGreaterThan(0);
         expect(screen.getAllByText('HARDWARE').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Cancel Ticket').length).toBeGreaterThan(0);
 
@@ -134,7 +134,8 @@ describe('ClientTicketDetailPage', () => {
         expect(screen.getByText('IT Support Specialist')).toBeInTheDocument();
         expect(screen.getByText('yudi.arta@kapalapi.co.id')).toBeInTheDocument();
 
-        // Bento Ticket Properties
+        // Bento Ticket Properties & Participants
+        expect(screen.getByText('Anggota Tiket')).toBeInTheDocument();
         expect(screen.getByText('Ticket Properties')).toBeInTheDocument();
         expect(screen.getByText('SLA & Tracking')).toBeInTheDocument();
     });

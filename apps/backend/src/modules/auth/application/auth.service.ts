@@ -164,5 +164,62 @@ export class AuthService {
             role: UserRole.USER,
         });
     }
+
+    async issueSsoTicket(identifier: string): Promise<string | null> {
+        let user: any = null;
+        if (identifier.includes('@')) {
+            user = await this.usersService.findByEmail(identifier.toLowerCase());
+        } else {
+            user = await this.usersService.findByEmployeeId(identifier);
+            if (!user) {
+                user = await this.usersService.findById(identifier);
+            }
+        }
+        if (!user || user.isActive === false) return null;
+        return this.tokenService.generateOneTimeTicket(user.id);
+    }
+
+    async consumeSsoTicket(ticket: string, request?: Request) {
+        const userId = this.tokenService.consumeOneTimeTicket(ticket);
+        if (!userId) return null;
+        const user = await this.usersService.findById(userId);
+        if (!user || user.isActive === false) return null;
+        return this.login(toValidatedUser(user), request, true);
+    }
+
+    async resolveNik(nik: string): Promise<{
+        userId: string;
+        employeeId: string;
+        fullName: string;
+        role: UserRole;
+        siteId: string | null;
+        siteCode: string;
+    } | null> {
+        const trimmed = (nik || '').trim();
+        if (!trimmed) return null;
+        const user = await this.usersService.findByEmployeeId(trimmed);
+        if (!user || user.isActive === false) return null;
+
+        const SITE_ID_MAP: Record<string, string> = {
+            '9f8a5c1e-5865-4382-a8fe-8518c0862c4c': 'SPJ',
+            'fc32eaff-0c51-40ee-81a6-33d7d317e0f7': 'KRW',
+            '39b888a1-6d13-446b-b91a-89ae9de7c9d0': 'JTB',
+            'c2b3027b-5506-44f9-9846-a90592b8b8d7': 'SMG',
+        };
+        const siteCode = user.siteId
+            ? (SITE_ID_MAP[user.siteId] || 'SPJ')
+            : (user.email?.toLowerCase().includes('krw') ? 'KRW'
+               : user.email?.toLowerCase().includes('jtb') ? 'JTB'
+               : user.email?.toLowerCase().includes('smg') ? 'SMG' : 'SPJ');
+
+        return {
+            userId: user.id,
+            employeeId: user.employeeId || trimmed,
+            fullName: user.fullName,
+            role: user.role,
+            siteId: user.siteId ?? null,
+            siteCode,
+        };
+    }
 }
 

@@ -38,10 +38,10 @@ interface SystemMessageEventProps {
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string; dot: string; icon: React.ComponentType<{ className?: string }> }> = {
     TODO: {
         label: 'Baru (TODO)',
-        bg: 'bg-blue-50 dark:bg-blue-950/50',
-        text: 'text-blue-700 dark:text-blue-300',
-        border: 'border-blue-200 dark:border-blue-800/70',
-        dot: 'bg-blue-500',
+        bg: 'bg-primary/10 dark:bg-primary/20',
+        text: 'text-primary',
+        border: 'border-primary/20 dark:border-primary/30',
+        dot: 'bg-primary',
         icon: Clock,
     },
     IN_PROGRESS: {
@@ -94,11 +94,11 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
     },
 };
 
-const PRIORITY_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
-    LOW: { label: 'Low', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
-    MEDIUM: { label: 'Medium', bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
-    HIGH: { label: 'High', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
-    CRITICAL: { label: 'Critical', bg: 'bg-red-50 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800' },
+const PRIORITY_MAP: Record<string, { label: string; shortLabel?: string; bg: string; text: string; border: string }> = {
+    LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
+    MEDIUM: { label: 'Normal (Moderate)', shortLabel: 'Normal', bg: 'bg-primary/10 dark:bg-primary/20', text: 'text-primary', border: 'border-primary/20 dark:border-primary/30' },
+    HIGH: { label: 'Urgent (Major Impact)', shortLabel: 'Urgent', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
+    CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', bg: 'bg-red-50 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800' },
 };
 
 export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
@@ -210,6 +210,115 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                             </div>
                         )}
                         <span>{formatDateTimeID(createdAt)}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // 0.1 Detect SLA Extension Notice
+    const isSlaExtensionNotice =
+        content.includes('Target SLA Diperpanjang') ||
+        content.includes('SLA Diperpanjang') ||
+        (content.includes('Deadline Baru') && content.includes('Kategori'));
+
+    if (isSlaExtensionNotice) {
+        // Strip emojis and markdown asterisks for a clean Apple look
+        const sanitize = (text: string) =>
+            text
+                .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')
+                .replace(/\*\*/g, '')
+                .trim();
+
+        const deadlineMatch = content.match(/(?:Deadline Baru|Target Baru):\s*([^\n\r]+)/i);
+        const categoryMatch = content.match(/(?:Kategori Kendala|Kategori Alasan|Kategori):\s*([^\n\r]+)/i);
+        const explanationMatch = content.match(/(?:Penjelasan|Alasan|Rincian):\s*([\s\S]+?)(?:\n\s*(?:Diperpanjang oleh|Diubah oleh|Oleh|$)|$)/i);
+        const actorMatch = content.match(/(?:Diperpanjang oleh|Diubah oleh|Oleh):\s*([^\n\r]+)/i);
+
+        const deadline = deadlineMatch ? sanitize(deadlineMatch[1]) : '';
+        const category = categoryMatch ? sanitize(categoryMatch[1]) : '';
+        const explanation = explanationMatch ? sanitize(explanationMatch[1]) : '';
+        const actor = actorMatch ? sanitize(actorMatch[1]) : '';
+
+        return (
+            <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
+                <div className="w-full max-w-lg bg-white dark:bg-[#1c1c1e] rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs hover:shadow-sm transition-all duration-200 overflow-hidden text-left">
+                    {/* Header (Apple Sheet Style) */}
+                    <div className="px-4 py-2.5 bg-slate-50/60 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                <Clock className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h4 className="text-xs font-semibold text-slate-900 dark:text-white tracking-tight">
+                                    Target SLA Diperpanjang
+                                </h4>
+                            </div>
+                        </div>
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 shrink-0">
+                            {formatRelativeTime(createdAt)}
+                        </span>
+                    </div>
+
+                    {/* Body */}
+                    <div className="p-3.5 space-y-2.5 text-xs">
+                        {/* Target Deadline Baru & Kategori */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {deadline && (
+                                <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                                    <Calendar className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                                            Target Baru
+                                        </span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                                            {deadline}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {category && (
+                                <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                                    <AlertCircle className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                                            Kategori Kendala
+                                        </span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate block">
+                                            {category}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Penjelasan Alasan */}
+                        {explanation && (
+                            <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-white/[0.02] border border-slate-200/50 dark:border-white/5 space-y-1">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                                    Rincian Kendala
+                                </span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                    "{explanation}"
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-4 py-2 bg-slate-50/50 dark:bg-white/[0.02] border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                        {actor ? (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <UserIcon className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span className="truncate">
+                                    Diperpanjang oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{actor}</strong>
+                                </span>
+                            </div>
+                        ) : (
+                            <span>Pembaruan SLA Otomatis</span>
+                        )}
+                        <span className="shrink-0">{formatDateTimeID(createdAt)}</span>
                     </div>
                 </div>
             </div>
@@ -328,7 +437,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const actor = statusMatch[3]?.trim();
 
         const fromConfig = STATUS_MAP[fromKey] || { label: fromKey, bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700', dot: 'bg-slate-400', icon: Clock };
-        const toConfig = STATUS_MAP[toKey] || { label: toKey, bg: 'bg-blue-100 dark:bg-blue-950/60', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-800', dot: 'bg-blue-500', icon: CheckCircle2 };
+        const toConfig = STATUS_MAP[toKey] || { label: toKey, bg: 'bg-primary/10 dark:bg-primary/20', text: 'text-primary', border: 'border-primary/20 dark:border-primary/30', dot: 'bg-primary', icon: CheckCircle2 };
         const ToIcon = toConfig.icon;
 
         return (
@@ -480,7 +589,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                 <div className="w-full max-w-md bg-slate-50 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-3.5 shadow-2xs text-xs text-slate-700 dark:text-slate-300">
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="font-semibold flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5 text-blue-500" />
+                            <Info className="w-3.5 h-3.5 text-primary" />
                             Notifikasi Sistem
                         </span>
                         <span>{formatRelativeTime(createdAt)}</span>
@@ -503,7 +612,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                 ) : isRemove ? (
                     <UserMinus className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                 ) : (
-                    <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <Info className="w-3.5 h-3.5 text-primary shrink-0" />
                 )}
                 <span>{cleanContent}</span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">

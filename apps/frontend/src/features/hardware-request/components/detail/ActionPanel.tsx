@@ -46,11 +46,17 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
     const [proposeOpen, setProposeOpen] = useState(false);
     const [pickerSched, setPickerSched] = useState<InstallationSchedule | null>(null);
 
+    const isInstallationOnly = String(r.justification || '').includes('[PENJADWALAN PEMASANGAN]');
     const arrivedItems = (r.items ?? []).filter((i) => i.deliveryStatus === 'ARRIVED');
+    const itemsToSchedule = isInstallationOnly && arrivedItems.length === 0
+        ? (r.items ?? [])
+        : arrivedItems;
     const awaitingUserSchedule = r.schedules?.find((s) => s.status === 'PROPOSED_AWAITING_USER');
     const activeSchedule = (r.schedules && r.schedules.length > 0)
         ? [...r.schedules].reverse().find((s) => s.status !== 'CANCELLED') || r.schedules[r.schedules.length - 1]
         : r.installationSchedule;
+    const hasConfirmedSchedule = activeSchedule && ['CONFIRMED', 'IN_PROGRESS', 'DONE'].includes(activeSchedule.status);
+    const hasProposedSchedule = activeSchedule && activeSchedule.status === 'PROPOSED_AWAITING_USER';
 
     const handleOpenPropose = onProposeSchedule || (() => setProposeOpen(true));
     const handleOpenPicker = (sched: InstallationSchedule) => {
@@ -66,21 +72,15 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
             {/* ── ROLE-ADAPTIVE ACTION CARD ── */}
             <SectionCard
                 title={isStaff ? 'Workflow Command Center' : 'Status & Aksi Permintaan'}
-                className={cn(
-                    'transition-all',
-                    isStaff
-                        ? 'border border-blue-500/30 dark:border-blue-500/40 bg-gradient-to-b from-blue-50/50 via-card to-card dark:from-blue-950/20 dark:via-card dark:to-card shadow-md ring-1 ring-blue-500/20'
-                        : 'border border-border/80 shadow-sm'
-                )}
+                className="transition-all border border-border/80 shadow-xs bg-card"
                 action={
                     isStaff ? (
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider bg-blue-600 text-white px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
-                            <span className="size-1.5 rounded-full bg-white animate-ping shrink-0" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                             <ShieldCheck className="size-3 shrink-0" />
                             <span>Staf ICT</span>
                         </span>
                     ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground border border-border/50 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                             <UserCheck className="size-3" />
                             <span>Pemohon</span>
                         </span>
@@ -149,18 +149,18 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                         <>
                             {/* State 1: SUBMITTED (Awaiting Review) */}
                             {r.status === 'SUBMITTED' && (caps.canReview || caps.canApprove || caps.canReject) && (
-                                <div className="space-y-3 rounded-2xl bg-blue-500/10 border border-blue-500/30 p-4 shadow-2xs">
+                                <div className="space-y-3 rounded-xl bg-muted/20 border border-border/80 p-4 shadow-2xs">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
-                                            <Eye className="size-3.5" />
-                                            <span>Langkah 1: Tinjau Permintaan</span>
+                                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                            <Eye className="size-3.5 text-primary" />
+                                            <span>Peninjauan Permintaan</span>
                                         </span>
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-800 dark:text-blue-200">
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                                             Baru Diajukan
                                         </span>
                                     </div>
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                        Pengajuan baru masuk ke antrean. Silakan periksa kelayakan pengajuan dan tandai sebagai sedang ditinjau.
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Pengajuan baru masuk antrean. Periksa kebutuhan dan kelayakan spesifikasi hardware.
                                     </p>
                                     <div className="grid grid-cols-1 gap-2 pt-1">
                                         {caps.canReview && (
@@ -168,10 +168,10 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                                 type="button"
                                                 onClick={() => m.reviewMut.mutate(r.id)}
                                                 disabled={m.reviewMut.isPending}
-                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 text-xs sm:text-sm font-black transition-all shadow-md shadow-blue-500/25 active:scale-[0.98] cursor-pointer"
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer"
                                             >
                                                 <Eye className="size-4" />
-                                                <span>{m.reviewMut.isPending ? 'Memproses...' : 'Tandai Sedang Ditinjau (Under Review)'}</span>
+                                                <span>{m.reviewMut.isPending ? 'Memproses...' : 'Tandai Sedang Ditinjau'}</span>
                                             </button>
                                         )}
                                         {caps.canApprove && (
@@ -179,20 +179,20 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                                 type="button"
                                                 onClick={() => m.approveMut.mutate(r.id)}
                                                 disabled={m.approveMut.isPending}
-                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-xs shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer"
                                             >
                                                 <CheckCircle2 className="size-4" />
-                                                <span>Langsung Setujui (Approve)</span>
+                                                <span>Langsung Setujui</span>
                                             </button>
                                         )}
                                         {caps.canReject && (
                                             <button
                                                 type="button"
                                                 onClick={() => setRejectOpen(true)}
-                                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 dark:border-rose-800/80 bg-card hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-4 py-2 text-xs font-bold transition-colors cursor-pointer active:scale-[0.98]"
+                                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-4 py-2 text-xs font-medium transition-colors cursor-pointer active:scale-[0.98]"
                                             >
                                                 <XCircle className="size-3.5" />
-                                                <span>Tolak Permintaan (Reject)</span>
+                                                <span>Tolak Permintaan</span>
                                             </button>
                                         )}
                                     </div>
@@ -201,18 +201,18 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
 
                             {/* State 2: UNDER_REVIEW (Decision time) */}
                             {r.status === 'UNDER_REVIEW' && (caps.canApprove || caps.canReject) && (
-                                <div className="space-y-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4 shadow-2xs">
+                                <div className="space-y-3 rounded-xl bg-amber-500/5 border border-amber-500/20 p-4 shadow-2xs">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                                            <ShieldCheck className="size-3.5" />
-                                            <span>Keputusan Peninjauan ICT</span>
+                                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                            <ShieldCheck className="size-3.5 text-amber-600 dark:text-amber-400" />
+                                            <span>Keputusan Peninjauan</span>
                                         </span>
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-200">
                                             Sedang Ditinjau
                                         </span>
                                     </div>
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                        Permintaan telah diverifikasi. Tentukan persetujuan pengadaan hardware untuk melanjutkan proses.
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Pemeriksaan spesifikasi selesai. Tentukan persetujuan untuk melanjutkan proses.
                                     </p>
                                     <div className="grid grid-cols-1 gap-2 pt-1">
                                         {caps.canApprove && (
@@ -220,55 +220,108 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                                 type="button"
                                                 onClick={() => m.approveMut.mutate(r.id)}
                                                 disabled={m.approveMut.isPending}
-                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-4 py-3 text-xs sm:text-sm font-black transition-all shadow-md shadow-emerald-500/25 active:scale-[0.98] cursor-pointer"
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer"
                                             >
                                                 <CheckCircle2 className="size-4" />
-                                                <span>{m.approveMut.isPending ? 'Menyetujui...' : 'Setujui Permintaan (Approve)'}</span>
+                                                <span>{m.approveMut.isPending ? 'Menyetujui...' : 'Setujui Permintaan'}</span>
                                             </button>
                                         )}
                                         {caps.canReject && (
                                             <button
                                                 type="button"
                                                 onClick={() => setRejectOpen(true)}
-                                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 text-rose-700 dark:text-rose-300 px-4 py-2 text-xs font-bold transition-colors cursor-pointer active:scale-[0.98]"
+                                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-4 py-2 text-xs font-medium transition-colors cursor-pointer active:scale-[0.98]"
                                             >
                                                 <XCircle className="size-3.5" />
-                                                <span>Tolak Permintaan (Reject)</span>
+                                                <span>Tolak Permintaan</span>
                                             </button>
                                         )}
                                     </div>
                                 </div>
                             )}
 
-                            {/* State 3: INSTALLATION (Finish installation) */}
+                            {/* State 3: INSTALLATION */}
                             {r.status === 'INSTALLATION' && (
-                                <div className="space-y-3 rounded-2xl bg-primary/10 border border-primary/30 p-4 shadow-2xs">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                                            <ClipboardCheck className="size-3.5" />
-                                            <span>Penyelesaian Instalasi</span>
-                                        </span>
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary">
-                                            Pemasangan Aktif
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                        Jika seluruh perangkat telah selesai dipasang dan dites di lokasi, klik tombol di bawah untuk menyerahkan konfirmasi ke user.
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (window.confirm('Tandai instalasi sebagai selesai untuk dikonfirmasi user?')) {
-                                                m.completeInstallMut.mutate(r.id);
-                                            }
-                                        }}
-                                        disabled={m.completeInstallMut.isPending}
-                                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-4 py-3 text-xs sm:text-sm font-black transition-all shadow-md shadow-primary/25 active:scale-[0.98] cursor-pointer"
-                                    >
-                                        <ClipboardCheck className="size-4" />
-                                        <span>{m.completeInstallMut.isPending ? 'Memproses...' : 'Selesaikan Pemasangan & Kirim ke User'}</span>
-                                    </button>
-                                </div>
+                                <>
+                                    {/* Sub-state 3A: No schedule proposed yet */}
+                                    {(!activeSchedule || activeSchedule.status === 'CANCELLED') ? (
+                                        <div className="space-y-3 rounded-xl bg-primary/5 border border-primary/20 p-4 shadow-2xs">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                                    <CalendarClock className="size-3.5 text-primary" />
+                                                    <span>Jadwalkan Pemasangan</span>
+                                                </span>
+                                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                                                    Siap Dijadwalkan
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                Perangkat siap dipasang. Tentukan teknisi yang bertugas dan usulkan pilihan slot waktu kepada pemohon.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={handleOpenPropose}
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <CalendarClock className="size-4" />
+                                                <span>Atur & Usulkan Jadwal ke User</span>
+                                            </button>
+                                        </div>
+                                    ) : hasProposedSchedule ? (
+                                        /* Sub-state 3B: Schedule proposed, awaiting user selection */
+                                        <div className="space-y-3 rounded-xl bg-amber-500/5 border border-amber-500/20 p-4 shadow-2xs">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                                    <Clock className="size-3.5 text-amber-600 dark:text-amber-400" />
+                                                    <span>Usulan Jadwal Terkirim</span>
+                                                </span>
+                                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-200">
+                                                    Menunggu User
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                Alternatif slot waktu telah dikirimkan ke pemohon. Menunggu pemohon memilih jadwal yang paling sesuai di lokasi.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={handleOpenPropose}
+                                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground px-4 py-2 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+                                            >
+                                                <CalendarClock className="size-3.5 text-muted-foreground" />
+                                                <span>Ubah Pilihan Slot Waktu</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        /* Sub-state 3C: Schedule confirmed/in-progress — Staff can finish installation */
+                                        <div className="space-y-3 rounded-xl bg-primary/5 border border-primary/20 p-4 shadow-2xs">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                                    <ClipboardCheck className="size-3.5 text-primary" />
+                                                    <span>Penyelesaian Instalasi</span>
+                                                </span>
+                                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                                                    Pemasangan
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                Setelah seluruh perangkat selesai dipasang dan dites di lokasi, serahkan konfirmasi kepada pemohon.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (window.confirm('Tandai instalasi sebagai selesai untuk dikonfirmasi user?')) {
+                                                        m.completeInstallMut.mutate(r.id);
+                                                    }
+                                                }}
+                                                disabled={m.completeInstallMut.isPending}
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <ClipboardCheck className="size-4" />
+                                                <span>{m.completeInstallMut.isPending ? 'Memproses...' : 'Selesaikan Pemasangan & Kirim ke User'}</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             {/* Contextual guidance for other states in Staff view */}
@@ -362,8 +415,12 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                     ? 'Permintaan hardware telah selesai sepenuhnya dan barang telah diverifikasi oleh Anda.'
                                     : activeSchedule?.status === 'RESCHEDULE_REQUESTED'
                                     ? 'Permintaan jadwal ulang Anda sedang diproses oleh tim teknisi ICT.'
+                                    : hasConfirmedSchedule
+                                    ? 'Jadwal pemasangan telah disepakati. Teknisi ICT akan hadir ke lokasi sesuai waktu yang telah dikonfirmasi.'
                                     : r.status === 'INSTALLATION'
-                                    ? 'Perangkat sedang dalam proses instalasi & pemasangan oleh teknisi ICT.'
+                                    ? (isInstallationOnly
+                                        ? 'Pengajuan pemasangan hardware Anda telah diterima. Tim ICT sedang menyiapkan teknisi dan akan segera mengusulkan pilihan slot waktu kepada Anda.'
+                                        : 'Perangkat sedang dalam proses instalasi & pemasangan oleh teknisi ICT.')
                                     : r.status === 'AWAITING_DELIVERY'
                                     ? 'Perangkat sedang dalam proses pengiriman vendor menuju lokasi Anda.'
                                     : r.status === 'APPROVED' || r.status === 'PROCUREMENT'
@@ -394,8 +451,8 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                 <ProcurementPanel request={r} />
             )}
 
-            {/* Delivery Tracking & Scheduling Board (For ICT Staff & Delivery tracking only) */}
-            {isStaff && (r.status === 'AWAITING_DELIVERY' || r.status === 'INSTALLATION') && (
+            {/* Delivery Tracking & Scheduling Board (For ICT Staff & Delivery tracking only — not needed for direct installation) */}
+            {isStaff && !isInstallationOnly && (r.status === 'AWAITING_DELIVERY' || r.status === 'INSTALLATION') && (
                 <DeliveryBoard
                     request={r}
                     user={user}
@@ -408,7 +465,7 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                 open={proposeOpen}
                 onOpenChange={setProposeOpen}
                 requestId={r.id}
-                arrivedItems={arrivedItems}
+                arrivedItems={itemsToSchedule}
                 defaultTechnicianId={user.id}
                 siteName={r.site?.name}
             />

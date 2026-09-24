@@ -1,6 +1,9 @@
 import React from 'react';
-import { Clock, ShieldCheck, Database, CheckCircle2, Ban, FileEdit, Globe, Wifi } from 'lucide-react';
+import { Clock, ShieldCheck, Database, CheckCircle2, Ban, FileEdit, Globe, Wifi, Usb, Mail, HardDrive } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/** Roles allowed to process and fulfill ICT requests */
+export const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT'] as const;
 
 /** Server-side lifecycle of an E-Form request. */
 export enum EFormStatus {
@@ -9,6 +12,12 @@ export enum EFormStatus {
     PENDING_ICT = 'PENDING_ICT',
     CONFIRMED = 'CONFIRMED',
     REJECTED = 'REJECTED',
+}
+
+/** Synology NAS account status mode */
+export enum SynologyAccountStatus {
+    NEW_ACCOUNT = 'NEW_ACCOUNT',
+    EXISTING_ACCOUNT = 'EXISTING_ACCOUNT',
 }
 
 /**
@@ -55,7 +64,7 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     },
     [EFormStatus.CONFIRMED]: {
         label: 'Akses Siap',
-        hint: 'Kredensial sudah tersedia',
+        hint: 'Kredensial / Akses sudah tersedia',
         icon: CheckCircle2,
         badge: 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50',
         solid: 'bg-emerald-600',
@@ -83,12 +92,15 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     VPN: { label: 'Akses VPN', description: 'Remote ke jaringan kantor', icon: ShieldCheck },
     WEBSITE: { label: 'Akses Website', description: 'Buka blokir website', icon: Globe },
     NETWORK: { label: 'Akses Jaringan', description: 'Akses jaringan khusus', icon: Wifi },
+    FLASHDISK: { label: 'Akses Flashdisk', description: 'Izin penggunaan USB / Flashdisk di PC kerja', icon: Usb },
+    EMAIL: { label: 'Request Email', description: 'Pembuatan akun email dinas baru @kapalapi.co.id', icon: Mail },
+    SYNOLOGY_NAS: { label: 'Synology NAS', description: 'Permintaan akses shared folder Synology NAS', icon: HardDrive },
 };
 
 export const getTypeConfig = (type: string): TypeConfig =>
     TYPE_CONFIG[type] ?? { label: type, description: 'Permintaan akses', icon: ShieldCheck };
 
-export const EFORM_TYPES = (['VPN', 'WEBSITE', 'NETWORK'] as const).map(id => ({
+export const EFORM_TYPES = (['VPN', 'WEBSITE', 'NETWORK', 'FLASHDISK', 'EMAIL', 'SYNOLOGY_NAS'] as const).map(id => ({
     id,
     ...TYPE_CONFIG[id],
 }));

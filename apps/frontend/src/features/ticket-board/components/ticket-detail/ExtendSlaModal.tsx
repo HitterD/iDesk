@@ -13,7 +13,6 @@ import {
     Cpu,
     Network,
     MoreHorizontal,
-    Sparkles,
     Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,58 +44,49 @@ const CATEGORY_OPTIONS: {
     title: string;
     description: string;
     icon: React.ElementType;
-    color: string;
 }[] = [
     {
         id: 'WAITING_USER',
         title: 'Menunggu User',
-        description: 'Menunggu konfirmasi, kelengkapan data, atau respon dari user',
+        description: 'Konfirmasi atau respon user',
         icon: HelpCircle,
-        color: 'text-sky-500 bg-sky-500/10 border-sky-500/30',
     },
     {
         id: 'WAITING_VENDOR',
         title: 'Menunggu Vendor',
-        description: 'Menunggu pengiriman sparepart, servis pihak ke-3, atau RMA',
+        description: 'Sparepart, servis vendor, RMA',
         icon: Building2,
-        color: 'text-amber-500 bg-amber-500/10 border-amber-500/30',
     },
     {
         id: 'WAITING_APPROVAL',
         title: 'Persetujuan Manajerial',
-        description: 'Memerlukan persetujuan biaya, pergantian unit, atau otoritas',
+        description: 'Persetujuan biaya atau pergantian unit',
         icon: FileCheck2,
-        color: 'text-purple-500 bg-purple-500/10 border-purple-500/30',
     },
     {
         id: 'TECHNICAL_COMPLEXITY',
         title: 'Kompleksitas Teknis',
-        description: 'Kendala teknis mendalam yang membutuhkan waktu investigasi ekstra',
+        description: 'Investigasi kendala teknis mendalam',
         icon: Cpu,
-        color: 'text-rose-500 bg-rose-500/10 border-rose-500/30',
     },
     {
         id: 'EXTERNAL_DEPENDENCY',
         title: 'Dependensi Eksternal',
-        description: 'Gangguan provider ISP, server pusat, atau listrik/gedung',
+        description: 'Gangguan ISP, server, daya/gedung',
         icon: Network,
-        color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/30',
     },
     {
         id: 'OTHER',
         title: 'Alasan Lainnya',
-        description: 'Hambatan operasional lain yang telah disepakati',
+        description: 'Hambatan operasional lain yang disepakati',
         icon: MoreHorizontal,
-        color: 'text-slate-500 bg-slate-500/10 border-slate-500/30',
     },
 ];
 
-const PRESETS = [
-    { label: '+4 Jam', hours: 4 },
-    { label: '+1 Hari Kerja', hours: 8 },
-    { label: '+2 Hari Kerja', hours: 16 },
-    { label: '+3 Hari Kerja', hours: 24 },
-    { label: '+1 Minggu', hours: 40 },
+const PRESETS: { label: string; days: number }[] = [
+    { label: '1 Minggu', days: 7 },
+    { label: '2 Minggu', days: 14 },
+    { label: '1 Bulan', days: 30 },
 ];
 
 export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
@@ -115,22 +105,27 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
         return currentTargetDate > now ? currentTargetDate : now;
     }, [currentTargetDate]);
 
-    // Initial default: +1 work day from current target or now
+    const maxDate = useMemo(() => {
+        const now = new Date();
+        return new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    }, []);
+
+    // Initial default: 1 Minggu from current target or now
     const [selectedDate, setSelectedDate] = useState<Date>(() => {
         const base = currentTargetDate > new Date() ? currentTargetDate : new Date();
-        return new Date(base.getTime() + 8 * 60 * 60 * 1000);
+        return new Date(base.getTime() + 7 * 24 * 60 * 60 * 1000);
     });
     const [selectedCategory, setSelectedCategory] = useState<SlaAdjustmentReasonCategory>('WAITING_USER');
     const [reasonText, setReasonText] = useState<string>('');
-    const [selectedPresetIndex, setSelectedPresetIndex] = useState<number | null>(1);
+    const [selectedPresetIndex, setSelectedPresetIndex] = useState<number | null>(0);
 
     // Reset when modal opens
     useEffect(() => {
         if (isOpen) {
             const base = currentTargetDate > new Date() ? currentTargetDate : new Date();
-            const defaultTarget = new Date(base.getTime() + 8 * 60 * 60 * 1000);
+            const defaultTarget = new Date(base.getTime() + 7 * 24 * 60 * 60 * 1000);
             setSelectedDate(defaultTarget);
-            setSelectedPresetIndex(1);
+            setSelectedPresetIndex(0);
             setSelectedCategory('WAITING_USER');
             setReasonText('');
         }
@@ -138,10 +133,11 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
 
     if (!isOpen) return null;
 
-    const handleApplyPreset = (hours: number, index: number) => {
+    const handleApplyPreset = (preset: (typeof PRESETS)[0], index: number) => {
         setSelectedPresetIndex(index);
         const base = currentTargetDate > new Date() ? currentTargetDate : new Date();
-        const newDate = new Date(base.getTime() + hours * 60 * 60 * 1000);
+        const durationMs = preset.days * 24 * 60 * 60 * 1000;
+        const newDate = new Date(base.getTime() + durationMs);
         setSelectedDate(newDate);
     };
 
@@ -150,7 +146,13 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
         setSelectedPresetIndex(null);
     };
 
-    const isValidDate = Boolean(selectedDate && !isNaN(selectedDate.getTime()) && selectedDate > new Date());
+    const isBeyondMaxDate = Boolean(selectedDate && maxDate && selectedDate > maxDate);
+    const isValidDate = Boolean(
+        selectedDate &&
+        !isNaN(selectedDate.getTime()) &&
+        selectedDate > new Date() &&
+        !isBeyondMaxDate
+    );
     const isReasonValid = reasonText.trim().length >= 5;
     const canSubmit = isValidDate && isReasonValid && !isLoading;
 
@@ -166,29 +168,29 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
             <div
-                className="w-full max-w-xl max-h-[92vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                className="w-full max-w-lg flex flex-col bg-white dark:bg-[#1c1c1e] border border-slate-200/80 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="extend-sla-title"
             >
-                {/* Header */}
-                <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 bg-gradient-to-r from-blue-50/50 via-indigo-50/30 to-transparent dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-transparent">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-2xs">
-                            <Clock className="w-5 h-5" />
+                {/* Header (Apple Sheet Style) */}
+                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between gap-3 bg-slate-50/50 dark:bg-white/[0.02]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <Clock className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                                <h2 id="extend-sla-title" className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                <h2 id="extend-sla-title" className="text-sm font-semibold text-slate-900 dark:text-white tracking-tight">
                                     Perpanjang Target SLA
                                 </h2>
-                                <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                <span className="font-mono text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
                                     #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                                 {ticket.title}
                             </p>
                         </div>
@@ -197,37 +199,37 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                         type="button"
                         onClick={onClose}
                         disabled={isLoading}
-                        className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                        className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
                         title="Tutup"
                     >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                {/* Form Body (Scrollable) */}
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* 1. Target Date Selector */}
-                    <div className="space-y-3">
+                {/* Form Body */}
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-left">
+                    {/* 1. Target Deadline Baru */}
+                    <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                                1. Pilih Target Deadline Baru
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-primary" />
+                                Target Deadline Baru
                             </label>
-                            <span className="text-[11px] text-slate-400">Waktu Indonesia Barat (WIB)</span>
+                            <span className="text-[10px] text-slate-400">WIB</span>
                         </div>
 
-                        {/* Preset Shortcut Chips */}
-                        <div className="flex flex-wrap gap-2">
+                        {/* Apple Segmented Capsule Bar (1 Minggu, 2 Minggu, 1 Bulan) */}
+                        <div className="p-1 bg-slate-100/90 dark:bg-white/5 rounded-2xl grid grid-cols-3 gap-1 border border-slate-200/60 dark:border-white/5">
                             {PRESETS.map((preset, idx) => (
                                 <button
                                     key={preset.label}
                                     type="button"
-                                    onClick={() => handleApplyPreset(preset.hours, idx)}
+                                    onClick={() => handleApplyPreset(preset, idx)}
                                     className={cn(
-                                        "px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer shadow-2xs active:scale-[0.97]",
+                                        "py-1.5 px-3 text-center text-xs font-medium rounded-xl transition-all cursor-pointer whitespace-nowrap active:scale-[0.97]",
                                         selectedPresetIndex === idx
-                                            ? "bg-blue-600 text-white border-blue-600 shadow-blue-500/20"
-                                            : "bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200/90 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            ? "bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs font-semibold"
+                                            : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-white/5"
                                     )}
                                 >
                                     {preset.label}
@@ -240,27 +242,29 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                             value={selectedDate}
                             onChange={handleDateChange}
                             minDate={minDate}
+                            maxDate={maxDate}
                             placeholder="Pilih Tanggal & Waktu Deadline"
                         />
 
-                        {/* Visual Target Comparison Card */}
-                        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-50/70 to-indigo-50/70 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200/70 dark:border-blue-800/60 flex items-center justify-between gap-2 shadow-2xs">
-                            <div className="min-w-0">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                                    Target Sebelumnya
-                                </span>
-                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 truncate block">
+                        {isBeyondMaxDate && (
+                            <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1.5 mt-1 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1.5 rounded-xl border border-rose-200/80 dark:border-rose-900/40">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                Target deadline baru tidak boleh melebihi 90 hari ke depan
+                            </p>
+                        )}
+
+                        {/* Unified Target Summary Row */}
+                        <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Sebelumnya:</span>
+                                <span className="font-medium text-slate-600 dark:text-slate-400 truncate">
                                     {ticket.slaTarget ? formatDateTimeID(ticket.slaTarget) : 'Belum ditentukan'}
                                 </span>
                             </div>
-
-                            <ArrowRight className="w-4 h-4 text-blue-500 shrink-0" />
-
-                            <div className="min-w-0 text-right">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block mb-0.5">
-                                    Target Diperpanjang Ke
-                                </span>
-                                <span className="text-xs font-bold text-blue-700 dark:text-blue-300 truncate block">
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0 mx-2" />
+                            <div className="flex items-center gap-1.5 min-w-0 text-right">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Baru:</span>
+                                <span className="font-semibold text-primary truncate">
                                     {selectedDate && !isNaN(selectedDate.getTime())
                                         ? formatDateTimeID(selectedDate.toISOString())
                                         : '-'}
@@ -269,14 +273,14 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                         </div>
                     </div>
 
-                    {/* 2. Reason Category Selection */}
-                    <div className="space-y-3">
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 text-blue-500" />
-                            2. Kategori Alasan Penundaan
+                    {/* 2. Kategori Alasan Penundaan (Apple Compact Grid) */}
+                    <div className="space-y-2">
+                        <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 text-primary" />
+                            Kategori Alasan
                         </label>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {CATEGORY_OPTIONS.map((cat) => {
                                 const Icon = cat.icon;
                                 const isSelected = selectedCategory === cat.id;
@@ -286,25 +290,39 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                                         type="button"
                                         onClick={() => setSelectedCategory(cat.id)}
                                         className={cn(
-                                            "flex items-start gap-3 p-3 rounded-2xl border text-left transition-all cursor-pointer shadow-2xs",
+                                            "group flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all cursor-pointer relative active:scale-[0.98]",
                                             isSelected
-                                                ? "bg-blue-50/90 dark:bg-blue-950/50 border-blue-500 dark:border-blue-500 ring-1 ring-blue-500/30"
-                                                : "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                                ? "bg-primary/5 dark:bg-primary/10 border-primary ring-1 ring-primary/30"
+                                                : "bg-white dark:bg-white/[0.03] border-slate-200/70 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/15 hover:bg-slate-50/60 dark:hover:bg-white/[0.06]"
                                         )}
                                     >
-                                        <div className={cn("p-2 rounded-xl border shrink-0", cat.color)}>
-                                            <Icon className="w-4 h-4" />
+                                        <div
+                                            className={cn(
+                                                "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                                                isSelected
+                                                    ? "bg-primary text-primary-foreground"
+                                                    : "bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white"
+                                            )}
+                                        >
+                                            <Icon className="w-3.5 h-3.5" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
+                                            <div className="flex items-center justify-between gap-1">
+                                                <h4
+                                                    className={cn(
+                                                        "text-xs font-semibold truncate",
+                                                        isSelected
+                                                            ? "text-primary"
+                                                            : "text-slate-800 dark:text-slate-200"
+                                                    )}
+                                                >
                                                     {cat.title}
                                                 </h4>
                                                 {isSelected && (
-                                                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-primary shrink-0" />
                                                 )}
                                             </div>
-                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate leading-normal">
                                                 {cat.description}
                                             </p>
                                         </div>
@@ -314,16 +332,18 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                         </div>
                     </div>
 
-                    {/* 3. Reason Text Description */}
-                    <div className="space-y-2">
+                    {/* 3. Penjelasan Rinci Penundaan */}
+                    <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                                3. Penjelasan Rinci Penundaan <span className="text-rose-500">*</span>
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Rincian Hambatan <span className="text-rose-500">*</span>
                             </label>
-                            <span className={cn(
-                                "text-[11px] font-mono",
-                                reasonText.trim().length < 5 ? "text-rose-500" : "text-slate-400"
-                            )}>
+                            <span
+                                className={cn(
+                                    "text-[10px] font-mono",
+                                    reasonText.trim().length < 5 ? "text-rose-500" : "text-slate-400"
+                                )}
+                            >
                                 {reasonText.trim().length} / 1000
                             </span>
                         </div>
@@ -332,37 +352,31 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                             value={reasonText}
                             onChange={(e) => setReasonText(e.target.value)}
                             maxLength={1000}
-                            rows={3}
-                            placeholder="Jelaskan secara spesifik hambatan yang terjadi (misal: Menunggu pengiriman kabel modul fiber optik dari vendor PT. ABC dengan estimasi tiba hari Kamis)..."
-                            className="w-full p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/70 text-slate-900 dark:text-white text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all shadow-2xs resize-none leading-relaxed"
+                            rows={2}
+                            placeholder="Jelaskan kendala (contoh: Menunggu pengiriman sparepart modul dari vendor PT ABC dengan estimasi 5 hari kerja)..."
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.03] text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none leading-relaxed"
                             required
                         />
                         {reasonText.trim().length > 0 && reasonText.trim().length < 5 && (
-                            <p className="text-[11px] text-rose-500 font-medium">
+                            <p className="text-[10px] text-rose-500 font-medium">
                                 Penjelasan minimal 5 karakter agar alasan terdokumentasi dengan baik.
                             </p>
                         )}
                     </div>
 
-                    {/* 4. Transparency Announcement Info Card */}
-                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70 flex items-start gap-3 text-xs text-slate-600 dark:text-slate-300">
-                        <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                        <div className="space-y-0.5 text-[11px] leading-relaxed">
-                            <p className="font-semibold text-slate-900 dark:text-white">Transparansi Penundaan</p>
-                            <p className="text-slate-500 dark:text-slate-400">
-                                Sistem akan secara otomatis memposting pemberitahuan perpanjangan waktu dan alasan ini ke ruang obrolan tiket agar requester mengetahui perkiraan penyelesaian terbaru.
-                            </p>
-                        </div>
-                    </div>
+                    {/* Footnote (tanpa logo AI) */}
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 pt-0.5 leading-relaxed">
+                        Pembaruan target dan alasan akan otomatis tercatat transparan di ruang obrolan tiket.
+                    </p>
                 </form>
 
                 {/* Footer Actions */}
-                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3">
+                <div className="px-5 py-3 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] flex items-center justify-end gap-2.5">
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={isLoading}
-                        className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                     >
                         Batal
                     </button>
@@ -370,16 +384,16 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs hover:shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4.5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                         {isLoading ? (
                             <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 <span>Menyimpan...</span>
                             </>
                         ) : (
                             <>
-                                <Send className="w-3.5 h-3.5" />
+                                <Send className="w-3 h-3" />
                                 <span>Perpanjang SLA</span>
                             </>
                         )}

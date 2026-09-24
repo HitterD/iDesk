@@ -50,7 +50,7 @@ export const MobileBottomNav: React.FC = () => {
   ];
 
   return (
-    <nav className="!fixed !bottom-0 !left-0 !right-0 glass-card-elevated px-2 py-2 lg:hidden z-50 safe-area-pb shadow-[0_-15px_40px_rgba(0,0,0,0.1)] rounded-t-2xl border-t border-slate-200 dark:border-slate-800">
+    <nav className="!fixed !bottom-0 !left-0 !right-0 print:!hidden glass-card-elevated px-2 py-2 lg:hidden z-50 safe-area-pb shadow-[0_-15px_40px_rgba(0,0,0,0.1)] rounded-t-2xl border-t border-slate-200 dark:border-slate-800">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path ||

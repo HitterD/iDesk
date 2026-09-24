@@ -150,13 +150,25 @@ export class TicketNotificationListener {
         // 1. In-App Notification
         if (ticket.user) {
             try {
-                if (ticket.status === TicketStatus.RESOLVED) {
-                    await this.notificationService.notifyTicketResolved(
-                        ticket.user.id,
-                        ticket.id,
-                        ticketNumber,
-                    );
+                const isActorRequester = event.userId === ticket.user?.id;
+                if (!isActorRequester) {
+                    if (ticket.status === TicketStatus.RESOLVED) {
+                        await this.notificationService.notifyTicketResolved(
+                            ticket.user.id,
+                            ticket.id,
+                            ticketNumber,
+                        );
+                    } else {
+                        await this.notificationService.notifyTicketUpdated(
+                            ticket.user.id,
+                            ticket.id,
+                            ticketNumber,
+                            changes.join(', '),
+                        );
+                    }
+                }
 
+                if (ticket.status === TicketStatus.RESOLVED) {
                     // Auto-resolve: emit refresh ke semua pihak yang terlibat
                     if (ticket.user?.id) {
                         this.notificationCenterService.emitActionItemsRefresh(ticket.user.id, 'TICKET', ticket.id);
@@ -164,13 +176,6 @@ export class TicketNotificationListener {
                     if (ticket.assignedToId) {
                         this.notificationCenterService.emitActionItemsRefresh(ticket.assignedToId, 'TICKET', ticket.id);
                     }
-                } else {
-                    await this.notificationService.notifyTicketUpdated(
-                        ticket.user.id,
-                        ticket.id,
-                        ticketNumber,
-                        changes.join(', '),
-                    );
                 }
             } catch (error) {
                 this.logger.error('Failed to send ticket update notification', error);
@@ -354,24 +359,34 @@ export class TicketNotificationListener {
             }
         }
 
-        // 2. In-App Notification for Reply
+        // 2. In-App & SJA Desktop Toast Notification for Ticket Conversation Reply
         try {
-            // Notify ticket owner if agent/admin replies
-            if ((event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) && event.ticketOwnerId !== event.senderId) {
+            const isInternalNote = event.message?.isInternal === true;
+            const contentSnippet = event.message?.content || '';
+
+            // Rule A: Notify ticket requester/owner ONLY IF:
+            // - It is NOT an internal note (!isInternalNote)
+            // - The sender is NOT the ticket owner themself
+            if (!isInternalNote && event.ticketOwnerId && event.senderId !== event.ticketOwnerId) {
                 await this.notificationService.notifyTicketReply(
                     event.ticketOwnerId,
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,
+                    contentSnippet,
                 );
             }
-            // Notify assigned agent if requester replies
-            if (event.senderRole === UserRole.USER && event.ticketAssignedToId && event.ticketAssignedToId !== event.senderId) {
+
+            // Rule B: Notify assigned agent ONLY IF:
+            // - The ticket HAS an assigned agent (event.ticketAssignedToId)
+            // - The sender is NOT that assigned agent themself
+            if (event.ticketAssignedToId && event.senderId !== event.ticketAssignedToId) {
                 await this.notificationService.notifyTicketReply(
                     event.ticketAssignedToId,
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,
+                    contentSnippet,
                 );
             }
 

@@ -206,6 +206,24 @@ describe('HardwareRequestCommandService', () => {
         await expect(service.submit('user-1', 'req-1')).rejects.toThrow(/at least one item/i);
     });
 
+    it('submit transitions directly to INSTALLATION and marks items as ARRIVED when justification contains [PENJADWALAN PEMASANGAN]', async () => {
+        const item1: any = { id: 'it-1', deliveryStatus: 'PENDING' };
+        reqRepo.findOne.mockResolvedValue({
+            id: 'req-inst-1', requesterId: 'user-1', status: RequestStatus.DRAFT, items: [item1],
+            justification: '[PENJADWALAN PEMASANGAN] Pasang unit monitor cadangan',
+        } as any);
+        const res = await service.submit('user-1', 'req-inst-1');
+        expect(res.status).toBe(RequestStatus.INSTALLATION);
+        expect(res.approvedAt).toBeInstanceOf(Date);
+        expect(item1.deliveryStatus).toBe('ARRIVED');
+        expect(item1.arrivedAt).toBeInstanceOf(Date);
+        expect(activityRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+            action: ActivityAction.SUBMITTED,
+            fromStatus: RequestStatus.DRAFT,
+            toStatus: RequestStatus.INSTALLATION,
+        }));
+    });
+
     // From Task 1.16 Cancel
     it('cancel transitions SUBMITTED → CANCELLED (requester only)', async () => {
         const r: any = {

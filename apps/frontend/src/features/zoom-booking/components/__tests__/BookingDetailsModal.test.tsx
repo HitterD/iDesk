@@ -22,6 +22,10 @@ const booking = {
 
 vi.mock('../../hooks', () => ({
     useBookingDetails: vi.fn(),
+    useSyncRecording: vi.fn(() => ({
+        mutate: vi.fn(),
+        isPending: false,
+    })),
 }));
 
 vi.mock('@/stores/useAuth', () => ({
@@ -59,5 +63,53 @@ describe('BookingDetailsModal', () => {
         expect(screen.getByText('Durasi')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /reschedule/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /batalkan/i })).toBeInTheDocument();
+    });
+
+    it('renders cloud recording card when recording is available', async () => {
+        const bookingWithRecording = {
+            ...booking,
+            meeting: {
+                ...booking.meeting,
+                recordingUrl: 'https://zoom.us/rec/play/sample-recording',
+                recordingPasscode: 'recpass123',
+                recordingDuration: 45,
+            },
+        } as unknown as ZoomBooking;
+
+        vi.mocked(hooks.useBookingDetails).mockReturnValue({
+            data: bookingWithRecording,
+            isLoading: false,
+        } as ReturnType<typeof hooks.useBookingDetails>);
+
+        render(<BookingDetailsModal isOpen onClose={vi.fn()} bookingId="booking-1" />);
+
+        expect(await screen.findByText('Rekaman Cloud Zoom')).toBeInTheDocument();
+        expect(screen.getByText(/Tersedia/i)).toBeInTheDocument();
+        expect(screen.getByText(/45 menit/i)).toBeInTheDocument();
+        expect(screen.getByDisplayValue('https://zoom.us/rec/play/sample-recording')).toBeInTheDocument();
+        expect(screen.getByText('recpass123')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /tonton rekaman/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /buka rekaman/i })).toBeInTheDocument();
+    });
+
+    it('renders sync recording button when meeting is finished but recording not yet arrived', async () => {
+        const pastBooking = {
+            ...booking,
+            status: 'COMPLETED',
+            meeting: {
+                id: '12345678901',
+                joinUrl: 'https://zoom.us/j/12345678901',
+                recordingUrl: null,
+            },
+        } as unknown as ZoomBooking;
+
+        vi.mocked(hooks.useBookingDetails).mockReturnValue({
+            data: pastBooking,
+            isLoading: false,
+        } as ReturnType<typeof hooks.useBookingDetails>);
+
+        render(<BookingDetailsModal isOpen onClose={vi.fn()} bookingId="booking-1" />);
+
+        expect(await screen.findByText(/cek rekaman di zoom/i)).toBeInTheDocument();
     });
 });

@@ -10,12 +10,21 @@ import {
     UseGuards,
     Query,
     Body,
+    Res,
+    NotFoundException,
+    BadRequestException,
+    InternalServerErrorException,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { NotificationService } from './notification.service';
 import { NotificationCenterService } from './notification-center.service';
 import { NotificationCategory } from './entities/notification.entity';
 import { SnoozeActionItemDto, UnsnoozeActionItemDto } from './dto/snooze-action-item.dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { signSjaRequest } from '../sja-adapter/sja-request-signer';
+import { Public } from '../../shared/core/decorators/public.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('Notifications')
@@ -26,6 +35,52 @@ export class NotificationController {
         private readonly notificationService: NotificationService,
         private readonly notificationCenterService: NotificationCenterService
     ) { }
+
+    @Public()
+    @Get('desktop-app/info')
+    @ApiOperation({ summary: 'Get SJA Notification Desktop App information' })
+    async getDesktopAppInfo() {
+        return {
+            name: 'SJA Notification App',
+            version: '1.1.0',
+            os: 'Windows 10 / 11 (64-bit)',
+            packageFileName: 'SJANotifier-Setup.zip',
+            webhookUrl: 'http://127.0.0.1:19876/notify',
+            features: [
+                'Notifikasi pop-up Windows Toast asli (WhatsApp-style) saat tiket baru / update masuk',
+                'Klik notifikasi untuk otomatis redirect ke halaman tiket di web browser',
+                'Berjalan ringan di System Tray (Taskbar pojok kanan)',
+                'Local Webhook Listener (port 19876) untuk integrasi website internal Santos (ERP, Kertas Kerja)',
+                'One-click automated installer & opsi autostart saat Windows menyala',
+                'Remote Desktop stabil (perbaikan crash capture Bitmap region is already locked)'
+            ],
+            downloadUrl: '/api/v1/notifications/desktop-app/download'
+        };
+    }
+
+    @Public()
+    @Get('desktop-app/download')
+    @ApiOperation({ summary: 'Download SJA Notification App setup zip' })
+    async downloadDesktopApp(@Res() res: Response) {
+        const candidatePaths = [
+            path.resolve(process.cwd(), 'apps/sja-notification-app/dist-package/SJANotifier-Setup.zip'),
+            path.resolve(process.cwd(), '../sja-notification-app/dist-package/SJANotifier-Setup.zip'),
+            path.resolve(__dirname, '../../../../apps/sja-notification-app/dist-package/SJANotifier-Setup.zip'),
+            'f:/Program Bagas/SynologyDrive/iDesk-main/apps/sja-notification-app/dist-package/SJANotifier-Setup.zip',
+        ];
+
+        const targetFile = candidatePaths.find(p => fs.existsSync(p));
+        if (!targetFile) {
+            throw new NotFoundException('Installer paket SJA Notifier belum tersedia di server.');
+        }
+
+        const stat = fs.statSync(targetFile);
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename="SJANotifier-Setup.zip"');
+        res.setHeader('Content-Length', stat.size);
+
+        fs.createReadStream(targetFile).pipe(res);
+    }
 
     @Get()
     @ApiOperation({ summary: 'Get all notifications for current user' })
@@ -239,5 +294,56 @@ export class NotificationController {
     async deleteAll(@Request() req: any) {
         await this.notificationService.deleteAllForUser(req.user.userId);
         return { success: true };
+    }
+
+    /**
+     * SJA Notification Center Device Activation Proxy
+     * Enforces JWT authentication so the employee identity is bound from the authenticated session,
+     * not from arbitrary unauthenticated client inputs.
+     */
+    @Post('devices/activation/approve')
+    @ApiOperation({ summary: 'Approve SJA Notification Center Device Pairing' })
+    async approveDeviceActivation(@Request() req: any, @Body() body: any) {
+        const sjaBackendUrl = process.env.SJA_BACKEND_URL || 'http://127.0.0.1:18302';
+        try {
+            // Bind true identity from validated JWT user session
+            const safePayload = {
+                code: body.code,
+                employeeId: req.user.employeeId || req.user.username || req.user.userId,
+                name: req.user.fullName || 'User SJA',
+                role: req.user.role || '',
+            };
+
+            let headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            let bodyPayload = JSON.stringify(safePayload);
+
+            try {
+                const signed = signSjaRequest(safePayload);
+                headers = signed.headers;
+                bodyPayload = signed.body;
+            } catch (signerErr: any) {
+                // Jika SJA_APP_SECRET belum diset, teruskan payload JSON biasa
+                // karena /v1/devices/activation/approve di SJA Backend tidak memaksakan HMAC
+            }
+
+            const resp = await fetch(`${sjaBackendUrl.replace(/\/$/, '')}/v1/devices/activation/approve`, {
+                method: 'POST',
+                headers,
+                body: bodyPayload,
+            });
+
+            const data = await resp.json();
+            if (!resp.ok) {
+                throw new BadRequestException(data.message || 'Kode aktivasi tidak valid atau telah kedaluwarsa');
+            }
+            return data;
+        } catch (err: any) {
+            if (err instanceof BadRequestException) {
+                throw err;
+            }
+            throw new InternalServerErrorException(`Gagal meneruskan aktivasi ke SJA Backend: ${err.message}`);
+        }
     }
 }

@@ -83,8 +83,8 @@ interface PriorityTheme {
 
 const PRIORITY_THEMES: Record<string, PriorityTheme> = {
     CRITICAL: {
-        label: 'Critical',
-        levelText: 'Tingkat Kritis • Penanganan Segera',
+        label: 'Blocker (Critical)',
+        levelText: 'Tingkat Pemblokir Kritis • Penanganan Segera',
         icon: Flame,
         accentColor: 'text-red-500 dark:text-red-400',
         badgeBg: 'bg-red-50 dark:bg-red-950/40',
@@ -95,8 +95,8 @@ const PRIORITY_THEMES: Record<string, PriorityTheme> = {
         cardHighlight: 'border-t-2 border-t-red-500',
     },
     HIGH: {
-        label: 'High',
-        levelText: 'Tingkat Tinggi • Respon Cepat',
+        label: 'Urgent (Major Impact)',
+        levelText: 'Tingkat Mendesak (Dampak Besar) • Respon Cepat',
         icon: AlertTriangle,
         accentColor: 'text-orange-500 dark:text-orange-400',
         badgeBg: 'bg-orange-50 dark:bg-orange-950/40',
@@ -107,8 +107,8 @@ const PRIORITY_THEMES: Record<string, PriorityTheme> = {
         cardHighlight: 'border-t-2 border-t-orange-500',
     },
     MEDIUM: {
-        label: 'Medium',
-        levelText: 'Tingkat Sedang • Standar Operasional',
+        label: 'Normal (Moderate)',
+        levelText: 'Tingkat Normal (Moderat) • Standar Operasional',
         icon: Clock,
         accentColor: 'text-amber-500 dark:text-amber-400',
         badgeBg: 'bg-amber-50 dark:bg-amber-950/40',
@@ -119,8 +119,8 @@ const PRIORITY_THEMES: Record<string, PriorityTheme> = {
         cardHighlight: 'border-t-2 border-t-amber-500',
     },
     LOW: {
-        label: 'Low',
-        levelText: 'Tingkat Rendah • Standar Normal',
+        label: 'Low (Minor/Cosmetic)',
+        levelText: 'Tingkat Rendah (Minor / Kosmetik) • Standar Normal',
         icon: ArrowDownCircle,
         accentColor: 'text-blue-500 dark:text-blue-400',
         badgeBg: 'bg-blue-50 dark:bg-blue-950/40',
@@ -474,7 +474,7 @@ const SlaCard: React.FC<SlaCardProps> = ({
                         theme.badgeBorder
                     )}>
                         <PriorityIcon className={cn("w-3.5 h-3.5", theme.accentColor)} />
-                        <span>{config.priority}</span>
+                        <span>{theme.label || config.priority}</span>
                         <span className={cn("w-1.5 h-1.5 rounded-full ml-0.5", theme.dotColor)} />
                     </div>
 

@@ -53,6 +53,15 @@ export class UsersController {
         return this.usersService.findById(userId);
     }
 
+    @Post('me/acknowledge-guidebook')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Acknowledge portal guidebook reading' })
+    @ApiResponse({ status: 200, description: 'Guidebook acknowledged successfully.' })
+    async acknowledgeGuidebook(@Req() req: any) {
+        const userId = req.user.userId;
+        return this.usersService.acknowledgeGuidebook(userId);
+    }
+
     /**
      * Self-service profile update. Bound to UpdateProfileDto, not UpdateUserDto:
      * the global ValidationPipe runs `forbidNonWhitelisted`, so `role`, `siteId`

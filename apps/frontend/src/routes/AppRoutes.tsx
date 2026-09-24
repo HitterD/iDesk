@@ -5,6 +5,7 @@ import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { LoadingScreen } from '../components/ui/LoadingScreen';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { PresenceProvider } from '../components/layout/PresenceProvider';
+import { useDesktopNotifierSync } from '../hooks/useDesktopNotifierSync';
 
 // Eagerly loaded (critical auth path only)
 import { BentoLoginPage } from '../features/auth/pages/BentoLoginPage';
@@ -43,6 +44,7 @@ const BentoFeedbackPage = lazy(() => import('../features/public/pages/BentoFeedb
 const BentoTvBoardPage = lazy(() => import('../features/public/pages/BentoTvBoardPage').then(m => ({ default: m.BentoTvBoardPage })));
 const RenewalHubPage = lazy(() => import('../features/renewal/pages/RenewalHubPage'));
 const NotificationCenterPage = lazy(() => import('../features/notifications/pages/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
+const NotificationHistoryPage = lazy(() => import('../features/notifications/pages/NotificationHistoryPage').then(m => ({ default: m.NotificationHistoryPage })));
 const ClientNotificationCenter = lazy(() => import('../features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
 const AutomationRulesPage = lazy(() => import('../features/automation/pages/AutomationRulesPage').then(m => ({ default: m.AutomationRulesPage })));
 const ManagerDashboard = lazy(() => import('../features/manager/pages/ManagerDashboard').then(m => ({ default: m.ManagerDashboard })));
@@ -54,6 +56,7 @@ const ManagerLayout = lazy(() => import('../components/layout/ManagerLayout').th
 // Admin Feature Pages
 const AuditLogPage = lazy(() => import('../features/admin/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
 const SystemHealthPage = lazy(() => import('../features/admin/pages/SystemHealthPage').then(m => ({ default: m.SystemHealthPage })));
+const DataWipePage = lazy(() => import('../features/admin/pages/DataWipePage').then(m => ({ default: m.DataWipePage })));
 
 // Zoom Booking Calendar
 const ZoomCalendarPage = lazy(() => import('../features/zoom-booking/pages/ZoomCalendarPage').then(m => ({ default: m.ZoomCalendarPage })));
@@ -79,6 +82,7 @@ const LostItemDetailPage = lazy(() => import('../features/request-center/pages/L
 const QrLandingPage = lazy(() => import('../features/request-center/pages/QrLandingPage').then(m => ({ default: m.QrLandingPage })));
 const ReportFoundItemPage = lazy(() => import('../features/request-center/pages/ReportFoundItemPage').then(m => ({ default: m.ReportFoundItemPage })));
 const FoundClaimsQueuePage = lazy(() => import('../features/request-center/pages/FoundClaimsQueuePage').then(m => ({ default: m.FoundClaimsQueuePage })));
+const DeviceActivationPage = lazy(() => import('../features/devices/DeviceActivationPage'));
 
 // VPN Access and Google Sync are now integrated into RenewalHubPage
 
@@ -148,6 +152,7 @@ export default function AppRoutes() {
 
     const { isRestoring } = useSessionRestore();
     useSessionTimeout();
+    useDesktopNotifierSync();
 
     if (isRestoring && !isPublicKiosk) {
         return <PageLoader />;
@@ -161,6 +166,7 @@ export default function AppRoutes() {
                 <Route path="/unauthorized" element={<UnauthorizedPage />} />
                 <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
                 <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
+                <Route path="/devices/activate" element={<Suspense fallback={<PageLoader />}><DeviceActivationPage /></Suspense>} />
 
                 {/* Root Route - Global role-based redirect for all authenticated users */}
                 <Route path="/" element={<RoleBasedRedirect />} />
@@ -178,6 +184,7 @@ export default function AppRoutes() {
                     <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" requiredPageAccess="dashboard" />} />
 
                     <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" requiredPageAccess="tickets" />} />
+                    <Route path="tickets" element={<Navigate to="/tickets/list" replace />} />
                     <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" requiredPageAccess="tickets" />} />
                     <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="oracle_k2_tickets" />} />
                     <Route path="tickets/web-developer" element={<LazyRoute component={BentoWebDevTicketsPage} featureName="Web Developer Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="web_dev_tickets" />} />
@@ -192,6 +199,7 @@ export default function AppRoutes() {
                     <Route path="sla" element={<LazyRoute component={BentoSlaSettingsPage} featureName="SLA Settings" allowedRoles={['ADMIN']} />} />
                     <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
                     <Route path="notifications" element={<LazyRoute component={NotificationCenterPage} featureName="Notification Center" requiredPageAccess="notifications" />} />
+                    <Route path="notifications/history" element={<LazyRoute component={NotificationHistoryPage} featureName="Notification History" />} />
                     <Route path="automation" element={<LazyRoute component={AutomationRulesPage} featureName="Automation Rules" allowedRoles={['ADMIN']} />} />
                 
                     <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
@@ -223,6 +231,7 @@ export default function AppRoutes() {
                     <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN', 'MANAGER', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ADMIN', 'AGENT']} />} />
                     <Route path="audit-logs" element={<LazyRoute component={AuditLogPage} featureName="Audit Logs" allowedRoles={['ADMIN']} />} />
                     <Route path="system-health" element={<LazyRoute component={SystemHealthPage} featureName="System Health" allowedRoles={['ADMIN']} />} />
+                    <Route path="data-wipe" element={<LazyRoute component={DataWipePage} featureName="Data Wipe" allowedRoles={['ADMIN']} />} />
 
                     {/* Zoom Booking Calendar */}
                     <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
@@ -287,6 +296,7 @@ export default function AppRoutes() {
                     <Route path="create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
                     <Route path="tickets/:id" element={<LazyRoute component={ClientTicketDetailPage} featureName="Ticket Detail" />} />
                     <Route path="notifications" element={<LazyRoute component={ClientNotificationCenter} featureName="Notifications" requiredPageAccess="notifications" />} />
+                    <Route path="notifications/history" element={<LazyRoute component={NotificationHistoryPage} featureName="Notification History" />} />
                     <Route path="zoom-calendar" element={<LazyRoute component={ClientZoomBookingPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                     <Route path="kb" element={<LazyRoute component={ClientKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
                     <Route path="kb/articles/:id" element={<LazyRoute component={ClientArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />

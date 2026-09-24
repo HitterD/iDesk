@@ -122,6 +122,25 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       const result = await service.getDetails({ role: UserRole.ADMIN, siteId: null }, 'eform-1');
       expect(result.siteId).toBe(SITE_SMG);
     });
+
+    it('allows approver with role USER to view request assigned to them', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ currentApproverId: 'u-approver', siteId: SITE_SPJ }));
+      const result = await service.getDetails({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-approver');
+      expect(result.id).toBe('eform-1');
+    });
+
+    it('allows requester with role USER to view their own request', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ requesterId: 'u-requester', siteId: SITE_SPJ }));
+      const result = await service.getDetails({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-requester');
+      expect(result.id).toBe('eform-1');
+    });
+
+    it('blocks unrelated user with role USER from accessing request', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ requesterId: 'u-requester', currentApproverId: 'u-approver', siteId: SITE_SPJ }));
+      await expect(
+        service.getDetails({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-stranger'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 
   describe('generatePdf (P0: no decrypt before site check)', () => {
@@ -143,6 +162,36 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
 
       const buf = await service.generatePdf({ role: UserRole.AGENT, siteId: SITE_SPJ }, 'eform-1');
       expect(buf).toBeInstanceOf(Buffer);
+    });
+
+    it('allows approver with role USER to generate PDF without exposing credentials', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ currentApproverId: 'u-approver', siteId: SITE_SPJ }));
+      credRepo.findOne.mockResolvedValue({
+        eformRequestId: 'eform-1',
+        encryptedUsername: 'enc-u',
+        encryptedPassword: 'enc-p',
+      });
+
+      const buf = await service.generatePdf({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-approver');
+      expect(buf).toBeInstanceOf(Buffer);
+      expect(credentialService.decrypt).not.toHaveBeenCalled();
+    });
+
+    it('allows requester with role USER to generate PDF with decrypted credentials', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ requesterId: 'u-requester', siteId: SITE_SPJ }));
+      credRepo.findOne.mockResolvedValue({
+        eformRequestId: 'eform-1',
+        encryptedUsername: 'enc-u',
+        encryptedPassword: 'enc-p',
+        iv: 'iv',
+        authTag: 'tag',
+        passwordIv: 'piv',
+        passwordAuthTag: 'ptag',
+      });
+
+      const buf = await service.generatePdf({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-requester');
+      expect(buf).toBeInstanceOf(Buffer);
+      expect(credentialService.decrypt).toHaveBeenCalled();
     });
   });
 

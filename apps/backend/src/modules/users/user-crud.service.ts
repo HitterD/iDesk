@@ -30,7 +30,6 @@ const OPERATIONAL_AGENT_ROLES = [
 const AGENT_STATS_ROLES = [
     UserRole.AGENT,
     UserRole.AGENT_ORACLE,
-    UserRole.AGENT_ADMIN,
     UserRole.AGENT_OPERATIONAL_SUPPORT,
 ];
 
@@ -323,6 +322,18 @@ export class UserCrudService implements OnModuleInit {
     async findById(id: string): Promise<User | undefined> {
         const user = await this.userRepo.findOne({ where: { id }, relations: ['department'] });
         return user || undefined;
+    }
+
+    async acknowledgeGuidebook(userId: string): Promise<{ success: boolean; acknowledgedAt: Date }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+        const acknowledgedAt = new Date();
+        user.guidebookAcknowledgedAt = acknowledgedAt;
+        await this.userRepo.save(user);
+        this.logger.log(`User ${userId} acknowledged portal guidebook at ${acknowledgedAt.toISOString()}`);
+        return { success: true, acknowledgedAt };
     }
 
     async findByEmail(email: string): Promise<User | undefined> {

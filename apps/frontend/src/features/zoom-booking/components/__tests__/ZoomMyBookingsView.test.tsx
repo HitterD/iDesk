@@ -13,7 +13,7 @@ const mockBookings = [
         endTime: '11:00',
         status: 'confirmed',
         bookedByUserId: 'user-1',
-        meeting: { joinUrl: 'https://zoom.us/j/past' },
+        meeting: { joinUrl: 'https://zoom.us/j/past', recordingUrl: 'https://zoom.us/rec/past-recording', recordingDuration: 45 },
         zoomAccount: { name: 'Zoom Admin 1', colorHex: '#3b82f6' },
     },
     {
@@ -67,6 +67,10 @@ vi.mock('../../hooks', () => ({
     useZoomMergedCalendar: () => ({
         data: [],
         isLoading: false,
+    }),
+    useSyncRecording: () => ({
+        mutate: vi.fn(),
+        isPending: false,
     }),
 }));
 
@@ -159,5 +163,47 @@ describe('ZoomMyBookingsView', () => {
         fireEvent.click(clearBtn);
 
         expect(screen.getByText('Today Meeting Important')).toBeInTheDocument();
+    });
+
+    it('does not render duplicate view switcher when hideViewSwitcher is true', () => {
+        renderWithClient(<ZoomMyBookingsView hideViewSwitcher={true} defaultViewMode="list" />);
+        expect(screen.queryByRole('button', { name: /^Kalender$/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Matrix Semua Akun$/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Mendatang/i })).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/Cari judul, akun Zoom/i)).toBeInTheDocument();
+    });
+
+    it('allows toggling between Kalender Saya and Daftar Booking when hideViewSwitcher is true', () => {
+        renderWithClient(<ZoomMyBookingsView hideViewSwitcher={true} defaultViewMode="calendar" />);
+        expect(screen.getByRole('button', { name: /Kalender Saya/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Daftar Booking/i })).toBeInTheDocument();
+
+        // In calendar mode, month title or meeting count badge should be visible
+        expect(screen.getByText(/meeting mendatang/i)).toBeInTheDocument();
+
+        // Switch to Daftar Booking
+        fireEvent.click(screen.getByRole('button', { name: /Daftar Booking/i }));
+        expect(screen.getByRole('button', { name: /^Mendatang/i })).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/Cari judul, akun Zoom/i)).toBeInTheDocument();
+
+        // Switch back to Kalender Saya
+        fireEvent.click(screen.getByRole('button', { name: /Kalender Saya/i }));
+        expect(screen.getByText(/meeting mendatang/i)).toBeInTheDocument();
+    });
+
+    it('shows Ada Rekaman tab with correct count and renders direct recording action buttons', () => {
+        renderWithClient(<ZoomMyBookingsView defaultViewMode="list" />);
+
+        // Tab Ada Rekaman should show count 1
+        expect(screen.getByRole('button', { name: /Ada Rekaman\s*1/i })).toBeInTheDocument();
+
+        // Switch to Ada Rekaman tab
+        fireEvent.click(screen.getByRole('button', { name: /Ada Rekaman/i }));
+
+        // Should display the past meeting with recording
+        expect(screen.getByText('Past Meeting July')).toBeInTheDocument();
+        expect(screen.getByText(/Rekaman Siap • 45m/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Tonton Rekaman/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Salin Link/i })).toBeInTheDocument();
     });
 });

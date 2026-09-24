@@ -40,6 +40,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     mail: Mail,
     telegram: Send,
     cloud: Cloud,
+    desktop: Radio,
 };
 
 export const ServiceNodeCard: React.FC<ServiceNodeCardProps> = ({

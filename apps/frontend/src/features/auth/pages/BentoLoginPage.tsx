@@ -252,6 +252,28 @@ export const BentoLoginPage = () => {
 
             login(user, typeof expiresAt === 'string' ? expiresAt : null);
 
+            // Auto-sync ke SJA Desktop Notifier jika aplikasi berjalan di PC lokal (port 18399)
+            try {
+                fetch('http://127.0.0.1:18399/session/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        identifier: email,
+                        password,
+                        user: {
+                            employeeId: (user as any).employeeId || (user as any).nik || email,
+                            name: (user as any).fullName || (user as any).name,
+                            email: (user as any).email || email,
+                            siteCode: (user as any).siteCode || (user as any).siteId || 'SPJ',
+                        },
+                    }),
+                }).catch(() => {
+                    // Desktop client mungkin tidak terpasang di PC ini, abaikan
+                });
+            } catch {
+                // Ignore network errors
+            }
+
             if (user.mustChangePassword) {
                 setMustChange({ password });
             } else {
@@ -372,16 +394,26 @@ export const BentoLoginPage = () => {
                     }}
                     className="w-full max-w-[440px] bg-card/95 dark:bg-card/95 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl p-8 relative overflow-hidden"
                 >
-                    <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.1em] uppercase text-muted-foreground mb-5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>iDesk · Operations</span>
+                    {/* Corporate Umbrella Branding Pill (Kapal Api Group | PT Santos Jaya Abadi) */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 py-3.5 px-5 sm:px-6 shadow-xs mb-6 flex items-center justify-between sm:justify-around gap-4 sm:gap-6 select-none">
+                        <img
+                            src="/logos/kapal-api-group.png"
+                            alt="Kapal Api Group"
+                            className="h-11 sm:h-13 w-auto object-contain max-h-[52px]"
+                        />
+                        <div className="w-px h-9 sm:h-11 bg-slate-300 shrink-0" aria-hidden="true" />
+                        <img
+                            src="/logos/sja-logo.png"
+                            alt="PT Santos Jaya Abadi"
+                            className="h-11 sm:h-13 w-auto object-contain max-h-[52px]"
+                        />
                     </div>
 
                     <div className="flex flex-col items-center justify-center mb-6">
                         <img
                             src="/idesk-logo.png"
                             alt="iDesk"
-                            className="w-48 sm:w-52 h-auto object-contain transition-transform duration-200 hover:scale-[1.02]"
+                            className="w-28 sm:w-32 h-auto object-contain transition-transform duration-200 hover:scale-[1.02]"
                         />
                     </div>
                     <hr className="border-border mb-6" />

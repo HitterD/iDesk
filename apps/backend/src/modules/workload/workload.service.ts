@@ -158,6 +158,22 @@ export class WorkloadService {
         const workDate = date || new Date();
         workDate.setHours(0, 0, 0, 0);
 
+        // Admin roles are strictly excluded from workload tracking
+        const agent = typeof this.userRepo?.findOne === 'function'
+            ? await this.userRepo.findOne({ where: { id: agentId } })
+            : null;
+        if (agent && (agent.role === UserRole.ADMIN || agent.role === UserRole.AGENT_ADMIN)) {
+            return this.workloadRepo.create({
+                agentId,
+                siteId: targetSiteId,
+                workDate,
+                totalPoints: 0,
+                activeTickets: 0,
+                resolvedTickets: 0,
+                agent,
+            });
+        }
+
         // 1. Ensure the row exists (no-op when it already does).
         await this.ensureWorkloadRow(agentId, targetSiteId, workDate);
 
@@ -333,6 +349,22 @@ export class WorkloadService {
             throw new ForbiddenException('Access to this resource is forbidden');
         }
 
+        // Admin roles are strictly excluded from workload tracking
+        const agent = typeof this.userRepo?.findOne === 'function'
+            ? await this.userRepo.findOne({ where: { id: agentId } })
+            : null;
+        if (agent && (agent.role === UserRole.ADMIN || agent.role === UserRole.AGENT_ADMIN)) {
+            return this.workloadRepo.create({
+                agentId,
+                siteId: targetSiteId,
+                workDate: new Date(),
+                totalPoints: 0,
+                activeTickets: 0,
+                resolvedTickets: 0,
+                agent,
+            });
+        }
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -410,15 +442,25 @@ export class WorkloadService {
      * explicit-list rule is stated once and is readable on its own.
      */
     private async findCandidateAgents(siteId: string, policy?: AssignmentPolicy): Promise<User[]> {
+        const adminRoles = [UserRole.ADMIN, UserRole.AGENT_ADMIN];
+
         if (policy && policy.userIds.length > 0) {
-            return this.userRepo.find({
+            const users = await this.userRepo.find({
                 where: { id: In(policy.userIds), isActive: true },
             });
+            // Strictly exclude admin roles from auto-assign even if explicitly listed in module userIds
+            return users.filter(u => !adminRoles.includes(u.role as UserRole));
         }
 
-        const roles = policy?.roles?.length
+        const rawRoles = policy?.roles?.length
             ? policy.roles
             : [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT];
+
+        // Strictly exclude admin roles from auto-assign candidate roles
+        const roles = rawRoles.filter(r => !adminRoles.includes(r));
+        if (roles.length === 0) {
+            return [];
+        }
 
         return this.userRepo.find({
             where: { role: In(roles), siteId, isActive: true },
@@ -592,6 +634,14 @@ export class WorkloadService {
             return;
         }
 
+        // Admin roles do not track workload
+        const assignee = typeof this.userRepo?.findOne === 'function'
+            ? await this.userRepo.findOne({ where: { id: ticket.assignedToId } })
+            : null;
+        if (assignee && (assignee.role === UserRole.ADMIN || assignee.role === UserRole.AGENT_ADMIN)) {
+            return;
+        }
+
         const priorityPoints = await this.getPriorityWeight(ticket.priority);
         // Internal trusted path: use ticket's site as source of truth
         const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
@@ -628,7 +678,10 @@ export class WorkloadService {
         const qb = this.workloadRepo.createQueryBuilder('w')
             .leftJoinAndSelect('w.agent', 'agent')
             .leftJoinAndSelect('w.site', 'site')
-            .where('w.workDate = :today', { today });
+            .where('w.workDate = :today', { today })
+            .andWhere('agent.role NOT IN (:...adminRoles)', {
+                adminRoles: [UserRole.ADMIN, UserRole.AGENT_ADMIN],
+            });
 
         if (siteId) {
             qb.andWhere('w.siteId = :siteId', { siteId });

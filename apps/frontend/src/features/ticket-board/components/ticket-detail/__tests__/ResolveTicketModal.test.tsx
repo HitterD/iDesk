@@ -75,6 +75,43 @@ describe('ResolveTicketModal Component', () => {
         expect(mockConfirm).toHaveBeenCalledWith('Roller printer telah dibersihkan dan kalibrasi selesai.', []);
     });
 
+    it('calls onConfirm when Ctrl+Enter is pressed in textarea', () => {
+        const mockConfirm = vi.fn();
+        render(
+            <ResolveTicketModal
+                isOpen={true}
+                onClose={vi.fn()}
+                ticket={mockTicket}
+                onConfirm={mockConfirm}
+            />
+        );
+
+        const textarea = screen.getByPlaceholderText(/Jelaskan tindakan teknis atau solusi/i);
+        fireEvent.change(textarea, { target: { value: 'Solusi via shortcut keyboard.' } });
+        fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+
+        expect(mockConfirm).toHaveBeenCalledWith('Solusi via shortcut keyboard.', []);
+    });
+
+    it('stops keyboard event propagation so parent list row does not intercept Space', () => {
+        const parentKeyDown = vi.fn();
+        render(
+            <div onKeyDown={parentKeyDown}>
+                <ResolveTicketModal
+                    isOpen={true}
+                    onClose={vi.fn()}
+                    ticket={mockTicket}
+                    onConfirm={vi.fn()}
+                />
+            </div>
+        );
+
+        const textarea = screen.getByPlaceholderText(/Jelaskan tindakan teknis atau solusi/i);
+        fireEvent.keyDown(textarea, { key: ' ' });
+
+        expect(parentKeyDown).not.toHaveBeenCalled();
+    });
+
     it('calls onClose when Kembali button is clicked', () => {
         const mockClose = vi.fn();
         render(

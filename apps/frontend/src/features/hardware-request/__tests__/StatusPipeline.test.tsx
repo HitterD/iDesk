@@ -1,24 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { StatusPipeline } from '../components/common/StatusPipeline';
-import { REQUEST_PIPELINE } from '../types';
-import { STATUS_META } from '../utils/status.util';
+import { StatusPipeline, STANDARD_PIPELINE, INSTALLATION_ONLY_PIPELINE } from '../components/common/StatusPipeline';
 
 describe('StatusPipeline', () => {
     it('marks completed steps up to current', () => {
         render(<StatusPipeline current="APPROVED" />);
-        expect(screen.getAllByText('Approved').length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText('Submitted')).toBeInTheDocument();
-        expect(screen.getByText('Under Review')).toBeInTheDocument();
+        expect(screen.getAllByText('Disetujui').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText('Diajukan')).toBeInTheDocument();
+        expect(screen.getByText('Review')).toBeInTheDocument();
     });
 
     it('marks all steps as completed when status is COMPLETED', () => {
         const { container } = render(<StatusPipeline current="COMPLETED" />);
         
-        // All 8 steps should be in document
-        REQUEST_PIPELINE.forEach((status) => {
-            const label = STATUS_META[status].label;
-            expect(screen.getAllByText(new RegExp(label, 'i')).length).toBeGreaterThanOrEqual(1);
+        STANDARD_PIPELINE.forEach((step) => {
+            expect(screen.getAllByText(new RegExp(step.label, 'i')).length).toBeGreaterThanOrEqual(1);
         });
 
         // There should be 8 checkmark icons (lucide-check)
@@ -28,7 +24,14 @@ describe('StatusPipeline', () => {
 
     it('renders terminal message when status is REJECTED', () => {
         render(<StatusPipeline current="REJECTED" />);
-        expect(screen.getByText(/Request ini telah rejected/i)).toBeInTheDocument();
+        expect(screen.getByText(/Permintaan ini telah ditolak/i)).toBeInTheDocument();
+    });
+
+    it('renders contextual 4-step pipeline when isInstallationOnly is true', () => {
+        render(<StatusPipeline current="INSTALLATION" isInstallationOnly={true} />);
+        expect(screen.getByText('Penjadwalan & Pemasangan')).toBeInTheDocument();
+        expect(screen.queryByText('Review')).not.toBeInTheDocument();
+        expect(screen.queryByText('SPP')).not.toBeInTheDocument();
     });
 });
 

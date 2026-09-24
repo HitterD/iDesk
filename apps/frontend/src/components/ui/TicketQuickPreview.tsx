@@ -72,11 +72,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 };
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string; icon?: React.ElementType }> = {
-    LOW: { label: 'Low Priority', color: 'text-slate-600 bg-slate-100 border-slate-200 dark:text-slate-300 dark:bg-slate-800 dark:border-slate-700' },
-    MEDIUM: { label: 'Medium Priority', color: 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/50 dark:border-blue-800/60' },
-    HIGH: { label: 'High Priority', color: 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/50 dark:border-amber-800/60', icon: AlertTriangle },
-    CRITICAL: { label: 'Critical Priority', color: 'text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/50 dark:border-red-800/60', icon: Flame },
-    HARDWARE_INSTALLATION: { label: 'Hardware Install', color: 'text-teal-700 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-950/50 dark:border-teal-800/60', icon: Laptop },
+    LOW: { label: 'Low (Minor/Cosmetic)', color: 'text-slate-600 bg-slate-100 border-slate-200 dark:text-slate-300 dark:bg-slate-800 dark:border-slate-700' },
+    MEDIUM: { label: 'Normal (Moderate)', color: 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/50 dark:border-blue-800/60' },
+    HIGH: { label: 'Urgent (Major Impact)', color: 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/50 dark:border-amber-800/60', icon: AlertTriangle },
+    CRITICAL: { label: 'Blocker (Critical)', color: 'text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/50 dark:border-red-800/60', icon: Flame },
+    HARDWARE_INSTALLATION: { label: 'Hardware Installation', color: 'text-teal-700 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-950/50 dark:border-teal-800/60', icon: Laptop },
 };
 
 const SOURCE_CONFIG: Record<string, { label: string; icon: React.ElementType }> = {

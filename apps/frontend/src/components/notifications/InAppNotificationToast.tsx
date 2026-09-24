@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -16,6 +16,7 @@ import {
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { forwardToDesktopNotifier } from '@/lib/desktopNotifier';
 
 interface InAppNotification {
     id: string;
@@ -173,10 +174,30 @@ export const InAppNotificationToast: React.FC = () => {
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<InAppNotification[]>([]);
 
+    const recentNotifIdsRef = useRef<Map<string, number>>(new Map());
+
     // Handle new notification
     const addNotification = useCallback((data: any) => {
+        const notifId = data.id || data.notificationId || (data.ticketId ? `ticket-${data.ticketId}-${data.type}` : '');
+        const now = Date.now();
+
+        // Prevent duplicate processing within 6 seconds
+        if (notifId) {
+            const lastSeen = recentNotifIdsRef.current.get(notifId);
+            if (lastSeen && now - lastSeen < 6000) {
+                return;
+            }
+            recentNotifIdsRef.current.set(notifId, now);
+
+            if (recentNotifIdsRef.current.size > 50) {
+                for (const [k, v] of recentNotifIdsRef.current.entries()) {
+                    if (now - v > 60000) recentNotifIdsRef.current.delete(k);
+                }
+            }
+        }
+
         const notification: InAppNotification = {
-            id: data.id || `${Date.now()}-${Math.random()}`,
+            id: data.id || notifId || `${Date.now()}-${Math.random()}`,
             type: data.type || 'SYSTEM',
             title: data.title || 'New Notification',
             message: data.message || '',
@@ -186,11 +207,15 @@ export const InAppNotificationToast: React.FC = () => {
         };
 
         setNotifications((prev) => {
+            if (prev.some((n) => n.id === notification.id)) return prev;
             // Remove oldest if max reached
             const updated = [notification, ...prev];
             return updated.slice(0, MAX_VISIBLE_NOTIFICATIONS);
         });
-    }, []);
+
+        // Automatically trigger Windows SJA Desktop Notifier (Toast/Popup based on user preference)
+        forwardToDesktopNotifier(data, user);
+    }, [user]);
 
     // Remove notification
     const removeNotification = useCallback((id: string) => {

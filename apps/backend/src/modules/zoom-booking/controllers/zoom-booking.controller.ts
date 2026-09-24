@@ -109,7 +109,7 @@ export class ZoomBookingController {
         }
 
         const duration = durationMinutes ? Number(durationMinutes) : 60;
-        if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
+        if (!Number.isInteger(duration) || duration < 15 || duration > 720) {
             throw new BadRequestException('Parameter durationMinutes tidak valid.');
         }
 
@@ -137,7 +137,7 @@ export class ZoomBookingController {
             || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)
             || !Number.isInteger(duration)
             || duration < 30
-            || duration > 240) {
+            || duration > 720) {
             throw new BadRequestException('Parameter availability tidak valid.');
         }
 
@@ -226,5 +226,16 @@ export class ZoomBookingController {
     ) {
         const user = req.user as any;
         return this.bookingService.sendReminder(id, dto, user);
+    }
+
+    @Post(':id/sync-recording')
+    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 sync requests per minute
+    @ApiOperation({ summary: 'Sync recording for a booking directly from Zoom API' })
+    async syncRecording(
+        @Param('id') id: string,
+        @Req() req: Request,
+    ) {
+        const user = req.user as any;
+        return this.bookingService.syncRecording(id, user);
     }
 }

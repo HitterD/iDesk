@@ -15,6 +15,14 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
     HARDWARE_INSTALLATION: 3,
 };
 
+const PRIORITY_LABELS: Record<string, string> = {
+    CRITICAL: 'Blocker (Critical)',
+    HIGH: 'Urgent (Major Impact)',
+    MEDIUM: 'Normal (Moderate)',
+    LOW: 'Low (Minor/Cosmetic)',
+    HARDWARE_INSTALLATION: 'Hardware Installation',
+};
+
 export const PriorityWeightsDialog = () => {
     const [open, setOpen] = useState(false);
     const [weights, setWeights] = useState<Record<string, number>>({});
@@ -123,8 +131,8 @@ export const PriorityWeightsDialog = () => {
                             {Object.entries(weights).map(([key, value]) => (
                                 <div className="group flex items-center justify-between gap-4 p-3 rounded-lg border border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-900/50 hover:bg-[hsl(var(--card))] transition-colors duration-200" key={key}>
                                     <div className="flex items-center gap-3">
-                                        <div className={`px-2.5 py-1 rounded-md text-xs font-bold border ${getPriorityColor(key)} uppercase tracking-wider`}>
-                                            {key.replace(/_/g, ' ')}
+                                        <div className={`px-2.5 py-1 rounded-md text-xs font-bold border ${getPriorityColor(key)} tracking-wide`}>
+                                            {PRIORITY_LABELS[key] || key.replace(/_/g, ' ')}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">

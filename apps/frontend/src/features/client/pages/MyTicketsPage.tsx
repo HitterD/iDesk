@@ -72,11 +72,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     },
 };
 
-const PRIORITY_CONFIG: Record<string, { label: string; dot: string; bar: string }> = {
-    LOW: { label: 'Low', dot: 'bg-slate-400', bar: 'bg-slate-400' },
-    MEDIUM: { label: 'Medium', dot: 'bg-blue-500', bar: 'bg-blue-500' },
-    HIGH: { label: 'High', dot: 'bg-orange-500', bar: 'bg-orange-500' },
-    CRITICAL: { label: 'Critical', dot: 'bg-red-500', bar: 'bg-red-500' },
+const PRIORITY_CONFIG: Record<string, { label: string; shortLabel?: string; dot: string; bar: string }> = {
+    LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', dot: 'bg-slate-400', bar: 'bg-slate-400' },
+    MEDIUM: { label: 'Normal (Moderate)', shortLabel: 'Normal', dot: 'bg-blue-500', bar: 'bg-blue-500' },
+    HIGH: { label: 'Urgent (Major Impact)', shortLabel: 'Urgent', dot: 'bg-orange-500', bar: 'bg-orange-500' },
+    CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', dot: 'bg-red-500', bar: 'bg-red-500' },
 };
 
 export const MyTicketsPage: React.FC = () => {
@@ -369,9 +369,9 @@ export const MyTicketsPage: React.FC = () => {
 
                                         {/* Priority */}
                                         <div className="w-24 flex items-center justify-center">
-                                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap" title={priority.label}>
                                                 <span className={cn("w-2.5 h-2.5 rounded-full", priority.dot)} />
-                                                {priority.label}
+                                                {priority.shortLabel || priority.label}
                                             </span>
                                         </div>
 

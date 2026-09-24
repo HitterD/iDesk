@@ -1,4 +1,4 @@
-import { Controller, Request, Post, UseGuards, Body, HttpCode, Res, Get } from '@nestjs/common';
+import { Controller, Request, Post, UseGuards, Body, HttpCode, Res, Get, Query } from '@nestjs/common';
 import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../application/auth.service';
@@ -7,6 +7,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { LocalAuthGuard } from '../infrastructure/guards/local-auth.guard';
 import { JwtAuthGuard } from '../infrastructure/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../infrastructure/guards/optional-jwt-auth.guard';
+import { S2sAuthGuard } from '../infrastructure/guards/s2s-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -151,6 +152,145 @@ export class AuthController {
     @ApiResponse({ status: 400, description: 'Invalid current password' })
     async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
         return this.authService.changePassword(req.user.userId, changePasswordDto, req);
+    }
+
+    /**
+     * S2S Single-Truth Credential Verification for SJA Notification Hub
+     * Allows SJA Notification Center to authenticate employee NIK/Password against iDesk IdP.
+     * Dilindungi S2sAuthGuard (HMAC atau x-s2s-token).
+     */
+    @Post('s2s/verify-credential')
+    @UseGuards(S2sAuthGuard)
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @HttpCode(200)
+    @ApiOperation({ summary: 'S2S Credential verification for SJA Notification Center' })
+    async verifyCredentialS2S(@Body() body: { identifier?: string; password?: string; nik?: string; username?: string }, @Request() req: any) {
+        const idInput = body.identifier || body.nik || body.username || '';
+        const passwordInput = body.password || '';
+
+        if (!idInput || !passwordInput) {
+            return {
+                valid: false,
+                message: 'NIK/Email dan Password wajib diisi',
+            };
+        }
+
+        const result = await this.authService.validateUserWithDetails(idInput, passwordInput, req);
+        if (!result.success || !result.user) {
+            return {
+                valid: false,
+                errorCode: result.errorCode || 'INVALID_CREDENTIALS',
+                message: 'NIK atau Password salah',
+            };
+        }
+
+        const SITE_ID_MAP: Record<string, string> = {
+            '9f8a5c1e-5865-4382-a8fe-8518c0862c4c': 'SPJ',
+            'fc32eaff-0c51-40ee-81a6-33d7d317e0f7': 'KRW',
+            '39b888a1-6d13-446b-b91a-89ae9de7c9d0': 'JTB',
+            'c2b3027b-5506-44f9-9846-a90592b8b8d7': 'SMG',
+        };
+        const siteCode = result.user.siteId
+            ? (SITE_ID_MAP[result.user.siteId] || 'SPJ')
+            : (result.user.email?.toLowerCase().includes('krw') ? 'KRW'
+               : result.user.email?.toLowerCase().includes('jtb') ? 'JTB'
+               : result.user.email?.toLowerCase().includes('smg') ? 'SMG' : 'SPJ');
+
+        return {
+            valid: true,
+            user: {
+                id: result.user.id,
+                email: result.user.email,
+                fullName: result.user.fullName,
+                employeeId: result.user.employeeId || idInput,
+                role: result.user.role,
+                departmentId: result.user.departmentId,
+                siteId: result.user.siteId,
+                siteCode,
+            },
+        };
+    }
+
+    /**
+     * S2S Resolve Employee NIK to Internal User Identity (GUID & Profile).
+     * Dilindungi S2sAuthGuard (HMAC atau x-s2s-token).
+     * Mengembalikan respons non-enumerable generic bila user tidak ditemukan atau non-aktif
+     * untuk mencegah enumerasi NIK karyawan.
+     */
+    @Post('s2s/resolve-nik')
+    @UseGuards(S2sAuthGuard)
+    @HttpCode(200)
+    @ApiOperation({ summary: 'S2S Resolve Employee NIK to User GUID' })
+    async resolveNikS2S(@Body() body: { nik?: string }) {
+        const nik = (body?.nik || '').trim();
+        if (!nik) {
+            return { found: false };
+        }
+        const resolved = await this.authService.resolveNik(nik);
+        if (!resolved) {
+            return { found: false };
+        }
+        return {
+            found: true,
+            user: resolved,
+        };
+    }
+
+    /**
+     * S2S Generate One-Time AutoLogin Ticket for SJA Notifications
+     * Protected by S2S internal secret token to prevent unauthorized ticket issuance
+     */
+    @Post('s2s/issue-sso-ticket')
+    @UseGuards(S2sAuthGuard)
+    @HttpCode(200)
+    async issueSsoTicket(
+        @Body() body: { userId?: string; nik?: string; identifier?: string },
+        @Request() req: any
+    ) {
+        const id = body.identifier || body.nik || body.userId || '';
+        if (!id) {
+            return { success: false, message: 'Identifier wajib diisi' };
+        }
+
+        const ticket = await this.authService.issueSsoTicket(id);
+        if (!ticket) {
+            return { success: false, message: 'User tidak ditemukan atau non-aktif' };
+        }
+
+        return {
+            success: true,
+            ticket,
+            expiresInSeconds: 60,
+        };
+    }
+
+    /**
+     * AutoLogin Consumer - Creates auth cookie session from SSO ticket and redirects
+     */
+    @Get('autologin')
+    async autoLogin(@Query('ticket') ticket: string, @Query('redirect') redirect: string, @Request() req: any, @Res() res: Response) {
+        if (!ticket) {
+            return res.redirect(redirect || '/login');
+        }
+
+        try {
+            const loginResult = await this.authService.consumeSsoTicket(ticket, req);
+            if (!loginResult) {
+                return res.redirect('/login?error=sso_ticket_expired');
+            }
+
+            const maxAgeMs = this.parseExpiresIn(loginResult.expiresIn);
+            const refreshMaxAgeMs = this.parseExpiresIn(loginResult.refreshExpiresIn);
+
+            res.cookie(ACCESS_COOKIE_NAME, loginResult.access_token, withCookieMaxAge(maxAgeMs));
+            res.cookie(REFRESH_COOKIE_NAME, loginResult.refresh_token, withCookieMaxAge(refreshMaxAgeMs));
+            setCsrfCookie(res);
+
+            const target = redirect && redirect.startsWith('/') ? redirect : '/';
+            return res.redirect(target);
+        } catch {
+            return res.redirect('/login?error=sso_failed');
+        }
     }
 
     /**

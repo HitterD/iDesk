@@ -18,11 +18,20 @@ describe('ZoomBookingController.getAvailability', () => {
         expect(result).toEqual({ available: true });
     });
 
+    it('accepts long duration up to 720 minutes (12 hours) including 480 (8 hours)', async () => {
+        await controller.getAvailability('2026-08-01', '08:00', '480');
+        expect(bookingService.checkAvailability).toHaveBeenCalledWith('2026-08-01', '08:00', 480);
+
+        await controller.getAvailability('2026-08-01', '08:00', '720');
+        expect(bookingService.checkAvailability).toHaveBeenCalledWith('2026-08-01', '08:00', 720);
+    });
+
     it.each([
         ['2026-02-30', '10:00', '60'],
         ['2026-08-01', '24:00', '60'],
         ['2026-08-01', '10:00', 'not-a-number'],
         ['2026-08-01', '10:00', '15'],
+        ['2026-08-01', '10:00', '750'],
     ])('rejects invalid availability query: %s %s %s', async (date, startTime, duration) => {
         await expect(controller.getAvailability(date, startTime, duration))
             .rejects.toThrow('Parameter availability tidak valid.');
@@ -52,9 +61,17 @@ describe('ZoomBookingController.getDaySlotsAvailability', () => {
         expect(result).toEqual(expect.objectContaining({ availableSlotsCount: 16 }));
     });
 
-    it('delegates custom duration to getDaySlotsAvailability', async () => {
+    it('delegates custom duration to getDaySlotsAvailability up to 720 mins', async () => {
         await controller.getDaySlotsAvailability('2026-09-04', '30');
         expect(bookingService.getDaySlotsAvailability).toHaveBeenCalledWith('2026-09-04', 30);
+
+        await controller.getDaySlotsAvailability('2026-09-04', '720');
+        expect(bookingService.getDaySlotsAvailability).toHaveBeenCalledWith('2026-09-04', 720);
+    });
+
+    it('rejects duration > 720 in getDaySlotsAvailability', async () => {
+        await expect(controller.getDaySlotsAvailability('2026-09-04', '750'))
+            .rejects.toThrow('Parameter durationMinutes tidak valid.');
     });
 
     it('rejects invalid date', async () => {

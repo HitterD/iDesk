@@ -7,14 +7,18 @@ import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { SiteActor } from '../../shared/core/utils/site-scope.util';
 import { EFormRequestService } from './eform-request.service';
-import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto } from './dto';
+import { SynologyNasBrowseService } from './synology-nas-browse.service';
+import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto, FulfillRequestDto, BrowseNasFolderDto, SearchNasFolderDto, SyncNasCacheDto } from './dto';
 
 @ApiTags('E-Form Requests')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('eform-request')
 export class EFormRequestController {
-  constructor(private readonly eformRequestService: EFormRequestService) {}
+  constructor(
+    private readonly eformRequestService: EFormRequestService,
+    private readonly nasBrowseService: SynologyNasBrowseService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create new E-Form request' })
@@ -29,7 +33,7 @@ export class EFormRequestController {
   }
 
   @Get('pending-approvals')
-  @ApiOperation({ summary: 'Get requests pending my approval' })
+  @ApiOperation({ summary: 'Get pending requests for manager' })
   async getPendingApprovals(@Request() req: any) {
     return this.eformRequestService.getPendingApprovals(req.user.userId);
   }
@@ -56,20 +60,48 @@ export class EFormRequestController {
     return this.eformRequestService.setVpnTerms(dto.terms, req.user.userId, actor);
   }
 
+  @Get('nas/servers')
+  @ApiOperation({ summary: 'Get available Synology NAS servers for E-Form' })
+  async getNasServers() {
+    return this.nasBrowseService.getNasServers();
+  }
+
+  @Get('nas/status')
+  @ApiOperation({ summary: 'Get cache and sync status for Synology NAS servers' })
+  async getNasCacheStatus() {
+    return this.nasBrowseService.getCacheStatus();
+  }
+
+  @Post('nas/sync')
+  @ApiOperation({ summary: 'Trigger background folder cache sync for a Synology NAS server' })
+  async syncNasCache(@Body() dto: SyncNasCacheDto) {
+    return this.nasBrowseService.syncServerCache(dto.serverId, dto.force);
+  }
+
+  @Post('nas/browse')
+  @ApiOperation({ summary: 'Browse folders on a Synology NAS server via FileStation' })
+  async browseNasFolders(@Body() dto: BrowseNasFolderDto) {
+    return this.nasBrowseService.browseNasFolders(dto);
+  }
+
+  @Post('nas/search')
+  @ApiOperation({ summary: 'Global recursive search for folders on a Synology NAS server' })
+  async searchNasFolders(@Body() dto: SearchNasFolderDto) {
+    return this.nasBrowseService.searchNasFolders(dto);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get request details' })
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN)
   async getDetails(@Param('id') id: string, @Request() req: any) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
-    return this.eformRequestService.getDetails(actor, id);
+    return this.eformRequestService.getDetails(actor, id, req.user.userId);
   }
 
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Download PDF' })
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN)
   async getPdf(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
-    const buffer = await this.eformRequestService.generatePdf(actor, id);
+    const buffer = await this.eformRequestService.generatePdf(actor, id, req.user.userId);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=EForm-VPN-${id}.pdf`,
@@ -97,9 +129,17 @@ export class EFormRequestController {
     return this.eformRequestService.getCredentials(actor, id, req.user.userId, req.user.role);
   }
 
+  @Post(':id/fulfill')
+  @ApiOperation({ summary: 'ICT marks access granted without issuing credentials' })
+  async fulfillRequest(@Request() req: any, @Param('id') id: string, @Body() dto: FulfillRequestDto) {
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.fulfillRequest(actor, id, req.user.userId, req.user.role, dto);
+  }
+
   @Patch(':id/reject')
-  @ApiOperation({ summary: 'Reject request' })
+  @ApiOperation({ summary: 'Reject request (assigned approver or ICT)' })
   async rejectRequest(@Request() req: any, @Param('id') id: string, @Body() dto: { reason: string }) {
-    return this.eformRequestService.rejectRequest(id, req.user.userId, dto.reason);
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.rejectRequest(actor, id, req.user.userId, req.user.role, dto.reason);
   }
 }

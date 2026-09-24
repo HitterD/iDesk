@@ -143,8 +143,8 @@ export default function HardwareRequestListPage() {
                 </div>
             </div>
 
-            {/* ── BENTO STATS CARDS ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
+            {/* ── BENTO STATS CARDS (Hidden on mobile for cleaner view) ── */}
+            <div className="hidden sm:grid sm:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
                 <StatsCard
                     icon={TrendingUp}
                     label="Total"

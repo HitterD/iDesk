@@ -25,6 +25,7 @@ export const VALID_PAGE_KEYS = [
     'lost_items',
     'workloads',
     'ict_budget',
+    'data_wipe',
 ] as const;
 
 // Type for valid page keys

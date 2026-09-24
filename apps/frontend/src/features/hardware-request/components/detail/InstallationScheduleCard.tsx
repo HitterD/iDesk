@@ -73,9 +73,9 @@ const INSTALL_STATUS_CONFIG: Record<InstallStatus, { label: string; bg: string; 
     },
     RESCHEDULED: {
         label: 'Jadwal Diubah',
-        bg: 'bg-purple-500/10 dark:bg-purple-500/20',
-        text: 'text-purple-700 dark:text-purple-300',
-        border: 'border-purple-500/30',
+        bg: 'bg-sky-500/10 dark:bg-sky-500/20',
+        text: 'text-sky-700 dark:text-sky-300',
+        border: 'border-sky-500/30',
         icon: CalendarClock,
     },
     CANCELLED: {
@@ -343,24 +343,24 @@ export function InstallationScheduleCard({
 
                 {/* ── LINKED TICKET BAR ── */}
                 {schedule.ticketId && (
-                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <div className="size-6 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0">
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/70 text-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="size-6 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
                                 <Wrench className="size-3.5" />
                             </div>
                             <div className="min-w-0">
-                                <span className="font-extrabold text-purple-900 dark:text-purple-200">
+                                <span className="font-bold text-foreground">
                                     Tiket Pemasangan Hardware Telah Dibuat
                                 </span>
-                                <p className="text-[11px] text-purple-700 dark:text-purple-300 truncate">
-                                    Tiket otomatis terhubung pada Ticket Board dan di-assign ke Agent.
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                    Tiket otomatis terhubung pada Ticket Board dan di-assign ke teknisi.
                                 </p>
                             </div>
                         </div>
 
                         <Link
                             to={`/tickets/${schedule.ticketId}`}
-                            className="inline-flex items-center gap-1 font-bold text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-purple-300 dark:border-purple-700 shadow-2xs hover:shadow-xs transition-all shrink-0 cursor-pointer"
+                            className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary/80 bg-card hover:bg-muted px-2.5 py-1.5 rounded-lg border border-border shadow-2xs transition-all shrink-0 cursor-pointer"
                         >
                             <span>Buka Tiket</span>
                             <ExternalLink className="size-3" />

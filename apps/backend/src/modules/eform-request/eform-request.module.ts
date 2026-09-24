@@ -11,7 +11,11 @@ import { EFormCredentialService } from './eform-credential.service';
 import { EFormPdfService } from './eform-pdf.service';
 import { EFormRequestController } from './eform-request.controller';
 import { EFormNotificationListener } from './listeners/eform-notification.listener';
+import { EFormExpirationReminderCron } from './listeners/eform-expiration-reminder.cron';
 import { AuditModule } from '../audit/audit.module';
+
+import { SynologyModule } from '../synology/synology.module';
+import { SynologyNasBrowseService } from './synology-nas-browse.service';
 
 @Module({
   imports: [
@@ -27,14 +31,17 @@ import { AuditModule } from '../audit/audit.module';
     SettingsModule,
     AuditModule,
     ConfigModule,
+    SynologyModule,
   ],
   controllers: [EFormRequestController],
   providers: [
     EFormRequestService, 
     EFormCredentialService, 
     EFormPdfService,
-    EFormNotificationListener
+    SynologyNasBrowseService,
+    EFormNotificationListener,
+    EFormExpirationReminderCron,
   ],
-  exports: [EFormRequestService, EFormPdfService],
+  exports: [EFormRequestService, EFormPdfService, SynologyNasBrowseService],
 })
 export class EFormRequestModule {}

@@ -215,6 +215,35 @@ textarea:focus {
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
   }
+
+  /* Global sleek scrollbar fallback (eliminates bulky native OS scrollbars) */
+  html,
+  body {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(210 100% 55% / 0.3) transparent;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  html::-webkit-scrollbar-track,
+  body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  html::-webkit-scrollbar-thumb,
+  body::-webkit-scrollbar-thumb {
+    background: hsl(210 100% 55% / 0.3);
+    border-radius: 3px;
+  }
+
+  html::-webkit-scrollbar-thumb:hover,
+  body::-webkit-scrollbar-thumb:hover {
+    background: hsl(210 100% 55% / 0.5);
+  }
 }
 
 /* FullCalendar Dark Mode Fix */
@@ -251,4 +280,101 @@ textarea:focus {
 
 .dark .fc .fc-day-today {
   background-color: rgba(51, 65, 85, 0.3) !important;
+}
+
+/* ========================================
+   Enterprise Multi-Page Print Stylesheet
+   Ensures articles paginate completely without viewport clipping
+   ======================================== */
+@media print {
+  @page {
+    margin: 15mm 12mm;
+    size: auto;
+  }
+
+  html,
+  body,
+  #root,
+  .premium-bg-container,
+  .h-screen,
+  .flex.h-screen,
+  div[class*="h-screen"],
+  main,
+  #main-content {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Hide app frame elements, navigation, sidebars, and actions */
+  aside,
+  nav,
+  header:not(.article-header):not(.print-header),
+  [role="navigation"],
+  .lg\:hidden,
+  .mobile-bottom-nav,
+  .skip-link,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Grid & layout unwrap for multi-page pagination */
+  .grid,
+  .lg\:grid-cols-12 {
+    display: block !important;
+  }
+
+  .article-header {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Full-width article container */
+  .max-w-6xl,
+  .lg\:col-span-8,
+  main.lg\:col-span-8,
+  article,
+  .article-prose {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Typography & Page Break rules */
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    color: #111827 !important;
+  }
+
+  p, li, td, th {
+    color: #1f2937 !important;
+  }
+
+  figure, img, table, pre, blockquote, .rounded-2xl {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  hr {
+    border-color: #e5e7eb !important;
+  }
 }

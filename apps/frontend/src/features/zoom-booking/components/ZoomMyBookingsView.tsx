@@ -9,7 +9,7 @@ import {
     Video, Calendar, Clock, ExternalLink, Copy, FileText,
     CalendarClock, Trash2, Search, ChevronRight, ChevronLeft,
     CheckCircle2, XCircle, AlertCircle, List, Mail, Download,
-    LayoutGrid, Maximize2, Minimize2
+    LayoutGrid, Maximize2, Minimize2, Play, Key, RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
-import { useMyBookings, useCancelOwnBooking, useZoomAccounts, useZoomMergedCalendar } from '../hooks';
+import { useMyBookings, useCancelOwnBooking, useZoomAccounts, useZoomMergedCalendar, useSyncRecording } from '../hooks';
 import { CancelBookingModal } from './CancelBookingModal';
 import { RescheduleModal } from './RescheduleModal';
 import { BookingDetailsModal } from './BookingDetailsModal';
@@ -28,7 +28,7 @@ import type { ZoomBooking } from '../types';
 import { formatZoomAccountName, generateInvitationText, copyToClipboard } from '../utils';
 import { openOutlookWeb, downloadIcsFile } from '../utils/calendarExport';
 
-type BookingTab = 'upcoming' | 'past' | 'all';
+type BookingTab = 'upcoming' | 'all' | 'past' | 'recordings';
 type ViewMode = 'calendar' | 'matrix' | 'list';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -50,6 +50,7 @@ export interface ZoomMyBookingsViewProps {
     selectedDate?: string;
     onDateSelect?: (dateStr: string) => void;
     defaultViewMode?: ViewMode;
+    hideViewSwitcher?: boolean;
 }
 
 export function ZoomMyBookingsView({
@@ -57,6 +58,7 @@ export function ZoomMyBookingsView({
     selectedDate,
     onDateSelect,
     defaultViewMode,
+    hideViewSwitcher = false,
 }: ZoomMyBookingsViewProps = {}) {
     const { data: bookings, isLoading } = useMyBookings();
     const cancelOwnBooking = useCancelOwnBooking();
@@ -97,17 +99,20 @@ export function ZoomMyBookingsView({
         const all = bookings ?? [];
         let upcoming = 0;
         let past = 0;
+        let recordings = 0;
         for (const b of all) {
             const date = parseISO(normalizeDateStr(b.bookingDate));
             if (isFuture(date) || isToday(date)) upcoming++;
             else past++;
+            if (b.meeting?.recordingUrl) recordings++;
         }
-        return { all: all.length, upcoming, past };
+        return { all: all.length, upcoming, past, recordings };
     }, [bookings]);
 
     const filtered = useMemo(() => {
         const all = bookings ?? [];
         const byTab = all.filter((b) => {
+            if (tab === 'recordings') return !!b.meeting?.recordingUrl;
             const dateStr = normalizeDateStr(b.bookingDate);
             const date = parseISO(dateStr);
             if (tab === 'upcoming') return isFuture(date) || isToday(date);
@@ -156,140 +161,271 @@ export function ZoomMyBookingsView({
         <div className="flex flex-col h-full min-h-0">
             {/* Header Toolbar */}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border/40 bg-muted/15">
-                {/* Left: View Mode Toggle */}
-                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-border/40 shadow-2xs">
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('calendar')}
-                        className={cn(
-                            "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
-                            viewMode === 'calendar'
-                                ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>Kalender</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('matrix')}
-                        className={cn(
-                            "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
-                            viewMode === 'matrix'
-                                ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        <LayoutGrid className="h-3.5 w-3.5" />
-                        <span>Matrix Semua Akun</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('list')}
-                        className={cn(
-                            "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
-                            viewMode === 'list'
-                                ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        <List className="h-3.5 w-3.5" />
-                        <span>Bookingan Saya</span>
-                        <span
-                            className={cn(
-                                "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-bold",
-                                viewMode === 'list'
-                                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
-                                    : "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                            )}
-                        >
-                            {counts.all}
-                        </span>
-                    </button>
-                </div>
-
-                {/* Right: Mode specific toolbar */}
-                {viewMode === 'matrix' ? (
-                    <div className="flex items-center gap-1.5">
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 rounded-lg"
-                            onClick={() => setMatrixDate(subMonths(matrixDate, 1))}
-                            title="Bulan sebelumnya"
-                        >
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="text-xs font-bold text-foreground px-1 select-none">
-                            {format(matrixDate, 'MMMM yyyy', { locale: idLocale })}
-                        </span>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 rounded-lg"
-                            onClick={() => setMatrixDate(addMonths(matrixDate, 1))}
-                            title="Bulan berikutnya"
-                        >
-                            <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-[11px] font-medium"
-                            onClick={() => setMatrixDate(new Date())}
-                        >
-                            Hari Ini
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-[11px] font-medium flex items-center gap-1"
-                            onClick={() => setIsMatrixFullscreen(!isMatrixFullscreen)}
-                            title={isMatrixFullscreen ? "Perkecil tampilan" : "Perbesar layar penuh"}
-                        >
-                            {isMatrixFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-                            <span className="hidden sm:inline">{isMatrixFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
-                        </Button>
-                    </div>
-                ) : viewMode === 'list' ? (
-                    <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-border/40">
-                        {(
-                            [
-                                { key: 'upcoming', label: 'Mendatang', count: counts.upcoming },
-                                { key: 'all', label: 'Semua', count: counts.all },
-                                { key: 'past', label: 'Selesai', count: counts.past },
-                            ] as const
-                        ).map((t) => (
+                {hideViewSwitcher ? (
+                    <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                        {/* Sub-view toggle: Kalender Saya vs Daftar Booking */}
+                        <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-border/40 shadow-2xs">
                             <button
-                                key={t.key}
-                                onClick={() => setTab(t.key)}
+                                type="button"
+                                onClick={() => handleViewModeChange('calendar')}
                                 className={cn(
-                                    "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer",
-                                    tab === t.key
+                                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                    viewMode === 'calendar'
                                         ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
                                         : "text-muted-foreground hover:text-foreground"
                                 )}
                             >
-                                <span>{t.label}</span>
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span>Kalender Saya</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleViewModeChange('list')}
+                                className={cn(
+                                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                    viewMode === 'list'
+                                        ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <List className="h-3.5 w-3.5" />
+                                <span>Daftar Booking</span>
                                 <span
                                     className={cn(
                                         "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-bold",
-                                        tab === t.key
+                                        viewMode === 'list'
                                             ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
                                             : "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                                     )}
                                 >
-                                    {t.count}
+                                    {counts.all}
                                 </span>
                             </button>
-                        ))}
+                        </div>
+
+                        {/* Right: Controls based on active sub-view */}
+                        {viewMode === 'calendar' ? (
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                <span><strong>{counts.upcoming}</strong> meeting mendatang</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap items-center gap-3">
+                                {/* Status Tabs */}
+                                <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-border/40">
+                                    {(
+                                        [
+                                            { key: 'upcoming' as const, label: 'Mendatang', count: counts.upcoming, isRec: false },
+                                            { key: 'all' as const, label: 'Semua', count: counts.all, isRec: false },
+                                            { key: 'past' as const, label: 'Selesai', count: counts.past, isRec: false },
+                                            { key: 'recordings' as const, label: 'Ada Rekaman', count: counts.recordings, isRec: true },
+                                        ]
+                                    ).map((t) => (
+                                        <button
+                                            key={t.key}
+                                            onClick={() => setTab(t.key)}
+                                            className={cn(
+                                                "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                                tab === t.key
+                                                    ? t.isRec
+                                                        ? "bg-emerald-600 text-white shadow-xs font-bold"
+                                                        : "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
+                                                    : t.isRec && t.count > 0
+                                                        ? "text-emerald-700 dark:text-emerald-400 hover:text-foreground"
+                                                        : "text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            {t.isRec && <Video className="h-3.5 w-3.5 shrink-0" />}
+                                            <span>{t.label}</span>
+                                            <span
+                                                className={cn(
+                                                    "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-bold",
+                                                    tab === t.key
+                                                        ? t.isRec
+                                                            ? "bg-white/20 text-white"
+                                                            : "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                                        : t.isRec && t.count > 0
+                                                            ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60"
+                                                            : "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                                )}
+                                            >
+                                                {t.count}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Search Input */}
+                                <div className="relative w-56 sm:w-64">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                                    <Input
+                                        placeholder="Cari judul, akun Zoom..."
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        className="h-8.5 rounded-lg bg-background pl-8 pr-8 text-xs border-border/70"
+                                    />
+                                    {search && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearch('')}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                            title="Hapus pencarian"
+                                        >
+                                            <XCircle className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
-                    <div className="text-xs text-muted-foreground flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                        <span><strong>{counts.upcoming}</strong> meeting mendatang</span>
-                    </div>
+                    <>
+                        {/* Left: View Mode Toggle */}
+                        <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-border/40 shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => handleViewModeChange('calendar')}
+                                className={cn(
+                                    "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                    viewMode === 'calendar'
+                                        ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span>Kalender</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleViewModeChange('matrix')}
+                                className={cn(
+                                    "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                    viewMode === 'matrix'
+                                        ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <LayoutGrid className="h-3.5 w-3.5" />
+                                <span>Matrix Semua Akun</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleViewModeChange('list')}
+                                className={cn(
+                                    "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                    viewMode === 'list'
+                                        ? "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <List className="h-3.5 w-3.5" />
+                                <span>Bookingan Saya</span>
+                                <span
+                                    className={cn(
+                                        "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-bold",
+                                        viewMode === 'list'
+                                            ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                            : "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                    )}
+                                >
+                                    {counts.all}
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* Right: Mode specific toolbar */}
+                        {viewMode === 'matrix' ? (
+                            <div className="flex items-center gap-1.5">
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 rounded-lg"
+                                    onClick={() => setMatrixDate(subMonths(matrixDate, 1))}
+                                    title="Bulan sebelumnya"
+                                >
+                                    <ChevronLeft className="h-3.5 w-3.5" />
+                                </Button>
+                                <span className="text-xs font-bold text-foreground px-1 select-none">
+                                    {format(matrixDate, 'MMMM yyyy', { locale: idLocale })}
+                                </span>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 rounded-lg"
+                                    onClick={() => setMatrixDate(addMonths(matrixDate, 1))}
+                                    title="Bulan berikutnya"
+                                >
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px] font-medium"
+                                    onClick={() => setMatrixDate(new Date())}
+                                >
+                                    Hari Ini
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px] font-medium flex items-center gap-1"
+                                    onClick={() => setIsMatrixFullscreen(!isMatrixFullscreen)}
+                                    title={isMatrixFullscreen ? "Perkecil tampilan" : "Perbesar layar penuh"}
+                                >
+                                    {isMatrixFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                                    <span className="hidden sm:inline">{isMatrixFullscreen ? 'Kecilkan' : 'Layar Penuh'}</span>
+                                </Button>
+                            </div>
+                        ) : viewMode === 'list' ? (
+                            <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-border/40">
+                                {(
+                                    [
+                                        { key: 'upcoming' as const, label: 'Mendatang', count: counts.upcoming, isRec: false },
+                                        { key: 'all' as const, label: 'Semua', count: counts.all, isRec: false },
+                                        { key: 'past' as const, label: 'Selesai', count: counts.past, isRec: false },
+                                        { key: 'recordings' as const, label: 'Ada Rekaman', count: counts.recordings, isRec: true },
+                                    ]
+                                ).map((t) => (
+                                    <button
+                                        key={t.key}
+                                        onClick={() => setTab(t.key)}
+                                        className={cn(
+                                            "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer",
+                                            tab === t.key
+                                                ? t.isRec
+                                                    ? "bg-emerald-600 text-white shadow-xs font-bold"
+                                                    : "bg-white text-blue-600 shadow-xs dark:bg-slate-700 dark:text-blue-400 font-bold"
+                                                : t.isRec && t.count > 0
+                                                    ? "text-emerald-700 dark:text-emerald-400 hover:text-foreground"
+                                                    : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        {t.isRec && <Video className="h-3.5 w-3.5 shrink-0" />}
+                                        <span>{t.label}</span>
+                                        <span
+                                            className={cn(
+                                                "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-bold",
+                                                tab === t.key
+                                                    ? t.isRec
+                                                        ? "bg-white/20 text-white"
+                                                        : "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                                    : t.isRec && t.count > 0
+                                                        ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60"
+                                                        : "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                            )}
+                                        >
+                                            {t.count}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                <span><strong>{counts.upcoming}</strong> meeting mendatang</span>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
@@ -361,28 +497,30 @@ export function ZoomMyBookingsView({
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Search */}
-                    <div className="p-3 border-b border-border/40">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                            <Input
-                                placeholder="Cari judul, akun Zoom, atau nama peserta..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="h-9 rounded-xl bg-slate-50 pl-8 pr-8 text-xs dark:bg-slate-800/60"
-                            />
-                            {search && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSearch('')}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                                    title="Hapus pencarian"
-                                >
-                                    <XCircle className="h-3.5 w-3.5" />
-                                </button>
-                            )}
+                    {/* Search (only if not already in header toolbar) */}
+                    {!hideViewSwitcher && (
+                        <div className="p-3 border-b border-border/40">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                                <Input
+                                    placeholder="Cari judul, akun Zoom, atau nama peserta..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="h-9 rounded-xl bg-slate-50 pl-8 pr-8 text-xs dark:bg-slate-800/60"
+                                />
+                                {search && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearch('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                        title="Hapus pencarian"
+                                    >
+                                        <XCircle className="h-3.5 w-3.5" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Booking list cards */}
                     <div className="flex-1 overflow-auto custom-scrollbar px-4 py-3 space-y-4">
@@ -393,7 +531,7 @@ export function ZoomMyBookingsView({
                                     Tidak ada booking
                                 </p>
                                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                    {tab === 'upcoming' ? 'Belum ada meeting yang akan datang' : 'Belum ada riwayat booking'}
+                                    {tab === 'upcoming' ? 'Belum ada meeting yang akan datang' : tab === 'recordings' ? 'Belum ada rekaman Zoom yang tersimpan' : 'Belum ada riwayat booking'}
                                 </p>
                             </div>
                         )}
@@ -486,6 +624,8 @@ interface BookingCardProps {
 function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, onCancel }: BookingCardProps) {
     const { user } = useAuth();
     const [copiedInv, setCopiedInv] = useState(false);
+    const [copiedRec, setCopiedRec] = useState(false);
+    const syncRecordingMutation = useSyncRecording();
 
     const STAFF_ROLES = [
         'ADMIN',
@@ -501,6 +641,7 @@ function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, o
     const StatusIcon = cfg.icon;
     const isPastBooking = isPast(parseISO(booking.bookingDate)) && !isToday(parseISO(booking.bookingDate));
     const hasLink = !!booking.meeting?.joinUrl;
+    const hasRecording = !!booking.meeting?.recordingUrl;
     const accountColor = booking.zoomAccount?.colorHex ?? '#3b82f6';
 
     const isOwner = user?.id === booking.bookedByUserId;
@@ -513,8 +654,10 @@ function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, o
                 "group relative cursor-pointer rounded-2xl bg-white dark:bg-slate-900 border p-4 transition-all duration-200 hover:shadow-md",
                 isTodayItem && !isPastBooking
                     ? "border-blue-300/80 dark:border-blue-700/60 bg-blue-50/20 dark:bg-blue-950/10 shadow-xs"
+                    : hasRecording
+                    ? "border-emerald-200/90 dark:border-emerald-800/80 hover:border-emerald-400 dark:hover:border-emerald-700 bg-white dark:bg-slate-900 shadow-2xs"
                     : "border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
-                isPastBooking && "opacity-60 bg-slate-50/50 dark:bg-slate-900/40"
+                isPastBooking && !hasRecording && "opacity-75 bg-slate-50/50 dark:bg-slate-900/40"
             )}
             onClick={(e) => {
                 const target = e.target as HTMLElement;
@@ -536,6 +679,12 @@ function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, o
                             <StatusIcon className="h-3 w-3" />
                             {cfg.label}
                         </span>
+                        {hasRecording && (
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide border border-emerald-300/80 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                <Video className="h-3 w-3 fill-current" />
+                                Rekaman Siap{booking.meeting?.recordingDuration ? ` • ${booking.meeting.recordingDuration}m` : ''}
+                            </span>
+                        )}
                         {isTodayItem && !isPastBooking && (
                             <span className="shrink-0 inline-flex items-center px-1.5 py-0.2 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
                                 Hari Ini
@@ -610,23 +759,24 @@ function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, o
                             e.stopPropagation();
                             onReminder();
                         }}
-                        title="Kirim pengingat ke email & tambahkan ke Outlook Calendar"
+                        title="Kirim pengingat email ke peserta"
                     >
                         <Mail className="h-3.5 w-3.5" />
-                        Email / Outlook
+                        Kirim Pengingat
                     </Button>
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 text-xs font-medium gap-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                        className="h-8 text-xs font-semibold gap-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg cursor-pointer"
                         onClick={(e) => {
                             e.stopPropagation();
-                            openOutlookWeb(booking);
+                            downloadIcsFile(booking);
+                            toast.success('File kalender (.ics) berhasil diunduh. Klik file untuk langsung mendaftarkan jadwal ke Outlook Windows.');
                         }}
-                        title="Buka langsung di Outlook Web Office 365"
+                        title="Daftarkan langsung ke aplikasi Microsoft Outlook Windows (.ics)"
                     >
-                        <ExternalLink className="h-3 w-3 text-blue-600" />
-                        Outlook
+                        <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                        Kalender Outlook
                     </Button>
                     {canManageCard && (
                         <div className="ml-auto flex items-center gap-1.5">
@@ -656,6 +806,101 @@ function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, o
                             </Button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Actions for past bookings with recording */}
+            {isPastBooking && hasRecording && (
+                <div className="mt-3.5 pt-3 border-t border-emerald-100 dark:border-emerald-900/60 flex flex-wrap items-center gap-2">
+                    <Button
+                        size="sm"
+                        className="h-8 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(booking.meeting!.recordingUrl!, '_blank');
+                        }}
+                    >
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                        Tonton Rekaman
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-medium gap-1.5 rounded-lg border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            const ok = await copyToClipboard(booking.meeting!.recordingUrl!, 'Link Rekaman');
+                            if (ok) {
+                                setCopiedRec(true);
+                                setTimeout(() => setCopiedRec(false), 2000);
+                            }
+                        }}
+                    >
+                        {copiedRec ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-emerald-600" />}
+                        {copiedRec ? 'Tersalin' : 'Salin Link'}
+                    </Button>
+                    {booking.meeting?.recordingPasscode && (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs font-medium gap-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                copyToClipboard(booking.meeting!.recordingPasscode!, 'Passcode Rekaman');
+                            }}
+                            title={`Klik untuk salin passcode: ${booking.meeting.recordingPasscode}`}
+                        >
+                            <Key className="h-3.5 w-3.5 text-slate-400" />
+                            Passcode: <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{booking.meeting.recordingPasscode}</span>
+                        </Button>
+                    )}
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="ml-auto h-8 text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onView();
+                        }}
+                    >
+                        Detail <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Actions for past bookings without recording yet */}
+            {isPastBooking && !hasRecording && status !== 'CANCELLED' && (
+                <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                        <Video className="w-3.5 h-3.5 text-slate-400" />
+                        Belum ada rekaman tercatat
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={syncRecordingMutation.isPending}
+                            className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                syncRecordingMutation.mutate(booking.id);
+                            }}
+                        >
+                            <RefreshCw className={cn("h-3 w-3 mr-1.5", syncRecordingMutation.isPending && "animate-spin")} />
+                            {syncRecordingMutation.isPending ? 'Mengecek...' : 'Cek Rekaman di Zoom'}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onView();
+                            }}
+                        >
+                            Detail
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>

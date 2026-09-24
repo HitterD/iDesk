@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEformDetail, useGetCredentials, useSubmitCredentials } from '../api/eform-request.api';
 import { EFormStatus } from '../components/eform/EformStatusPipeline';
-import { EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
+import { EformTypeBadge, getTypeConfig, ICT_ROLES } from '../components/eform/eform-vocabulary';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
 
@@ -103,10 +103,18 @@ export const EformCredentialPage: React.FC = () => {
 
   const credentialRows = credentials
     ? [
-        { label: 'Username', value: credentials.username, sensitive: false },
+        {
+          label: eform?.formType === 'EMAIL' ? 'Alamat Email Resmi' : 'Username',
+          value: credentials.username,
+          sensitive: false,
+        },
         { label: 'Password Awal', value: credentials.password, sensitive: true },
         ...(credentials.vpnServer
-          ? [{ label: 'VPN Server', value: credentials.vpnServer, sensitive: false }]
+          ? [{
+              label: eform?.formType === 'SYNOLOGY_NAS' ? 'Host / Path Folder NAS' : 'VPN Server',
+              value: credentials.vpnServer,
+              sensitive: false,
+            }]
           : []),
       ]
     : [];
@@ -148,13 +156,19 @@ export const EformCredentialPage: React.FC = () => {
 
                 <div className="space-y-2">
                   <label htmlFor="cred-username" className="block text-sm font-semibold text-foreground">
-                    Username <span className="text-destructive">*</span>
+                    {eform.formType === 'EMAIL' ? 'Alamat Email Resmi (@kapalapi.co.id)' : 'Username'} <span className="text-destructive">*</span>
                   </label>
                   <Input
                     id="cred-username"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    placeholder="nama.user@company.vpn"
+                    placeholder={
+                      eform.formType === 'EMAIL'
+                        ? 'nama.karyawan@kapalapi.co.id'
+                        : eform.formType === 'SYNOLOGY_NAS'
+                          ? 'nama.user atau grup-sharing'
+                          : 'nama.user@company.vpn'
+                    }
                     className="h-11 rounded-xl font-mono"
                   />
                 </div>
@@ -183,18 +197,24 @@ export const EformCredentialPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="cred-server" className="block text-sm font-semibold text-foreground">
-                    VPN server / host
-                  </label>
-                  <Input
-                    id="cred-server"
-                    value={vpnServer}
-                    onChange={e => setVpnServer(e.target.value)}
-                    placeholder="vpn.company.com:1194"
-                    className="h-11 rounded-xl font-mono"
-                  />
-                </div>
+                {eform.formType !== 'EMAIL' && (
+                  <div className="space-y-2">
+                    <label htmlFor="cred-server" className="block text-sm font-semibold text-foreground">
+                      {eform.formType === 'SYNOLOGY_NAS' ? 'Host / Path Folder NAS (opsional)' : 'VPN server / host'}
+                    </label>
+                    <Input
+                      id="cred-server"
+                      value={vpnServer}
+                      onChange={e => setVpnServer(e.target.value)}
+                      placeholder={
+                        eform.formType === 'SYNOLOGY_NAS'
+                          ? '\\\\192.168.x.x\\SharedFolder atau nas.santos.co.id'
+                          : 'vpn.company.com:1194'
+                      }
+                      className="h-11 rounded-xl font-mono"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label htmlFor="cred-notes" className="block text-sm font-semibold text-foreground">
