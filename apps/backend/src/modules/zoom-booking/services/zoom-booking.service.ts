@@ -22,7 +22,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { RRuleUtil } from '../utils/rrule.util';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export interface CalendarSlot {
     date: string;
@@ -797,7 +797,7 @@ export class ZoomBookingService {
             }
         }
 
-        const seriesId = uuidv4();
+        const seriesId = randomUUID();
         const results: ZoomBooking[] = [];
 
         const queryRunner = this.dataSource.createQueryRunner();

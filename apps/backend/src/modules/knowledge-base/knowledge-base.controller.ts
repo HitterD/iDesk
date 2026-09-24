@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuard
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 
 // Ensure upload directory exists
@@ -276,7 +276,7 @@ export class KnowledgeBaseController {
             storage: diskStorage({
                 destination: uploadDir,
                 filename: (req, file, callback) => {
-                    const uniqueSuffix = uuidv4();
+                    const uniqueSuffix = randomUUID();
                     const ext = extname(file.originalname);
                     callback(null, `kb-${uniqueSuffix}${ext}`);
                 },
@@ -316,7 +316,7 @@ export class KnowledgeBaseController {
             storage: diskStorage({
                 destination: uploadDir,
                 filename: (req, file, callback) => {
-                    const uniqueSuffix = uuidv4();
+                    const uniqueSuffix = randomUUID();
                     const ext = extname(file.originalname);
                     callback(null, `kb-${uniqueSuffix}${ext}`);
                 },

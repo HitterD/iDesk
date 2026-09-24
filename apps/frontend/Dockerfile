@@ -19,15 +19,8 @@ RUN npm run build --prefix apps/frontend
 # Stage 2: Serve
 FROM nginx:1.25-alpine
 
-# M10 Security: Configure Nginx to run as non-root user
-RUN chown -R nginx:nginx /var/cache/nginx /var/run /var/log/nginx && \
-    sed -i '/user  nginx;/d' /etc/nginx/nginx.conf
-
-# Add non-root user
-USER nginx
-
-COPY --from=builder --chown=nginx:nginx /app/apps/frontend/dist /usr/share/nginx/html
-COPY --chown=nginx:nginx apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080
 
