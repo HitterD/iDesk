@@ -169,12 +169,20 @@ export default function SynologyBackupSettings() {
 
         setTesting(true);
         try {
-            const response = await api.post('/backup/test-connection', {
-                synologyHost: formData.synologyHost,
+            const payload: any = {
+                synologyHost: formData.synologyHost.trim(),
                 synologyPort: parseInt(formData.synologyPort, 10),
-                synologyUsername: formData.synologyUsername,
-                synologyPassword: formData.synologyPassword,
-            });
+                synologyUsername: formData.synologyUsername.trim(),
+            };
+
+            if (formData.synologyPassword) {
+                payload.synologyPassword = formData.synologyPassword.trim();
+            }
+            if (editingConfigId) {
+                payload.configId = editingConfigId;
+            }
+
+            const response = await api.post('/backup/test-connection', payload);
 
             const result = response.data;
             if (result.success) {
@@ -195,14 +203,22 @@ export default function SynologyBackupSettings() {
     // ==========================================
 
     const openFolderBrowser = async () => {
-        if (!formData.synologyHost || !formData.synologyUsername || !formData.synologyPassword) {
+        if (!formData.synologyHost || !formData.synologyUsername || (!formData.synologyPassword && !editingConfigId)) {
             toast.error('Isi Host, Username, dan Password terlebih dahulu untuk browse folder NAS');
             return;
         }
         setBrowserMode('destination');
         setCurrentBrowsePath(formData.destinationPath || '/');
         setShowFolderBrowser(true);
-        await loadFolders(formData.destinationPath || '/', false, formData.synologyHost, parseInt(formData.synologyPort, 10), formData.synologyUsername, formData.synologyPassword);
+        await loadFolders(
+            formData.destinationPath || '/',
+            false,
+            formData.synologyHost,
+            parseInt(formData.synologyPort, 10),
+            formData.synologyUsername,
+            formData.synologyPassword,
+            editingConfigId || undefined
+        );
     };
 
     const openNasFileBrowserForRestore = async () => {
@@ -216,25 +232,41 @@ export default function SynologyBackupSettings() {
         const startPath = config.destinationFolder || '/';
         setCurrentBrowsePath(startPath);
         setShowFolderBrowser(true);
-        await loadFolders(startPath, true, config.synologyHost, config.synologyPort, config.synologyUsername || '', '');
+        await loadFolders(startPath, true, config.synologyHost, config.synologyPort, config.synologyUsername || '', '', config.id);
     };
 
-    const loadFolders = async (path: string, includeFiles: boolean = false, host?: string, port?: number, user?: string, pass?: string) => {
+    const loadFolders = async (
+        path: string,
+        includeFiles: boolean = false,
+        host?: string,
+        port?: number,
+        user?: string,
+        pass?: string,
+        configId?: string
+    ) => {
         setBrowsing(true);
         try {
-            const targetHost = host || formData.synologyHost;
+            const targetHost = (host || formData.synologyHost)?.trim();
             const targetPort = port || parseInt(formData.synologyPort, 10);
-            const targetUser = user || formData.synologyUsername;
-            const targetPass = pass !== undefined ? pass : formData.synologyPassword;
+            const targetUser = (user || formData.synologyUsername)?.trim();
+            const targetPass = pass !== undefined ? pass?.trim() : formData.synologyPassword?.trim();
 
-            const response = await api.post('/backup/list-folders', {
+            const payload: any = {
                 synologyHost: targetHost,
                 synologyPort: targetPort,
                 synologyUsername: targetUser,
-                synologyPassword: targetPass,
                 path,
                 includeFiles,
-            });
+            };
+
+            if (targetPass) {
+                payload.synologyPassword = targetPass;
+            }
+            if (configId || (!targetPass && editingConfigId)) {
+                payload.configId = configId || editingConfigId;
+            }
+
+            const response = await api.post('/backup/list-folders', payload);
 
             const result = response.data;
             if (result.success) {
@@ -254,7 +286,16 @@ export default function SynologyBackupSettings() {
     const handleItemClick = (item: { name: string; path: string; isDir: boolean }) => {
         if (item.isDir) {
             const isRestoreMode = browserMode === 'restore';
-            loadFolders(item.path, isRestoreMode);
+            const restoreConfig = configs.find((c) => c.id === activeRestoreConfigId) || configs[0];
+            loadFolders(
+                item.path,
+                isRestoreMode,
+                isRestoreMode ? restoreConfig?.synologyHost : undefined,
+                isRestoreMode ? restoreConfig?.synologyPort : undefined,
+                isRestoreMode ? restoreConfig?.synologyUsername : undefined,
+                isRestoreMode ? '' : undefined,
+                isRestoreMode ? restoreConfig?.id : editingConfigId || undefined
+            );
         } else {
             // Clicked a file
             if (browserMode === 'restore') {
@@ -346,17 +387,17 @@ export default function SynologyBackupSettings() {
 
             if (editingConfigId) {
                 const payload: any = {
-                    name: formData.name,
-                    synologyHost: formData.synologyHost,
+                    name: formData.name?.trim(),
+                    synologyHost: formData.synologyHost?.trim(),
                     synologyPort: parseInt(formData.synologyPort, 10),
-                    synologyUsername: formData.synologyUsername,
-                    destinationPath: formData.destinationPath,
+                    synologyUsername: formData.synologyUsername?.trim(),
+                    destinationPath: formData.destinationPath?.trim(),
                     backupType: formData.backupType,
                     scheduleTime: formData.scheduleTime,
                     retentionDays: parseInt(formData.retentionDays, 10),
                 };
                 if (formData.synologyPassword) {
-                    payload.synologyPassword = formData.synologyPassword;
+                    payload.synologyPassword = formData.synologyPassword.trim();
                 }
 
                 await api.patch(`/backup/configs/${editingConfigId}`, payload);
@@ -368,12 +409,12 @@ export default function SynologyBackupSettings() {
                 }
 
                 await api.post('/backup/configs', {
-                    name: formData.name,
-                    synologyHost: formData.synologyHost,
+                    name: formData.name?.trim(),
+                    synologyHost: formData.synologyHost?.trim(),
                     synologyPort: parseInt(formData.synologyPort, 10),
-                    synologyUsername: formData.synologyUsername,
-                    synologyPassword: formData.synologyPassword,
-                    destinationPath: formData.destinationPath,
+                    synologyUsername: formData.synologyUsername?.trim(),
+                    synologyPassword: formData.synologyPassword.trim(),
+                    destinationPath: formData.destinationPath?.trim(),
                     backupType: formData.backupType,
                     scheduleTime: formData.scheduleTime,
                     retentionDays: parseInt(formData.retentionDays, 10),

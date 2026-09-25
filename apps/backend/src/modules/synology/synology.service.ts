@@ -88,13 +88,13 @@ export class SynologyService {
 
     async createConfiguration(dto: CreateBackupConfigDto): Promise<BackupConfiguration> {
         const config = this.configRepo.create({
-            name: dto.name,
+            name: dto.name?.trim(),
             backupType: dto.backupType,
-            synologyHost: dto.synologyHost,
+            synologyHost: dto.synologyHost?.trim(),
             synologyPort: dto.synologyPort,
-            synologyUsername: dto.synologyUsername,
-            synologyPasswordEncrypted: this.encryptPassword(dto.synologyPassword),
-            destinationFolder: dto.destinationPath, // Map DTO to entity field
+            synologyUsername: dto.synologyUsername?.trim(),
+            synologyPasswordEncrypted: this.encryptPassword(dto.synologyPassword?.trim() || ''),
+            destinationFolder: dto.destinationPath?.trim(), // Map DTO to entity field
             scheduleCron: dto.scheduleTime ? this.timeToScheduleCron(dto.scheduleTime) : null,
             retentionDays: dto.retentionDays || 30,
             isActive: dto.isActive ?? true,
@@ -116,18 +116,18 @@ export class SynologyService {
             throw new NotFoundException('Backup configuration not found');
         }
 
-        if (dto.name !== undefined) config.name = dto.name;
+        if (dto.name !== undefined) config.name = dto.name?.trim();
         if (dto.backupType !== undefined) config.backupType = dto.backupType;
-        if (dto.synologyHost !== undefined) config.synologyHost = dto.synologyHost;
+        if (dto.synologyHost !== undefined) config.synologyHost = dto.synologyHost?.trim();
         if (dto.synologyPort !== undefined) {
             config.synologyPort = dto.synologyPort;
             config.synologyProtocol = dto.synologyPort === 5000 || dto.synologyPort === 80 ? 'http' : 'https';
         }
-        if (dto.synologyUsername !== undefined) config.synologyUsername = dto.synologyUsername;
-        if (dto.synologyPassword) config.synologyPasswordEncrypted = this.encryptPassword(dto.synologyPassword);
+        if (dto.synologyUsername !== undefined) config.synologyUsername = dto.synologyUsername?.trim();
+        if (dto.synologyPassword) config.synologyPasswordEncrypted = this.encryptPassword(dto.synologyPassword?.trim());
         if (dto.destinationPath !== undefined) {
-            config.destinationFolder = dto.destinationPath;
-            config.destinationVolume = dto.destinationPath.split('/')[1] || 'volume1';
+            config.destinationFolder = dto.destinationPath?.trim();
+            config.destinationVolume = dto.destinationPath?.trim().split('/')[1] || 'volume1';
         }
         if (dto.scheduleTime !== undefined) {
             config.scheduleCron = dto.scheduleTime ? this.timeToScheduleCron(dto.scheduleTime) : null;
@@ -154,19 +154,31 @@ export class SynologyService {
 
     async testConnection(dto: TestConnectionDto): Promise<{ success: boolean; message: string }> {
         try {
-            this.logger.log(`Testing connection to ${dto.synologyHost}:${dto.synologyPort}`);
+            const host = dto.synologyHost?.trim();
+            const port = dto.synologyPort;
+            const username = dto.synologyUsername?.trim();
+            let password = dto.synologyPassword ? dto.synologyPassword.trim() : '';
 
-            if (!dto.synologyHost || !dto.synologyPort) {
+            this.logger.log(`Testing connection to ${host}:${port}`);
+
+            if (!host || !port) {
                 return { success: false, message: 'Invalid host or port' };
             }
 
-            if (!dto.synologyUsername || !dto.synologyPassword) {
+            if (!password && dto.configId) {
+                const config = await this.configRepo.findOne({ where: { id: dto.configId } });
+                if (config && config.synologyPasswordEncrypted) {
+                    password = this.decryptPassword(config.synologyPasswordEncrypted);
+                }
+            }
+
+            if (!username || !password) {
                 return { success: false, message: 'Username and password are required' };
             }
 
             // Determine protocol - try HTTPS first, fallback to HTTP for non-standard ports
-            const protocol = dto.synologyPort === 5000 || dto.synologyPort === 80 ? 'http' : 'https';
-            const baseUrl = `${protocol}://${dto.synologyHost}:${dto.synologyPort}`;
+            const protocol = port === 5000 || port === 80 ? 'http' : 'https';
+            const baseUrl = `${protocol}://${host}:${port}`;
 
             this.logger.log(`Attempting DSM API authentication at ${baseUrl}`);
 
@@ -178,15 +190,15 @@ export class SynologyService {
                     api: 'SYNO.API.Auth',
                     method: 'login',
                     version: '3',
-                    account: dto.synologyUsername,
-                    passwd: dto.synologyPassword,
+                    account: username,
+                    passwd: password,
                     session: 'FileStation',
                     format: 'cookie',
                 }
             );
 
             if (authResult.success && authResult.data?.sid) {
-                this.logger.log(`DSM authentication successful for user: ${dto.synologyUsername}`);
+                this.logger.log(`DSM authentication successful for user: ${username}`);
 
                 // Optional: Logout to clean up the session
                 try {
@@ -207,7 +219,7 @@ export class SynologyService {
 
                 return {
                     success: true,
-                    message: `Connection successful. Authenticated to ${dto.synologyHost}:${dto.synologyPort} as ${dto.synologyUsername}`,
+                    message: `Connection successful. Authenticated to ${host}:${port} as ${username}`,
                 };
             } else {
                 const errorCode = authResult.error?.code;
@@ -216,7 +228,7 @@ export class SynologyService {
                 // Common DSM error codes
                 switch (errorCode) {
                     case 400:
-                        errorMessage = 'Invalid username or password';
+                        errorMessage = 'Invalid username or password (Pastikan kredensial benar dan IP tidak terblokir di Synology Auto-Block)';
                         break;
                     case 401:
                         errorMessage = 'Account disabled or expired';
@@ -268,22 +280,34 @@ export class SynologyService {
         message?: string;
     }> {
         try {
-            this.logger.log(`Listing folders on ${dto.synologyHost}:${dto.synologyPort} at path=${dto.path || '/'}`);
+            const host = dto.synologyHost?.trim();
+            const port = dto.synologyPort;
+            const username = dto.synologyUsername?.trim();
+            let password = dto.synologyPassword ? dto.synologyPassword.trim() : '';
 
-            if (!dto.synologyHost || !dto.synologyPort || !dto.synologyUsername || !dto.synologyPassword) {
+            this.logger.log(`Listing folders on ${host}:${port} at path=${dto.path || '/'}`);
+
+            if (!password && dto.configId) {
+                const config = await this.configRepo.findOne({ where: { id: dto.configId } });
+                if (config && config.synologyPasswordEncrypted) {
+                    password = this.decryptPassword(config.synologyPasswordEncrypted);
+                }
+            }
+
+            if (!host || !port || !username || !password) {
                 return { success: false, message: 'Host, port, username and password are required' };
             }
 
-            const protocol = dto.synologyPort === 5000 || dto.synologyPort === 80 ? 'http' : 'https';
-            const baseUrl = `${protocol}://${dto.synologyHost}:${dto.synologyPort}`;
+            const protocol = port === 5000 || port === 80 ? 'http' : 'https';
+            const baseUrl = `${protocol}://${host}:${port}`;
 
             // 1. Authenticate (get session id)
             const loginResult = await this.callDsmApi(baseUrl, '/webapi/auth.cgi', {
                 api: 'SYNO.API.Auth',
                 method: 'login',
                 version: '3',
-                account: dto.synologyUsername,
-                passwd: dto.synologyPassword,
+                account: username,
+                passwd: password,
                 session: 'FileStation',
                 format: 'cookie',
             });
@@ -552,40 +576,31 @@ export class SynologyService {
                 dumpCommand = customPgDump;
                 dumpArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName, '-F', 'p'];
             } else {
-                // Check if pg_dump is available in host PATH
-                let pgDumpInPath = false;
-                try {
-                    const checkCmd = process.platform === 'win32' ? 'where pg_dump' : 'which pg_dump';
-                    const { stdout } = await execAsync(checkCmd);
-                    if (stdout && stdout.trim()) {
-                        pgDumpInPath = true;
-                    }
-                } catch {
-                    pgDumpInPath = false;
-                }
+                // 1. Check standard Linux paths
+                const linuxPaths = ['/usr/bin/pg_dump', '/usr/local/bin/pg_dump'];
+                const foundLinux = linuxPaths.find(p => fsSync.existsSync(p));
 
-                if (pgDumpInPath) {
-                    dumpCommand = 'pg_dump';
+                if (foundLinux) {
+                    dumpCommand = foundLinux;
                     dumpArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName, '-F', 'p'];
                 } else {
-                    // Check if Docker container idesk-postgres is running
-                    const dockerContainer = this.configService.get('DB_DOCKER_CONTAINER') || process.env.DB_DOCKER_CONTAINER || 'idesk-postgres';
-                    let dockerAvailable = false;
+                    // 2. Check if pg_dump is available in host PATH
+                    let pgDumpInPath = false;
                     try {
-                        const { stdout } = await execAsync(`docker ps --filter "name=${dockerContainer}" --format "{{.Names}}"`);
-                        if (stdout && stdout.includes(dockerContainer)) {
-                            dockerAvailable = true;
+                        const checkCmd = process.platform === 'win32' ? 'where pg_dump' : 'which pg_dump';
+                        const { stdout } = await execAsync(checkCmd);
+                        if (stdout && stdout.trim()) {
+                            pgDumpInPath = true;
                         }
                     } catch {
-                        dockerAvailable = false;
+                        pgDumpInPath = false;
                     }
 
-                    if (dockerAvailable) {
-                        this.logger.log(`Using Docker container ${dockerContainer} for pg_dump`);
-                        dumpCommand = 'docker';
-                        dumpArgs = ['exec', '-i', dockerContainer, 'pg_dump', '-U', dbUser, '-d', dbName, '-F', 'p'];
+                    if (pgDumpInPath) {
+                        dumpCommand = 'pg_dump';
+                        dumpArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName, '-F', 'p'];
                     } else {
-                        // Scan standard Windows installation paths
+                        // 3. Scan standard Windows installation paths
                         const winPaths = [
                             'C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe',
                             'C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe',
@@ -600,9 +615,26 @@ export class SynologyService {
                             dumpCommand = foundPath;
                             dumpArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName, '-F', 'p'];
                         } else {
-                            // Fallback attempt with docker exec
-                            dumpCommand = 'docker';
-                            dumpArgs = ['exec', '-i', 'idesk-postgres', 'pg_dump', '-U', dbUser, '-d', dbName, '-F', 'p'];
+                            // 4. Check if Docker container is available
+                            const dockerContainer = this.configService.get('DB_DOCKER_CONTAINER') || process.env.DB_DOCKER_CONTAINER || 'idesk-postgres';
+                            let dockerAvailable = false;
+                            try {
+                                const { stdout } = await execAsync(`docker ps --filter "name=${dockerContainer}" --format "{{.Names}}"`);
+                                if (stdout && stdout.includes(dockerContainer)) {
+                                    dockerAvailable = true;
+                                }
+                            } catch {
+                                dockerAvailable = false;
+                            }
+
+                            if (dockerAvailable) {
+                                this.logger.log(`Using Docker container ${dockerContainer} for pg_dump`);
+                                dumpCommand = 'docker';
+                                dumpArgs = ['exec', '-i', dockerContainer, 'pg_dump', '-U', dbUser, '-d', dbName, '-F', 'p'];
+                            } else {
+                                dumpCommand = 'pg_dump';
+                                dumpArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName, '-F', 'p'];
+                            }
                         }
                     }
                 }
@@ -1302,24 +1334,15 @@ export class SynologyService {
         let psqlCommand = 'psql';
         let psqlArgs: string[] = [];
 
-        // Check if Docker container idesk-postgres is running
-        const dockerContainer = this.configService.get('DB_DOCKER_CONTAINER') || process.env.DB_DOCKER_CONTAINER || 'idesk-postgres';
-        let dockerAvailable = false;
-        try {
-            const { stdout } = await execAsync(`docker ps --filter "name=${dockerContainer}" --format "{{.Names}}"`);
-            if (stdout && stdout.includes(dockerContainer)) {
-                dockerAvailable = true;
-            }
-        } catch {
-            dockerAvailable = false;
-        }
+        // 1. Check standard Linux paths
+        const linuxPsqlPaths = ['/usr/bin/psql', '/usr/local/bin/psql'];
+        const foundLinuxPsql = linuxPsqlPaths.find(p => fsSync.existsSync(p));
 
-        if (dockerAvailable) {
-            this.logger.log(`Using Docker container ${dockerContainer} for psql restore`);
-            psqlCommand = 'docker';
-            psqlArgs = ['exec', '-i', dockerContainer, 'psql', '-U', dbUser, '-d', dbName];
+        if (foundLinuxPsql) {
+            psqlCommand = foundLinuxPsql;
+            psqlArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName];
         } else {
-            // Check host psql
+            // 2. Check host psql via PATH
             let psqlInPath = false;
             try {
                 const checkCmd = process.platform === 'win32' ? 'where psql' : 'which psql';
@@ -1333,7 +1356,7 @@ export class SynologyService {
                 psqlCommand = 'psql';
                 psqlArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName];
             } else {
-                // Scan Windows Program Files
+                // 3. Scan Windows Program Files
                 const winPaths = [
                     'C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe',
                     'C:\\Program Files\\PostgreSQL\\16\\bin\\psql.exe',
@@ -1346,8 +1369,26 @@ export class SynologyService {
                     psqlCommand = found;
                     psqlArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName];
                 } else {
-                    psqlCommand = 'docker';
-                    psqlArgs = ['exec', '-i', 'idesk-postgres', 'psql', '-U', dbUser, '-d', dbName];
+                    // 4. Check if Docker container is running
+                    const dockerContainer = this.configService.get('DB_DOCKER_CONTAINER') || process.env.DB_DOCKER_CONTAINER || 'idesk-postgres';
+                    let dockerAvailable = false;
+                    try {
+                        const { stdout } = await execAsync(`docker ps --filter "name=${dockerContainer}" --format "{{.Names}}"`);
+                        if (stdout && stdout.includes(dockerContainer)) {
+                            dockerAvailable = true;
+                        }
+                    } catch {
+                        dockerAvailable = false;
+                    }
+
+                    if (dockerAvailable) {
+                        this.logger.log(`Using Docker container ${dockerContainer} for psql restore`);
+                        psqlCommand = 'docker';
+                        psqlArgs = ['exec', '-i', dockerContainer, 'psql', '-U', dbUser, '-d', dbName];
+                    } else {
+                        psqlCommand = 'psql';
+                        psqlArgs = ['-h', dbHost, '-p', String(dbPort), '-U', dbUser, '-d', dbName];
+                    }
                 }
             }
         }

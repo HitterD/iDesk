@@ -23,11 +23,11 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 # Install only production dependencies to reduce image bloat
 RUN npm ci --only=production
 
-# Install su-exec to safely drop privileges from root to node after fixing volume permissions
-RUN apk add --no-cache su-exec
+# Install runtime utilities: su-exec, postgresql-client (providing pg_dump and psql), and tar
+RUN apk add --no-cache su-exec postgresql-client tar
 
 # Create application runtime directories and ensure node ownership
-RUN mkdir -p /app/reports /app/storage/nas-cache /app/uploads && chown -R node:node /app
+RUN mkdir -p /app/reports /app/storage/nas-cache /app/uploads /app/backups/database /app/backups/files /app/backups/temp && chown -R node:node /app
 
 # Entrypoint script that ensures volume permissions then drops to node
 COPY apps/backend/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
