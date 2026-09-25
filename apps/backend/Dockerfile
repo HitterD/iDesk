@@ -6,6 +6,7 @@ COPY apps/backend/package*.json ./
 RUN npm ci
 
 COPY apps/backend ./
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 # Build the application
 RUN npm run build
 
