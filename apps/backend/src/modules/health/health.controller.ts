@@ -33,6 +33,7 @@ export class HealthController {
     /**
      * Basic health check (backward compatible)
      */
+    @Public()
     @Get()
     @ApiOperation({ summary: 'Basic health check endpoint' })
     @ApiResponse({ status: 200, description: 'Service is healthy' })

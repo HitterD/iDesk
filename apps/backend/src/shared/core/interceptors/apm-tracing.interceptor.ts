@@ -29,10 +29,7 @@ export class ApmTracingInterceptor implements NestInterceptor {
 
         // Skip internal telemetry & static noise to keep traces clean and high-value
         if (
-            path.startsWith('/health/detailed') ||
-            path.startsWith('/health/traces') ||
-            path.startsWith('/health/live') ||
-            path.startsWith('/health/ready') ||
+            path.includes('/health') ||
             path.startsWith('/assets') ||
             path.startsWith('/favicon')
         ) {
