@@ -72,7 +72,9 @@ async function bootstrap() {
                 /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
                 /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
                 /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin) ||
-                (!isProd && /^https?:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin));
+                /^https?:\/\/192\.168\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin) ||
+                /^https?:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin) ||
+                /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin);
             if (isAllowed) {
                 callback(null, true);
             } else {

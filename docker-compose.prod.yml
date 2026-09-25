@@ -54,10 +54,10 @@ services:
       JWT_EXPIRES_IN: 60m
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       EFORM_ENCRYPTION_KEY: ${EFORM_ENCRYPTION_KEY}
-      FRONTEND_URL: ${FRONTEND_URL:-https://idesk.santos.co.id}
-      WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:-https://idesk.santos.co.id}
+      FRONTEND_URL: ${FRONTEND_URL:-http://192.168.2.136:3080,https://idesk.santos.co.id}
+      WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:-http://192.168.2.136:3080,https://idesk.santos.co.id}
       TRUST_PROXY: ${TRUST_PROXY:-true}
-      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       REDIS_ENABLED: "true"
       REDIS_HOST: redis
       REDIS_PORT: 6379
