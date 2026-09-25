@@ -34,5 +34,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 5050
 
+HEALTHCHECK --interval=15s --timeout=10s --start-period=60s --retries=5 \
+  CMD node -e "require('http').get('http://127.0.0.1:' + (process.env.PORT || 5050) + '/v1/health/live', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["sh", "-c", "if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi"]

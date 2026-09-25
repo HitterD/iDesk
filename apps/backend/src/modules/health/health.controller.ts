@@ -22,8 +22,6 @@ import { StorageAnalyticsResponseDto } from './dto/storage-analytics.dto';
 
 @ApiTags('Health')
 @Controller('health')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 export class HealthController {
     constructor(
         private readonly healthService: HealthService,
@@ -33,7 +31,6 @@ export class HealthController {
     /**
      * Basic health check (backward compatible)
      */
-    @Public()
     @Get()
     @ApiOperation({ summary: 'Basic health check endpoint' })
     @ApiResponse({ status: 200, description: 'Service is healthy' })
@@ -46,6 +43,8 @@ export class HealthController {
      * Detailed health status with all metrics
      */
     @Get('detailed')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Detailed health status with system metrics' })
     @ApiResponse({ status: 200, description: 'Detailed health information' })
     async getDetailedHealth(): Promise<DetailedHealthStatus> {
@@ -56,6 +55,8 @@ export class HealthController {
      * System metrics only (CPU, RAM, Disk)
      */
     @Get('metrics')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'System performance metrics' })
     @ApiResponse({ status: 200, description: 'System metrics' })
     async getSystemMetrics(): Promise<SystemMetrics> {
@@ -66,6 +67,8 @@ export class HealthController {
      * Storage analytics & capacity forecasting (Datadog style)
      */
     @Get('storage-analytics')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Storage analytics and growth forecasting' })
     @ApiResponse({ status: 200, description: 'Storage analytics and forecast data' })
     async getStorageAnalytics(): Promise<StorageAnalyticsResponseDto> {
@@ -76,6 +79,8 @@ export class HealthController {
      * Individual service status
      */
     @Get('services')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'All services health status' })
     @ApiResponse({ status: 200, description: 'Services status list' })
     async getServicesStatus(): Promise<ServiceStatus[]> {
@@ -86,6 +91,8 @@ export class HealthController {
      * Recent incidents history
      */
     @Get('incidents')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Recent health incidents' })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max incidents to return' })
     @ApiResponse({ status: 200, description: 'Recent incidents list' })
@@ -96,7 +103,6 @@ export class HealthController {
     /**
      * Liveness probe for container orchestration
      */
-    @Public()
     @Get('live')
     @ApiOperation({ summary: 'Liveness probe' })
     @ApiResponse({ status: 200, description: 'Service is alive' })
@@ -107,7 +113,6 @@ export class HealthController {
     /**
      * Readiness probe for container orchestration
      */
-    @Public()
     @Get('ready')
     @ApiOperation({ summary: 'Readiness probe' })
     @ApiResponse({ status: 200, description: 'Service is ready' })
@@ -122,6 +127,8 @@ export class HealthController {
      * Recent APM End-to-End Traces for Service Map
      */
     @Get('traces')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get recent real APM traces' })
     @ApiResponse({ status: 200, description: 'List of recent HTTP traces' })
     getRecentTraces(): RealTraceRecord[] {
