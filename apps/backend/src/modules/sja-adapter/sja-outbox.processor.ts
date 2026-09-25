@@ -12,7 +12,12 @@ export class SjaOutboxProcessor {
 
   @Process('send-to-sja')
   async handleSendToSja(job: Job<any>) {
-    const sjaUrl = this.configService.get<string>('SJA_API_URL', 'http://localhost:3002');
+    const rawUrl =
+      this.configService.get<string>('SJA_BACKEND_URL') ||
+      this.configService.get<string>('SJA_SERVER_URL') ||
+      this.configService.get<string>('SJA_API_URL') ||
+      'http://127.0.0.1:18302';
+    const sjaUrl = rawUrl.replace(/\/$/, '');
 
     // Fail-closed: secret hanya boleh datang dari environment. Nilai bawaan yang
     // tertulis di kode membuat seluruh sistem berjalan dengan secret publik.

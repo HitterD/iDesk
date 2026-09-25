@@ -314,7 +314,8 @@ export class HealthService {
      * Check SJA Desktop Notification Hub status
      */
     async checkSjaNotificationHealth(): Promise<InfrastructureStatus['sjaNotification']> {
-        const sjaUrl = this.configService.get<string>('SJA_SERVER_URL', 'http://localhost:18302');
+        const rawUrl = this.configService.get<string>('SJA_BACKEND_URL') || this.configService.get<string>('SJA_SERVER_URL') || 'http://localhost:18302';
+        const sjaUrl = rawUrl.replace(/\/$/, '');
         const start = Date.now();
         try {
             const controller = new AbortController();

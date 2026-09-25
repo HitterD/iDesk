@@ -99,7 +99,13 @@ export class SjaAdapterService {
     };
 
     // 1. Direct Instant HTTP dispatch to SJA Backend (< 15ms)
-    const sjaUrl = process.env.SJA_BACKEND_URL || this.configService.get('SJA_BACKEND_URL') || 'http://127.0.0.1:18302';
+    const rawSjaUrl =
+      process.env.SJA_BACKEND_URL ||
+      this.configService.get('SJA_BACKEND_URL') ||
+      process.env.SJA_SERVER_URL ||
+      this.configService.get('SJA_SERVER_URL') ||
+      'http://127.0.0.1:18302';
+    const sjaUrl = rawSjaUrl.replace(/\/$/, '');
     let directHttpSuccess = false;
     try {
       // Endpoint /v1/events dilindungi HmacAuthGuard di sisi SJA; body yang

@@ -251,7 +251,8 @@ async function bootstrap() {
             });
         }
         if (path.startsWith('/v1/devices/activation/') || path.startsWith('/v1/devices/auth/') || path === '/v1/devices') {
-            const sjaUrl = process.env.SJA_BACKEND_URL || 'http://127.0.0.1:18302';
+            const rawSjaUrl = process.env.SJA_BACKEND_URL || process.env.SJA_SERVER_URL || 'http://127.0.0.1:18302';
+            const sjaUrl = rawSjaUrl.replace(/\/$/, '');
             try {
                 const targetUrl = `${sjaUrl.replace(/\/$/, '')}${req.url}`;
                 const fetchOptions: any = {

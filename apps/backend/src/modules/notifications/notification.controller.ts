@@ -304,7 +304,8 @@ export class NotificationController {
     @Post('devices/activation/approve')
     @ApiOperation({ summary: 'Approve SJA Notification Center Device Pairing' })
     async approveDeviceActivation(@Request() req: any, @Body() body: any) {
-        const sjaBackendUrl = process.env.SJA_BACKEND_URL || 'http://127.0.0.1:18302';
+        const rawUrl = process.env.SJA_BACKEND_URL || process.env.SJA_SERVER_URL || 'http://127.0.0.1:18302';
+        const sjaBackendUrl = rawUrl.replace(/\/$/, '');
         try {
             // Bind true identity from validated JWT user session
             const safePayload = {
