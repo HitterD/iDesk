@@ -14,7 +14,6 @@ import {
     INotificationChannel,
 } from './interfaces/notification-channel.interface';
 import { EmailChannelService } from './channels/email-channel.service';
-import { TelegramChannelService } from './channels/telegram-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
 import { User } from '../users/entities/user.entity';
@@ -46,7 +45,6 @@ export class NotificationCenterService implements OnModuleInit {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly emailChannel: EmailChannelService,
-        private readonly telegramChannel: TelegramChannelService,
         private readonly inAppChannel: InAppChannelService,
         private readonly pushChannel: PushChannelService,
         private readonly entityManager: EntityManager,
@@ -56,7 +54,6 @@ export class NotificationCenterService implements OnModuleInit {
     onModuleInit() {
         // Register available channels
         this.channels.set(DeliveryChannel.EMAIL, this.emailChannel);
-        this.channels.set(DeliveryChannel.TELEGRAM, this.telegramChannel);
         this.channels.set(DeliveryChannel.IN_APP, this.inAppChannel);
         this.channels.set(DeliveryChannel.PUSH, this.pushChannel);
 

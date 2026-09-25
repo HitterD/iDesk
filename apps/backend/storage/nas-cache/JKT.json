@@ -1,7 +1,7 @@
 {
   "serverId": "JKT",
   "serverName": "Synology Jakarta (JKT)",
-  "lastSyncedAt": "2026-09-24T01:08:43.381Z",
+  "lastSyncedAt": "2026-09-25T01:08:19.362Z",
   "isSyncing": false,
   "totalFolders": 2084,
   "folders": [
@@ -132,15 +132,15 @@
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.22-22.30.01",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01",
+      "name": "GMT+07-2026.09.23-22.30.01",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01",
       "parentPath": "/Backup Synology JKT/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.23-22.30.01",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01",
+      "name": "GMT+07-2026.09.24-22.30.01",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01",
       "parentPath": "/Backup Synology JKT/#snapshot",
       "depth": 3,
       "isDir": true
@@ -525,27 +525,6 @@
     },
     {
       "name": "#snapshot",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/#snapshot",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "RS818RP-JKT_1.hbk",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "Share Rikki",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "#snapshot",
       "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01/#snapshot",
       "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01",
       "depth": 4,
@@ -562,6 +541,27 @@
       "name": "Share Rikki",
       "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01/Share Rikki",
       "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "#snapshot",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/#snapshot",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "RS818RP-JKT_1.hbk",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "Share Rikki",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01",
       "depth": 4,
       "isDir": true
     },
@@ -4816,251 +4816,6 @@
     },
     {
       "name": "Config",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk/Config",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Control",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk/Control",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Guard",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk/Guard",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Pool",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk/Pool",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Versionlog",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk/Versionlog",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/RS818RP-JKT_1.hbk",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "5R TAHUN 2019",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/5R TAHUN 2019",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "ABIZAR TT SPP",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/ABIZAR TT SPP",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "ABSEN OS",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/ABSEN OS",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "AUDIT OPERASIONAL GA 2021",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/AUDIT OPERASIONAL GA 2021",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Buat Riki",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/Buat Riki",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "CEKLIST KENDARAAN",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/CEKLIST KENDARAAN",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "ESTIMASI KPI PGA JAN-NOV 2019",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/ESTIMASI KPI PGA JAN-NOV 2019",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "GAGE MARKETING",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/GAGE MARKETING",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "GUDANG",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/GUDANG",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "IRVAN",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/IRVAN",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "KPI 2019",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/KPI 2019",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "KPI ABIZAR 2020",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/KPI ABIZAR 2020",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "KPI PEST CONTROL 2022",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/KPI PEST CONTROL 2022",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "LAPORAN HARIAN TEKNISI",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/LAPORAN HARIAN TEKNISI",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "legalitas SJA",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/legalitas SJA",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "MATERI K3 MNC PARK TOWER",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/MATERI K3 MNC PARK TOWER",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Meeting Tanggal 23 Juni 2020",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/Meeting Tanggal 23 Juni 2020",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "MOVING 2023",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/MOVING 2023",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PAT FURNITURE 2020",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PAT FURNITURE 2020",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PERUBAHAN PAJAK 2022",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PERUBAHAN PAJAK 2022",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PEST CONTROL BIDDING",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PEST CONTROL BIDDING",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PGA UPDATE JAN-OKT 2020",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PGA UPDATE JAN-OKT 2020",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PINDAH GENSET",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PINDAH GENSET",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PLANNING LELANG KENDARAAN MKT 2019",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PLANNING LELANG KENDARAAN MKT 2019",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PT INTERJAYA",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PT INTERJAYA",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PT PARADISE",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/PT PARADISE",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "SPP KIRIM KE MAYA",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/SPP KIRIM KE MAYA",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "SURAT TUGAS PPKM",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/SURAT TUGAS PPKM",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "TEMP",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/TEMP",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "UJI EMISI",
-      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki/UJI EMISI",
-      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.22-22.30.01/Share Rikki",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Config",
       "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01/RS818RP-JKT_1.hbk/Config",
       "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01/RS818RP-JKT_1.hbk",
       "depth": 5,
@@ -5301,6 +5056,251 @@
       "name": "UJI EMISI",
       "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01/Share Rikki/UJI EMISI",
       "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.23-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Config",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk/Config",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Control",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk/Control",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Guard",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk/Guard",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Pool",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk/Pool",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Versionlog",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk/Versionlog",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/RS818RP-JKT_1.hbk",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "5R TAHUN 2019",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/5R TAHUN 2019",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "ABIZAR TT SPP",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/ABIZAR TT SPP",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "ABSEN OS",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/ABSEN OS",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "AUDIT OPERASIONAL GA 2021",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/AUDIT OPERASIONAL GA 2021",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Buat Riki",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/Buat Riki",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "CEKLIST KENDARAAN",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/CEKLIST KENDARAAN",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "ESTIMASI KPI PGA JAN-NOV 2019",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/ESTIMASI KPI PGA JAN-NOV 2019",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "GAGE MARKETING",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/GAGE MARKETING",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "GUDANG",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/GUDANG",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "IRVAN",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/IRVAN",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "KPI 2019",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/KPI 2019",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "KPI ABIZAR 2020",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/KPI ABIZAR 2020",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "KPI PEST CONTROL 2022",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/KPI PEST CONTROL 2022",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "LAPORAN HARIAN TEKNISI",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/LAPORAN HARIAN TEKNISI",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "legalitas SJA",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/legalitas SJA",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "MATERI K3 MNC PARK TOWER",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/MATERI K3 MNC PARK TOWER",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Meeting Tanggal 23 Juni 2020",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/Meeting Tanggal 23 Juni 2020",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "MOVING 2023",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/MOVING 2023",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PAT FURNITURE 2020",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PAT FURNITURE 2020",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PERUBAHAN PAJAK 2022",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PERUBAHAN PAJAK 2022",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PEST CONTROL BIDDING",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PEST CONTROL BIDDING",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PGA UPDATE JAN-OKT 2020",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PGA UPDATE JAN-OKT 2020",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PINDAH GENSET",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PINDAH GENSET",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PLANNING LELANG KENDARAAN MKT 2019",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PLANNING LELANG KENDARAAN MKT 2019",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PT INTERJAYA",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PT INTERJAYA",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "PT PARADISE",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/PT PARADISE",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "SPP KIRIM KE MAYA",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/SPP KIRIM KE MAYA",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "SURAT TUGAS PPKM",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/SURAT TUGAS PPKM",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "TEMP",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/TEMP",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "UJI EMISI",
+      "path": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki/UJI EMISI",
+      "parentPath": "/Backup Synology JKT/#snapshot/GMT+07-2026.09.24-22.30.01/Share Rikki",
       "depth": 5,
       "isDir": true
     },

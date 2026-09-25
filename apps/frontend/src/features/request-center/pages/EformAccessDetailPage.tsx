@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, FileText, Download, Calendar, ShieldCheck,
   Activity, CheckCircle2, ClipboardCheck, Database,
-  Server, Eye, FileEdit, Ban, Loader2,
+  Server, Eye, FileEdit, Ban, Loader2, Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEformDetail, useGetEformPdf, useFulfillRequest, useRejectRequest } from '../api/eform-request.api';
@@ -48,6 +48,7 @@ export const EformAccessDetailPage: React.FC = () => {
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [selectedLightboxImage, setSelectedLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (request) {
@@ -117,6 +118,11 @@ export const EformAccessDetailPage: React.FC = () => {
   }
 
   const type = getTypeConfig(request.formType);
+  const screenshots: string[] =
+    Array.isArray(request.formData?.screenshots)
+      ? request.formData.screenshots
+      : (Array.isArray(request.formData?.folderScreenshots) ? request.formData.folderScreenshots : []);
+  const hasScreenshots = request.formType === 'SYNOLOGY_NAS' && screenshots.length > 0;
   const hasNasSelections =
     request.formType === 'SYNOLOGY_NAS' &&
     Array.isArray(request.formData?.nasSelections) &&
@@ -363,6 +369,43 @@ export const EformAccessDetailPage: React.FC = () => {
               </div>
             )}
 
+            {/* Lampiran Bukti Folder (Tangkapan Layar) */}
+            {hasScreenshots && (
+              <div className="space-y-3 border-t border-border pt-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <ImageIcon size={16} className="text-primary" />
+                    Lampiran Bukti Folder ({screenshots.length} screenshot)
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground">
+                    Klik gambar untuk memperbesar
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {screenshots.map((url: string, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedLightboxImage(url)}
+                      className="group relative aspect-video rounded-xl border border-border bg-muted/20 overflow-hidden cursor-pointer shadow-2xs hover:border-primary/50 transition-all"
+                    >
+                      <img
+                        src={url}
+                        alt={`Screenshot folder ${idx + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
+                        <Eye size={16} />
+                        <span>Perbesar</span>
+                      </div>
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 text-[10px] text-white/90 font-mono">
+                        Bukti #{idx + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <dl className="space-y-3 border-t border-border pt-6">
               {detailBlocks.map(({ label, value }) => (
                 <div key={label} className="rounded-xl border border-border bg-muted/30 p-4">
@@ -532,6 +575,27 @@ export const EformAccessDetailPage: React.FC = () => {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Modal for Screenshots */}
+      <Dialog open={!!selectedLightboxImage} onOpenChange={open => !open && setSelectedLightboxImage(null)}>
+        <DialogContent className="max-w-4xl w-full p-4 rounded-2xl bg-card">
+          <DialogHeader className="border-b border-border/60 pb-2">
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <ImageIcon className="text-primary h-4 w-4" />
+              <span>Pratinjau Bukti Screenshot Folder</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-2 max-h-[75vh] overflow-auto">
+            {selectedLightboxImage && (
+              <img
+                src={selectedLightboxImage}
+                alt="Bukti screenshot folder"
+                className="max-w-full max-h-[70vh] object-contain rounded-xl border border-border shadow-md"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

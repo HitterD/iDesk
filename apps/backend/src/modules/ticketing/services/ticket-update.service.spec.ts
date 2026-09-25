@@ -74,7 +74,6 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
             {} as any, // cacheService
             {} as any, // cacheInvalidationService
             mockEventEmitter,
-            null as any, // telegramService
             null as any, // businessHoursService
             mockAuditService,
             {} as any, // dataSource
@@ -248,7 +247,6 @@ describe('TicketUpdateService.bulkAssign', () => {
             {} as any, // cacheService
             {} as any, // cacheInvalidationService
             mockEventEmitter,
-            null as any, // telegramService
             null as any, // businessHoursService
             mockAuditService,
             mockDataSource,

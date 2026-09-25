@@ -15,7 +15,6 @@ import { NotificationCenterService } from './notification-center.service';
 
 // Channels
 import { EmailChannelService } from './channels/email-channel.service';
-import { TelegramChannelService } from './channels/telegram-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
 
@@ -26,7 +25,6 @@ import { PushSubscriptionController } from './push-subscription.controller';
 
 // Related modules
 import { TicketingModule } from '../ticketing/ticketing.module';
-import { TelegramModule } from '../telegram/telegram.module';
 import { SjaAdapterModule } from '../sja-adapter/sja-adapter.module';
 import { TicketCreateService } from '../ticketing/services/ticket-create.service';
 import { TicketUpdateService } from '../ticketing/services/ticket-update.service';
@@ -43,7 +41,6 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
             ActionItemSnooze,
         ]),
         forwardRef(() => TicketingModule),
-        forwardRef(() => TelegramModule),
         SjaAdapterModule,
     ],
     controllers: [
@@ -58,7 +55,6 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
 
         // Channel services
         EmailChannelService,
-        TelegramChannelService,
         InAppChannelService,
         PushChannelService,
         // Note: EventsGateway is imported from TicketingModule, not provided here
@@ -67,7 +63,6 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
         NotificationService,
         NotificationCenterService,
         EmailChannelService,
-        TelegramChannelService,
         InAppChannelService,
         PushChannelService,
     ],

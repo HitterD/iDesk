@@ -13,7 +13,6 @@ import { CacheService, CacheInvalidationService } from '../../../shared/core/cac
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
-import { TelegramService } from '../../telegram/telegram.service';
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
@@ -42,8 +41,6 @@ export class TicketUpdateService {
         private readonly cacheService: CacheService,
         private readonly cacheInvalidationService: CacheInvalidationService,
         private readonly eventEmitter: EventEmitter2,
-        @Optional() @Inject(forwardRef(() => TelegramService))
-        private readonly telegramService: TelegramService,
         @Optional()
         private readonly businessHoursService: BusinessHoursService,
         private readonly auditService: AuditService,
@@ -818,7 +815,6 @@ export class TicketUpdateService {
 
     /**
      * Handle WAITING_VENDOR status change
-     * - Send Telegram notification with vendor schedule info
      * - Add system message to ticket notes/discussion
      */
     private async handleWaitingVendorStatus(ticket: Ticket, changedBy: User, _manager?: any): Promise<void> {
@@ -854,37 +850,6 @@ SLA Timer di-pause selama menunggu vendor.`;
             isSystemMessage: true,
         });
         await this.messageRepo.save(systemMessage);
-
-        // === 2. Send Telegram Notification ===
-        if (this.telegramService && ticket.user) {
-            const telegramMessage =
-                `🟠 <b>Status Tiket Menunggu Vendor</b>\n\n` +
-                `📋 Tiket: <b>#${ticketNumber}</b>\n` +
-                `📌 ${ticket.title}\n\n` +
-                `📅 <b>Jadwal Kunjungan Vendor:</b>\n` +
-                `   • Vendor datang setiap hari <b>Kamis</b>\n` +
-                `   • Perkiraan kunjungan: <b>${formattedDate}</b>\n` +
-                `   • Estimasi waktu tunggu: minimal 1 minggu\n\n` +
-                `⏸️ <i>SLA Timer di-pause sampai vendor selesai.</i>`;
-
-            try {
-                // Try to get user's telegram chat ID
-                const userWithTelegram = await this.userRepo.findOne({
-                    where: { id: ticket.userId },
-                    select: ['id', 'telegramChatId'],
-                });
-
-                if (userWithTelegram?.telegramChatId) {
-                    await this.telegramService.sendNotification(
-                        userWithTelegram.telegramChatId,
-                        telegramMessage
-                    );
-                    this.logger.log(`Waiting vendor notification sent to user ${ticket.userId}`);
-                }
-            } catch (error) {
-                this.logger.error(`Failed to send waiting vendor notification: ${error.message}`);
-            }
-        }
 
         // Emit WebSocket event for real-time update
         this.eventsGateway.notifyNewMessage(ticket.id, systemMessage);

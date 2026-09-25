@@ -23,7 +23,6 @@ import { TicketSurvey } from '../src/modules/ticketing/entities/ticket-survey.en
 import { TicketTemplate } from '../src/modules/ticketing/entities/ticket-template.entity';
 import { AuditLog } from '../src/modules/audit/entities/audit-log.entity';
 import { TicketAttribute } from '../src/modules/ticketing/entities/ticket-attribute.entity';
-import { TelegramSession } from '../src/modules/telegram/entities/telegram-session.entity';
 import { Article } from '../src/modules/knowledge-base/entities/article.entity';
 import { ArticleView } from '../src/modules/knowledge-base/entities/article-view.entity';
 import { Notification } from '../src/modules/notifications/entities/notification.entity';
@@ -81,7 +80,7 @@ async function syncDatabase() {
             User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig,
             SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article,
             ArticleView, Notification, NotificationPreference, NotificationLog,
-            TelegramSession, SavedSearch, RenewalContract, AuditLog, BusinessHours,
+            SavedSearch, RenewalContract, AuditLog, BusinessHours,
             WorkflowRule, WorkflowExecution, SystemSettings,
             Site, LostItemReport, AccessType, AccessRequest,
             PriorityWeight, AgentDailyWorkload, NotificationSound,

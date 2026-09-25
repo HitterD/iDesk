@@ -1,9 +1,9 @@
 {
   "serverId": "SMG",
   "serverName": "Synology Semarang (SMG)",
-  "lastSyncedAt": "2026-09-24T01:05:04.900Z",
+  "lastSyncedAt": "2026-09-25T01:05:14.678Z",
   "isSyncing": false,
-  "totalFolders": 1040,
+  "totalFolders": 1039,
   "folders": [
     {
       "name": "ActiveBackupforBusiness",
@@ -139,13 +139,6 @@
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.18-01.00.02",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02",
-      "parentPath": "/homes/#snapshot",
-      "depth": 3,
-      "isDir": true
-    },
-    {
       "name": "GMT+07-2026.09.19-01.00.01",
       "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
       "parentPath": "/homes/#snapshot",
@@ -183,6 +176,13 @@
     {
       "name": "GMT+07-2026.09.24-01.00.01",
       "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "parentPath": "/homes/#snapshot",
+      "depth": 3,
+      "isDir": true
+    },
+    {
+      "name": "GMT+07-2026.09.25-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
@@ -1505,34 +1505,6 @@
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "@LH-STORAGE.SJA",
       "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/@LH-STORAGE.SJA",
       "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
       "depth": 4,
@@ -1696,6 +1668,34 @@
       "name": "ict",
       "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/ict",
       "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "#snapshot",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "admin",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "ict",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
@@ -2386,6 +2386,13 @@
       "isDir": true
     },
     {
+      "name": "Evelyn",
+      "path": "/homes/@LH-STORAGE.SJA/61/nathalia.evelyn-1000312/Evelyn",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61/nathalia.evelyn-1000312",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "KPI 2021",
       "path": "/homes/@LH-STORAGE.SJA/61/raymundus.nonnatus-1000004/KPI 2021",
       "parentPath": "/homes/@LH-STORAGE.SJA/61/raymundus.nonnatus-1000004",
@@ -2473,27 +2480,6 @@
       "name": "Rekap Kartu Garansi Asset ICT",
       "path": "/homes/@LH-STORAGE.SJA/61/valentinus.ardian-1000887/Rekap Kartu Garansi Asset ICT",
       "parentPath": "/homes/@LH-STORAGE.SJA/61/valentinus.ardian-1000887",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/@LH-STORAGE.SJA",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/admin",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.18-01.00.02/ict",
       "depth": 5,
       "isDir": true
     },
@@ -2620,6 +2606,27 @@
       "name": "Photos",
       "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/ict/Photos",
       "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/ict",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "61",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/@LH-STORAGE.SJA",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "_nasData_scripts",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/admin",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Photos",
+      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/ict",
       "depth": 5,
       "isDir": true
     },
@@ -5228,6 +5235,13 @@
       "isDir": true
     },
     {
+      "name": "1. APK SJA",
+      "path": "/sja/SJA SMG/ICT/Software SJA/1. APK SJA",
+      "parentPath": "/sja/SJA SMG/ICT/Software SJA",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "2024-11-25 10.53.46 Sosialisasi SOP Asset Tetap",
       "path": "/sja/SJA SMG/ICT/Software SJA/2024-11-25 10.53.46 Sosialisasi SOP Asset Tetap",
       "parentPath": "/sja/SJA SMG/ICT/Software SJA",
@@ -6351,27 +6365,6 @@
       "name": "Rencana Tuang_Goreng 2023",
       "path": "/sja/SJA SMG/PPIC/Batch Oracle______________________________/Rencana Tuang_Goreng 2023",
       "parentPath": "/sja/SJA SMG/PPIC/Batch Oracle______________________________",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "2024",
-      "path": "/sja/SJA SMG/PPIC/Jadwal Produksi/2024",
-      "parentPath": "/sja/SJA SMG/PPIC/Jadwal Produksi",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "2025",
-      "path": "/sja/SJA SMG/PPIC/Jadwal Produksi/2025",
-      "parentPath": "/sja/SJA SMG/PPIC/Jadwal Produksi",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "2026",
-      "path": "/sja/SJA SMG/PPIC/Jadwal Produksi/2026",
-      "parentPath": "/sja/SJA SMG/PPIC/Jadwal Produksi",
       "depth": 5,
       "isDir": true
     },

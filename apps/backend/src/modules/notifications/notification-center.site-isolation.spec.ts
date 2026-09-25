@@ -35,7 +35,6 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
       getOrSet: jest.fn(async (_k: string, fn: () => Promise<any>) => fn()),
     };
     emailChannel = { send: jest.fn().mockResolvedValue({ success: true }) };
-    telegramChannel = { send: jest.fn().mockResolvedValue({ success: true }) };
     inAppChannel = { send: jest.fn().mockResolvedValue({ success: true }) };
     pushChannel = { send: jest.fn().mockResolvedValue({ success: true }) };
     eventsGateway = { server: { to: jest.fn().mockReturnThis(), emit: jest.fn() } };
@@ -49,7 +48,6 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
       logRepo as any,
       userRepo as any,
       emailChannel as any,
-      telegramChannel as any,
       inAppChannel as any,
       pushChannel as any,
       entityManager as any,

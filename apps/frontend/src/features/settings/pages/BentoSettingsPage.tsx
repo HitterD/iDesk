@@ -5,7 +5,6 @@ import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, Ha
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
-import { TelegramSettingsForm } from '../components/TelegramSettingsForm';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { CannedResponsesManager } from '../../../components/ui/CannedResponses';
 import { useTheme } from '../../../components/theme-provider';
@@ -62,7 +61,6 @@ export const BentoSettingsPage: React.FC = () => {
                                     { value: 'security', icon: Lock, label: 'Security' },
                                     { value: 'notifications', icon: Bell, label: 'Notifications' },
                                     { value: 'sound', icon: Volume2, label: 'Sound Settings' },
-                                    { value: 'telegram', icon: MessageCircle, label: 'Telegram' },
                                     { value: 'appearance', icon: Palette, label: 'Appearance' },
                                 ].map((tab) => (
                                     <Tabs.Trigger
@@ -139,13 +137,6 @@ export const BentoSettingsPage: React.FC = () => {
                             <div className="max-w-4xl">
                                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Notification Preferences</h2>
                                 <NotificationSettings />
-                            </div>
-                        </Tabs.Content>
-
-                        <Tabs.Content value="telegram" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="max-w-4xl">
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Telegram Integration</h2>
-                                <TelegramSettingsForm />
                             </div>
                         </Tabs.Content>
 

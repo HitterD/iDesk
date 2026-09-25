@@ -55,7 +55,6 @@ describe('TicketUpdateService.bulkSoftDelete', () => {
             {} as any,
             { emit: jest.fn() } as any,
             null as any,
-            null as any,
             mockAuditService,
             mockDataSource as any,
             {} as any,

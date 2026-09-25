@@ -129,7 +129,7 @@ describe('Cross-site smoke: site-locked agents cannot cross sites', () => {
             svc = new TicketUpdateService(
                 ticketRepo, { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x) } as any,
                 userRepo, {} as any, eventsGateway, {} as any, {} as any, { onTicketChange: jest.fn(async () => {}) } as any,
-                { emit: jest.fn() } as any, null as any, null as any, { logAsync: jest.fn() } as any,
+                { emit: jest.fn() } as any, null as any, { logAsync: jest.fn() } as any,
                 dataSource as any, { recalculateAgentWorkload: jest.fn() } as any,
                 {
                     isUserEligible: jest.fn().mockResolvedValue(true),

@@ -4,8 +4,6 @@ import { TicketNotificationListener } from './ticket-notification.listener';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
-import { TelegramService } from '../../telegram/telegram.service';
-import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
@@ -33,12 +31,6 @@ describe('TicketNotificationListener', () => {
     const mailDispatch = {
         send: jest.fn().mockResolvedValue({ success: true }),
     };
-    const telegramService = {
-        notifyTicketUpdate: jest.fn(),
-    };
-    const telegramChatBridge = {
-        forwardAgentReplyToTelegram: jest.fn(),
-    };
     const userRepo = {
         find: jest.fn(),
         findOne: jest.fn(),
@@ -54,8 +46,6 @@ describe('TicketNotificationListener', () => {
                 { provide: NotificationService, useValue: notificationService },
                 { provide: NotificationCenterService, useValue: notificationCenterService },
                 { provide: MailDispatchService, useValue: mailDispatch },
-                { provide: TelegramService, useValue: telegramService },
-                { provide: TelegramChatBridgeService, useValue: telegramChatBridge },
                 { provide: getRepositoryToken(User), useValue: userRepo },
                 { provide: getRepositoryToken(NotificationPreference), useValue: prefRepo },
             ],

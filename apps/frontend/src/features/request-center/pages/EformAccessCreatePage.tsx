@@ -218,6 +218,7 @@ export const EformAccessCreatePage: React.FC = () => {
   const [nasAccessLevel, setNasAccessLevel] = useState<'READ_ONLY' | 'READ_WRITE'>('READ_ONLY');
   const [selectedNasServers, setSelectedNasServers] = useState<Array<'JKT' | 'KRW' | 'SMG' | 'SPJ'>>(['SPJ']);
   const [nasSelections, setNasSelections] = useState<NasFolderRequestItem[]>([]);
+  const [folderScreenshots, setFolderScreenshots] = useState<string[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signatureData, setSignatureData] = useState('');
   const [managerId, setManagerId] = useState('');
@@ -385,6 +386,12 @@ export const EformAccessCreatePage: React.FC = () => {
       if (sourceRequest.formData?.folderPath) {
         setFolderPath(sourceRequest.formData.folderPath);
       }
+      if (Array.isArray(sourceRequest.formData?.nasSelections)) {
+        setNasSelections(sourceRequest.formData.nasSelections);
+      }
+      if (Array.isArray(sourceRequest.formData?.screenshots)) {
+        setFolderScreenshots(sourceRequest.formData.screenshots);
+      }
 
       toast.info(`Memuat data pengajuan sebelumnya (#${idSnippet}) untuk perpanjangan akses`);
     }
@@ -421,7 +428,7 @@ export const EformAccessCreatePage: React.FC = () => {
     (formType !== 'NETWORK' || !!networkPurpose.trim()) &&
     (formType !== 'FLASHDISK' || !!hostname.trim()) &&
     (formType !== 'EMAIL' || !!proposedEmail.trim()) &&
-    (formType !== 'SYNOLOGY_NAS' || nasSelections.length > 0 || !!folderPath.trim());
+    (formType !== 'SYNOLOGY_NAS' || nasSelections.length > 0 || folderScreenshots.length > 0 || !!folderPath.trim());
 
   // Handle access type switch with duration adaptation
   const handleFormTypeChange = (newType: FormType) => {
@@ -489,10 +496,11 @@ export const EformAccessCreatePage: React.FC = () => {
         ...(formType === 'SYNOLOGY_NAS'
           ? {
               nasSelections,
+              screenshots: folderScreenshots,
               folderPath:
                 nasSelections.length > 0
                   ? nasSelections.map(s => `${s.nasId}: ${s.folderPath}`).join(', ')
-                  : folderPath.trim(),
+                  : (folderScreenshots.length > 0 ? `${folderScreenshots.length} Screenshot Folder Dilampirkan` : folderPath.trim()),
               accessLevel: nasSelections.some(s => s.accessLevel === 'READ_WRITE')
                 ? 'READ_WRITE'
                 : nasAccessLevel,
@@ -1243,6 +1251,8 @@ export const EformAccessCreatePage: React.FC = () => {
                   onSelectedServersChange={setSelectedNasServers}
                   selections={nasSelections}
                   onSelectionsChange={setNasSelections}
+                  screenshots={folderScreenshots}
+                  onScreenshotsChange={setFolderScreenshots}
                 />
               </div>
             )}
@@ -1397,9 +1407,12 @@ export const EformAccessCreatePage: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Folder Dipilih</span>
-                    <span className={cn('font-semibold text-right', nasSelections.length > 0 ? 'text-primary' : 'text-amber-500')}>
-                      {nasSelections.length} folder
+                    <span className="text-muted-foreground">Folder / Bukti</span>
+                    <span className={cn('font-semibold text-right text-xs', (nasSelections.length > 0 || folderScreenshots.length > 0) ? 'text-primary' : 'text-amber-500')}>
+                      {nasSelections.length > 0 && `${nasSelections.length} folder`}
+                      {nasSelections.length > 0 && folderScreenshots.length > 0 && ', '}
+                      {folderScreenshots.length > 0 && `${folderScreenshots.length} screenshot`}
+                      {nasSelections.length === 0 && folderScreenshots.length === 0 && 'Belum diisi'}
                     </span>
                   </div>
                 </>

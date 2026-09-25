@@ -75,7 +75,6 @@ describe('Ticket Authorization Object Checks', () => {
             { invalidateTicketCache: jest.fn() } as any,
             { emit: jest.fn() } as any,
             null as any,
-            null as any,
             { logAsync: jest.fn() } as any,
             dataSource,
             { recalculateAgentWorkload: jest.fn() } as any,

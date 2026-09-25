@@ -22,7 +22,6 @@ import { SlaConfig } from './entities/sla-config.entity';
 import { SlaConfigService } from './sla-config.service';
 import { SlaConfigController } from './presentation/sla-config.controller';
 import { AuthModule } from '../auth/auth.module';
-import { TelegramModule } from '../telegram/telegram.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
 import { WorkloadModule } from '../workload/workload.module';
@@ -90,7 +89,6 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         SlaConfigModule,  // Provides BusinessHoursService for SLA calculation
         WorkloadModule,   // Provides WorkloadService for auto-assignment
         ModuleAssignmentPolicyModule, // Provides the per-module assignment guard
-        forwardRef(() => TelegramModule),
         forwardRef(() => NotificationModule),
         CacheModule.register(),
     ],

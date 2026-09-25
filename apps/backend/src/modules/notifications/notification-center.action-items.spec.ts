@@ -24,7 +24,6 @@ describe('NotificationCenterService Action Items', () => {
     const logRepo = {} as any;
     const userRepo = {} as any;
     const emailChannel = {} as any;
-    const telegramChannel = {} as any;
     const inAppChannel = {} as any;
     const pushChannel = {} as any;
     const entityManager = {
@@ -44,7 +43,6 @@ describe('NotificationCenterService Action Items', () => {
             logRepo,
             userRepo,
             emailChannel,
-            telegramChannel,
             inAppChannel,
             pushChannel,
             entityManager as any,

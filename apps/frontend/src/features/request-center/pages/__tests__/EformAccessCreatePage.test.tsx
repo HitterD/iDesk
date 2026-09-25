@@ -389,8 +389,7 @@ describe('EformAccessCreatePage', () => {
     fireEvent.click(nasTab);
 
     // NAS multi-server options should be rendered
-    expect(screen.getByText('Pilih Server Synology NAS')).toBeInTheDocument();
-    expect(screen.getByText('Bisa memilih lebih dari 1 cabang')).toBeInTheDocument();
+    expect(screen.getByText(/Lokasi Server Synology NAS/i)).toBeInTheDocument();
     expect(screen.getByText('Synology JKT')).toBeInTheDocument();
     expect(screen.getByText('Synology KRW')).toBeInTheDocument();
     expect(screen.getByText('Synology SMG')).toBeInTheDocument();
@@ -399,20 +398,17 @@ describe('EformAccessCreatePage', () => {
     // Permanen option should be available
     expect(screen.getByRole('button', { name: 'Permanen' })).toBeInTheDocument();
 
-    // SPJ server is selected by default, verify SPJ explorer shows up and loads folders
-    await waitFor(() => {
-      expect(screen.getByText(/Synology SPJ — Sepanjang/i)).toBeInTheDocument();
-      expect(screen.getByText('Dept_Finance')).toBeInTheDocument();
-      expect(screen.getByText('Dept_ICT')).toBeInTheDocument();
-    });
+    // Input a manual path for the selected server
+    const pathInput = screen.getByPlaceholderText(/Contoh: \/Sharing\/Dept_Keuangan atau Data_Arsip_2026/i);
+    fireEvent.change(pathInput, { target: { value: '/volume1/Dept_Finance' } });
 
-    // Check Dept_Finance folder
-    const checkFinanceBtn = screen.getByLabelText('Pilih folder Dept_Finance');
-    fireEvent.click(checkFinanceBtn);
+    // Submit manual path
+    const addPathBtn = screen.getByRole('button', { name: /Tambah Folder/i });
+    fireEvent.click(addPathBtn);
 
     // Summary table should now show Dept_Finance
     await waitFor(() => {
-      expect(screen.getByText(/Daftar Folder & Hak Akses yang Diajukan/i)).toBeInTheDocument();
+      expect(screen.getByText(/Daftar Folder yang Diajukan/i)).toBeInTheDocument();
       expect(screen.getByText('Tingkat Hak Akses')).toBeInTheDocument();
       expect(screen.getAllByText('/volume1/Dept_Finance').length).toBeGreaterThanOrEqual(1);
     });
@@ -425,7 +421,7 @@ describe('EformAccessCreatePage', () => {
     // Also select another server (KRW) to test multi-server selection
     fireEvent.click(screen.getByText('Synology KRW'));
     await waitFor(() => {
-      expect(screen.getByText(/Synology KRW — Karawang/i)).toBeInTheDocument();
+      expect(screen.getByText(/Karawang \(10.12.2.6\)/i)).toBeInTheDocument();
     });
   });
 
@@ -482,169 +478,57 @@ describe('EformAccessCreatePage', () => {
     expect(screen.getByText('Akses Shared Folder NAS')).toBeInTheDocument();
   });
 
-  it('filters Synology folders using search box and allows direct quick selection', async () => {
+  it('renders screenshot upload dropzone with guidelines and paste tip', async () => {
     renderPage();
 
     // Click Synology NAS tab
     fireEvent.click(screen.getByText('Synology NAS'));
 
-    // Wait for folders to load
+    // Check screenshot dropzone
+    expect(await screen.findByText(/Unggah Screenshot Bukti Folder/i)).toBeInTheDocument();
+    expect(screen.getByText(/Tarik & letakkan screenshot di sini/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ctrl \+ V/i)).toBeInTheDocument();
+  });
+
+  it('allows adding multiple manual folder paths across different servers and updating access level', async () => {
+    renderPage();
+
+    // Click Synology NAS tab
+    fireEvent.click(screen.getByText('Synology NAS'));
+
+    // Add folder on SPJ
+    const pathInput = screen.getByPlaceholderText(/Contoh: \/Sharing\/Dept_Keuangan atau Data_Arsip_2026/i);
+    fireEvent.change(pathInput, { target: { value: '/sja/Departemen_Keuangan' } });
+
+    const addBtn = screen.getByRole('button', { name: /Tambah Folder/i });
+    fireEvent.click(addBtn);
+
+    // Verify folder appears in table
     await waitFor(() => {
-      expect(screen.getByText('Dept_Finance')).toBeInTheDocument();
-      expect(screen.getByText('Dept_ICT')).toBeInTheDocument();
+      expect(screen.getByText('/sja/Departemen_Keuangan')).toBeInTheDocument();
+      expect(screen.getAllByText('SPJ').length).toBeGreaterThanOrEqual(1);
     });
 
-    // Type in search box
-    const searchInput = screen.getByPlaceholderText('Cari folder / path...');
-    fireEvent.change(searchInput, { target: { value: 'Finance' } });
-    
-    // Should display search results header
-    expect(screen.getByText('1 folder ditemukan')).toBeInTheDocument();
-    const clearBtn = screen.getByTitle('Bersihkan pencarian');
-    expect(clearBtn).toBeInTheDocument();
+    // Select JKT server
+    fireEvent.click(screen.getByText('Synology JKT'));
 
-    // Quick select the folder from search results
-    const selectBtn = screen.getByRole('button', { name: 'Pilih Folder' });
-    fireEvent.click(selectBtn);
+    // Add folder on JKT
+    fireEvent.change(pathInput, { target: { value: '/sja/Dept_Marketing' } });
+    fireEvent.click(addBtn);
 
-    // Selected folder should be in the summary table
     await waitFor(() => {
-      expect(screen.getByText(/Daftar Folder & Hak Akses yang Diajukan/i)).toBeInTheDocument();
-      expect(screen.getAllByText('/volume1/Dept_Finance').length).toBeGreaterThanOrEqual(1);
-    });
-
-    // Clear search
-    fireEvent.click(clearBtn);
-
-    // Tree should be back
-    await waitFor(() => {
-      expect(screen.getByText('Dept_ICT')).toBeInTheDocument();
+      expect(screen.getByText('/sja/Dept_Marketing')).toBeInTheDocument();
     });
   });
 
-  it('supports expanding explorer height and opening fullscreen modal dialog', async () => {
+  it('displays empty state guidance when no folders are selected', async () => {
     renderPage();
 
     // Click Synology NAS tab
     fireEvent.click(screen.getByText('Synology NAS'));
 
-    // Wait for SPJ folders to render
-    await waitFor(() => {
-      expect(screen.getByText('Dept_Finance')).toBeInTheDocument();
-    });
-
-    // Check in-place expand button
-    const expandBtn = screen.getByTitle('Perluas area kotak');
-    expect(expandBtn).toBeInTheDocument();
-    fireEvent.click(expandBtn);
-
-    // Should now show Perkecil
-    expect(screen.getByTitle('Perkecil area kotak')).toBeInTheDocument();
-
-    // Open fullscreen modal dialog
-    const fullscreenBtn = screen.getByTitle('Buka penjelajah folder layar penuh');
-    fireEvent.click(fullscreenBtn);
-
-    // Fullscreen Dialog should open
-    await waitFor(() => {
-      expect(screen.getByText('Penjelajah Folder Synology NAS (Layar Penuh)')).toBeInTheDocument();
-      expect(screen.getByText(/Jelajahi dan pilih folder shared NAS lintas cabang dengan ruang kerja yang luas/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Selesai Memilih & Kembali/i })).toBeInTheDocument();
-    });
-
-    // Close modal dialog
-    const closeDialogBtn = screen.getByRole('button', { name: /Selesai Memilih & Kembali/i });
-    fireEvent.click(closeDialogBtn);
-  });
-
-  it('automatically checks parent folders with READ_ONLY access and auto-unchecks them when all children are unselected', async () => {
-    renderPage();
-
-    // Click Synology NAS tab
-    fireEvent.click(screen.getByText('Synology NAS'));
-
-    // Wait for SPJ folders to render
-    await waitFor(() => {
-      expect(screen.getByText('Dept_Finance')).toBeInTheDocument();
-    });
-
-    // Toggle check Dept_Finance (path: /volume1/Dept_Finance)
-    // Parent /volume1 should be automatically added to selections with READ_ONLY
-    const financeCheck = screen.getByLabelText('Pilih folder Dept_Finance');
-    fireEvent.click(financeCheck);
-
-    // Verify both child and auto-parent exist in the summary table
-    await waitFor(() => {
-      expect(screen.getAllByText('/volume1/Dept_Finance').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('/volume1')).toBeInTheDocument();
-      expect(screen.getByText('Parent (Auto)')).toBeInTheDocument();
-    });
-
-    // Uncheck child Dept_Finance
-    fireEvent.click(financeCheck);
-
-    // Auto-parent /volume1 should now be removed and summary table shows empty
-    await waitFor(() => {
-      expect(screen.queryByText('/volume1')).not.toBeInTheDocument();
-      expect(screen.getByText('Belum ada folder yang dipilih')).toBeInTheDocument();
-    });
-  });
-
-  it('performs deep global search on Synology NAS servers across subfolders', async () => {
-    renderPage();
-
-    // Click Synology NAS tab
-    fireEvent.click(screen.getByText('Synology NAS'));
-
-    // Wait for SPJ folders to render
-    await waitFor(() => {
-      expect(screen.getByText('Dept_Finance')).toBeInTheDocument();
-    });
-
-    // Type deep folder query in search box
-    const searchInput = screen.getByPlaceholderText('Cari folder / path...');
-    fireEvent.change(searchInput, { target: { value: 'ICT_Support' } });
-
-    // Wait for debounce and server search to return results
-    await waitFor(() => {
-      expect(screen.getAllByText('ICT_Support').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('/sja/SJA SPJ/ICT/ICT_Support').length).toBeGreaterThanOrEqual(1);
-    }, { timeout: 2500 });
-
-    // Select the deep folder from search result
-    const selectBtn = screen.getByRole('button', { name: 'Pilih Folder' });
-    fireEvent.click(selectBtn);
-
-    // Verify child and all its parent hierarchy are automatically added to the summary table
-    await waitFor(() => {
-      expect(screen.getAllByText('/sja/SJA SPJ/ICT/ICT_Support').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('/sja/SJA SPJ/ICT')).toBeInTheDocument();
-      expect(screen.getByText('/sja/SJA SPJ')).toBeInTheDocument();
-      expect(screen.getByText('/sja')).toBeInTheDocument();
-      expect(screen.getAllByText('Parent (Auto)').length).toBe(3);
-    });
-  });
-
-  it('displays NAS cache metadata badge and allows triggering manual cache sync', async () => {
-    renderPage();
-
-    // Click Synology NAS tab
-    fireEvent.click(screen.getByText('Synology NAS'));
-
-    // Wait for cache status and SPJ folders to render
-    await waitFor(() => {
-      expect(screen.getByText('142 folder')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Sync Cache/i })).toBeInTheDocument();
-    });
-
-    // Click Sync Cache button
-    const syncBtn = screen.getByRole('button', { name: /Sync Cache/i });
-    fireEvent.click(syncBtn);
-
-    // Button should show syncing feedback
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Menyinkronkan…/i })).toBeInTheDocument();
-    });
+    // Summary table should show empty state
+    expect(await screen.findByText(/Belum ada folder manual yang ditambahkan/i)).toBeInTheDocument();
   });
   it('renders Synology account status options and direct-to-ICT notice', async () => {
     renderPage();

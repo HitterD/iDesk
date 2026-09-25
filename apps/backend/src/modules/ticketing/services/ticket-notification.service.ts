@@ -11,12 +11,10 @@ import { CustomerSession } from '../../users/entities/customer-session.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { TelegramService } from '../../telegram/telegram.service';
-import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 
 /**
  * Ticket Notification Service
- * Handles all notification logic for tickets (Email, Telegram, In-app)
+ * Handles all notification logic for tickets (Email, In-app)
  */
 @Injectable()
 export class TicketNotificationService {
@@ -29,10 +27,6 @@ export class TicketNotificationService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly mailDispatch: MailDispatchService,
-        @Optional() @Inject(forwardRef(() => TelegramService))
-        private readonly telegramService: TelegramService,
-        @Optional() @Inject(forwardRef(() => TelegramChatBridgeService))
-        private readonly telegramChatBridge: TelegramChatBridgeService,
     ) {}
 
     setNotificationService(notificationService: NotificationService) {
@@ -99,9 +93,6 @@ export class TicketNotificationService {
                 },
             );
         }
-
-        // Telegram notification
-        await this.sendTelegramStatusUpdate(ticket, changes);
     }
 
     /**
@@ -183,21 +174,6 @@ export class TicketNotificationService {
                 }
             } catch (error) {
                 this.logger.error('Failed to send reply notification:', error);
-            }
-        }
-
-        // Telegram notification for agent reply
-        if (this.telegramChatBridge && (sender.role === UserRole.AGENT || sender.role === UserRole.ADMIN)) {
-            if (ticket.user && ticket.user.id !== sender.id) {
-                try {
-                    await this.telegramChatBridge.forwardAgentReplyToTelegram({
-                        ticketId: ticket.id,
-                        message,
-                        sender,
-                    });
-                } catch (error) {
-                    this.logger.error('Failed to send Telegram message:', error);
-                }
             }
         }
 
@@ -303,23 +279,6 @@ export class TicketNotificationService {
                 );
             }
         }
-    }
-
-    /**
-     * Send Telegram status update
-     */
-    private async sendTelegramStatusUpdate(ticket: Ticket, changes: string[]): Promise<void> {
-        if (!ticket.user || !this.telegramService) return;
-
-        const session = await this.sessionRepo.findOne({ where: { userId: ticket.user.id } });
-        if (!session) return;
-
-        let emoji = 'ℹ️';
-        if (ticket.status === TicketStatus.RESOLVED) emoji = '✅';
-        if (ticket.status === TicketStatus.IN_PROGRESS) emoji = '🚧';
-
-        const msg = `${emoji} **Status Tiket Diperbarui**\n\n🆔 #${ticket.id.split('-')[0]}\n📌 ${ticket.title}\nSTAT: ${ticket.status}\n\n${changes.join('\n')}`;
-        await this.telegramService.sendNotification(session.telegramId, msg);
     }
 
     /**

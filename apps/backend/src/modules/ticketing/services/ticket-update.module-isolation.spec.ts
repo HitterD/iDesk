@@ -66,7 +66,6 @@ describe('TicketUpdateService.assignTicket — per-module assignee isolation', (
             {} as any,
             { emit: jest.fn() } as any,
             null as any,
-            null as any,
             { logAsync: jest.fn() } as any,
             {} as any,
             { recalculateAgentWorkload: jest.fn() } as any,

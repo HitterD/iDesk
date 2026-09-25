@@ -1,9 +1,9 @@
 {
   "serverId": "SPJ",
   "serverName": "Synology Sepanjang (SPJ)",
-  "lastSyncedAt": "2026-09-24T01:03:39.094Z",
+  "lastSyncedAt": "2026-09-25T01:03:17.131Z",
   "isSyncing": false,
-  "totalFolders": 3672,
+  "totalFolders": 3677,
   "folders": [
     {
       "name": "backup",
@@ -475,8 +475,8 @@
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.24-01.00.02",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "name": "GMT+07-2026.09.25-01.00.01",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "parentPath": "/Backup Synology SPJ/#snapshot",
       "depth": 3,
       "isDir": true
@@ -1400,50 +1400,50 @@
     },
     {
       "name": "#snapshot",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/#snapshot",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/#snapshot",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "Backup_untuk migrasi.hbk",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "Dump",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "RS818RP-SJA-SPJ.hbk",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "SJA",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "Storage Analyzer",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Storage Analyzer",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Storage Analyzer",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "synoreport",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01",
       "depth": 4,
       "isDir": true
     },
@@ -5091,6 +5091,41 @@
       "name": "refs",
       "path": "/git/net/SerahTerimaWaste.git/refs",
       "parentPath": "/git/net/SerahTerimaWaste.git",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "branches",
+      "path": "/git/net/SirkulasiDokumen.git/branches",
+      "parentPath": "/git/net/SirkulasiDokumen.git",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "hooks",
+      "path": "/git/net/SirkulasiDokumen.git/hooks",
+      "parentPath": "/git/net/SirkulasiDokumen.git",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "info",
+      "path": "/git/net/SirkulasiDokumen.git/info",
+      "parentPath": "/git/net/SirkulasiDokumen.git",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "objects",
+      "path": "/git/net/SirkulasiDokumen.git/objects",
+      "parentPath": "/git/net/SirkulasiDokumen.git",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "refs",
+      "path": "/git/net/SirkulasiDokumen.git/refs",
+      "parentPath": "/git/net/SirkulasiDokumen.git",
       "depth": 4,
       "isDir": true
     },
@@ -15981,204 +16016,204 @@
     },
     {
       "name": "Config",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk/Config",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk/Config",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Control",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk/Control",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk/Control",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Guard",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk/Guard",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk/Guard",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Pool",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk/Pool",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk/Pool",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Versionlog",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk/Versionlog",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Backup_untuk migrasi.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk/Versionlog",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Backup_untuk migrasi.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "20122024",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/20122024",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/20122024",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "BUKTI",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/BUKTI",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/BUKTI",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "DATA AUDIT 2024",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/DATA AUDIT 2024",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/DATA AUDIT 2024",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "E-faktur",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/E-faktur",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/E-faktur",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "HC SJA Semarang 2022",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/HC SJA Semarang 2022",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/HC SJA Semarang 2022",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "IT23",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/IT23",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/IT23",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "KARUA",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/KARUA",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/KARUA",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "KTAKTS",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/KTAKTS",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/KTAKTS",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Martha Anita",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/Martha Anita",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/Martha Anita",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Rubrik",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump/Rubrik",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Dump",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump/Rubrik",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Dump",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Config",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk/Config",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk/Config",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Control",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk/Control",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk/Control",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Guard",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk/Guard",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk/Guard",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Pool",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk/Pool",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk/Pool",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Versionlog",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk/Versionlog",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/RS818RP-SJA-SPJ.hbk",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk/Versionlog",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/RS818RP-SJA-SPJ.hbk",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "GUGUS TUGAS",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA/GUGUS TUGAS",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA/GUGUS TUGAS",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Restore File User",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA/Restore File User",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA/Restore File User",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "SJA JKT",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA/SJA JKT",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA/SJA JKT",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "SJA KRW",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA/SJA KRW",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA/SJA KRW",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "SJA SMG",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA/SJA SMG",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/SJA",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA/SJA SMG",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "synoreport",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Storage Analyzer/synoreport",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/Storage Analyzer",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Storage Analyzer/synoreport",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/Storage Analyzer",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Disk Usage",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport/Disk Usage",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport/Disk Usage",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "lang",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport/lang",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport/lang",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "template",
-      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport/template",
-      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.24-01.00.02/synoreport",
+      "path": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport/template",
+      "parentPath": "/Backup Synology SPJ/#snapshot/GMT+07-2026.09.25-01.00.01/synoreport",
       "depth": 5,
       "isDir": true
     },

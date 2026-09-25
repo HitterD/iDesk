@@ -32,10 +32,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { SlaConfigModule } from './modules/sla-config/sla-config.module';
 import { NotificationModule } from './modules/notifications/notification.module';
-import { TelegramModule } from './modules/telegram/telegram.module';
 
 import { TicketAttribute } from './modules/ticketing/entities/ticket-attribute.entity';
-import { TelegramSession } from './modules/telegram/entities/telegram-session.entity';
 import { Article } from './modules/knowledge-base/entities/article.entity';
 import { ArticleView } from './modules/knowledge-base/entities/article-view.entity';
 import { Notification } from './modules/notifications/entities/notification.entity';
@@ -215,7 +213,6 @@ import { validateAuthEnvironment } from './config/auth.config';
         UploadsModule,
         NotificationModule,
         ScheduleModule.forRoot(),
-        TelegramModule,
         HealthModule,
         SearchModule,
         RenewalModule,

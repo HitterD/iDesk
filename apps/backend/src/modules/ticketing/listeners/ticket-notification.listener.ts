@@ -11,11 +11,9 @@ import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
-import { TelegramService } from '../../telegram/telegram.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketStatus } from '../entities/ticket.entity';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 import { User } from '../../users/entities/user.entity';
 import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
 import {
@@ -32,8 +30,6 @@ export class TicketNotificationListener {
         private readonly notificationService: NotificationService,
         private readonly notificationCenterService: NotificationCenterService,
         private readonly mailDispatch: MailDispatchService,
-        private readonly telegramService: TelegramService,
-        private readonly telegramChatBridge: TelegramChatBridgeService,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         @InjectRepository(NotificationPreference)
@@ -229,19 +225,6 @@ export class TicketNotificationListener {
         } catch (error) {
             this.logger.error('Failed to send ticket update emails', error);
         }
-
-        // 3. Telegram Notification
-        if (ticket.user) {
-            try {
-                let updateType = 'STATUS_CHANGED';
-                if (ticket.status === TicketStatus.RESOLVED) updateType = 'RESOLVED';
-                else if (ticket.status === TicketStatus.IN_PROGRESS) updateType = 'STATUS_CHANGED';
-
-                await this.telegramService.notifyTicketUpdate(ticket.user.id, ticket, updateType);
-            } catch (error) {
-                this.logger.error('Failed to send Telegram notification', error);
-            }
-        }
     }
 
     @OnEvent('ticket.assigned')
@@ -405,25 +388,7 @@ export class TicketNotificationListener {
             this.logger.error('Failed to send reply notification', error);
         }
 
-        // 3. Telegram Notification (Forward Agent Reply)
-        if (this.telegramChatBridge && (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN)) {
-            if (event.ticketOwnerId !== event.senderId) {
-                try {
-                    const sender = await this.userRepo.findOne({ where: { id: event.senderId } });
-                    if (sender) {
-                        await this.telegramChatBridge.forwardAgentReplyToTelegram({
-                            ticketId: event.ticketId,
-                            message: event.message,
-                            sender: sender,
-                        });
-                    }
-                } catch (error) {
-                    this.logger.error('Failed to send Telegram message', error);
-                }
-            }
-        }
-
-        // 4. Email Notification (Bidirectional: Agent -> Requester, Requester -> Assignee)
+        // 3. Email Notification (Bidirectional: Agent -> Requester, Requester -> Assignee)
         try {
             if (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) {
                 if (event.ticketOwnerEmail && (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketOwnerId))) {
