@@ -8,7 +8,12 @@ import { SettingsService, StorageSettings } from './settings.service';
 import { UploadService } from '../../shared/upload/upload.service';
 import * as path from 'path';
 import * as fs from 'fs';
-import sharp from 'sharp';
+let sharp: any;
+try {
+    sharp = require('sharp');
+} catch (e) {
+    sharp = null;
+}
 
 export interface CleanupPreview {
     attachments: { count: number; sizeBytes: number; files: string[] };
@@ -484,6 +489,20 @@ export class StorageCleanupService {
         quality?: number;
         maxWidth?: number;
     }): Promise<ImageCompressionResult> {
+        if (!sharp) {
+            this.logger.warn('Sharp library not available on this platform. Image compression skipped.');
+            return {
+                totalScanned: 0,
+                compressedCount: 0,
+                skippedCount: 0,
+                originalSizeBytes: 0,
+                compressedSizeBytes: 0,
+                freedBytes: 0,
+                savingsPercentage: 0,
+                errors: ['Sharp library is not available on this runtime environment'],
+                executedAt: new Date(),
+            };
+        }
         const olderThanDays = options.olderThanDays ?? 90;
         const quality = options.quality ?? 80;
         const maxWidth = options.maxWidth ?? 1600;
