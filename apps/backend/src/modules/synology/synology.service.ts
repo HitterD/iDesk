@@ -728,9 +728,13 @@ export class SynologyService {
                 ? `tar -czf "${path.resolve(localFilePath)}" ${existingDirs.join(' ')}`
                 : `tar -czf "${path.resolve(localFilePath)}" ${existingDirs.join(' ')} 2>/dev/null || true`;
 
+            const shellCmd = process.platform === 'win32'
+                ? 'powershell.exe'
+                : (fsSync.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh');
+
             await execAsync(tarCmd, {
                 cwd: process.cwd(),
-                shell: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash'
+                shell: shellCmd
             });
 
             // Get file size

@@ -23,8 +23,8 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 # Install only production dependencies to reduce image bloat
 RUN npm ci --only=production
 
-# Install runtime utilities: su-exec, postgresql-client (providing pg_dump and psql), and tar
-RUN apk add --no-cache su-exec postgresql-client tar
+# Install runtime utilities: su-exec, postgresql-client (providing pg_dump and psql), tar, and bash
+RUN apk add --no-cache su-exec postgresql-client tar bash
 
 # Create application runtime directories and ensure node ownership
 RUN mkdir -p /app/reports /app/storage/nas-cache /app/uploads /app/backups/database /app/backups/files /app/backups/temp && chown -R node:node /app
