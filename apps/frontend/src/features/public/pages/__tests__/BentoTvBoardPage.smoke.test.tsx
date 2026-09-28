@@ -76,13 +76,33 @@ describe('BentoTvBoardPage', () => {
         expect(root.className).not.toContain('min-h-[100dvh]');
     });
 
-    it('shows overdue indicator (red border) on overdue card but not on normal card', async () => {
+    it('marks only the overdue card with a red accent and a "Terlambat" label', async () => {
         renderBoard();
 
-        const overdueCard = (await screen.findByText('Printer rusak')).closest('div[data-testid="tv-board-card"]');
-        const normalCard = (await screen.findByText('Akses Oracle gagal')).closest('div[data-testid="tv-board-card"]');
-        expect(overdueCard?.className).toContain('border-red-600');
-        expect(normalCard?.className).not.toContain('border-red-600');
+        const overdueCard = (await screen.findByText('Printer rusak')).closest('[data-testid="tv-board-card"]');
+        const normalCard = (await screen.findByText('Akses Oracle gagal')).closest('[data-testid="tv-board-card"]');
+        expect(overdueCard).toHaveAttribute('data-overdue', 'true');
+        expect(overdueCard?.textContent).toMatch(/Terlambat/);
+        expect(normalCard).not.toHaveAttribute('data-overdue');
+        expect(normalCard?.textContent).not.toMatch(/Terlambat/);
+    });
+
+    it('scales the whole board with the viewport via the root font size', async () => {
+        const { unmount } = renderBoard();
+        await screen.findByText('Sampoerna Jaya');
+
+        expect(document.getElementById('tv-board-root-font-size')?.textContent).toMatch(/html \{ font-size: clamp\(/);
+        unmount();
+        expect(document.getElementById('tv-board-root-font-size')).toBeNull();
+    });
+
+    it('lists the overdue ticket above the on-time one', async () => {
+        renderBoard();
+
+        await screen.findByText('Printer rusak');
+        const rows = screen.getAllByTestId('tv-board-card').map((row) => row.textContent);
+        expect(rows.findIndex((text) => text?.includes('Printer rusak')))
+            .toBeLessThan(rows.findIndex((text) => text?.includes('Akses Oracle gagal')));
     });
 
     it('shows the Oracle/K2 badge', async () => {
@@ -102,7 +122,7 @@ describe('BentoTvBoardPage', () => {
     it('omits the department line when the requester has none', async () => {
         renderBoard();
 
-        const card = (await screen.findByText('Printer rusak')).closest('div[data-testid="tv-board-card"]');
+        const card = (await screen.findByText('Printer rusak')).closest('[data-testid="tv-board-card"]');
         expect(card).not.toBeNull();
         expect(card?.querySelector('[data-testid="tv-board-department"]')).toBeNull();
     });
@@ -112,7 +132,7 @@ describe('BentoTvBoardPage', () => {
 
         const assignee = await screen.findByText('Agen A');
         expect(assignee.className).toContain('font-bold');
-        const card = assignee.closest('div[data-testid="tv-board-card"]');
+        const card = assignee.closest('[data-testid="tv-board-card"]');
         expect(card?.textContent).toContain('AA');
     });
 
