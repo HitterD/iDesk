@@ -119,7 +119,8 @@ export class EFormRequestController {
   @Post(':id/credentials')
   @ApiOperation({ summary: 'ICT submits credentials (ADMIN/AGENT_ADMIN only)' })
   async submitCredentials(@Request() req: any, @Param('id') id: string, @Body() dto: SubmitCredentialDto) {
-    return this.eformRequestService.submitCredentials(id, req.user.userId, dto);
+    const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+    return this.eformRequestService.submitCredentials(actor, id, req.user.userId, req.user.role, dto);
   }
 
   @Get(':id/credentials')

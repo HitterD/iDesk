@@ -228,4 +228,28 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       expect(credentialService.decrypt).toHaveBeenCalled();
     });
   });
+
+  describe('submitCredentials (ICT-only + site check)', () => {
+    const dto = { username: 'u', password: 'p' } as any;
+
+    it.each([UserRole.USER, UserRole.MANAGER, UserRole.AGENT])(
+      'rejects non-ICT role %s before storing anything',
+      async (role) => {
+        eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SPJ }));
+        await expect(
+          service.submitCredentials({ role, siteId: SITE_SPJ }, 'eform-1', 'u-x', role, dto),
+        ).rejects.toThrow(ForbiddenException);
+        expect(credentialService.encrypt).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects ICT on another site', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SMG }));
+      const role = UserRole.AGENT_OPERATIONAL_SUPPORT;
+      await expect(
+        service.submitCredentials({ role, siteId: SITE_SPJ }, 'eform-1', 'u-ict', role, dto),
+      ).rejects.toThrow(ForbiddenException);
+      expect(credentialService.encrypt).not.toHaveBeenCalled();
+    });
+  });
 });

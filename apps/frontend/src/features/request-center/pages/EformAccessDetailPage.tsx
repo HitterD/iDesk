@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, FileText, Download, Calendar, ShieldCheck,
   Activity, CheckCircle2, ClipboardCheck, Database,
@@ -17,6 +17,7 @@ import { useAuth } from '@/stores/useAuth';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useEformBasePath } from '../hooks/useEformBasePath';
 
 
 const SIGNER_ROLE_LABELS: Record<string, string> = {
@@ -28,7 +29,6 @@ const SIGNER_ROLE_LABELS: Record<string, string> = {
 export const EformAccessDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const { data: request, isPending, isError } = useEformDetail(id!);
   const downloadPdf = useGetEformPdf(id!);
@@ -37,7 +37,7 @@ export const EformAccessDetailPage: React.FC = () => {
   const isRequester = request?.requesterId === user?.id;
   const isICT = (ICT_ROLES as readonly string[]).includes(user?.role || '');
 
-  const basePath = location.pathname.startsWith('/admin') ? '/admin' : '/portal';
+  const basePath = useEformBasePath();
 
   const fulfillMutation = useFulfillRequest();
   const rejectMutation = useRejectRequest();
@@ -242,23 +242,39 @@ export const EformAccessDetailPage: React.FC = () => {
       {/* Contextual action */}
       {isCurrentApprover && request.status === EFormStatus.PENDING_MANAGER && (
         <Button
-          onClick={() => navigate(`${basePath}/eform-access/${id}/approve`)}
+          onClick={() => navigate(`${basePath}/${id}/approve`)}
           className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <ClipboardCheck className="mr-2 h-4 w-4" /> Tinjau &amp; setujui permintaan
         </Button>
       )}
       {isICT && request.status === EFormStatus.PENDING_ICT && (
-        <Button
-          onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
-          className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
-        >
-          <Database className="mr-2 h-4 w-4" /> Siapkan kredensial akses
-        </Button>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Button
+            onClick={() => navigate(`${basePath}/${id}/credentials`)}
+            className="h-12 rounded-xl text-sm font-bold shadow-md cursor-pointer"
+          >
+            <Database className="mr-2 h-4 w-4" /> Siapkan kredensial akses
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setFulfillOpen(true)}
+            className="h-12 rounded-xl text-sm font-bold cursor-pointer"
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Realisasi tanpa kredensial
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setRejectOpen(true)}
+            className="h-12 rounded-xl border-destructive/40 text-sm font-bold text-destructive hover:bg-destructive/5 cursor-pointer"
+          >
+            <Ban className="mr-2 h-4 w-4" /> Tolak
+          </Button>
+        </div>
       )}
       {isRequester && request.status === EFormStatus.CONFIRMED && (
         <Button
-          onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
+          onClick={() => navigate(`${basePath}/${id}/credentials`)}
           className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <ShieldCheck className="mr-2 h-4 w-4" /> Lihat kredensial akses

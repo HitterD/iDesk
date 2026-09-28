@@ -410,10 +410,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isTicketDetail]);
 
-    // Fetch pending approvals for managers/admins to show badge count
-    const isManagerOrAdmin = ['MANAGER', 'ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE'].includes(user?.role || '');
+    // Any user can be picked as an E-Form approver, so the badge is not role-gated
     const { data: pendingApprovals } = usePendingApprovals();
-    const pendingCount = isManagerOrAdmin && pendingApprovals ? pendingApprovals.length : 0;
+    const pendingCount = pendingApprovals?.length ?? 0;
 
     // Fetch unread notifications count
     const { data: notificationCountData } = useQuery<{ count: number }>({

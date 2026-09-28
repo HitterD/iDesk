@@ -208,9 +208,21 @@ export class EFormRequestService {
     return savedRequest;
   }
 
-  async submitCredentials(requestId: string, agentId: string, dto: SubmitCredentialDto) {
+  async submitCredentials(
+    actor: SiteActor,
+    requestId: string,
+    agentId: string,
+    userRole: UserRole,
+    dto: SubmitCredentialDto,
+  ) {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
+
+    assertSiteAccess(actor, request.siteId);
+
+    if (!ICT_ROLES.includes(userRole)) {
+      throw new ForbiddenException('Not authorized to submit credentials');
+    }
     if (request.status !== EFormStatus.PENDING_ICT) throw new BadRequestException('Invalid state');
 
     const encUser = this.credentialService.encrypt(dto.username);

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { FeatureErrorBoundary } from '../components/ui/FeatureErrorBoundary';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
@@ -119,6 +119,20 @@ const RoleBasedRedirect = () => {
     return <Navigate to="/dashboard" replace />;
 };
 
+// E-Form email links use the portal-agnostic `/eform/:id`; resolve it to the
+// E-Form detail route of the recipient's own portal.
+const EformLinkRedirect = () => {
+    const { isAuthenticated, user } = useAuth();
+    const { id } = useParams<{ id: string }>();
+
+    if (!isAuthenticated || !user) {
+        return <Navigate to="/login" replace />;
+    }
+
+    const prefix = user.role === 'USER' ? '/client' : user.role === 'MANAGER' ? '/manager' : '';
+    return <Navigate to={`${prefix}/eform-access/${id}`} replace />;
+};
+
 interface LazyRouteProps {
     component: React.LazyExoticComponent<any> | React.ComponentType<any>;
     featureName: string;
@@ -167,6 +181,7 @@ export default function AppRoutes() {
                 <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
                 <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
                 <Route path="/devices/activate" element={<Suspense fallback={<PageLoader />}><DeviceActivationPage /></Suspense>} />
+                <Route path="/eform/:id" element={<EformLinkRedirect />} />
 
                 {/* Root Route - Global role-based redirect for all authenticated users */}
                 <Route path="/" element={<RoleBasedRedirect />} />
