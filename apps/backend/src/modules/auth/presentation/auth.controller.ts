@@ -1,6 +1,6 @@
 import { Controller, Request, Post, UseGuards, Body, HttpCode, Res, Get, Query } from '@nestjs/common';
 import { Response } from 'express';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AuthService } from '../application/auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -28,6 +28,7 @@ export class AuthController {
     constructor(private authService: AuthService) { }
 
     @Get('ip-debug')
+    @SkipThrottle()
     @ApiOperation({ summary: 'Diagnostic endpoint to check incoming proxy headers and resolved client IP' })
     async getIpDebug(@Request() req: any) {
         return {
@@ -80,6 +81,7 @@ export class AuthController {
     }
 
     @Post('logout')
+    @SkipThrottle()
     @UseGuards(OptionalJwtAuthGuard)
     @HttpCode(200)
     @ApiOperation({ summary: 'User logout - clears HttpOnly cookie' })
@@ -96,8 +98,10 @@ export class AuthController {
         return res.json({ message: 'Logged out successfully' });
     }
 
+    // Needs a valid signed refresh cookie (not guessable), and callers share the office
+    // NAT IP here; a throttled refresh used to log users out.
     @Post('refresh')
-    @Throttle({ default: { limit: 30, ttl: 60000 } })
+    @SkipThrottle()
     @ApiOperation({ summary: 'Refresh access token' })
     @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
     async refresh(@Request() req: any, @Res() res: Response) {
@@ -122,6 +126,7 @@ export class AuthController {
     }
 
     @Get('csrf-token')
+    @SkipThrottle()
     @ApiOperation({ summary: 'Get CSRF token for state-changing requests' })
     @ApiResponse({ status: 200, description: 'CSRF token generated and set in cookie' })
     getCsrfToken(@Res() res: Response) {

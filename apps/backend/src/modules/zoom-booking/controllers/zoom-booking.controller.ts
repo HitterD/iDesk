@@ -26,7 +26,6 @@ import { extractClientIp } from '../../../shared/security/client-ip';
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PageAccessGuard)
 @PageAccess('zoom_calendar')
-@Throttle({ default: { limit: 60, ttl: 60000 } }) // 60 requests per minute
 @Controller('zoom-booking')
 export class ZoomBookingController {
     constructor(

@@ -207,7 +207,10 @@ api.interceptors.response.use(
                     return api(originalRequest);
                 } catch (refreshError) {
                     processQueue(refreshError as AxiosError);
-                    forceLogout();
+                    // A rate-limited refresh says nothing about the session; keep the user signed in.
+                    if ((refreshError as AxiosError).response?.status !== HTTP_TOO_MANY_REQUESTS) {
+                        forceLogout();
+                    }
                     return Promise.reject(refreshError);
                 } finally {
                     isRefreshing = false;
