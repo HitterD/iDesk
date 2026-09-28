@@ -34,6 +34,7 @@ export const STAFF_ROLES = [
 ];
 
 const COPIED_FEEDBACK_MS = 2000;
+const MENU_ABOVE_DIALOG_CLASS = 'z-[110]';
 
 const STATUS_PILL: Record<string, { label: string; className: string }> = {
     CONFIRMED: { label: 'Terkonfirmasi', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' },
@@ -188,7 +189,8 @@ export function MeetingDetailContent({ booking, TitleAs = 'h2', onReminder, onRe
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" variant="compact">
+                        {/* Above Dialog (z-[100]); the menu is portaled to <body>. */}
+                        <DropdownMenuContent align="end" variant="compact" className={MENU_ABOVE_DIALOG_CLASS}>
                             {onReschedule && (
                                 <DropdownMenuItem onSelect={onReschedule}>
                                     <CalendarClock /> Reschedule
