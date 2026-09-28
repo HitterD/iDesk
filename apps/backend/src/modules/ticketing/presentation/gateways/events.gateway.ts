@@ -23,6 +23,8 @@ import { isCrossSiteRole } from '../../utils/site-access.util';
 const ACCESS_COOKIE_NAME = 'access_token';
 /** Room for roles that see tickets from every site, so site-scoped ticket events still reach them. */
 export const TICKET_CROSS_SITE_ROOM = 'tickets:cross-site';
+/** Ticket room for everyone except requesters; internal notes are only pushed here. */
+export const ticketStaffRoom = (ticketId: string): string => `ticket:${ticketId}:staff`;
 
 /** Connections per resolved client IP per minute. Sized for NAT/proxy-shared IPs and multi-tab clients. */
 const MAX_CONNECTIONS_PER_WINDOW = 30;
@@ -272,6 +274,7 @@ export class EventsGateway
             }
         }
         client.join(`ticket:${ticketId}`);
+        if (role !== UserRole.USER) client.join(ticketStaffRoom(ticketId));
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
@@ -280,6 +283,7 @@ export class EventsGateway
     handleLeaveTicket(@ConnectedSocket() client: Socket, @MessageBody() ticketId: string) {
         if (!client.data.userId || !ticketId) return { status: 'error', message: 'Unauthorized' };
         client.leave(`ticket:${ticketId}`);
+        client.leave(ticketStaffRoom(ticketId));
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
@@ -302,7 +306,9 @@ export class EventsGateway
 
     // Notify about new message in a ticket
     notifyNewMessage(ticketId: string, message: any) {
-        this.server.to(`ticket:${ticketId}`).emit('ticket:newMessage', { ticketId, message });
+        // Internal notes are hidden from requesters over REST, so they must not be pushed to them either.
+        const room = message?.isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;
+        this.server.to(room).emit('ticket:newMessage', { ticketId, message });
         this.logger.log(`Emitted new message to ticket:${ticketId}`);
     }
 

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { useTicketSocket } from '@/hooks/useTicketSocket';
+import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
@@ -78,6 +78,8 @@ export const BentoTicketDetailPage: React.FC = () => {
             return res.data;
         },
         staleTime: 5000,
+        // Socket is the primary channel; poll only while it's down so replies still arrive.
+        refetchInterval: isConnected ? false : TICKET_OFFLINE_POLL_MS,
     });
 
     const isAdmin = user?.role === 'ADMIN';

@@ -1,4 +1,4 @@
-import { EventsGateway, TICKET_CROSS_SITE_ROOM, buildCorsOrigin } from './events.gateway';
+import { EventsGateway, TICKET_CROSS_SITE_ROOM, buildCorsOrigin, ticketStaffRoom } from './events.gateway';
 import { UserRole } from '../../../users/enums/user-role.enum';
 
 describe('EventsGateway security boundary', () => {
@@ -157,6 +157,29 @@ describe('EventsGateway presence', () => {
 
         expect(manager.join).toHaveBeenCalledWith(TICKET_CROSS_SITE_ROOM);
         expect(agent.join).not.toHaveBeenCalledWith(TICKET_CROSS_SITE_ROOM);
+    });
+
+    it('joins the staff room only for non-requester roles', async () => {
+        const TICKET_UUID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+        const owner = socket('socket-owner');
+        owner.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
+        const agent = socket('socket-agent');
+        agent.data = { userId: 'agent-1', role: UserRole.AGENT, siteId: 'site-1' };
+        tickets.findById.mockResolvedValue({ id: TICKET_UUID, userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
+
+        await gateway.handleJoinTicket(owner, TICKET_UUID);
+        await gateway.handleJoinTicket(agent, TICKET_UUID);
+
+        expect(owner.join).not.toHaveBeenCalledWith(ticketStaffRoom(TICKET_UUID));
+        expect(agent.join).toHaveBeenCalledWith(ticketStaffRoom(TICKET_UUID));
+    });
+
+    it('pushes internal notes to the staff room only', () => {
+        gateway.notifyNewMessage('t-1', { id: 'm-1', isInternal: true });
+        gateway.notifyNewMessage('t-1', { id: 'm-2', isInternal: false });
+
+        expect(gateway.server.to).toHaveBeenNthCalledWith(1, ticketStaffRoom('t-1'));
+        expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
     });
 
     it('emits ticket events to the site and cross-site rooms, never globally', () => {
