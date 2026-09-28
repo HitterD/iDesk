@@ -113,6 +113,40 @@ describe('TicketParticipantService', () => {
             );
         });
 
+        it('should link the added user to the ticket in their own portal', async () => {
+            ticketRepo.findOne.mockResolvedValue(mockTicket);
+            userRepo.findOne.mockResolvedValue({ id: 'creator-user-id', fullName: 'Budi Creator' });
+            userRepo.find.mockResolvedValue([
+                { id: 'colleague-id', fullName: 'Siti Rekan', isActive: true, role: UserRole.USER },
+                { id: 'agent-id', fullName: 'Agent Rekan', isActive: true, role: UserRole.AGENT },
+            ]);
+            participantRepo.find.mockResolvedValue([]);
+            participantRepo.findOne.mockResolvedValue(null);
+
+            await service.addParticipants('ticket-1', ['colleague-id', 'agent-id'], 'creator-user-id', UserRole.USER);
+
+            expect(notificationService.create).toHaveBeenCalledWith(
+                expect.objectContaining({ userId: 'colleague-id', ticketId: 'ticket-1', link: '/client/tickets/ticket-1' }),
+            );
+            expect(notificationService.create).toHaveBeenCalledWith(
+                expect.objectContaining({ userId: 'agent-id', ticketId: 'ticket-1', link: '/tickets/ticket-1' }),
+            );
+        });
+
+        it('should not notify an actor who adds themselves', async () => {
+            ticketRepo.findOne.mockResolvedValue(mockTicket);
+            userRepo.findOne.mockResolvedValue({ id: 'agent-2-id', fullName: 'Agent Support' });
+            userRepo.find.mockResolvedValue([
+                { id: 'agent-2-id', fullName: 'Agent Support', isActive: true, role: UserRole.AGENT },
+            ]);
+            participantRepo.find.mockResolvedValue([]);
+            participantRepo.findOne.mockResolvedValue(null);
+
+            await service.addParticipants('ticket-1', ['agent-2-id'], 'agent-2-id', UserRole.AGENT);
+
+            expect(notificationService.create).not.toHaveBeenCalled();
+        });
+
         it('should allow IT Support agent to add participants', async () => {
             ticketRepo.findOne.mockResolvedValue(mockTicket);
             userRepo.findOne.mockResolvedValue({ id: 'agent-2-id', fullName: 'Agent Support' });

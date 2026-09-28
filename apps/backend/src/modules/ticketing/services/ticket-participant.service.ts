@@ -17,6 +17,10 @@ import { NotificationService } from '../../notifications/notification.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { isOracleK2Category } from '../utils/oracle-ticket-access.util';
 
+/** Ticket detail path in the recipient's own portal; `/client` only admits USER. */
+export const ticketLinkFor = (role: UserRole | undefined, ticketId: string): string =>
+    role === UserRole.USER ? `/client/tickets/${ticketId}` : `/tickets/${ticketId}`;
+
 @Injectable()
 export class TicketParticipantService {
     private readonly logger = new Logger(TicketParticipantService.name);
@@ -187,7 +191,8 @@ export class TicketParticipantService {
                         type: NotificationType.TICKET_CREATED,
                         title: notifTitle,
                         message: `${actorName} mengundang Anda ke tiket #${ticket.ticketNumber || ticket.id.slice(0, 8)}: ${ticket.title}`,
-                        link: `/client/tickets/${ticket.id}`,
+                        ticketId: ticket.id,
+                        link: ticketLinkFor(addedUser.role, ticket.id),
                     });
                 }
             } catch (err) {
