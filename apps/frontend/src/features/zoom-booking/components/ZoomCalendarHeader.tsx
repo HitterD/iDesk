@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, startOfWeek, endOfWeek, setMonth, setYear, getYear } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, Plus, Search, X, LayoutGrid, UserCheck, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus, Search, X, LayoutGrid, UserCheck, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ModernCalendar } from '@/components/ui/ModernCalendar';
@@ -103,7 +103,7 @@ export function ZoomCalendarHeader({
 
     return (
         <div className={cn(
-            "flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 p-2.5 sm:p-3 bg-card border-b border-border select-none",
+            "flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 px-1 py-0.5 bg-transparent select-none",
             className
         )}>
             {/* LEFT: Navigation controls & Date display */}
@@ -113,17 +113,17 @@ export function ZoomCalendarHeader({
                         variant="outline"
                         size="sm"
                         onClick={onToday}
-                        className="h-8 px-2.5 sm:px-3 text-xs font-bold rounded-lg border-border/80 shadow-2xs hover:bg-muted"
+                        className="h-8 px-3.5 text-xs font-medium rounded-full border-border/80 hover:bg-muted"
                     >
                         Today
                     </Button>
 
-                    <div className="flex items-center border border-border/80 rounded-lg overflow-hidden bg-background shadow-2xs">
+                    <div className="flex items-center gap-0.5">
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onPrev}
-                            className="h-8 w-7 sm:w-8 rounded-none border-r border-border/60 hover:bg-muted"
+                            className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
                             aria-label="Previous"
                         >
                             <ChevronLeft className="h-4 w-4" />
@@ -132,7 +132,7 @@ export function ZoomCalendarHeader({
                             variant="ghost"
                             size="icon"
                             onClick={onNext}
-                            className="h-8 w-7 sm:w-8 rounded-none hover:bg-muted"
+                            className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
                             aria-label="Next"
                         >
                             <ChevronRight className="h-4 w-4" />
@@ -145,10 +145,10 @@ export function ZoomCalendarHeader({
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 flex items-center gap-1.5 text-xs sm:text-sm font-bold text-foreground px-2 hover:bg-muted rounded-lg"
+                            className="h-9 flex items-center gap-1.5 text-lg sm:text-xl font-semibold tracking-tight text-foreground px-2 hover:bg-muted rounded-xl"
                         >
-                            <CalendarDays className="h-4 w-4 text-primary shrink-0" />
-                            <span className="capitalize truncate max-w-[140px] sm:max-w-none">{title}</span>
+                                                        <span className="capitalize truncate max-w-[180px] sm:max-w-none">{title}</span>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-3 rounded-2xl shadow-xl border-border bg-card" align="start">
@@ -197,7 +197,7 @@ export function ZoomCalendarHeader({
                     <Button
                         onClick={onBookMeeting}
                         size="sm"
-                        className="h-8 gap-1 font-bold px-2.5 sm:hidden rounded-lg shadow-xs bg-primary text-primary-foreground hover:opacity-95 cursor-pointer ml-auto"
+                        className="h-8 gap-1 font-medium px-3 sm:hidden rounded-full bg-primary text-primary-foreground hover:opacity-95 cursor-pointer ml-auto"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         <span>Book</span>
@@ -218,7 +218,7 @@ export function ZoomCalendarHeader({
                             placeholder="Cari meeting…"
                             aria-label="Cari meeting"
                             data-testid="calendar-search-input"
-                            className="h-8 w-full sm:w-[150px] lg:w-[190px] pl-8 pr-7 text-xs bg-background border border-border/80 rounded-lg outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-muted-foreground shadow-2xs transition-all"
+                            className="h-8 w-full sm:w-[150px] lg:w-[200px] pl-8 pr-7 text-xs bg-muted border border-transparent rounded-full outline-none focus:bg-background focus:border-primary/40 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground transition-all"
                         />
                         {searchQuery && (
                             <button
@@ -234,14 +234,14 @@ export function ZoomCalendarHeader({
                 )}
 
                 {/* Unified Mode Switcher Tabs (Kalender Bulanan, Matriks Semua Akun, Bookingan Saya) */}
-                <div className="shrink-0 flex items-center gap-1 bg-muted/70 p-1 rounded-xl border border-border/70 shadow-inner">
+                <div className="shrink-0 flex items-center gap-0.5 bg-muted p-0.5 rounded-[10px]">
                     <button
                         type="button"
                         onClick={() => onModeChange ? onModeChange('calendar') : onViewChange('month')}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 sm:h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer outline-none",
+                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 text-xs font-medium rounded-lg transition-all cursor-pointer outline-none",
                             (activeMode === 'calendar' || (!activeMode && view === 'month'))
-                                ? "bg-background text-primary shadow-xs font-bold"
+                                ? "bg-background text-foreground shadow-sm"
                                 : "text-muted-foreground hover:text-foreground"
                         )}
                         data-testid="mode-calendar"
@@ -254,9 +254,9 @@ export function ZoomCalendarHeader({
                         type="button"
                         onClick={() => onModeChange ? onModeChange('matrix') : onViewChange('month')}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 sm:h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer outline-none",
+                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 text-xs font-medium rounded-lg transition-all cursor-pointer outline-none",
                             activeMode === 'matrix'
-                                ? "bg-background text-primary shadow-xs font-bold"
+                                ? "bg-background text-foreground shadow-sm"
                                 : "text-muted-foreground hover:text-foreground"
                         )}
                         data-testid="mode-matrix"
@@ -269,14 +269,14 @@ export function ZoomCalendarHeader({
                         type="button"
                         onClick={() => onModeChange ? onModeChange('my-bookings') : onViewChange('my-bookings')}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 sm:h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer outline-none",
+                            "flex items-center gap-1.5 px-2.5 sm:px-3 h-7 text-xs font-medium rounded-lg transition-all cursor-pointer outline-none",
                             (activeMode === 'my-bookings' || (!activeMode && view === 'my-bookings'))
-                                ? "bg-background text-primary shadow-xs font-bold"
+                                ? "bg-background text-foreground shadow-sm"
                                 : "text-muted-foreground hover:text-foreground"
                         )}
                         data-testid="mode-my-bookings"
                     >
-                        <UserCheck className="h-3.5 w-3.5 text-blue-500" />
+                        <UserCheck className="h-3.5 w-3.5" />
                         <span className="hidden md:inline">Bookingan Saya</span>
                         <span className="md:hidden">Saya</span>
                     </button>
@@ -289,8 +289,8 @@ export function ZoomCalendarHeader({
                         size="sm"
                         onClick={onToggleSidebar}
                         className={cn(
-                            "h-8 px-2.5 text-xs font-semibold border-border/80 rounded-lg shadow-2xs gap-1.5 transition-colors cursor-pointer shrink-0",
-                            isSidebarOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                            "h-8 px-2.5 text-xs font-medium border-transparent rounded-full gap-1.5 transition-colors cursor-pointer shrink-0",
+                            isSidebarOpen ? "bg-muted text-foreground" : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                         )}
                         title={isSidebarOpen ? "Sembunyikan Panel Samping" : "Tampilkan Panel Samping"}
                         aria-label="Toggle sidebar"
@@ -306,7 +306,7 @@ export function ZoomCalendarHeader({
                     <Button
                         onClick={onBookMeeting}
                         size="sm"
-                        className="h-8 gap-1.5 font-bold px-3 rounded-lg shadow-sm bg-primary text-primary-foreground hover:opacity-95 cursor-pointer hidden sm:inline-flex shrink-0"
+                        className="h-8 gap-1.5 font-medium px-4 rounded-full bg-primary text-primary-foreground hover:opacity-95 cursor-pointer hidden sm:inline-flex shrink-0"
                     >
                         <Plus className="h-4 w-4" />
                         <span>Book Meeting</span>

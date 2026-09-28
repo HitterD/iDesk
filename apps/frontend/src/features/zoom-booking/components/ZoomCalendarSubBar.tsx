@@ -17,9 +17,9 @@ export interface ZoomCalendarSubBarProps {
     accountScope: AccountScope;
     /** Account name currently displayed (auto-picked when in Gabungan) */
     activeAccountName: string;
-    /** Color for the active account chip */
+    /** @deprecated the chips carry each account color; kept for API compatibility */
     activeAccountColor?: string;
-    /** Whether to show the auto-pick hint next to the indicator */
+    /** @deprecated kept for API compatibility */
     showAutoPickHint?: boolean;
     isLive: boolean;
     lastSyncAt: Date | null;
@@ -36,11 +36,14 @@ export interface ZoomCalendarSubBarProps {
     onSoloAccountFilter?: (accountId: string) => void;
 }
 
+const PILL_BASE =
+    'inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer outline-none shrink-0 focus-visible:ring-2 focus-visible:ring-primary/40';
+const PILL_SELECTED = 'bg-foreground text-background';
+const PILL_IDLE = 'text-muted-foreground hover:bg-muted hover:text-foreground';
+
 export function ZoomCalendarSubBar({
     accountScope,
     activeAccountName,
-    activeAccountColor = '#3b82f6',
-    showAutoPickHint = false,
     isLive,
     lastSyncAt,
     onOpenShortcuts,
@@ -65,190 +68,149 @@ export function ZoomCalendarSubBar({
         <div
             data-testid="zoom-subbar"
             className={cn(
-                'h-10 flex items-center justify-between px-3 sm:px-4 bg-card/80 backdrop-blur-xs border-b border-border/70 select-none text-xs gap-2 overflow-hidden',
+                'h-11 flex items-center justify-between px-3 sm:px-4 bg-background select-none text-xs gap-3 overflow-hidden',
                 className
             )}
         >
-            {/* LEFT: Account / Scope Status & Interactive Filter Chips */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 overflow-hidden">
+            {/* LEFT: scope + neutral account pills (no per-account colors) */}
+            <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
                 {isGabungan ? (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        <div
-                            data-testid="gabungan-indicator"
-                            className="flex items-center gap-1.5 font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20 shrink-0 shadow-2xs"
-                        >
-                            <Globe className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span className="hidden sm:inline">Mode Gabungan</span>
-                            <span className="sm:hidden">Gabungan</span>
-                            <span className="sr-only" data-testid="gabungan-active-chip">{activeAccountName}</span>
-                        </div>
-
-                        {/* Reset Filter Button if any account unselected */}
-                        {isFiltering && onSelectAllAccounts && (
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={onSelectAllAccounts}
-                                className="h-7 px-2 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-lg gap-1 shrink-0"
-                                title="Reset filter: Tampilkan semua akun"
-                            >
-                                <RotateCcw className="h-3 w-3" />
-                                <span>Reset ({activeFilterAccountIds?.size}/{accounts.length})</span>
-                            </Button>
-                        )}
+                    <div
+                        data-testid="gabungan-indicator"
+                        className={cn(PILL_BASE, PILL_SELECTED, 'cursor-default')}
+                        title="Menampilkan meeting dari semua akun Zoom"
+                    >
+                        <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Semua akun</span>
+                        <span className="sr-only">Mode Gabungan</span>
+                        <span className="sr-only" data-testid="gabungan-active-chip">{activeAccountName}</span>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        <div className="flex items-center gap-1.5 font-bold text-foreground bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/25 shadow-2xs">
-                            <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
-                                style={{ backgroundColor: activeAccountColor }}
-                                aria-hidden="true"
-                            />
-                            <span className="truncate max-w-[160px] text-primary">{activeAccountName}</span>
-                        </div>
-
-                        {/* Quick button to switch back to Gabungan */}
-                        {onSelectAccount && (
-                            <button
-                                type="button"
-                                onClick={() => onSelectAccount('gabungan')}
-                                className="h-7 px-2.5 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border/80 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                                title="Beralih kembali ke Mode Gabungan (Semua Akun)"
-                            >
-                                <Globe className="h-3 w-3 text-primary" />
-                                <span>Ke Mode Gabungan</span>
-                            </button>
-                        )}
-                    </div>
+                    onSelectAccount && (
+                        <button
+                            type="button"
+                            onClick={() => onSelectAccount('gabungan')}
+                            className={cn(PILL_BASE, PILL_IDLE)}
+                            title="Kembali ke semua akun"
+                            aria-label="Ke Mode Gabungan"
+                        >
+                            <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Semua akun</span>
+                        </button>
+                    )
                 )}
 
-                {/* Horizontal Scrollable Account Chips */}
+                {isFiltering && onSelectAllAccounts && (
+                    <button
+                        type="button"
+                        onClick={onSelectAllAccounts}
+                        className={cn(PILL_BASE, 'text-primary hover:bg-primary/10')}
+                        title="Tampilkan lagi semua akun"
+                    >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Reset ({activeFilterAccountIds?.size}/{accounts.length})</span>
+                    </button>
+                )}
+
                 {accounts.length > 0 && (
-                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 min-w-0 flex-1 border-l border-border/50 pl-2">
-                        {accounts.map((acc) => {
-                            const isSingleActive = !isGabungan && accountScope === acc.id;
-                            const isMultiActive = isGabungan && (activeFilterAccountIds ? activeFilterAccountIds.has(acc.id) : true);
-                            const isActive = isGabungan ? isMultiActive : isSingleActive;
-                            const count = acc.meetingsCount ?? 0;
+                    <>
+                        <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 flex-1 py-1">
+                            {accounts.map((acc) => {
+                                const isActive = isGabungan
+                                    ? (activeFilterAccountIds ? activeFilterAccountIds.has(acc.id) : true)
+                                    : accountScope === acc.id;
+                                // In Gabungan every account starts "on"; only highlight once the user narrows the filter.
+                                const highlight = isGabungan ? isFiltering && isActive : isActive;
+                                const dimmed = isGabungan && !isActive;
+                                const count = acc.meetingsCount ?? 0;
 
-                            return (
-                                <div
-                                    key={acc.id}
-                                    className={cn(
-                                        "group/chip inline-flex items-center rounded-lg text-[11px] font-semibold transition-all shrink-0 border select-none",
-                                        isActive
-                                            ? "bg-background text-foreground border-border/90 shadow-2xs hover:border-primary/50"
-                                            : "bg-muted/40 text-muted-foreground/60 border-border/40 hover:bg-muted hover:text-foreground opacity-60"
-                                    )}
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (isGabungan && onToggleAccountFilter) {
-                                                onToggleAccountFilter(acc.id);
-                                            } else if (!isGabungan && onSelectAccount) {
-                                                onSelectAccount(acc.id);
-                                            }
-                                        }}
-                                        className="inline-flex items-center gap-1.5 px-2 py-1 cursor-pointer outline-none"
-                                        title={
-                                            isGabungan
-                                                ? `Klik untuk ${isActive ? 'sembunyikan' : 'tampilkan'} ${acc.name} (${count} meeting)`
-                                                : `Pilih akun ${acc.name} (${count} meeting)`
-                                        }
-                                    >
-                                        <span
-                                            className={cn(
-                                                "w-2 h-2 rounded-full shrink-0 transition-transform",
-                                                isActive ? "scale-100 shadow-2xs" : "scale-75 opacity-40"
-                                            )}
-                                            style={{ backgroundColor: acc.colorHex }}
-                                            aria-hidden="true"
-                                        />
-                                        <span className={cn("truncate max-w-[90px]", isActive ? "font-bold text-foreground" : "line-through opacity-75")}>
-                                            {acc.name}
-                                        </span>
-                                        <span
-                                            className={cn(
-                                                "text-[10px] font-mono px-1 rounded-full",
-                                                isActive
-                                                    ? count > 0 ? "bg-muted text-foreground font-bold" : "text-muted-foreground/60"
-                                                    : "text-muted-foreground/40"
-                                            )}
-                                        >
-                                            {count}
-                                        </span>
-                                    </button>
-
-                                    {/* Solo Focus button on hover (Mode Gabungan only) */}
-                                    {isGabungan && (onSoloAccountFilter || onSelectAccount) && (
+                                return (
+                                    <div key={acc.id} className="group/chip relative shrink-0">
                                         <button
                                             type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (onSoloAccountFilter) {
-                                                    onSoloAccountFilter(acc.id);
-                                                } else if (onSelectAccount) {
+                                            onClick={() => {
+                                                if (isGabungan && onToggleAccountFilter) {
+                                                    onToggleAccountFilter(acc.id);
+                                                } else if (!isGabungan && onSelectAccount) {
                                                     onSelectAccount(acc.id);
                                                 }
                                             }}
-                                            className="opacity-0 group-hover/chip:opacity-100 px-1 py-1 text-muted-foreground hover:text-primary transition-opacity cursor-pointer mr-1"
-                                            title={`Hanya tampilkan ${acc.name} (Solo)`}
-                                            aria-label={`Solo ${acc.name}`}
+                                            aria-pressed={isActive}
+                                            className={cn(
+                                                PILL_BASE,
+                                                highlight ? 'bg-primary/10 text-primary' : PILL_IDLE,
+                                                dimmed && 'opacity-45 line-through',
+                                            )}
+                                            title={
+                                                isGabungan
+                                                    ? `Klik untuk ${isActive ? 'sembunyikan' : 'tampilkan'} ${acc.name} (${count} meeting)`
+                                                    : `Pilih akun ${acc.name} (${count} meeting)`
+                                            }
                                         >
-                                            <Eye className="h-3 w-3" />
+                                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: acc.colorHex }} aria-hidden="true" />
+                                            <span className="truncate max-w-[110px]">{acc.name}</span>
+                                            <span className="tabular-nums opacity-60">{count}</span>
                                         </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+
+                                        {isGabungan && (onSoloAccountFilter || onSelectAccount) && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (onSoloAccountFilter) {
+                                                        onSoloAccountFilter(acc.id);
+                                                    } else if (onSelectAccount) {
+                                                        onSelectAccount(acc.id);
+                                                    }
+                                                }}
+                                                className="absolute -top-1 -right-0.5 hidden group-hover/chip:flex h-4 w-4 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-primary cursor-pointer"
+                                                title={`Hanya tampilkan ${acc.name}`}
+                                                aria-label={`Solo ${acc.name}`}
+                                            >
+                                                <Eye className="h-2.5 w-2.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
                 )}
             </div>
 
-            {/* RIGHT: Sync Connection & Action Icons */}
-            <div className="flex items-center gap-1.5 shrink-0 pl-1">
-                {/* Live Socket Status */}
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-background border border-border/70 shadow-2xs">
+            {/* RIGHT: sync state + icon buttons */}
+            <div className="flex items-center gap-1 shrink-0">
+                <span
+                    className="flex items-center gap-1.5 px-2 text-[11px] text-muted-foreground"
+                    title={lastSyncAt?.toLocaleString()}
+                >
                     <span
-                        className={cn(
-                            'w-2 h-2 rounded-full shrink-0',
-                            isLive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-                        )}
+                        className={cn('h-1.5 w-1.5 rounded-full shrink-0', isLive ? 'bg-emerald-500' : 'bg-muted-foreground/50')}
                         aria-hidden="true"
                     />
-                    <span
-                        className={isLive ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-muted-foreground'}
-                        title={lastSyncAt?.toLocaleString()}
-                    >
-                        {isLive ? (lastSyncAt ? `Live · ${formatDistanceToNow(lastSyncAt, { locale: idLocale, addSuffix: true })}` : 'Live') : 'Offline'}
-                    </span>
-                </div>
-
-                {/* Shortcuts & Settings Buttons */}
-                <div className="flex items-center gap-0.5">
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                        onClick={onOpenShortcuts}
-                        aria-label="Keyboard shortcuts"
-                        title="Keyboard Shortcuts (?)"
-                    >
-                        <Keyboard className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                        onClick={onOpenSettings}
-                        aria-label="Settings"
-                        title="Pengaturan Zoom"
-                    >
-                        <Settings className="h-3.5 w-3.5" />
-                    </Button>
-                </div>
+                    {isLive ? (lastSyncAt ? `Live · ${formatDistanceToNow(lastSyncAt, { locale: idLocale, addSuffix: true })}` : 'Live') : 'Offline'}
+                </span>
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-foreground"
+                    onClick={onOpenShortcuts}
+                    aria-label="Keyboard shortcuts"
+                    title="Keyboard Shortcuts (?)"
+                >
+                    <Keyboard className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-foreground"
+                    onClick={onOpenSettings}
+                    aria-label="Settings"
+                    title="Pengaturan Zoom"
+                >
+                    <Settings className="h-3.5 w-3.5" />
+                </Button>
             </div>
         </div>
     );

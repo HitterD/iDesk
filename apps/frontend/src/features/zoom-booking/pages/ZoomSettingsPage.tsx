@@ -40,12 +40,10 @@ import { ZoomBookingsTableSkeleton } from '../components/ZoomSkeletons';
 import { BlockedDatesPicker } from '../components/BlockedDatesPicker';
 import { ZoomAuditLogsViewer } from '../components/ZoomAuditLogsViewer';
 import type { ZoomAccount, ZoomSettings as ZoomSettingsType, ZoomBooking } from '../types';
+import { ACCOUNT_PALETTE } from '../utils/accountColors';
 
 // Color palette for accounts (Executive Zero-Purple Palette)
-const COLOR_PALETTE = [
-    '#2563EB', '#0D9488', '#D97706', '#0284C7', '#059669',
-    '#EA580C', '#475569', '#15803D', '#B45309', '#1E40AF',
-];
+const COLOR_PALETTE: readonly string[] = ACCOUNT_PALETTE;
 
 export function ZoomSettingsPage() {
     const [editingAccount, setEditingAccount] = useState<ZoomAccount | null>(null);

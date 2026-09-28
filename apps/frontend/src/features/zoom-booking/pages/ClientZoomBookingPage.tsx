@@ -164,13 +164,13 @@ export function ClientZoomBookingPage() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-6">
+            <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-start lg:gap-5">
                 {/* Form Section: Shown on desktop when isFormVisible, or mobile when mobileTab === 'form' */}
                 <section
                     id="booking-form-section"
                     aria-labelledby="booking-form-heading"
                     className={cn(
-                        "rounded-2xl bg-card p-5 shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50 lg:sticky lg:top-6 lg:col-span-4 xl:col-span-3.5 2xl:col-span-3",
+                        "rounded-2xl bg-card p-5 shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50 lg:sticky lg:top-6 lg:w-[320px] xl:w-[340px] lg:shrink-0",
                         mobileTab === 'form' ? 'block' : 'hidden',
                         isFormVisible ? 'lg:block' : 'lg:hidden'
                     )}
@@ -216,10 +216,7 @@ export function ClientZoomBookingPage() {
                 <section
                     aria-label="Daftar meeting saya"
                     className={cn(
-                        "min-h-[540px] lg:min-h-[660px] flex-col overflow-hidden rounded-2xl bg-card shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50",
-                        isFormVisible
-                            ? "lg:col-span-8 xl:col-span-8.5 2xl:col-span-9"
-                            : "lg:col-span-12",
+                        "min-h-[540px] lg:min-h-[660px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50",
                         mobileTab === 'bookings' ? 'flex' : 'hidden lg:flex'
                     )}
                 >

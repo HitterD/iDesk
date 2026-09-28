@@ -30,19 +30,19 @@ export function ZoomCalendarShell({
     return (
         <div className={cn('flex flex-col h-full min-h-0', className)}>
             {/* Header (48px) */}
-            <div className="shrink-0 px-4 py-3 border-b border-slate-200/80 dark:border-slate-700/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm z-20">
+            <div className="shrink-0 px-3 sm:px-4 pt-3 pb-1 bg-background z-20">
                 {header}
             </div>
 
-            {/* Sub-bar (36px) — new in 3-zone layout */}
-            {subBar && useThreeZone && (
-                <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 z-10">
+            {/* Sub-bar — new in 3-zone layout */}
+            {subBar && (
+                <div className="shrink-0 border-b border-border/60 bg-background z-10">
                     {subBar}
                 </div>
             )}
 
             {/* Top strip — legacy mode only */}
-            {topStrip && !useThreeZone && (
+            {topStrip && !useThreeZone && !subBar && (
                 <div className="shrink-0 border-b border-[hsl(var(--border))] z-10 w-full relative">
                     {topStrip}
                 </div>

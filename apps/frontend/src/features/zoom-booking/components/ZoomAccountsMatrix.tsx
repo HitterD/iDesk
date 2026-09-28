@@ -1,7 +1,8 @@
-import { useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, getDay, parseISO } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Plus, Search, Filter, Calendar, Clock, X, Video, ExternalLink, Sparkles, UserCheck, ArrowRight } from 'lucide-react';
+import { Plus, Search, X, Video, ChevronRight, CalendarCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ZoomAccount } from '../types';
@@ -52,7 +53,34 @@ interface ZoomAccountsMatrixProps {
     canBook?: boolean;
 }
 
+type MatrixFilter = 'all' | 'active' | 'mine';
+
+const FILTER_OPTIONS: { key: MatrixFilter; label: string }[] = [
+    { key: 'all', label: 'Semua' },
+    { key: 'active', label: 'Ada jadwal' },
+    { key: 'mine', label: 'Punya saya' },
+];
+
 const WEEKDAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+const LABEL_WIDTH = 152;
+/** Day columns stretch to fill the width; below this they scroll horizontally. */
+const MIN_DAY_COL_WIDTH = 38;
+/** Rows stretch to fill the visible height but never shrink below this. */
+const ROW_MIN_HEIGHT = 36;
+const HEADER_HEIGHT = 44;
+const PILL_HEIGHT = 18;
+const PILL_GAP = 2;
+const CELL_PAD_Y = 2;
+const OVERFLOW_LINE_HEIGHT = 10;
+
+/** How many pills fit in a cell of the given height, reserving a "+N" line when needed. */
+export function visiblePillCount(rowHeight: number, total: number): number {
+    const usable = rowHeight - CELL_PAD_Y * 2 + PILL_GAP;
+    const capacity = Math.max(1, Math.floor(usable / (PILL_HEIGHT + PILL_GAP)));
+    if (total <= capacity) return total;
+    return Math.max(1, Math.floor((usable - OVERFLOW_LINE_HEIGHT) / (PILL_HEIGHT + PILL_GAP)));
+}
+const FALLBACK_COLOR = '#8E8E93';
 
 export function ZoomAccountsMatrix({
     currentDate,
@@ -69,17 +97,26 @@ export function ZoomAccountsMatrix({
     const { data: zoomSettings } = useZoomSettings();
     const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
 
-    // Search and filter states
     const [accountSearch, setAccountSearch] = useState('');
-    const [filterOnlyActive, setFilterOnlyActive] = useState(false);
-    const [filterOnlyMyBookings, setFilterOnlyMyBookings] = useState(false);
+    const [filter, setFilter] = useState<MatrixFilter>('all');
+    const onlyMine = filter === 'mine';
 
-    // Crosshair hover & active cell popover
     const [hovered, setHovered] = useState<{ accountId: string; date: string } | null>(null);
-    const [selectedCell, setSelectedCell] = useState<{ accountId: string; date: string; alignRight?: boolean; alignTop?: boolean } | null>(null);
+    const [selectedCell, setSelectedCell] = useState<{ accountId: string; date: string; anchor: HTMLElement } | null>(null);
+
+    // Track the grid viewport so rows can fill it top to bottom.
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const [viewportHeight, setViewportHeight] = useState(0);
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(([entry]) => setViewportHeight(entry.contentRect.height));
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     // Build matrix data: accountId -> date -> bookings[]
-    const { matrix, dailyTotals, accountTotals, myAccountTotals, myTotalMeetings, maxAccountMeetings } = useMemo(() => {
+    const { matrix, dailyTotals, accountTotals, myAccountTotals, myTotalMeetings } = useMemo(() => {
         const map = new Map<string, Map<string, AccountDayBooking[]>>();
         const dTotals = new Map<string, number>();
         const aTotals = new Map<string, number>();
@@ -93,15 +130,11 @@ export function ZoomAccountsMatrix({
         }
 
         for (const day of mergedDays) {
-            let dayCount = 0;
             const seenInDay = new Set<string>();
 
             for (const slot of day.slots) {
                 for (const b of slot.bookings) {
-                    if (!seenInDay.has(b.id)) {
-                        seenInDay.add(b.id);
-                        dayCount++;
-                    }
+                    seenInDay.add(b.id);
 
                     if (!map.has(b.zoomAccountId)) {
                         map.set(b.zoomAccountId, new Map());
@@ -134,19 +167,13 @@ export function ZoomAccountsMatrix({
                     }
                 }
             }
-            dTotals.set(day.date, dayCount);
+            dTotals.set(day.date, seenInDay.size);
         }
 
-        // Sort bookings by start time
         for (const byDate of map.values()) {
             for (const list of byDate.values()) {
                 list.sort((a, b) => a.startTime.localeCompare(b.startTime));
             }
-        }
-
-        let maxMtgs = 1;
-        for (const count of aTotals.values()) {
-            if (count > maxMtgs) maxMtgs = count;
         }
 
         return {
@@ -155,355 +182,246 @@ export function ZoomAccountsMatrix({
             accountTotals: aTotals,
             myAccountTotals: myTotals,
             myTotalMeetings: myTotalCount,
-            maxAccountMeetings: maxMtgs,
         };
     }, [mergedDays, accounts]);
 
-    // Filter accounts based on search and active toggle (all accounts remain visible during personal bookings filter)
     const filteredAccounts = useMemo(() => {
+        const q = accountSearch.trim().toLowerCase();
         return accounts.filter((acc) => {
-            const matchesSearch = acc.name.toLowerCase().includes(accountSearch.trim().toLowerCase());
-            const total = accountTotals.get(acc.id) ?? 0;
-            const matchesActive = !filterOnlyActive || total > 0;
+            const matchesSearch = acc.name.toLowerCase().includes(q);
+            const matchesActive = filter !== 'active' || (accountTotals.get(acc.id) ?? 0) > 0;
             return matchesSearch && matchesActive;
         });
-    }, [accounts, accountSearch, filterOnlyActive, accountTotals]);
+    }, [accounts, accountSearch, filter, accountTotals]);
 
     const totalMonthMeetings = useMemo(() => {
         let sum = 0;
-        for (const count of accountTotals.values()) {
-            sum += count;
-        }
+        for (const count of accountTotals.values()) sum += count;
         return sum;
     }, [accountTotals]);
 
-    const DAY_COL_WIDTH = 48; // px, expansive & legible with sidebar collapsed
-    const LABEL_WIDTH = 160;  // px, accommodates account dot, name & monthly badges
+    const gridTemplateColumns = `${LABEL_WIDTH}px repeat(${days.length}, minmax(${MIN_DAY_COL_WIDTH}px, 1fr))`;
 
-    // Active selected cell details for popover
+    const visibleBookings = (accountId: string, dateStr: string): AccountDayBooking[] => {
+        const all = matrix.get(accountId)?.get(dateStr) ?? [];
+        return onlyMine ? all.filter((b) => b.isMyBooking) : all;
+    };
+
     const activePopoverData = useMemo(() => {
         if (!selectedCell) return null;
         const account = accounts.find((a) => a.id === selectedCell.accountId);
-        const byDate = matrix.get(selectedCell.accountId);
-        const rawBookings = byDate?.get(selectedCell.date) ?? [];
-        const bookings: AccountDayBooking[] = filterOnlyMyBookings
-            ? rawBookings.filter((b: AccountDayBooking) => b.isMyBooking)
-            : rawBookings;
+        const all = matrix.get(selectedCell.accountId)?.get(selectedCell.date) ?? [];
         return {
             account,
             date: selectedCell.date,
-            bookings,
-            alignRight: selectedCell.alignRight,
-            alignTop: selectedCell.alignTop,
+            bookings: onlyMine ? all.filter((b) => b.isMyBooking) : all,
         };
-    }, [selectedCell, accounts, matrix, filterOnlyMyBookings]);
+    }, [selectedCell, accounts, matrix, onlyMine]);
+
+    const rowCount = filteredAccounts.length;
+    // Each row carries a 1px bottom border.
+    const rowHeight = rowCount > 0
+        ? Math.max(ROW_MIN_HEIGHT, Math.floor((viewportHeight - HEADER_HEIGHT - rowCount) / rowCount))
+        : ROW_MIN_HEIGHT;
+
+    const resetFilters = () => {
+        setFilter('all');
+        setAccountSearch('');
+    };
+
+    const toggleCell = (accountId: string, date: string, anchor: HTMLElement) => {
+        setSelectedCell((prev) =>
+            prev?.accountId === accountId && prev?.date === date ? null : { accountId, date, anchor },
+        );
+    };
 
     return (
-        <div className="h-full flex flex-col bg-background select-none overflow-hidden">
-            {/* 1. Control & Filter Toolbar */}
-            <div className="shrink-0 px-4 py-2.5 border-b border-border bg-card/70 backdrop-blur-sm flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2 flex-1 sm:flex-initial min-w-[200px]">
-                    <div className="relative w-full sm:w-56">
-                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                        <input
-                            type="text"
-                            value={accountSearch}
-                            onChange={(e) => setAccountSearch(e.target.value)}
-                            placeholder="Cari akun Zoom..."
-                            className="w-full h-7 pl-8 pr-7 text-xs bg-background border border-border/80 rounded-lg outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-muted-foreground shadow-2xs"
-                        />
-                        {accountSearch && (
+        <div className="h-full flex-1 min-h-0 flex flex-col bg-background select-none overflow-hidden">
+            {/* 1. Toolbar: search · segmented filter · quiet summary */}
+            <div className="shrink-0 px-3 py-2 border-b border-border/60 flex flex-wrap items-center gap-2.5 text-xs">
+                <div className="relative w-full sm:w-52">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    <input
+                        type="text"
+                        value={accountSearch}
+                        onChange={(e) => setAccountSearch(e.target.value)}
+                        placeholder="Cari akun"
+                        aria-label="Cari akun Zoom"
+                        className="w-full h-7 pl-8 pr-7 text-xs bg-muted/70 rounded-full outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+                    />
+                    {accountSearch && (
+                        <button
+                            type="button"
+                            onClick={() => setAccountSearch('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                            aria-label="Hapus pencarian"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
+                    )}
+                </div>
+
+                <div role="radiogroup" aria-label="Filter matriks" className="flex items-center bg-muted p-0.5 rounded-[10px]">
+                    {FILTER_OPTIONS.map((opt) => {
+                        const active = filter === opt.key;
+                        return (
                             <button
+                                key={opt.key}
                                 type="button"
-                                onClick={() => setAccountSearch('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        )}
-                    </div>
-
-                    <Button
-                        type="button"
-                        variant={filterOnlyActive ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setFilterOnlyActive(!filterOnlyActive)}
-                        className={cn(
-                            "h-7 px-2.5 text-xs font-bold rounded-lg gap-1.5 transition-all shadow-2xs cursor-pointer",
-                            filterOnlyActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground border-border/80"
-                        )}
-                    >
-                        <Filter className="w-3 h-3" />
-                        <span>Hanya Ada Jadwal</span>
-                    </Button>
-
-                    <Button
-                        type="button"
-                        variant={filterOnlyMyBookings ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setFilterOnlyMyBookings(!filterOnlyMyBookings)}
-                        className={cn(
-                            "h-7 px-2.5 text-xs font-bold rounded-lg gap-1.5 transition-all shadow-2xs cursor-pointer",
-                            filterOnlyMyBookings
-                                ? "bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-400/30"
-                                : "text-muted-foreground hover:text-foreground border-border/80"
-                        )}
-                        title="Hanya tampilkan jadwal meeting milik Anda (seluruh 10 akun tetap ditampilkan)"
-                    >
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>Hanya Meeting Saya</span>
-                        {myTotalMeetings > 0 && (
-                            <span
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => setFilter(opt.key)}
                                 className={cn(
-                                    "ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold",
-                                    filterOnlyMyBookings ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
+                                    'h-6 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer',
+                                    active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
                                 )}
                             >
-                                {myTotalMeetings}
-                            </span>
-                        )}
-                    </Button>
+                                {opt.label}
+                                {opt.key === 'mine' && myTotalMeetings > 0 && (
+                                    <span className="ml-1 tabular-nums text-muted-foreground">{myTotalMeetings}</span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
 
-                <div className="flex items-center gap-3 text-xs">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border/70 text-muted-foreground font-medium">
-                        <span>Menampilkan:</span>
-                        <strong className="text-foreground font-bold">{filteredAccounts.length}/{accounts.length} Akun</strong>
-                        <span>·</span>
-                        <strong className={cn("font-bold", filterOnlyMyBookings ? "text-blue-600 dark:text-blue-400" : "text-primary")}>
-                            {filterOnlyMyBookings
-                                ? `${myTotalMeetings} Meeting Saya (dari ${totalMonthMeetings} Total)`
-                                : `${totalMonthMeetings} Meeting Bulan Ini`}
-                        </strong>
-                    </div>
-
-                    <div className="hidden md:flex items-center gap-2 text-[11px] text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-xs bg-primary" />
-                            <span>Meeting</span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-xs bg-primary ring-2 ring-primary/40 ring-offset-1" />
-                            <span>Meeting Saya</span>
-                        </span>
-                    </div>
-                </div>
+                <span className="ml-auto text-muted-foreground tabular-nums">
+                    {filteredAccounts.length} dari {accounts.length} akun ·{' '}
+                    {onlyMine ? `${myTotalMeetings} meeting Anda` : `${totalMonthMeetings} meeting bulan ini`}
+                </span>
             </div>
 
-            {/* 2. Scrollable Matrix Grid */}
-            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar relative">
-                <div style={{ minWidth: LABEL_WIDTH + days.length * DAY_COL_WIDTH }}>
-                    {/* Header Row: Month / Account & Day Columns */}
-                    <div className="sticky top-0 z-30 flex bg-card border-b border-border shadow-xs">
-                        {/* Top Left Header Cell */}
-                        <div
-                            className="shrink-0 sticky left-0 z-40 bg-card border-r border-border px-2.5 py-2 flex flex-col justify-center shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] dark:shadow-none"
-                            style={{ width: LABEL_WIDTH }}
-                        >
-                            <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                                Akun Zoom
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                                {format(currentDate, 'MMMM yyyy', { locale: idLocale })}
-                            </span>
+            {/* 2. Grid — columns stretch to fit the month, scroll only when too narrow */}
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto custom-scrollbar relative">
+                <div style={{ minWidth: LABEL_WIDTH + days.length * MIN_DAY_COL_WIDTH }}>
+                    {/* Header row */}
+                    <div className="sticky top-0 z-30 grid bg-background/95 backdrop-blur border-b border-border/60" style={{ gridTemplateColumns, height: HEADER_HEIGHT }}>
+                        <div className="sticky left-0 z-40 bg-background px-3 flex items-end pb-1.5 border-r border-border/60">
+                            <span className="text-[11px] font-medium text-muted-foreground">Akun</span>
                         </div>
 
-                        {/* Day Column Headers */}
-                        {days.map((d, dayIdx) => {
+                        {days.map((d) => {
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            const weekend = !isWorkingDay(d, workingDays);
+                            const offDay = !isWorkingDay(d, workingDays);
                             const today = isToday(d);
-                            const isColHovered = hovered?.date === dateStr;
                             const dailyCount = dailyTotals.get(dateStr) ?? 0;
 
                             return (
                                 <div
-                                    key={d.toISOString()}
+                                    key={dateStr}
+                                    data-testid={`matrix-day-${dateStr}`}
+                                    title={`${format(d, 'EEEE, d MMMM', { locale: idLocale })} · ${dailyCount} meeting`}
                                     className={cn(
-                                        'shrink-0 flex flex-col items-center justify-between py-1.5 border-r border-border/60 transition-colors',
-                                        weekend ? 'bg-muted/40' : 'bg-card',
-                                        isColHovered && 'bg-primary/10',
-                                        today && 'border-primary/40'
+                                        'flex flex-col items-center py-1 transition-colors',
+                                        offDay && 'bg-muted/50',
+                                        hovered?.date === dateStr && 'bg-muted',
+                                        today && 'bg-primary/[0.07] dark:bg-primary/10',
                                     )}
-                                    style={{ width: DAY_COL_WIDTH }}
                                 >
-                                    <span className={cn(
-                                        'text-[10px] uppercase font-bold leading-none',
-                                        weekend ? 'text-muted-foreground/50' : 'text-muted-foreground',
-                                        isColHovered && 'text-primary'
-                                    )}>
+                                    <span className={cn('text-[9px] font-medium leading-tight', offDay ? 'text-muted-foreground/60' : 'text-muted-foreground')}>
                                         {WEEKDAY_LABELS[(getDay(d) + 6) % 7]}
                                     </span>
-
-                                    <span className={cn(
-                                        'text-xs font-extrabold leading-tight my-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full transition-all',
-                                        today
-                                            ? 'bg-primary text-primary-foreground shadow-xs'
-                                            : isColHovered
-                                                ? 'bg-primary/20 text-primary font-black'
-                                                : weekend
+                                    <span
+                                        className={cn(
+                                            'inline-flex items-center justify-center w-5 h-5 rounded-full text-xs tabular-nums',
+                                            today
+                                                ? 'bg-primary text-primary-foreground font-semibold'
+                                                : offDay
                                                     ? 'text-muted-foreground/60'
-                                                    : 'text-foreground'
-                                    )}>
+                                                    : 'text-foreground font-medium',
+                                        )}
+                                    >
                                         {format(d, 'd')}
-                                    </span>
-
-                                    {/* Daily Load Count Badge */}
-                                    <span className={cn(
-                                        'text-[9px] font-mono font-bold px-1 rounded-sm transition-all',
-                                        dailyCount > 0
-                                            ? 'bg-primary/15 text-primary border border-primary/20'
-                                            : 'text-muted-foreground/30'
-                                    )}>
-                                        {dailyCount > 0 ? dailyCount : '-'}
                                     </span>
                                 </div>
                             );
                         })}
                     </div>
 
-                    {/* Account Rows */}
-                    {filteredAccounts.map((account, accIdx) => {
-                        const byDate = matrix.get(account.id);
-                        const totalAccountMeetings = accountTotals.get(account.id) ?? 0;
-                        const myAccountMeetings = myAccountTotals.get(account.id) ?? 0;
+                    {/* Account rows */}
+                    {filteredAccounts.map((account) => {
+                        const color = account.colorHex || FALLBACK_COLOR;
+                        const accountCount = onlyMine ? myAccountTotals.get(account.id) ?? 0 : accountTotals.get(account.id) ?? 0;
                         const isRowHovered = hovered?.accountId === account.id;
 
                         return (
                             <div
                                 key={account.id}
-                                className={cn(
-                                    'flex border-b border-border/60 transition-colors group/row',
-                                    isRowHovered ? 'bg-primary/5' : 'hover:bg-muted/30',
-                                    filterOnlyMyBookings && myAccountMeetings > 0 && 'bg-blue-50/20 dark:bg-blue-950/15'
-                                )}
+                                data-testid={`matrix-row-${account.id}`}
+                                className="grid border-b border-border/40"
+                                style={{ gridTemplateColumns }}
                             >
-                                {/* Sticky Account Label Column */}
                                 <div
                                     className={cn(
-                                        'shrink-0 sticky left-0 z-20 bg-card border-r border-border px-2.5 py-2 flex items-center justify-between gap-1.5 transition-colors shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] dark:shadow-none',
-                                        isRowHovered && 'bg-primary/10',
-                                        filterOnlyMyBookings && myAccountMeetings > 0 && 'border-l-3 border-l-blue-600 bg-blue-50/30 dark:bg-blue-950/25'
+                                        'sticky left-0 z-20 bg-background border-r border-border/60 px-3 flex items-center gap-2 min-w-0 transition-colors',
+                                        isRowHovered && 'bg-muted',
                                     )}
-                                    style={{ width: LABEL_WIDTH }}
                                 >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span
-                                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs ring-2 ring-background"
-                                            style={{ backgroundColor: account.colorHex }}
-                                            aria-hidden="true"
-                                        />
-                                        <span className="text-xs font-bold text-foreground truncate" title={account.name}>
-                                            {account.name}
-                                        </span>
-                                    </div>
-
-                                    {/* Total monthly count for this account */}
-                                    {filterOnlyMyBookings ? (
-                                        <span
-                                            className={cn(
-                                                "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md shrink-0 transition-all",
-                                                myAccountMeetings > 0
-                                                    ? "bg-blue-600 text-white shadow-2xs"
-                                                    : "bg-muted text-muted-foreground/40"
-                                            )}
-                                            title={`${myAccountMeetings} meeting Anda di akun ini`}
-                                        >
-                                            {myAccountMeetings} Saya
-                                        </span>
-                                    ) : (
-                                        <span
-                                            className={cn(
-                                                "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md shrink-0 transition-all",
-                                                totalAccountMeetings > 0
-                                                    ? "bg-muted text-foreground border border-border/80"
-                                                    : "text-muted-foreground/40"
-                                            )}
-                                            title={`${totalAccountMeetings} meeting bulan ini`}
-                                        >
-                                            {totalAccountMeetings}
-                                        </span>
-                                    )}
+                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden="true" />
+                                    <span className="flex-1 min-w-0 text-xs font-medium text-foreground truncate" title={account.name}>
+                                        {account.name}
+                                    </span>
+                                    <span
+                                        className={cn('text-[11px] tabular-nums', accountCount > 0 ? 'text-muted-foreground' : 'text-muted-foreground/40')}
+                                        title={onlyMine ? `${accountCount} meeting Anda di akun ini` : `${accountCount} meeting bulan ini`}
+                                    >
+                                        {accountCount}
+                                    </span>
                                 </div>
 
-                                {/* Day Cells for Account */}
-                                {days.map((d, dayIdx) => {
+                                {days.map((d) => {
                                     const dateStr = format(d, 'yyyy-MM-dd');
-                                    const allCellBookings = byDate?.get(dateStr) ?? [];
-                                    const bookings = filterOnlyMyBookings
-                                        ? allCellBookings.filter((b) => b.isMyBooking)
-                                        : allCellBookings;
-                                    const weekend = !isWorkingDay(d, workingDays);
-                                    const isCellHovered = hovered?.accountId === account.id && hovered?.date === dateStr;
-                                    const isCrosshair = hovered?.accountId === account.id || hovered?.date === dateStr;
+                                    const bookings = visibleBookings(account.id, dateStr);
+                                    const offDay = !isWorkingDay(d, workingDays);
+                                    const today = isToday(d);
+                                    const isCellHovered = isRowHovered && hovered?.date === dateStr;
+                                    const isCrosshair = isRowHovered || hovered?.date === dateStr;
                                     const isSelected = selectedCell?.accountId === account.id && selectedCell?.date === dateStr;
-
-                                    const colIndex = dayIdx;
-                                    const alignRight = colIndex >= (days.length - 6);
-                                    const alignTop = accIdx >= (filteredAccounts.length - 3);
+                                    const shownCount = visiblePillCount(rowHeight, bookings.length);
+                                    const hiddenCount = bookings.length - shownCount;
 
                                     return (
                                         <div
                                             key={dateStr}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`${account.name}, ${format(d, 'd MMMM', { locale: idLocale })}: ${bookings.length} meeting`}
                                             className={cn(
-                                                'shrink-0 relative border-r border-border/50 px-0.5 py-1 flex flex-col justify-center gap-1 min-h-[58px] transition-all cursor-pointer select-none',
-                                                weekend && 'bg-muted/30',
-                                                isCrosshair && !isCellHovered && 'bg-primary/[0.03]',
-                                                isCellHovered && 'bg-primary/15 ring-1 ring-inset ring-primary/40 z-10',
-                                                isSelected && 'bg-primary/20 ring-2 ring-primary z-20'
+                                                'relative flex flex-col items-center justify-center gap-0.5 px-0.5 overflow-hidden cursor-pointer outline-none transition-colors',
+                                                offDay && 'bg-muted/50',
+                                                isCrosshair && !isCellHovered && 'bg-muted/40',
+                                                isCellHovered && 'bg-muted',
+                                                today && 'bg-primary/[0.07] dark:bg-primary/10',
+                                                isSelected && 'bg-primary/10 ring-2 ring-inset ring-primary/60',
+                                                'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60',
                                             )}
-                                            style={{ width: DAY_COL_WIDTH }}
+                                            style={{ height: rowHeight, paddingBlock: CELL_PAD_Y }}
                                             onMouseEnter={() => setHovered({ accountId: account.id, date: dateStr })}
                                             onMouseLeave={() => setHovered(null)}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedCell(isSelected ? null : {
-                                                    accountId: account.id,
-                                                    date: dateStr,
-                                                    alignRight,
-                                                    alignTop,
-                                                });
+                                            onClick={(e) => toggleCell(account.id, dateStr, e.currentTarget)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    toggleCell(account.id, dateStr, e.currentTarget);
+                                                }
                                             }}
                                         >
-                                            {/* Meeting Items in Cell */}
-                                            {bookings.slice(0, 2).map((b) => (
-                                                <button
-                                                    key={b.id}
-                                                    type="button"
-                                                    title={`${b.startTime.slice(0, 5)} · ${b.title}${b.isMyBooking ? ' (Bookingan Anda)' : ''}`}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedCell(isSelected ? null : {
-                                                            accountId: account.id,
-                                                            date: dateStr,
-                                                            alignRight,
-                                                            alignTop,
-                                                        });
-                                                    }}
-                                                    className={cn(
-                                                        'w-full h-5 px-1 rounded-md transition-all text-[9.5px] font-mono font-bold text-white flex items-center justify-center shadow-2xs hover:scale-105 hover:opacity-95 cursor-pointer',
-                                                        b.isMyBooking && 'ring-2 ring-offset-1 ring-primary font-black shadow-xs'
-                                                    )}
-                                                    style={{ backgroundColor: account.colorHex || '#2563eb' }}
-                                                >
-                                                    <span className="truncate leading-none">
-                                                        {b.startTime.slice(0, 5)}
-                                                    </span>
-                                                </button>
+                                            {bookings.slice(0, shownCount).map((b) => (
+                                                <MatrixPill key={b.id} booking={b} color={color} />
                                             ))}
 
-                                            {/* Overflow Indicator */}
-                                            {bookings.length > 2 && (
-                                                <span className="text-[9px] font-mono font-black text-primary leading-none text-center bg-primary/10 rounded py-0.2">
-                                                    +{bookings.length - 2}
+                                            {hiddenCount > 0 && (
+                                                <span
+                                                    className="shrink-0 text-[9px] font-semibold tabular-nums leading-none text-muted-foreground"
+                                                    style={{ height: OVERFLOW_LINE_HEIGHT }}
+                                                    title={`${hiddenCount} meeting lainnya`}
+                                                >
+                                                    +{hiddenCount}
                                                 </span>
                                             )}
 
-                                            {/* Hover Prompt on Empty Cell */}
-                                            {canBook && !weekend && bookings.length === 0 && isCellHovered && (
-                                                <span className="absolute inset-0 flex items-center justify-center text-primary animate-in fade-in-0 zoom-in-75 duration-100">
-                                                    <Plus className="w-4 h-4" />
-                                                </span>
+                                            {canBook && !offDay && bookings.length === 0 && isCellHovered && (
+                                                <Plus className="w-3.5 h-3.5 text-muted-foreground animate-in fade-in-0 duration-100" />
                                             )}
                                         </div>
                                     );
@@ -514,201 +432,170 @@ export function ZoomAccountsMatrix({
 
                     {filteredAccounts.length === 0 && (
                         <div className="p-16 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
-                            {filterOnlyMyBookings ? (
-                                <>
-                                    <UserCheck className="w-8 h-8 opacity-40 text-blue-500" />
-                                    <p className="font-semibold text-foreground">
-                                        Anda belum memiliki jadwal booking meeting di bulan ini.
-                                    </p>
-                                    <p className="text-xs text-muted-foreground max-w-sm">
-                                        Klik pada sel tanggal yang diinginkan untuk membuat booking baru, atau matikan filter untuk melihat seluruh jadwal akun.
-                                    </p>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                            setFilterOnlyMyBookings(false);
-                                            setFilterOnlyActive(false);
-                                            setAccountSearch('');
-                                        }}
-                                        className="mt-2 text-xs cursor-pointer"
-                                    >
-                                        Tampilkan Semua Jadwal
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <Video className="w-8 h-8 opacity-40" />
-                                    <p className="font-semibold">Tidak ada akun Zoom yang cocok dengan filter.</p>
-                                    {(accountSearch || filterOnlyActive) && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => {
-                                                setAccountSearch('');
-                                                setFilterOnlyActive(false);
-                                            }}
-                                            className="mt-2 text-xs cursor-pointer"
-                                        >
-                                            Reset Filter
-                                        </Button>
-                                    )}
-                                </>
-                            )}
+                            <Video className="w-8 h-8 opacity-40" />
+                            <p className="font-medium text-foreground">Tidak ada akun Zoom yang cocok.</p>
+                            <Button size="sm" variant="outline" onClick={resetFilters} className="mt-2 rounded-full text-xs cursor-pointer">
+                                Reset filter
+                            </Button>
+                        </div>
+                    )}
+
+                    {onlyMine && myTotalMeetings === 0 && filteredAccounts.length > 0 && (
+                        <div className="p-10 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
+                            <CalendarCheck className="w-7 h-7 opacity-40" />
+                            <p className="font-medium text-foreground">Anda belum punya meeting di bulan ini.</p>
+                            <p className="text-xs max-w-sm">Klik sel tanggal untuk membuat booking baru.</p>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* 3. Interactive Cell Popover Modal */}
-            {activePopoverData && (
-                <>
-                    <div
-                        className="fixed inset-0 z-40 bg-black/10 dark:bg-black/30 backdrop-blur-[0.5px]"
-                        onClick={() => setSelectedCell(null)}
-                    />
-                    <div
-                        className={cn(
-                            "fixed z-50 w-80 sm:w-88 rounded-2xl shadow-2xl border",
-                            "bg-card/95 backdrop-blur-md border-border select-none",
-                            "animate-in fade-in-0 zoom-in-95 duration-150 flex flex-col max-h-[400px]",
-                            "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-                        )}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Popover Header */}
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-border/80 bg-muted/40 rounded-t-2xl shrink-0">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <span
-                                    className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs ring-2 ring-background"
-                                    style={{ backgroundColor: activePopoverData.account?.colorHex || '#3b82f6' }}
-                                />
-                                <div className="min-w-0">
-                                    <div className="text-xs font-bold text-foreground truncate">
-                                        {activePopoverData.account?.name || 'Zoom Account'}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground font-mono">
-                                        {format(parseISO(activePopoverData.date), 'EEEE, d MMMM yyyy', { locale: idLocale })}
-                                    </div>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedCell(null)}
-                                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {/* Meetings List */}
-                        <div className="p-3 space-y-2 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-                            {activePopoverData.bookings.length === 0 ? (
-                                <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
-                                    <Calendar className="w-7 h-7 mx-auto opacity-30 text-primary" />
-                                    <p className="font-semibold text-foreground">Tidak ada jadwal meeting</p>
-                                    <p className="text-[11px]">Akun ini bebas sepanjang hari pada tanggal ini.</p>
-                                </div>
-                            ) : (
-                                activePopoverData.bookings.map((booking: AccountDayBooking) => {
-                                    const endTimeStr = computeEndTime(booking.startTime, booking.endTime, booking.durationMinutes);
-                                    const durationLabel = formatHumanDuration(booking.durationMinutes);
-                                    return (
-                                        <div
-                                            key={booking.id}
-                                            onClick={() => {
-                                                setSelectedCell(null);
-                                                onBookingClick(booking.id);
-                                            }}
-                                            className={cn(
-                                                "w-full text-left p-3 rounded-xl text-xs cursor-pointer transition-all duration-150",
-                                                "border border-border/80 bg-background hover:bg-slate-50 dark:hover:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs group flex flex-col gap-2"
-                                            )}
-                                            style={{ borderLeftWidth: '3.5px', borderLeftColor: activePopoverData.account?.colorHex || '#2563eb' }}
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                                    <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                                                    <span className="font-mono">{booking.startTime.slice(0, 5)}</span>
-                                                    {endTimeStr && <span className="text-slate-600 dark:text-slate-400 font-mono">– {endTimeStr} WIB</span>}
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    {durationLabel && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                                            {durationLabel}
-                                                        </span>
-                                                    )}
-                                                    {booking.isDoubleBooking && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                                            DOBEL
-                                                        </span>
-                                                    )}
-                                                    {booking.isMyBooking ? (
-                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                                            SAYA
-                                                        </span>
-                                                    ) : booking.bookedByName ? (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 max-w-[120px] truncate">
-                                                            {booking.bookedByName}
-                                                        </span>
-                                                    ) : null}
-                                                </div>
-                                            </div>
-                                            <div className="text-xs font-bold text-foreground line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                                {booking.title}
-                                            </div>
-                                            <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground border-t border-border/40">
-                                                <div className="flex items-center gap-1 truncate">
-                                                    {!booking.isMyBooking && (
-                                                        <>
-                                                            <span>Dipesan:</span>
-                                                            <span className="font-medium text-foreground truncate">{booking.bookedByName || 'Pengguna'}</span>
-                                                            {booking.department && <span className="text-[10px]">({booking.department})</span>}
-                                                        </>
-                                                    )}
-                                                    {booking.isMyBooking && (
-                                                        <span className="text-blue-600 dark:text-blue-400 font-medium">Reservasi Anda</span>
-                                                    )}
-                                                    {booking.joinUrl && booking.isMyBooking && (
-                                                        <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium ml-2">
-                                                            <ExternalLink className="w-2.5 h-2.5" /> Link tersedia
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 shrink-0 ml-2">
-                                                    <span>Detail</span>
-                                                    <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-
-                        {/* Popover Action Button */}
-                        {canBook && (
-                            <div className="p-3 border-t border-border/80 bg-muted/20 rounded-b-2xl shrink-0 flex items-center gap-2">
-                                <Button
-                                    size="sm"
-                                    onClick={() => {
-                                        const accId = activePopoverData.account?.id;
-                                        const dt = activePopoverData.date;
-                                        setSelectedCell(null);
-                                        if (accId && dt) {
-                                            onCellClick?.(accId, dt);
-                                        }
-                                    }}
-                                    className="w-full h-8.5 text-xs font-bold gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer transition-colors"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>Jadwalkan di {activePopoverData.account?.name ?? 'Akun Ini'}</span>
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                </>
+            {/* 3. Cell detail popover */}
+            {activePopoverData && selectedCell && (
+                <MatrixCellPopover
+                    anchor={selectedCell.anchor}
+                    accountName={activePopoverData.account?.name ?? 'Akun Zoom'}
+                    color={activePopoverData.account?.colorHex || FALLBACK_COLOR}
+                    date={activePopoverData.date}
+                    bookings={activePopoverData.bookings}
+                    canBook={canBook}
+                    onClose={() => setSelectedCell(null)}
+                    onBookingClick={(id) => {
+                        setSelectedCell(null);
+                        onBookingClick(id);
+                    }}
+                    onSchedule={() => {
+                        const accId = activePopoverData.account?.id;
+                        setSelectedCell(null);
+                        if (accId) onCellClick?.(accId, activePopoverData.date);
+                    }}
+                />
             )}
         </div>
+    );
+}
+
+/** One meeting in a cell: small solid pill in the account color; the user's own gets a white dot. */
+function MatrixPill({ booking, color }: { booking: AccountDayBooking; color: string }) {
+    const time = booking.startTime.slice(0, 5);
+    return (
+        <span
+            data-testid="matrix-block"
+            data-mine={booking.isMyBooking ? 'true' : undefined}
+            title={`${time} · ${booking.title}${booking.isMyBooking ? ' (meeting Anda)' : ''}`}
+            className="max-w-full shrink-0 px-1 rounded-[5px] inline-flex items-center gap-0.5 text-[10px] font-semibold text-white tabular-nums leading-none"
+            style={{ backgroundColor: color, height: PILL_HEIGHT }}
+        >
+            {booking.isMyBooking && <span className="w-1 h-1 rounded-full bg-white shrink-0" aria-hidden="true" />}
+            <span className="truncate">{time}</span>
+        </span>
+    );
+}
+
+interface MatrixCellPopoverProps {
+    anchor: HTMLElement;
+    accountName: string;
+    color: string;
+    date: string;
+    bookings: AccountDayBooking[];
+    canBook: boolean;
+    onClose: () => void;
+    onBookingClick: (bookingId: string) => void;
+    onSchedule: () => void;
+}
+
+/** Apple Calendar–style popover pinned to the clicked cell. */
+function MatrixCellPopover({ anchor, accountName, color, date, bookings, canBook, onClose, onBookingClick, onSchedule }: MatrixCellPopoverProps) {
+    return (
+        <PopoverPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
+            <PopoverPrimitive.Anchor virtualRef={{ current: anchor }} />
+            <PopoverPrimitive.Portal>
+                <PopoverPrimitive.Content
+                    side="right"
+                    align="start"
+                    sideOffset={6}
+                    collisionPadding={12}
+                    aria-label={`${accountName}, ${date}`}
+                    // Clicking the anchor cell again toggles it closed via the cell's own handler.
+                    onPointerDownOutside={(e) => {
+                        if (anchor.contains(e.target as Node)) e.preventDefault();
+                    }}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    className={cn(
+                        'z-[110] w-72 flex flex-col overflow-hidden rounded-xl border border-black/[0.08] dark:border-white/10',
+                        'bg-popover/90 backdrop-blur-2xl backdrop-saturate-150 text-popover-foreground',
+                        'shadow-[0_10px_40px_rgba(0,0,0,0.14),0_2px_8px_rgba(0,0,0,0.06)] outline-none',
+                        'max-h-[min(420px,var(--radix-popover-content-available-height))]',
+                        'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 duration-150',
+                    )}
+                >
+                    <div className="px-4 pt-3 pb-2">
+                        <p className="text-[15px] font-semibold leading-tight text-foreground">
+                            {format(parseISO(date), 'EEEE, d MMMM', { locale: idLocale })}
+                        </p>
+                        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden="true" />
+                            <span className="truncate">{accountName}</span>
+                        </p>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                        {bookings.length === 0 ? (
+                            <p className="px-4 pb-3 text-xs text-muted-foreground">Tidak ada meeting. Akun ini kosong sepanjang hari.</p>
+                        ) : (
+                            <ul className="px-1.5 pb-1.5">
+                                {bookings.map((booking) => {
+                                    const endTimeStr = computeEndTime(booking.startTime, booking.endTime, booking.durationMinutes);
+                                    const durationLabel = formatHumanDuration(booking.durationMinutes);
+                                    const who = booking.isMyBooking
+                                        ? 'Anda'
+                                        : `${booking.bookedByName || 'Pengguna'}${booking.department ? ` · ${booking.department}` : ''}`;
+                                    return (
+                                        <li key={booking.id}>
+                                            <button
+                                                type="button"
+                                                onClick={() => onBookingClick(booking.id)}
+                                                className="group w-full flex items-stretch gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
+                                            >
+                                                <span className="w-[3px] shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+                                                <span className="flex-1 min-w-0">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className="truncate text-[13px] font-medium text-foreground">{booking.title}</span>
+                                                        {booking.isDoubleBooking && (
+                                                            <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">Dobel</span>
+                                                        )}
+                                                    </span>
+                                                    <span className="block text-xs tabular-nums text-muted-foreground">
+                                                        {booking.startTime.slice(0, 5)}
+                                                        {endTimeStr && ` – ${endTimeStr}`}
+                                                        {durationLabel && ` · ${durationLabel}`}
+                                                    </span>
+                                                    <span className={cn('block truncate text-xs', booking.isMyBooking ? 'font-medium' : 'text-muted-foreground')} style={booking.isMyBooking ? { color } : undefined}>
+                                                        {who}
+                                                    </span>
+                                                </span>
+                                                <ChevronRight className="w-3.5 h-3.5 self-center shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </div>
+
+                    {canBook && (
+                        <button
+                            type="button"
+                            onClick={onSchedule}
+                            className="shrink-0 flex items-center gap-1.5 border-t border-black/[0.06] dark:border-white/10 px-4 py-2.5 text-left text-[13px] font-medium text-primary transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05] cursor-pointer"
+                        >
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Jadwalkan di {accountName}</span>
+                        </button>
+                    )}
+                    <PopoverPrimitive.Arrow width={14} height={7} className="fill-popover" />
+                </PopoverPrimitive.Content>
+            </PopoverPrimitive.Portal>
+        </PopoverPrimitive.Root>
     );
 }
