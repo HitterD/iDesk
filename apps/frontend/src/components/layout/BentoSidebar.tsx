@@ -13,7 +13,6 @@ import {
     ChevronRight,
     ChevronDown,
     Bell,
-    Search,
     Zap,
     Shield,
     Activity,
@@ -489,7 +488,6 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 { key: 'mobile_dev_tickets', icon: Smartphone, label: 'Mobile Developer Request', path: '/tickets/mobile-developer' },
                 { key: 'hardware_requests', icon: MonitorSmartphone, label: 'Hardware Requests', path: '/hardware-requests' },
                 { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/eform-access' },
-                { key: 'lost_items', icon: Search, label: 'Lost Items', path: '/lost-items' },
             ]
         },
 
@@ -558,15 +556,15 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
         // Fallback: role-based defaults
         const roleDefaults: Record<string, string[]> = {
-            USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
-            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
-            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
-            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications'],
+            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
             AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications'],
             AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
             AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
-            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
-            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
+            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
 
         const userRole = (user?.role || 'USER') as string;
@@ -637,7 +635,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
                     // Append static Request Center items
                     const otherRequestCenterItems = entry.items.filter((item) =>
-                        ['hardware_requests', 'eform_access', 'lost_items'].includes(item.key)
+                        ['hardware_requests', 'eform_access'].includes(item.key)
                     );
 
                     const allItems = [...moduleItems, ...otherRequestCenterItems];

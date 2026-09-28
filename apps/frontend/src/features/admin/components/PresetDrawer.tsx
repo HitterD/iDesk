@@ -194,12 +194,6 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
                 icon: FileText,
             },
             {
-                key: 'lost_items',
-                label: 'Lost & Found Items',
-                description: 'Lost item reporting, QR tagging, and inventory claim matching',
-                icon: Search,
-            },
-            {
                 key: 'zoom_calendar',
                 label: 'Zoom Booking Calendar',
                 description: 'Zoom conference reservations, schedules, and account licenses',

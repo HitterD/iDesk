@@ -36,7 +36,6 @@ vi.mock('@/hooks/usePermissions', () => ({
                 oracle_k2_tickets: true,
                 hardware_requests: true,
                 eform_access: true,
-                lost_items: true,
                 zoom_calendar: true,
                 knowledge_base: true,
                 notifications: true,

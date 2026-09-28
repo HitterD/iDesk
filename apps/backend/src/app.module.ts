@@ -60,7 +60,6 @@ import { SystemSettings } from './modules/settings/entities/system-settings.enti
 // New entities for Phase 0
 import { Site } from './modules/sites/entities/site.entity';
 
-import { LostItemReport } from './modules/lost-item/entities/lost-item-report.entity';
 import { AccessType } from './modules/access-request/entities/access-type.entity';
 import { AccessRequest } from './modules/access-request/entities/access-request.entity';
 import { InstallationSchedule } from './modules/hardware-request/domain/entities/installation-schedule.entity';
@@ -76,7 +75,6 @@ import { SitesModule } from './modules/sites/sites.module';
 import { TvBoardModule } from './modules/tv-board/tv-board.module';
 
 // New modules for Phase 2
-import { LostItemModule } from './modules/lost-item/lost-item.module';
 import { AccessRequestModule } from './modules/access-request/access-request.module';
 
 // New modules for Phase 3
@@ -225,7 +223,6 @@ import { validateAuthEnvironment } from './config/auth.config';
         SitesModule, // Phase 1: Multi-Site System
         TvBoardModule,
 
-        LostItemModule, // Phase 2: Ticket Types
         AccessRequestModule, // Phase 2: Ticket Types
         WorkloadModule, // Phase 3: Auto-Assignment
         SoundModule, // Phase 4: Sound Notifications

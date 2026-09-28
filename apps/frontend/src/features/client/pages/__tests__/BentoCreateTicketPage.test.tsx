@@ -5,7 +5,6 @@ import { vi, describe, it, expect } from 'vitest';
 import { BentoCreateTicketPage } from '../BentoCreateTicketPage';
 
 const mockPageAccess = {
-    lost_items: false,
     hardware_requests: false,
     tickets: true,
     eform_access: true,
@@ -38,7 +37,7 @@ vi.mock('../../../stores/useAuth', () => ({
 }));
 
 describe('BentoCreateTicketPage Permissions Filtering', () => {
-    it('hides Lost Items and Hardware & Budget cards when user lacks pageAccess', () => {
+    it('hides Hardware & Budget card when user lacks pageAccess and never shows Lost Item Report', () => {
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
         render(
@@ -55,7 +54,7 @@ describe('BentoCreateTicketPage Permissions Filtering', () => {
         // Access Request heading should be visible
         expect(screen.getByRole('heading', { name: 'Access Request' })).toBeInTheDocument();
 
-        // Lost Item Report and Hardware & Budget cards should NOT be rendered
+        // Lost Item feature was removed; Hardware & Budget is hidden by pageAccess
         expect(screen.queryByText('Lost Item Report')).not.toBeInTheDocument();
         expect(screen.queryByText('Hardware & Budget')).not.toBeInTheDocument();
     });

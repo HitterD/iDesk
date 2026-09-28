@@ -36,7 +36,6 @@ import { WorkflowExecution } from '../src/modules/automation/entities/workflow-e
 import { SystemSettings } from '../src/modules/settings/entities/system-settings.entity';
 import { Site } from '../src/modules/sites/entities/site.entity';
 
-import { LostItemReport } from '../src/modules/lost-item/entities/lost-item-report.entity';
 import { AccessType } from '../src/modules/access-request/entities/access-type.entity';
 import { AccessRequest } from '../src/modules/access-request/entities/access-request.entity';
 import { PriorityWeight } from '../src/modules/workload/entities/priority-weight.entity';
@@ -82,7 +81,7 @@ async function syncDatabase() {
             ArticleView, Notification, NotificationPreference, NotificationLog,
             SavedSearch, RenewalContract, AuditLog, BusinessHours,
             WorkflowRule, WorkflowExecution, SystemSettings,
-            Site, LostItemReport, AccessType, AccessRequest,
+            Site, AccessType, AccessRequest,
             PriorityWeight, AgentDailyWorkload, NotificationSound,
             BackupConfiguration, BackupHistory,
             IpWhitelist,

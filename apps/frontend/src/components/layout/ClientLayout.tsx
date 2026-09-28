@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText, PackageSearch } from 'lucide-react';
+import { Ticket, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { NotificationPopover } from '../notifications/NotificationPopover';
@@ -71,7 +71,6 @@ export const ClientLayout: React.FC = () => {
         { path: '/client/my-tickets', label: 'My Tickets', icon: Ticket },
         { path: '/client/hardware-requests', label: 'Hardware Requests', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
         { path: '/client/eform-access', label: 'E-Form Access', icon: FileText, pageKey: 'eform_access' },
-        { path: '/client/lost-items', label: 'Lost Items', icon: PackageSearch, pageKey: 'lost_items', exact: false },
         { path: '/client/zoom-calendar', label: 'Zoom Calendar', icon: Video, pageKey: 'zoom_calendar' },
         { path: '/client/kb', label: 'Help Center', icon: BookOpen, pageKey: 'knowledge_base' },
         { path: '/client/profile', label: 'Profile', icon: Settings },

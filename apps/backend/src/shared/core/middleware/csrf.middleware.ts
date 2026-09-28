@@ -112,8 +112,6 @@ export class CsrfMiddleware implements NestMiddleware {
             '/v1/manager',
             // IP Whitelist - protected by JwtAuthGuard + RolesGuard (ADMIN)
             '/v1/ip-whitelist',
-            // Lost Item - protected by JwtAuthGuard  
-            '/v1/lost-item',
             // Access Request - protected by JwtAuthGuard
             '/v1/access-request',
             // Synology Backup - protected by JwtAuthGuard + RolesGuard

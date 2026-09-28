@@ -14,7 +14,6 @@ import {
     Trash2,
     Ticket,
     DollarSign,
-    PackageX,
     Wifi,
     Code2,
     Smartphone,
@@ -32,7 +31,6 @@ import { useAuth } from '../../../stores/useAuth';
 import { useMyPermissions } from '@/hooks/usePermissions';
 import { logger } from '@/lib/logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LostItemForm } from '@/features/ticket-board/components/LostItemForm';
 import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
@@ -75,9 +73,9 @@ const PRIORITY_OPTIONS = [
     { id: 'CRITICAL', label: 'Blocker (Critical)', shortLabel: 'Blocker', dot: 'bg-rose-500', activeRing: 'ring-rose-500/30', activeBorder: 'border-rose-500/60', activeBg: 'bg-rose-500/10 dark:bg-rose-500/15', activeText: 'text-rose-600 dark:text-rose-400' },
 ] as const;
 
-type TicketType = 'none' | 'service' | 'lost-item' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request';
+type TicketType = 'none' | 'service' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request';
 
-const TICKET_TYPES = ['none', 'service', 'lost-item', 'oracle-request', 'web-dev-request', 'mobile-dev-request'] as const satisfies readonly TicketType[];
+const TICKET_TYPES = ['none', 'service', 'oracle-request', 'web-dev-request', 'mobile-dev-request'] as const satisfies readonly TicketType[];
 const DRAFT_AUTOSAVE_DELAY_MS = 2_000;
 
 const getDraftStorageKey = (type: TicketType) => `ticket-draft-${type}`;
@@ -219,26 +217,6 @@ const TICKETING_CARDS: TicketCardConfig[] = [
             hoverText: 'text-purple-600 dark:text-purple-400',
         },
         action: ({ setTicketType }) => setTicketType('mobile-dev-request'),
-    },
-    {
-        key: 'lost-item',
-        pageKey: 'lost_items',
-        section: 'ticketing',
-        eyebrow: 'Asset Tracking',
-        title: 'Lost Item Report',
-        description: 'Laporkan laptop, HP, ID card, kunci, atau barang inventaris hilang lainnya.',
-        mascotImg: '/characters/mascot-lostitem.png',
-        mascotAlt: 'Maskot Lost Item Asset',
-        ctaLabel: 'Lapor Barang Hilang',
-        icon: PackageX,
-        colorTheme: {
-            gradient: 'from-cyan-500/20 via-border/70 to-sky-500/10 dark:from-cyan-500/25 dark:via-border/70 dark:to-sky-500/15',
-            badge: 'text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
-            hoverGlow: 'hover:shadow-cyan-500/15 hover:border-cyan-500/40',
-            iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 group-hover:bg-cyan-600 group-hover:text-white',
-            hoverText: 'text-cyan-600 dark:text-cyan-400',
-        },
-        action: ({ setTicketType }) => setTicketType('lost-item'),
     },
 ];
 
@@ -429,7 +407,7 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     // Load type-scoped draft whenever ticketType changes
     useEffect(() => {
-        if (ticketType === 'none' || ticketType === 'lost-item') {
+        if (ticketType === 'none') {
             setHasDraft(false);
             setLastSaved(null);
             setSelectedTemplate(null);
@@ -474,7 +452,7 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     // Auto-save draft per ticket type (debounced)
     const saveDraft = useCallback(() => {
-        if (ticketType === 'none' || ticketType === 'lost-item') return;
+        if (ticketType === 'none') return;
         if (!formData.title.trim() && !formData.description.trim()) {
             return;
         }
@@ -494,7 +472,7 @@ export const BentoCreateTicketPage: React.FC = () => {
     }, [formData, ticketType]);
 
     useEffect(() => {
-        if (ticketType === 'none' || ticketType === 'lost-item') return;
+        if (ticketType === 'none') return;
 
         if (autoSaveTimerRef.current) {
             clearTimeout(autoSaveTimerRef.current);
@@ -512,7 +490,7 @@ export const BentoCreateTicketPage: React.FC = () => {
     }, [formData, saveDraft, ticketType]);
 
     const clearDraft = useCallback(() => {
-        if (ticketType === 'none' || ticketType === 'lost-item') return;
+        if (ticketType === 'none') return;
         const draftKey = getDraftStorageKey(ticketType);
         let snapshot: TicketDraft | null = null;
         try {
@@ -726,7 +704,7 @@ export const BentoCreateTicketPage: React.FC = () => {
             const createdTicketId = createRes?.data?.id;
 
             // Clear draft for this specific ticket type
-            if (ticketType !== 'none' && ticketType !== 'lost-item') {
+            if (ticketType !== 'none') {
                 localStorage.removeItem(getDraftStorageKey(ticketType));
                 setHasDraft(false);
                 setLastSaved(null);
@@ -788,27 +766,20 @@ export const BentoCreateTicketPage: React.FC = () => {
         }
 
         const roleDefaults: Record<string, string[]> = {
-            USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications'],
-            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications'],
+            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
             AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
             AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
             AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
-            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
-            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'lost_items', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
+            MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
+            ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
 
         const userRole = (user?.role || 'USER') as string;
         return (roleDefaults[userRole] || roleDefaults['USER']).includes(pageKey);
     }, [user?.role, myPermissions?.pageAccess]);
-
-    useEffect(() => {
-        if (ticketType === 'lost-item' && !canAccessPage('lost_items')) {
-            toast.error('Anda tidak memiliki akses ke halaman Lost Items');
-            setTicketType('none');
-        }
-    }, [ticketType, canAccessPage]);
 
     const handleBack = useCallback(() => {
         const hasDirtyForm = Boolean(formData.title.trim() || formData.description.trim() || formData.category || formData.device || formData.software || formData.criticalReason || files.length > 0);
@@ -1266,58 +1237,6 @@ export const BentoCreateTicketPage: React.FC = () => {
                             Tiap jenis tiket diarahkan langsung ke antrean tim penanganan yang spesifik. Jika Anda membutuhkan bantuan IT umum di kantor/pabrik, pilih <span className="font-semibold text-foreground">Service Ticket</span>.
                         </p>
                     </div>
-                </div>
-            </div>
-        );
-    }
-
-    // ==========================================
-    // 2. LOST ITEM REPORT FORM
-    // ==========================================
-    if (ticketType === 'lost-item') {
-        const handleLostItemSubmit = async (data: any) => {
-            setIsLoading(true);
-            try {
-                await api.post('/lost-item', data);
-                toast.success('Laporan barang hilang berhasil dikirim!');
-                queryClient.invalidateQueries({ queryKey: ['tickets'] });
-                if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-                    navigate('/tickets/list');
-                } else {
-                    navigate('/client/my-tickets');
-                }
-            } catch (error: any) {
-                logger.error('Failed to submit lost item report:', error);
-                toast.error(error.response?.data?.message || 'Gagal mengirim laporan');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        return (
-            <div className="w-full max-w-7xl mx-auto space-y-4">
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={handleBack}
-                        aria-label="Kembali ke pilihan jenis tiket"
-                        className="p-2 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    >
-                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-                    </button>
-                    <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <div className="p-1.5 bg-red-100 dark:bg-red-900/50 rounded-lg">
-                            <PackageX className="w-4 h-4 text-red-600" />
-                        </div>
-                        Lost Item Report
-                    </h1>
-                </div>
-
-                <div className="bg-card rounded-2xl border border-border p-4 md:p-6 shadow-sm">
-                    <LostItemForm
-                        onSubmit={handleLostItemSubmit}
-                        onCancel={handleBack}
-                    />
                 </div>
             </div>
         );
