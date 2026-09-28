@@ -1,10 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Response } from 'express';
-import * as path from 'path';
-import * as fs from 'fs';
 import { AgentMetrics } from './agent-performance.report';
 import { TicketVolumeData } from './ticket-volume.report';
 import { generateExecutiveInsights } from '../utils/executive-insights.util';
+import { resolveSantosLogoPath } from '../../../shared/core/utils/brand-logo.util';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
@@ -491,33 +490,13 @@ export class PDFGeneratorService {
         doc.moveTo(startX + col1W + col2W, startY + 2.5).lineTo(startX + col1W + col2W, startY + headerH).stroke();
 
         // ── Column 1: Logo & Company Name ──
-        const logoPathCandidates = [
-            path.join(__dirname, '../../assets/santos-logo.png'),
-            path.join(process.cwd(), 'src/assets/santos-logo.png'),
-            path.join(process.cwd(), 'apps/backend/src/assets/santos-logo.png'),
-            path.join(process.cwd(), 'dist/assets/santos-logo.png'),
-            path.resolve(__dirname, '../../../../../login picture/gb-putih.png'),
-        ];
-
-        let logoLoaded = false;
-        for (const p of logoPathCandidates) {
-            if (fs.existsSync(p)) {
-                try {
-                    doc.image(p, startX + (col1W - 38) / 2, startY + 7, { fit: [38, 28], align: 'center', valign: 'center' });
-                    logoLoaded = true;
-                    break;
-                } catch {
-                    // ignore
-                }
-            }
-        }
-
-        if (!logoLoaded) {
-            const logoCenterX = startX + col1W / 2;
-            doc.save();
-            doc.fillColor('#DC2626').polygon([logoCenterX - 8, startY + 8], [logoCenterX, startY + 18], [logoCenterX - 8, startY + 28]).fill();
-            doc.fillColor('#16A34A').polygon([logoCenterX + 8, startY + 8], [logoCenterX, startY + 18], [logoCenterX + 8, startY + 28]).fill();
-            doc.restore();
+        const logoPath = resolveSantosLogoPath();
+        try {
+            if (!logoPath) throw new Error('santos-logo.png not found');
+            doc.image(logoPath, startX + (col1W - 38) / 2, startY + 7, { fit: [38, 28], align: 'center', valign: 'center' });
+        } catch (err) {
+            // Never fail the whole document over the logo; render the header without it.
+            this.logger.warn(`PDF header rendered without logo: ${(err as Error).message}`);
         }
 
         doc.font('Helvetica-Bold').fontSize(6.5).fillColor(C.brandNavyDark)
