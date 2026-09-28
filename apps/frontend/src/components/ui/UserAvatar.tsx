@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
@@ -78,6 +78,11 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     const avatarUrl = getImageUrl(user?.avatarUrl);
     const initials = getInitials(user?.fullName);
     const gradient = getGradientColor(user?.fullName);
+
+    // A newly uploaded photo gets a new URL; give it a fresh chance even if the old one failed.
+    useEffect(() => {
+        setImgError(false);
+    }, [avatarUrl]);
 
     const handleImageError = () => {
         setImgError(true);

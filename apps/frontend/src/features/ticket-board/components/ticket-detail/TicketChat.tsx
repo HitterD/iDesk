@@ -30,6 +30,7 @@ import { MessageReactions } from '@/components/ui/ChatReactions';
 import { SystemMessageEvent } from './SystemMessageEvent';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 
@@ -503,9 +504,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     {/* Header */}
                     <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-slate-100 dark:border-slate-700/60">
                         <div className="flex items-center gap-2.5 sm:gap-3">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs sm:text-sm shadow-xs shrink-0">
-                                {ticket.user.fullName.charAt(0).toUpperCase()}
-                            </div>
+                            <UserAvatar user={ticket.user} size="sm" className="sm:w-10 sm:h-10 rounded-lg sm:rounded-xl shadow-xs" />
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
@@ -594,16 +593,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
                         return (
                             <div key={message.id} className={cn("flex gap-3 group", isOwnMessage && "flex-row-reverse")}>
-                                <div className={cn(
-                                    "w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs",
-                                    isOwnMessage
-                                        ? "bg-primary text-primary-foreground"
-                                        : messageIsInternal
-                                            ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
-                                            : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                )}>
-                                    {message.sender?.fullName?.charAt(0)?.toUpperCase() || '?'}
-                                </div>
+                                <UserAvatar
+                                    user={message.sender}
+                                    size="sm"
+                                    className={cn("w-9 h-9 rounded-xl shadow-2xs", messageIsInternal && "ring-2 ring-amber-300 dark:ring-amber-800")}
+                                />
                                 <div className={cn("max-w-[88%] sm:max-w-[80%]", isOwnMessage && "text-right")}>
                                     <div className="relative">
                                         {isSticker ? (
