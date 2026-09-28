@@ -41,7 +41,6 @@ import { BookingStatus } from '../enums/booking-status.enum';
 @UseGuards(JwtAuthGuard, RolesGuard, PageAccessGuard)
 @Roles(UserRole.ADMIN)
 @PageAccess('zoom_calendar')
-@Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute for admin
 @Controller('admin/zoom')
 export class ZoomAdminController {
     constructor(
