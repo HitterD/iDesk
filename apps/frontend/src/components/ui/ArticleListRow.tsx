@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Eye, Clock } from 'lucide-react';
+import { ChevronRight, Eye, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getCategoryMeta } from './ArticleCard';
 
@@ -57,8 +57,8 @@ export const ArticleListRow: React.FC<ArticleListRowProps> = ({ article, to, cla
         <Link
             to={to}
             className={cn(
-                'group relative flex items-center gap-3.5 px-4 py-3.5 sm:px-5 sm:py-4',
-                'transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]',
+                'group relative flex items-center gap-3.5 px-4 py-3 sm:px-5',
+                'transition-colors duration-200',
                 'hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none',
                 className,
             )}
@@ -66,8 +66,7 @@ export const ArticleListRow: React.FC<ArticleListRowProps> = ({ article, to, cla
             {/* Category mark */}
             <span
                 className={cn(
-                    'flex w-9 h-9 rounded-xl border items-center justify-center shrink-0',
-                    'transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:scale-105',
+                    'flex w-9 h-9 rounded-full border items-center justify-center shrink-0',
                     meta.colorClass,
                 )}
                 aria-hidden="true"
@@ -76,7 +75,7 @@ export const ArticleListRow: React.FC<ArticleListRowProps> = ({ article, to, cla
             </span>
 
             <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                <span className="block text-sm font-medium text-foreground leading-snug line-clamp-2">
                     {article.title}
                 </span>
 
@@ -106,8 +105,8 @@ export const ArticleListRow: React.FC<ArticleListRowProps> = ({ article, to, cla
                 </span>
             </span>
 
-            <ArrowUpRight
-                className="w-4 h-4 shrink-0 text-muted-foreground/40 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            <ChevronRight
+                className="w-4 h-4 shrink-0 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5"
                 strokeWidth={1.75}
                 aria-hidden="true"
             />
