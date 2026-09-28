@@ -42,7 +42,8 @@ export class DataWipeAccessGuard implements CanActivate {
             );
         }
 
-        const email = (user.email || '').trim().toLowerCase();
+        // JwtStrategy exposes the login email as `username`; there is no `email` field.
+        const email = (user.username || '').trim().toLowerCase();
         if (!email || !allowed.includes(email)) {
             this.logger.warn(
                 `Percobaan akses wipe data ditolak untuk user ${user.userId ?? 'unknown'} (${email || 'tanpa email'})`,
