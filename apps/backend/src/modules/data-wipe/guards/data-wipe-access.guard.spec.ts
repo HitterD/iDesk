@@ -14,7 +14,8 @@ describe('DataWipeAccessGuard', () => {
             get: (key: string, fallback: string) => env[key] ?? fallback,
         } as any);
 
-    const admin = { userId: 'u1', role: UserRole.ADMIN, email: 'admin@corp.com' };
+    // Same shape JwtStrategy puts on request.user: the email lives in `username`.
+    const admin = { userId: 'u1', role: UserRole.ADMIN, username: 'admin@corp.com' };
 
     const enabledEnv = {
         ALLOW_DATA_WIPE: 'true',
@@ -64,7 +65,7 @@ describe('DataWipeAccessGuard', () => {
                 ALLOW_DATA_WIPE: 'true',
                 DATA_WIPE_ALLOWED_EMAILS: 'manager@corp.com',
             });
-            const manager = { userId: 'u2', role: UserRole.MANAGER, email: 'manager@corp.com' };
+            const manager = { userId: 'u2', role: UserRole.MANAGER, username: 'manager@corp.com' };
             expect(() => guard.canActivate(makeContext(manager))).toThrow(ForbiddenException);
         });
 
@@ -76,7 +77,7 @@ describe('DataWipeAccessGuard', () => {
 
         it('denies a user without an email', () => {
             const guard = makeGuard(enabledEnv);
-            const noEmail = { userId: 'u3', role: UserRole.ADMIN, email: '' };
+            const noEmail = { userId: 'u3', role: UserRole.ADMIN, username: '' };
             expect(() => guard.canActivate(makeContext(noEmail))).toThrow(ForbiddenException);
         });
     });
