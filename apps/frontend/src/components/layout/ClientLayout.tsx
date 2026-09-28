@@ -149,13 +149,17 @@ export const ClientLayout: React.FC = () => {
                             <NotificationPopover />
 
                             {/* User Menu */}
-                            <div className="hidden md:flex items-center gap-3 ml-2">
-                                <div className="flex items-center gap-2">
+                            <div className="hidden md:flex min-w-0 items-center gap-3 ml-2">
+                                <div className="flex min-w-0 items-center gap-2">
                                     <UserAvatar
                                         user={user}
                                         size="sm"
                                     />
-                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    {/* Long names are cut off so they never push the nav menu off screen; full name on hover. */}
+                                    <span
+                                        className="max-w-[10rem] truncate text-sm font-medium text-slate-700 dark:text-slate-300"
+                                        title={user?.fullName || 'User'}
+                                    >
                                         {user?.fullName || 'User'}
                                     </span>
                                 </div>
