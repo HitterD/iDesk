@@ -5,6 +5,8 @@ import { getTrustedClientIp } from '../../security/client-ip';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
 const AUTH_PATH_SEGMENT = '/auth/';
+// @nestjs/throttler stores @Throttle limits as `${THROTTLER_LIMIT}${throttlerName}`.
+const ROUTE_LIMIT_KEY = 'THROTTLER:LIMITdefault';
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
@@ -29,6 +31,15 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
             : 'unknown';
         const accountScope = path.includes(AUTH_PATH_SEGMENT) ? `:${identifier}` : '';
         return `${context.getClass().name}-${context.getHandler().name}-${name}-${tracker}-${path}${accountScope}`;
+    }
+
+    /**
+     * Opt-in throttling: only handlers with an explicit @Throttle are limited.
+     * Everyone in the office reaches the API through one proxy IP, so a global
+     * default blocked normal use.
+     */
+    protected async shouldSkip(context: ExecutionContext): Promise<boolean> {
+        return this.reflector.get(ROUTE_LIMIT_KEY, context.getHandler()) === undefined;
     }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {

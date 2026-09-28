@@ -17,7 +17,6 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -31,7 +30,7 @@ import { ChangeEmailDto } from './dto/change-email.dto';
 import { UserPaginationDto } from './dto/user-pagination.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
+import { MULTER_OPTIONS } from '../../shared/core/config/upload.config';
 import { CacheService } from '../../shared/core/cache/cache.service';
 import { isCrossSiteRole } from '../../shared/core/utils/site-scope.util';
 
@@ -80,7 +79,6 @@ export class UsersController {
 
     @Patch('me/email')
     @UseGuards(JwtAuthGuard)
-    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 attempts per minute
     @ApiOperation({ summary: 'Change own email address (requires current password)' })
     @ApiResponse({ status: 200, description: 'Email changed successfully.' })
     @ApiResponse({ status: 400, description: 'Current password is incorrect.' })
@@ -122,7 +120,6 @@ export class UsersController {
 
     @Post('avatar')
     @UseGuards(JwtAuthGuard)
-    @Throttle({ default: UPLOAD_RATE_LIMITS.avatar })
     @UseInterceptors(FileInterceptor('file', MULTER_OPTIONS.avatar))
     @ApiOperation({ summary: 'Upload user avatar' })
     @ApiConsumes('multipart/form-data')
@@ -231,7 +228,6 @@ export class UsersController {
     @Post('import')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    @Throttle({ default: UPLOAD_RATE_LIMITS.import })
     @UseInterceptors(FileInterceptor('file', MULTER_OPTIONS.csv))
     @ApiOperation({ summary: 'Import users from CSV. Pass ?upsert=true to update existing users.' })
     @ApiConsumes('multipart/form-data')
@@ -328,7 +324,6 @@ export class UsersController {
     @Post(':id/reset-password')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.AGENT)
-    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 resets per minute
     @ApiOperation({ summary: 'Reset user password (Admin/Agent)' })
     @ApiResponse({ status: 200, description: 'Password reset successfully.' })
     async resetUserPassword(

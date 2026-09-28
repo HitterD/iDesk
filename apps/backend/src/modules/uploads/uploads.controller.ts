@@ -7,10 +7,9 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
-import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS, FILE_SIZE_LIMITS } from '../../shared/core/config/upload.config';
+import { MULTER_OPTIONS, FILE_SIZE_LIMITS } from '../../shared/core/config/upload.config';
 
 @ApiTags('Uploads')
 @ApiBearerAuth()
@@ -18,7 +17,6 @@ import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS, FILE_SIZE_LIMITS } from '../../shar
 export class UploadsController {
     @Post()
     @UseGuards(JwtAuthGuard)
-    @Throttle({ default: UPLOAD_RATE_LIMITS.attachment })
     @UseInterceptors(
         FilesInterceptor('files', 10, {
             ...MULTER_OPTIONS.image,

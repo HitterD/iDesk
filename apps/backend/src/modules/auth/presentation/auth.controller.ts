@@ -1,6 +1,6 @@
 import { Controller, Request, Post, UseGuards, Body, HttpCode, Res, Get, Query } from '@nestjs/common';
 import { Response } from 'express';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../application/auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -22,13 +22,15 @@ import {
 
 import { extractClientIp } from '../../../shared/security/client-ip';
 
+/** Only credential endpoints are throttled; the office network shares one proxy IP. */
+export const AUTH_RATE_LIMIT = { limit: 30, ttl: 60000 } as const;
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
     constructor(private authService: AuthService) { }
 
     @Get('ip-debug')
-    @SkipThrottle()
     @ApiOperation({ summary: 'Diagnostic endpoint to check incoming proxy headers and resolved client IP' })
     async getIpDebug(@Request() req: any) {
         return {
@@ -50,7 +52,7 @@ export class AuthController {
 
     @UseGuards(LocalAuthGuard)
     @Post('login')
-    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @Throttle({ default: AUTH_RATE_LIMIT })
     @ApiOperation({ summary: 'User login - sets HttpOnly cookie' })
     @ApiResponse({ status: 200, description: 'Login successful, cookie set' })
     async login(@Request() req: any, @Res() res: Response) {
@@ -81,7 +83,6 @@ export class AuthController {
     }
 
     @Post('logout')
-    @SkipThrottle()
     @UseGuards(OptionalJwtAuthGuard)
     @HttpCode(200)
     @ApiOperation({ summary: 'User logout - clears HttpOnly cookie' })
@@ -101,7 +102,6 @@ export class AuthController {
     // Needs a valid signed refresh cookie (not guessable), and callers share the office
     // NAT IP here; a throttled refresh used to log users out.
     @Post('refresh')
-    @SkipThrottle()
     @ApiOperation({ summary: 'Refresh access token' })
     @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
     async refresh(@Request() req: any, @Res() res: Response) {
@@ -126,7 +126,6 @@ export class AuthController {
     }
 
     @Get('csrf-token')
-    @SkipThrottle()
     @ApiOperation({ summary: 'Get CSRF token for state-changing requests' })
     @ApiResponse({ status: 200, description: 'CSRF token generated and set in cookie' })
     getCsrfToken(@Res() res: Response) {
@@ -137,7 +136,6 @@ export class AuthController {
     @Post('register')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 registrations per minute
     @ApiBearerAuth()
     @ApiOperation({ summary: 'User registration (Admin only)' })
     @ApiResponse({ status: 201, description: 'User created successfully.' })
@@ -149,7 +147,7 @@ export class AuthController {
 
     @Post('change-password')
     @UseGuards(JwtAuthGuard)
-    @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 attempts per minute
+    @Throttle({ default: AUTH_RATE_LIMIT })
     @ApiBearerAuth()
     @HttpCode(200)
     @ApiOperation({ summary: 'Change password' })
@@ -166,7 +164,6 @@ export class AuthController {
      */
     @Post('s2s/verify-credential')
     @UseGuards(S2sAuthGuard)
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @HttpCode(200)
     @ApiOperation({ summary: 'S2S Credential verification for SJA Notification Center' })
     async verifyCredentialS2S(@Body() body: { identifier?: string; password?: string; nik?: string; username?: string }, @Request() req: any) {

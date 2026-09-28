@@ -1,9 +1,12 @@
 import { JwtService } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
+import { Throttle } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './custom-throttler.guard';
 
 const createGuard = () => {
     const guard = Object.create(CustomThrottlerGuard.prototype) as CustomThrottlerGuard;
     (guard as any).tokenVerifier = new JwtService();
+    (guard as any).reflector = new Reflector();
     return guard;
 };
 
@@ -66,5 +69,17 @@ describe('CustomThrottlerGuard', () => {
         const forged = signAccessToken('attacker', 'x'.repeat(40));
         expect(await guard.getTracker(baseRequest({ cookies: { access_token: forged } }))).toBe('192.0.2.10');
         expect(await guard.getTracker(baseRequest())).toBe('192.0.2.10');
+    });
+
+    it('skips handlers without an explicit @Throttle', async () => {
+        class Ctrl {
+            open() { return null; }
+            @Throttle({ default: { limit: 30, ttl: 60000 } })
+            limited() { return null; }
+        }
+        const guard = createGuard() as any;
+        const ctx = (name: 'open' | 'limited') => ({ getHandler: () => Ctrl.prototype[name], getClass: () => Ctrl }) as any;
+        expect(await guard.shouldSkip(ctx('open'))).toBe(true);
+        expect(await guard.shouldSkip(ctx('limited'))).toBe(false);
     });
 });

@@ -241,6 +241,7 @@ import { validateAuthEnvironment } from './config/auth.config';
         SjaAdapterModule, // SJA Notification Center Outbox Adapter
         MailModule, // Database-backed SMTP transport
         EncryptionModule, // Provides CredentialCipherService (AES-256-GCM) for at-rest credential protection
+        // Opt-in only: CustomThrottlerGuard skips handlers without @Throttle.
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 120, // 120 requests per minute
