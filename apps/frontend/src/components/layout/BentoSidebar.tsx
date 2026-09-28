@@ -858,8 +858,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                                         <UserAvatar useCurrentUser size="md" />
                                     </NavLink>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" sideOffset={14} className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-2 text-xs whitespace-nowrap z-50">
-                                    <p className="font-semibold">{user?.fullName}</p>
+                                <TooltipContent side="right" sideOffset={14} className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border/80 px-3 py-2 text-xs max-w-[16rem] z-50">
+                                    <p className="font-semibold break-words">{user?.fullName}</p>
                                     <p className="text-[10px] text-muted-foreground capitalize">{user?.role?.toLowerCase()?.replace(/_/g, ' ')}</p>
                                 </TooltipContent>
                             </Tooltip>
