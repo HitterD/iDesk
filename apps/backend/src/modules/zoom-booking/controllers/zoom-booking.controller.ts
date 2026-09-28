@@ -10,7 +10,6 @@ import {
     Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
@@ -144,7 +143,6 @@ export class ZoomBookingController {
     }
 
     @Post()
-    @Throttle({ default: { limit: 10, ttl: 60000 } }) // Stricter: 10 bookings per minute
     @ApiOperation({ summary: 'Create a new booking' })
     async createBooking(
         @Body() dto: CreateBookingDto,
@@ -190,7 +188,6 @@ export class ZoomBookingController {
     }
 
     @Post(':id/reschedule')
-    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 reschedules per minute
     @ApiOperation({ summary: 'Reschedule own booking (update date/time)' })
     async rescheduleBooking(
         @Param('id') id: string,
@@ -203,7 +200,6 @@ export class ZoomBookingController {
     }
 
     @Post(':id/cancel')
-    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 cancellations per minute
     @ApiOperation({ summary: 'Cancel own booking' })
     async cancelOwnBooking(
         @Param('id') id: string,
@@ -216,7 +212,6 @@ export class ZoomBookingController {
     }
 
     @Post(':id/send-reminder')
-    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 reminder requests per minute
     @ApiOperation({ summary: 'Send email reminder & Outlook calendar (.ics) invite for a booking' })
     async sendReminder(
         @Param('id') id: string,
@@ -228,7 +223,6 @@ export class ZoomBookingController {
     }
 
     @Post(':id/sync-recording')
-    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 sync requests per minute
     @ApiOperation({ summary: 'Sync recording for a booking directly from Zoom API' })
     async syncRecording(
         @Param('id') id: string,

@@ -26,8 +26,6 @@ export const TICKET_CROSS_SITE_ROOM = 'tickets:cross-site';
 /** Ticket room for everyone except requesters; internal notes are only pushed here. */
 export const ticketStaffRoom = (ticketId: string): string => `ticket:${ticketId}:staff`;
 
-/** Connections per resolved client IP per minute. Sized for NAT/proxy-shared IPs and multi-tab clients. */
-const MAX_CONNECTIONS_PER_WINDOW = 30;
 /** Inbound events per socket per minute. Keyed per socket, so one abuser cannot lock out an office. */
 const MAX_MESSAGES_PER_WINDOW = 60;
 const RATE_LIMIT_WINDOW_MS = 60000;
@@ -97,7 +95,6 @@ export class EventsGateway
     private connectedUsers: Map<string, string> = new Map();
 
     // Rate limiters for connection abuse prevention
-    private connectionLimiter = new RateLimiter(MAX_CONNECTIONS_PER_WINDOW, RATE_LIMIT_WINDOW_MS);
     private messageLimiter = new RateLimiter(MAX_MESSAGES_PER_WINDOW, RATE_LIMIT_WINDOW_MS);
 
     constructor(
@@ -130,13 +127,6 @@ export class EventsGateway
     }
 
     handleConnection(client: Socket) {
-        const clientIp = resolveClientIp(client.handshake);
-        if (!this.connectionLimiter.isAllowed(clientIp)) {
-            client.emit('error', { message: 'Connection rate limit exceeded. Try again later.' });
-            client.disconnect(true);
-            return;
-        }
-
         try {
             // Browsers cannot set headers on a WebSocket handshake, so the HttpOnly
             // access_token cookie is the primary credential for in-app clients.
@@ -152,7 +142,7 @@ export class EventsGateway
             client.data.userId = payload.sub;
             client.data.role = payload.role;
             client.data.fullName = payload.fullName;
-            client.data.clientIp = clientIp;
+            client.data.clientIp = resolveClientIp(client.handshake);
             // Multi-site: carry caller's site and join a per-site room so broadcasts can be scoped.
             client.data.siteId = (payload as any).siteId ?? null;
             if ((payload as any).siteId) {

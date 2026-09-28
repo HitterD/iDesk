@@ -11,7 +11,6 @@ import {
     Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
@@ -95,7 +94,6 @@ export class ZoomAdminController {
 
     @Post('sync-meetings')
     @Roles(UserRole.ADMIN, UserRole.USER, UserRole.MANAGER)
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @ApiOperation({ summary: 'Manually trigger sync meetings from all Zoom accounts' })
     async syncMeetings() {
         const updatedCount = await this.syncService.syncAllAccounts();
@@ -105,7 +103,6 @@ export class ZoomAdminController {
 
     @Post('sync-recordings')
     @Roles(UserRole.ADMIN, UserRole.USER, UserRole.MANAGER)
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @ApiOperation({ summary: 'Manually trigger batch sync recordings from Zoom' })
     async syncRecordings(@Query('days') days?: string) {
         const daysBack = days ? parseInt(days, 10) || 14 : 14;

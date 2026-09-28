@@ -1,5 +1,4 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post, Get, Query, UseGuards, Req, Patch, HttpCode, ForbiddenException } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { HardwareRoleGuard, pickRole } from '../guards/hardware-role.guard';
 import { HardwareRoles } from '../guards/roles.decorator';
@@ -73,7 +72,6 @@ export class InstallationController {
 
     @Post(':id/items/:itemId/barcode')
     @HardwareRoles(HardwareRole.ICT_STAFF)
-    @Throttle({ default: { limit: 60, ttl: 60000 } })
     async scan(
         @Param('id', ParseUUIDPipe) id: string,
         @Param('itemId', ParseUUIDPipe) itemId: string,

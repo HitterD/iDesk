@@ -15,7 +15,6 @@ import {
     BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
@@ -25,7 +24,7 @@ import { PdfValidationService } from './services/pdf-validation.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 import { ContractStatus, ContractCategory } from './entities/renewal-contract.entity';
-import { MULTER_OPTIONS, UPLOAD_RATE_LIMITS } from '../../shared/core/config/upload.config';
+import { MULTER_OPTIONS } from '../../shared/core/config/upload.config';
 import { ContractAuditService } from './services/contract-audit.service';
 
 @ApiTags('Renewal Contracts')
@@ -114,7 +113,6 @@ export class RenewalController {
 
     // === UPLOAD & EXTRACT ===
     @Post('upload')
-    @Throttle({ default: UPLOAD_RATE_LIMITS.contract })
     @ApiOperation({ summary: 'Upload and extract contract PDF' })
     @ApiConsumes('multipart/form-data')
     @ApiQuery({ name: 'forceUpload', required: false, type: Boolean, description: 'Override scanned image warning' })

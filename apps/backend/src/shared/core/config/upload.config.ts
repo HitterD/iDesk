@@ -124,10 +124,3 @@ export const MULTER_OPTIONS = {
     },
 } as const;
 
-// Rate limit configurations for file uploads
-export const UPLOAD_RATE_LIMITS = {
-    avatar: { limit: 5, ttl: 60000 },      // 5 uploads per minute
-    attachment: { limit: 20, ttl: 60000 }, // 20 uploads per minute
-    import: { limit: 3, ttl: 60000 },      // 3 imports per minute
-    contract: { limit: 10, ttl: 60000 },   // 10 uploads per minute
-} as const;

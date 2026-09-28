@@ -240,25 +240,8 @@ describe('EventsGateway presence', () => {
         return client;
     };
 
-    it('gives each proxied client its own connection bucket when the proxy is trusted', () => {
-        const previous = process.env.TRUST_PROXY;
-        process.env.TRUST_PROXY = 'true';
-        try {
-            const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
-            expect(clients.filter((c) => c.disconnect.mock.calls.length > 0)).toEqual([]);
-        } finally {
-            process.env.TRUST_PROXY = previous;
-        }
-    });
-
-    it('ignores client-supplied forwarding headers when the proxy is not trusted', () => {
-        const previous = process.env.TRUST_PROXY;
-        delete process.env.TRUST_PROXY;
-        try {
-            const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
-            expect(clients.some((c) => c.disconnect.mock.calls.length > 0)).toBe(true);
-        } finally {
-            process.env.TRUST_PROXY = previous;
-        }
+    it('never rejects connections from a shared office IP', () => {
+        const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
+        expect(clients.filter((c) => c.disconnect.mock.calls.length > 0)).toEqual([]);
     });
 });
