@@ -77,6 +77,10 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         private readonly healthSampler: HealthSamplerService,
     ) { }
 
+    hasSubscribers(): boolean {
+        return this.subscribedClients.size > 0;
+    }
+
     pushFast(update: HealthFastUpdate): void {
         this.messagesSent++;
         this.server?.to('health-updates').emit('health:fast', update);
@@ -121,7 +125,9 @@ export class HealthGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         this.subscribedClients.add(client.id);
         client.join('health-updates');
         this.logger.log(`Client ${client.id} subscribed to health updates`);
-        client.emit('health:snapshot', this.healthSampler.getSnapshot());
+        // The fast tier pauses without subscribers, so refresh before sending the first snapshot.
+        void this.healthSampler.ensureFreshFastTier()
+            .then(() => client.emit('health:snapshot', this.healthSampler.getSnapshot()));
     }
 
     /**

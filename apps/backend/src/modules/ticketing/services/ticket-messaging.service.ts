@@ -236,10 +236,7 @@ export class TicketMessagingService {
         this.eventsGateway.notifyNewMessage(ticketId, messageWithSender);
         // Broadcast typing:stop to ensure no client retains ghost typing indicator
         this.eventsGateway.server.to(`ticket:${ticketId}`).emit('typing:stop', { ticketId });
-        this.eventsGateway.server.emit('NEW_MESSAGE', messageWithSender);
-        if ((ticket as any).siteId) {
-            this.eventsGateway.server.to(`site:${(ticket as any).siteId}`).emit('NEW_MESSAGE', messageWithSender);
-        }
+        this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', messageWithSender);
 
         // Emit Domain Event
         this.eventEmitter.emit(

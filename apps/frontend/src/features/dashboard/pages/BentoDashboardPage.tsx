@@ -223,6 +223,9 @@ const PriorityDot: React.FC<{ priority: string }> = ({ priority }) => {
     return <span className={`w-2 h-2 rounded-full ${colors[priority] || colors.LOW}`} />;
 };
 
+/** Matches the backend's 15s dashboard-stats cache; socket events still invalidate immediately. */
+const DASHBOARD_STALE_TIME_MS = 15_000;
+
 export const BentoDashboardPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -243,21 +246,13 @@ export const BentoDashboardPage = () => {
                 },
                 duration: 8000,
             });
-            // Force silent refetch to update live metrics automatically
-            refetchTickets();
-            refetchStats();
         }
     }, [user, navigate]);
 
-    const handleTicketUpdate = useCallback(() => {
-        refetchTickets();
-        refetchStats();
-    }, []);
-
-    // Real-time updates for dashboard stats
+    // Real-time updates: useTicketListSocket already invalidates ['tickets'] and
+    // ['dashboard-stats'], so the dashboard must not refetch them a second time.
     useTicketListSocket({
         onNewTicket: handleNewTicket,
-        onTicketUpdated: handleTicketUpdate
     });
 
     // Fetch actual tickets (same as tickets page) for accurate stats
@@ -267,7 +262,7 @@ export const BentoDashboardPage = () => {
             const res = await api.get('/tickets');
             return res.data;
         },
-        staleTime: 0,
+        staleTime: DASHBOARD_STALE_TIME_MS,
         refetchOnWindowFocus: true,
     });
 
@@ -435,10 +430,8 @@ export const BentoDashboardPage = () => {
             const res = await api.get('/tickets/dashboard/stats');
             return res.data;
         },
-        staleTime: 0,
-        gcTime: 0,
+        staleTime: DASHBOARD_STALE_TIME_MS,
         refetchOnWindowFocus: true,
-        refetchOnMount: 'always',
     });
 
     // Combined refetch function

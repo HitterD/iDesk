@@ -1,4 +1,4 @@
-import { EventsGateway, buildCorsOrigin } from './events.gateway';
+import { EventsGateway, TICKET_CROSS_SITE_ROOM, buildCorsOrigin } from './events.gateway';
 import { UserRole } from '../../../users/enums/user-role.enum';
 
 describe('EventsGateway security boundary', () => {
@@ -149,6 +149,23 @@ describe('EventsGateway presence', () => {
         expect(jwt.verify).toHaveBeenCalledWith('cookie-jwt', { secret: 'secret' });
         expect(client.disconnect).not.toHaveBeenCalled();
         expect(client.data.userId).toBe('user-1');
+    });
+
+    it('joins the cross-site ticket room only for cross-site roles', () => {
+        const manager = connectAs('socket-m', 'manager-1', UserRole.MANAGER);
+        const agent = connectAs('socket-a', 'agent-1', UserRole.AGENT);
+
+        expect(manager.join).toHaveBeenCalledWith(TICKET_CROSS_SITE_ROOM);
+        expect(agent.join).not.toHaveBeenCalledWith(TICKET_CROSS_SITE_ROOM);
+    });
+
+    it('emits ticket events to the site and cross-site rooms, never globally', () => {
+        gateway.emitToTicketAudience('site-1', 'tickets:listUpdated', { ticketId: 't-1' });
+        gateway.emitToTicketAudience(null, 'tickets:listUpdated', { ticketId: 't-2' });
+
+        expect(gateway.server.to).toHaveBeenCalledWith(['site:site-1', TICKET_CROSS_SITE_ROOM]);
+        expect(gateway.server.to).toHaveBeenCalledWith([TICKET_CROSS_SITE_ROOM]);
+        expect(gateway.server.emit).not.toHaveBeenCalled();
     });
 
     it('returns the roster to an identified client', () => {

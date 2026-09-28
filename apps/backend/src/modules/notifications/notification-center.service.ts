@@ -244,7 +244,7 @@ export class NotificationCenterService implements OnModuleInit {
             this.cacheService.delByPattern(`action-items:${userId}:*`).catch(err => {
                 this.logger.warn(`Failed to clear action-items cache for user ${userId}:`, err);
             });
-            this.eventsGateway.server.emit(`action-items:refresh:${userId}`, { entityType, entityId });
+            this.eventsGateway.server.to(`user:${userId}`).emit(`action-items:refresh:${userId}`, { entityType, entityId });
         } catch (error) {
             this.logger.warn(`Failed to emit action-items refresh for user ${userId}:`, error);
         }

@@ -74,7 +74,7 @@ export class NotificationService {
             : `notification:${data.userId}`;
 
         // Emit real-time notification via WebSocket
-        try { this.eventsGateway.server.emit(eventType, {
+        try { this.eventsGateway.server.to(`user:${data.userId}`).emit(eventType, {
             id: saved.id,
             type: saved.type,
             category: saved.category,
@@ -90,7 +90,7 @@ export class NotificationService {
         }); } catch (e) { console.warn('Socket emit failed', e); }
 
         // Also emit to general notification channel
-        try { this.eventsGateway.server.emit('notification:new', {
+        try { this.eventsGateway.server.to(`user:${data.userId}`).emit('notification:new', {
             userId: data.userId,
             notification: saved,
         }); } catch (e) { console.warn('Socket emit failed', e); }
@@ -282,7 +282,7 @@ export class NotificationService {
         const saved = await this.notificationRepo.save(notification);
 
         // Emit acknowledgment event
-        try { this.eventsGateway.server.emit(`notification:acknowledged:${userId}`, {
+        try { this.eventsGateway.server.to(`user:${userId}`).emit(`notification:acknowledged:${userId}`, {
             notificationId: saved.id,
             acknowledgedAt: saved.acknowledgedAt,
         }); } catch (e) { console.warn('Socket emit failed', e); }
@@ -457,7 +457,7 @@ export class NotificationService {
 
         // Emit real-time notifications
         for (const notification of savedNotifications) {
-            try { this.eventsGateway.server.emit(`notification:${notification.userId}`, {
+            try { this.eventsGateway.server.to(`user:${notification.userId}`).emit(`notification:${notification.userId}`, {
                 id: notification.id,
                 type: notification.type,
                 category: notification.category,

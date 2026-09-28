@@ -156,14 +156,14 @@ export class TicketParticipantService {
                     },
                 };
                 this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
-                this.eventsGateway.server.emit('NEW_MESSAGE', msgWithSender);
+                this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', msgWithSender);
             }
         });
 
         // Broadcast participant added event and in-app notifications
         for (const addedUser of newlyAddedUsers) {
             try {
-                this.eventsGateway.server.to(`ticket_${ticketId}`).emit('ticket:participant_added', {
+                this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:participant_added', {
                     ticketId,
                     user: {
                         id: addedUser.id,
@@ -197,8 +197,9 @@ export class TicketParticipantService {
 
         // Emit list refresh for connected clients
         try {
-            this.eventsGateway.server.emit('ticket:updated', { ticketId, ticket });
-            this.eventsGateway.server.emit('tickets:listUpdated', { ticketId });
+            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId, ticket });
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId, ticket });
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'tickets:listUpdated', { ticketId });
         } catch (err) {
             this.logger.error(`Error emitting ticket list update: ${err}`);
         }
@@ -281,12 +282,12 @@ export class TicketParticipantService {
                 },
             };
             this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
-            this.eventsGateway.server.emit('NEW_MESSAGE', msgWithSender);
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', msgWithSender);
         });
 
         // Broadcast removal event
         try {
-            this.eventsGateway.server.to(`ticket_${ticketId}`).emit('ticket:participant_removed', {
+            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:participant_removed', {
                 ticketId,
                 userId: targetUserId,
                 removedBy: {
@@ -294,8 +295,9 @@ export class TicketParticipantService {
                     fullName: actorName,
                 },
             });
-            this.eventsGateway.server.emit('ticket:updated', { ticketId, ticket });
-            this.eventsGateway.server.emit('tickets:listUpdated', { ticketId });
+            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId, ticket });
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId, ticket });
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'tickets:listUpdated', { ticketId });
         } catch (err) {
             this.logger.error(`Error emitting participant removed event: ${err}`);
         }

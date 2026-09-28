@@ -25,6 +25,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     private cache = new Map<string, CacheEntry<any>>();
     private cleanupInterval: NodeJS.Timeout | null = null;
     private fallbackLoggedAt = 0;
+    /** Factories currently computing a missing key, so concurrent misses share one computation. */
+    private readonly inFlight = new Map<string, Promise<unknown>>();
 
     private readonly defaultTtlSeconds: number;
 
@@ -209,9 +211,21 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         const cached = await this.getAsync<T>(key);
         if (cached !== null) return cached;
 
-        const value = await factory();
-        await this.setAsync(key, value, ttlSeconds);
-        return value;
+        // Stampede guard: when many requests miss the same key at once, only the first runs the factory.
+        const pending = this.inFlight.get(key);
+        if (pending) return pending as Promise<T>;
+
+        const computation = (async () => {
+            const value = await factory();
+            await this.setAsync(key, value, ttlSeconds);
+            return value;
+        })();
+        this.inFlight.set(key, computation);
+        try {
+            return await computation;
+        } finally {
+            this.inFlight.delete(key);
+        }
     }
 
     /** Counts only declared cache namespaces; security keys are never enumerated here. */

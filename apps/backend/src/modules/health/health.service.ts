@@ -95,6 +95,7 @@ export class HealthService {
      * Get detailed health status with all metrics from sampler snapshot
      */
     async getDetailedHealth(): Promise<DetailedHealthStatus> {
+        await this.sampler.ensureFreshFastTier();
         const { serverTime, history, sampledAt, redisDetail, ...health } = this.sampler.getSnapshot();
         return health;
     }

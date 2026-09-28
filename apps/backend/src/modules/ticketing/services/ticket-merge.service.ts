@@ -184,10 +184,8 @@ export class TicketMergeService {
             relations: ['user', 'assignedTo', 'messages', 'messages.sender'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
-        this.eventsGateway.server.emit('ticket:updated', { ticketId: primaryTicketId });
-        if ((ticket as any).siteId) {
-            this.eventsGateway.server.to(`site:${(ticket as any).siteId}`).emit('ticket:updated', { ticketId: primaryTicketId });
-        }
+        this.eventsGateway.server.to(`ticket:${primaryTicketId}`).emit('ticket:updated', { ticketId: primaryTicketId });
+        this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId: primaryTicketId });
         this.eventsGateway.notifyTicketListUpdate((ticket as any).siteId ?? null);
         this.eventsGateway.notifyDashboardStatsUpdate((ticket as any).siteId ?? null);
         return ticket;

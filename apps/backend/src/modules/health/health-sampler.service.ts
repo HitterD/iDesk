@@ -109,6 +109,8 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
 
     @Interval(FAST_INTERVAL_MS)
     async scheduledFastRefresh(): Promise<void> {
+        // Fast probes only feed the live dashboard; skip them while nobody is watching.
+        if (!this.gateway.hasSubscribers()) return;
         await this.refreshFastTier().catch((err) =>
             this.logger.error(`Scheduled fast refresh error: ${err.message}`)
         );
@@ -302,6 +304,18 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
                 this.gateway.pushIncident(latest);
             }
         }
+    }
+
+    /**
+     * Refresh the fast tier on demand when the scheduled sampler is idle,
+     * so REST consumers never read metrics older than one fast interval.
+     */
+    async ensureFreshFastTier(): Promise<void> {
+        const ageMs = Date.now() - new Date(this.sampledAt.fast).getTime();
+        if (ageMs < FAST_INTERVAL_MS) return;
+        await this.refreshFastTier().catch((err) =>
+            this.logger.error(`On-demand fast refresh error: ${err.message}`)
+        );
     }
 
     /**

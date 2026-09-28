@@ -67,7 +67,7 @@ export class SlaMonitorService {
                 if (result.affected === 0) continue; // Lost the race
 
                 // Send In-App Notification (WebSocket)
-                this.eventsGateway.server.to(`user_${ticket.assignedToId}`).emit('notification', {
+                this.eventsGateway.server.to(`user:${ticket.assignedToId}`).emit('notification', {
                     type: 'SLA_WARNING',
                     title: 'Peringatan SLA',
                     message: `Tiket #${ticket.ticketNumber} belum direspons selama 6 jam kerja. Segera balas atau tiket akan dialihkan dalam 2 jam.`,
@@ -118,7 +118,7 @@ export class SlaMonitorService {
                     await this.workloadService.autoAssignTicket(ticket.id);
 
                     // Notify old agent
-                    this.eventsGateway.server.to(`user_${oldAgent.id}`).emit('notification', {
+                    this.eventsGateway.server.to(`user:${oldAgent.id}`).emit('notification', {
                         type: 'SLA_BREACH_REASSIGNED',
                         title: 'SLA Terlewati',
                         message: `Tiket #${ticket.ticketNumber} telah dialihkan ke agen lain karena melewati batas SLA 8 jam waktu respons.`,

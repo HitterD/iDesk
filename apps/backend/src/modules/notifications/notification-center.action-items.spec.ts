@@ -11,6 +11,7 @@ describe('NotificationCenterService Action Items', () => {
     };
     const eventsGateway = {
         server: {
+            to: jest.fn().mockReturnThis(),
             emit: jest.fn(),
         },
     };
@@ -55,6 +56,7 @@ describe('NotificationCenterService Action Items', () => {
         service.emitActionItemsRefresh('u-1', 'TICKET', 't-1');
 
         expect(cacheService.delByPattern).toHaveBeenCalledWith('action-items:u-1:*');
+        expect(eventsGateway.server.to).toHaveBeenCalledWith('user:u-1');
         expect(eventsGateway.server.emit).toHaveBeenCalledWith('action-items:refresh:u-1', {
             entityType: 'TICKET',
             entityId: 't-1',

@@ -59,6 +59,7 @@ describe('TicketParticipantService', () => {
         };
         eventsGateway = {
             notifyNewMessage: jest.fn(),
+            emitToTicketAudience: jest.fn(),
             server: {
                 emit: jest.fn(),
                 to: jest.fn().mockReturnValue({

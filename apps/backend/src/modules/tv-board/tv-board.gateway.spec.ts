@@ -47,7 +47,14 @@ describe('TvBoardGateway', () => {
         expect(disconnect).toHaveBeenCalled();
     });
 
+    const connectTv = async (gw: TvBoardGateway, socketId: string, siteId: string) => {
+        tvBoardService.resolveSiteIdByToken.mockResolvedValueOnce(siteId);
+        await gw.handleJoin({ id: socketId, join: jest.fn(), emit: jest.fn(), disconnect: jest.fn() } as any, { token: 't' });
+        tvBoardService.getBoardData.mockClear();
+    };
+
     it('only emits to the room of the site whose ticket changed', async () => {
+        await connectTv(gateway, 'tv-A', 'site-A');
         await gateway.handleTicketChanged({ siteId: 'site-A' });
 
         expect(mockServer.to).toHaveBeenCalledWith('tv:site-A');
@@ -67,6 +74,7 @@ describe('TvBoardGateway', () => {
         };
         const gatewayWithRepo = new TvBoardGateway(tvBoardService as any, mockTicketRepo as any);
         (gatewayWithRepo as any).server = mockServer;
+        await connectTv(gatewayWithRepo, 'tv-resolved', 'site-resolved');
 
         await gatewayWithRepo.handleGenericTicketEvent({ ticketId: 't-123' });
 
@@ -76,5 +84,21 @@ describe('TvBoardGateway', () => {
         });
         expect(mockServer.to).toHaveBeenCalledWith('tv:site-resolved');
         expect(toReturn.emit).toHaveBeenCalledWith('tv-board:update', expect.any(Object));
+    });
+
+    it('skips recomputing when no TV screen watches the site', async () => {
+        await connectTv(gateway, 'tv-B', 'site-B');
+
+        await gateway.handleTicketChanged({ siteId: 'site-A' });
+
+        expect(tvBoardService.getBoardData).not.toHaveBeenCalled();
+    });
+
+    it('collapses a burst of ticket events into at most one extra recompute', async () => {
+        await connectTv(gateway, 'tv-A', 'site-A');
+
+        await Promise.all([1, 2, 3, 4, 5].map(() => gateway.handleTicketChanged({ siteId: 'site-A' })));
+
+        expect(tvBoardService.getBoardData).toHaveBeenCalledTimes(2);
     });
 });

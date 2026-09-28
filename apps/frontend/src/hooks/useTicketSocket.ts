@@ -204,6 +204,14 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
     return { isConnected, typingUsers, sendTypingStart, sendTypingStop };
 };
 
+/**
+ * One ticket change fans out as several socket events (updated, statusChanged, listUpdated...).
+ * Invalidations inside this window collapse into a single refetch per query key.
+ */
+export const LIST_INVALIDATE_DEBOUNCE_MS = 1000;
+const TICKETS_KEY = 'tickets';
+const DASHBOARD_STATS_KEY = 'dashboard-stats';
+
 // Hook for ticket list real-time updates
 export const useTicketListSocket = (options?: {
     onNewTicket?: (ticket: Ticket) => void;
@@ -223,22 +231,32 @@ export const useTicketListSocket = (options?: {
     useEffect(() => {
         if (!isConnected) return;
 
+        const pendingKeys = new Set<string>();
+        let flushTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleInvalidate = (...keys: string[]) => {
+            keys.forEach((key) => pendingKeys.add(key));
+            if (flushTimer) return;
+            flushTimer = setTimeout(() => {
+                flushTimer = null;
+                const keysToFlush = Array.from(pendingKeys);
+                pendingKeys.clear();
+                keysToFlush.forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+            }, LIST_INVALIDATE_DEBOUNCE_MS);
+        };
+
         const handleListUpdate = () => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            scheduleInvalidate(TICKETS_KEY, DASHBOARD_STATS_KEY);
         };
 
         const handleNewTicket = (ticket: Ticket) => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            scheduleInvalidate(TICKETS_KEY, DASHBOARD_STATS_KEY);
             if (onNewTicketRef.current) {
                 onNewTicketRef.current(ticket);
             }
         };
 
         const handleTicketUpdated = (data: any) => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            scheduleInvalidate(TICKETS_KEY, DASHBOARD_STATS_KEY);
             if (onTicketUpdatedRef.current) {
                 onTicketUpdatedRef.current(data);
             }
@@ -246,7 +264,7 @@ export const useTicketListSocket = (options?: {
 
         const handleNewMessage = (data: any) => {
             const ticketId = data.ticketId || data.message?.ticketId;
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+            scheduleInvalidate(TICKETS_KEY);
             if (ticketId) {
                 queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
                     if (!oldData) return oldData;
@@ -280,11 +298,11 @@ export const useTicketListSocket = (options?: {
         socket.on('ticket:updated', handleTicketUpdated);
         socket.on('ticket:newMessage', handleNewMessage);
         socket.on('NEW_MESSAGE', handleNewMessage);
-        socket.on('dashboard:stats:update', () => {
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        });
+        const handleStatsUpdate = () => scheduleInvalidate(DASHBOARD_STATS_KEY);
+        socket.on('dashboard:stats:update', handleStatsUpdate);
 
         return () => {
+            if (flushTimer) clearTimeout(flushTimer);
             socket.off('tickets:listUpdated', handleListUpdate);
             socket.off('tickets:statusChanged', handleListUpdate);
             socket.off('ticket:assigned', handleListUpdate);
@@ -293,7 +311,7 @@ export const useTicketListSocket = (options?: {
             socket.off('ticket:updated', handleTicketUpdated);
             socket.off('ticket:newMessage', handleNewMessage);
             socket.off('NEW_MESSAGE', handleNewMessage);
-            socket.off('dashboard:stats:update');
+            socket.off('dashboard:stats:update', handleStatsUpdate);
         };
     }, [isConnected, socket, queryClient]);
 

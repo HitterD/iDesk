@@ -36,7 +36,7 @@ const fire = (event: string, payload?: any) => {
     });
 };
 
-const { useTicketSocket } = await import('../useTicketSocket');
+const { useTicketSocket, useTicketListSocket, LIST_INVALIDATE_DEBOUNCE_MS } = await import('../useTicketSocket');
 
 describe('useTicketSocket', () => {
     let queryClient: QueryClient;
@@ -222,5 +222,61 @@ describe('useTicketSocket', () => {
         expect(invalidateSpy).toHaveBeenCalledWith(
             expect.objectContaining({ queryKey: ['ticket', 'ticket-1'] })
         );
+    });
+});
+
+describe('useTicketListSocket', () => {
+    let queryClient: QueryClient;
+
+    const createWrapper = () => {
+        queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        return ({ children }: { children: React.ReactNode }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+    };
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        handlers.clear();
+        vi.clearAllMocks();
+        socket.connected = true;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('collapses a burst of ticket events into one invalidation per query key', () => {
+        const wrapper = createWrapper();
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        renderHook(() => useTicketListSocket(), { wrapper });
+
+        fire('ticket:updated', { ticketId: 't-1' });
+        fire('tickets:statusChanged', { ticketId: 't-1' });
+        fire('tickets:listUpdated');
+        fire('dashboard:stats:update');
+        expect(invalidateSpy).not.toHaveBeenCalled();
+
+        act(() => {
+            vi.advanceTimersByTime(LIST_INVALIDATE_DEBOUNCE_MS);
+        });
+
+        expect(invalidateSpy).toHaveBeenCalledTimes(2);
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tickets'] });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dashboard-stats'] });
+    });
+
+    it('drops pending invalidations on unmount', () => {
+        const wrapper = createWrapper();
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        const { unmount } = renderHook(() => useTicketListSocket(), { wrapper });
+
+        fire('tickets:listUpdated');
+        unmount();
+        act(() => {
+            vi.advanceTimersByTime(LIST_INVALIDATE_DEBOUNCE_MS);
+        });
+
+        expect(invalidateSpy).not.toHaveBeenCalled();
     });
 });

@@ -20,6 +20,7 @@ describe('HealthSamplerService', () => {
         pushFast: jest.fn(),
         pushSlow: jest.fn(),
         pushIncident: jest.fn(),
+        hasSubscribers: jest.fn().mockReturnValue(true),
     };
 
     beforeEach(() => {
@@ -49,6 +50,34 @@ describe('HealthSamplerService', () => {
         expect(healthService.checkDatabaseHealth).toHaveBeenCalledTimes(1);
         expect(healthService.getServicesStatus).not.toHaveBeenCalled();
         expect(gateway.pushFast).toHaveBeenCalledWith(expect.objectContaining({ uptime: expect.any(Number) }));
+    });
+
+    it('skips scheduled fast probes while no client watches the health page', async () => {
+        gateway.hasSubscribers.mockReturnValueOnce(false);
+        const sampler = new HealthSamplerService(
+            healthService as any,
+            gateway as any,
+            { get: jest.fn().mockReturnValue('false') } as unknown as ConfigService,
+        );
+
+        await sampler.scheduledFastRefresh();
+
+        expect(healthService.getFastSystemMetrics).not.toHaveBeenCalled();
+        expect(gateway.pushFast).not.toHaveBeenCalled();
+    });
+
+    it('refreshes stale fast metrics on demand but reuses fresh ones', async () => {
+        const sampler = new HealthSamplerService(
+            healthService as any,
+            gateway as any,
+            { get: jest.fn().mockReturnValue('false') } as unknown as ConfigService,
+        );
+        (sampler as any).sampledAt.fast = new Date(0).toISOString();
+
+        await sampler.ensureFreshFastTier();
+        await sampler.ensureFreshFastTier();
+
+        expect(healthService.getFastSystemMetrics).toHaveBeenCalledTimes(1);
     });
 
     it('keeps only HISTORY_SIZE values in oldest-to-newest order', async () => {

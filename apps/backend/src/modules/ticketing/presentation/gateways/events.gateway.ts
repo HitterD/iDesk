@@ -18,8 +18,11 @@ import { isUUID } from 'class-validator';
 import { TicketRepository } from '../../repositories/ticket.repository';
 import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
 import { extractClientIp } from '../../../../shared/security/client-ip';
+import { isCrossSiteRole } from '../../utils/site-access.util';
 
 const ACCESS_COOKIE_NAME = 'access_token';
+/** Room for roles that see tickets from every site, so site-scoped ticket events still reach them. */
+export const TICKET_CROSS_SITE_ROOM = 'tickets:cross-site';
 
 /** Connections per resolved client IP per minute. Sized for NAT/proxy-shared IPs and multi-tab clients. */
 const MAX_CONNECTIONS_PER_WINDOW = 30;
@@ -156,6 +159,9 @@ export class EventsGateway
             const wasOnline = this.isUserOnline(payload.sub);
             this.connectedUsers.set(client.id, payload.sub);
             client.join(`user:${payload.sub}`);
+            if (isCrossSiteRole(payload.role)) {
+                client.join(TICKET_CROSS_SITE_ROOM);
+            }
             // Mirror handleDisconnect: one event per user, not per tab.
             if (!wasOnline) {
                 this.server.emit('user:online', { userId: payload.sub });
@@ -283,6 +289,15 @@ export class EventsGateway
         if (siteId) {
             this.server.to(`site:${siteId}`).emit('ticket:updated', { ticketId, ...data });
         }
+    }
+
+    /**
+     * Emit a ticket event only to clients allowed to see that ticket: its site room
+     * plus cross-site roles. Replaces global broadcasts that woke every connected client.
+     */
+    emitToTicketAudience(siteId: string | null | undefined, event: string, data?: unknown) {
+        const rooms = siteId ? [`site:${siteId}`, TICKET_CROSS_SITE_ROOM] : [TICKET_CROSS_SITE_ROOM];
+        this.server.to(rooms).emit(event, data);
     }
 
     // Notify about new message in a ticket

@@ -19,7 +19,7 @@ export class InAppChannelService implements INotificationChannel {
 
         try {
             // Emit to user-specific channel
-            try { this.eventsGateway.server.emit(`notification:${payload.recipient}`, {
+            try { this.eventsGateway.server.to(`user:${payload.recipient}`).emit(`notification:${payload.recipient}`, {
                 id: payload.notificationId,
                 title: payload.title,
                 message: payload.body,
@@ -31,7 +31,7 @@ export class InAppChannelService implements INotificationChannel {
             }); } catch (e) { this.logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
 
             // Also emit to general notification channel
-            try { this.eventsGateway.server.emit('notification:new', {
+            try { this.eventsGateway.server.to(`user:${payload.recipient}`).emit('notification:new', {
                 userId: payload.recipient,
                 notificationId: payload.notificationId,
             }); } catch (e) { this.logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }

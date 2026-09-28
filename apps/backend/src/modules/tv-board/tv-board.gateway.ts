@@ -39,6 +39,8 @@ export class TvBoardGateway {
     @WebSocketServer() server: Server;
     private logger = new Logger('TvBoardGateway');
     private socketSiteMap: Map<string, string> = new Map();
+    /** Sites whose board is being recomputed; a burst of ticket events collapses into at most one extra run. */
+    private readonly refreshing = new Map<string, { rerun: boolean; done: Promise<void> }>();
 
     constructor(
         private readonly tvBoardService: TvBoardService,
@@ -68,6 +70,9 @@ export class TvBoardGateway {
 
     @OnEvent('tv-board.ticket-changed')
     async handleTicketChanged(payload: { siteId?: string; ticketId?: string }): Promise<void> {
+        // No TV screen connected anywhere: nothing to recompute.
+        if (this.socketSiteMap.size === 0) return;
+
         let siteId = payload?.siteId;
         if (!siteId && payload?.ticketId && this.ticketRepo) {
             try {
@@ -78,10 +83,41 @@ export class TvBoardGateway {
             }
         }
 
-        if (siteId) {
-            const boardData = await this.tvBoardService.getBoardData(siteId);
-            this.server.to(`tv:${siteId}`).emit('tv-board:update', boardData);
+        if (siteId && this.hasViewers(siteId)) {
+            await this.refreshSite(siteId);
         }
+    }
+
+    private hasViewers(siteId: string): boolean {
+        for (const joinedSiteId of this.socketSiteMap.values()) {
+            if (joinedSiteId === siteId) return true;
+        }
+        return false;
+    }
+
+    private refreshSite(siteId: string): Promise<void> {
+        const running = this.refreshing.get(siteId);
+        if (running) {
+            running.rerun = true;
+            return running.done;
+        }
+
+        const state = { rerun: false, done: Promise.resolve() };
+        state.done = (async () => {
+            try {
+                do {
+                    state.rerun = false;
+                    const boardData = await this.tvBoardService.getBoardData(siteId);
+                    this.server.to(`tv:${siteId}`).emit('tv-board:update', boardData);
+                } while (state.rerun);
+            } catch (err) {
+                this.logger.warn(`TV board refresh failed for site ${siteId}: ${err.message}`);
+            } finally {
+                this.refreshing.delete(siteId);
+            }
+        })();
+        this.refreshing.set(siteId, state);
+        return state.done;
     }
 
     @OnEvent('ticket.created')

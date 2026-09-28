@@ -35,7 +35,7 @@ describe('HealthService', () => {
             history: { cpu: [], memory: [], dbLatency: [], redisLatency: [] },
             sampledAt: { fast: '', slow: '' },
         };
-        const sampler = { getSnapshot: jest.fn().mockReturnValue(snapshot) };
+        const sampler = { getSnapshot: jest.fn().mockReturnValue(snapshot), ensureFreshFastTier: jest.fn().mockResolvedValue(undefined) };
         const service = new HealthService(
             dataSource,
             { get: jest.fn().mockReturnValue('1.5.0') } as unknown as ConfigService,
