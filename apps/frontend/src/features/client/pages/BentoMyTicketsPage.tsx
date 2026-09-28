@@ -97,17 +97,9 @@ export const BentoMyTicketsPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { user } = useAuth();
 
-    // Sockets for real-time updates
-    const { isConnected } = useTicketListSocket({
-        onNewTicket: () => {
-            queryClient.invalidateQueries({ queryKey: ['tickets', 'my-tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['tickets', 'my-stats'] });
-        },
-        onTicketUpdated: () => {
-            queryClient.invalidateQueries({ queryKey: ['tickets', 'my-tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['tickets', 'my-stats'] });
-        },
-    });
+    // Sockets for real-time updates. The hook already invalidates the ['tickets'] prefix
+    // (covering my-tickets and my-stats) with debouncing, so no extra refetch here.
+    const { isConnected } = useTicketListSocket();
     const { socket } = useSocket();
 
     useEffect(() => {
@@ -123,8 +115,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                 action: { label: 'View', onClick: () => navigate(`/client/tickets/${ticketId}`) },
                 duration: 5000,
             });
-
-            queryClient.invalidateQueries({ queryKey: ['tickets', 'my-tickets'] });
+            // List refresh is handled (debounced) by useTicketListSocket.
         };
 
         socket.on('ticket:newMessage', handleNewMessage);
