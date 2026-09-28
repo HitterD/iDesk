@@ -643,6 +643,7 @@ export function ZoomCalendarPage() {
                     accounts={safeAccounts}
                     onReschedule={panel.openReschedule}
                     onRescheduleSuccess={panel.close}
+                    onBookingCreated={panel.openDetail}
                 />
             </div>
         </ZoomErrorBoundary>

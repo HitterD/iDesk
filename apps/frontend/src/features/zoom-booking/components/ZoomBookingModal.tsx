@@ -24,6 +24,8 @@ export interface ZoomBookingModalProps {
     accounts: ZoomAccount[];
     onReschedule?: (booking: ZoomBooking) => void;
     onRescheduleSuccess?: () => void;
+    /** After a successful create, e.g. switch this modal to the detail view. */
+    onBookingCreated?: (bookingId: string) => void;
 }
 
 /**
@@ -43,6 +45,7 @@ export function ZoomBookingModal({
     accounts,
     onReschedule,
     onRescheduleSuccess,
+    onBookingCreated,
 }: ZoomBookingModalProps) {
     const isMobile = useMediaQuery('(max-width: 767px)');
 
@@ -77,6 +80,7 @@ export function ZoomBookingModal({
                             preselectedTime={preselectedTime}
                             accounts={accounts}
                             onClose={onClose}
+                            onBookingCreated={onBookingCreated}
                         />
                     )}
 

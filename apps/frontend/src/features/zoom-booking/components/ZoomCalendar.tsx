@@ -282,6 +282,7 @@ export function ZoomCalendar() {
                     preselectedDate={selectedSlot?.date}
                     preselectedTime={selectedSlot?.time}
                     accounts={accounts || []}
+                    onBookingCreated={setSelectedBookingId}
                 />
             )}
 

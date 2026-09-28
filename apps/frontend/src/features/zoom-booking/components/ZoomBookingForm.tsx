@@ -61,6 +61,8 @@ interface ZoomBookingFormProps {
     preselectedTime?: string;
     accounts: ZoomAccount[];
     onClose: () => void;
+    /** Called with the created booking id (first occurrence for recurring series). */
+    onBookingCreated?: (bookingId: string) => void;
     /** When true, the form is in Gabungan mode: auto-picks the first free
      *  account at the chosen date+time and cascades to the next account
      *  (zoom 1 -> zoom 2 -> ... -> zoom 10) when the current one is booked. */
@@ -73,6 +75,7 @@ export function ZoomBookingForm({
     preselectedTime,
     accounts,
     onClose,
+    onBookingCreated,
     isGabungan = false,
 }: ZoomBookingFormProps) {
     const [selectedAccountId, setSelectedAccountId] = useState(
@@ -397,9 +400,13 @@ export function ZoomBookingForm({
         };
 
         try {
-            await createBooking.mutateAsync(dto);
-            toast.success('Booking berhasil dibuat! Link Zoom akan dikirim via email.');
-            onClose();
+            const result = await createBooking.mutateAsync(dto);
+            const created = Array.isArray(result) ? result[0] : result;
+            toast.success(Array.isArray(result) && result.length > 1
+                ? `Meeting dibuat — ${result.length} jadwal berulang.`
+                : 'Meeting berhasil dibuat.');
+            if (created?.id && onBookingCreated) onBookingCreated(created.id);
+            else onClose();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal membuat booking');
         }

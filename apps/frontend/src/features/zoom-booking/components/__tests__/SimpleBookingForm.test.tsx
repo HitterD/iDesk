@@ -149,6 +149,7 @@ describe('SimpleBookingForm', () => {
 
         // Submit form
         mutateAsync.mockResolvedValueOnce({
+            id: 'booking-double',
             meeting: { joinUrl: 'https://zoom.us/j/double-123' },
             isDoubleBooking: true,
         });
@@ -157,12 +158,13 @@ describe('SimpleBookingForm', () => {
         await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
         const dto = mutateAsync.mock.calls[0][0];
         expect(dto.allowDoubleBooking).toBe(true);
-        expect(screen.getByText('Booking Berhasil!')).toBeInTheDocument();
+        expect(screen.queryByText('Booking Berhasil!')).not.toBeInTheDocument();
     });
 
-    it('submits without zoomAccountId', async () => {
-        mutateAsync.mockResolvedValue({ meeting: { joinUrl: 'https://zoom.us/j/123' } });
-        render(<SimpleBookingForm />);
+    it('submits without zoomAccountId and hands the new booking id to the parent', async () => {
+        mutateAsync.mockResolvedValue({ id: 'booking-new', meeting: { joinUrl: 'https://zoom.us/j/123' } });
+        const onBookingCreated = vi.fn();
+        render(<SimpleBookingForm onBookingCreated={onBookingCreated} />);
         fireEvent.change(screen.getByLabelText(/judul/i), { target: { value: 'Rapat mingguan tim' } });
         fireEvent.click(screen.getByRole('button', { name: 'Tanggal' }));
         fireEvent.click(screen.getByTestId('zoom-time-select'));
@@ -173,7 +175,10 @@ describe('SimpleBookingForm', () => {
         const dto = mutateAsync.mock.calls[0][0];
         expect(dto.title).toBe('Rapat mingguan tim');
         expect(dto).not.toHaveProperty('zoomAccountId');
-        expect(screen.getByText('Booking Berhasil!')).toBeInTheDocument();
+        await waitFor(() => expect(onBookingCreated).toHaveBeenCalledWith('booking-new'));
+        // No intermediate success screen: form resets and is ready for the next booking
+        expect(screen.queryByText('Booking Berhasil!')).not.toBeInTheDocument();
+        expect(screen.getByLabelText(/judul/i)).toHaveValue('');
     });
 
     it('keeps form values and shows backend race error when submit conflicts', async () => {

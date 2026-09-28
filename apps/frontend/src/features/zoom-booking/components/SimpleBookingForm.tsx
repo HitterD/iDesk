@@ -207,13 +207,14 @@ export function computeEndTimeOptions(
 
 
 interface SimpleBookingFormProps {
-    onSuccessViewBookings?: () => void;
+    /** Called with the created booking id (first occurrence for recurring series). */
+    onBookingCreated?: (bookingId: string) => void;
     selectedDate?: string;
     onDateChange?: (date: string) => void;
 }
 
 export function SimpleBookingForm({
-    onSuccessViewBookings,
+    onBookingCreated,
     selectedDate,
     onDateChange,
 }: SimpleBookingFormProps = {}) {
@@ -228,8 +229,6 @@ export function SimpleBookingForm({
     const [interval, setInterval] = useState(1);
     const [until, setUntil] = useState('');
     const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
-    const [bookingSucceeded, setBookingSucceeded] = useState(false);
-    const [successJoinUrl, setSuccessJoinUrl] = useState<string | null>(null);
 
     // Duration is dynamically derived from startTime and endTime
     const duration = useMemo(() => {
@@ -459,55 +458,14 @@ export function SimpleBookingForm({
             if (allowDoubleBooking || (booking as any)?.isDoubleBooking) {
                 toast.success('Meeting berhasil dibuat dalam Mode Dobel Booking (Tanpa Claim Host & Tanpa Rekam).');
             } else {
-                toast.success(`Booking berhasil! ${count > 1 ? `${count} jadwal berulang dibuat.` : 'Link Zoom dikirim via email.'}`);
+                toast.success(count > 1 ? `Meeting dibuat — ${count} jadwal berulang.` : 'Meeting berhasil dibuat.');
             }
-            setSuccessJoinUrl(booking?.meeting?.joinUrl ?? null);
-            setBookingSucceeded(true);
             resetForm();
+            if (booking?.id) onBookingCreated?.(booking.id);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal membuat booking. Coba ubah jam dan submit ulang.');
         }
     };
-
-    if (bookingSucceeded) {
-        return (
-            <div className="flex flex-col items-center gap-4 p-6 text-center">
-                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-                <div>
-                    <h2 className="text-lg font-bold">Booking Berhasil!</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Link Zoom akan dikirim via email.</p>
-                </div>
-                {successJoinUrl && (
-                    <Button className="w-full" onClick={() => window.open(successJoinUrl, '_blank')}>
-                        Join Meeting Sekarang
-                    </Button>
-                )}
-                {onSuccessViewBookings && (
-                    <Button
-                        className="w-full font-medium"
-                        onClick={() => {
-                            setBookingSucceeded(false);
-                            setSuccessJoinUrl(null);
-                            onSuccessViewBookings();
-                        }}
-                        variant="secondary"
-                    >
-                        Lihat Daftar Meeting
-                    </Button>
-                )}
-                <Button
-                    className="w-full"
-                    onClick={() => {
-                        setBookingSucceeded(false);
-                        setSuccessJoinUrl(null);
-                    }}
-                    variant="outline"
-                >
-                    Buat Booking Baru
-                </Button>
-            </div>
-        );
-    }
 
     const availabilityClassName = availability.isLoading
         ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
