@@ -20,13 +20,17 @@ const api = axios.create({
     withCredentials: true, // Enable HttpOnly cookie auth
 });
 
+const HTTP_TOO_MANY_REQUESTS = 429;
+
 // === 4.4.2 Implement Retry with Exponential Backoff ===
 axiosRetry(api, {
     retries: 3,
     retryDelay: axiosRetry.exponentialDelay,
+    // Never retry 429: retrying a rate-limited request only extends the lockout.
     retryCondition: (error: AxiosError) =>
-        axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-        error.response?.status === 503,
+        error.response?.status !== HTTP_TOO_MANY_REQUESTS &&
+        (axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+            error.response?.status === 503),
     onRetry: (retryCount, error) => {
         if (import.meta.env.DEV) {
             console.warn(`Retry attempt ${retryCount} for ${error.config?.url}`);
