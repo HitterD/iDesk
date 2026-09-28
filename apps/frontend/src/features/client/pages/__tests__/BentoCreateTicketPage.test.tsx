@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect } from 'vitest';
@@ -96,5 +96,24 @@ describe('BentoCreateTicketPage Permissions Filtering', () => {
         expect(screen.getByAltText('Maskot Mobile Developer')).toBeInTheDocument();
         expect(screen.getByAltText('Maskot Izin Akses')).toBeInTheDocument();
     });
-});
 
+    it('shows no error banner while a valid title is typed', () => {
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={['/client/create?type=service']}>
+                    <BentoCreateTicketPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        const title = document.getElementById('service-ticket-title') as HTMLInputElement;
+        fireEvent.change(title, { target: { value: 'jar' } });
+        expect(screen.getAllByText('Judul tiket minimal 5 karakter').length).toBeGreaterThan(0);
+
+        fireEvent.change(title, { target: { value: 'jaringan error' } });
+        expect(screen.queryByText('Mohon perbaiki isian yang ditandai.')).not.toBeInTheDocument();
+        expect(screen.queryByText('Judul tiket minimal 5 karakter')).not.toBeInTheDocument();
+    });
+});
