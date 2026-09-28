@@ -717,9 +717,7 @@ export const ManagerTicketsPage: React.FC = () => {
                                             {/* Requester */}
                                             <TableCell>
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                                                        {requesterName.charAt(0).toUpperCase()}
-                                                    </div>
+                                                    <UserAvatar user={ticket.user || ticket.requester || { fullName: requesterName }} size="xs" className="text-[10px]" />
                                                     <span className="text-xs font-medium text-foreground truncate max-w-[140px]" title={requesterName}>
                                                         {requesterName}
                                                     </span>
@@ -729,12 +727,13 @@ export const ManagerTicketsPage: React.FC = () => {
                                             {/* Assigned To */}
                                             <TableCell>
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    <div className={cn(
-                                                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-                                                        ticket.assignedTo ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300" : "bg-muted text-muted-foreground"
-                                                    )}>
-                                                        {assigneeName.charAt(0).toUpperCase()}
-                                                    </div>
+                                                    {ticket.assignedTo ? (
+                                                        <UserAvatar user={ticket.assignedTo} size="xs" className="text-[10px]" />
+                                                    ) : (
+                                                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-muted text-muted-foreground">
+                                                            {assigneeName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                    )}
                                                     <span className={cn(
                                                         "text-xs truncate max-w-[140px]",
                                                         ticket.assignedTo ? "font-medium text-foreground" : "text-muted-foreground italic"

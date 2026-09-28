@@ -4,6 +4,7 @@ import { TicketDetail } from './types';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
 import { getAttachmentUrl, isImageUrl } from './utils';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface TicketInfoCardProps {
     ticket: TicketDetail;
@@ -37,9 +38,7 @@ export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket, onImageC
             {/* Requester & Submission Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 mb-3.5 border-b border-slate-100 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
-                        {ticket.user.fullName.charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar user={ticket.user} size="md" className="rounded-xl shadow-xs" />
                     <div>
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-900 dark:text-white">

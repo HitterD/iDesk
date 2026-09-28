@@ -9,6 +9,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { AgentUser } from '../types';
 
 interface BulkAssignDialogProps {
@@ -108,9 +109,7 @@ export const BulkAssignDialog: React.FC<BulkAssignDialogProps> = ({
                                     agents.map((agent) => (
                                         <SelectItem key={agent.id} value={agent.id}>
                                             <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-xs font-bold text-slate-900">
-                                                    {agent.fullName.charAt(0)}
-                                                </div>
+                                                <UserAvatar user={agent} size="xs" />
                                                 {agent.fullName}
                                             </div>
                                         </SelectItem>

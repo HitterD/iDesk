@@ -46,6 +46,7 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from './types';
@@ -471,9 +472,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
-                        <div className="w-11 h-11 rounded-2xl bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary font-bold flex items-center justify-center text-sm shadow-xs">
-                            {ticket.user.fullName.charAt(0).toUpperCase()}
-                        </div>
+                        <UserAvatar user={ticket.user} size="md" className="w-11 h-11 rounded-2xl shadow-xs" />
                         <PresenceDot userId={ticket.user.id} userName={ticket.user.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -558,9 +557,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                 {assignedAgent ? (
                                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                         <div className="relative shrink-0">
-                                            <div className="w-7 h-7 rounded-xl bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary font-bold flex items-center justify-center text-xs shadow-2xs">
-                                                {assignedAgent.fullName.charAt(0).toUpperCase()}
-                                            </div>
+                                            <UserAvatar user={assignedAgent} size="xs" className="w-7 h-7 rounded-xl shadow-2xs" />
                                             <PresenceDot userId={assignedAgent.id} size="sm" className="absolute -bottom-0.5 -right-0.5" />
                                         </div>
                                         <div className="min-w-0 flex-1">

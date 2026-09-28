@@ -3,8 +3,9 @@ import { Edit2, Key, Trash2, CheckSquare, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
 import { PermissionPreset } from './agent-types';
-import { SITE_COLORS, getAvatarColor, getRoleConfig, getRoleLabel, highlightText, formatLastActive } from './agent-utils';
+import { SITE_COLORS, getRoleConfig, getRoleLabel, highlightText, formatLastActive } from './agent-utils';
 import { PresenceDot, PresenceBadge } from '@/components/ui/PresenceDot';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { PresetDropdown } from './PresetDropdown';
 import { RoleDropdown } from './RoleDropdown';
 
@@ -59,9 +60,7 @@ export const UnifiedUserTable: React.FC<{
                             <td className="px-3 py-3">
                                 <div className="flex items-center gap-2">
                                     <div className="relative flex-shrink-0">
-                                        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm", getAvatarColor(user.fullName))}>
-                                            {user.fullName.charAt(0).toUpperCase()}
-                                        </div>
+                                        <UserAvatar user={user} size="sm" className="text-sm" />
                                         {/* The Presence column states this in words for screen readers. */}
                                         <PresenceDot userId={user.id} size="sm" ringed decorative className="absolute -bottom-0.5 -right-0.5" />
                                     </div>
