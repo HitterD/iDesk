@@ -10,6 +10,9 @@ type Message = TicketMessage;
 // Ticket data type for socket events
 type TicketSocketData = Partial<Ticket> & { id: string };
 
+/** How often a ticket page refetches while the socket is down, so missed messages still show up. */
+export const TICKET_OFFLINE_POLL_MS = 15000;
+
 interface UseTicketSocketOptions {
     ticketId: string | undefined;
     onNewMessage?: (message: Message) => void;
@@ -23,6 +26,15 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
     const [typingUsers, setTypingUsers] = useState<{ [key: string]: string }>({});
     const typingTimersRef = useRef<{ [socketId: string]: ReturnType<typeof setTimeout> }>({});
 
+    // Callbacks live in refs so a caller passing inline functions doesn't re-run the room effect.
+    // Every re-run leaves and re-joins the room, and events sent in that gap were being lost.
+    const onNewMessageRef = useRef(onNewMessage);
+    const onStatusChangeRef = useRef(onStatusChange);
+    useEffect(() => {
+        onNewMessageRef.current = onNewMessage;
+        onStatusChangeRef.current = onStatusChange;
+    }, [onNewMessage, onStatusChange]);
+
     // Join ticket room when connected, and auto-rejoin on reconnect
     useEffect(() => {
         if (!ticketId) return;
@@ -34,8 +46,15 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             }
         };
 
+        // After a reconnect, anything sent while we were offline was missed: refetch it.
+        const handleReconnect = () => {
+            joinTicketRoom();
+            queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
+            queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId], refetchType: 'active' });
+        };
+
         joinTicketRoom();
-        socket.on('connect', joinTicketRoom);
+        socket.on('connect', handleReconnect);
 
         // Listen for new messages
         const handleNewMessage = (data: { ticketId: string; message: Message }) => {
@@ -71,9 +90,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                 queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
 
                 // Call custom handler if provided
-                if (onNewMessage) {
-                    onNewMessage(data.message);
-                }
+                onNewMessageRef.current?.(data.message);
             }
         };
 
@@ -89,9 +106,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                     };
                 });
 
-                if (onStatusChange) {
-                    onStatusChange(data.status);
-                }
+                onStatusChangeRef.current?.(data.status);
             }
         };
 
@@ -170,7 +185,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
 
         // Cleanup
         return () => {
-            socket.off('connect', joinTicketRoom);
+            socket.off('connect', handleReconnect);
             socket.emit('leave:ticket', ticketId);
             socket.off('ticket:newMessage', handleNewMessage);
             socket.off('ticket:statusChanged', handleStatusChange);
@@ -183,11 +198,12 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             }
             socket.off('notification:new', handleNotificationSync);
 
-            // Clear all active typing timeouts
+            // Clear typing timeouts and the names they guard; a name left without its timer never expires.
             Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
             typingTimersRef.current = {};
+            setTypingUsers({});
         };
-    }, [ticketId, isConnected, socket, queryClient, user?.id, onNewMessage, onStatusChange]);
+    }, [ticketId, socket, queryClient, user?.id]);
 
     const sendTypingStart = (user: { fullName: string }) => {
         if (ticketId && isConnected) {

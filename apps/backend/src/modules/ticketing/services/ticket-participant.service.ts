@@ -160,7 +160,8 @@ export class TicketParticipantService {
                     },
                 };
                 this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
-                this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', msgWithSender);
+                // Site room includes other requesters: send only the id, never the message body.
+                this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
             }
         });
 
@@ -287,7 +288,8 @@ export class TicketParticipantService {
                 },
             };
             this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
-            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', msgWithSender);
+            // Site room includes other requesters: send only the id, never the message body.
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
         });
 
         // Broadcast removal event

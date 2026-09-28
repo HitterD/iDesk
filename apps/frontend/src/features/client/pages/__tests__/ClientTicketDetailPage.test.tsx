@@ -65,6 +65,7 @@ vi.mock('@/stores/useAuth', () => ({
 }));
 
 vi.mock('@/hooks/useTicketSocket', () => ({
+    TICKET_OFFLINE_POLL_MS: 15000,
     useTicketSocket: () => ({
         isConnected: true,
         typingUsers: {},

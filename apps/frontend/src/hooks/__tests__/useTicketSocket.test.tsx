@@ -223,6 +223,42 @@ describe('useTicketSocket', () => {
             expect.objectContaining({ queryKey: ['ticket', 'ticket-1'] })
         );
     });
+    it('keeps the room joined when the caller passes a new inline callback each render', () => {
+        const { rerender } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1', onNewMessage: () => {} }), {
+            wrapper: createWrapper(),
+        });
+        (socket.emit as any).mockClear();
+
+        rerender();
+
+        expect(socket.emit).not.toHaveBeenCalledWith('leave:ticket', 'ticket-1');
+        expect(socket.emit).not.toHaveBeenCalledWith('join:ticket', 'ticket-1');
+    });
+
+    it('never leaves a typing name without its expiry timer after a re-render', () => {
+        const { result, rerender } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1', onNewMessage: () => {} }), {
+            wrapper: createWrapper(),
+        });
+
+        fire('typing:start', { ticketId: 'ticket-1', user: { fullName: 'Amelia' }, socketId: 'sock-amelia' });
+        rerender();
+        act(() => {
+            vi.advanceTimersByTime(3600);
+        });
+
+        expect(result.current.typingUsers).toEqual({});
+    });
+
+    it('refetches the ticket after a reconnect so missed messages appear', () => {
+        const wrapper = createWrapper();
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        fire('connect');
+
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['ticket', 'ticket-1'] }));
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['ticket-messages', 'ticket-1'] }));
+    });
 });
 
 describe('useTicketListSocket', () => {

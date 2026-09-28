@@ -290,7 +290,7 @@ export class TicketUpdateService {
 
             if ((savedTicket as any).siteId) {
                 this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', systemMessage);
+                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', { ticketId });
             }
 
             if ((savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) && oldAssigneeId) {
@@ -401,7 +401,7 @@ export class TicketUpdateService {
 
         if ((savedTicket as any).siteId) {
             this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-            this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', systemMessage);
+            this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', { ticketId });
         }
 
         // -------------------------------------------------------------

@@ -31,7 +31,8 @@ import {
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
-import { useTicketSocket } from '@/hooks/useTicketSocket';
+import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { TicketChat } from '../../ticket-board/components/ticket-detail/TicketChat';
 import { TicketHistory } from '../../ticket-board/components/ticket-detail/TicketHistory';
 import { TicketParticipantsSection } from '../../ticket-board/components/ticket-detail/TicketParticipantsSection';
@@ -426,9 +427,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
                             <div className="relative shrink-0">
-                                <div className="w-11 h-11 rounded-2xl bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary font-bold flex items-center justify-center text-sm shadow-xs">
-                                    {assignedAgent.fullName.charAt(0).toUpperCase()}
-                                </div>
+                                <UserAvatar user={assignedAgent} size="md" className="w-11 h-11 rounded-2xl shadow-xs" />
                                 <PresenceDot userId={assignedAgent.id} userName={assignedAgent.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                             </div>
                             <div className="min-w-0 flex-1">
@@ -678,6 +677,8 @@ export const ClientTicketDetailPage: React.FC = () => {
         },
         enabled: !!id,
         staleTime: 5000,
+        // Socket is the primary channel; poll only while it's down so replies still arrive.
+        refetchInterval: isConnected ? false : TICKET_OFFLINE_POLL_MS,
     });
 
     const replyMutation = useMutation({
