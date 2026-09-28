@@ -4,14 +4,17 @@ import userEvent from '@testing-library/user-event';
 import { ClientZoomBookingPage } from '../ClientZoomBookingPage';
 
 vi.mock('../../components', () => ({
-    SimpleBookingForm: ({ onSuccessViewBookings }: { onSuccessViewBookings?: () => void }) => (
+    SimpleBookingForm: ({ onBookingCreated }: { onBookingCreated?: (id: string) => void }) => (
         <div data-testid="simple-booking-form">
-            <button data-testid="mock-success-btn" onClick={onSuccessViewBookings}>
+            <button data-testid="mock-success-btn" onClick={() => onBookingCreated?.('booking-new')}>
                 Trigger Success
             </button>
         </div>
     ),
     ZoomMyBookingsView: () => <div data-testid="my-bookings-view" />,
+    BookingDetailsModal: ({ bookingId }: { bookingId: string }) => (
+        <div data-testid="booking-details-modal">{bookingId}</div>
+    ),
 }));
 
 const mockBookings: any[] = [];
@@ -49,15 +52,14 @@ describe('ClientZoomBookingPage', () => {
         expect(buatMeetingTab).toHaveClass('font-bold');
     });
 
-    it('switches to Meeting Saya tab when onSuccessViewBookings is called', async () => {
+    it('opens the new meeting detail modal right after a booking is created', async () => {
         const user = userEvent.setup();
         render(<ClientZoomBookingPage />);
 
-        const triggerBtn = screen.getByTestId('mock-success-btn');
-        await user.click(triggerBtn);
+        expect(screen.queryByTestId('booking-details-modal')).not.toBeInTheDocument();
+        await user.click(screen.getByTestId('mock-success-btn'));
 
-        const myBookingsTab = screen.getByRole('button', { name: /Kalender & Meeting|Meeting Saya/i });
-        expect(myBookingsTab).toHaveClass('font-bold');
+        expect(screen.getByTestId('booking-details-modal')).toHaveTextContent('booking-new');
     });
 
     it('allows toggling form visibility on desktop', async () => {

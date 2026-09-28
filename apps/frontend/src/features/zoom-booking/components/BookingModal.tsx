@@ -34,6 +34,8 @@ interface BookingModalProps {
     preselectedDate?: string;
     preselectedTime?: string;
     accounts: ZoomAccount[];
+    /** Called with the created booking id so the parent can open its detail. */
+    onBookingCreated?: (bookingId: string) => void;
 }
 
 // Generate time options dynamically based on settings
@@ -65,6 +67,7 @@ export function BookingModal({
     preselectedDate,
     preselectedTime,
     accounts,
+    onBookingCreated,
 }: BookingModalProps) {
     const [selectedAccountId, setSelectedAccountId] = useState(zoomAccountId);
     const [title, setTitle] = useState('');
@@ -274,9 +277,11 @@ export function BookingModal({
         };
 
         try {
-            await createBooking.mutateAsync(dto);
-            toast.success('Booking berhasil dibuat! Link Zoom akan dikirim via email.');
+            const result = await createBooking.mutateAsync(dto);
+            const created = Array.isArray(result) ? result[0] : result;
+            toast.success('Meeting berhasil dibuat.');
             onClose();
+            if (created?.id) onBookingCreated?.(created.id);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal membuat booking');
         }

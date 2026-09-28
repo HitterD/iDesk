@@ -5,13 +5,14 @@ import { CalendarPlus, Video, PanelLeftClose, PanelLeftOpen } from 'lucide-react
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SimpleBookingForm, ZoomMyBookingsView } from '../components';
+import { BookingDetailsModal, SimpleBookingForm, ZoomMyBookingsView } from '../components';
 import { useMyBookings } from '../hooks';
 
 export function ClientZoomBookingPage() {
     const [mobileTab, setMobileTab] = useState<'form' | 'bookings'>('form');
     const [isFormVisible, setIsFormVisible] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string>('');
+    const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
     const { data: bookings } = useMyBookings();
 
     const upcomingCount = useMemo(() => {
@@ -207,7 +208,7 @@ export function ClientZoomBookingPage() {
                     <SimpleBookingForm
                         selectedDate={selectedDate}
                         onDateChange={setSelectedDate}
-                        onSuccessViewBookings={() => setMobileTab('bookings')}
+                        onBookingCreated={setCreatedBookingId}
                     />
                 </section>
 
@@ -228,6 +229,14 @@ export function ClientZoomBookingPage() {
                     />
                 </section>
             </div>
+
+            {createdBookingId && (
+                <BookingDetailsModal
+                    isOpen
+                    bookingId={createdBookingId}
+                    onClose={() => setCreatedBookingId(null)}
+                />
+            )}
         </div>
     );
 }

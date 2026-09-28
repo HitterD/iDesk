@@ -9,12 +9,19 @@ import {
     Video, Calendar, Clock, ExternalLink, Copy, FileText,
     CalendarClock, Trash2, Search, ChevronRight, ChevronLeft,
     CheckCircle2, XCircle, AlertCircle, List, Mail, Download,
-    LayoutGrid, Maximize2, Minimize2, Play, Key, RefreshCw
+    LayoutGrid, Maximize2, Minimize2, Play, Key, RefreshCw, Bell, MoreHorizontal
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
 import { useMyBookings, useCancelOwnBooking, useZoomAccounts, useZoomMergedCalendar, useSyncRecording } from '../hooks';
@@ -26,7 +33,6 @@ import { ZoomClientMonthCalendar } from './ZoomClientMonthCalendar';
 import { ZoomAccountsMatrix } from './ZoomAccountsMatrix';
 import type { ZoomBooking } from '../types';
 import { formatZoomAccountName, generateInvitationText, copyToClipboard } from '../utils';
-import { openOutlookWeb, downloadIcsFile } from '../utils/calendarExport';
 
 type BookingTab = 'upcoming' | 'all' | 'past' | 'recordings';
 type ViewMode = 'calendar' | 'matrix' | 'list';
@@ -716,95 +722,80 @@ function BookingCard({ booking, isTodayItem, onView, onReminder, onReschedule, o
                 </button>
             </div>
 
-            {/* Actions for upcoming bookings */}
+            {/* Actions for upcoming bookings: one primary + icons + overflow menu */}
             {!isPastBooking && status !== 'CANCELLED' && (
-                <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-2">
+                <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-2">
                     {hasLink && (
                         <Button
                             size="sm"
-                            className="h-8 text-xs font-semibold gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm cursor-pointer"
+                            className="h-8 rounded-full px-4 text-xs font-semibold gap-1.5 cursor-pointer"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                window.open(booking.meeting!.joinUrl, '_blank');
+                                window.open(booking.meeting!.joinUrl, '_blank', 'noopener,noreferrer');
                             }}
                         >
-                            <ExternalLink className="h-3.5 w-3.5" />
+                            <Video className="h-3.5 w-3.5" />
                             Join
                         </Button>
                     )}
                     {hasLink && (
                         <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs font-medium gap-1.5 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                            aria-label={copiedInv ? 'Undangan tersalin' : 'Salin undangan'}
+                            title={copiedInv ? 'Undangan tersalin' : 'Salin undangan'}
                             onClick={async (e) => {
                                 e.stopPropagation();
-                                const fullInvitation = generateInvitationText(booking);
-                                const ok = await copyToClipboard(fullInvitation, 'Undangan Zoom');
+                                const ok = await copyToClipboard(generateInvitationText(booking), 'Undangan Zoom');
                                 if (ok) {
                                     setCopiedInv(true);
                                     setTimeout(() => setCopiedInv(false), 2000);
                                 }
                             }}
                         >
-                            {copiedInv ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <FileText className="h-3.5 w-3.5 text-slate-400" />}
-                            {copiedInv ? 'Undangan Tersalin' : 'Salin Undangan'}
+                            {copiedInv ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <FileText className="h-4 w-4" />}
                         </Button>
                     )}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs font-semibold gap-1.5 rounded-lg border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onReminder();
-                        }}
-                        title="Kirim pengingat email ke peserta"
-                    >
-                        <Mail className="h-3.5 w-3.5" />
-                        Kirim Pengingat
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-xs font-semibold gap-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg cursor-pointer"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            downloadIcsFile(booking);
-                            toast.success('File kalender (.ics) berhasil diunduh. Klik file untuk langsung mendaftarkan jadwal ke Outlook Windows.');
-                        }}
-                        title="Daftarkan langsung ke aplikasi Microsoft Outlook Windows (.ics)"
-                    >
-                        <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                        Kalender Outlook
-                    </Button>
+                    {hasLink && (isOwner || isStaff) && (
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                            aria-label="Pengingat"
+                            title="Pengingat"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onReminder();
+                            }}
+                        >
+                            <Bell className="h-4 w-4" />
+                        </Button>
+                    )}
                     {canManageCard && (
-                        <div className="ml-auto flex items-center gap-1.5">
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 text-xs font-medium gap-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onReschedule();
-                                }}
-                            >
-                                <CalendarClock className="h-3.5 w-3.5" />
-                                Reschedule
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 text-xs font-medium gap-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg cursor-pointer"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCancel();
-                                }}
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Batal
-                            </Button>
-                        </div>
+                        <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="ml-auto h-8 w-8 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                                    aria-label="Aksi lainnya"
+                                    title="Aksi lainnya"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" variant="compact" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenuItem onSelect={onReschedule}>
+                                    <CalendarClock /> Reschedule
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem variant="destructive" onSelect={onCancel}>
+                                    <Trash2 /> Batalkan meeting
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     )}
                 </div>
             )}
