@@ -352,6 +352,8 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
     const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
+    // Setters store `undefined` for valid fields, so check for an actual message.
+    const hasFieldErrors = Boolean(errors.title || errors.description);
     const titleRef = useRef<HTMLInputElement>(null);
     const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1288,7 +1290,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
                     className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm space-y-6"
                 >
-                    {Object.keys(errors).length > 0 && (
+                    {hasFieldErrors && (
                         <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3">
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                             <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
@@ -1419,7 +1421,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
                     className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm space-y-6"
                 >
-                    {Object.keys(errors).length > 0 && (
+                    {hasFieldErrors && (
                         <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3">
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                             <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
@@ -1550,7 +1552,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
                     className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm space-y-6"
                 >
-                    {Object.keys(errors).length > 0 && (
+                    {hasFieldErrors && (
                         <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3">
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                             <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
@@ -1680,7 +1682,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
                 className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm"
             >
-                {Object.keys(errors).length > 0 && (
+                {hasFieldErrors && (
                     <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3 mb-6">
                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                         <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
