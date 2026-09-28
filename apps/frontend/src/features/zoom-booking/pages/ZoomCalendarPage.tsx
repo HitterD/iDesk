@@ -25,7 +25,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomCalendarHeader, type ZoomCalendarDisplayMode } from '../components/ZoomCalendarHeader';
 import { ZoomCalendarSubBar } from '../components/ZoomCalendarSubBar';
 import { ZoomCalendarShell } from '../components/ZoomCalendarShell';
-import { ZoomRightSidebar } from '../components/ZoomRightSidebar';
+import { ZoomAccountLegend } from '../components/ZoomAccountLegend';
 import { ZoomShortcutsModal } from '../components/ZoomShortcutsModal';
 import { ZoomBookingModal } from '../components/ZoomBookingModal';
 import { ZoomMonthView } from '../components/ZoomMonthView';
@@ -577,6 +577,8 @@ export function ZoomCalendarPage() {
                         )}
                         subBar={(
                             <ZoomCalendarSubBar
+                                // The account legend replaces this bar on wide screens while the side panel is open.
+                                className={sidebarOpen ? 'lg:hidden' : undefined}
                                 accountScope={accountScope}
                                 activeAccountName={
                                     (activeAccountId && safeAccounts.find((a) => a.id === activeAccountId)?.name) ||
@@ -608,20 +610,24 @@ export function ZoomCalendarPage() {
                             />
                         )}
                         sidebar={sidebarOpen ? (
-                            <ZoomRightSidebar
+                            <ZoomAccountLegend
                                 accounts={safeAccounts.map((a) => ({
                                     id: a.id,
                                     name: a.name,
-                                    colorHex: a.colorHex ?? '#3b82f6',
-                                    meetingsAtTime: meetingsPerAccount.get(a.id) ?? 0,
+                                    colorHex: a.colorHex,
+                                    meetingsCount: meetingsPerAccount.get(a.id) ?? 0,
                                 }))}
-                                upcomingBookings={upcomingBookings}
-                                onSync={handleSync}
-                                lastSyncAt={null}
-                                userName="User"
-                                selectedAccountId={accountScope}
-                                onAccountClick={(id) => handleSelectAccount(id)}
-                                onBookingClick={(id) => panel.openDetail(id)}
+                                visibleAccountIds={activeFilterAccountIds}
+                                accountScope={accountScope}
+                                onToggleAccount={(id) => (
+                                    accountScope === 'gabungan' ? handleToggleAccountFilter(id) : handleSelectAccount(id)
+                                )}
+                                onShowOnly={(id) => (
+                                    accountScope === 'gabungan' ? handleSoloAccountFilter(id) : handleSelectAccount(id)
+                                )}
+                                onShowAll={() => handleSelectAccount('gabungan')}
+                                onOpenShortcuts={() => setShortcutsOpen(true)}
+                                onOpenSettings={() => { window.location.href = '/zoom-calendar/settings'; }}
                             />
                         ) : undefined}
                         calendarContent={calendarContent()}

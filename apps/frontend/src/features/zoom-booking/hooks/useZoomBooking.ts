@@ -10,6 +10,11 @@ import type {
     CreateBookingDto,
     CancelBookingDto
 } from '../types';
+import { resolveAccountColor } from '../utils/accountColors';
+
+/** Replace legacy look-alike account colors with the distinct calendar palette. */
+const withCalendarColors = (accounts: ZoomAccount[]): ZoomAccount[] =>
+    accounts.map((account, index) => ({ ...account, colorHex: resolveAccountColor(account, index) }));
 
 // ==================== ACCOUNTS ====================
 
@@ -23,6 +28,7 @@ export function useZoomAccounts() {
             const response = await api.get('/zoom-booking/accounts');
             return response.data;
         },
+        select: withCalendarColors,
         staleTime: 5 * 60 * 1000, // 5 minutes
     });
 }
@@ -333,6 +339,7 @@ export function useAllZoomAccounts() {
             const response = await api.get('/admin/zoom/accounts');
             return response.data;
         },
+        select: withCalendarColors,
     });
 }
 

@@ -164,7 +164,7 @@ export function ZoomMyBookingsView({
     }
 
     return (
-        <div className="flex flex-col h-full min-h-0">
+        <div className="flex flex-1 flex-col h-full min-h-0">
             {/* Header Toolbar */}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border/40 bg-muted/15">
                 {hideViewSwitcher ? (
@@ -458,7 +458,7 @@ export function ZoomMyBookingsView({
                             <div className="flex items-center gap-2">
                                 <LayoutGrid className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                 <h2 className="text-sm font-bold text-foreground">
-                                    Matriks 10 Akun Zoom — {format(matrixDate, 'MMMM yyyy', { locale: idLocale })}
+                                    Matriks Semua Akun — {format(matrixDate, 'MMMM yyyy', { locale: idLocale })}
                                 </h2>
                             </div>
                             <div className="flex items-center gap-2">
@@ -477,7 +477,7 @@ export function ZoomMyBookingsView({
                             </div>
                         </div>
                     )}
-                    <div className="flex-1 min-h-0 overflow-auto">
+                    <div className="flex-1 min-h-0 flex flex-col overflow-auto">
                         {mergedCalendar.isLoading ? (
                             <div className="h-64 flex items-center justify-center gap-2 text-xs text-muted-foreground animate-pulse">
                                 <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
