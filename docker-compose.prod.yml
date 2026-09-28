@@ -75,8 +75,13 @@ services:
       SMTP_USER: ${SMTP_USER:-sysadmin.sja@kapalapi.co.id}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-iDesk Support <sysadmin.sja@kapalapi.co.id>}
+      # Menu Hapus Data: nyalakan hanya saat go-live, lalu kembalikan ke false.
+      ALLOW_DATA_WIPE: ${ALLOW_DATA_WIPE:-false}
+      DATA_WIPE_ALLOWED_EMAILS: ${DATA_WIPE_ALLOWED_EMAILS:-}
     volumes:
       - backend_uploads:/app/uploads
+      # Backup pengaman pra-wipe (/app/backups/pre-wipe) harus selamat dari recreate container.
+      - backend_backups:/app/backups
       - notifier_dist:/app/apps/sja-notification-app/dist-package
     depends_on:
       postgres:
@@ -114,6 +119,7 @@ volumes:
   postgres_data:
   redis_data:
   backend_uploads:
+  backend_backups:
   notifier_dist:
 
 networks:
