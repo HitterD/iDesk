@@ -16,6 +16,7 @@ import { SessionService } from './application/session.service';
 import { CredentialValidatorService } from './application/credential-validator.service';
 import { HrisProvisioningService } from './application/hris-provisioning.service';
 import { AuthEventPublisher } from './application/auth-events';
+import { PasswordResetService } from './application/password-reset.service';
 import { AuthMetricsService } from './monitoring/auth-metrics.service';
 import { AUTH_EVENT } from './application/auth-events';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -83,6 +84,7 @@ assertRefreshSessionConfig();
         SessionService,
         CredentialValidatorService,
         HrisProvisioningService,
+        PasswordResetService,
         AuthEventPublisher,
         AuthMetricsService,
         AuthMetricsListener,
