@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
-import { getErrorMessage, resolveNetworkOrServerError } from './errorMessages';
+import { getErrorMessage, getErrorMessageFromStatus, resolveNetworkOrServerError } from './errorMessages';
 
 declare module 'axios' {
     export interface AxiosRequestConfig {
@@ -21,6 +21,7 @@ const api = axios.create({
 });
 
 const HTTP_TOO_MANY_REQUESTS = 429;
+const HTTP_PAYLOAD_TOO_LARGE = 413;
 
 // === 4.4.2 Implement Retry with Exponential Backoff ===
 axiosRetry(api, {
@@ -245,6 +246,9 @@ api.interceptors.response.use(
                 let displayMessage: string;
                 if (response.status === 500 && (!errorCode || errorCode === 'INTERNAL_ERROR')) {
                     displayMessage = getErrorMessage('SYS_001');
+                } else if (response.status === HTTP_PAYLOAD_TOO_LARGE) {
+                    // A proxy's 413 carries an HTML body, so there is no errorCode to map.
+                    displayMessage = getErrorMessageFromStatus(HTTP_PAYLOAD_TOO_LARGE);
                 } else {
                     displayMessage = getErrorMessage(errorCode, serverMessage);
                 }
