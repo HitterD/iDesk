@@ -4,6 +4,8 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../application/auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { PasswordResetService } from '../application/password-reset.service';
 import { LocalAuthGuard } from '../infrastructure/guards/local-auth.guard';
 import { JwtAuthGuard } from '../infrastructure/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../infrastructure/guards/optional-jwt-auth.guard';
@@ -28,7 +30,10 @@ export const AUTH_RATE_LIMIT = { limit: 30, ttl: 60000 } as const;
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-    constructor(private authService: AuthService) { }
+    constructor(
+        private authService: AuthService,
+        private readonly passwordResetService: PasswordResetService,
+    ) { }
 
     @Get('ip-debug')
     @ApiOperation({ summary: 'Diagnostic endpoint to check incoming proxy headers and resolved client IP' })
@@ -155,6 +160,16 @@ export class AuthController {
     @ApiResponse({ status: 400, description: 'Invalid current password' })
     async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
         return this.authService.changePassword(req.user.userId, changePasswordDto, req);
+    }
+
+    @Post('forgot-password')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Self-service password reset: emails a temporary password (regular users only)' })
+    @ApiResponse({ status: 200, description: 'Temporary password sent' })
+    @ApiResponse({ status: 403, description: 'Account disabled or role not eligible' })
+    @ApiResponse({ status: 404, description: 'NIK or email not found' })
+    async forgotPassword(@Body() dto: ForgotPasswordDto) {
+        return this.passwordResetService.forgotPassword(dto);
     }
 
     /**

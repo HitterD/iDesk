@@ -67,6 +67,7 @@ export class CsrfMiddleware implements NestMiddleware {
             '/v1/auth/register',
             '/v1/auth/logout',
             '/v1/auth/change-password',
+            '/v1/auth/forgot-password',
             // Health check endpoints
             '/v1/health',
             '/api/health',

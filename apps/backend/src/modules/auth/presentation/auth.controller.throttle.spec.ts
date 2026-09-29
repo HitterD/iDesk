@@ -14,7 +14,7 @@ describe('throttling policy', () => {
         expect(Reflect.getMetadata(LIMIT_KEY, handler(name))).toBe(AUTH_RATE_LIMIT.limit);
     });
 
-    it.each(['refresh', 'getCsrfToken', 'logout', 'getIpDebug', 'register', 'verifyCredentialS2S'] as const)(
+    it.each(['refresh', 'getCsrfToken', 'logout', 'getIpDebug', 'register', 'forgotPassword', 'verifyCredentialS2S'] as const)(
         'does not limit %s',
         (name) => {
             expect(Reflect.getMetadata(LIMIT_KEY, handler(name))).toBeUndefined();

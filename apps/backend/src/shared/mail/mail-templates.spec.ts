@@ -62,6 +62,9 @@ describe('email templates', () => {
         ['welcome-user', 'welcome-user', {
             name: 'User R', email: 'r@x.com', password: 'secret',
         }],
+        ['password-reset', 'password-reset', {
+            name: 'User R', nik: '12345', email: 'r@x.com', password: 'secret',
+        }],
         ['hardware-request-status', 'hardware-request-status', {
             requestNumber: 'HR-1', title: 'Permintaan Disetujui', status: 'Proses Procurement',
             message: 'Disetujui', link: 'http://app/hardware-requests/h-1',
@@ -106,7 +109,7 @@ describe('email templates', () => {
     it('every template referenced by code exists on disk', () => {
         const referenced = [
             'contract-reminder', 'eform-request', 'hardware-request-status', 'mention-notification',
-            'notification', 'ticket-assigned', 'ticket-update', 'welcome-user', 'zoom-booking',
+            'notification', 'password-reset', 'ticket-assigned', 'ticket-update', 'welcome-user', 'zoom-booking',
             'ticket-reminder',
         ];
         const missing = referenced.filter((t) => !existsSync(join(TEMPLATE_DIR, `${t}.hbs`)));

@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { restoreSession } from '@/hooks/useSessionRestore';
 import api from '../../../lib/api';
 import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
+import { ForgotPasswordDialog } from '../components/ForgotPasswordDialog';
 
 const DASHBOARD_ROLES = new Set(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT']);
 const ATTEMPT_WARNING_THRESHOLD = 3;
@@ -51,6 +52,7 @@ export const BentoLoginPage = () => {
     const [rememberMe, setRememberMe] = useState(true);
     const { theme, toggle: toggleTheme } = useTheme();
     const [mustChange, setMustChange] = useState<{ password: string } | null>(null);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
     const login = useAuth((state) => state.login);
     const updateUser = useAuth((state) => state.updateUser);
     const navigate = useNavigate();
@@ -498,6 +500,9 @@ export const BentoLoginPage = () => {
                                             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded border-border/80 accent-primary" disabled={isLoading || rateLimitSeconds > 0} />
                                             <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors select-none">Keep session active</span>
                                         </label>
+                                        <button type="button" onClick={() => setShowForgotPassword(true)} className="text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded" disabled={isLoading}>
+                                            Lupa password?
+                                        </button>
                                     </div>
                                 </motion.div>
                             ) : null}
@@ -565,6 +570,8 @@ export const BentoLoginPage = () => {
                     <span>© 2026 iDesk</span>
                 </div>
             </motion.footer>
+
+            {showForgotPassword && <ForgotPasswordDialog onClose={() => setShowForgotPassword(false)} />}
 
             {mustChange && (
                 <MustChangePasswordDialog currentPassword={mustChange.password} onSuccess={() => { const role = useAuth.getState().user?.role; updateUser({ mustChangePassword: false }); setMustChange(null); if (role) navigateByRole(role); }} />
