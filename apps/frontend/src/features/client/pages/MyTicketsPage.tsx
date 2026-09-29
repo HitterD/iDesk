@@ -65,6 +65,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
         color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
         icon: CheckCircle2 
     },
+    CLOSED: { 
+        label: 'Closed', 
+        color: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+        icon: CheckCircle2 
+    },
     CANCELLED: { 
         label: 'Cancelled', 
         color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
@@ -128,7 +133,7 @@ export const MyTicketsPage: React.FC = () => {
             open: baseTickets.filter(t => t.status === 'TODO').length,
             inProgress: baseTickets.filter(t => t.status === 'IN_PROGRESS').length,
             waiting: baseTickets.filter(t => t.status === 'WAITING_VENDOR').length,
-            resolved: baseTickets.filter(t => t.status === 'RESOLVED').length,
+            resolved: baseTickets.filter(t => t.status === 'RESOLVED' || t.status === 'CLOSED').length,
         };
     }, [tickets]);
 
@@ -259,6 +264,7 @@ export const MyTicketsPage: React.FC = () => {
                         <option value="IN_PROGRESS">In Progress</option>
                         <option value="WAITING_VENDOR">Waiting Vendor</option>
                         <option value="RESOLVED">Resolved</option>
+                        <option value="CLOSED">Closed</option>
                         <option value="CANCELLED">Cancelled</option>
                     </select>
                     <button

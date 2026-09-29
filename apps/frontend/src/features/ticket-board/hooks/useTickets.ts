@@ -7,7 +7,7 @@ export interface Ticket {
     ticketNumber: string;
     title: string;
     description: string;
-    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     category?: string;
     source?: string;

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Ticket } from '../entities/ticket.entity';
+import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { CacheService, CacheKeys, CacheInvalidationService } from '../../../shared/core/cache';
 import { UserRole } from '../../users/enums/user-role.enum';
 
@@ -72,8 +73,8 @@ export class TicketStatsService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'open')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
-            .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' AND ticket.status != 'CANCELLED' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -118,8 +119,8 @@ export class TicketStatsService {
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
             .setParameters({ today, thisWeek: thisWeekStart, thisMonth: thisMonthStart })
             .getRawOne();
 
@@ -134,7 +135,7 @@ export class TicketStatsService {
             .createQueryBuilder('ticket')
             .select(`DATE(ticket."createdAt")`, 'date')
             .addSelect('COUNT(*)', 'created')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .where(`ticket."createdAt" >= :start`, { start: last7DaysStart })
             .groupBy(`DATE(ticket."createdAt")`)
             .orderBy(`DATE(ticket."createdAt")`, 'ASC')
@@ -189,7 +190,7 @@ export class TicketStatsService {
             .innerJoin('ticket.assignedTo', 'agent')
             .select('agent.id', 'agentId')
             .addSelect('agent.fullName', 'name')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .groupBy('agent.id')
             .addGroupBy('agent.fullName')
@@ -207,7 +208,7 @@ export class TicketStatsService {
         const avgTimeResult = await this.ticketRepo
             .createQueryBuilder('ticket')
             .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
-            .where(`ticket.status = 'RESOLVED'`)
+            .where(`ticket.status IN (${TICKET_DONE_STATUSES_SQL})`)
             .getRawOne();
 
         const avgResolutionMinutes = Math.round(parseFloat(avgTimeResult?.avgMinutes) || 0);
@@ -262,7 +263,7 @@ export class TicketStatsService {
                 .select('COUNT(*)', 'total')
                 .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'pending')
                 .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
-                .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'completed')
+                .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'completed')
                 .where('ticket.isHardwareInstallation = true')
                 .getRawOne();
 

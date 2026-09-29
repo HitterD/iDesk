@@ -299,6 +299,7 @@ export const DynamicTicketQueuePage: React.FC = () => {
                         <option value="IN_PROGRESS">In Progress</option>
                         <option value="WAITING_VENDOR">Waiting Vendor</option>
                         <option value="RESOLVED">Resolved</option>
+                        <option value="CLOSED">Closed</option>
                         <option value="CANCELLED">Cancelled</option>
                     </select>
 

@@ -21,7 +21,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
-import { STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
+import { STATUS_CONFIG, PRIORITY_CONFIG, isTerminalStatus } from './constants';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ResolveTicketModal } from './ResolveTicketModal';
@@ -191,8 +191,8 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         dot: 'bg-slate-400',
     };
 
-    const isTerminal = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
-    const isResolved = ticket.status === 'RESOLVED';
+    const isTerminal = isTerminalStatus(ticket.status);
+    const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const slaTargetDate = ticket.slaTarget || ticket.targetResolutionDate;
 
     // Calculate SLA
@@ -207,7 +207,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
         if (isTerminal) {
             return {
-                resolutionTime: isResolved ? 'Resolved' : 'Cancelled',
+                resolutionTime: isResolved ? (STATUS_CONFIG[ticket.status]?.label ?? 'Resolved') : 'Cancelled',
                 slaTooltip: isResolved ? 'Tiket telah selesai diselesaikan' : 'Tiket telah dibatalkan',
                 slaStatus: 'normal' as const,
             };

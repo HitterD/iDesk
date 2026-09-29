@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, In } from 'typeorm';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
-import { Ticket } from '../ticketing/entities/ticket.entity';
+import { Ticket, TICKET_INACTIVE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { SettingsService, StorageSettings } from './settings.service';
 import { UploadService } from '../../shared/upload/upload.service';
 import * as path from 'path';
@@ -270,7 +270,7 @@ export class StorageCleanupService {
 
     private async getResolvedTicketIds(): Promise<string[]> {
         const tickets = await this.ticketRepo.find({
-            where: { status: In(['RESOLVED', 'CANCELLED']) },
+            where: { status: In(TICKET_INACTIVE_STATUSES) },
             select: ['id'],
         });
         return tickets.map(t => t.id);

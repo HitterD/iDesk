@@ -5,7 +5,7 @@ import { InjectBot } from 'nestjs-telegraf';
 import { Telegraf, Context, Markup } from 'telegraf';
 import { TelegramSession } from './entities/telegram-session.entity';
 import { User } from '../users/entities/user.entity';
-import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { TelegramState } from './enums/telegram-state.enum';
 import { UploadService } from '../../shared/upload';
@@ -156,7 +156,7 @@ export class TelegramChatBridgeService {
         }
 
         // Check if ticket is closed
-        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
+        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
             await this.exitChatMode(telegramId);
             return { success: false, message: 'Tiket sudah ditutup. Chat mode diakhiri.' };
         }
@@ -421,7 +421,7 @@ export class TelegramChatBridgeService {
         return this.ticketRepo.find({
             where: {
                 userId,
-                status: Not(In([TicketStatus.RESOLVED, TicketStatus.CANCELLED])),
+                status: Not(In(TICKET_INACTIVE_STATUSES)),
             },
             order: { updatedAt: 'DESC' },
             take: 10,
@@ -518,6 +518,7 @@ export class TelegramChatBridgeService {
             [TicketStatus.IN_PROGRESS]: '🟡',
             [TicketStatus.WAITING_VENDOR]: '🟠',
             [TicketStatus.RESOLVED]: '🟢',
+            [TicketStatus.CLOSED]: '⚫',
             [TicketStatus.CANCELLED]: '🔴',
         };
         return emojiMap[status] || '⚪';
@@ -529,6 +530,7 @@ export class TelegramChatBridgeService {
             [TicketStatus.IN_PROGRESS]: 'Sedang Dikerjakan',
             [TicketStatus.WAITING_VENDOR]: 'Menunggu Vendor',
             [TicketStatus.RESOLVED]: 'Selesai',
+            [TicketStatus.CLOSED]: 'Ditutup',
             [TicketStatus.CANCELLED]: 'Dibatalkan',
         };
         return textMap[status] || status;
@@ -559,7 +561,7 @@ export class TelegramChatBridgeService {
             return { success: false, message: 'Tiket tidak ditemukan.' };
         }
 
-        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
+        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
             return { success: false, message: 'Tiket sudah ditutup.' };
         }
 

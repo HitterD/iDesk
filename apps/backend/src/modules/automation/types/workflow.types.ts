@@ -278,7 +278,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
             name: 'Idle Ticket Reminder',
             trigger: { type: TriggerType.TICKET_IDLE, config: { idleMinutes: 1440 } },
             conditions: [
-                { field: ConditionField.STATUS, operator: ConditionOperator.NOT_EQUALS, value: 'RESOLVED' }
+                { field: ConditionField.STATUS, operator: ConditionOperator.NOT_EQUALS, value: 'RESOLVED' },
+                { field: ConditionField.STATUS, operator: ConditionOperator.NOT_EQUALS, value: 'CLOSED' }
             ],
             actions: [
                 { type: ActionType.SEND_NOTIFICATION, config: { recipientType: NotificationRecipient.ASSIGNEE, message: '⏰ Reminder: Ticket {{ticket.ticketNumber}} has been idle for 24 hours' } }

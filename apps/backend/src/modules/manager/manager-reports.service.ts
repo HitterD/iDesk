@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, MoreThanOrEqual } from 'typeorm';
-import { Ticket, TicketStatus, TicketPriority } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TicketPriority, TICKET_DONE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { Site } from '../sites/entities/site.entity';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -383,10 +383,10 @@ export class ManagerReportsService {
         const rows = await this.ticketRepo.createQueryBuilder('t')
             .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
             .addSelect('COUNT(*)', 'created')
-            .addSelect(`COUNT(*) FILTER (WHERE t.status = :resolvedStatus AND t."resolvedAt" IS NOT NULL)`, 'resolved')
+            .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" IS NOT NULL)`, 'resolved')
             .where('t."siteId" IN (:...ids)', { ids: siteIds })
             .andWhere('t."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate })
-            .setParameters({ resolvedStatus: TicketStatus.RESOLVED })
+            .setParameters({ resolvedStatuses: TICKET_DONE_STATUSES })
             .groupBy(`date_trunc('day', t."createdAt")`)
             .orderBy(`date_trunc('day', t."createdAt")`, 'ASC')
             .getRawMany<{ day: string; created: string; resolved: string }>();

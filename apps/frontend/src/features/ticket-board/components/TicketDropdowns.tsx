@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Filter, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+import { STATUS_CONFIG, PRIORITY_CONFIG, NON_SELECTABLE_STATUSES } from '@/lib/constants/ticket.constants';
 import {
     Select,
     SelectContent,
@@ -143,7 +143,7 @@ export const StatusDropdown: React.FC<StatusDropdownProps> = ({ value, onChange,
                 </SelectValue>
             </SelectTrigger>
             <SelectContent>
-                {Object.entries(STATUS_CONFIG).filter(([key]) => key !== 'CANCELLED').map(([key, cfg]) => {
+                {Object.entries(STATUS_CONFIG).filter(([key]) => !NON_SELECTABLE_STATUSES.includes(key)).map(([key, cfg]) => {
                     const SIcon = cfg.icon;
                     return (
                         <SelectItem key={key} value={key}>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, Suspense, lazy } from 'react';
-import { X, Send, Paperclip, Zap } from 'lucide-react';
+import { X, Send, Paperclip, Zap, Lock } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImageUploadPreview } from './ImageUploadPreview';
@@ -13,6 +13,7 @@ import api from '../../../lib/api';
 import { formatDate } from '../../../lib/utils';
 import { logger } from '@/lib/logger';
 import { SystemMessageEvent } from './ticket-detail/SystemMessageEvent';
+import { CLOSED_TICKET_NOTICE } from './ticket-detail/constants';
 
 interface Message {
     id: string;
@@ -26,6 +27,8 @@ interface Message {
 interface TicketChatRoomProps {
     ticketId: string;
     onClose: () => void;
+    /** CLOSED tickets are read-only: the reply box is replaced by a notice. */
+    isClosed?: boolean;
 }
 
 // Mock API
@@ -48,7 +51,7 @@ const fetchMessages = async (_ticketId: string) => {
     ];
 };
 
-export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClose }) => {
+export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClose, isClosed = false }) => {
     const queryClient = useQueryClient();
     const [newMessage, setNewMessage] = useState('');
     const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
@@ -100,7 +103,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
     const handleSend = async () => {
         // Strip HTML tags to check if empty (basic check)
         const stripped = newMessage.replace(/<[^>]*>?/gm, '').trim();
-        if ((!stripped && files.length === 0) || isSending) return;
+        if ((!stripped && files.length === 0) || isSending || isClosed) return;
 
         setIsSending(true);
         let attachmentUrls: string[] = [];
@@ -200,6 +203,12 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
             <ImageUploadPreview files={files} onRemove={handleRemoveFile} />
 
             {/* Input */}
+            {isClosed ? (
+                <div role="status" className="p-4 border-t border-white/10 bg-navy-main flex items-center justify-center gap-2 text-sm text-slate-400">
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <span>{CLOSED_TICKET_NOTICE}</span>
+                </div>
+            ) : (
             <div className="p-4 border-t border-white/10 bg-navy-main">
                 <div className="flex flex-col gap-2">
                     <div className="flex justify-between items-center">
@@ -274,6 +283,7 @@ export const TicketChatRoom: React.FC<TicketChatRoomProps> = ({ ticketId, onClos
                     </Suspense>
                 </div>
             </div>
+            )}
 
             <ImageViewerModal
                 isOpen={!!selectedImage}

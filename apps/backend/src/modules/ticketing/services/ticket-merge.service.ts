@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { User } from '../../users/entities/user.entity';
@@ -75,8 +75,8 @@ export class TicketMergeService {
 
             // Pre-validate status before any writes
             for (const secondaryTicket of secondaryTickets) {
-                if (secondaryTicket.status === TicketStatus.RESOLVED || secondaryTicket.status === TicketStatus.CANCELLED) {
-                    throw new BadRequestException(`Cannot merge resolved or cancelled ticket: ${secondaryTicket.ticketNumber}`);
+                if (TICKET_INACTIVE_STATUSES.includes(secondaryTicket.status)) {
+                    throw new BadRequestException(`Cannot merge resolved, closed or cancelled ticket: ${secondaryTicket.ticketNumber}`);
                 }
             }
 

@@ -1,4 +1,4 @@
-import { Inbox, CircleDot, Hourglass, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Inbox, CircleDot, Hourglass, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 
 export const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
     TODO: { label: 'Open', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', icon: Inbox },
@@ -6,7 +6,17 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; icon:
     WAITING_VENDOR: { label: 'Waiting Vendor', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400', icon: Hourglass },
     CANCELLED: { label: 'Cancelled', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400', icon: AlertCircle },
     RESOLVED: { label: 'Resolved', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
+    CLOSED: { label: 'Closed', color: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300', icon: Lock },
 };
+
+/** Statuses where agent-side controls (status, assign, cancel) are locked. */
+export const TERMINAL_STATUSES: readonly string[] = ['RESOLVED', 'CLOSED', 'CANCELLED'];
+export const isTerminalStatus = (status: string): boolean => TERMINAL_STATUSES.includes(status);
+
+/** Statuses from which the requester may close the ticket themselves. */
+export const SELF_RESOLVABLE_STATUSES: readonly string[] = ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'];
+
+export const CLOSED_TICKET_NOTICE = 'Tiket sudah ditutup. Buat tiket baru jika masih ada kendala.';
 
 export const PRIORITY_CONFIG: Record<string, { label: string; shortLabel?: string; color: string; dot: string }> = {
     LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', color: 'text-slate-500', dot: 'bg-slate-400' },

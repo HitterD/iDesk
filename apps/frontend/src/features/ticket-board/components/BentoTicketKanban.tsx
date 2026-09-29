@@ -31,7 +31,7 @@ import { AgentSelectList, Agent } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
-import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
+import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS, NON_SELECTABLE_STATUSES } from '@/lib/constants/ticket.constants';
 import {
     Select,
     SelectContent,
@@ -72,7 +72,7 @@ interface Ticket {
     title: string;
     description?: string;
     category?: string;
-    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
     slaTarget?: string;
@@ -130,7 +130,7 @@ const EnhancedKanbanCard: React.FC<{
     onOpen: () => void;
 }> = ({ ticket, index, onSelect, onQuickAssign, onOpen }) => {
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
-    const isOverdue = ticket.isOverdue || (ticket.slaTarget && new Date(ticket.slaTarget) < new Date() && ticket.status !== 'RESOLVED');
+    const isOverdue = ticket.isOverdue || (ticket.slaTarget && new Date(ticket.slaTarget) < new Date() && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED');
     const isApproaching = ticket.slaTarget && !isOverdue && (new Date(ticket.slaTarget).getTime() - Date.now() < 2 * 60 * 60 * 1000);
     const PriorityIcon = priorityConfig.icon;
 
@@ -139,7 +139,7 @@ const EnhancedKanbanCard: React.FC<{
         : '';
 
     return (
-        <Draggable draggableId={ticket.id} index={index}>
+        <Draggable draggableId={ticket.id} index={index} isDragDisabled={ticket.status === 'CLOSED'}>
             {(provided, snapshot) => (
                 <div
                     ref={provided.innerRef}
@@ -231,7 +231,7 @@ const EnhancedKanbanCard: React.FC<{
                     )}
 
                     {/* SLA / Target Date Pill if active */}
-                    {ticket.slaTarget && ticket.status !== 'RESOLVED' && (
+                    {ticket.slaTarget && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
                         <div className="mb-2.5">
                             {isOverdue ? (
                                 <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
@@ -478,7 +478,7 @@ const TicketPreviewPanel: React.FC<{
 
                 {/* Quick Status & Priority */}
                 <div className="flex flex-wrap gap-2">
-                    <Select value={ticket.status} onValueChange={onStatusChange}>
+                    <Select value={ticket.status} onValueChange={onStatusChange} disabled={ticket.status === 'CLOSED'}>
                         <SelectTrigger className={cn("h-8 w-auto min-w-[125px] text-xs font-semibold rounded-lg", statusConfig.color)}>
                             <SelectValue>
                                 <span className="flex items-center gap-1.5">
@@ -488,7 +488,7 @@ const TicketPreviewPanel: React.FC<{
                             </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-border bg-popover shadow-xl z-50">
-                            {Object.entries(STATUS_CONFIG).filter(([k]) => k !== 'CANCELLED').map(([key, cfg]) => {
+                            {Object.entries(STATUS_CONFIG).filter(([k]) => !NON_SELECTABLE_STATUSES.includes(k)).map(([key, cfg]) => {
                                 const SIcon = cfg.icon;
                                 return (
                                     <SelectItem key={key} value={key} className="text-xs py-2 rounded-lg cursor-pointer">
@@ -877,9 +877,10 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 if (t.status !== 'CANCELLED') acc.total++;
                 if (t.status === 'TODO' || t.status === 'WAITING_VENDOR') acc.open++;
                 if (t.status === 'IN_PROGRESS') acc.inProgress++;
-                if (t.status === 'RESOLVED') acc.resolved++;
-                if (t.status !== 'RESOLVED' && t.status !== 'CANCELLED' && t.isOverdue) acc.overdue++;
-                if (t.status !== 'RESOLVED' && t.status !== 'CANCELLED' && t.priority === 'CRITICAL') acc.critical++;
+                const isDone = t.status === 'RESOLVED' || t.status === 'CLOSED';
+                if (isDone) acc.resolved++;
+                if (!isDone && t.status !== 'CANCELLED' && t.isOverdue) acc.overdue++;
+                if (!isDone && t.status !== 'CANCELLED' && t.priority === 'CRITICAL') acc.critical++;
                 return acc;
             },
             { total: 0, open: 0, inProgress: 0, resolved: 0, overdue: 0, critical: 0 }
@@ -896,6 +897,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         const { destination, source, draggableId } = result;
         if (!destination) return;
         if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+        if (NON_SELECTABLE_STATUSES.includes(destination.droppableId)) return;
         updateStatusMutation.mutate({ id: draggableId, status: destination.droppableId });
     };
 
@@ -1073,7 +1075,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 <DragDropContext onDragEnd={onDragEnd}>
                     <div className="flex-1 min-h-0 flex gap-3.5 overflow-x-auto pb-1 items-stretch">
                         {KANBAN_COLUMNS.map((column) => {
-                            let columnTickets = filteredTickets.filter(t => t.status === column.id);
+                            // CLOSED has no column of its own; it is shown (read-only) under Resolved.
+                            let columnTickets = filteredTickets.filter(t => t.status === column.id || (column.id === 'RESOLVED' && t.status === 'CLOSED'));
 
                             if (column.id === 'RESOLVED') {
                                 columnTickets = columnTickets.slice(0, 50);

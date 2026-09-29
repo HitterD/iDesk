@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket, TicketType, HandlingTeam, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TicketType, HandlingTeam, TicketStatus, TICKET_DONE_STATUSES } from '../entities/ticket.entity';
 import { TicketModule } from '../entities/ticket-module.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
+import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
@@ -765,8 +766,8 @@ export class TicketQueryService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'open')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
-            .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' AND ticket.status != 'CANCELLED' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -814,8 +815,8 @@ export class TicketQueryService {
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
             .setParameters({ today, thisWeek: thisWeekStart, thisMonth: thisMonthStart })
             .getRawOne();
 
@@ -829,7 +830,7 @@ export class TicketQueryService {
         const dailyStats = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .select(`DATE(ticket."createdAt")`, 'date')
             .addSelect('COUNT(*)', 'created')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .andWhere(`ticket."createdAt" >= :start`, { start: lastDaysStart })
             .groupBy(`DATE(ticket."createdAt")`)
             .orderBy(`DATE(ticket."createdAt")`, 'ASC')
@@ -889,7 +890,7 @@ export class TicketQueryService {
             .innerJoin('ticket.assignedTo', 'agent')
             .select('agent.id', 'agentId')
             .addSelect('agent.fullName', 'name')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .groupBy('agent.id')
             .addGroupBy('agent.fullName')
@@ -906,7 +907,7 @@ export class TicketQueryService {
         // 8. Average resolution time - SQL calculation
         const avgTimeResult = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
             .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
-            .andWhere(`ticket.status = 'RESOLVED'`)
+            .andWhere(`ticket.status IN (${TICKET_DONE_STATUSES_SQL})`)
             .getRawOne();
 
         const avgResolutionMinutes = Math.round(parseFloat(avgTimeResult?.avgMinutes) || 0);
@@ -1080,7 +1081,7 @@ export class TicketQueryService {
             statsQb.clone().getCount(),
             statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.TODO }).getCount(),
             statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.IN_PROGRESS }).getCount(),
-            statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.RESOLVED }).getCount(),
+            statsQb.clone().andWhere('ticket.status IN (:...s)', { s: TICKET_DONE_STATUSES }).getCount(),
         ]);
 
         return {

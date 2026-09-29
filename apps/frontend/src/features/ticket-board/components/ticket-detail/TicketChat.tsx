@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
 import { TicketDetail } from './types';
+import { CLOSED_TICKET_NOTICE } from './constants';
 import { MessageAttachments } from './MessageAttachments';
 import { MessageActionMenu } from './MessageActionMenu';
 import { CannedResponsePicker, SlashCommandAutocomplete, applyPlaceholders, SavedReply } from '@/components/ui/CannedResponses';
@@ -154,6 +155,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const [isSlashOpen, setIsSlashOpen] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
+    const isTicketClosed = ticket.status === 'CLOSED';
 
     const handleAddReaction = useCallback((messageId: string, emoji: string) => {
         const currentUserName = user?.fullName || 'User';
@@ -680,6 +682,15 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             </div>
 
             {/* ── Input Area ── */}
+            {isTicketClosed ? (
+                <div
+                    role="status"
+                    className="sticky bottom-0 p-3 sm:p-4 border-t border-slate-200/90 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 z-20 safe-area-pb flex items-center justify-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >
+                    <Lock className="w-3.5 h-3.5 shrink-0" />
+                    <span>{CLOSED_TICKET_NOTICE}</span>
+                </div>
+            ) : (
             <div
                 ref={dropZoneRef}
                 className={cn(
@@ -906,6 +917,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     </span>
                 </div>
             </div>
+            )}
 
             <PDFPreviewModal
                 isOpen={pdfPreview.isOpen}

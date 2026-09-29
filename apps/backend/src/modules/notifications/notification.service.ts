@@ -343,12 +343,14 @@ export class NotificationService {
         });
     }
 
-    async notifyTicketResolved(userId: string, ticketId: string, ticketNumber: string) {
+    async notifyTicketResolved(userId: string, ticketId: string, ticketNumber: string, deadlineLabel?: string) {
         return this.create({
             userId,
             type: NotificationType.TICKET_RESOLVED,
             title: 'Ticket Resolved',
-            message: `Ticket #${ticketNumber} has been resolved`,
+            message: deadlineLabel
+                ? `Tiket #${ticketNumber} telah diselesaikan. Konfirmasi atau sanggah sebelum ${deadlineLabel}; setelah itu tiket otomatis ditutup.`
+                : `Ticket #${ticketNumber} has been resolved`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });

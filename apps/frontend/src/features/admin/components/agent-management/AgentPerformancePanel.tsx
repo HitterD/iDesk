@@ -7,6 +7,7 @@ import type { User, AgentStats } from '@/types/admin.types';
 import { VirtualizedAgentGrid } from '../VirtualizedAgentGrid';
 import { AgentCard } from './AgentCard';
 import { AgentCardErrorBoundary } from './AgentCardErrorBoundary';
+import { AgentRatingsSection } from './AgentRatingsSection';
 import { SITE_COLORS, ROLE_CONFIG } from './agent-utils';
 
 type SortKey = 'fullName' | 'openTickets' | 'inProgressTickets' | 'resolvedThisWeek' | 'resolvedThisMonth' | 'slaCompliance' | 'appraisalPoints' | 'activeWorkloadPoints';
@@ -413,6 +414,7 @@ export function AgentPerformancePanel({
                     </table>
                 </div>
             )}
+            <AgentRatingsSection />
             </Collapsible.Content>
         </Collapsible.Root>
     );

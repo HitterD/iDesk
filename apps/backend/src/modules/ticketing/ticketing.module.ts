@@ -62,6 +62,12 @@ import { TicketNotificationListener } from './listeners/ticket-notification.list
 import { TicketReminder } from './entities/ticket-reminder.entity';
 import { TicketReminderService } from './services/ticket-reminder.service';
 import { TicketReminderSchedulerService } from './services/ticket-reminder-scheduler.service';
+import { TicketAssignment } from './entities/ticket-assignment.entity';
+import { AgentRating } from './entities/agent-rating.entity';
+import { TicketResolutionService } from './services/ticket-resolution.service';
+import { AgentRatingService } from './services/agent-rating.service';
+import { TicketAutoCloseCron } from './services/ticket-auto-close.cron';
+import { AgentRatingsController } from './presentation/agent-ratings.controller';
 
 @Module({
     imports: [
@@ -81,6 +87,8 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
             NotificationPreference,
             SlaAdjustment,
             TicketReminder,
+            TicketAssignment,
+            AgentRating,
         ]),
         ReportsModule,
         KnowledgeBaseModule,
@@ -101,6 +109,7 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         SurveysController,
         TicketAttributesController,
         TimeTrackingController,
+        AgentRatingsController,
     ],
     providers: [
         // Core services (Split)
@@ -117,6 +126,9 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         TicketReminderService,
         TicketReminderSchedulerService,
         TimeTrackingService,
+        TicketResolutionService,
+        AgentRatingService,
+        TicketAutoCloseCron,
 
         SlaCheckerService,
         SlaConfigService,

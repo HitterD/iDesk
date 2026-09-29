@@ -12,7 +12,7 @@ interface SearchFilterPanelProps {
     onClose?: () => void;
 }
 
-const STATUSES = ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR', 'RESOLVED', 'CANCELLED'];
+const STATUSES = ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR', 'RESOLVED', 'CLOSED', 'CANCELLED'];
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({

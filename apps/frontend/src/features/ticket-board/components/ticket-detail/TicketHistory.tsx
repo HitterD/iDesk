@@ -123,7 +123,7 @@ const parseSystemMessage = (messageId: string, rawContent: string, createdAt: st
             rawContent,
             type: 'STATUS',
             categoryGroup: 'status_sla',
-            title: to === 'RESOLVED' ? 'Tiket Diselesaikan' : to === 'IN_PROGRESS' ? 'Pengerjaan Tiket Dimulai' : 'Perubahan Status Tiket',
+            title: to === 'RESOLVED' ? 'Tiket Diselesaikan' : to === 'CLOSED' ? 'Tiket Ditutup' : to === 'IN_PROGRESS' ? 'Pengerjaan Tiket Dimulai' : 'Perubahan Status Tiket',
             actor,
             createdAt,
             statusChange: { from, to },

@@ -21,6 +21,7 @@ import {
     isWebDevCategory,
     isOracleDevCategory,
 } from '../utils/oracle-ticket-access.util';
+import { formatResolutionDeadline } from '../utils/resolution-deadline.util';
 
 @Injectable()
 export class TicketNotificationListener {
@@ -142,6 +143,9 @@ export class TicketNotificationListener {
         this.logger.log(`Handling ticket.updated event for ticket ${event.ticketId}`);
         const { ticket, changes } = event;
         const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
+        const deadlineLabel = ticket.status === TicketStatus.RESOLVED && ticket.resolutionDeadlineAt
+            ? formatResolutionDeadline(ticket.resolutionDeadlineAt)
+            : undefined;
 
         // 1. In-App Notification
         if (ticket.user) {
@@ -153,6 +157,7 @@ export class TicketNotificationListener {
                             ticket.user.id,
                             ticket.id,
                             ticketNumber,
+                            deadlineLabel,
                         );
                     } else {
                         await this.notificationService.notifyTicketUpdated(
@@ -216,6 +221,8 @@ export class TicketNotificationListener {
                             ticketNumber,
                             status: ticket.status,
                             title: ticket.title,
+                            // Only the requester can confirm; the agent copy just shows the status.
+                            confirmationDeadline: r.email === ticket.user?.email ? deadlineLabel : undefined,
                             link: buildAppUrl(`/tickets/${ticket.id}`),
                             year: new Date().getFullYear(),
                         },

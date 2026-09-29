@@ -22,6 +22,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EntityManager } from 'typeorm';
 import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
 import { CacheService } from '../../shared/core/cache/cache.service';
+import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -337,6 +338,7 @@ export class NotificationCenterService implements OnModuleInit {
             slaBreachedTickets,
             unrespondedTickets,
             resolvedTickets,
+            disputedTickets,
             pendingHw,
             userHwConfirmation,
             agentHwInstallation,
@@ -345,7 +347,7 @@ export class NotificationCenterService implements OnModuleInit {
             zoomBookings,
         ] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND status != 'CANCELLED' AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
                 [userId, now]
             ).catch(() => []) : Promise.resolve([]),
             isAgentOrAdmin ? this.entityManager.query(
@@ -353,7 +355,12 @@ export class NotificationCenterService implements OnModuleInit {
                 [userId, oneHourAgo]
             ).catch(() => []) : Promise.resolve([]),
             isUser ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "updatedAt", "resolutionDeadlineAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
+                [userId]
+            ).catch(() => []) : Promise.resolve([]),
+            // The requester disputed the resolution: the assigned agent must pick it up again.
+            isAgentOrAdmin ? this.entityManager.query(
+                `SELECT id, "ticketNumber", title, "disputedAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'IN_PROGRESS' AND "disputedAt" IS NOT NULL AND "deletedAt" IS NULL ORDER BY "disputedAt" DESC LIMIT 50`,
                 [userId]
             ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
@@ -386,6 +393,7 @@ export class NotificationCenterService implements OnModuleInit {
             slaBreachedTickets,
             unrespondedTickets,
             resolvedTickets,
+            disputedTickets,
             pendingHw,
             userHwConfirmation,
             agentHwInstallation,
@@ -411,7 +419,15 @@ export class NotificationCenterService implements OnModuleInit {
 
         data.resolvedTickets?.forEach((t: any) => items.push({
             id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
-            description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
+            description: t.resolutionDeadlineAt
+                ? `Konfirmasi selesai atau sanggah sebelum ${formatResolutionDeadline(t.resolutionDeadlineAt)}`
+                : 'Konfirmasi apakah tiket sudah selesai',
+            urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
+        }));
+
+        data.disputedTickets?.forEach((t: any) => items.push({
+            id: `tkt-dispute-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Resolusi Disanggah: ${t.ticketNumber}`,
+            description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.disputedAt, isSnoozed: false
         }));
 
         data.pendingHw?.forEach((hw: any) => items.push({

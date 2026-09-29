@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
 import { InjectBot } from 'nestjs-telegraf';
@@ -10,6 +10,7 @@ import { Ticket, TicketStatus, TicketPriority, TicketSource } from '../ticketing
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { CacheService } from '../../shared/core/cache';
 import { generateNextTicketNumber } from '../ticketing/utils/ticket-number-generator';
+import { TicketUpdateService } from '../ticketing/services/ticket-update.service';
 
 // Cache key prefix for link codes
 const LINK_CODE_PREFIX = 'telegram:linkcode:';
@@ -30,6 +31,8 @@ export class TelegramService {
         @InjectBot() private bot: Telegraf<Context>,
         // SECURITY: Use CacheService instead of in-memory Map (supports Redis)
         private cacheService: CacheService,
+        @Inject(forwardRef(() => TicketUpdateService))
+        private ticketUpdateService: TicketUpdateService,
     ) { }
 
     // =====================
@@ -798,9 +801,12 @@ export class TelegramService {
             }
         }
 
-        await this.ticketRepo.update(ticket.id, {
-            status: TicketStatus.RESOLVED,
-        });
+        // Same path as the web UI: opens the requester's confirmation window and notifies them.
+        try {
+            await this.ticketUpdateService.updateTicket(ticket.id, { status: TicketStatus.RESOLVED }, agentId);
+        } catch (error) {
+            return { success: false, message: (error as Error).message };
+        }
 
         // Get updated ticket
         const updatedTicket = await this.ticketRepo.findOne({

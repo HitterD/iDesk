@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Response } from 'express';
 import { Ticket } from '../ticketing/entities/ticket.entity';
+import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
 import { User } from '../users/entities/user.entity';
 import { AgentPerformanceReport } from './generators/agent-performance.report';
 import { TicketVolumeReport } from './generators/ticket-volume.report';
@@ -64,9 +65,9 @@ export class ReportsService {
             const qb = this.ticketRepo
                 .createQueryBuilder('ticket')
                 .select('COUNT(*)', 'totalTickets')
-                .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolvedTickets')
-                .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' THEN 1 ELSE 0 END)`, 'openTickets')
-                .addSelect(`AVG(CASE WHEN ticket.status = 'RESOLVED' THEN EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
+                .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolvedTickets')
+                .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'openTickets')
+                .addSelect(`AVG(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
                 .where('ticket."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate });
 
             if (siteId) {

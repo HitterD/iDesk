@@ -41,7 +41,16 @@ import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
 import { KbSuggestionDialog } from '../../ticket-board/components/KbSuggestionDialog';
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '../../ticket-board/components/ticket-detail/constants';
+import {
+    STATUS_CONFIG,
+    PRIORITY_CONFIG,
+    SELF_RESOLVABLE_STATUSES,
+    isTerminalStatus,
+} from '../../ticket-board/components/ticket-detail/constants';
+import { ResolutionConfirmationBanner } from '../components/resolution/ResolutionConfirmationBanner';
+import { SelfResolveButton } from '../components/resolution/SelfResolveButton';
+import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
+import { getApiErrorMessage } from '../components/resolution/resolutionApi';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
 
@@ -67,6 +76,8 @@ interface ClientTicketHeaderProps {
     onCancel: () => void;
     isSidebarOpen: boolean;
     onToggleSidebar: () => void;
+    /** Requester may close their own open ticket ("Tandai Selesai"). */
+    canSelfResolve?: boolean;
 }
 
 const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
@@ -74,6 +85,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
     onCancel,
     isSidebarOpen,
     onToggleSidebar,
+    canSelfResolve = false,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -95,10 +107,12 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
     const [resolutionTime, setResolutionTime] = useState<string>('');
     const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'overdue' | 'resolved' | 'paused'>('ok');
 
-    const isResolved = ticket.status === 'RESOLVED';
+    // CLOSED is the confirmed/final form of RESOLVED; both render as "done".
+    const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const isCancelled = ticket.status === 'CANCELLED';
     const isPaused = ticket.status === 'WAITING_VENDOR';
-    const isTerminal = isResolved || isCancelled;
+    const isTerminal = isTerminalStatus(ticket.status);
+    const terminalLabel = isResolved ? statusConfig.label : 'Cancelled';
 
     useEffect(() => {
         const calculateSla = () => {
@@ -303,14 +317,17 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                     </div>
 
                     {/* Mobile quick cancel / terminal button */}
-                    <div className="sm:hidden shrink-0 mt-0.5">
+                    <div className="sm:hidden shrink-0 mt-0.5 flex items-center gap-1.5">
+                        {canSelfResolve && !isTerminal && (
+                            <SelfResolveButton ticketId={ticket.id} iconOnly />
+                        )}
                         {isTerminal ? (
                             <span className={cn(
                                 "p-1.5 rounded-xl text-xs border inline-flex items-center justify-center",
                                 isResolved
                                     ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50"
                                     : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50"
-                            )} title={isResolved ? 'Resolved' : 'Cancelled'}>
+                            )} title={terminalLabel}>
                                 {isResolved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                             </span>
                         ) : (
@@ -340,6 +357,8 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                         <span>SLA: {resolutionTime}</span>
                     </div>
 
+                    {canSelfResolve && !isTerminal && <SelfResolveButton ticketId={ticket.id} />}
+
                     {/* Cancel or Resolved Indicator */}
                     {isTerminal ? (
                         <div className={cn(
@@ -349,7 +368,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                                 : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50"
                         )}>
                             {isResolved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                            <span>{isResolved ? 'Resolved' : 'Cancelled'}</span>
+                            <span>{terminalLabel}</span>
                         </div>
                     ) : (
                         <button
@@ -390,7 +409,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const assignedAgent = ticket.assignedTo;
 
-    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const isClosed = isTerminalStatus(ticket.status);
     const isStaff =
         user?.role === 'ADMIN' ||
         user?.role === 'AGENT' ||
@@ -685,6 +704,7 @@ export const ClientTicketDetailPage: React.FC = () => {
         mutationFn: async (formData: FormData) => {
             const res = await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
+                skipToast: true,
             });
             return res.data;
         },
@@ -692,7 +712,8 @@ export const ClientTicketDetailPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
         },
-        onError: () => toast.error('Failed to send reply'),
+        // e.g. 400 'Tiket sudah ditutup...' when the ticket was closed meanwhile.
+        onError: (error) => toast.error(getApiErrorMessage(error, 'Failed to send reply')),
     });
 
     const cancelMutation = useMutation({
@@ -756,7 +777,9 @@ export const ClientTicketDetailPage: React.FC = () => {
         );
     }
 
-    const isClosed = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
+    const isClosed = isTerminalStatus(ticket.status);
+    const isRequester = Boolean(user?.id) && ticket.user?.id === user?.id;
+    const canSelfResolve = isRequester && SELF_RESOLVABLE_STATUSES.includes(ticket.status);
     const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
     const handleToggleSidebar = () => {
@@ -771,6 +794,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 onCancel={() => setIsCancelDialogOpen(true)}
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={handleToggleSidebar}
+                canSelfResolve={canSelfResolve}
             />
 
             {/* ── Main Work Area ── */}
@@ -778,6 +802,14 @@ export const ClientTicketDetailPage: React.FC = () => {
 
                 {/* LEFT & CENTER: Conversation Timeline / Activity / Mobile Details */}
                 <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80">
+
+                    {/* Requester confirmation of an agent-resolved ticket */}
+                    {isRequester && ticket.status === 'RESOLVED' && (
+                        <ResolutionConfirmationBanner ticketId={ticket.id} deadlineAt={ticket.resolutionDeadlineAt} />
+                    )}
+
+                    {/* Optional per-agent rating once the ticket is closed */}
+                    {isRequester && ticket.status === 'CLOSED' && <AgentRatingForm ticketId={ticket.id} />}
 
                     {/* Navigation Tabs Header */}
                     <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 shrink-0 bg-slate-50/50 dark:bg-slate-900/80">

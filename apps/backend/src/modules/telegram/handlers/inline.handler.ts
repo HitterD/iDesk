@@ -54,6 +54,7 @@ export class InlineHandler {
                     'TODO': '🔵',
                     'IN_PROGRESS': '🟡',
                     'RESOLVED': '🟢',
+                    'CLOSED': '⚫',
                     'CANCELLED': '🔴'
                 };
                 results.push({

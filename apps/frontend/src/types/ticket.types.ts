@@ -3,7 +3,7 @@
  * Removes usage of 'any' types throughout the application
  */
 
-export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
 export type UserRole = 'ADMIN' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'USER';

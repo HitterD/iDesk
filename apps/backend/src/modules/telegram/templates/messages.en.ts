@@ -93,7 +93,7 @@ export const messagesEn: MessagesType = {
         }) => {
             const statusEmoji: Record<string, string> = {
                 TODO: '🔵', IN_PROGRESS: '🟡', WAITING_VENDOR: '🟠',
-                RESOLVED: '🟢', CANCELLED: '🔴'
+                RESOLVED: '🟢', CLOSED: '⚫', CANCELLED: '🔴'
             };
             const priorityEmoji: Record<string, string> = {
                 LOW: '🟢', MEDIUM: '🟡', HIGH: '🟠', CRITICAL: '🔴'
@@ -119,14 +119,14 @@ export const messagesEn: MessagesType = {
         }) => {
             const statusEmoji: Record<string, string> = {
                 TODO: '🔵', IN_PROGRESS: '🟡', WAITING_VENDOR: '🟠',
-                RESOLVED: '🟢', CANCELLED: '🔴'
+                RESOLVED: '🟢', CLOSED: '⚫', CANCELLED: '🔴'
             };
             const priorityEmoji: Record<string, string> = {
                 LOW: '🟢', MEDIUM: '🟡', HIGH: '🟠', CRITICAL: '🔴'
             };
             const statusText: Record<string, string> = {
                 TODO: 'Open', IN_PROGRESS: 'In Progress', WAITING_VENDOR: 'Waiting',
-                RESOLVED: 'Resolved', CANCELLED: 'Cancelled'
+                RESOLVED: 'Resolved', CLOSED: 'Closed', CANCELLED: 'Cancelled'
             };
             return `🎫 <b>#${ticket.ticketNumber}</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -238,11 +238,11 @@ export const messagesEn: MessagesType = {
         statusChanged: (ticketNumber: string, newStatus: string) => {
             const statusEmoji: Record<string, string> = {
                 TODO: '🔵', IN_PROGRESS: '🟡', WAITING_VENDOR: '🟠',
-                RESOLVED: '🟢', CANCELLED: '🔴'
+                RESOLVED: '🟢', CLOSED: '⚫', CANCELLED: '🔴'
             };
             const statusText: Record<string, string> = {
                 TODO: 'Open', IN_PROGRESS: 'In Progress',
-                WAITING_VENDOR: 'Waiting Vendor', RESOLVED: 'Resolved', CANCELLED: 'Cancelled'
+                WAITING_VENDOR: 'Waiting Vendor', RESOLVED: 'Resolved', CLOSED: 'Closed', CANCELLED: 'Cancelled'
             };
             return `${statusEmoji[newStatus] || '⚪'} <b>Ticket Status Changed</b>\n\n` +
                 `Ticket #${ticketNumber}\n` +

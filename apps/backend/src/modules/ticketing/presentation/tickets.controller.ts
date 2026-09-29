@@ -63,6 +63,9 @@ import { ExtendSlaDto } from '../dto/extend-sla.dto';
 import { ForwardTicketDto } from '../dto/forward-ticket.dto';
 import { CreateTicketReminderDto } from '../dto/ticket-reminder.dto';
 import { TicketReminderService } from '../services/ticket-reminder.service';
+import { TicketResolutionService } from '../services/ticket-resolution.service';
+import { AgentRatingService } from '../services/agent-rating.service';
+import { DisputeResolutionDto, SubmitAgentRatingsDto } from '../dto/ticket-resolution.dto';
 
 const TICKET_AGENT_ROLES = [
     UserRole.ADMIN,
@@ -91,6 +94,8 @@ export class TicketsController {
         private readonly ticketForwardService: TicketForwardService,
         private readonly ticketReminderService: TicketReminderService,
         private readonly kbService: KnowledgeBaseService,
+        private readonly ticketResolutionService: TicketResolutionService,
+        private readonly agentRatingService: AgentRatingService,
         @InjectRepository(User) private readonly userRepo: Repository<User>,
         @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
@@ -549,6 +554,48 @@ export class TicketsController {
         @Request() req: any,
     ) {
         return this.ticketUpdateService.cancelTicket(id, req.user.userId, req.user.role, dto.reason);
+    }
+
+    // Requester-only actions: ownership is enforced in the services, so no role list here.
+    @Post(':id/confirm-resolution')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Requester confirms the resolution; the ticket is closed' })
+    async confirmResolution(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        return this.ticketResolutionService.confirmResolution(id, req.user.userId);
+    }
+
+    @Post(':id/dispute')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Requester disputes the resolution; the ticket goes back to the agent' })
+    async disputeResolution(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: DisputeResolutionDto,
+        @Request() req: any,
+    ) {
+        return this.ticketResolutionService.disputeResolution(id, req.user.userId, dto.reason);
+    }
+
+    @Post(':id/self-resolve')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Requester marks their own open ticket as solved; the ticket is closed' })
+    async selfResolve(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        return this.ticketResolutionService.selfResolve(id, req.user.userId);
+    }
+
+    @Get(':id/agent-ratings')
+    @ApiOperation({ summary: 'Agents the requester can rate for this ticket' })
+    async getAgentRatings(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        return this.agentRatingService.getTicketRatings(id, req.user.userId);
+    }
+
+    @Post(':id/agent-ratings')
+    @ApiOperation({ summary: 'Requester rates the agents who handled this ticket' })
+    async submitAgentRatings(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: SubmitAgentRatingsDto,
+        @Request() req: any,
+    ) {
+        return this.agentRatingService.submitRatings(id, req.user.userId, dto.ratings);
     }
 
     @Post(':id/sla/extend')

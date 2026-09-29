@@ -128,6 +128,7 @@ export class ChatHandler {
             'IN_PROGRESS': '🟡',
             'WAITING_VENDOR': '🟠',
             'RESOLVED': '🟢',
+            'CLOSED': '⚫',
             'CANCELLED': '🔴',
         };
         return emojiMap[status] || '⚪';

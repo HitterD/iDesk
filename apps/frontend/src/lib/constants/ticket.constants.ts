@@ -1,4 +1,4 @@
-import { Inbox, CircleDot, Hourglass, CheckCircle2, AlertCircle, Ban, Flame, AlertTriangle, Wrench } from 'lucide-react';
+import { Inbox, CircleDot, Hourglass, CheckCircle2, AlertCircle, Ban, Flame, AlertTriangle, Wrench, Lock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export const TICKET_STATUS = {
@@ -6,8 +6,12 @@ export const TICKET_STATUS = {
     IN_PROGRESS: 'IN_PROGRESS',
     WAITING_VENDOR: 'WAITING_VENDOR',
     RESOLVED: 'RESOLVED',
+    CLOSED: 'CLOSED',
     CANCELLED: 'CANCELLED',
 } as const;
+
+/** Statuses an agent must never pick manually (CLOSED is set by requester/system only). */
+export const NON_SELECTABLE_STATUSES: readonly string[] = [TICKET_STATUS.CANCELLED, TICKET_STATUS.CLOSED];
 
 export const TICKET_PRIORITY = {
     LOW: 'LOW',
@@ -71,6 +75,14 @@ export const STATUS_CONFIG: Record<string, StatusConfig> = {
         bgColor: 'bg-green-100 dark:bg-green-900/30',
         textColor: 'text-green-600 dark:text-green-400',
         columnColor: 'bg-green-500',
+    },
+    CLOSED: {
+        label: 'Closed',
+        color: 'bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600',
+        icon: Lock,
+        bgColor: 'bg-slate-200 dark:bg-slate-700',
+        textColor: 'text-slate-700 dark:text-slate-300',
+        columnColor: 'bg-slate-500',
     },
     CANCELLED: {
         label: 'Cancelled',

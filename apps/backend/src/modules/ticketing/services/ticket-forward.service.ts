@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket, TicketStatus, TicketType, HandlingTeam } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType, HandlingTeam, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
@@ -44,8 +44,8 @@ export class TicketForwardService {
             throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
         }
 
-        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
-            throw new ConflictException('Cannot forward a resolved or cancelled ticket');
+        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
+            throw new ConflictException('Cannot forward a resolved, closed or cancelled ticket');
         }
 
         if (ticket.handlingTeam === dto.targetTeam) {

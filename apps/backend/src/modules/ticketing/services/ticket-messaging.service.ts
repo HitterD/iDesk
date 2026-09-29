@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, forwardRef, Optional, Logger } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -11,6 +11,7 @@ import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
+import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -148,6 +149,9 @@ export class TicketMessagingService {
             });
             if (!ticket) {
                 throw new NotFoundException('Ticket not found');
+            }
+            if (ticket.status === TicketStatus.CLOSED) {
+                throw new BadRequestException(TICKET_CLOSED_MESSAGE);
             }
 
             const user = await manager.findOne(User, { where: { id: userId } });

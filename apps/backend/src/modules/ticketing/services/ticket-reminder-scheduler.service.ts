@@ -4,7 +4,7 @@ import { Repository, LessThanOrEqual } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { TicketReminder } from '../entities/ticket-reminder.entity';
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
@@ -73,8 +73,8 @@ export class TicketReminderSchedulerService {
                 return;
             }
 
-            // If ticket is already cancelled or resolved, we can mark as sent and skip email, or still notify
-            if (ticket.status === TicketStatus.CANCELLED || ticket.status === TicketStatus.RESOLVED) {
+            // If ticket is already cancelled, resolved or closed, we can mark as sent and skip email, or still notify
+            if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
                 this.logger.log(`Ticket #${ticket.ticketNumber || ticket.id} is already ${ticket.status}. Skipping reminder email.`);
                 reminder.isSent = true;
                 reminder.sentAt = new Date();

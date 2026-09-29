@@ -586,6 +586,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                                 { value: 'IN_PROGRESS', label: 'In Progress' },
                                 { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
                                 { value: 'RESOLVED', label: 'Resolved' },
+                                { value: 'CLOSED', label: 'Closed' },
                             ]}
                         />
 
