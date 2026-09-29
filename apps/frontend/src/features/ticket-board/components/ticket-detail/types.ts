@@ -45,6 +45,10 @@ export interface TicketDetail {
     scheduledTime?: string;
     hardwareType?: string;
     userAcknowledged?: boolean;
+    /** Requester confirmation window while status is RESOLVED; auto-closes after this. */
+    resolutionDeadlineAt?: string | null;
+    closedAt?: string | null;
+    disputedAt?: string | null;
     user: {
         /** Present in the findOne payload via the `user` relation; drives the presence dot. */
         id?: string;

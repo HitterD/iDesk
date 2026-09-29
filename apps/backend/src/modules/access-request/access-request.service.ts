@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Optional } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AccessRequest, AccessRequestStatus } from './entities/access-request.entity';
@@ -11,6 +11,8 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { CredentialCipherService } from '../../shared/core/encryption/credential-cipher.service';
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
+import { computeResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
+import { BusinessHoursService } from '../sla-config/business-hours.service';
 
 @Injectable()
 export class AccessRequestService {
@@ -28,6 +30,8 @@ export class AccessRequestService {
         private readonly cipher: CredentialCipherService,
         @InjectDataSource()
         private readonly dataSource: DataSource,
+        @Optional()
+        private readonly businessHoursService?: BusinessHoursService,
     ) { }
 
     async create(userId: string, dto: CreateAccessRequestDto): Promise<AccessRequest> {
@@ -221,9 +225,13 @@ export class AccessRequestService {
             // P0 fix: credentials are encrypted at rest with AES-256-GCM
             accessRequest.accessCredentials = this.cipher.encrypt(dto.accessCredentials);
 
+            // Resolved tickets wait for the requester's confirmation like any agent resolve.
+            const resolvedAt = new Date();
             await manager.update(Ticket, accessRequest.ticketId, {
                 status: TicketStatus.RESOLVED,
-                resolvedAt: new Date(),
+                resolvedAt,
+                resolutionDeadlineAt: await computeResolutionDeadline(this.businessHoursService, resolvedAt),
+                disputedAt: null,
             });
 
             return manager.save(AccessRequest, accessRequest);

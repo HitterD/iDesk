@@ -128,6 +128,7 @@ export const TicketKanban: React.FC = () => {
                 <div className="w-[400px] border-l border-white/10 bg-navy-main/95 backdrop-blur absolute right-0 top-0 bottom-0 z-20 shadow-2xl">
                     <TicketChatRoom
                         ticketId={selectedTicketId}
+                        isClosed={tickets.find((t) => t.id === selectedTicketId)?.status === 'CLOSED'}
                         onClose={() => setSelectedTicketId(null)}
                     />
                 </div>

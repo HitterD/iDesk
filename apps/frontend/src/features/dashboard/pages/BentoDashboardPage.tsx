@@ -18,6 +18,7 @@ import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { MyRatingCard } from '../components/MyRatingCard';
 import { cn } from '@/lib/utils';
 import { ActivityFeed } from '@/components/ui/ActivityFeed';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
@@ -203,6 +204,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         IN_PROGRESS: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
         WAITING_VENDOR: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400' },
         RESOLVED: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400' },
+        CLOSED: { bg: 'bg-slate-200 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-300' },
     };
     const { bg, text } = config[status] || config.TODO;
     return (
@@ -224,11 +226,15 @@ const PriorityDot: React.FC<{ priority: string }> = ({ priority }) => {
 };
 
 /** Matches the backend's 15s dashboard-stats cache; socket events still invalidate immediately. */
+/** CLOSED is a RESOLVED ticket the requester confirmed (or that auto-closed); both count as done. */
+const isDoneStatus = (status: string): boolean => status === 'RESOLVED' || status === 'CLOSED';
+
 const DASHBOARD_STALE_TIME_MS = 15_000;
 
 export const BentoDashboardPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const isAgentUser = user?.role === 'AGENT' || Boolean(user?.role?.startsWith('AGENT_'));
 
     // Date range state for chart filtering
     const [chartDateRange, setChartDateRange] = useState<7 | 14 | 30>(7);
@@ -293,7 +299,7 @@ export const BentoDashboardPage = () => {
         const open = tickets.filter((t) => t.status === 'TODO').length;
         const inProgress = tickets.filter((t) => t.status === 'IN_PROGRESS').length;
         const waitingVendor = tickets.filter((t) => t.status === 'WAITING_VENDOR').length;
-        const resolved = tickets.filter((t) => t.status === 'RESOLVED').length;
+        const resolved = tickets.filter((t) => isDoneStatus(t.status)).length;
         const cancelled = tickets.filter((t) => t.status === 'CANCELLED').length;
         const overdue = tickets.filter((t) => t.isOverdue).length;
 
@@ -316,8 +322,8 @@ export const BentoDashboardPage = () => {
         const todayTickets = tickets.filter((t) => new Date(t.createdAt) >= today).length;
         const thisWeekTickets = tickets.filter((t) => new Date(t.createdAt) >= thisWeekStart).length;
         const thisMonthTickets = tickets.filter((t) => new Date(t.createdAt) >= thisMonthStart).length;
-        const resolvedToday = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= today).length;
-        const resolvedThisWeek = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= thisWeekStart).length;
+        const resolvedToday = tickets.filter((t) => isDoneStatus(t.status) && new Date(t.updatedAt) >= today).length;
+        const resolvedThisWeek = tickets.filter((t) => isDoneStatus(t.status) && new Date(t.updatedAt) >= thisWeekStart).length;
 
         // Last N days based on chartDateRange
         const lastNDays: { date: string; created: number; resolved: number }[] = [];
@@ -333,7 +339,7 @@ export const BentoDashboardPage = () => {
             }).length;
 
             const resolvedCount = tickets.filter((t) => {
-                if (t.status !== 'RESOLVED') return false;
+                if (!isDoneStatus(t.status)) return false;
                 const d = new Date(t.updatedAt);
                 return d >= date && d < nextDate;
             }).length;
@@ -353,7 +359,7 @@ export const BentoDashboardPage = () => {
                 if (!agentStats[agentId]) {
                     agentStats[agentId] = { name: t.assignedTo.fullName, resolved: 0, inProgress: 0 };
                 }
-                if (t.status === 'RESOLVED') {
+                if (isDoneStatus(t.status)) {
                     agentStats[agentId].resolved++;
                 } else if (t.status === 'IN_PROGRESS') {
                     agentStats[agentId].inProgress++;
@@ -383,7 +389,7 @@ export const BentoDashboardPage = () => {
         }).length;
 
         const lastWeekResolved = tickets.filter((t) => {
-            if (t.status !== 'RESOLVED') return false;
+            if (!isDoneStatus(t.status)) return false;
             const d = new Date(t.updatedAt);
             return d >= lastWeekStart && d < lastWeekEnd;
         }).length;
@@ -784,7 +790,7 @@ export const BentoDashboardPage = () => {
                                     className="!bg-transparent !border-0 rounded-none"
                                     activities={liveStats.recentTickets.slice(0, 10).map((ticket: any) => ({
                                         id: ticket.id,
-                                        type: ticket.status === 'RESOLVED' ? 'ticket_resolved' as const :
+                                        type: isDoneStatus(ticket.status) ? 'ticket_resolved' as const :
                                             ticket.assignedTo ? 'ticket_assigned' as const : 'ticket_created' as const,
                                         timestamp: ticket.createdAt,
                                         user: ticket.user,
@@ -878,6 +884,13 @@ export const BentoDashboardPage = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Row 4 (agents only): own requester ratings */}
+                {isAgentUser && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <MyRatingCard />
+                    </div>
+                )}
             </div>
         </div>
     );

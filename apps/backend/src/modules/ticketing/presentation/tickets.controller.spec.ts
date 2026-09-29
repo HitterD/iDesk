@@ -13,6 +13,8 @@ describe('TicketsController', () => {
     let mockTicketForwardService: any;
     let mockTicketReminderService: any;
     let mockKbService: any;
+    let mockTicketResolutionService: any;
+    let mockAgentRatingService: any;
     let mockUserRepo: any;
 
     beforeEach(() => {
@@ -27,6 +29,12 @@ describe('TicketsController', () => {
         mockTicketForwardService = { forwardTicket: jest.fn().mockResolvedValue({}) };
         mockTicketReminderService = { createReminder: jest.fn(), getReminders: jest.fn(), deleteReminder: jest.fn() };
         mockKbService = { suggestForTicket: jest.fn().mockResolvedValue([]) };
+        mockTicketResolutionService = {
+            confirmResolution: jest.fn().mockResolvedValue({ status: 'CLOSED' }),
+            disputeResolution: jest.fn().mockResolvedValue({ status: 'IN_PROGRESS' }),
+            selfResolve: jest.fn().mockResolvedValue({ status: 'CLOSED' }),
+        };
+        mockAgentRatingService = { getTicketRatings: jest.fn(), submitRatings: jest.fn() };
         mockTicketStatsService = {
             getHardwareInstallationStats: jest.fn().mockResolvedValue({
                 total: 10,
@@ -48,6 +56,8 @@ describe('TicketsController', () => {
             mockTicketForwardService,
             mockTicketReminderService,
             mockKbService,
+            mockTicketResolutionService,
+            mockAgentRatingService,
             mockUserRepo
         );
     });
@@ -133,6 +143,26 @@ describe('TicketsController', () => {
                 success: true,
                 message: { id: 'msg-1', content: 'hello' },
             });
+        });
+    });
+
+    describe('resolution confirmation', () => {
+        const req = { user: { userId: 'owner-1', role: 'USER' } };
+
+        it('passes the caller as the requester for confirm, dispute and self-resolve', async () => {
+            await controller.confirmResolution('t-1', req);
+            await controller.disputeResolution('t-1', { reason: 'Masih error' }, req);
+            await controller.selfResolve('t-1', req);
+
+            expect(mockTicketResolutionService.confirmResolution).toHaveBeenCalledWith('t-1', 'owner-1');
+            expect(mockTicketResolutionService.disputeResolution).toHaveBeenCalledWith('t-1', 'owner-1', 'Masih error');
+            expect(mockTicketResolutionService.selfResolve).toHaveBeenCalledWith('t-1', 'owner-1');
+        });
+
+        it('submits agent ratings as the caller', async () => {
+            const ratings = [{ agentId: 'a-1', rating: 5 }];
+            await controller.submitAgentRatings('t-1', { ratings }, req);
+            expect(mockAgentRatingService.submitRatings).toHaveBeenCalledWith('t-1', 'owner-1', ratings);
         });
     });
 });

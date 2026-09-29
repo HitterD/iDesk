@@ -96,12 +96,17 @@ describe('TicketForwardService', () => {
 
     it('rejects forwarding a resolved ticket', async () => {
         ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, status: TicketStatus.RESOLVED }));
-        await expect(service.forwardTicket('t1', dto, actor)).rejects.toThrow('resolved or cancelled');
+        await expect(service.forwardTicket('t1', dto, actor)).rejects.toThrow('resolved, closed or cancelled');
     });
 
     it('rejects forwarding a cancelled ticket', async () => {
         ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, status: TicketStatus.CANCELLED }));
-        await expect(service.forwardTicket('t1', dto, actor)).rejects.toThrow('resolved or cancelled');
+        await expect(service.forwardTicket('t1', dto, actor)).rejects.toThrow('resolved, closed or cancelled');
+    });
+
+    it('rejects forwarding a closed ticket', async () => {
+        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, status: TicketStatus.CLOSED }));
+        await expect(service.forwardTicket('t1', dto, actor)).rejects.toThrow('resolved, closed or cancelled');
     });
 
     it('emits a ticket update to the site channel', async () => {

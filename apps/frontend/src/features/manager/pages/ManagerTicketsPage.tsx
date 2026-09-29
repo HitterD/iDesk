@@ -465,6 +465,12 @@ export const ManagerTicketsPage: React.FC = () => {
                                         Resolved
                                     </span>
                                 </SelectItem>
+                                <SelectItem value="CLOSED">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-slate-500" />
+                                        Closed
+                                    </span>
+                                </SelectItem>
                                 <SelectItem value="CANCELLED">
                                     <span className="flex items-center gap-2">
                                         <span className="w-2 h-2 rounded-full bg-red-500" />

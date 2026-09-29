@@ -49,6 +49,7 @@ describe('TelegramService createTicket — uses the shared locked ticket-number 
             messageRepo as any,
             {} as any,
             cacheService as any,
+            {} as any,
         );
     });
 

@@ -23,7 +23,15 @@ export enum TicketStatus {
     WAITING_VENDOR = 'WAITING_VENDOR',
     RESOLVED = 'RESOLVED',
     CANCELLED = 'CANCELLED',
+    // Final: set only by the requester's confirmation, self-resolve, or the auto-close
+    // cron once the post-resolve confirmation window expires. Locked for everyone.
+    CLOSED = 'CLOSED',
 }
+
+/** Statuses that count as "done" for stats: agent-resolved (awaiting confirmation) or closed. */
+export const TICKET_DONE_STATUSES: TicketStatus[] = [TicketStatus.RESOLVED, TicketStatus.CLOSED];
+/** Statuses where no more work happens on the ticket. */
+export const TICKET_INACTIVE_STATUSES: TicketStatus[] = [...TICKET_DONE_STATUSES, TicketStatus.CANCELLED];
 
 export enum TicketPriority {
     LOW = 'LOW',
@@ -207,6 +215,17 @@ export class Ticket {
 
     @Column({ type: 'timestamp', nullable: true })
     resolvedAt: Date | null;
+
+    /** Requester must confirm or dispute before this; the auto-close cron closes it afterwards. */
+    @Column({ type: 'timestamp', nullable: true })
+    resolutionDeadlineAt: Date | null;
+
+    /** Set when the requester disputes a resolution; cleared on the next resolve. Drives the agent's action item. */
+    @Column({ type: 'timestamp', nullable: true })
+    disputedAt: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    closedAt: Date | null;
 
     @Column({ type: 'timestamp', nullable: true })
     waitingVendorAt: Date | null;

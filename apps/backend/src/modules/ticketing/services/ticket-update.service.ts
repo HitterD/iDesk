@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenEx
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Ticket, TicketStatus, HandlingTeam } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, HandlingTeam, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
@@ -22,6 +22,9 @@ import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { assertTicketRoleAccess, isOracleTicket } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
+import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+
+const AGENT_CLOSE_FORBIDDEN_MESSAGE = 'Status CLOSED hanya bisa diberikan oleh pemohon (konfirmasi) atau otomatis setelah batas waktu konfirmasi.';
 
 @Injectable()
 export class TicketUpdateService {
@@ -70,6 +73,12 @@ export class TicketUpdateService {
                 throw new NotFoundException('User not found');
             }
             validateTicketAccess(user, ticket);
+            if (ticket.status === TicketStatus.CLOSED) {
+                throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+            }
+            if (updateData.status === TicketStatus.CLOSED) {
+                throw new BadRequestException(AGENT_CLOSE_FORBIDDEN_MESSAGE);
+            }
             const isOwner = ticket.userId === userId;
             const isParticipant = ticket.participants?.some(p => p.userId === userId);
             if (!isOwner && !isParticipant) {
@@ -114,8 +123,20 @@ export class TicketUpdateService {
         }
 
         if (newStatus === TicketStatus.RESOLVED) {
-            ticket.resolvedAt = new Date();
+            await this.openConfirmationWindow(ticket, changes);
+        } else if (oldStatus === TicketStatus.RESOLVED) {
+            // Agent took the ticket back before the requester answered.
+            ticket.resolutionDeadlineAt = null;
         }
+    }
+
+    /** RESOLVED now waits for the requester: confirm, dispute, or auto-close at the deadline. */
+    private async openConfirmationWindow(ticket: Ticket, changes?: string[]): Promise<void> {
+        const now = new Date();
+        ticket.resolvedAt = now;
+        ticket.disputedAt = null;
+        ticket.resolutionDeadlineAt = await computeResolutionDeadline(this.businessHoursService, now);
+        changes?.push(`Menunggu konfirmasi pemohon hingga ${ticket.resolutionDeadlineAt.toISOString()}`);
     }
 
     private async startSlaClock(ticket: Ticket, changes: string[], manager?: any): Promise<void> {
@@ -258,6 +279,10 @@ export class TicketUpdateService {
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user', 'assignedTo'] });
         if (!ticket) {
             throw new NotFoundException('Ticket not found');
+        }
+
+        if (ticket.status === TicketStatus.CLOSED) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
         }
 
         const isOracle = isOracleTicket(ticket);
@@ -477,8 +502,8 @@ export class TicketUpdateService {
 
         validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
 
-        // Cannot cancel already resolved or cancelled tickets
-        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
+        // Cannot cancel already resolved, closed or cancelled tickets
+        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
             throw new BadRequestException('Cannot cancel a ticket that is already resolved or cancelled');
         }
 
@@ -552,6 +577,10 @@ export class TicketUpdateService {
         updateData: { status?: TicketStatus; priority?: string; assigneeId?: string; category?: string; reason?: string },
         userId: string,
     ): Promise<{ updated: number; failed: string[] }> {
+        if (updateData.status === TicketStatus.CLOSED) {
+            throw new BadRequestException(AGENT_CLOSE_FORBIDDEN_MESSAGE);
+        }
+
         const user = await this.userRepo.findOne({ where: { id: userId } });
         if (!user) {
             throw new NotFoundException('User not found');
@@ -602,6 +631,11 @@ export class TicketUpdateService {
                 try {
                     const changes: string[] = [];
 
+                    if (ticket.status === TicketStatus.CLOSED) {
+                        failed.push(ticket.id);
+                        continue;
+                    }
+
                     if (updateData.status && updateData.status !== ticket.status) {
                         if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
                             failed.push(ticket.id);
@@ -609,6 +643,9 @@ export class TicketUpdateService {
                         }
                         changes.push(`Status: ${ticket.status} → ${updateData.status}`);
                         ticket.status = updateData.status;
+                        if (updateData.status === TicketStatus.RESOLVED) {
+                            await this.openConfirmationWindow(ticket);
+                        }
                     }
 
                     if (updateData.priority && updateData.priority !== ticket.priority) {

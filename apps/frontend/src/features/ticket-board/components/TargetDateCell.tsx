@@ -93,7 +93,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     }
 
     useEffect(() => {
-        if (!targetDate || effectiveStatus === 'RESOLVED' || effectiveStatus === 'CANCELLED' || effectiveStatus === 'WAITING_VENDOR' || effectiveIsHw) {
+        if (!targetDate || effectiveStatus === 'RESOLVED' || effectiveStatus === 'CLOSED' || effectiveStatus === 'CANCELLED' || effectiveStatus === 'WAITING_VENDOR' || effectiveIsHw) {
             return;
         }
 
@@ -119,7 +119,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     }, [targetDate, effectiveStatus, effectiveIsHw]);
 
     // Resolved state
-    if (effectiveStatus === 'RESOLVED') {
+    if (effectiveStatus === 'RESOLVED' || effectiveStatus === 'CLOSED') {
         return (
             <span
                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-2xs"

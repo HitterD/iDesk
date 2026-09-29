@@ -45,11 +45,29 @@ const mockTicket = {
     ],
 };
 
+// Per-test status override; the base fixture stays immutable.
+let currentStatus = mockTicket.status;
+
 vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn((url: string) => {
             if (url === '/tickets/ticket-123') {
-                return Promise.resolve({ data: mockTicket });
+                return Promise.resolve({
+                    data: {
+                        ...mockTicket,
+                        status: currentStatus,
+                        resolutionDeadlineAt: '2026-08-20T10:00:00.000Z',
+                    },
+                });
+            }
+            if (url === '/tickets/ticket-123/agent-ratings') {
+                return Promise.resolve({
+                    data: {
+                        canRate: true,
+                        ratingDeadline: '2026-08-27T10:00:00.000Z',
+                        agents: [{ agentId: 'agent-1', fullName: 'Yudi Arta Trirensila', rating: null, comment: null }],
+                    },
+                });
             }
             return Promise.resolve({ data: {} });
         }),
@@ -89,6 +107,7 @@ describe('ClientTicketDetailPage', () => {
     let queryClient: QueryClient;
 
     beforeEach(() => {
+        currentStatus = mockTicket.status;
         window.HTMLElement.prototype.scrollIntoView = vi.fn();
         queryClient = new QueryClient({
             defaultOptions: {
@@ -97,6 +116,42 @@ describe('ClientTicketDetailPage', () => {
                 },
             },
         });
+    });
+
+    const renderPage = () =>
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={['/client/tickets/ticket-123']}>
+                    <Routes>
+                        <Route path="/client/tickets/:id" element={<ClientTicketDetailPage />} />
+                    </Routes>
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+    it('shows "Tandai Selesai" for the requester on an open ticket', async () => {
+        renderPage();
+        expect((await screen.findAllByRole('button', { name: 'Tandai Selesai' })).length).toBeGreaterThan(0);
+        expect(screen.queryByRole('region', { name: 'Konfirmasi penyelesaian tiket' })).not.toBeInTheDocument();
+    });
+
+    it('shows the confirmation banner on a RESOLVED ticket', async () => {
+        currentStatus = 'RESOLVED';
+        renderPage();
+        expect(await screen.findByRole('region', { name: 'Konfirmasi penyelesaian tiket' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Ya, sudah selesai' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Masih bermasalah' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Tandai Selesai' })).not.toBeInTheDocument();
+    });
+
+    it('locks a CLOSED ticket: no chat input, no cancel, rating form shown', async () => {
+        currentStatus = 'CLOSED';
+        renderPage();
+        expect(await screen.findByText('Tiket sudah ditutup. Buat tiket baru jika masih ada kendala.')).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Type your reply to IT Support…')).not.toBeInTheDocument();
+        expect(screen.queryByText('Cancel Ticket')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Tandai Selesai' })).not.toBeInTheDocument();
+        expect(await screen.findByText('Beri Penilaian Layanan')).toBeInTheDocument();
     });
 
     it('renders ticket header with badges, full chat room, and Bento properties sidebar', async () => {

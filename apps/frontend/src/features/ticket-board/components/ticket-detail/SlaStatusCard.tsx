@@ -15,6 +15,7 @@ import {
 import { TicketDetail, SlaAdjustment } from './types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
+import { isTerminalStatus } from './constants';
 
 interface SlaStatusCardProps {
     ticket: TicketDetail & {
@@ -76,7 +77,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
     const [percentRemaining, setPercentRemaining] = useState<number>(100);
     const [showHistory, setShowHistory] = useState<boolean>(false);
 
-    const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
+    const isResolved = isTerminalStatus(ticket.status);
     const isPaused = ticket.status === 'WAITING_VENDOR';
     const slaNotStarted = !ticket.slaStartedAt;
     const adjustments = ticket.slaAdjustments || [];

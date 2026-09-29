@@ -19,6 +19,7 @@ import {
     Flame,
     RotateCw,
     Users,
+    Lock,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
@@ -69,6 +70,7 @@ const STATUS_FILTERS = [
     { value: 'TODO', label: 'Open', icon: Inbox },
     { value: 'IN_PROGRESS', label: 'In Progress', icon: CircleDot },
     { value: 'RESOLVED', label: 'Resolved', icon: CheckCircle2 },
+    { value: 'CLOSED', label: 'Closed', icon: Lock },
 ] as const;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
@@ -135,17 +137,19 @@ export const BentoMyTicketsPage: React.FC = () => {
     }>({
         queryKey: ['tickets', 'my-stats'],
         queryFn: async () => {
-            const [allRes, openRes, inProgRes, resRes] = await Promise.all([
+            const [allRes, openRes, inProgRes, resRes, closedRes] = await Promise.all([
                 api.get('/tickets/paginated?limit=1'),
                 api.get('/tickets/paginated?limit=1&status=TODO'),
                 api.get('/tickets/paginated?limit=1&status=IN_PROGRESS'),
                 api.get('/tickets/paginated?limit=1&status=RESOLVED'),
+                api.get('/tickets/paginated?limit=1&status=CLOSED'),
             ]);
             return {
                 total: allRes.data?.meta?.total ?? 0,
                 open: openRes.data?.meta?.total ?? 0,
                 inProgress: inProgRes.data?.meta?.total ?? 0,
-                resolved: resRes.data?.meta?.total ?? 0,
+                // Awaiting confirmation (RESOLVED) plus final (CLOSED).
+                resolved: (resRes.data?.meta?.total ?? 0) + (closedRes.data?.meta?.total ?? 0),
             };
         },
         staleTime: 20_000,

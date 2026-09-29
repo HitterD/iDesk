@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
+import { isTerminalStatus } from '../components/ticket-detail/constants';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
@@ -134,7 +135,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         onPriority: () => toast.info('Priority shortcut pressed'),
         onReply: () => chatInputRef.current?.focus(),
         onResolve: () => {
-            if (ticket && ticket.status !== 'RESOLVED') {
+            if (ticket && !isTerminalStatus(ticket.status)) {
                 handleFieldChange('status', 'RESOLVED');
             }
         },
@@ -144,7 +145,7 @@ export const BentoTicketDetailPage: React.FC = () => {
     const [isResolving, setIsResolving] = useState(false);
 
     const handleResolveTicket = useCallback(async (resolutionNote?: string, files?: File[]) => {
-        if (!ticket || ticket.status === 'RESOLVED') return;
+        if (!ticket || isTerminalStatus(ticket.status)) return;
 
         setIsResolving(true);
         try {
@@ -345,7 +346,7 @@ export const BentoTicketDetailPage: React.FC = () => {
     }
     if (!ticket) return <div className="p-8 text-center text-rose-500 font-medium">Ticket not found</div>;
 
-    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const isClosed = isTerminalStatus(ticket.status);
     const canExtendSla = !isClosed && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
     const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 

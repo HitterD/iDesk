@@ -115,6 +115,7 @@ const FilterSection: React.FC<{
         IN_PROGRESS: '#3B82F6',
         WAITING_VENDOR: '#F59E0B',
         RESOLVED: '#10B981',
+        CLOSED: '#475569',
         CANCELLED: '#6B7280',
     };
 

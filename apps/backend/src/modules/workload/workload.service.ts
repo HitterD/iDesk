@@ -4,7 +4,7 @@ import { Repository, MoreThanOrEqual, LessThan, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PriorityWeight } from './entities/priority-weight.entity';
 import { AgentDailyWorkload } from './entities/agent-daily-workload.entity';
-import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TICKET_DONE_STATUSES, TICKET_INACTIVE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { UpdatePriorityWeightDto } from './dto';
@@ -377,10 +377,8 @@ export class WorkloadService {
             },
         });
 
-        // Filter out resolved/cancelled
-        const openTickets = activeTickets.filter(t =>
-            t.status !== TicketStatus.RESOLVED && t.status !== TicketStatus.CANCELLED
-        );
+        // Filter out resolved/closed/cancelled
+        const openTickets = activeTickets.filter(t => !TICKET_INACTIVE_STATUSES.includes(t.status));
 
         // Calculate total points — prefetch all weights once instead of one query per ticket.
         const weights = await this.priorityWeightRepo.find();
@@ -395,7 +393,7 @@ export class WorkloadService {
             where: {
                 assignedToId: agentId,
                 siteId: targetSiteId,
-                status: TicketStatus.RESOLVED,
+                status: In(TICKET_DONE_STATUSES),
                 resolvedAt: MoreThanOrEqual(today),
             },
         });
@@ -647,15 +645,16 @@ export class WorkloadService {
         const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
         const workload = await this.getAgentWorkload(internalActor, ticket.assignedToId, ticket.siteId);
 
-        // If resolved or cancelled, reduce workload
+        // Leaving the active set (-> RESOLVED/CLOSED/CANCELLED) reduces workload once.
+        // Moves between inactive statuses (e.g. RESOLVED -> CLOSED) must not count again.
         if (
-            (newStatus === TicketStatus.RESOLVED || newStatus === TicketStatus.CANCELLED) &&
-            oldStatus !== TicketStatus.RESOLVED && oldStatus !== TicketStatus.CANCELLED
+            TICKET_INACTIVE_STATUSES.includes(newStatus) &&
+            !TICKET_INACTIVE_STATUSES.includes(oldStatus)
         ) {
             workload.totalPoints = Math.max(0, workload.totalPoints - priorityPoints);
             workload.activeTickets = Math.max(0, workload.activeTickets - 1);
 
-            if (newStatus === TicketStatus.RESOLVED) {
+            if (TICKET_DONE_STATUSES.includes(newStatus)) {
                 workload.resolvedTickets += 1;
             }
 

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In } from 'typeorm';
-import { Ticket, TicketStatus } from './entities/ticket.entity';
+import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from './entities/ticket.entity';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 
 import { CustomerSession } from '../users/entities/customer-session.entity';
@@ -108,7 +108,7 @@ export class SlaCheckerService {
             .andWhere('ticket."firstResponseTarget" IS NOT NULL')
             .andWhere('ticket."isFirstResponseBreached" = false')
             .andWhere('ticket.status NOT IN (:...excludedStatuses)', {
-                excludedStatuses: [TicketStatus.RESOLVED, TicketStatus.CANCELLED, TicketStatus.WAITING_VENDOR]
+                excludedStatuses: [...TICKET_INACTIVE_STATUSES, TicketStatus.WAITING_VENDOR]
             })
             .andWhere('ticket."firstResponseTarget" < :now', { now })
             .getMany();

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { Ticket } from '../../ticketing/entities/ticket.entity';
+import { Ticket, TICKET_DONE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { DateRange, ReportResult } from './agent-performance.report';
 
 export interface VolumeDataPoint {
@@ -75,7 +75,7 @@ export class TicketVolumeReport {
 
         // Calculate summary
         const totalCreated = tickets.length;
-        const totalResolved = tickets.filter(t => t.status === 'RESOLVED').length;
+        const totalResolved = tickets.filter(t => TICKET_DONE_STATUSES.includes(t.status)).length;
         const totalPending = totalCreated - totalResolved;
         const avgPerDay = daily.length > 0 ? Math.round(totalCreated / daily.length) : 0;
 
@@ -131,7 +131,7 @@ export class TicketVolumeReport {
             const day = dailyMap.get(createdDate);
             if (day) {
                 day.created++;
-                if (ticket.status === 'RESOLVED') {
+                if (TICKET_DONE_STATUSES.includes(ticket.status)) {
                     day.resolved++;
                 } else {
                     day.pending++;

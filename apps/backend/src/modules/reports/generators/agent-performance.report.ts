@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
+import { TICKET_DONE_STATUSES_SQL } from '../../ticketing/utils/ticket-status-sql.util';
 
 export interface AgentMetrics {
     agentId: string;
@@ -61,10 +62,10 @@ export class AgentPerformanceReport {
             .select('ticket.assignedToId', 'agentId')
             .addSelect('user.fullName', 'agentName')
             .addSelect('COUNT(ticket.id)', 'totalAssigned')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'totalResolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'totalResolved')
             .addSelect(`
                 AVG(CASE
-                    WHEN ticket.status = 'RESOLVED'
+                    WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL})
                     THEN EXTRACT(EPOCH FROM (ticket.updatedAt - ticket.createdAt)) / 60
                     ELSE NULL
                 END)

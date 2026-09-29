@@ -50,7 +50,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from './types';
-import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
+import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG, isTerminalStatus } from './constants';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { AgentSelectList, type Agent } from '../AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from '../ReassignConfirmDialog';
@@ -115,7 +115,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 }) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
-    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const isClosed = isTerminalStatus(ticket.status);
     const [copiedEmail, setCopiedEmail] = useState(false);
     const [agentPickerOpen, setAgentPickerOpen] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);

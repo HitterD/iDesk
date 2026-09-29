@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
-import { Ticket, TicketStatus, TicketPriority } from '../ticketing/entities/ticket.entity';
+import { Ticket, TicketStatus, TicketPriority, TICKET_DONE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { Site } from '../sites/entities/site.entity';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -144,13 +144,13 @@ export class ManagerDashboardService {
                 .select('t.siteId', 'siteId')
                 .addSelect('COUNT(*)', 'totalTickets')
                 .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...openStatuses))`, 'openTickets')
-                .addSelect(`COUNT(*) FILTER (WHERE t.status = :resolvedStatus)`, 'resolvedTickets')
+                .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses))`, 'resolvedTickets')
                 .addSelect(`COUNT(*) FILTER (WHERE t.priority = :criticalPriority AND t.status IN (:...openStatuses))`, 'criticalTickets')
                 .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...openStatuses) AND t."slaTarget" <= :now)`, 'slaBreach')
                 .where('t.siteId IN (:...siteIds)', { siteIds })
                 .setParameters({
                     openStatuses,
-                    resolvedStatus: TicketStatus.RESOLVED,
+                    resolvedStatuses: TICKET_DONE_STATUSES,
                     criticalPriority: TicketPriority.CRITICAL,
                     now: nowForBreach,
                 })
@@ -217,7 +217,7 @@ export class ManagerDashboardService {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const openStatuses = [TicketStatus.TODO, TicketStatus.IN_PROGRESS];
-        const resolvedStatus = TicketStatus.RESOLVED;
+        const resolvedStatuses = TICKET_DONE_STATUSES;
 
         // P1 perf: per-agent loop fired 3 queries per agent (open, resolved-today,
         // last-20-resolved-for-avg). Now one grouped query returns all three
@@ -227,13 +227,13 @@ export class ManagerDashboardService {
             ? await this.ticketRepo.createQueryBuilder('t')
                 .select('t.assignedToId', 'agentId')
                 .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...openStatuses))`, 'openTickets')
-                .addSelect(`COUNT(*) FILTER (WHERE t.status = :resolvedStatus AND t."resolvedAt" >= :today)`, 'resolvedToday')
-                .addSelect(`COALESCE(AVG(EXTRACT(EPOCH FROM (t."resolvedAt" - t."createdAt"))) FILTER (WHERE t.status = :resolvedStatus) / 3600, 0)`, 'avgResolutionHours')
+                .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" >= :today)`, 'resolvedToday')
+                .addSelect(`COALESCE(AVG(EXTRACT(EPOCH FROM (t."resolvedAt" - t."createdAt"))) FILTER (WHERE t.status IN (:...resolvedStatuses)) / 3600, 0)`, 'avgResolutionHours')
                 .where('t.assignedToId IS NOT NULL')
                 .andWhere('t.siteId IN (:...siteIds)', { siteIds })
-                .setParameters({ openStatuses, resolvedStatus, today })
+                .setParameters({ openStatuses, resolvedStatuses, today })
                 .groupBy('t.assignedToId')
-                .orderBy(`COUNT(*) FILTER (WHERE t.status = :resolvedStatus AND t."resolvedAt" >= :today)`, 'DESC')
+                .orderBy(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" >= :today)`, 'DESC')
                 .limit(10)
                 .getRawMany()
             : [];
@@ -273,11 +273,11 @@ export class ManagerDashboardService {
                 .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
                 .addSelect('t.siteId', 'siteId')
                 .addSelect('COUNT(*)', 'created')
-                .addSelect(`COUNT(*) FILTER (WHERE t.status = :resolvedStatus AND t."resolvedAt" IS NOT NULL)`, 'resolved')
+                .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" IS NOT NULL)`, 'resolved')
                 .where('t.siteId IN (:...siteIds)', { siteIds })
                 .andWhere('t."createdAt" >= :start', { start })
                 .andWhere('t."createdAt" < :endPlus', { endPlus: new Date(end.getTime() + 24 * 60 * 60 * 1000) })
-                .setParameters({ resolvedStatus: TicketStatus.RESOLVED })
+                .setParameters({ resolvedStatuses: TICKET_DONE_STATUSES })
                 .groupBy(`date_trunc('day', t."createdAt")`)
                 .addGroupBy('t.siteId')
                 .getRawMany();

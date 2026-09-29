@@ -142,6 +142,8 @@ export const ManagerDashboard = () => {
                 return <Badge className="bg-yellow-500">Awaiting</Badge>;
             case 'RESOLVED':
                 return <Badge className="bg-green-500">Resolved</Badge>;
+            case 'CLOSED':
+                return <Badge className="bg-slate-500">Closed</Badge>;
             default:
                 return <Badge variant="secondary">{status}</Badge>;
         }

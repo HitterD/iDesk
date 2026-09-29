@@ -5,7 +5,7 @@
 
 // ============ Base Types ============
 
-export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
 export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
 

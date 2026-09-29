@@ -15,6 +15,7 @@ import {
     MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isTerminalStatus } from './constants';
 
 interface QuickActionBarProps {
     ticketStatus: string;
@@ -31,7 +32,7 @@ export const QuickActionBar: React.FC<QuickActionBarProps> = ({
     onAssign,
     isDisabled = false,
 }) => {
-    const isTerminal = ticketStatus === 'RESOLVED' || ticketStatus === 'CANCELLED';
+    const isTerminal = isTerminalStatus(ticketStatus);
 
     if (isTerminal) return null;
 

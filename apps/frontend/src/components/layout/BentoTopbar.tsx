@@ -156,6 +156,7 @@ export const BentoTopbar = () => {
             case 'IN_PROGRESS': return 'bg-primary/10 text-primary';
             case 'WAITING_VENDOR': return 'bg-accent/15 text-accent';
             case 'RESOLVED': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
+            case 'CLOSED': return 'bg-slate-500/10 text-slate-600 dark:text-slate-300';
             case 'CANCELLED': return 'bg-destructive/10 text-destructive';
             default: return 'bg-muted text-muted-foreground';
         }

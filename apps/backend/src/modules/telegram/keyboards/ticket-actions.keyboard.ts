@@ -58,6 +58,7 @@ export class TicketActionsKeyboard {
             'IN_PROGRESS': '🟡',
             'WAITING_VENDOR': '🟠',
             'RESOLVED': '🟢',
+            'CLOSED': '⚫',
             'CANCELLED': '🔴',
         };
         

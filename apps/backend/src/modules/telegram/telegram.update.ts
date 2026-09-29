@@ -1920,6 +1920,7 @@ export class TelegramUpdate {
             'IN_PROGRESS': '🟡',
             'WAITING_VENDOR': '🟠',
             'RESOLVED': '🟢',
+            'CLOSED': '⚫',
             'CANCELLED': '🔴',
         };
         return map[status] || '⚪';

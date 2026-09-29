@@ -40,7 +40,7 @@ export interface TicketRowData {
     title: string;
     description: string;
     category: string;
-    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     source: 'WEB' | 'TELEGRAM' | 'EMAIL';
     isOverdue: boolean;
@@ -122,6 +122,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const location = useLocation();
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
+    // CLOSED is final: its status can no longer be changed from the list.
+    const canEditStatus = canEdit && ticket.status !== 'CLOSED';
     const [desktopAssignOpen, setDesktopAssignOpen] = useState(false);
     const [mobileAssignOpen, setMobileAssignOpen] = useState(false);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -316,7 +318,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             <StatusDropdown
                                 value={ticket.status}
                                 onChange={handleStatusChange}
-                                disabled={!canEdit}
+                                disabled={!canEditStatus}
                             />
                         </StopPropagationWrapper>
                         <StopPropagationWrapper>
@@ -494,7 +496,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     <StatusDropdown
                         value={ticket.status}
                         onChange={handleStatusChange}
-                        disabled={!canEdit}
+                        disabled={!canEditStatus}
                     />
                 </StopPropagationWrapper>
 
@@ -582,7 +584,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     </div>
                     {/* Quick actions - visible on hover */}
                     <div className="flex items-center gap-1">
-                        {canEdit && ticket.status !== 'RESOLVED' && (
+                        {canEditStatus && ticket.status !== 'RESOLVED' && (
                             <StopPropagationWrapper>
                                 <button
                                     onClick={() => setResolveModalOpen(true)}

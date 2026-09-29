@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
+import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
 import { TicketModule } from '../ticketing/entities/ticket-module.entity';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from './entities/department.entity';
@@ -522,9 +523,9 @@ export class UserCrudService implements OnModuleInit {
             .select('ticket."assignedToId"', 'agentId')
             .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.TODO}')`, 'openTickets')
             .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.IN_PROGRESS}')`, 'inProgressTickets')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}')`, 'resolvedTotal')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfWeek)`, 'resolvedThisWeek')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfMonth)`, 'resolvedThisMonth')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status IN (${TICKET_DONE_STATUSES_SQL}))`, 'resolvedTotal')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :startOfWeek)`, 'resolvedThisWeek')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :startOfMonth)`, 'resolvedThisMonth')
             .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
             .setParameter('startOfWeek', startOfWeek)
             .setParameter('startOfMonth', startOfMonth)
@@ -536,7 +537,7 @@ export class UserCrudService implements OnModuleInit {
             .createQueryBuilder('ticket')
             .select('ticket."assignedToId"', 'agentId')
             .addSelect('COUNT(*)', 'totalWithSla')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status = '${TicketStatus.RESOLVED}')`, 'withinSla')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status IN (${TICKET_DONE_STATUSES_SQL}))`, 'withinSla')
             .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
             .andWhere('ticket."slaTarget" IS NOT NULL')
             .groupBy('ticket."assignedToId"')

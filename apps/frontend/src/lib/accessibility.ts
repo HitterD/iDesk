@@ -64,6 +64,7 @@ export const getStatusLabel = (status: string): string => {
         IN_PROGRESS: 'In Progress',
         WAITING_VENDOR: 'Waiting for Vendor',
         RESOLVED: 'Resolved',
+        CLOSED: 'Closed',
         CANCELLED: 'Cancelled',
     };
     return labels[status] || status;
