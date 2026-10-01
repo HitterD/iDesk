@@ -37,6 +37,11 @@ import { ZoomMyBookingsView } from '../components/ZoomMyBookingsView';
 import { ZoomCalendarSkeletonView } from '../components/ZoomSkeletons';
 import { UpcomingMeetingsPanel } from '../components/UpcomingMeetingsPanel';
 import { useMostFreeAccount } from '../hooks/useMostFreeAccount';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { NotificationCategory } from '@/components/notifications/types/notification.types';
+
+/** Opening this page counts as reading its notifications. */
+const ZOOM_NOTIFICATIONS = { category: NotificationCategory.CATEGORY_ZOOM };
 
 interface SyncMeetingsResult {
     updatedCount?: number;
@@ -63,6 +68,7 @@ function generateTimeLabels(
 }
 
 export function ZoomCalendarPage() {
+    useMarkNotificationsRead(ZOOM_NOTIFICATIONS);
     const { hasAccess: canBook } = useHasPageAccess('zoom_calendar');
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
     const [currentTime, setCurrentTime] = useState(new Date());

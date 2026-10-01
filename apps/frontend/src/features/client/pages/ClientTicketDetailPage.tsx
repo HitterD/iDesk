@@ -53,6 +53,7 @@ import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
 import { getApiErrorMessage } from '../components/resolution/resolutionApi';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 /** SLA countdown recomputed every minute */
 const SLA_TICK_MS = 60_000;
@@ -663,6 +664,7 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
 
 export const ClientTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    useMarkNotificationsRead(id ? { ticketId: id } : null);
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();

@@ -22,6 +22,7 @@ import { NotificationService } from './notification.service';
 import { NotificationCenterService } from './notification-center.service';
 import { NotificationCategory } from './entities/notification.entity';
 import { SnoozeActionItemDto, UnsnoozeActionItemDto } from './dto/snooze-action-item.dto';
+import { MarkReadByTargetDto } from './dto/mark-read-by-target.dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { signSjaRequest } from '../sja-adapter/sja-request-signer';
 import { Public } from '../../shared/core/decorators/public.decorator';
@@ -270,6 +271,17 @@ export class NotificationController {
     @ApiResponse({ status: 200, description: 'Notification marked as read.' })
     async markAsRead(@Param('id') id: string, @Request() req: any) {
         return this.notificationService.markAsRead(id, req.user.userId);
+    }
+
+    @Post('read-by-target')
+    @ApiOperation({ summary: 'Mark notifications about an opened ticket, item or category as read' })
+    @ApiResponse({ status: 200, description: 'Number of notifications marked as read.' })
+    async markReadByTarget(@Request() req: any, @Body() dto: MarkReadByTargetDto) {
+        if (!dto.ticketId && !dto.referenceId && !dto.category) {
+            throw new BadRequestException('ticketId, referenceId atau category wajib diisi');
+        }
+        const updated = await this.notificationService.markReadByTarget(req.user.userId, dto);
+        return { success: true, updated };
     }
 
     @Post('read-all')

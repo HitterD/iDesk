@@ -17,6 +17,11 @@ import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
 import { forwardToDesktopNotifier } from '@/lib/desktopNotifier';
+import { useQueryClient } from '@tanstack/react-query';
+import api from '@/lib/api';
+
+/** Only toasts backed by a stored notification carry a uuid id; synthetic ones cannot be marked read. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface InAppNotification {
     id: string;
@@ -170,6 +175,7 @@ const NotificationToast: React.FC<NotificationToastProps> = ({
 
 export const InAppNotificationToast: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { socket } = useSocket();
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<InAppNotification[]>([]);
@@ -225,6 +231,11 @@ export const InAppNotificationToast: React.FC = () => {
     // Handle notification click
     const handleClick = useCallback((notification: InAppNotification) => {
         removeNotification(notification.id);
+        if (UUID_PATTERN.test(notification.id)) {
+            api.patch(`/notifications/${notification.id}/read`, undefined, { skipToast: true })
+                .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+                .catch(() => undefined);
+        }
 
         // Navigate based on notification type
         if (notification.link) {
@@ -233,7 +244,7 @@ export const InAppNotificationToast: React.FC = () => {
             const basePath = user?.role === 'USER' ? '/client/tickets' : '/tickets';
             navigate(`${basePath}/${notification.ticketId}`);
         }
-    }, [navigate, removeNotification, user?.role]);
+    }, [navigate, removeNotification, user?.role, queryClient]);
 
     // Listen for real-time notifications
     useEffect(() => {
@@ -246,18 +257,21 @@ export const InAppNotificationToast: React.FC = () => {
             }
         };
 
-        // Listen to user-specific channel
-        socket.on(`notification:${user.id}`, handleNewNotification);
-        // Also listen to general notification event
-        socket.on('notification:new', (data: any) => {
+        const handleGeneralNotification = (data: any) => {
             if (data.userId === user.id) {
                 addNotification(data.notification || data);
             }
-        });
+        };
+
+        // Listen to user-specific channel
+        socket.on(`notification:${user.id}`, handleNewNotification);
+        // Also listen to general notification event
+        socket.on('notification:new', handleGeneralNotification);
 
         return () => {
             socket.off(`notification:${user.id}`, handleNewNotification);
-            socket.off('notification:new');
+            // Remove only our handler: other hooks (useTicketSocket) listen to the same event.
+            socket.off('notification:new', handleGeneralNotification);
         };
     }, [socket, user, addNotification]);
 
