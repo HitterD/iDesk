@@ -18,6 +18,11 @@ import { useVpnStats } from '../../vpn-access/hooks/useVpnAccess';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { FeatureErrorBoundary } from '@/components/ui/FeatureErrorBoundary';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { NotificationCategory } from '@/components/notifications/types/notification.types';
+
+/** Opening this page counts as reading its notifications. */
+const RENEWAL_NOTIFICATIONS = { category: NotificationCategory.CATEGORY_RENEWAL };
 
 type TabId = 'contracts' | 'vpn' | 'sync';
 
@@ -50,6 +55,7 @@ const TABS: Tab[] = [
 ];
 
 export const RenewalHubPage = () => {
+    useMarkNotificationsRead(RENEWAL_NOTIFICATIONS);
     const [searchParams, setSearchParams] = useSearchParams();
     const initialTab = (searchParams.get('tab') as TabId) || 'contracts';
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
