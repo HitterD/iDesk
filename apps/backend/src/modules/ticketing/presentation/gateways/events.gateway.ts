@@ -18,6 +18,7 @@ import { isUUID } from 'class-validator';
 import { TicketRepository } from '../../repositories/ticket.repository';
 import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
 import { extractClientIp } from '../../../../shared/security/client-ip';
+import { buildWsCorsOrigin } from '../../../../shared/security/ws-origin';
 import { isCrossSiteRole } from '../../utils/site-access.util';
 
 const ACCESS_COOKIE_NAME = 'access_token';
@@ -63,25 +64,7 @@ export function resolveClientIp(handshake: { address?: string; headers?: Record<
 }
 
 export function buildCorsOrigin() {
-    return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        const allowedOrigins = (process.env.WS_CORS_ORIGIN || process.env.FRONTEND_URL || '')
-            .split(',')
-            .map((value) => value.trim())
-            .filter(Boolean);
-        if (process.env.NODE_ENV !== 'production') {
-            allowedOrigins.push('http://localhost:4050', 'http://localhost:3000', 'http://localhost:5173', 'http://idesk.santos.co.id', 'https://idesk.santos.co.id');
-        }
-        const isAllowed = !origin ||
-            allowedOrigins.includes(origin) ||
-            /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
-            /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
-            /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin);
-        if (isAllowed) {
-            callback(null, true);
-            return;
-        }
-        callback(new Error('WebSocket origin not allowed'), false);
-    };
+    return buildWsCorsOrigin();
 }
 
 @WebSocketGateway({

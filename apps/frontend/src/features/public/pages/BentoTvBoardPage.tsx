@@ -3,10 +3,10 @@ import { useParams } from 'react-router-dom';
 import { AlertTriangle, CircleDot, Inbox, Volume2, VolumeX } from 'lucide-react';
 import api from '@/lib/api';
 import { useColumnAutoScroll } from '../hooks/useColumnAutoScroll';
-import { useTvBoardSocket, type TvBoardCard, type TvBoardData } from '../hooks/useTvBoardSocket';
-import { detectBoardSoundDetails, type BoardSnapshot } from '../hooks/detectBoardSounds';
+import { useTvBoardSocket, type TvBoardCard, type TvBoardData, type TvBoardRingtones } from '../hooks/useTvBoardSocket';
+import { detectBoardSoundDetails, type BoardSnapshot, type DivisionSoundKey } from '../hooks/detectBoardSounds';
 import { shouldPlayClosing, toDateKey } from '../hooks/shouldPlayClosing';
-import { useRingtone } from '../hooks/useRingtone';
+import { useRingtone, type RingtoneSound } from '../hooks/useRingtone';
 import { APPLE_RED, TvBoardTicketRow } from '../components/TvBoardCard';
 import { sortByUrgency } from '../utils/tvBoardTime';
 import { DIVISION_CONFIGS, DIVISION_ORDER, resolveCardDivision, type DivisionKey } from '../utils/tvBoardDivisions';
@@ -97,15 +97,54 @@ function TvBoardColumnContent({
     );
 }
 
-function LiveStatus({ isOffline }: { isOffline: boolean }) {
-    return isOffline ? (
+type ConnectionState = 'live' | 'polling' | 'offline';
+
+/** Reload the page after the live connection has been down this long, as a last resort. */
+const WATCHDOG_RELOAD_MS = 15 * 60 * 1000;
+const POLL_INTERVAL_LIVE_MS = 30000;
+const POLL_INTERVAL_FALLBACK_MS = 15000;
+const INVALID_LINK_MESSAGE = 'Link tidak valid, hubungi admin.';
+
+const DEFAULT_IN_PROGRESS_SOUND = '/sounds/default/assigned.mp3';
+const DEFAULT_CLOSING_SOUND = '/sounds/default/new-ticket.mp3';
+const DEFAULT_NEW_TICKET_SOUND: Record<DivisionSoundKey, string> = {
+    OPS_SUPPORT: '/sounds/divisions/new-ticket-it-support.mp3',
+    ORACLE_DEV: '/sounds/divisions/new-ticket-oracle.mp3',
+    WEB_DEV: '/sounds/divisions/new-ticket-web-dev.mp3',
+    MOBILE_DEV: '/sounds/divisions/new-ticket-mobile-dev.mp3',
+};
+const NEW_TICKET_RINGTONE_KEY: Record<DivisionSoundKey, keyof TvBoardRingtones> = {
+    OPS_SUPPORT: 'newTicketSupport',
+    ORACLE_DEV: 'newTicketOracle',
+    WEB_DEV: 'newTicketWebDev',
+    MOBILE_DEV: 'newTicketMobileDev',
+};
+
+/** Custom uploads can disappear (e.g. lost volume); the built-in sound covers that case. */
+const withFallback = (custom: string | null | undefined, builtIn: string): RingtoneSound =>
+    custom ? { src: custom, fallback: builtIn } : { src: builtIn };
+
+function LiveStatus({ state }: { state: ConnectionState }) {
+    if (state === 'offline') {
+        return (
+            <span
+                data-testid="tv-board-status-reconnecting"
+                className="flex items-center gap-2 text-lg font-semibold text-[#FF9500]"
+                title="Koneksi terganggu, mencoba menghubungkan kembali secara otomatis"
+            >
+                <span className="h-2.5 w-2.5 animate-ping rounded-full bg-[#FF9500]" />
+                Menghubungkan kembali...
+            </span>
+        );
+    }
+    return state === 'polling' ? (
         <span
-            data-testid="tv-board-status-reconnecting"
-            className="flex items-center gap-2 text-lg font-semibold text-[#FF9500]"
-            title="Koneksi terganggu, mencoba menghubungkan kembali secara otomatis"
+            data-testid="tv-board-status-polling"
+            className="flex items-center gap-2 text-lg font-semibold text-[#6E6E73]"
+            title="Koneksi realtime terputus; data tetap diperbarui berkala sambil menyambung ulang"
         >
-            <span className="h-2.5 w-2.5 animate-ping rounded-full bg-[#FF9500]" />
-            Menghubungkan kembali...
+            <span className="h-2.5 w-2.5 rounded-full bg-[#86868B]" />
+            Sinkron berkala
         </span>
     ) : (
         <span data-testid="tv-board-status-live" className="flex items-center gap-2 text-lg font-semibold text-[#248A3D]">
@@ -118,30 +157,32 @@ function LiveStatus({ isOffline }: { isOffline: boolean }) {
 export const BentoTvBoardPage: React.FC = () => {
     const { token } = useParams<{ token: string }>();
     useTvRootFontSize();
-    const [initialData, setInitialData] = useState<TvBoardData | null>(null);
+    // Latest board from either source; the socket and the REST poll both overwrite it.
+    const [board, setBoard] = useState<TvBoardData | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [isReconnecting, setIsReconnecting] = useState(false);
+    const [isPollFailing, setIsPollFailing] = useState(false);
     const [now, setNow] = useState(new Date());
-    const { boardData: liveData, isConnected } = useTvBoardSocket(token);
+    const { boardData: liveData, isConnected, isTokenInvalid } = useTvBoardSocket(token);
     const { enqueue, blocked, unlockAudio, playTestSound } = useRingtone();
     const prevSnapshotRef = useRef<BoardSnapshot | null>(null);
     const lastClosingDateRef = useRef<string | null>(null);
     const hasEverLoadedRef = useRef(false);
     const disconnectedSinceRef = useRef<number | null>(null);
 
-    const isOffline = !isConnected || isReconnecting;
+    const connectionState: ConnectionState = isConnected ? 'live' : isPollFailing ? 'offline' : 'polling';
 
+    // The watchdog tracks the live connection only: a working REST poll must not hide a dead socket forever.
     useEffect(() => {
-        if (!isOffline) {
+        if (isConnected) {
             disconnectedSinceRef.current = null;
         } else if (!disconnectedSinceRef.current) {
             disconnectedSinceRef.current = Date.now();
         }
-    }, [isOffline]);
+    }, [isConnected]);
 
     useEffect(() => {
-        if (!token) {
-            setError('Link tidak valid, hubungi admin.');
+        if (!token || isTokenInvalid) {
+            setError(INVALID_LINK_MESSAGE);
             return;
         }
 
@@ -149,40 +190,36 @@ export const BentoTvBoardPage: React.FC = () => {
             api.get(`/tv/board/${token}`, { skipToast: true })
                 .then((res) => {
                     hasEverLoadedRef.current = true;
-                    setInitialData(res.data);
-                    setIsReconnecting(false);
+                    setBoard(res.data);
+                    setIsPollFailing(false);
                     setError(null);
-                    disconnectedSinceRef.current = null;
                 })
                 .catch((err) => {
                     const status = err?.response?.status;
                     // Only show fatal "Link tidak valid" if 404 AND we have never loaded board data before
                     if (status === 404 && !hasEverLoadedRef.current) {
-                        setError('Link tidak valid, hubungi admin.');
+                        setError(INVALID_LINK_MESSAGE);
                     } else {
                         // Keep existing board data on screen; do not crash UI during network blips
-                        setIsReconnecting(true);
-                        if (!disconnectedSinceRef.current) {
-                            disconnectedSinceRef.current = Date.now();
-                        }
+                        setIsPollFailing(true);
                     }
                 });
         };
 
         fetchBoardData();
 
-        const pollIntervalMs = isConnected ? 30000 : 15000;
+        const pollIntervalMs = isConnected ? POLL_INTERVAL_LIVE_MS : POLL_INTERVAL_FALLBACK_MS;
         const interval = setInterval(fetchBoardData, pollIntervalMs);
 
         return () => clearInterval(interval);
-    }, [token, isConnected]);
+    }, [token, isConnected, isTokenInvalid]);
 
     useEffect(() => {
         if (liveData) {
             hasEverLoadedRef.current = true;
-            setIsReconnecting(false);
+            setBoard(liveData);
+            setIsPollFailing(false);
             setError(null);
-            disconnectedSinceRef.current = null;
         }
     }, [liveData]);
 
@@ -190,24 +227,12 @@ export const BentoTvBoardPage: React.FC = () => {
         const interval = setInterval(() => {
             setNow(new Date());
 
-            // 15-minute fail-safe watchdog: reload page if disconnected continuously for > 15 minutes
-            if (disconnectedSinceRef.current) {
-                const elapsedMs = Date.now() - disconnectedSinceRef.current;
-                if (elapsedMs > 15 * 60 * 1000) {
-                    window.location.reload();
-                }
+            if (disconnectedSinceRef.current && Date.now() - disconnectedSinceRef.current > WATCHDOG_RELOAD_MS) {
+                window.location.reload();
             }
         }, 1000);
         return () => clearInterval(interval);
     }, []);
-
-    useEffect(() => {
-        if (!isConnected) {
-            prevSnapshotRef.current = null;
-        }
-    }, [isConnected]);
-
-    const board = liveData ?? initialData;
 
     useEffect(() => {
         if (!board) return;
@@ -222,40 +247,17 @@ export const BentoTvBoardPage: React.FC = () => {
         const events = detectBoardSoundDetails(prevSnapshotRef.current, snapshot);
         prevSnapshotRef.current = snapshot;
 
-        const soundUrls: string[] = [];
-        for (const ev of events) {
-            if (ev.event === 'inProgress') {
-                soundUrls.push(board.ringtones.inProgress || '/sounds/default/assigned.mp3');
-            } else if (ev.division === 'ORACLE_DEV') {
-                soundUrls.push(
-                    board.ringtones.newTicketOracle ||
-                    board.ringtones.newTicket ||
-                    '/sounds/divisions/new-ticket-oracle.mp3'
-                );
-            } else if (ev.division === 'WEB_DEV') {
-                soundUrls.push(
-                    board.ringtones.newTicketWebDev ||
-                    board.ringtones.newTicket ||
-                    '/sounds/divisions/new-ticket-web-dev.mp3'
-                );
-            } else if (ev.division === 'MOBILE_DEV') {
-                soundUrls.push(
-                    board.ringtones.newTicketMobileDev ||
-                    board.ringtones.newTicket ||
-                    '/sounds/divisions/new-ticket-mobile-dev.mp3'
-                );
-            } else {
-                // OPS_SUPPORT
-                soundUrls.push(
-                    board.ringtones.newTicketSupport ||
-                    board.ringtones.newTicket ||
-                    '/sounds/divisions/new-ticket-it-support.mp3'
-                );
-            }
-        }
+        const sounds = events.map((ev) =>
+            ev.event === 'inProgress'
+                ? withFallback(board.ringtones.inProgress, DEFAULT_IN_PROGRESS_SOUND)
+                : withFallback(
+                    board.ringtones[NEW_TICKET_RINGTONE_KEY[ev.division ?? 'OPS_SUPPORT']] || board.ringtones.newTicket,
+                    DEFAULT_NEW_TICKET_SOUND[ev.division ?? 'OPS_SUPPORT'],
+                ),
+        );
 
-        if (soundUrls.length > 0) {
-            enqueue(soundUrls);
+        if (sounds.length > 0) {
+            enqueue(sounds);
         }
     }, [board, enqueue]);
 
@@ -264,7 +266,7 @@ export const BentoTvBoardPage: React.FC = () => {
         if (!shouldPlayClosing(now, board.ringtones.closingTime, lastClosingDateRef.current)) return;
 
         lastClosingDateRef.current = toDateKey(now);
-        enqueue([board.ringtones.closing || '/sounds/default/new-ticket.mp3']);
+        enqueue([withFallback(board.ringtones.closing, DEFAULT_CLOSING_SOUND)]);
     }, [board, now, enqueue]);
 
     const data = board;
@@ -296,7 +298,7 @@ export const BentoTvBoardPage: React.FC = () => {
                 <img src="/idesk-logo.png" alt="iDesk" className="h-12 w-auto object-contain" />
                 <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-[#007AFF] border-t-transparent" />
                 <p className="text-lg font-medium">
-                    {isOffline ? 'Menghubungkan ke TV Monitoring Board...' : 'Memuat TV Monitoring Board...'}
+                    {isPollFailing ? 'Menghubungkan ke TV Monitoring Board...' : 'Memuat TV Monitoring Board...'}
                 </p>
             </div>
         );
@@ -325,7 +327,7 @@ export const BentoTvBoardPage: React.FC = () => {
                             </div>
                             <div className="mt-0.5 flex items-center gap-4 text-lg text-[#6E6E73]">
                                 <span>TV Monitoring Board</span>
-                                <LiveStatus isOffline={isOffline} />
+                                <LiveStatus state={connectionState} />
                             </div>
                         </div>
                     </div>
@@ -377,7 +379,7 @@ export const BentoTvBoardPage: React.FC = () => {
                                 data-testid="tv-board-audio-blocked"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    playTestSound();
+                                    unlockAudio();
                                 }}
                                 title="Klik untuk mengaktifkan suara TV Board"
                                 className="flex animate-pulse cursor-pointer items-center gap-2 rounded-full bg-[#FF9500] px-4 py-1.5 text-lg font-semibold text-white"
@@ -431,6 +433,18 @@ export const BentoTvBoardPage: React.FC = () => {
                     })}
                 </div>
             </div>
+
+            {blocked && (
+                <div
+                    data-testid="tv-board-audio-banner"
+                    className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center"
+                >
+                    <span className="flex items-center gap-3 rounded-full bg-[#1D1D1F]/90 px-6 py-3 text-xl font-semibold text-white shadow-lg">
+                        <VolumeX className="h-6 w-6" aria-hidden="true" />
+                        Suara diblokir browser. Klik di mana saja untuk mengaktifkan suara.
+                    </span>
+                </div>
+            )}
         </div>
     );
 };

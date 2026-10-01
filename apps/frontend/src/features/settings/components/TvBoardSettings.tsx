@@ -82,6 +82,13 @@ const RINGTONE_SLOTS: SlotConfig[] = [
     },
 ];
 
+const NEW_TICKET_DIVISION_SLOTS = new Set<RingtoneSlot>([
+    'newTicketSupport',
+    'newTicketOracle',
+    'newTicketWebDev',
+    'newTicketMobileDev',
+]);
+
 export function TvBoardSettings() {
     const [sites, setSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
@@ -259,7 +266,11 @@ export function TvBoardSettings() {
                             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pengaturan Suara Notifikasi Per Divisi</span>
                         </div>
                         {RINGTONE_SLOTS.map(({ slot, field, label, defaultUrl, defaultLabel }) => {
-                            const url = site[field] as string | null;
+                            const ownUrl = site[field] as string | null;
+                            // An empty division slot still plays the older site-wide "Tiket Masuk" upload, so show it.
+                            const inheritsGeneral = !ownUrl && NEW_TICKET_DIVISION_SLOTS.has(slot) && !!site.ringtoneNewTicket;
+                            const url = ownUrl || (inheritsGeneral ? site.ringtoneNewTicket : null);
+                            const clearSlot: RingtoneSlot = inheritsGeneral ? 'newTicket' : slot;
                             const activeUrl = url || defaultUrl;
 
                             return (
@@ -268,7 +279,7 @@ export function TvBoardSettings() {
                                     {url ? (
                                         <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                             <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold shrink-0">
-                                                Kustom
+                                                {inheritsGeneral ? 'Kustom umum' : 'Kustom'}
                                             </span>
                                             <span className="text-xs text-slate-600 dark:text-slate-300 truncate" title={url}>
                                                 {url}
@@ -305,10 +316,12 @@ export function TvBoardSettings() {
                                         </label>
                                         {url && (
                                             <button
-                                                onClick={() => handleClearRingtone(site.id, slot)}
+                                                onClick={() => handleClearRingtone(site.id, clearSlot)}
                                                 disabled={busyId === site.id}
                                                 className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 transition-colors"
-                                                title="Hapus kustom (kembali ke bawaan)"
+                                                title={inheritsGeneral
+                                                    ? 'Hapus kustom umum (berlaku untuk semua divisi yang belum punya suara sendiri)'
+                                                    : 'Hapus kustom (kembali ke bawaan)'}
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
