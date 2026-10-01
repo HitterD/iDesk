@@ -14,10 +14,11 @@ import { LoggingInterceptor } from './shared/core/interceptors/logging.intercept
 import { CorrelationMiddleware } from './shared/core/middleware/correlation.middleware';
 // import { CsrfMiddleware } from './shared/core/middleware/csrf.middleware'; // Disabled - SameSite cookies provide CSRF protection
 import { NestExpressApplication } from '@nestjs/platform-express';
-import * as path from 'path';
 import { join } from 'path';
 import * as express from 'express';
 import { validateAuthEnvironment } from './config/auth.config';
+import { createUploadsFileHandler } from './modules/ticketing/presentation/middleware/uploads-file.handler';
+import { TicketAttachmentAccessService } from './modules/ticketing/services/ticket-attachment-access.service';
 
 function validateEnvironment(): void {
     validateAuthEnvironment(process.env);
@@ -156,56 +157,9 @@ async function bootstrap() {
     // Serve static files from uploads directory with fallback resolution for subfolders
     const uploadRoot = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
 
-    app.use('/uploads', (req: express.Request, res: express.Response, next: express.NextFunction) => {
-        if (req.method !== 'GET' && req.method !== 'HEAD') {
-            return next();
-        }
-
-        const relativeReqPath = req.path.replace(/^[/\\]+/, '');
-        const targetPath = join(uploadRoot, relativeReqPath);
-
-        const resolvedRoot = path.resolve(uploadRoot);
-        const resolvedTarget = path.resolve(targetPath);
-        const relFromRoot = path.relative(resolvedRoot, resolvedTarget);
-
-        // Security check: ensure targetPath stays within uploadRoot
-        if (relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) {
-            return res.status(403).send('Forbidden');
-        }
-
-        // 1. Direct file match
-        if (fs.existsSync(resolvedTarget) && fs.statSync(resolvedTarget).isFile()) {
-            return res.sendFile(path.resolve(resolvedTarget));
-        }
-
-        // 2. Fallback: Flat filename request (e.g., /uploads/mrypa342-5ak8sy4r.png)
-        const filename = relativeReqPath.split(/[/\\]/).pop();
-        if (filename && filename !== 'uploads') {
-            // Check in tickets/unscoped/
-            const unscopedPath = join(uploadRoot, 'tickets', 'unscoped', filename);
-            if (fs.existsSync(unscopedPath) && fs.statSync(unscopedPath).isFile()) {
-                return res.sendFile(path.resolve(unscopedPath));
-            }
-
-            // Check in tickets/<ticketId>/ subdirectories
-            const ticketsDir = join(uploadRoot, 'tickets');
-            if (fs.existsSync(ticketsDir)) {
-                try {
-                    const subdirs = fs.readdirSync(ticketsDir);
-                    for (const dir of subdirs) {
-                        const candidate = join(ticketsDir, dir, filename);
-                        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-                            return res.sendFile(path.resolve(candidate));
-                        }
-                    }
-                } catch {
-                    // Ignore directory read errors
-                }
-            }
-        }
-
-        next();
-    });
+    // Ticket chat attachments are checked against ticket access before anything is served;
+    // the static middlewares below only ever see non-ticket files.
+    app.use('/uploads', createUploadsFileHandler(uploadRoot, app.get(TicketAttachmentAccessService)));
 
     app.useStaticAssets(uploadRoot, {
         prefix: '/uploads/',
