@@ -58,7 +58,7 @@ export class SearchFilterDto {
     @IsString()
     category?: string;
 
-    @ApiPropertyOptional({ description: 'Filter by ticket source (WEB, TELEGRAM, EMAIL)' })
+    @ApiPropertyOptional({ description: 'Filter by ticket source (WEB, EMAIL; TELEGRAM for legacy tickets)' })
     @IsOptional()
     @IsString()
     source?: string;

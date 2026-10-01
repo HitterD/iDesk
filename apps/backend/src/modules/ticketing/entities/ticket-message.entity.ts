@@ -36,7 +36,7 @@ export class TicketMessage {
     /**
      * Original name/size/type per uploaded file, same order as `attachments`.
      * Kept beside the path list (not in it) because storage cleanup, image
-     * compression and Telegram all treat `attachments` as plain paths. Null on
+     * compression and backup sync all treat `attachments` as plain paths. Null on
      * messages created before this column existed.
      */
     @Column('simple-json', { nullable: true })
@@ -50,7 +50,7 @@ export class TicketMessage {
     isInternal: boolean;
 
     @Column({ default: 'WEB' })
-    source: string; // 'WEB' | 'TELEGRAM' | 'EMAIL'
+    source: string; // 'WEB' | 'EMAIL' ('TELEGRAM' on legacy messages)
 
     @ManyToOne(() => Ticket, (ticket) => ticket.messages)
     @JoinColumn({ name: 'ticketId' })

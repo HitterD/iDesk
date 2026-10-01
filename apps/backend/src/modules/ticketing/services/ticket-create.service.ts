@@ -120,7 +120,7 @@ export class TicketCreateService {
             // Wrap in transaction (M7: multiple-write ops)
             const finalTicket = await this.ticketRepo.manager.transaction(async (manager) => {
                 // Generate Custom Ticket Number safely within transaction.
-                // Shared locked generator (PROD-19): web + Telegram serialize
+                // Shared locked generator (PROD-19): every creation path serializes
                 // on the same pessimistic_write lock so concurrent creations
                 // can never collide on the unique ticketNumber.
                 ticket.ticketNumber = await generateNextTicketNumber(manager, division, date);

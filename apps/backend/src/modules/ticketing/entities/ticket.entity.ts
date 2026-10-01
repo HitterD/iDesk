@@ -42,6 +42,7 @@ export enum TicketPriority {
 }
 
 export enum TicketSource {
+    /** Legacy: tickets created by the retired Telegram bot. */
     TELEGRAM = 'TELEGRAM',
     WEB = 'WEB',
     EMAIL = 'EMAIL',

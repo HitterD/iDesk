@@ -6,7 +6,6 @@ import { Repository, Not, IsNull, In } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from './entities/ticket.entity';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 
-import { CustomerSession } from '../users/entities/customer-session.entity';
 import { SlaConfigService } from './sla-config.service';
 
 @Injectable()
@@ -16,8 +15,6 @@ export class SlaCheckerService {
     constructor(
         @InjectRepository(Ticket)
         private ticketRepo: Repository<Ticket>,
-        @InjectRepository(CustomerSession)
-        private sessionRepo: Repository<CustomerSession>,
         private readonly mailDispatch: MailDispatchService,
         private readonly slaConfigService: SlaConfigService,
         private readonly configService: ConfigService,

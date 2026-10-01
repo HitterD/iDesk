@@ -422,7 +422,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     return (
         <div className="flex flex-col h-full overflow-hidden relative">
 
-            {/* ── WhatsApp/Telegram Style Pinned Issue Header Banner (Hidden on mobile for cleaner view) ── */}
+            {/* ── Chat-app Style Pinned Issue Header Banner (Hidden on mobile for cleaner view) ── */}
             <div className="hidden sm:flex shrink-0 bg-primary/5 dark:bg-primary/10 border-b border-primary/20 dark:border-primary/30 px-5 py-2.5 items-center justify-between gap-3 shadow-2xs backdrop-blur-md z-10">
                 <div
                     onClick={scrollToRootIssue}

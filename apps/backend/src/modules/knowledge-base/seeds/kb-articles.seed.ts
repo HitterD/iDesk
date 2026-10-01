@@ -962,8 +962,7 @@ Kelola data akun dan saluran notifikasi Anda pada menu **Profile (\`/client/prof
 ### Penjelasan Pengaturan Akun:
 - **[1] Data Diri & No. WhatsApp**: Kolom data kepegawaian (Nama Lengkap, Email Kantor, Nomor Telepon, Jabatan). Perbarui nomor kontak WhatsApp aktif Anda agar teknisi dapat menghubungi Anda dengan cepat saat koordinasi perbaikan di lapangan.
 - **[2] Tab Ganti Password**: Tab navigasi untuk mengganti kata sandi akun iDesk secara berkala demi menjaga keamanan data perusahaan.
-- **[3] Tab Notifikasi Telegram**: Tab navigasi untuk menghubungkan akun Telegram pribadi Anda dengan iDesk Bot agar dapat menerima notifikasi tiket langsung di ponsel.
-- **[4] Mode Terang / Gelap**: Tombol pengalih tema tampilan antarmuka (*Light Mode / Dark Mode*) di bilah navigasi kanan atas untuk kenyamanan visual Anda.`,
+- **[3] Mode Terang / Gelap**: Tombol pengalih tema tampilan antarmuka (*Light Mode / Dark Mode*) di bilah navigasi kanan atas untuk kenyamanan visual Anda.`,
             category: 'General',
             tags: ['user-guide', 'panduan', 'tutorial', 'portal', 'idesk', 'client'],
             status: ArticleStatus.PUBLISHED,

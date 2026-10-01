@@ -191,8 +191,6 @@ export class NotificationCenterService implements OnModuleInit {
                 inAppEnabled: true,
                 emailEnabled: true,
                 emailAddress: user?.email || undefined,
-                telegramEnabled: !!user?.telegramChatId,
-                telegramChatId: user?.telegramChatId || undefined,
                 pushEnabled: false,
                 digestEnabled: false,
                 digestFrequency: DigestFrequency.REALTIME,
@@ -637,8 +635,6 @@ export class NotificationCenterService implements OnModuleInit {
                 return userId;
             case DeliveryChannel.EMAIL:
                 return preferences.emailAddress || null;
-            case DeliveryChannel.TELEGRAM:
-                return preferences.telegramChatId || null;
             case DeliveryChannel.PUSH:
                 return userId; // Push uses userId, subscriptions are looked up by PushChannelService
             default:
@@ -692,8 +688,6 @@ export class NotificationCenterService implements OnModuleInit {
                 return preferences.inAppEnabled;
             case DeliveryChannel.EMAIL:
                 return preferences.emailEnabled;
-            case DeliveryChannel.TELEGRAM:
-                return preferences.telegramEnabled;
             case DeliveryChannel.PUSH:
                 return preferences.pushEnabled;
             default:
@@ -817,20 +811,6 @@ export class NotificationCenterService implements OnModuleInit {
                     notificationId: `digest-${Date.now()}`,
                     recipient: preferences.emailAddress,
                     title: digestTitle,
-                    body: digestBody,
-                    data: { isDigest: true, count: notifications.length },
-                });
-            }
-        }
-
-        // Send via Telegram if enabled
-        if (preferences.telegramEnabled && preferences.telegramChatId) {
-            const telegramChannel = this.channels.get(DeliveryChannel.TELEGRAM);
-            if (telegramChannel) {
-                await telegramChannel.send({
-                    notificationId: `digest-${Date.now()}`,
-                    recipient: preferences.telegramChatId,
-                    title: `📬 ${digestTitle}`,
                     body: digestBody,
                     data: { isDigest: true, count: notifications.length },
                 });

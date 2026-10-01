@@ -41,9 +41,6 @@ export class NotificationPreference {
     emailEnabled: boolean;
 
     @Column({ default: false })
-    telegramEnabled: boolean;
-
-    @Column({ default: false })
     pushEnabled: boolean;
 
     // =====================
@@ -52,9 +49,6 @@ export class NotificationPreference {
 
     @Column({ type: 'varchar', nullable: true })
     emailAddress: string;
-
-    @Column({ type: 'varchar', nullable: true })
-    telegramChatId: string;
 
     @Column('simple-array', { nullable: true })
     pushTokens: string[];
@@ -80,7 +74,7 @@ export class NotificationPreference {
     // Type-specific Settings
     // =====================
     // JSON object mapping notification types to channel preferences
-    // e.g., { "TICKET_ASSIGNED": { "email": true, "telegram": true }, "MENTION": { "email": true } }
+    // e.g., { "TICKET_ASSIGNED": { "email": true, "push": true }, "MENTION": { "email": true } }
     @Column('jsonb', { default: {} })
     typeSettings: Record<string, Record<string, boolean>>;
 
