@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
+import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -136,6 +136,7 @@ export class TicketMessagingService {
         files: string[] = [],
         mentionedUserIds: string[] = [],
         isInternal: boolean = false,
+        attachmentInfo: AttachmentInfo[] = [],
     ) {
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
@@ -171,6 +172,7 @@ export class TicketMessagingService {
                 senderId: userId,
                 content,
                 attachments: files,
+                attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 isInternal,  // Mark as internal note if specified
             });
 

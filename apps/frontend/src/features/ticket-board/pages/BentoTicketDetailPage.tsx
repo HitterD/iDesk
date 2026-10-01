@@ -21,7 +21,8 @@ import { useTicketShortcuts } from '@/hooks/useTicketShortcuts';
 import { MessageSquare, History, SlidersHorizontal, Info, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TicketAttributes } from '../types';
-import { validateFiles, FILE_SIZE_LIMITS } from '@/lib/file-validation';
+import { toUploadPercent, validateFiles } from '@/lib/file-validation';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
@@ -253,15 +254,18 @@ export const BentoTicketDetailPage: React.FC = () => {
         cancelMutation.mutate(undefined);
     };
 
-    const handleSendMessage = async (content: string, files?: FileList | null, isInternal: boolean = false) => {
+    const handleSendMessage = async (
+        content: string,
+        files?: FileList | null,
+        isInternal: boolean = false,
+        onUploadProgress?: (percent: number) => void,
+    ) => {
         if (files && files.length > 0) {
-            const validation = validateFiles(Array.from(files), {
-                maxSize: FILE_SIZE_LIMITS.ATTACHMENT,
-                maxFiles: 5,
-            });
+            const validation = validateFiles(Array.from(files));
             if (!validation.valid) {
                 toast.error(validation.error);
-                return;
+                // Reject (not return) so TicketChat keeps the draft instead of clearing it.
+                throw new Error(validation.error);
             }
         }
 
@@ -300,6 +304,8 @@ export const BentoTicketDetailPage: React.FC = () => {
 
             await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
+                skipToast: true,
+                onUploadProgress: (e) => onUploadProgress?.(toUploadPercent(e.loaded, e.total)),
             });
 
             if (!isInternal) {
@@ -308,7 +314,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
         } catch (error) {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
-            toast.error('Failed to send message');
+            toast.error(getApiErrorMessage(error, 'Gagal mengirim pesan'));
             throw error;
         }
     };

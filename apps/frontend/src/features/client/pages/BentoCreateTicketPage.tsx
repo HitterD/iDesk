@@ -35,6 +35,8 @@ import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 import {
+    ATTACHMENT_ACCEPT,
+    FILE_SIZE_LIMITS,
     MAX_ATTACHMENTS_PER_TICKET,
     formatFileSize,
     validateAttachmentFile,
@@ -1034,7 +1036,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                                 ref={fileInputRef}
                                 className="hidden"
                                 onChange={handleFileChange}
-                                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+                                accept={ATTACHMENT_ACCEPT}
                             />
                             <button
                                 type="button"
@@ -1057,7 +1059,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                         </div>
 
                         <span className="text-[11px] text-muted-foreground font-medium">
-                            Maks. {MAX_ATTACHMENTS_PER_TICKET} file (10MB/file)
+                            Maks. {MAX_ATTACHMENTS_PER_TICKET} file ({formatFileSize(FILE_SIZE_LIMITS.ATTACHMENT)}/file)
                         </span>
                     </div>
                 </div>

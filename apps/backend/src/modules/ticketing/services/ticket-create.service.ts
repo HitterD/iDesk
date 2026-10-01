@@ -4,7 +4,7 @@ import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
+import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
@@ -39,7 +39,12 @@ export class TicketCreateService {
         private readonly auditService: AuditService,
     ) { }
 
-    async createTicket(userId: string, createTicketDto: CreateTicketDto, files: string[] = []): Promise<Ticket> {
+    async createTicket(
+        userId: string,
+        createTicketDto: CreateTicketDto,
+        files: string[] = [],
+        attachmentInfo: AttachmentInfo[] = [],
+    ): Promise<Ticket> {
         try {
             const user = await this.userRepo.findOne({
                 where: { id: userId },
@@ -133,6 +138,7 @@ export class TicketCreateService {
                     ticket: savedTicket,
                     senderId: user.id,
                     attachments: files,
+                    attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 });
                 await manager.save(message);
 

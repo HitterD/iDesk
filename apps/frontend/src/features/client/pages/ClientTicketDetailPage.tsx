@@ -53,6 +53,7 @@ import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
 import { getApiErrorMessage } from '../components/resolution/resolutionApi';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
+import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 /** SLA countdown recomputed every minute */
@@ -703,10 +704,11 @@ export const ClientTicketDetailPage: React.FC = () => {
     });
 
     const replyMutation = useMutation({
-        mutationFn: async (formData: FormData) => {
+        mutationFn: async ({ formData, onUploadProgress }: { formData: FormData; onUploadProgress?: (percent: number) => void }) => {
             const res = await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 skipToast: true,
+                onUploadProgress: (e) => onUploadProgress?.(toUploadPercent(e.loaded, e.total)),
             });
             return res.data;
         },
@@ -735,7 +737,20 @@ export const ClientTicketDetailPage: React.FC = () => {
         },
     });
 
-    const handleSendMessage = async (content: string, files?: FileList | null, isInternal?: boolean) => {
+    const handleSendMessage = async (
+        content: string,
+        files?: FileList | null,
+        isInternal?: boolean,
+        onUploadProgress?: (percent: number) => void,
+    ) => {
+        if (files && files.length > 0) {
+            const validation = validateFiles(Array.from(files));
+            if (!validation.valid) {
+                toast.error(validation.error);
+                // Reject so TicketChat keeps the draft for the user to fix.
+                throw new Error(validation.error);
+            }
+        }
         const formData = new FormData();
         formData.append('content', content);
         if (isInternal) {
@@ -747,7 +762,7 @@ export const ClientTicketDetailPage: React.FC = () => {
             });
         }
 
-        await replyMutation.mutateAsync(formData);
+        await replyMutation.mutateAsync({ formData, onUploadProgress });
     };
 
     if (isLoading) {

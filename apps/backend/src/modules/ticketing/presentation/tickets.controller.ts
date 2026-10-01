@@ -39,7 +39,6 @@ import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
-import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import {
     UpdateTicketStatusDto,
     UpdateTicketPriorityDto,
@@ -57,7 +56,13 @@ import { TicketForwardService } from '../services/ticket-forward.service';
 import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
 import { TicketParticipantService } from '../services/ticket-participant.service';
 import { TicketStatsService } from '../services/ticket-stats.service';
-import { AttachmentMultiInterceptor, getRelativeUploadPath } from './interceptors/attachment-upload.interceptor';
+import {
+    AttachmentMultiInterceptor,
+    assertValidAttachments,
+    discardUploads,
+    getRelativeUploadPath,
+    toAttachmentInfo,
+} from './interceptors/attachment-upload.interceptor';
 import { AddParticipantsDto } from '../dto/ticket-participant.dto';
 import { ExtendSlaDto } from '../dto/extend-sla.dto';
 import { ForwardTicketDto } from '../dto/forward-ticket.dto';
@@ -109,15 +114,20 @@ export class TicketsController {
         @Body() createTicketDto: CreateTicketDto,
         @UploadedFiles() files: Express.Multer.File[],
     ) {
-        if (files && files.length > 0) {
-            for (const file of files) {
-                if (!validateFileMagicBytes(file)) {
-                    throw new BadRequestException('File type not allowed or file is corrupted');
-                }
-            }
+        assertValidAttachments(files);
+        const attachmentInfo = (files ?? []).map(toAttachmentInfo);
+        let result: Awaited<ReturnType<TicketCreateService['createTicket']>>;
+        try {
+            result = await this.ticketCreateService.createTicket(
+                req.user.userId,
+                createTicketDto,
+                attachmentInfo.map((a) => a.path),
+                attachmentInfo,
+            );
+        } catch (error) {
+            discardUploads(files);
+            throw error;
         }
-        const filePaths = files ? files.map(f => getRelativeUploadPath(f)) : [];
-        const result = await this.ticketCreateService.createTicket(req.user.userId, createTicketDto, filePaths);
 
         if (files && files.length > 0 && this.eventEmitter) {
             for (const f of files) {
@@ -331,14 +341,8 @@ export class TicketsController {
         @Body('isInternal') isInternal: string | boolean,
         @UploadedFiles() files: Express.Multer.File[],
     ) {
-        if (files && files.length > 0) {
-            for (const file of files) {
-                if (!validateFileMagicBytes(file)) {
-                    throw new BadRequestException('File type not allowed or file is corrupted');
-                }
-            }
-        }
-        const filePaths = files ? files.map(f => getRelativeUploadPath(f)) : [];
+        assertValidAttachments(files);
+        const attachmentInfo = (files ?? []).map(toAttachmentInfo);
 
         let parsedMentionedUserIds: string[] = [];
         if (typeof mentionedUserIds === 'string') {
@@ -354,14 +358,22 @@ export class TicketsController {
         // Parse isInternal (can come as string 'true'/'false' from FormData)
         const isInternalNote = isInternal === true || isInternal === 'true';
 
-        const result = await this.ticketMessagingService.replyToTicket(
-            id,
-            req.user.userId,
-            content,
-            filePaths,
-            parsedMentionedUserIds,
-            isInternalNote,
-        );
+        let result: Awaited<ReturnType<TicketMessagingService['replyToTicket']>>;
+        try {
+            result = await this.ticketMessagingService.replyToTicket(
+                id,
+                req.user.userId,
+                content,
+                attachmentInfo.map((a) => a.path),
+                parsedMentionedUserIds,
+                isInternalNote,
+                attachmentInfo,
+            );
+        } catch (error) {
+            // e.g. ticket closed meanwhile or no access: the files would never be referenced.
+            discardUploads(files);
+            throw error;
+        }
 
         if (files && files.length > 0 && this.eventEmitter) {
             for (const f of files) {
