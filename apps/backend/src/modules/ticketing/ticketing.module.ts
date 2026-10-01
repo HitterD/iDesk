@@ -43,6 +43,7 @@ import { TicketCreateService } from './services/ticket-create.service';
 import { TicketUpdateService } from './services/ticket-update.service';
 import { TicketMessagingService } from './services/ticket-messaging.service';
 import { TicketQueryService } from './services/ticket-query.service';
+import { TicketAttachmentAccessService } from './services/ticket-attachment-access.service';
 import { TicketTemplateService } from './services/ticket-template.service';
 import { TicketModulesService } from './services/ticket-modules.service';
 import { TicketMergeService } from './services/ticket-merge.service';
@@ -117,6 +118,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketUpdateService,
         TicketMessagingService,
         TicketQueryService,
+        TicketAttachmentAccessService,
         TicketTemplateService,
         TicketModulesService,
         TicketMergeService,
