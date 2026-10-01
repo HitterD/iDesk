@@ -7,8 +7,14 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { BookingDetailsModal, SimpleBookingForm, ZoomMyBookingsView } from '../components';
 import { useMyBookings } from '../hooks';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { NotificationCategory } from '@/components/notifications/types/notification.types';
+
+/** Opening this page counts as reading its notifications. */
+const ZOOM_NOTIFICATIONS = { category: NotificationCategory.CATEGORY_ZOOM };
 
 export function ClientZoomBookingPage() {
+    useMarkNotificationsRead(ZOOM_NOTIFICATIONS);
     const [mobileTab, setMobileTab] = useState<'form' | 'bookings'>('form');
     const [isFormVisible, setIsFormVisible] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string>('');

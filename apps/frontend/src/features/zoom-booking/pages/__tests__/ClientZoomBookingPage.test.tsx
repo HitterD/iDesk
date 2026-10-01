@@ -17,6 +17,10 @@ vi.mock('../../components', () => ({
     ),
 }));
 
+vi.mock('@/features/notifications/hooks/useMarkNotificationsRead', () => ({
+    useMarkNotificationsRead: vi.fn(),
+}));
+
 const mockBookings: any[] = [];
 vi.mock('../../hooks', () => ({
     useMyBookings: () => ({

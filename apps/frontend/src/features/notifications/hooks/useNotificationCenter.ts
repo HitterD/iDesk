@@ -164,6 +164,7 @@ export const useNotificationCenter = () => {
     }
 
     const handleViewDetails = (notification: Notification) => {
+        if (!notification.isRead) markAsReadMutation.mutate(notification.id);
         const path = getNotificationRedirectPath(notification, userRole);
         navigate(path);
     }

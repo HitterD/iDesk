@@ -109,9 +109,10 @@ export class Notification {
     @Column({ type: 'varchar', nullable: true })
     ticketId?: string;
 
-    // Generic reference ID for any entity (renewal contracts, etc.)
+    // Generic reference ID for any entity (renewal contracts, etc.). Hardware requests append
+    // a step suffix (`<id>_submitted`), so this is varchar rather than uuid.
     @Index('idx_notification_reference')
-    @Column({ type: 'uuid', nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     referenceId?: string;
 
     @Column({ type: 'varchar', nullable: true })

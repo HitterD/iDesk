@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useEformBasePath } from '../hooks/useEformBasePath';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 
 const SIGNER_ROLE_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ const SIGNER_ROLE_LABELS: Record<string, string> = {
 
 export const EformAccessDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  useMarkNotificationsRead(id ? { referenceId: id } : null);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: request, isPending, isError } = useEformDetail(id!);

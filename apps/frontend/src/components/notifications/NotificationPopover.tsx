@@ -11,6 +11,7 @@ import { NotificationType, Notification } from './types/notification.types';
 import { NOTIFICATION_ICONS } from './constants/notification.constants';
 import { formatTimeAgo, stripEmoji } from './utils/notification.utils';
 import { getNotificationCenterPath, getNotificationRedirectPath, UserRole } from './utils/notificationRouter';
+import { useNotificationsReadSync } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 export const NotificationPopover: React.FC = () => {
     const navigate = useNavigate();
@@ -19,6 +20,7 @@ export const NotificationPopover: React.FC = () => {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const userRole = (user?.role || 'ADMIN') as UserRole;
+    useNotificationsReadSync();
 
     const { data: notifications = [] } = useQuery<Notification[]>({
         queryKey: ['notifications', 'popover'],
