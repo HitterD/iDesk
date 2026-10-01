@@ -8,7 +8,7 @@ const DEFAULT_SLA_CONFIGS = [
     { priority: 'LOW', resolutionTimeMinutes: 2880, responseTimeMinutes: 480 }, // 2 days resolution, 8h response
     { priority: 'MEDIUM', resolutionTimeMinutes: 1440, responseTimeMinutes: 240 }, // 1 day resolution, 4h response
     { priority: 'HIGH', resolutionTimeMinutes: 480, responseTimeMinutes: 60 }, // 8h resolution, 1h response
-    { priority: 'CRITICAL', resolutionTimeMinutes: 120, responseTimeMinutes: 15 }, // 2h resolution, 15min response
+    { priority: 'CRITICAL', resolutionTimeMinutes: 120, responseTimeMinutes: 15, businessHoursOnly: false }, // 2h resolution, 15min response, 24/7
 ];
 
 @Injectable()
@@ -47,7 +47,7 @@ export class SlaConfigService implements OnModuleInit {
         return this.slaConfigRepo.findOne({ where: { priority } });
     }
 
-    async update(id: string, data: { resolutionTimeMinutes?: number; responseTimeMinutes?: number }): Promise<SlaConfig> {
+    async update(id: string, data: { resolutionTimeMinutes?: number; responseTimeMinutes?: number; businessHoursOnly?: boolean }): Promise<SlaConfig> {
         const updateData: any = {};
         if (data.resolutionTimeMinutes !== undefined) {
             updateData.resolutionTimeMinutes = data.resolutionTimeMinutes;
@@ -55,13 +55,16 @@ export class SlaConfigService implements OnModuleInit {
         if (data.responseTimeMinutes !== undefined) {
             updateData.responseTimeMinutes = data.responseTimeMinutes;
         }
+        if (typeof data.businessHoursOnly === 'boolean') {
+            updateData.businessHoursOnly = data.businessHoursOnly;
+        }
         await this.slaConfigRepo.update(id, updateData);
         const config = await this.slaConfigRepo.findOne({ where: { id } });
         if (!config) throw new Error('SLA Config not found');
         return config;
     }
 
-    async create(priority: string, resolutionTimeMinutes: number, responseTimeMinutes?: number): Promise<SlaConfig> {
+    async create(priority: string, resolutionTimeMinutes: number, responseTimeMinutes?: number, businessHoursOnly = true): Promise<SlaConfig> {
         const existing = await this.slaConfigRepo.findOne({ where: { priority: priority.toUpperCase() } });
         if (existing) {
             throw new BadRequestException('SLA Configuration for this priority already exists');
@@ -70,6 +73,7 @@ export class SlaConfigService implements OnModuleInit {
             priority: priority.toUpperCase(), 
             resolutionTimeMinutes,
             responseTimeMinutes: responseTimeMinutes || 60,
+            businessHoursOnly,
         });
         return this.slaConfigRepo.save(config);
     }

@@ -55,6 +55,7 @@ import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 
 /** SLA countdown recomputed every minute */
 const SLA_TICK_MS = 60_000;
@@ -108,6 +109,8 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
     const [copied, setCopied] = useState(false);
     const [resolutionTime, setResolutionTime] = useState<string>('');
     const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'overdue' | 'resolved' | 'paused'>('ok');
+    const [slaTooltip, setSlaTooltip] = useState<string | undefined>(undefined);
+    const slaClock = useSlaClock();
 
     // CLOSED is the confirmed/final form of RESOLVED; both render as "done".
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
@@ -134,10 +137,14 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
             }
 
             const now = new Date();
-            const target = new Date(ticket.slaTarget);
-            const diff = target.getTime() - now.getTime();
+            const countdown = slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock);
+            const diff = countdown.remainingMs;
+            setSlaTooltip(countdown.offHours ? offHoursLabel(countdown, now, slaClock) : undefined);
 
-            if (diff <= 0) {
+            if (countdown.offHours) {
+                setSlaStatus('paused');
+                setResolutionTime(`${formatTimeRemaining(diff)} (dijeda)`);
+            } else if (diff <= 0) {
                 setSlaStatus('overdue');
                 setResolutionTime('Overdue');
             } else if (diff < 4 * 60 * 60 * 1000) {
@@ -152,7 +159,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
         calculateSla();
         const interval = setInterval(calculateSla, SLA_TICK_MS);
         return () => clearInterval(interval);
-    }, [ticket.slaTarget, isResolved, isCancelled, isPaused]);
+    }, [ticket.slaTarget, ticket.priority, isResolved, isCancelled, isPaused, slaClock]);
 
     const handleCopyNumber = () => {
         const num = ticket.ticketNumber || ticket.id;
@@ -282,7 +289,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                             </span>
 
                             {/* Compact SLA badge for mobile directly inline */}
-                            <span className={cn(
+                            <span title={slaTooltip} className={cn(
                                 "sm:hidden px-2 py-0.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 border shadow-2xs",
                                 slaColors.bg,
                                 slaColors.text,
@@ -349,7 +356,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                 {/* Right: SLA Pill + Cancel Action + Toggle Sidebar (Desktop only) */}
                 <div className="hidden sm:flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
                     {/* SLA Resolution Pill */}
-                    <div className={cn(
+                    <div title={slaTooltip} className={cn(
                         "px-3 py-1.5 rounded-xl border inline-flex items-center gap-2 text-xs font-bold shadow-2xs transition-all",
                         slaColors.bg,
                         slaColors.text,

@@ -23,6 +23,7 @@ import { assertTicketRoleAccess, isOracleTicket } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
 import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { SlaClockService } from './sla-clock.service';
 
 const AGENT_CLOSE_FORBIDDEN_MESSAGE = 'Status CLOSED hanya bisa diberikan oleh pemohon (konfirmasi) atau otomatis setelah batas waktu konfirmasi.';
 
@@ -51,6 +52,7 @@ export class TicketUpdateService {
         private readonly dataSource: DataSource,
         private readonly workloadService: WorkloadService,
         private readonly assignmentPolicy: ModuleAssignmentPolicyService,
+        private readonly slaClock: SlaClockService,
     ) { }
 
     async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
@@ -112,14 +114,14 @@ export class TicketUpdateService {
         changes.push(`Status changed from ${oldStatus} to ${newStatus}`);
 
         if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
-            await this.startSlaClock(ticket, changes, manager);
+            await this.startSlaClock(ticket, changes);
         }
 
         if (newStatus === TicketStatus.WAITING_VENDOR) {
-            this.pauseForVendor(ticket);
+            await this.pauseForVendor(ticket);
             await this.handleWaitingVendorStatus(ticket, user, manager);
         } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
-            this.resumeFromVendor(ticket, changes);
+            this.endVendorPause(ticket);
         }
 
         if (newStatus === TicketStatus.RESOLVED) {
@@ -127,6 +129,11 @@ export class TicketUpdateService {
         } else if (oldStatus === TicketStatus.RESOLVED) {
             // Agent took the ticket back before the requester answered.
             ticket.resolutionDeadlineAt = null;
+        }
+
+        if (newStatus !== TicketStatus.WAITING_VENDOR && newStatus !== TicketStatus.RESOLVED
+            && await this.slaClock.release(ticket)) {
+            changes.push(`SLA dilanjutkan. Target: ${ticket.slaTarget?.toISOString() ?? '-'}`);
         }
     }
 
@@ -136,44 +143,29 @@ export class TicketUpdateService {
         ticket.resolvedAt = now;
         ticket.disputedAt = null;
         ticket.resolutionDeadlineAt = await computeResolutionDeadline(this.businessHoursService, now);
+        // Time spent awaiting confirmation does not count; a dispute resumes from here.
+        await this.slaClock.hold(ticket, now);
         changes?.push(`Menunggu konfirmasi pemohon hingga ${ticket.resolutionDeadlineAt.toISOString()}`);
     }
 
-    private async startSlaClock(ticket: Ticket, changes: string[], manager?: any): Promise<void> {
+    private async startSlaClock(ticket: Ticket, changes: string[]): Promise<void> {
+        const config = await this.slaClock.startResolution(ticket);
+        if (config) changes.push(`SLA Timer started. Target: ${ticket.slaTarget!.toISOString()}`);
+    }
+
+    private async pauseForVendor(ticket: Ticket): Promise<void> {
         const now = new Date();
-        ticket.slaStartedAt = now;
-        const slaConfig = await (manager ?? this.ticketRepo.manager).findOne(SlaConfig, { where: { priority: ticket.priority } });
-        if (!slaConfig) return;
-
-        if (this.businessHoursService) {
-            ticket.slaTarget = await this.businessHoursService.calculateSlaTarget(now, slaConfig.resolutionTimeMinutes);
-            changes.push(`SLA Timer started (business hours). Target: ${ticket.slaTarget.toISOString()}`);
-        } else {
-            ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
-            changes.push(`SLA Timer started. Target: ${ticket.slaTarget.toISOString()}`);
-        }
+        ticket.lastPausedAt = now;
+        ticket.waitingVendorAt = now;
+        await this.slaClock.hold(ticket, now);
     }
 
-    private pauseForVendor(ticket: Ticket): void {
-        ticket.lastPausedAt = new Date();
-        ticket.waitingVendorAt = new Date();
-    }
-
-    private resumeFromVendor(ticket: Ticket, changes: string[]): void {
+    /** Vendor wait statistics; the SLA clock itself resumes via SlaClockService.release. */
+    private endVendorPause(ticket: Ticket): void {
         if (!ticket.lastPausedAt) return;
-        const diffMs = Date.now() - new Date(ticket.lastPausedAt).getTime();
-        const diffMinutes = Math.floor(diffMs / 60000);
-
+        const diffMinutes = Math.floor((Date.now() - new Date(ticket.lastPausedAt).getTime()) / 60000);
         ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + diffMinutes;
         ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + diffMinutes;
-
-        if (ticket.slaTarget) {
-            ticket.slaTarget = new Date(ticket.slaTarget.getTime() + diffMs);
-            changes.push(`SLA Target adjusted by ${diffMinutes} minutes (Waiting Vendor Duration)`);
-        }
-        if (ticket.firstResponseTarget && !ticket.firstResponseAt) {
-            ticket.firstResponseTarget = new Date(ticket.firstResponseTarget.getTime() + diffMs);
-        }
         ticket.lastPausedAt = null;
         ticket.waitingVendorAt = null;
     }
@@ -188,28 +180,30 @@ export class TicketUpdateService {
 
         changes.push(`Priority changed from ${ticket.priority} to ${newPriority}`);
 
-        if (ticket.slaStartedAt) {
-            const newSlaConfig = await this.slaConfigRepo.findOne({ where: { priority: newPriority as string } });
-            if (newSlaConfig) {
-                const slaStartedAt = new Date(ticket.slaStartedAt);
-                const pausedMinutes = ticket.totalPausedMinutes || 0;
-                // Re-add any previously granted EXTEND minutes so a priority
-                // change never silently wipes a history of extensions.
-                const extendedMinutes = await this.totalExtendedMinutes(ticket.id);
-                const newSlaTarget = new Date(slaStartedAt.getTime() + (newSlaConfig.resolutionTimeMinutes + pausedMinutes + extendedMinutes) * 60000);
-                ticket.slaTarget = newSlaTarget;
-                changes.push(`SLA Target updated to ${newSlaTarget.toISOString()} (${newSlaConfig.resolutionTimeMinutes} minutes for ${newPriority}, +${extendedMinutes} extended)`);
-            }
+        const config = await this.slaClock.changePriority(ticket, newPriority as string);
+        if (config) {
+            const target = ticket.slaRemainingMinutes != null
+                ? `${ticket.slaRemainingMinutes} menit tersisa (dijeda)`
+                : ticket.slaTarget?.toISOString();
+            changes.push(`SLA Target updated to ${target} (${config.resolutionTimeMinutes} minutes for ${newPriority})`);
         }
     }
 
-    /** Sum of EXTEND minutes recorded for the ticket. */
-    private async totalExtendedMinutes(ticketId: string): Promise<number> {
-        const row = await this.dataSource.query(
-            'SELECT COALESCE(SUM(minutes), 0) AS total FROM sla_adjustments WHERE "ticketId" = $1 AND "type" = $2',
-            [ticketId, 'EXTEND'],
-        );
-        return Number(row?.[0]?.total || 0);
+    /** SLA side of a bulk status change: same clock rules as a single update. */
+    private async applyBulkStatusSla(ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus): Promise<void> {
+        if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO && !ticket.slaStartedAt) {
+            await this.slaClock.startResolution(ticket);
+        }
+        if (newStatus === TicketStatus.WAITING_VENDOR) {
+            await this.pauseForVendor(ticket);
+        } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
+            this.endVendorPause(ticket);
+        }
+        if (newStatus === TicketStatus.RESOLVED) {
+            await this.openConfirmationWindow(ticket);
+        } else if (newStatus !== TicketStatus.WAITING_VENDOR) {
+            await this.slaClock.release(ticket);
+        }
     }
 
     private async postUpdateActions(
@@ -642,14 +636,13 @@ export class TicketUpdateService {
                             continue;
                         }
                         changes.push(`Status: ${ticket.status} → ${updateData.status}`);
+                        await this.applyBulkStatusSla(ticket, ticket.status, updateData.status);
                         ticket.status = updateData.status;
-                        if (updateData.status === TicketStatus.RESOLVED) {
-                            await this.openConfirmationWindow(ticket);
-                        }
                     }
 
                     if (updateData.priority && updateData.priority !== ticket.priority) {
                         changes.push(`Priority: ${ticket.priority} → ${updateData.priority}`);
+                        await this.slaClock.changePriority(ticket, updateData.priority as string);
                         ticket.priority = updateData.priority as any;
                     }
 

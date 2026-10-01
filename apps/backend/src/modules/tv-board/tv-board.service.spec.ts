@@ -4,6 +4,9 @@ import { NotFoundException } from '@nestjs/common';
 import { TvBoardService } from './tv-board.service';
 import { Site } from '../sites/entities/site.entity';
 import { Ticket, TicketStatus, TicketPriority, TicketType } from '../ticketing/entities/ticket.entity';
+import { SlaConfig } from '../ticketing/entities/sla-config.entity';
+import { BusinessHoursService } from '../sla-config/business-hours.service';
+import { ROUND_THE_CLOCK } from '../ticketing/services/sla-clock.testing';
 
 describe('TvBoardService', () => {
     let service: TvBoardService;
@@ -19,6 +22,8 @@ describe('TvBoardService', () => {
                 TvBoardService,
                 { provide: getRepositoryToken(Site), useValue: siteRepo },
                 { provide: getRepositoryToken(Ticket), useValue: ticketRepo },
+                { provide: getRepositoryToken(SlaConfig), useValue: { find: jest.fn().mockResolvedValue([]) } },
+                { provide: BusinessHoursService, useValue: { getSchedule: jest.fn().mockResolvedValue(ROUND_THE_CLOCK) } },
             ],
         }).compile();
         service = module.get(TvBoardService);

@@ -5,7 +5,7 @@ import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { SlaAdjustment, SlaAdjustmentType, SlaAdjustmentReasonCategory } from '../entities/sla-adjustment.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
-import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { SlaClockService } from './sla-clock.service';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 
 /**
@@ -42,7 +42,7 @@ export class TicketSlaExtendService {
         private readonly slaConfigRepo: Repository<SlaConfig>,
         @InjectRepository(TicketMessage)
         private readonly messageRepo: Repository<TicketMessage>,
-        private readonly businessHoursService: BusinessHoursService,
+        private readonly slaClock: SlaClockService,
         @Optional()
         private readonly eventsGateway?: EventsGateway,
     ) {}
@@ -98,10 +98,7 @@ export class TicketSlaExtendService {
                 );
             }
 
-            const calculatedMinutes = await this.businessHoursService.calculateBusinessMinutes(
-                previousTarget,
-                parsedTarget,
-            );
+            const calculatedMinutes = await this.slaClock.minutesBetween(ticket.priority, previousTarget, parsedTarget);
 
             minutes = calculatedMinutes > 0
                 ? calculatedMinutes
@@ -109,7 +106,7 @@ export class TicketSlaExtendService {
             newTarget = parsedTarget;
         } else if (dto.minutes && dto.minutes > 0) {
             minutes = dto.minutes;
-            newTarget = await this.businessHoursService.calculateSlaTarget(previousTarget, minutes);
+            newTarget = await this.slaClock.targetFor(ticket.priority, previousTarget, minutes);
             if (newTarget.getTime() > maxAllowedTarget.getTime()) {
                 throw new BadRequestException(
                     `Target deadline baru tidak boleh melebihi ${MAX_EXTENSION_CALENDAR_DAYS} hari ke depan`,

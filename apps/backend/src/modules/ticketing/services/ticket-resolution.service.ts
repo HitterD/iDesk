@@ -17,6 +17,7 @@ import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { SlaClockService } from './sla-clock.service';
 
 /** Actor id recorded for transitions made by the auto-close cron. */
 export const SYSTEM_ACTOR_ID = 'system';
@@ -63,6 +64,7 @@ export class TicketResolutionService {
         private readonly workloadService: WorkloadService,
         private readonly notificationService: NotificationService,
         private readonly notificationCenterService: NotificationCenterService,
+        private readonly slaClock: SlaClockService,
     ) { }
 
     async confirmResolution(ticketId: string, userId: string): Promise<Ticket> {
@@ -87,6 +89,8 @@ export class TicketResolutionService {
             ticket.resolutionDeadlineAt = null;
             // The ticket is no longer done; the next resolve sets a fresh timestamp.
             ticket.resolvedAt = null;
+            // Resume the SLA from what was left at resolve; time spent RESOLVED does not count.
+            await this.slaClock.release(ticket);
             const reasonMessage = await this.saveMessage(manager, ticket.id, `Sanggahan penyelesaian: ${reason.trim()}`, owner.id, false);
             // Chat clients render user bubbles from the embedded sender, like a normal reply.
             const reasonWithSender = Object.assign(reasonMessage, { sender: { id: owner.id, fullName: owner.fullName, role: owner.role } });

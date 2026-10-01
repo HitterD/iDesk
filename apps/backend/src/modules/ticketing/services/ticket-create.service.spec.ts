@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { TicketCreateService } from './ticket-create.service';
 import { TicketPriority, TicketType } from '../entities/ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketCreateService Oracle scope', () => {
     it('rejects AGENT_ORACLE creation outside Oracle/K2 queue', async () => {
@@ -18,7 +19,7 @@ describe('TicketCreateService Oracle scope', () => {
             {} as never,
             {} as never,
             {} as never,
-            {} as never,
+            {} as never, createTestSlaClock(),
         );
 
         await expect(service.createTicket('oracle-1', {

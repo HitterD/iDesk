@@ -24,6 +24,7 @@ import { SlaConfigController } from './presentation/sla-config.controller';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
+import { SlaClockService } from './services/sla-clock.service';
 import { WorkloadModule } from '../workload/workload.module';
 import { ModuleAssignmentPolicyModule } from './module-assignment-policy.module';
 
@@ -116,6 +117,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         // Core services (Split)
         TicketCreateService,
         TicketUpdateService,
+        SlaClockService,
         TicketMessagingService,
         TicketQueryService,
         TicketAttachmentAccessService,
@@ -147,6 +149,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
     exports: [
         TicketCreateService,
         TicketUpdateService,
+        SlaClockService,
         TicketMessagingService,
         TicketQueryService,
         TicketTemplateService,

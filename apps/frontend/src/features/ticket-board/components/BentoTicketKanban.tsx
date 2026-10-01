@@ -43,6 +43,7 @@ import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
+import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
@@ -130,8 +131,12 @@ const EnhancedKanbanCard: React.FC<{
     onOpen: () => void;
 }> = ({ ticket, index, onSelect, onQuickAssign, onOpen }) => {
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
-    const isOverdue = ticket.isOverdue || (ticket.slaTarget && new Date(ticket.slaTarget) < new Date() && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED');
-    const isApproaching = ticket.slaTarget && !isOverdue && (new Date(ticket.slaTarget).getTime() - Date.now() < 2 * 60 * 60 * 1000);
+    const slaClock = useSlaClock();
+    const now = new Date();
+    const clock = ticket.slaTarget ? slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock) : null;
+    const isOverdue = ticket.isOverdue || (clock && clock.remainingMs <= 0 && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED');
+    const isApproaching = clock && !isOverdue && clock.remainingMs < 2 * 60 * 60 * 1000;
+    const offHours = clock?.offHours ? offHoursLabel(clock, now, slaClock) : undefined;
     const PriorityIcon = priorityConfig.icon;
 
     const cleanDescription = ticket.description
@@ -239,14 +244,14 @@ const EnhancedKanbanCard: React.FC<{
                                     <span>Overdue: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
                                 </div>
                             ) : isApproaching ? (
-                                <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <div title={offHours} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                                     <Clock className="w-3 h-3" />
                                     <span>Due soon: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
                                 </div>
                             ) : (
-                                <div className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                                <div title={offHours} className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                                     <Clock className="w-3 h-3" />
-                                    <span>Target: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
+                                    <span>Target: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}{offHours ? ' · dijeda' : ''}</span>
                                 </div>
                             )}
                         </div>

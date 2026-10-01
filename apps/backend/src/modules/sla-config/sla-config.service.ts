@@ -43,8 +43,11 @@ export class SlaConfigService implements OnModuleInit {
         );
     }
 
-    async update(id: string, resolutionTimeMinutes: number, userId?: string) {
-        await this.slaConfigRepo.update(id, { resolutionTimeMinutes });
+    async update(id: string, resolutionTimeMinutes: number | undefined, userId?: string, businessHoursOnly?: boolean) {
+        const changes: Partial<SlaConfig> = {};
+        if (resolutionTimeMinutes !== undefined) changes.resolutionTimeMinutes = resolutionTimeMinutes;
+        if (typeof businessHoursOnly === 'boolean') changes.businessHoursOnly = businessHoursOnly;
+        if (Object.keys(changes).length) await this.slaConfigRepo.update(id, changes);
 
         if (userId) {
             this.auditService.logAsync({
@@ -52,8 +55,8 @@ export class SlaConfigService implements OnModuleInit {
                 action: AuditAction.SLA_CONFIG_CHANGE,
                 entityType: 'SlaConfig',
                 entityId: id,
-                description: `Updated SLA Config resolution time`,
-                newValue: { resolutionTimeMinutes },
+                description: `Updated SLA Config`,
+                newValue: changes,
             });
         }
 
@@ -67,7 +70,7 @@ export class SlaConfigService implements OnModuleInit {
             { priority: TicketPriority.LOW, resolutionTimeMinutes: 48 * 60, responseTimeMinutes: 24 * 60 },
             { priority: TicketPriority.MEDIUM, resolutionTimeMinutes: 24 * 60, responseTimeMinutes: 8 * 60 },
             { priority: TicketPriority.HIGH, resolutionTimeMinutes: 8 * 60, responseTimeMinutes: 4 * 60 },
-            { priority: TicketPriority.CRITICAL, resolutionTimeMinutes: 2 * 60, responseTimeMinutes: 1 * 60 },
+            { priority: TicketPriority.CRITICAL, resolutionTimeMinutes: 2 * 60, responseTimeMinutes: 1 * 60, businessHoursOnly: false },
         ]);
 
         if (userId) {

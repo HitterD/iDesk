@@ -4,6 +4,9 @@ import { Repository } from 'typeorm';
 import { Site } from '../sites/entities/site.entity';
 import { Ticket, TicketStatus, TicketType, HandlingTeam } from '../ticketing/entities/ticket.entity';
 import { resolveInitialHandlingTeam } from '../ticketing/utils/oracle-ticket-access.util';
+import { SlaConfig } from '../ticketing/entities/sla-config.entity';
+import { BusinessHoursService } from '../sla-config/business-hours.service';
+import { buildSlaClockInfo, SlaClockInfo } from '../sla-config/sla-clock-info';
 
 export interface TvBoardCard {
     id: string;
@@ -40,6 +43,7 @@ export interface TvBoardData {
     inProgress: TvBoardCard[];
     waitingVendorCount: number;
     ringtones: TvBoardRingtones;
+    slaClock: SlaClockInfo;
 }
 
 @Injectable()
@@ -49,6 +53,9 @@ export class TvBoardService {
         private readonly siteRepo: Repository<Site>,
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
+        @InjectRepository(SlaConfig)
+        private readonly slaConfigRepo: Repository<SlaConfig>,
+        private readonly businessHours: BusinessHoursService,
     ) { }
 
     async resolveSiteIdByToken(token: string): Promise<string> {
@@ -77,9 +84,11 @@ export class TvBoardService {
             order: { createdAt: 'ASC' },
         });
 
-        const waitingVendorCount = await this.ticketRepo.count({
-            where: { siteId, status: TicketStatus.WAITING_VENDOR },
-        });
+        const [waitingVendorCount, schedule, slaConfigs] = await Promise.all([
+            this.ticketRepo.count({ where: { siteId, status: TicketStatus.WAITING_VENDOR } }),
+            this.businessHours.getSchedule(),
+            this.slaConfigRepo.find(),
+        ]);
 
         const toCard = (t: Ticket): TvBoardCard => {
             const team = t.handlingTeam || resolveInitialHandlingTeam(t.category, t.ticketType);
@@ -121,6 +130,7 @@ export class TvBoardService {
                 closing: site.ringtoneClosing ?? null,
                 closingTime: site.closingTime ?? null,
             },
+            slaClock: buildSlaClockInfo(schedule, slaConfigs),
         };
     }
 }
