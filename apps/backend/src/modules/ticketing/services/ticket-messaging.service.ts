@@ -143,7 +143,7 @@ export class TicketMessagingService {
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'assignedTo', 'participants'],
@@ -195,7 +195,8 @@ export class TicketMessagingService {
             }
 
             // Update Ticket Status if Agent/Admin replies and ticket is still TODO
-            if (isAgentOrAdmin && ticket.status === TicketStatus.TODO) {
+            const startedWork = isAgentOrAdmin && ticket.status === TicketStatus.TODO;
+            if (startedWork) {
                 ticket.status = TicketStatus.IN_PROGRESS;
 
                 // Also start SLA timer if not started
@@ -227,8 +228,13 @@ export class TicketMessagingService {
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user };
+            return { savedMessage, ticket, user, startedWork };
         });
+
+        // The reply moved the ticket from Open to In Progress; TV boards must show it.
+        if (startedWork) {
+            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (ticket as any).siteId });
+        }
 
         // Notify frontend via WebSocket with full message data (post-commit)
         const messageWithSender = {

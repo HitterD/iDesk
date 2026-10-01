@@ -60,13 +60,10 @@ export const resolveAudioUrl = (url: string | null | undefined): string => {
             }
         }
 
+        // Without an explicit API URL the frontend server (nginx in prod, Vite in dev) proxies /uploads,
+        // so same-origin works on any host, including LAN IPs where port 5050 is not exposed.
         if (!hostBase && typeof window !== 'undefined') {
-            const protocol = window.location.protocol;
-            const hostname = window.location.hostname;
-            hostBase =
-                protocol === 'https:'
-                    ? window.location.origin
-                    : `${protocol}//${hostname}:${DEFAULT_API_PORT}`;
+            hostBase = window.location.origin;
         }
 
         return `${hostBase}${url}`;

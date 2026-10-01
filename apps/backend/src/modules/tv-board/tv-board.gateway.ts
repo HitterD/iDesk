@@ -5,35 +5,23 @@ import {
     ConnectedSocket,
     MessageBody,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Server, Socket } from 'socket.io';
 import { TvBoardService } from './tv-board.service';
 import { Ticket } from '../ticketing/entities/ticket.entity';
+import { buildWsCorsOrigin } from '../../shared/security/ws-origin';
+
+/** Sent when the join could not finish for a transient reason; the TV retries the join. */
+export const TV_BOARD_JOIN_ERROR = 'tv-board:join-error';
+/** Sent before disconnecting a TV whose link was revoked or never existed. */
+export const TV_BOARD_INVALID_TOKEN = 'tv-board:invalid-token';
 
 @WebSocketGateway({
     namespace: '/tv-board',
-    cors: {
-        origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-            const allowedOrigins = [
-                'http://localhost:4050',
-                'http://localhost:3000',
-                'http://localhost:5173',
-                'http://localhost:5050',
-            ];
-            if (process.env.FRONTEND_URL) {
-                allowedOrigins.push(process.env.FRONTEND_URL);
-            }
-            if (!origin || allowedOrigins.includes(origin)) {
-                callback(null, true);
-            } else {
-                callback(null, true);
-            }
-        },
-        credentials: true,
-    },
+    cors: { origin: buildWsCorsOrigin(), credentials: true },
 })
 export class TvBoardGateway {
     @WebSocketServer() server: Server;
@@ -59,8 +47,15 @@ export class TvBoardGateway {
             const boardData = await this.tvBoardService.getBoardData(siteId);
             client.emit('tv-board:update', boardData);
         } catch (error) {
-            this.logger.warn(`TV client ${client.id} rejected: invalid token`);
-            client.disconnect(true);
+            if (error instanceof NotFoundException) {
+                this.logger.warn(`TV client ${client.id} rejected: invalid token`);
+                client.emit(TV_BOARD_INVALID_TOKEN);
+                client.disconnect(true);
+                return;
+            }
+            // A slow or failing DB is not the TV's fault: keep the socket and let it retry the join.
+            this.logger.warn(`TV client ${client.id} join failed: ${(error as Error)?.message}`);
+            client.emit(TV_BOARD_JOIN_ERROR);
         }
     }
 
