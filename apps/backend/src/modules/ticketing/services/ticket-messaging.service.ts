@@ -12,6 +12,7 @@ import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
 
 @Injectable()
 export class TicketMessagingService {
@@ -29,6 +30,7 @@ export class TicketMessagingService {
         private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly eventEmitter: EventEmitter2,
+        private readonly slaClock: SlaClockService,
     ) { }
 
     async findMessages(ticketId: string) {
@@ -180,7 +182,7 @@ export class TicketMessagingService {
 
             // === Track First Response Time ===
             const isAgentOrAdmin = user.role === UserRole.AGENT || user.role === UserRole.ADMIN;
-            const isFirstAgentReply = !ticket.firstResponseAt && isAgentOrAdmin;
+            const isFirstAgentReply = !ticket.firstResponseAt && SLA_RESPONDER_ROLES.includes(user.role);
 
             if (isFirstAgentReply) {
                 ticket.firstResponseAt = new Date();
@@ -200,18 +202,8 @@ export class TicketMessagingService {
                 ticket.status = TicketStatus.IN_PROGRESS;
 
                 // Also start SLA timer if not started
-                if (!ticket.slaStartedAt) {
-                    const now = new Date();
-                    ticket.slaStartedAt = now;
-
-                    const slaConfig = await manager.findOne(SlaConfig, {
-                        where: { priority: ticket.priority },
-                    });
-
-                    if (slaConfig) {
-                        ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
-                        this.logger.log(`SLA Timer started for ticket #${ticket.ticketNumber}. Target: ${ticket.slaTarget}`);
-                    }
+                if (!ticket.slaStartedAt && await this.slaClock.startResolution(ticket)) {
+                    this.logger.log(`SLA Timer started for ticket #${ticket.ticketNumber}. Target: ${ticket.slaTarget?.toISOString()}`);
                 }
             }
 

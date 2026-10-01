@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, formatDistanceToNow, isPast } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { 
     Clock, 
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
+import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 
 export interface TicketPreviewData {
     id: string;
@@ -129,6 +130,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
     }, [ticket.category]);
 
     // SLA Relative Countdown Context
+    const slaClock = useSlaClock();
     const slaInfo = useMemo(() => {
         if (ticket.status === 'RESOLVED') {
             return {
@@ -150,7 +152,9 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
 
         if (ticket.slaTarget) {
             const targetDate = new Date(ticket.slaTarget);
-            const overdue = ticket.isOverdue || isPast(targetDate);
+            const now = new Date();
+            const clock = slaCountdown(targetDate, now, ticket.priority, slaClock);
+            const overdue = ticket.isOverdue || clock.remainingMs <= 0;
             const distance = formatDistanceToNow(targetDate, { addSuffix: true, locale: idLocale });
 
             if (overdue) {
@@ -165,13 +169,13 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
             return {
                 type: 'active',
                 label: 'Target SLA',
-                detail: `Batas waktu ${distance}`,
+                detail: clock.offHours ? `${offHoursLabel(clock, now, slaClock)}. Batas waktu ${distance}` : `Batas waktu ${distance}`,
                 colorClass: 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80',
             };
         }
 
         return null;
-    }, [ticket.status, ticket.scheduledDate, ticket.scheduledTime, ticket.slaTarget, ticket.isOverdue]);
+    }, [ticket.status, ticket.scheduledDate, ticket.scheduledTime, ticket.slaTarget, ticket.isOverdue, ticket.priority, slaClock]);
 
     return (
         <PopoverPrimitive.Root open={isOpen}>

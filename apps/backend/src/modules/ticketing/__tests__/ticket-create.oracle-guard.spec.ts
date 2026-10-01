@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketCreateService } from '../services/ticket-create.service';
+import { createTestSlaClock } from '../services/sla-clock.testing';
 
 describe('Ticket Creation Oracle Guard', () => {
     let service: TicketCreateService;
@@ -59,7 +60,7 @@ describe('Ticket Creation Oracle Guard', () => {
             { invalidateTicketCache: jest.fn(), onTicketChange: jest.fn() } as any,
             eventEmitter as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            auditService as any,
+            auditService as any, createTestSlaClock(),
         );
     });
 

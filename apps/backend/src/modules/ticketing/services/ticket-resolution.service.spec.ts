@@ -4,6 +4,7 @@ import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketResolutionService', () => {
     const owner = { id: 'owner-1', fullName: 'Budi', role: 'USER' } as User;
@@ -43,7 +44,7 @@ describe('TicketResolutionService', () => {
         };
         service = new TicketResolutionService(
             deps.dataSource, deps.ticketRepo, deps.eventsGateway, deps.cache, deps.eventEmitter,
-            deps.audit, deps.workload, deps.notification, deps.notificationCenter,
+            deps.audit, deps.workload, deps.notification, deps.notificationCenter, createTestSlaClock(),
         );
     });
 

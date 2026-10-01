@@ -1,6 +1,7 @@
 import type { TvBoardCard } from '../hooks/useTvBoardSocket';
 import { DIVISION_CONFIGS, resolveCardDivision } from '../utils/tvBoardDivisions';
 import { formatSlaDeadline, formatSlaStatus } from '../utils/tvBoardTime';
+import { useSlaClock } from '@/lib/slaCountdown';
 
 export const APPLE_RED = '#FF3B30';
 
@@ -20,7 +21,8 @@ function getInitials(name: string): string {
 export function TvBoardTicketRow({ card, now }: { card: TvBoardCard; now: Date }) {
     const divisionKey = resolveCardDivision(card);
     const division = DIVISION_CONFIGS[divisionKey];
-    const sla = formatSlaStatus(card.slaTarget, card.isOverdue, now);
+    const slaClock = useSlaClock(false);
+    const sla = formatSlaStatus(card.slaTarget, card.isOverdue, now, { priority: card.priority, info: slaClock });
     const title = card.title || card.description;
 
     return (

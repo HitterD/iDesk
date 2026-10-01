@@ -1,5 +1,6 @@
 import { TicketStatus, HandlingTeam } from '../entities/ticket.entity';
 import { TicketForwardService } from './ticket-forward.service';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketForwardService', () => {
     let service: TicketForwardService;
@@ -8,7 +9,6 @@ describe('TicketForwardService', () => {
     let slaConfigRepo: any;
     let eventsGateway: any;
     let workloadService: any;
-    let businessHoursService: any;
 
     const baseTicket = {
         id: 't1',
@@ -51,11 +51,6 @@ describe('TicketForwardService', () => {
                 assignedTo: { id: 'agent-ops-1', fullName: 'Ops Agent' },
             })),
         };
-        businessHoursService = {
-            calculateSlaTarget: jest.fn(async (start: Date, minutes: number) =>
-                new Date(start.getTime() + minutes * 60000)
-            ),
-        };
 
         service = new TicketForwardService(
             ticketRepo,
@@ -63,7 +58,7 @@ describe('TicketForwardService', () => {
             slaConfigRepo,
             eventsGateway,
             workloadService as any,
-            businessHoursService as any,
+            createTestSlaClock([{ priority: 'HIGH', resolutionTimeMinutes: 480, responseTimeMinutes: 120 }]),
         );
     });
 
@@ -120,7 +115,7 @@ describe('TicketForwardService', () => {
         expect(result.slaStartedAt).toBeInstanceOf(Date);
         expect(result.isOverdue).toBe(false);
         expect(result.originalSlaTarget).toBeInstanceOf(Date);
-        // businessHoursService mock adds 480 minutes from now
+        // Round-the-clock test schedule: 480 minutes from now
         const expected = result.slaStartedAt!.getTime() + 480 * 60000;
         expect(result.slaTarget!.getTime()).toBe(expected);
     });
@@ -158,26 +153,12 @@ describe('TicketForwardService', () => {
         expect(workloadService.autoAssignTicket).not.toHaveBeenCalled();
     });
 
-    it('preserves the ability to resume when forwarding a WAITING_VENDOR ticket', async () => {
-        // A ticket paused at the vendor must keep an SLA anchor: after resume,
-        // resumeFromVendor shifts slaTarget by the paused duration, so the
-        // resolution budget must not be nulled away by the forward.
-        const waitingTicket = {
-            ...baseTicket,
-            status: TicketStatus.WAITING_VENDOR,
-            slaTarget: new Date('2026-08-05T08:00:00'),
-            originalSlaTarget: new Date('2026-08-05T08:00:00'),
-        };
-        ticketRepo.findOne = jest.fn(async () => ({ ...waitingTicket }));
+    it('restarts a WAITING_VENDOR ticket with a full budget that stays held until the vendor answers', async () => {
+        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, status: TicketStatus.WAITING_VENDOR }));
 
         const result = await service.forwardTicket('t1', dto, actor);
 
-        // The forward may not restore a full budget on its own (status is not
-        // IN_PROGRESS), but it must not destroy the anchor that resumeFromVendor
-        // relies on — the clock re-arms when the vendor answers.
-        expect(result.originalSlaTarget).toBeInstanceOf(Date);
-        expect(result.originalSlaTarget!.getTime()).toBe(
-            waitingTicket.originalSlaTarget!.getTime(),
-        );
+        expect(result.slaRemainingMinutes).toBe(480);
+        expect(result.isOverdue).toBe(false);
     });
 });

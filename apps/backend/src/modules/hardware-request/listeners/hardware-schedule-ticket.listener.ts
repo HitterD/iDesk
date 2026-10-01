@@ -10,6 +10,7 @@ import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { WorkloadService } from '../../workload/workload.service';
 import { EventsGateway } from '../../ticketing/presentation/gateways/events.gateway';
+import { SlaClockService } from '../../ticketing/services/sla-clock.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 
@@ -29,6 +30,7 @@ export class HardwareScheduleTicketListener {
         private readonly dataSource: DataSource,
         private readonly workloadService: WorkloadService,
         private readonly eventsGateway: EventsGateway,
+        private readonly slaClock: SlaClockService,
     ) {}
 
     @OnEvent(HardwareEvents.ScheduleConfirmed)
@@ -81,10 +83,8 @@ export class HardwareScheduleTicketListener {
             
             const itemSummary = Array.from(new Set(scheduledItemNames)).join(', ');
 
-            // Calculate SLA Target: H+1 from scheduledDate
-            const slaTarget = new Date(startDate);
-            slaTarget.setDate(slaTarget.getDate() + 1);
-            slaTarget.setHours(17, 0, 0, 0);
+            // SLA Target: closing time of the first working day after the schedule
+            const slaTarget = await this.slaClock.hardwareTarget(startDate);
 
             // Execute transaction to generate ticket and link schedule
             const createdTicket = await this.dataSource.transaction(async (manager) => {

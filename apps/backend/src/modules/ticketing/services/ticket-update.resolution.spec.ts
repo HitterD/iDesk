@@ -4,6 +4,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket, TicketStatus, TicketPriority, HandlingTeam } from '../entities/ticket.entity';
 import { User } from '../../users/entities/user.entity';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { createTestSlaClock } from './sla-clock.testing';
 
 /** RESOLVED opens the requester's confirmation window; CLOSED is locked for everyone. */
 describe('TicketUpdateService — resolution confirmation', () => {
@@ -54,7 +55,7 @@ describe('TicketUpdateService — resolution confirmation', () => {
                 })),
             } as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            {} as any,
+            {} as any, createTestSlaClock(),
         );
     });
 

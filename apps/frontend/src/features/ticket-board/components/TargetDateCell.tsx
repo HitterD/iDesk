@@ -3,6 +3,7 @@ import { Clock, AlertTriangle, CheckCircle2, Calendar, Target, Timer, Hourglass,
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { SlaAdjustment } from './ticket-detail/types';
+import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 
 export interface TargetDateCellProps {
     ticket?: {
@@ -72,6 +73,8 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     const [countdown, setCountdown] = useState<string>('');
     const [isOverdue, setIsOverdue] = useState(false);
     const [isApproaching, setIsApproaching] = useState(false);
+    const [offHoursText, setOffHoursText] = useState<string | null>(null);
+    const slaClock = useSlaClock();
 
     const effectiveStatus = ticket?.status ?? status ?? '';
     const effectiveScheduledDate = ticket?.scheduledDate ?? scheduledDate;
@@ -98,9 +101,10 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
         }
 
         const updateCountdown = () => {
-            const target = new Date(targetDate).getTime();
-            const now = Date.now();
-            const remaining = target - now;
+            const now = new Date();
+            const clock = slaCountdown(targetDate, now, effectivePriority, slaClock);
+            const remaining = clock.remainingMs;
+            setOffHoursText(clock.offHours ? offHoursLabel(clock, now, slaClock) : null);
 
             setIsOverdue(remaining < 0);
             setIsApproaching(remaining > 0 && remaining <= 4 * 60 * 60 * 1000); // 4 hours
@@ -116,7 +120,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
         const interval = setInterval(updateCountdown, 60000);
 
         return () => clearInterval(interval);
-    }, [targetDate, effectiveStatus, effectiveIsHw]);
+    }, [targetDate, effectiveStatus, effectiveIsHw, effectivePriority, slaClock]);
 
     // Resolved state
     if (effectiveStatus === 'RESOLVED' || effectiveStatus === 'CLOSED') {
@@ -208,10 +212,13 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
                     isApproaching && !isOverdue && "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50",
                     !isOverdue && !isApproaching && "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80"
                 )}
-                title={`SLA Target: ${fullDate}${isExtended ? ` (Diperpanjang ${adjustments.length}x)` : ''}`}
+                title={`SLA Target: ${fullDate}${isExtended ? ` (Diperpanjang ${adjustments.length}x)` : ''}${offHoursText ? `
+${offHoursText}` : ''}`}
                 aria-label={`SLA Target: ${fullDate}${isOverdue ? ', overdue' : ''}${isApproaching ? ', approaching deadline' : ''}`}
             >
-                <Icon className={cn("w-3.5 h-3.5", isOverdue && "animate-pulse")} aria-hidden="true" />
+                {offHoursText
+                    ? <Hourglass className="w-3.5 h-3.5" aria-hidden="true" />
+                    : <Icon className={cn("w-3.5 h-3.5", isOverdue && "animate-pulse")} aria-hidden="true" />}
                 <span className="font-mono">{countdown}</span>
             </div>
 
