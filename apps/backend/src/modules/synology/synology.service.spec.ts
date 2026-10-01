@@ -96,14 +96,14 @@ describe('SynologyService', () => {
             const uploadSpy = jest.spyOn<any, any>(service, 'uploadToSynology').mockResolvedValue(undefined);
 
             await service.handleFileUploaded({
-                filePath: 'F:/idesk/uploads/telegram/photo.jpg',
-                relativePath: '/uploads/telegram/photo.jpg',
+                filePath: 'F:/idesk/uploads/attachments/photo.jpg',
+                relativePath: '/uploads/attachments/photo.jpg',
             });
 
             expect(uploadSpy).toHaveBeenCalledWith(
                 mockConfig,
-                'F:/idesk/uploads/telegram/photo.jpg',
-                '/sja/SJA SPJ/ICT/OPERATIONAL SUPPORT/Backup/telegram/photo.jpg',
+                'F:/idesk/uploads/attachments/photo.jpg',
+                '/sja/SJA SPJ/ICT/OPERATIONAL SUPPORT/Backup/attachments/photo.jpg',
             );
         });
     });

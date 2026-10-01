@@ -73,7 +73,6 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-60m}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set and non-empty}
       EFORM_ENCRYPTION_KEY: ${EFORM_ENCRYPTION_KEY:?EFORM_ENCRYPTION_KEY must be set and non-empty}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set and non-empty}
       WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:?WS_CORS_ORIGIN must be set and non-empty}
       TRUST_PROXY: ${TRUST_PROXY:-true}

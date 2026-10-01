@@ -555,7 +555,7 @@ export default function SynologyBackupSettings() {
                         onClick={handleSyncUploads}
                         disabled={syncingUploads}
                         className="border-blue-500/30 text-blue-700 dark:text-blue-400 hover:bg-blue-500/10 shadow-xs"
-                        title="Sinkronisasikan seluruh file lampiran tiket, avatar, dan media Telegram ke Synology NAS sekarang"
+                        title="Sinkronisasikan seluruh file lampiran tiket dan avatar ke Synology NAS sekarang"
                     >
                         <RefreshCw className={`h-4 w-4 mr-2 ${syncingUploads ? 'animate-spin text-blue-600' : 'text-blue-600'}`} />
                         {syncingUploads ? 'Menyinkronkan File...' : 'Sync File ke Synology'}
@@ -726,8 +726,7 @@ export default function SynologyBackupSettings() {
                             <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
                                 Data otomatis dikelompokkan ke subfolder terstruktur pada Synology NAS:
                                 <code className="mx-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/database/</code> untuk dump riwayat chat & basis data,
-                                <code className="mx-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/attachments/</code> untuk lampiran tiket,
-                                dan <code className="mx-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/telegram/</code> untuk foto chat bridge.
+                                dan <code className="mx-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/attachments/</code> untuk lampiran tiket.
                                 Setiap lampiran baru yang di-upload oleh pengguna akan langsung di-mirror ke Synology di latar belakang secara asinkron.
                             </p>
                         </div>

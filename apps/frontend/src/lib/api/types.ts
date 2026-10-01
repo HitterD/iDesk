@@ -37,7 +37,6 @@ export interface User {
     role: UserRole;
     department?: string;
     phone?: string;
-    telegramChatId?: string;
     isActive: boolean;
     createdAt: string;
     updatedAt: string;

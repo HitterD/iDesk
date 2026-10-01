@@ -20,7 +20,6 @@ export interface TicketUser {
     department?: {
         name: string;
     };
-    telegramChatId?: string;
 }
 
 export interface AgentUser {

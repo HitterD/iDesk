@@ -20,12 +20,12 @@
 
 ## 📋 Overview
 
-**iDesk** is a comprehensive IT helpdesk and ticketing system designed for enterprise environments. It provides a modern, intuitive interface for managing IT support tickets, knowledge base articles, contract renewals, and team communications with seamless Telegram integration.
+**iDesk** is a comprehensive IT helpdesk and ticketing system designed for enterprise environments. It provides a modern, intuitive interface for managing IT support tickets, knowledge base articles, contract renewals, and team communications.
 
 ## ✨ Features
 
 ### 🎫 Ticketing System
-- **Multi-channel ticket creation** - Web portal, Telegram bot, or agent-created
+- **Multi-channel ticket creation** - Web portal, email, or agent-created
 - **Priority & SLA management** - Automatic SLA tracking with breach notifications
 - **Real-time updates** - WebSocket-powered live ticket updates
 - **Rich text messaging** - Support for file attachments and @mentions
@@ -40,13 +40,6 @@
 - **Search functionality** - Full-text search across articles
 - **View tracking** - Track article popularity and helpfulness
 - **Visibility controls** - Public, internal, or private articles
-
-### 🤖 Telegram Bot Integration
-- **Create tickets** via Telegram chat
-- **View ticket status** and history
-- **Receive real-time notifications**
-- **Two-way communication** between Telegram and helpdesk
-- **Role-based menus** - Different interfaces for Users, Agents, and Admins
 
 ### 📊 Dashboard & Reports
 - **Real-time statistics** - Ticket volumes, response times, SLA compliance
@@ -66,7 +59,7 @@
 - **Configurable rules** - Condition-based automation
 
 ### 🔔 Notification System
-- **Multi-channel notifications** - In-app, email, Telegram
+- **Multi-channel notifications** - In-app, email, push
 - **Push notifications** - Browser push support (PWA)
 - **Digest emails** - Daily/weekly summary options
 - **Read/unread tracking**
@@ -86,7 +79,6 @@
 | **TypeORM** | Database ORM with PostgreSQL |
 | **Socket.IO** | Real-time WebSocket communication |
 | **Passport JWT** | Authentication & authorization |
-| **Telegraf** | Telegram bot framework |
 | **Bull** | Redis-backed job queues |
 | **Swagger** | API documentation |
 | **PDFKit** | PDF generation for reports |
@@ -179,7 +171,6 @@ iDesk/
 │   │   │   ├── modules/         # Feature modules
 │   │   │   │   ├── auth/        # Authentication & JWT
 │   │   │   │   ├── ticketing/   # Ticket management
-│   │   │   │   ├── telegram/    # Telegram bot integration
 │   │   │   │   ├── knowledge-base/
 │   │   │   │   ├── notifications/
 │   │   │   │   ├── reports/
@@ -232,7 +223,6 @@ http://localhost:5050/api
 | `DELETE /tickets/bulk` | Bulk soft-delete (ADMIN only) — requires type-the-count confirmation |
 | `GET /kb/articles` | List knowledge base articles |
 | `GET /reports/monthly` | Monthly statistics |
-| `POST /telegram/webhook` | Telegram bot webhook |
 
 ## ⚙️ Configuration
 
@@ -249,10 +239,6 @@ DB_DATABASE=idesk_db
 # JWT Authentication
 JWT_SECRET=your-secret-key
 JWT_EXPIRES_IN=60m  # Role-based: Admin/Agent=3h, User=1h
-
-# Telegram Bot
-TELEGRAM_BOT_TOKEN=your-bot-token
-TELEGRAM_USE_WEBHOOK=false
 
 # Redis (optional)
 REDIS_ENABLED=false
@@ -336,8 +322,6 @@ Below is the complete reference of environment variables read by the backend, th
 | `TRUST_PROXY` | Optional (WebSocket) | Set to `'true'` only when the backend sits behind a trusted reverse proxy that always overwrites `X-Forwarded-For` (e.g. bundled Nginx). Enables real client IP extraction for WebSocket gateway rate limiting (`events.gateway.ts`). Leave unset if directly exposed. |
 | `THROTTLE_TTL`, `THROTTLE_LIMIT` | Optional | Rate limiter threshold. Falls back to 100 requests per 60,000 ms. |
 | `PAGE_ACCESS_CACHE_TTL`, `PAGE_ACCESS_MAX_DENIALS`, `PAGE_ACCESS_LOCKOUT_MINUTES` | Optional | Page access security lockout thresholds. Falls back to 300s cache / 10 denials / 15 min lockout. |
-| `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot polling and messaging features cannot initialize. |
-| `TELEGRAM_USE_WEBHOOK`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_DOMAIN`, `TELEGRAM_WEBHOOK_PATH` | Optional | Required if `TELEGRAM_USE_WEBHOOK=true`. Webhook updates fail signature verification if secret is missing. |
 | `REDIS_ENABLED`, `REDIS_HOST`, `REDIS_PORT`, `CACHE_TTL` | Optional | Falls back to in-memory cache and synchronous execution instead of Bull Redis queue. Cache TTL defaults to `300`s. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` | Optional | Email notifications cannot be delivered. Initial values seed database email settings on first boot. |
 | `SLA_ADMIN_EMAIL` | Optional | SLA breach escalation alerts fall back to `admin@idesk.com`. |

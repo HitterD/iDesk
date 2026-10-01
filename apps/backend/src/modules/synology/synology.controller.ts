@@ -105,7 +105,7 @@ export class SynologyController {
     }
 
     @Post('sync-uploads')
-    @ApiOperation({ summary: 'Sync all local uploads (attachments, telegram, avatars) to Synology NAS' })
+    @ApiOperation({ summary: 'Sync all local uploads (attachments, avatars, etc.) to Synology NAS' })
     @ApiQuery({ name: 'configId', required: false })
     syncUploads(@Query('configId') configId?: string) {
         return this.synologyService.syncUploadsToSynology(configId);

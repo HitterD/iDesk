@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import {
     Bell,
     Mail,
-    MessageSquare,
     Smartphone,
     Clock,
     Moon,
@@ -36,10 +35,8 @@ interface NotificationPreference {
     userId: string;
     inAppEnabled: boolean;
     emailEnabled: boolean;
-    telegramEnabled: boolean;
     pushEnabled: boolean;
     emailAddress: string | null;
-    telegramChatId: string | null;
     digestEnabled: boolean;
     digestFrequency: 'REALTIME' | 'HOURLY' | 'DAILY' | 'WEEKLY';
     digestTime: string | null;
@@ -66,14 +63,12 @@ const notificationTypes = [
 const DEFAULT_TYPE_SETTINGS: Record<string, boolean> = {
     inApp: true,
     email: true,
-    telegram: true,
 };
 
 // Map camelCase (frontend) to snake_case (backend storage)
 const CHANNEL_KEY_MAP: Record<string, string> = {
     inApp: 'in_app',
     email: 'email',
-    telegram: 'telegram',
     push: 'push',
 };
 
@@ -289,14 +284,6 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
                             description={preferences.emailAddress || 'No email configured'}
                             enabled={preferences.emailEnabled}
                             onChange={(v) => toggleChannel('email', v)}
-                        />
-                        <ChannelToggle
-                            icon={<MessageSquare className="w-5 h-5" />}
-                            label="Telegram Notifications"
-                            description={preferences.telegramChatId ? 'Connected' : 'Not connected'}
-                            enabled={preferences.telegramEnabled}
-                            onChange={(v) => toggleChannel('telegram', v)}
-                            disabled={!preferences.telegramChatId}
                         />
                         <ChannelToggle
                             icon={<Smartphone className="w-5 h-5" />}
@@ -565,7 +552,6 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
                                         <th className="text-left py-2 pr-4">Type</th>
                                         <th className="text-center px-2">In-App</th>
                                         <th className="text-center px-2">Email</th>
-                                        <th className="text-center px-2">Telegram</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -590,15 +576,6 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
                                                     checked={getTypeSetting(preferences.typeSettings, type.key, 'email')}
                                                     onChange={(e) => updateTypeSetting(type.key, 'email', e.target.checked)}
                                                     disabled={!preferences.emailEnabled}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-primary focus:ring-primary disabled:opacity-50"
-                                                />
-                                            </td>
-                                            <td className="text-center px-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={getTypeSetting(preferences.typeSettings, type.key, 'telegram')}
-                                                    disabled={!preferences.telegramEnabled}
-                                                    onChange={(e) => updateTypeSetting(type.key, 'telegram', e.target.checked)}
                                                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-primary focus:ring-primary disabled:opacity-50"
                                                 />
                                             </td>

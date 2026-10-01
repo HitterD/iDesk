@@ -299,7 +299,6 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
  * | `suggestions:`         | search service               | 60s      | TTL only                               |
  * | `action-items:`        | notification center          | default  | TTL only                               |
  * | `push:`                | push channel service         | 60-65s   | TTL (dedup/throttle windows)           |
- * | `telegram:linkcode:`   | telegram service             | 300s     | consumed on link, else TTL             |
  */
 export const CACHE_NAMESPACES = [
     'dashboard:stats:',
@@ -327,7 +326,6 @@ export const CACHE_NAMESPACES = [
     'suggestions:',
     'action-items:',
     'push:',
-    'telegram:linkcode:',
 ] as const;
 
 /** Namespace holding authentication state. Off-limits to every non-security cache operation. */

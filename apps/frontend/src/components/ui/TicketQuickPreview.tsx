@@ -13,7 +13,6 @@ import {
     Hourglass,
     XCircle,
     Globe,
-    Send,
     Mail,
     Laptop,
     Code2,
@@ -83,7 +82,6 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; icon?: Rea
 
 const SOURCE_CONFIG: Record<string, { label: string; icon: React.ElementType }> = {
     WEB: { label: 'Web Portal', icon: Globe },
-    TELEGRAM: { label: 'Telegram Bot', icon: Send },
     EMAIL: { label: 'Email Support', icon: Mail },
 };
 

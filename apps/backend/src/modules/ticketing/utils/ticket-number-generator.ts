@@ -7,11 +7,7 @@ import { Ticket } from '../entities/ticket.entity';
  * The number is per-day and monotonically increasing: `DDMMYY-DIV-0001`.
  * It MUST be called inside a transaction, and it takes a `pessimistic_write`
  * lock on the newest of today's ticket rows so concurrently-created tickets
- * (web or Telegram) serialize on the same lock and never reuse a number.
- * Previously the Telegram path used `COUNT()+1` with no lock, which raced the
- * web path (which already used this lock): two concurrent creations both read
- * the same count, and the loser hit the unique `ticketNumber` constraint with
- * a failed insert — a lost ticket for the Telegram user (PROD-19).
+ * serialize on the same lock and never reuse a number (PROD-19).
  */
 
 export const TICKET_NUMBER_WIDTH = 4;
@@ -42,7 +38,7 @@ export function formatTicketNumber(dateStr: string, division: string, sequence: 
  * Returns the next ticket number for today in a race-safe fashion.
  *
  * `division` is the 3-letter department code (callers already compute their
- * own default — e.g. 'GEN' for the web path, 'TLG' for Telegram).
+ * own default — e.g. 'GEN' for the web path).
  *
  * @param manager the transaction's EntityManager (the lock is transaction-scoped!)
  * @param division 3-letter department code

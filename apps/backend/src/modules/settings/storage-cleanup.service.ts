@@ -226,6 +226,7 @@ export class StorageCleanupService {
         };
 
         try {
+            // 'telegram' holds photos from the retired Telegram bot; still counted until cleaned up.
             const folders = ['attachments', 'avatars', 'telegram'];
             for (const folder of folders) {
                 const folderPath = path.join(this.uploadDir, folder);

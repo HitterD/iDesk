@@ -11,7 +11,6 @@ import {
     Wifi,
     HardDrive,
     Mail,
-    Send,
     Cloud,
     AlertCircle,
     CheckCircle,
@@ -38,7 +37,6 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     socket: Wifi,
     storage: HardDrive,
     mail: Mail,
-    telegram: Send,
     cloud: Cloud,
     desktop: Radio,
 };

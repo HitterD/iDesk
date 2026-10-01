@@ -7,7 +7,6 @@ import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
-import { CustomerSession } from '../../users/entities/customer-session.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
@@ -22,8 +21,6 @@ export class TicketNotificationService {
     private notificationService: NotificationService | null = null;
 
     constructor(
-        @InjectRepository(CustomerSession)
-        private readonly sessionRepo: Repository<CustomerSession>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly mailDispatch: MailDispatchService,

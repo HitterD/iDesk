@@ -3,8 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as https from 'https';
-import * as http from 'http';
 import { randomUUID } from 'crypto';
 
 export interface UploadedFile {
@@ -16,12 +14,6 @@ export interface UploadedFile {
     mimeType: string;
     size: number;
     createdAt: Date;
-}
-
-export interface DownloadOptions {
-    url: string;
-    originalName?: string;
-    folder?: string;
 }
 
 @Injectable()
@@ -40,7 +32,6 @@ export class UploadService {
         
         // Ensure upload directory exists
         this.ensureDirectory(this.uploadDir);
-        this.ensureDirectory(path.join(this.uploadDir, 'telegram'));
         this.ensureDirectory(path.join(this.uploadDir, 'attachments'));
         this.ensureDirectory(path.join(this.uploadDir, 'avatars'));
     }
@@ -50,106 +41,6 @@ export class UploadService {
             fs.mkdirSync(dir, { recursive: true });
             this.logger.log(`Created directory: ${dir}`);
         }
-    }
-
-    /**
-     * Download a file from URL and save to local storage
-     */
-    async downloadFromUrl(options: DownloadOptions): Promise<UploadedFile> {
-        const { url, originalName, folder = 'telegram' } = options;
-        
-        return new Promise((resolve, reject) => {
-            const fileId = randomUUID();
-            const extension = this.getExtensionFromUrl(url) || this.guessExtension(url);
-            const filename = `${fileId}${extension}`;
-            const folderPath = path.join(this.uploadDir, folder);
-            const filePath = path.join(folderPath, filename);
-            
-            this.ensureDirectory(folderPath);
-            
-            const file = fs.createWriteStream(filePath);
-            const protocol = url.startsWith('https') ? https : http;
-            
-            const request = protocol.get(url, (response) => {
-                // Handle redirects
-                if (response.statusCode === 301 || response.statusCode === 302) {
-                    const redirectUrl = response.headers.location;
-                    if (redirectUrl) {
-                        file.close();
-                        fs.unlinkSync(filePath);
-                        this.downloadFromUrl({ ...options, url: redirectUrl })
-                            .then(resolve)
-                            .catch(reject);
-                        return;
-                    }
-                }
-                
-                if (response.statusCode !== 200) {
-                    file.close();
-                    fs.unlinkSync(filePath);
-                    reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
-                    return;
-                }
-                
-                const mimeType = response.headers['content-type'] || 'application/octet-stream';
-                let size = 0;
-                
-                response.on('data', (chunk) => {
-                    size += chunk.length;
-                });
-                
-                response.pipe(file);
-                
-                file.on('finish', () => {
-                    file.close();
-                    
-                    const result: UploadedFile = {
-                        id: fileId,
-                        originalName: originalName || filename,
-                        filename,
-                        path: filePath,
-                        url: `${this.baseUrl}/${folder}/${filename}`,
-                        mimeType,
-                        size,
-                        createdAt: new Date(),
-                    };
-                    
-                    this.logger.log(`Downloaded file: ${filename} (${size} bytes)`);
-
-                    if (this.eventEmitter) {
-                        this.eventEmitter.emit('file.uploaded', {
-                            filePath,
-                            relativePath: `${folder}/${filename}`,
-                            folder,
-                            filename,
-                            originalName: result.originalName,
-                            size,
-                        });
-                    }
-
-                    resolve(result);
-                });
-            });
-            
-            request.on('error', (err) => {
-                file.close();
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-                this.logger.error(`Download error: ${err.message}`);
-                reject(err);
-            });
-            
-            // Set timeout
-            request.setTimeout(30000, () => {
-                request.destroy();
-                file.close();
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-                reject(new Error('Download timeout'));
-            });
-        });
     }
 
     /**
@@ -223,27 +114,6 @@ export class UploadService {
         } catch {
             return null;
         }
-    }
-
-    private getExtensionFromUrl(url: string): string {
-        try {
-            const urlPath = new URL(url).pathname;
-            const ext = path.extname(urlPath);
-            return ext || '';
-        } catch {
-            return '';
-        }
-    }
-
-    private guessExtension(url: string): string {
-        // Try to guess from URL pattern
-        if (url.includes('photo') || url.includes('image')) {
-            return '.jpg';
-        }
-        if (url.includes('document') || url.includes('file')) {
-            return '.bin';
-        }
-        return '';
     }
 
     private getMimeType(extension: string): string {

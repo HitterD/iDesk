@@ -33,14 +33,14 @@ export class TraceCollectorService {
         // Classify route to determine core microservice
         const coreService = this.resolveCoreService(param.path);
         const hasExternalZoom = param.path.includes('zoom');
-        const hasMailOrTelegram = param.path.includes('ticket') || param.path.includes('notification');
+        const hasMailNotification = param.path.includes('ticket') || param.path.includes('notification');
 
         // Build active DAG nodes (Strict forward: Client -> Gateway -> Core -> DB/Queue -> External)
         const activeNodes: string[] = ['idesk-web-client', 'api-gateway', coreService.id, 'postgresql-primary'];
         if (coreService.usesRedis) activeNodes.push('redis-bull-queues');
         if (coreService.usesWebsocket) activeNodes.push('websocket-server');
         if (hasExternalZoom) activeNodes.push('zoom-cloud-api');
-        if (hasMailOrTelegram && (param.method === 'POST' || param.method === 'PUT')) {
+        if (hasMailNotification && (param.method === 'POST' || param.method === 'PUT')) {
             activeNodes.push('smtp-mail-server');
         }
 
@@ -60,7 +60,7 @@ export class TraceCollectorService {
         if (hasExternalZoom) {
             connections.push({ from: coreService.id, to: 'zoom-cloud-api', status: isError ? 'error' : 'healthy' });
         }
-        if (hasMailOrTelegram && (param.method === 'POST' || param.method === 'PUT') && coreService.usesRedis) {
+        if (hasMailNotification && (param.method === 'POST' || param.method === 'PUT') && coreService.usesRedis) {
             connections.push({ from: 'redis-bull-queues', to: 'smtp-mail-server', status: 'healthy' });
         }
 
@@ -117,7 +117,7 @@ export class TraceCollectorService {
                 status: isError ? 'error' : 'healthy',
             };
         }
-        if (hasMailOrTelegram && activeNodes.includes('smtp-mail-server')) {
+        if (hasMailNotification && activeNodes.includes('smtp-mail-server')) {
             nodeMetrics['smtp-mail-server'] = {
                 statusCode: 200,
                 execTimePercent: 5,

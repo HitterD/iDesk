@@ -10,7 +10,6 @@ import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
 import { User } from '../users/entities/user.entity';
-import { CustomerSession } from '../users/entities/customer-session.entity';
 import { EventsGateway } from './presentation/gateways/events.gateway';
 import { SlaCheckerService } from './sla-checker.service';
 import { TicketSlaExtendService } from './services/ticket-sla-extend.service';
@@ -80,7 +79,6 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             TicketTemplate,
             TicketModuleEntity,
             User,
-            CustomerSession,
             SlaConfig,
             SavedReply,
             TicketSurvey,
