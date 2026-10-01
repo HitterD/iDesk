@@ -23,8 +23,8 @@ export class SlaConfigController {
     @Patch(':id')
     @ApiOperation({ summary: 'Update SLA configuration' })
     @Roles(UserRole.ADMIN)
-    update(@Param('id') id: string, @Body() body: { resolutionTimeMinutes: number }, @Req() req: any) {
-        return this.slaConfigService.update(id, body.resolutionTimeMinutes, req.user?.id || req.user?.userId);
+    update(@Param('id') id: string, @Body() body: { resolutionTimeMinutes?: number; businessHoursOnly?: boolean }, @Req() req: any) {
+        return this.slaConfigService.update(id, body.resolutionTimeMinutes, req.user?.id || req.user?.userId, body.businessHoursOnly);
     }
 
     @Post('reset')

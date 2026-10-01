@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { TicketMessagingService } from './ticket-messaging.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketStatus, TicketType } from '../entities/ticket.entity';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketMessagingService Oracle scope', () => {
     it('blocks AGENT_ORACLE from reading standard-ticket messages', async () => {
@@ -15,7 +16,7 @@ describe('TicketMessagingService Oracle scope', () => {
             {} as never,
             {} as never,
             {} as never,
-            {} as never,
+            {} as never, createTestSlaClock(),
         );
 
         await expect(service.getMessages('standard', UserRole.AGENT_ORACLE)).rejects.toBeInstanceOf(ForbiddenException);
@@ -33,7 +34,7 @@ describe('TicketMessagingService Oracle scope', () => {
             {} as never,
             {} as never,
             {} as never,
-            {} as never,
+            {} as never, createTestSlaClock(),
         );
 
         await expect(service.getMessagesPaginated('standard', 1, 20, UserRole.AGENT_ORACLE))
@@ -55,7 +56,7 @@ describe('TicketMessagingService Oracle scope', () => {
             {} as never,
             dataSource as never,
             {} as never,
-            {} as never,
+            {} as never, createTestSlaClock(),
         );
 
         await expect(service.replyToTicket('standard', 'oracle-1', 'reply'))
@@ -85,7 +86,7 @@ describe('TicketMessagingService Oracle scope', () => {
             const eventEmitter = { emit: jest.fn() };
             const service = new TicketMessagingService(
                 {} as never, {} as never, {} as never, {} as never,
-                dataSource as never, eventsGateway as never, eventEmitter as never,
+                dataSource as never, eventsGateway as never, eventEmitter as never, createTestSlaClock(),
             );
             return { service, eventEmitter };
         };
@@ -116,7 +117,7 @@ describe('TicketMessagingService Oracle scope', () => {
             {} as never,
             {} as never,
             {} as never,
-            {} as never,
+            {} as never, createTestSlaClock(),
         );
 
         await service.markAsRead('t-1', 'u-1', UserRole.AGENT);

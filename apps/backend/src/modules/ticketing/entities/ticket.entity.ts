@@ -230,6 +230,14 @@ export class Ticket {
     @Column({ type: 'timestamp', nullable: true })
     waitingVendorAt: Date | null;
 
+    /** Resolution SLA minutes left when the clock was paused (waiting vendor or resolved); null while running. */
+    @Column({ type: 'int', nullable: true })
+    slaRemainingMinutes: number | null;
+
+    /** First-response SLA minutes left when the clock was paused; null while running. */
+    @Column({ type: 'int', nullable: true })
+    firstResponseRemainingMinutes: number | null;
+
     @Column({ type: 'int', default: 0 })
     totalWaitingVendorMinutes: number;
 

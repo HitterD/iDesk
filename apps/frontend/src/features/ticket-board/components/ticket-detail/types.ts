@@ -37,6 +37,9 @@ export interface TicketDetail {
     updatedAt: string;
     slaTarget?: string;
     slaStartedAt?: string;
+    /** Business minutes left while the SLA clock is held (waiting vendor, resolved). */
+    slaRemainingMinutes?: number | null;
+    firstResponseRemainingMinutes?: number | null;
     firstResponseAt?: string;
     firstResponseTarget?: string;
     isFirstResponseBreached?: boolean;

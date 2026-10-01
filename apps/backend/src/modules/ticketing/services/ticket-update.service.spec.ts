@@ -2,6 +2,7 @@ import { ForbiddenException, NotFoundException, BadRequestException } from '@nes
 import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket, TicketStatus, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
     let service: any;
@@ -82,7 +83,7 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any,
+            } as any, createTestSlaClock(),
         );
     });
 
@@ -255,7 +256,7 @@ describe('TicketUpdateService.bulkAssign', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any,
+            } as any, createTestSlaClock(),
         );
     });
 

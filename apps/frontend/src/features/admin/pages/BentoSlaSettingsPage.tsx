@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { invalidateSlaClock } from '@/lib/slaCountdown';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +44,8 @@ interface SlaConfig {
     priority: string;
     resolutionTimeMinutes: number;
     responseTimeMinutes: number;
+    /** False = counts around the clock (24/7), e.g. CRITICAL. */
+    businessHoursOnly?: boolean;
 }
 
 interface TimeInput {
@@ -384,7 +387,7 @@ interface SlaCardProps {
     config: SlaConfig;
     workHoursPerDay: number;
     workMinutesPerDay: number;
-    onUpdate: (id: string, data: { resolutionTimeMinutes: number; responseTimeMinutes: number }) => void;
+    onUpdate: (id: string, data: { resolutionTimeMinutes: number; responseTimeMinutes: number; businessHoursOnly: boolean }) => void;
     onDelete: (id: string) => void;
     isPending: boolean;
 }
@@ -403,32 +406,37 @@ const SlaCard: React.FC<SlaCardProps> = ({
     const [responseTime, setResponseTime] = useState<TimeInput>(() =>
         minutesToTimeInput(config.responseTimeMinutes, workMinutesPerDay)
     );
+    const [businessHoursOnly, setBusinessHoursOnly] = useState(config.businessHoursOnly !== false);
     const [hasChanges, setHasChanges] = useState(false);
 
     useEffect(() => {
         setResolutionTime(minutesToTimeInput(config.resolutionTimeMinutes, workMinutesPerDay));
         setResponseTime(minutesToTimeInput(config.responseTimeMinutes, workMinutesPerDay));
-    }, [config.resolutionTimeMinutes, config.responseTimeMinutes, workMinutesPerDay]);
+        setBusinessHoursOnly(config.businessHoursOnly !== false);
+    }, [config.resolutionTimeMinutes, config.responseTimeMinutes, config.businessHoursOnly, workMinutesPerDay]);
 
     useEffect(() => {
         const newResolution = timeInputToMinutes(resolutionTime, workMinutesPerDay);
         const newResponse = timeInputToMinutes(responseTime, workMinutesPerDay);
         setHasChanges(
             newResolution !== config.resolutionTimeMinutes ||
-            newResponse !== config.responseTimeMinutes
+            newResponse !== config.responseTimeMinutes ||
+            businessHoursOnly !== (config.businessHoursOnly !== false)
         );
-    }, [resolutionTime, responseTime, config, workMinutesPerDay]);
+    }, [resolutionTime, responseTime, businessHoursOnly, config, workMinutesPerDay]);
 
     const handleSave = () => {
         onUpdate(config.id, {
             resolutionTimeMinutes: timeInputToMinutes(resolutionTime, workMinutesPerDay),
             responseTimeMinutes: timeInputToMinutes(responseTime, workMinutesPerDay),
+            businessHoursOnly,
         });
     };
 
     const handleRevert = () => {
         setResolutionTime(minutesToTimeInput(config.resolutionTimeMinutes, workMinutesPerDay));
         setResponseTime(minutesToTimeInput(config.responseTimeMinutes, workMinutesPerDay));
+        setBusinessHoursOnly(config.businessHoursOnly !== false);
     };
 
     const theme = PRIORITY_THEMES[config.priority] || DEFAULT_CUSTOM_THEME;
@@ -554,6 +562,24 @@ const SlaCard: React.FC<SlaCardProps> = ({
                     workMinutesPerDay={workMinutesPerDay}
                     presets={responsePresets}
                 />
+
+                {/* Counting mode */}
+                <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <input
+                        type="checkbox"
+                        checked={businessHoursOnly}
+                        onChange={(e) => setBusinessHoursOnly(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>
+                        <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Hanya jam kerja</span>
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                            {businessHoursOnly
+                                ? 'SLA berhenti di luar jam kerja, akhir pekan, dan hari libur.'
+                                : 'SLA berjalan 24/7 termasuk malam, akhir pekan, dan hari libur.'}
+                        </span>
+                    </span>
+                </label>
             </div>
         </div>
     );
@@ -697,6 +723,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Jam kerja operasional berhasil diperbarui');
             queryClient.invalidateQueries({ queryKey: ['business-hours'] });
+            invalidateSlaClock();
         },
         onError: () => toast.error('Gagal memperbarui jam kerja operasional'),
     });
@@ -708,6 +735,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Hari libur berhasil ditambahkan');
             queryClient.invalidateQueries({ queryKey: ['business-hours'] });
+            invalidateSlaClock();
             setNewHoliday('');
             setIsAddingHoliday(false);
         },
@@ -721,17 +749,19 @@ export const BentoSlaSettingsPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Hari libur berhasil dihapus');
             queryClient.invalidateQueries({ queryKey: ['business-hours'] });
+            invalidateSlaClock();
         },
         onError: () => toast.error('Gagal menghapus hari libur'),
     });
 
     const updateSlaMutation = useMutation({
-        mutationFn: async ({ id, data }: { id: string; data: { resolutionTimeMinutes: number; responseTimeMinutes: number } }) => {
+        mutationFn: async ({ id, data }: { id: string; data: { resolutionTimeMinutes: number; responseTimeMinutes: number; businessHoursOnly: boolean } }) => {
             await api.patch(`/sla-config/${id}`, data);
         },
         onSuccess: () => {
             toast.success('Konfigurasi SLA berhasil diperbarui');
             queryClient.invalidateQueries({ queryKey: ['sla-configs'] });
+            invalidateSlaClock();
         },
         onError: () => toast.error('Gagal memperbarui konfigurasi SLA'),
     });
@@ -743,6 +773,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Prioritas SLA baru berhasil ditambahkan');
             queryClient.invalidateQueries({ queryKey: ['sla-configs'] });
+            invalidateSlaClock();
             setIsAdding(false);
             setNewPriority('');
             setNewResolutionTime({ days: 1, hours: 0, minutes: 0 });
@@ -758,6 +789,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Konfigurasi SLA berhasil dihapus');
             queryClient.invalidateQueries({ queryKey: ['sla-configs'] });
+            invalidateSlaClock();
         },
         onError: () => toast.error('Gagal menghapus konfigurasi SLA'),
     });
@@ -769,6 +801,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
         onSuccess: () => {
             toast.success('Konfigurasi SLA berhasil direset ke default');
             queryClient.invalidateQueries({ queryKey: ['sla-configs'] });
+            invalidateSlaClock();
         },
         onError: () => toast.error('Gagal mereset konfigurasi SLA'),
     });
@@ -794,7 +827,7 @@ export const BentoSlaSettingsPage: React.FC = () => {
         });
     };
 
-    const handleUpdate = (id: string, data: { resolutionTimeMinutes: number; responseTimeMinutes: number }) => {
+    const handleUpdate = (id: string, data: { resolutionTimeMinutes: number; responseTimeMinutes: number; businessHoursOnly: boolean }) => {
         updateSlaMutation.mutate({ id, data });
     };
 

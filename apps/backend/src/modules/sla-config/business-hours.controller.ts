@@ -6,12 +6,25 @@ import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { BusinessHoursService } from './business-hours.service';
 import { UpdateBusinessHoursDto, AddHolidayDto } from './dto/update-business-hours.dto';
+import { SlaConfigService } from './sla-config.service';
+import { buildSlaClockInfo, SlaClockInfo } from './sla-clock-info';
 
 @ApiTags('Business Hours')
 @Controller('business-hours')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BusinessHoursController {
-    constructor(private readonly service: BusinessHoursService) { }
+    constructor(
+        private readonly service: BusinessHoursService,
+        private readonly slaConfigService: SlaConfigService,
+    ) { }
+
+    /** No @Roles: every signed-in user sees SLA countdowns, so every role may read the schedule. */
+    @Get('sla-clock')
+    @ApiOperation({ summary: 'Business schedule and per-priority counting mode for SLA countdowns' })
+    async getSlaClock(): Promise<SlaClockInfo> {
+        const [schedule, configs] = await Promise.all([this.service.getSchedule(), this.slaConfigService.findAll()]);
+        return buildSlaClockInfo(schedule, configs);
+    }
 
     @Get()
     @Roles(UserRole.ADMIN, UserRole.AGENT)

@@ -3,6 +3,7 @@ import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketUpdateService.bulkSoftDelete', () => {
     let service: any;
@@ -62,7 +63,7 @@ describe('TicketUpdateService.bulkSoftDelete', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any,
+            } as any, createTestSlaClock(),
         );
     });
 

@@ -1,3 +1,5 @@
+import { formatResume, slaCountdown, type SlaClockInfo } from '@/lib/slaCountdown';
+
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
@@ -5,6 +7,13 @@ const DAY_MS = 24 * HOUR_MS;
 export interface SlaStatus {
     label: string;
     overdue: boolean;
+    /** Clock frozen outside working hours. */
+    paused?: boolean;
+}
+
+export interface SlaClockContext {
+    priority?: string;
+    info: SlaClockInfo | null | undefined;
 }
 
 function formatDuration(ms: number): string {
@@ -17,14 +26,19 @@ function formatDuration(ms: number): string {
  * Human SLA text for a TV card, e.g. "Terlambat 3 hari" or "Sisa 2 jam".
  * The server's `isOverdue` flag wins over the local clock so a skewed TV clock can't hide a breach.
  */
-export function formatSlaStatus(slaTarget: string | null, isOverdue: boolean, now: Date): SlaStatus | null {
+export function formatSlaStatus(slaTarget: string | null, isOverdue: boolean, now: Date, clock?: SlaClockContext): SlaStatus | null {
     if (!slaTarget) return isOverdue ? { label: 'Terlambat', overdue: true } : null;
 
-    const diffMs = new Date(slaTarget).getTime() - now.getTime();
-    if (Number.isNaN(diffMs)) return isOverdue ? { label: 'Terlambat', overdue: true } : null;
+    if (Number.isNaN(new Date(slaTarget).getTime())) return isOverdue ? { label: 'Terlambat', overdue: true } : null;
+    const countdown = slaCountdown(slaTarget, now, clock?.priority, clock?.info);
+    const diffMs = countdown.remainingMs;
 
     if (isOverdue || diffMs <= 0) {
         return { label: diffMs < 0 ? `Terlambat ${formatDuration(-diffMs)}` : 'Terlambat', overdue: true };
+    }
+    if (countdown.offHours && countdown.resumesAt) {
+        const resume = formatResume(countdown.resumesAt, now, clock?.info?.schedule.timezone);
+        return { label: `Sisa ${formatDuration(diffMs)} · dijeda s/d ${resume}`, overdue: false, paused: true };
     }
     return { label: `Sisa ${formatDuration(diffMs)}`, overdue: false };
 }

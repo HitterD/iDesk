@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { STATUS_CONFIG, PRIORITY_CONFIG, isTerminalStatus } from './constants';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
+import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ResolveTicketModal } from './ResolveTicketModal';
 import { useAuth } from '@/stores/useAuth';
@@ -194,6 +195,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     const isTerminal = isTerminalStatus(ticket.status);
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const slaTargetDate = ticket.slaTarget || ticket.targetResolutionDate;
+    const slaClock = useSlaClock();
 
     // Calculate SLA
     const { resolutionTime, slaStatus, slaTooltip } = useMemo(() => {
@@ -214,16 +216,26 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         }
 
         if (ticket.status === 'WAITING_VENDOR' || ticket.status === 'PENDING') {
+            const held = ticket.slaRemainingMinutes != null
+                ? ` Sisa ${formatTimeRemaining(ticket.slaRemainingMinutes * 60_000)} jam kerja.`
+                : '';
             return {
                 resolutionTime: 'SLA Paused',
-                slaTooltip: `Target SLA ditunda sementara (Target: ${formatDateTimeID(slaTargetDate)})`,
+                slaTooltip: `Target SLA ditunda sementara.${held}`,
                 slaStatus: 'paused' as const,
             };
         }
 
-        const target = new Date(slaTargetDate).getTime();
-        const now = currentTime.getTime();
-        const diffMs = target - now;
+        const countdown = slaCountdown(slaTargetDate, currentTime, ticket.priority, slaClock);
+        const diffMs = countdown.remainingMs;
+
+        if (countdown.offHours) {
+            return {
+                resolutionTime: `SLA dijeda: ${formatTimeRemaining(diffMs)}`,
+                slaTooltip: `${offHoursLabel(countdown, currentTime, slaClock)}. Target: ${formatDateTimeID(slaTargetDate)}`,
+                slaStatus: 'paused' as const,
+            };
+        }
 
         if (diffMs <= 0) {
             return {
@@ -249,7 +261,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             slaTooltip: `Sisa waktu target SLA: ${remainingStr} (Target: ${formatDateTimeID(slaTargetDate)})`,
             slaStatus: 'normal' as const,
         };
-    }, [slaTargetDate, ticket.status, isTerminal, isResolved, currentTime]);
+    }, [slaTargetDate, ticket.status, ticket.priority, ticket.slaRemainingMinutes, isTerminal, isResolved, currentTime, slaClock]);
 
     // First Response Metric
     const firstResponse = useMemo(() => {
@@ -268,9 +280,8 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
         if (!ticket.firstResponseTarget) return null;
 
-        const target = new Date(ticket.firstResponseTarget).getTime();
-        const now = currentTime.getTime();
-        const diffMs = target - now;
+        const countdown = slaCountdown(ticket.firstResponseTarget, currentTime, ticket.priority, slaClock);
+        const diffMs = countdown.remainingMs;
 
         if (diffMs <= 0) {
             return {
@@ -282,13 +293,14 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         }
 
         const remainingStr = formatTimeRemaining(diffMs);
+        const offHours = countdown.offHours ? ` — ${offHoursLabel(countdown, currentTime, slaClock)}` : '';
         return {
             text: `Resp: ${remainingStr}`,
-            tooltip: `Sisa waktu respon pertama: ${remainingStr} (Target: ${formatDateTimeID(ticket.firstResponseTarget)})`,
+            tooltip: `Sisa waktu respon pertama: ${remainingStr} (Target: ${formatDateTimeID(ticket.firstResponseTarget)})${offHours}`,
             color: 'text-amber-700 dark:text-amber-400',
             isBreached: false,
         };
-    }, [ticket.firstResponseTarget, ticket.firstResponseAt, ticket.isFirstResponseBreached, isTerminal, currentTime]);
+    }, [ticket.priority, slaClock, ticket.firstResponseTarget, ticket.firstResponseAt, ticket.isFirstResponseBreached, isTerminal, currentTime]);
 
     const getSlaColors = () => {
         switch (slaStatus) {

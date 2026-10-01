@@ -17,6 +17,7 @@ import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
 import { generateNextTicketNumber } from '../utils/ticket-number-generator';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { SlaClockService } from './sla-clock.service';
 
 @Injectable()
 export class TicketCreateService {
@@ -37,6 +38,7 @@ export class TicketCreateService {
         private readonly eventEmitter: EventEmitter2,
         private readonly workloadService: WorkloadService,
         private readonly auditService: AuditService,
+        private readonly slaClock: SlaClockService,
     ) { }
 
     async createTicket(
@@ -100,22 +102,15 @@ export class TicketCreateService {
                 // Hardware installation tickets: SLA is based on scheduled date, not creation time
                 // SLA Target = scheduled date + 1 day (auto-resolve H+1)
                 if (ticket.scheduledDate) {
-                    const slaTarget = new Date(ticket.scheduledDate);
-                    slaTarget.setDate(slaTarget.getDate() + 1);
-                    slaTarget.setHours(17, 0, 0, 0); // End of business day H+1
-                    ticket.slaTarget = slaTarget;
+                    ticket.slaTarget = await this.slaClock.hardwareTarget(ticket.scheduledDate);
                 }
                 ticket.slaStartedAt = new Date();
                 ticket.firstResponseTarget = null; // No first response SLA for hardware installation
             } else {
                 // === Standard SLA Logic ===
                 const priority = createTicketDto.priority || 'MEDIUM';
-                const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
-                if (slaConfig) {
-                    const now = new Date();
-                    // First Response Target - starts counting from ticket creation
-                    ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
-                }
+                // First Response Target - counts from creation (or the next working hour)
+                ticket.firstResponseTarget = await this.slaClock.firstResponseTarget(priority);
 
                 // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
                 ticket.slaStartedAt = null;

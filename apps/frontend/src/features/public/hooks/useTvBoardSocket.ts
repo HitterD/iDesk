@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import type { SlaClockInfo } from '@/lib/slaCountdown';
 
 export interface TvBoardCard {
     id: string;
@@ -36,6 +37,8 @@ export interface TvBoardData {
     inProgress: TvBoardCard[];
     waitingVendorCount: number;
     ringtones: TvBoardRingtones;
+    /** Working schedule for SLA countdowns; absent from older servers. */
+    slaClock?: SlaClockInfo;
 }
 
 interface UseTvBoardSocketReturn {

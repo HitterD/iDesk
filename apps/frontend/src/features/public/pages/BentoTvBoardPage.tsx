@@ -10,6 +10,7 @@ import { useRingtone, type RingtoneSound } from '../hooks/useRingtone';
 import { APPLE_RED, TvBoardTicketRow } from '../components/TvBoardCard';
 import { sortByUrgency } from '../utils/tvBoardTime';
 import { DIVISION_CONFIGS, DIVISION_ORDER, resolveCardDivision, type DivisionKey } from '../utils/tvBoardDivisions';
+import { setSlaClockInfo } from '@/lib/slaCountdown';
 import { cn } from '@/lib/utils';
 
 /**
@@ -270,6 +271,9 @@ export const BentoTvBoardPage: React.FC = () => {
     }, [board, now, enqueue]);
 
     const data = board;
+
+    // TV runs without a login; the board payload carries the working schedule.
+    useEffect(() => setSlaClockInfo(board?.slaClock), [board?.slaClock]);
 
     // Division Counts for Read-Only Metrics in Header
     const divisionCounts = useMemo(() => {

@@ -9,6 +9,7 @@ import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
 import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
+import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
@@ -44,10 +45,16 @@ const DEFAULT_SLA_MINUTES: Record<string, number> = {
     LOW: 1440,
 };
 
-export function ensureSlaTarget(ticket: Ticket): Date | null {
+/**
+ * Display target for tickets whose resolution clock has not stored one yet.
+ * With a snapshot it follows the priority's config and business hours.
+ */
+export function ensureSlaTarget(ticket: Ticket, sla?: SlaSnapshot): Date | null {
     if (ticket.slaTarget) return ticket.slaTarget;
     if (ticket.priority && ticket.createdAt && (ticket.priority as any) !== 'HARDWARE_INSTALLATION') {
-        const mins = DEFAULT_SLA_MINUTES[ticket.priority] || 480;
+        const config = sla?.configs.get(ticket.priority);
+        const mins = config?.resolutionTimeMinutes ?? DEFAULT_SLA_MINUTES[ticket.priority] ?? 480;
+        if (sla) return addSlaMinutes(new Date(ticket.createdAt), mins, isBusinessHoursOnly(config), sla.schedule);
         return new Date(new Date(ticket.createdAt).getTime() + mins * 60000);
     }
     return null;
@@ -64,7 +71,15 @@ export class TicketQueryService {
         @Optional()
         @InjectRepository(TicketModule)
         private readonly moduleRepo?: Repository<TicketModule>,
+        @Optional()
+        private readonly slaClock?: SlaClockService,
     ) { }
+
+    /** SLA config + schedule, loaded only when some ticket still needs a projected target. */
+    private async slaSnapshotFor(tickets: Ticket[]): Promise<SlaSnapshot | undefined> {
+        if (!this.slaClock || tickets.every(t => t.slaTarget)) return undefined;
+        return this.slaClock.snapshot();
+    }
 
     private createFilteredTicketQb(role: UserRole, userSiteId: string | null, excludeCategory?: string): import('typeorm').SelectQueryBuilder<Ticket> {
         const qb = this.ticketRepo.createQueryBuilder('ticket');
@@ -149,9 +164,10 @@ export class TicketQueryService {
         }
 
         const rawTickets = await query.getMany();
+        const sla = await this.slaSnapshotFor(rawTickets);
         return rawTickets.map((ticket) => ({
             ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
+            slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
             isParticipant: role === UserRole.USER && ticket.userId !== userId,
         })) as Ticket[];
@@ -331,9 +347,10 @@ export class TicketQueryService {
           );
         }
 
+        const sla = await this.slaSnapshotFor(data);
         const enrichedTickets = data.map((ticket) => ({
           ...ticket,
-          slaTarget: ensureSlaTarget(ticket),
+          slaTarget: ensureSlaTarget(ticket, sla),
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
           hasUnreadChat: computeHasUnreadChat(ticket, role),
           isParticipant: role === UserRole.USER && ticket.userId !== userId,
@@ -445,9 +462,10 @@ export class TicketQueryService {
         const [data, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
 
+        const sla = await this.slaSnapshotFor(data);
         const enrichedTickets = data.map((ticket) => ({
             ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
+            slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
         }));
 
@@ -552,9 +570,10 @@ export class TicketQueryService {
         const [data, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
 
+        const sla = await this.slaSnapshotFor(data);
         const enrichedTickets = data.map((ticket) => ({
             ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
+            slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
         }));
 
@@ -659,9 +678,10 @@ export class TicketQueryService {
         const [data, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
 
+        const sla = await this.slaSnapshotFor(data);
         const enrichedTickets = data.map((ticket) => ({
             ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
+            slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
         }));
 
@@ -721,7 +741,9 @@ export class TicketQueryService {
             if (slaConfig) {
                 const createdAt = new Date(ticket.createdAt);
                 const pausedMinutes = ticket.totalPausedMinutes || 0;
-                slaTarget = new Date(createdAt.getTime() + (slaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
+                slaTarget = this.slaClock
+                    ? await this.slaClock.targetFor(ticket.priority, createdAt, slaConfig.resolutionTimeMinutes)
+                    : new Date(createdAt.getTime() + (slaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
 
                 // Save calculated SLA target to ticket for future reference
                 ticket.slaTarget = slaTarget;

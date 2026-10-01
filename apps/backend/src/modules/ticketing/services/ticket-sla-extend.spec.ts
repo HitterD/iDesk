@@ -9,7 +9,7 @@ describe('TicketSlaExtendService', () => {
     let ticketRepo: any;
     let adjustmentRepo: any;
     let slaConfigRepo: any;
-    let businessHoursService: any;
+    let slaClock: any;
 
     let messageRepo: any;
     let eventsGateway: any;
@@ -46,9 +46,9 @@ describe('TicketSlaExtendService', () => {
             create: jest.fn((d: any) => d),
             save: jest.fn(async (m: any) => ({ id: 'msg-1', ...m })),
         };
-        businessHoursService = {
-            calculateBusinessMinutes: jest.fn(async () => 120), // 2h elapsed
-            calculateSlaTarget: jest.fn(async (start: Date, minutes: number) =>
+        slaClock = {
+            minutesBetween: jest.fn(async () => 120), // 2h elapsed
+            targetFor: jest.fn(async (_priority: string, start: Date, minutes: number) =>
                 new Date(start.getTime() + minutes * 60000)
             ),
         };
@@ -64,7 +64,7 @@ describe('TicketSlaExtendService', () => {
             adjustmentRepo,
             slaConfigRepo,
             messageRepo,
-            businessHoursService,
+            slaClock,
             eventsGateway,
         );
     });
@@ -109,7 +109,7 @@ describe('TicketSlaExtendService', () => {
 
     it('allows long extensions exceeding old business hours cap (e.g. 30 days ahead)', async () => {
         const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        businessHoursService.calculateBusinessMinutes = jest.fn(async () => 14400); // 30 days of business minutes
+        slaClock.minutesBetween = jest.fn(async () => 14400); // 30 days of business minutes
 
         const result = await service.extendSla('t1', {
             ...dto,
@@ -130,7 +130,7 @@ describe('TicketSlaExtendService', () => {
     it('extends the target by manual newTargetDate and creates system message', async () => {
         const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
         const targetDateStr = tomorrow.toISOString();
-        businessHoursService.calculateBusinessMinutes = jest.fn(async () => 480);
+        slaClock.minutesBetween = jest.fn(async () => 480);
 
         const result = await service.extendSla('t1', {
             reasonCategory: SlaAdjustmentReasonCategory.TECHNICAL_COMPLEXITY,
