@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { TicketsController } from './tickets.controller';
 
 describe('TicketsController', () => {
@@ -143,6 +146,55 @@ describe('TicketsController', () => {
                 success: true,
                 message: { id: 'msg-1', content: 'hello' },
             });
+        });
+    });
+
+    describe('replyToTicket attachments', () => {
+        const ticketId = '856ecda4-08b4-40cb-8666-5f668225aabf';
+        const req = { user: { userId: 'agent-1' } };
+        let dir: string;
+
+        const upload = (name: string, bytes: number[], mimetype: string): Express.Multer.File => {
+            const path = join(dir, 'tickets', ticketId, `${name}.bin`);
+            mkdirSync(join(dir, 'tickets', ticketId), { recursive: true });
+            writeFileSync(path, Buffer.from(bytes));
+            return { originalname: name, path, size: bytes.length, mimetype, filename: `${name}.bin` } as Express.Multer.File;
+        };
+
+        beforeEach(() => {
+            dir = mkdtempSync(join(tmpdir(), 'reply-'));
+        });
+        afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+        it('stores original name, size and type next to the paths', async () => {
+            const file = upload('Laporan Q3.xlsx', [0x50, 0x4b, 0x03, 0x04], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+            await controller.replyToTicket(ticketId, req, 'cek', '[]', 'false', [file]);
+
+            const [, , , paths, , , info] = mockTicketMessagingService.replyToTicket.mock.calls[0];
+            expect(paths).toHaveLength(1);
+            expect(info).toEqual([{ path: paths[0], name: 'Laporan Q3.xlsx', size: 4, mime: file.mimetype }]);
+        });
+
+        it('rejects a file whose bytes do not match its extension and deletes every upload', async () => {
+            const good = upload('ok.pdf', [0x25, 0x50, 0x44, 0x46], 'application/pdf');
+            const bad = upload('virus.pdf', [0x4d, 0x5a, 0x90, 0x00], 'application/pdf');
+
+            await expect(controller.replyToTicket(ticketId, req, 'x', '[]', 'false', [good, bad]))
+                .rejects.toThrow('virus.pdf');
+            expect(mockTicketMessagingService.replyToTicket).not.toHaveBeenCalled();
+            await new Promise((r) => setTimeout(r, 20));
+            expect(existsSync(good.path)).toBe(false);
+            expect(existsSync(bad.path)).toBe(false);
+        });
+
+        it('deletes the uploads when the reply itself fails', async () => {
+            const file = upload('a.txt', [0x68, 0x69], 'text/plain');
+            mockTicketMessagingService.replyToTicket.mockRejectedValueOnce(new Error('Tiket sudah ditutup'));
+
+            await expect(controller.replyToTicket(ticketId, req, 'x', '[]', 'false', [file])).rejects.toThrow('ditutup');
+            await new Promise((r) => setTimeout(r, 20));
+            expect(existsSync(file.path)).toBe(false);
         });
     });
 

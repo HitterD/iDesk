@@ -1,3 +1,5 @@
+import type { AttachmentInfo } from './attachmentKind';
+
 export interface TicketParticipant {
     id: string;
     ticketId: string;
@@ -77,6 +79,7 @@ export interface TicketDetail {
         isSystemMessage: boolean;
         isInternal?: boolean;
         attachments: string[];
+        attachmentInfo?: AttachmentInfo[] | null;
         sender?: {
             id?: string;
             fullName: string;

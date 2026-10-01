@@ -9,6 +9,7 @@ import {
     X,
     Upload,
     FileText,
+    Loader2,
     Reply,
     Smile,
     Pin,
@@ -25,6 +26,7 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { TicketDetail } from './types';
 import { CLOSED_TICKET_NOTICE } from './constants';
 import { MessageAttachments } from './MessageAttachments';
+import { AttachmentTray } from './AttachmentTray';
 import { MessageActionMenu } from './MessageActionMenu';
 import { CannedResponsePicker, SlashCommandAutocomplete, applyPlaceholders, SavedReply } from '@/components/ui/CannedResponses';
 import { MessageReactions } from '@/components/ui/ChatReactions';
@@ -34,11 +36,18 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS_PER_TICKET, validateAttachmentFile } from '@/lib/file-validation';
 
 interface TicketChatProps {
     ticket: TicketDetail;
     isConnected: boolean;
-    onSendMessage: (content: string, files?: FileList | null, isInternal?: boolean) => Promise<void>;
+    /** Rejects when the message was not sent; the draft is kept for a retry. */
+    onSendMessage: (
+        content: string,
+        files?: FileList | null,
+        isInternal?: boolean,
+        onUploadProgress?: (percent: number) => void,
+    ) => Promise<void>;
     onImageClick: (url: string) => void;
     typingUsers?: { [key: string]: string };
     onTypingStart?: () => void;
@@ -51,13 +60,6 @@ interface ReplyTo {
     senderName: string;
     content: string;
 }
-
-const ACCEPTED_FILE_TYPES = [
-    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml',
-    'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain'
-];
-const ACCEPTED_EXTENSIONS = '.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.txt';
 
 const STICKERS = [
     '👍', '👎', '✅', '❌', '🔄', '⚠️', '🎉', '🙏',
@@ -145,7 +147,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const [isInternal, setIsInternal] = useState(false);
     const [isPinnedExpanded, setIsPinnedExpanded] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [filePreviews, setFilePreviews] = useState<string[]>([]);
+    /** Upload percentage while a message is being sent, null when idle. */
+    const [sendProgress, setSendProgress] = useState<number | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [messageLength, setMessageLength] = useState(0);
     const [replyTo, setReplyTo] = useState<ReplyTo | null>(null);
@@ -219,9 +222,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             : "Type your reply to IT Support…";
 
     // Initial Attachments from the report
-    const initialAttachments = ticket.messages?.find(
+    const initialMessage = ticket.messages?.find(
         m => !m.isSystemMessage && m.attachments?.length > 0
-    )?.attachments ?? [];
+    );
+    const initialAttachments = initialMessage?.attachments ?? [];
 
     // Identify the initial ticket creation message that is already displayed in Root Issue Card
     const genesisMessageId = useMemo(() => {
@@ -237,13 +241,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         }
         return null;
     }, [ticket.messages, ticket.description, ticket.user?.id]);
-
-    // ObjectURL cleanup for file previews
-    useEffect(() => {
-        const urls = selectedFiles.map(file => URL.createObjectURL(file));
-        setFilePreviews(urls);
-        return () => { urls.forEach(url => URL.revokeObjectURL(url)); };
-    }, [selectedFiles]);
 
     // Auto-scroll on new messages
     useEffect(() => {
@@ -269,7 +266,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         return dt.files;
     };
 
+    const isSending = sendProgress !== null;
+
     const handleSendMessage = async () => {
+        if (isSending) return;
         const rawContent = messageInputRef.current?.value.trim();
         if (!rawContent && selectedFiles.length === 0) return;
 
@@ -280,8 +280,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
         const fileList = selectedFiles.length > 0 ? createFileList(selectedFiles) : null;
 
+        setSendProgress(0);
         try {
-            await onSendMessage(content, fileList, isInternal);
+            await onSendMessage(content, fileList, isInternal, setSendProgress);
 
             if (messageInputRef.current) messageInputRef.current.value = '';
             setMessageLength(0);
@@ -297,6 +298,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             // The error toast was already shown by BentoTicketDetailPage.
             // Do not clear the draft (content/files/replyTo) so the user can retry.
             return;
+        } finally {
+            setSendProgress(null);
         }
     };
 
@@ -354,7 +357,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     };
 
     // Paste handler — captures screenshots from clipboard
-    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const handlePaste = (e: React.ClipboardEvent) => {
         const items = Array.from(e.clipboardData.items);
         const imageItems = items.filter(item => item.type.startsWith('image/'));
         if (imageItems.length === 0) return;
@@ -362,29 +365,33 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         const files = imageItems
             .map(item => item.getAsFile())
             .filter((f): f is File => f !== null);
-        if (files.length > 0) {
-            setSelectedFiles(prev => [...prev, ...files]);
-            toast.success(`${files.length} screenshot${files.length > 1 ? 's' : ''} pasted`);
+        addFiles(files);
+    };
+
+    /** Queues files that pass the type/size checks, up to the per-message limit. */
+    const addFiles = (incoming: File[]) => {
+        if (isSending || incoming.length === 0) return;
+        const accepted: File[] = [];
+        for (const file of incoming) {
+            const result = validateAttachmentFile(file);
+            if (result.valid) {
+                accepted.push(file);
+            } else {
+                toast.error(`${file.name}: ${result.error}`);
+            }
         }
-    }, []);
+        const room = Math.max(MAX_ATTACHMENTS_PER_TICKET - selectedFiles.length, 0);
+        if (accepted.length > room) {
+            toast.error(`Maksimal ${MAX_ATTACHMENTS_PER_TICKET} file per pesan`);
+        }
+        const toAdd = accepted.slice(0, room);
+        if (toAdd.length > 0) setSelectedFiles(prev => [...prev, ...toAdd]);
+    };
 
     const handleFileSelect = (files: FileList | null) => {
-        if (!files) return;
-        const validFiles: File[] = [];
-        const invalidFiles: string[] = [];
-        Array.from(files).forEach(file => {
-            if (ACCEPTED_FILE_TYPES.includes(file.type) || file.name.match(/\.(pdf|doc|docx|xls|xlsx|txt)$/i)) {
-                validFiles.push(file);
-            } else {
-                invalidFiles.push(file.name);
-            }
-        });
-        if (invalidFiles.length > 0) {
-            toast.error(`Invalid file type: ${invalidFiles.join(', ')}`);
-        }
-        if (validFiles.length > 0) {
-            setSelectedFiles(prev => [...prev, ...validFiles]);
-        }
+        if (files) addFiles(Array.from(files));
+        // Reset so picking the same file again (after removing it) still fires onChange.
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const removeFile = (index: number) => {
@@ -401,10 +408,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault(); e.stopPropagation();
     }, []);
-    const handleDrop = useCallback((e: React.DragEvent) => {
+    const handleDrop = (e: React.DragEvent) => {
         e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-        handleFileSelect(e.dataTransfer.files);
-    }, []);
+        addFiles(Array.from(e.dataTransfer.files));
+    };
 
     const typingUserNames = Object.values(typingUsers);
 
@@ -489,6 +496,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Initial Attachments ({initialAttachments.length})</p>
                             <MessageAttachments
                                 attachments={initialAttachments}
+                                attachmentInfo={initialMessage?.attachmentInfo}
                                 onImageClick={onImageClick}
                                 onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
                                 isRequester={false}
@@ -548,6 +556,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                             </p>
                             <MessageAttachments
                                 attachments={initialAttachments}
+                                attachmentInfo={initialMessage?.attachmentInfo}
                                 onImageClick={onImageClick}
                                 onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
                                 isRequester={false}
@@ -629,6 +638,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                                 )}
                                                 <MessageAttachments
                                                     attachments={message.attachments}
+                                                    attachmentInfo={message.attachmentInfo}
                                                     onImageClick={onImageClick}
                                                     onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
                                                     isRequester={isOwnMessage}
@@ -708,7 +718,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         <div className="text-center">
                             <Upload className="w-10 h-10 text-primary mx-auto mb-2 animate-bounce" />
                             <p className="text-primary font-bold text-sm">Drop files here to attach</p>
-                            <p className="text-primary/70 text-xs">Images and Documents supported</p>
+                            <p className="text-primary/70 text-xs">Gambar, PDF, Office, TXT/CSV, ZIP/RAR/7Z · maks. 25MB/file</p>
                         </div>
                     </div>
                 )}
@@ -756,41 +766,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 {/* Reply Preview */}
                 {replyTo && <ReplyPreview replyTo={replyTo} onClose={() => setReplyTo(null)} />}
 
-                {/* File Previews */}
-                {selectedFiles.length > 0 && (
-                    <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Paperclip className="w-4 h-4 text-primary" />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                {selectedFiles.length} file(s) attached
-                            </span>
-                        </div>
-                        <div className="flex flex-wrap gap-2.5">
-                            {selectedFiles.map((file, index) => {
-                                const isImage = file.type.startsWith('image/');
-                                return (
-                                    <div key={index} className="relative group bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 w-16 h-16 flex items-center justify-center shadow-2xs">
-                                        {isImage ? (
-                                            <img src={filePreviews[index] || ''} alt={file.name} className="w-full h-full object-cover rounded-xl" />
-                                        ) : (
-                                            <FileText className="w-7 h-7 text-slate-400" />
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => removeFile(index)}
-                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md cursor-pointer"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                        <div className="absolute -bottom-5 left-0 w-16 text-center">
-                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate w-full">{file.name}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
+                {/* Queued attachments */}
+                <AttachmentTray files={selectedFiles} onRemove={removeFile} progress={sendProgress} />
 
                 {/* Textarea + Send */}
                 <div className="relative flex gap-2 items-end">
@@ -829,14 +806,16 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     <button
                         type="button"
                         onClick={handleSendMessage}
+                        disabled={isSending}
+                        aria-label={isSending ? 'Mengirim…' : 'Kirim'}
                         className={cn(
-                            "px-4 py-2.5 rounded-2xl transition-all text-primary-foreground text-sm font-bold shadow-xs flex items-center justify-center shrink-0 cursor-pointer h-[42px]",
+                            "px-4 py-2.5 rounded-2xl transition-all text-primary-foreground text-sm font-bold shadow-xs flex items-center justify-center shrink-0 cursor-pointer h-[42px] disabled:opacity-60 disabled:cursor-not-allowed",
                             isInternal
                                 ? "bg-amber-600 hover:bg-amber-700"
                                 : "bg-primary hover:bg-primary/90"
                         )}
                     >
-                        <Send className="w-4 h-4" />
+                        {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
                 </div>
 
@@ -846,8 +825,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-primary transition-colors cursor-pointer"
-                        title="Attach files"
+                        disabled={isSending || selectedFiles.length >= MAX_ATTACHMENTS_PER_TICKET}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={`Lampirkan file (maks. ${MAX_ATTACHMENTS_PER_TICKET} file, 25MB/file)`}
                     >
                         <Paperclip className="w-3.5 h-3.5" />
                         Attach Files
@@ -856,7 +836,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         ref={fileInputRef}
                         type="file"
                         multiple
-                        accept={ACCEPTED_EXTENSIONS}
+                        accept={ATTACHMENT_ACCEPT}
                         className="hidden"
                         onChange={(e) => handleFileSelect(e.target.files)}
                     />

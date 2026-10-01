@@ -133,6 +133,7 @@ export class TicketMergeService {
                         senderId: message.senderId,
                         content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
                         attachments: message.attachments,
+                        attachmentInfo: message.attachmentInfo,
                         isSystemMessage: message.isSystemMessage,
                         createdAt: message.createdAt,
                     }),
