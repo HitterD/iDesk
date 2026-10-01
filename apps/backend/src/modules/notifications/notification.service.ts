@@ -8,6 +8,15 @@ import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
 
+/** Socket event telling a user's clients that some of their notifications became read. */
+export const NOTIFICATIONS_READ_EVENT = 'notifications:read';
+
+export interface NotificationReadTarget {
+    ticketId?: string;
+    referenceId?: string;
+    category?: NotificationCategory;
+}
+
 @Injectable()
 export class NotificationService {
     constructor(
@@ -158,6 +167,49 @@ export class NotificationService {
             .where('id IN (:...ids)', { ids })
             .andWhere('userId = :userId', { userId })
             .execute();
+        this.emitRead(userId);
+    }
+
+    /**
+     * Marks the user's unread notifications about one thing as read: a ticket, a referenced
+     * item (hardware request, e-form, ...) or a whole category. Called when the user opens
+     * the page for that thing, so they do not have to clear the bell by hand.
+     */
+    async markReadByTarget(userId: string, target: NotificationReadTarget): Promise<number> {
+        const query = this.notificationRepo
+            .createQueryBuilder()
+            .update(Notification)
+            .set({ isRead: true })
+            .where('"userId" = :userId', { userId })
+            .andWhere('"isRead" = false');
+
+        if (target.ticketId) {
+            query.andWhere('"ticketId" = :ticketId', { ticketId: target.ticketId });
+        } else if (target.referenceId) {
+            // Hardware requests key each workflow step as `<id>_<step>`.
+            query.andWhere('("referenceId" = :referenceId OR "referenceId" LIKE :referencePrefix)', {
+                referenceId: target.referenceId,
+                referencePrefix: `${target.referenceId}\\_%`,
+            });
+        } else if (target.category) {
+            query.andWhere('"category" = :category', { category: target.category });
+        } else {
+            return 0;
+        }
+
+        const result = await query.execute();
+        const updated = result.affected ?? 0;
+        if (updated > 0) this.emitRead(userId);
+        return updated;
+    }
+
+    /** Lets the user's other tabs and devices refresh their badge and lists. */
+    private emitRead(userId: string): void {
+        try {
+            this.eventsGateway.server.to(`user:${userId}`).emit(NOTIFICATIONS_READ_EVENT, { userId });
+        } catch (e) {
+            logger.warn(`Socket emit failed: ${(e as Error).message}`);
+        }
     }
 
     async countUnreadByCategory(userId: string): Promise<Record<NotificationCategory, number>> {
@@ -229,7 +281,9 @@ export class NotificationService {
         if (!notification) return null;
 
         notification.isRead = true;
-        return this.notificationRepo.save(notification);
+        const saved = await this.notificationRepo.save(notification);
+        this.emitRead(userId);
+        return saved;
     }
 
     async markAllAsRead(userId: string): Promise<void> {
@@ -237,6 +291,7 @@ export class NotificationService {
             { userId, isRead: false },
             { isRead: true },
         );
+        this.emitRead(userId);
     }
 
     async delete(id: string, userId: string): Promise<void> {

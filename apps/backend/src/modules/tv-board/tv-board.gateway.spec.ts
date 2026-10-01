@@ -1,6 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { TvBoardGateway } from './tv-board.gateway';
-import { TvBoardService } from './tv-board.service';
+import { TvBoardGateway, TV_BOARD_INVALID_TOKEN, TV_BOARD_JOIN_ERROR } from './tv-board.gateway';
 
 describe('TvBoardGateway', () => {
     let gateway: TvBoardGateway;
@@ -45,6 +44,18 @@ describe('TvBoardGateway', () => {
         await gateway.handleJoin(client, { token: 'bad-token' });
 
         expect(disconnect).toHaveBeenCalled();
+        expect(client.emit).toHaveBeenCalledWith(TV_BOARD_INVALID_TOKEN);
+    });
+
+    it('keeps the socket and asks the TV to retry when the join fails for a transient reason', async () => {
+        tvBoardService.resolveSiteIdByToken.mockRejectedValue(new Error('canceling statement due to statement timeout'));
+        const disconnect = jest.fn();
+        const client = { id: 'sock-3', join: jest.fn(), emit: jest.fn(), disconnect } as any;
+
+        await gateway.handleJoin(client, { token: 'token-A' });
+
+        expect(disconnect).not.toHaveBeenCalled();
+        expect(client.emit).toHaveBeenCalledWith(TV_BOARD_JOIN_ERROR);
     });
 
     const connectTv = async (gw: TvBoardGateway, socketId: string, siteId: string) => {

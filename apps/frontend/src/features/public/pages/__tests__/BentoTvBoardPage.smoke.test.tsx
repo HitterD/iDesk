@@ -23,13 +23,13 @@ vi.mock('@/lib/api', () => ({
     },
 }));
 
-const socketState = { boardData: null as any, isConnected: true };
+const socketState = { boardData: null as any, isConnected: true, isTokenInvalid: false };
 
 vi.mock('../../hooks/useTvBoardSocket', () => ({
     useTvBoardSocket: () => socketState,
 }));
 
-const ringtoneState = { blocked: false, enqueue: vi.fn() };
+const ringtoneState = { blocked: false, enqueue: vi.fn(), unlockAudio: vi.fn(), playTestSound: vi.fn() };
 
 vi.mock('../../hooks/useRingtone', () => ({
     useRingtone: () => ringtoneState,
@@ -168,15 +168,66 @@ describe('BentoTvBoardPage', () => {
         expect(await screen.findByText(/Link tidak valid/i)).toBeInTheDocument();
     });
 
-    it('shows reconnecting status when socket is disconnected without losing data', async () => {
+    it('shows periodic sync, not reconnecting, while the socket is down but polling works', async () => {
         socketState.isConnected = false;
         renderBoard();
 
         expect(await screen.findByText('Sampoerna Jaya')).toBeInTheDocument();
-        expect(await screen.findByTestId('tv-board-status-reconnecting')).toBeInTheDocument();
-        expect(screen.queryByTestId('tv-board-status-live')).toBeNull();
+        expect(await screen.findByTestId('tv-board-status-polling')).toBeInTheDocument();
+        expect(screen.queryByTestId('tv-board-status-reconnecting')).toBeNull();
 
         socketState.isConnected = true;
+    });
+
+    it('shows reconnecting when both the socket and the poll fail', async () => {
+        const api = (await import('@/lib/api')).default;
+        socketState.isConnected = false;
+        socketState.boardData = { siteName: 'Sampoerna Jaya', siteCode: 'SPJ', open: [], inProgress: [], waitingVendorCount: 0, ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null } };
+        (api.get as any).mockRejectedValueOnce(new Error('Network Error'));
+        renderBoard();
+
+        expect(await screen.findByTestId('tv-board-status-reconnecting')).toBeInTheDocument();
+        expect(screen.getByText('Sampoerna Jaya')).toBeInTheDocument();
+
+        socketState.isConnected = true;
+        socketState.boardData = null;
+    });
+
+    it('shows the invalid link page when the socket rejects the token', async () => {
+        socketState.isTokenInvalid = true;
+        renderBoard();
+
+        expect(await screen.findByText(/Link tidak valid/i)).toBeInTheDocument();
+        socketState.isTokenInvalid = false;
+    });
+
+    it('shows the click-to-enable banner when audio is blocked', async () => {
+        ringtoneState.blocked = true;
+        renderBoard();
+
+        expect(await screen.findByTestId('tv-board-audio-banner')).toBeInTheDocument();
+        ringtoneState.blocked = false;
+    });
+
+    it('queues a custom division sound with the built-in one as fallback', async () => {
+        const api = (await import('@/lib/api')).default;
+        ringtoneState.enqueue.mockClear();
+        (api.get as any).mockResolvedValueOnce({
+            data: {
+                siteName: 'Sampoerna Jaya', siteCode: 'SPJ', waitingVendorCount: 0, inProgress: [],
+                open: [{ id: 'n1', description: 'Baru', requesterName: 'A', requesterDepartment: null, assignedToName: null, priority: 'LOW', slaTarget: null, isOverdue: false, isOracleRequest: false, handlingTeam: 'OPS_SUPPORT' }],
+                ringtones: { newTicket: null, newTicketSupport: '/uploads/sounds/support.mp3', inProgress: null, closing: null, closingTime: null },
+            },
+        });
+        // The first snapshot only seeds the baseline; a ticket appearing afterwards rings.
+        socketState.boardData = { siteName: 'Sampoerna Jaya', siteCode: 'SPJ', open: [], inProgress: [], waitingVendorCount: 0, ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null } };
+        renderBoard();
+
+        await screen.findByText('Baru');
+        expect(ringtoneState.enqueue).toHaveBeenCalledWith([
+            { src: '/uploads/sounds/support.mp3', fallback: '/sounds/divisions/new-ticket-it-support.mp3' },
+        ]);
+        socketState.boardData = null;
     });
 
     it('shows reconnecting on startup network error without crashing into fatal error screen', async () => {

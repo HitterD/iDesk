@@ -16,6 +16,7 @@ import { HR_EVT } from '../domain/events/hardware-request.events';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { WsAuthGuard } from './ws-auth.guard';
 import { wsRoomAuthz } from './ws-room-authz';
+import { isAllowedWsOrigin } from '../../../shared/security/ws-origin';
 
 function buildCorsOrigin() {
     return (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
@@ -23,14 +24,7 @@ function buildCorsOrigin() {
             cb(new Error('WS_CORS_ORIGIN not configured — server boot should have failed'), false);
             return;
         }
-        const raw = process.env.WS_CORS_ORIGIN ?? process.env.FRONTEND_URL ?? 'http://localhost:5173';
-        const allowed = raw.split(',').map((s) => s.trim());
-        const isAllowed = !origin ||
-            allowed.includes(origin) ||
-            /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
-            /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
-            /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin);
-        if (isAllowed) {
+        if (isAllowedWsOrigin(origin)) {
             cb(null, true);
         } else {
             cb(new Error(`WS origin not allowed: ${origin}`), false);

@@ -24,9 +24,11 @@ import { TicketAttributes } from '../types';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    useMarkNotificationsRead(id ? { ticketId: id } : null);
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);

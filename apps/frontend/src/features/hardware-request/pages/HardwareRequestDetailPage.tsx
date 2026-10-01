@@ -20,9 +20,11 @@ import { SlotPickerModal } from '../components/scheduling/SlotPickerModal';
 import { RescheduleRequestModal } from '../components/scheduling/RescheduleRequestModal';
 import { ScheduleProposeModal } from '../components/scheduling/ScheduleProposeModal';
 import type { InstallationSchedule } from '../types';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 export default function HardwareRequestDetailPage() {
     const { id } = useParams<{ id: string }>();
+    useMarkNotificationsRead(id ? { referenceId: id } : null);
     const { data: r, isLoading, isError } = useHardwareRequest(id);
     const { userId, role } = useHardwareRole();
     const basePath = useHardwareBasePath();
