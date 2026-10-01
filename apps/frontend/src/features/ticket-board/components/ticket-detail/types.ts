@@ -67,7 +67,6 @@ export interface TicketDetail {
             name: string;
             code?: string;
         };
-        telegramChatId?: string;
     };
     assignedTo?: {
         id: string;

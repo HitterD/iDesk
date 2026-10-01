@@ -21,7 +21,7 @@ const TIER_ORDER: { tier: ServiceTier; title: string; subtitle: string }[] = [
     { tier: 'gateway', title: '2. API Gateway', subtitle: 'Reverse Proxy & Security' },
     { tier: 'core', title: '3. Core Microservices', subtitle: 'Business Logic & Rules' },
     { tier: 'storage', title: '4. Infrastructure & DB', subtitle: 'PostgreSQL, Redis & Sockets' },
-    { tier: 'external', title: '5. External Cloud APIs', subtitle: 'Mail, Telegram & Zoom' },
+    { tier: 'external', title: '5. External Cloud APIs', subtitle: 'Mail & Zoom' },
 ];
 
 export const ServiceMapCanvas: React.FC<ServiceMapCanvasProps> = ({

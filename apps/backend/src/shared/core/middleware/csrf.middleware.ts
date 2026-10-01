@@ -122,12 +122,8 @@ export class CsrfMiddleware implements NestMiddleware {
             '/v1/sounds',
             // Workload - protected by JwtAuthGuard + RolesGuard
             '/v1/workload',
-            // Telegram - protected by JwtAuthGuard
-            '/v1/telegram',
             // Saved replies - protected by JwtAuthGuard
             '/v1/saved-replies',
-            // Customer sessions - protected by JwtAuthGuard
-            '/v1/customer-sessions',
         ];
 
         const currentPath = req.originalUrl || req.url;

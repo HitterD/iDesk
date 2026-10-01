@@ -129,7 +129,7 @@ export interface WorkflowAction {
         noteContent?: string;
 
         // For SEND_NOTIFICATION
-        notificationType?: 'EMAIL' | 'IN_APP' | 'TELEGRAM' | 'ALL';
+        notificationType?: 'EMAIL' | 'IN_APP' | 'ALL';
         recipientType?: NotificationRecipient;
         recipientId?: string;
         recipientRole?: string;

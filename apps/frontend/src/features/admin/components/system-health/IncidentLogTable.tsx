@@ -52,8 +52,6 @@ function generateDefaultSeedLogs(): IncidentLogItem[] {
     yesterdayEve.setHours(22, 45, 12);
     const yesterdayAfternoon = new Date(now.getTime() - 24 * 3600 * 1000);
     yesterdayAfternoon.setHours(14, 20, 45);
-    const twoDaysAgo = new Date(now.getTime() - 48 * 3600 * 1000);
-    twoDaysAgo.setHours(11, 10, 0);
 
     return [
         {
@@ -108,19 +106,6 @@ function generateDefaultSeedLogs(): IncidentLogItem[] {
             message: 'Redis command PING took 245ms (>50ms SLA threshold). Background AOF rewrite in progress caused brief latency spike.',
             rootCause: 'Proses background disk sync (AOF rewrite) menggunakan I/O tinggi saat proses re-indexing artikel knowledge base.',
             remediation: 'Setel `no-appendfsync-on-rewrite yes` pada konfigurasi redis.conf untuk mencegah disk I/O bottleneck.',
-            resolved: true,
-        },
-        {
-            id: 'inc-past-01',
-            timestamp: format(twoDaysAgo, 'HH:mm:ss'),
-            isoDate: twoDaysAgo.toISOString(),
-            relativeTime: '2 hari lalu',
-            severity: 'warning',
-            service: 'notification-dispatcher',
-            errorType: 'TelegramWebhookDeliveryFailed: 429 RateLimit',
-            message: 'Telegram Bot API returned HTTP 429 Too Many Requests. Retry-After: 45 seconds.',
-            rootCause: 'Broadcast notifikasi massal ke seluruh agent IT melebihi batas rate limit Telegram 30 pesan/detik.',
-            remediation: 'Aktifkan delay throttler pada BullMQ queue `notification-telegram-queue` dengan batch delay 50ms.',
             resolved: true,
         },
     ];

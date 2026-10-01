@@ -19,7 +19,6 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { User } from './modules/users/entities/user.entity';
 import { Ticket } from './modules/ticketing/entities/ticket.entity';
 import { TicketMessage } from './modules/ticketing/entities/ticket-message.entity';
-import { CustomerSession } from './modules/users/entities/customer-session.entity';
 import { Department } from './modules/users/entities/department.entity';
 import { SlaConfig } from './modules/ticketing/entities/sla-config.entity';
 import { SavedReply } from './modules/ticketing/entities/saved-reply.entity';

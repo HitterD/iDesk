@@ -15,7 +15,6 @@ import { join } from 'path';
 import { User } from '../src/modules/users/entities/user.entity';
 import { Ticket } from '../src/modules/ticketing/entities/ticket.entity';
 import { TicketMessage } from '../src/modules/ticketing/entities/ticket-message.entity';
-import { CustomerSession } from '../src/modules/users/entities/customer-session.entity';
 import { Department } from '../src/modules/users/entities/department.entity';
 import { SlaConfig } from '../src/modules/ticketing/entities/sla-config.entity';
 import { SavedReply } from '../src/modules/ticketing/entities/saved-reply.entity';
@@ -76,7 +75,7 @@ async function syncDatabase() {
         password: process.env.DB_PASSWORD || 'postgres',
         database: process.env.DB_DATABASE || 'idesk_db',
         entities: [
-            User, Ticket, TicketMessage, CustomerSession, Department, SlaConfig,
+            User, Ticket, TicketMessage, Department, SlaConfig,
             SavedReply, TicketSurvey, TicketTemplate, TicketAttribute, Article,
             ArticleView, Notification, NotificationPreference, NotificationLog,
             SavedSearch, RenewalContract, AuditLog, BusinessHours,

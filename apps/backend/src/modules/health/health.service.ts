@@ -56,7 +56,6 @@ export class HealthService {
         { name: 'Knowledge Base', module: 'knowledge-base' },
         { name: 'Automation', module: 'automation' },
         { name: 'Zoom Booking', module: 'zoom-booking' },
-        { name: 'Telegram', module: 'telegram' },
         { name: 'Audit Logs', module: 'audit' },
         { name: 'User Management', module: 'users' },
     ];
@@ -395,10 +394,6 @@ export class HealthService {
                 case 'zoom-booking':
                     // Check zoom tables
                     await this.dataSource.query('SELECT 1 FROM zoom_accounts LIMIT 1');
-                    break;
-                case 'telegram':
-                    // Check telegram sessions
-                    await this.dataSource.query('SELECT 1 FROM telegram_sessions LIMIT 1');
                     break;
                 case 'audit':
                     // Check audit logs

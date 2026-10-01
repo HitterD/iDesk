@@ -11,7 +11,6 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
   let entityManager: any;
   let cacheService: any;
   let emailChannel: any;
-  let telegramChannel: any;
   let inAppChannel: any;
   let pushChannel: any;
   let eventsGateway: any;
@@ -19,7 +18,7 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
   beforeEach(() => {
     userRepo = {
       find: jest.fn().mockResolvedValue([]),
-      findOne: jest.fn().mockResolvedValue({ id: 'u', email: 'u@x.com', telegramChatId: null }),
+      findOne: jest.fn().mockResolvedValue({ id: 'u', email: 'u@x.com' }),
     };
     snoozeRepo = { find: jest.fn().mockResolvedValue([]) };
     preferenceRepo = {

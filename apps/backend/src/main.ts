@@ -141,7 +141,6 @@ async function bootstrap() {
     const uploadDirs = [
         './uploads',
         './uploads/kb',
-        './uploads/telegram',
         './uploads/avatars',
         './uploads/contracts',
         './uploads/documents',

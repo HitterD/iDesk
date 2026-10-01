@@ -14,7 +14,6 @@ mkdir -p /app/reports \
          /app/uploads/sound \
          /app/uploads/tickets \
          /app/uploads/avatars \
-         /app/uploads/telegram \
          /app/uploads/documents
 
 chown -R node:node /app/reports /app/storage /app/uploads /app/backups

@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Clock, Tag, X, FileText, Download } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { MessageSourceBadge } from '@/components/ui/TelegramBadge';
+import { MessageSourceBadge } from '@/components/ui/MessageSourceBadge';
 import { useTicketSocket } from '@/hooks/useTicketSocket';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { Paperclip } from 'lucide-react';

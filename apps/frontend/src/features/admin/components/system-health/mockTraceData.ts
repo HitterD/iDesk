@@ -144,18 +144,6 @@ export const BASE_NODES: ServiceNodeData[] = [
         description: 'Corporate Mail Exchange Relay',
     },
     {
-        id: 'telegram-bot-api',
-        name: 'telegram-bot-api',
-        label: 'Telegram Bot API',
-        tier: 'external',
-        statusCode: 200,
-        execTimePercent: 3,
-        latencyMs: 18,
-        status: 'healthy',
-        iconType: 'telegram',
-        description: 'Ops Alert Dispatcher & Webhook',
-    },
-    {
         id: 'zoom-cloud-api',
         name: 'zoom-cloud-api',
         label: 'Zoom Cloud API',
@@ -210,7 +198,6 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             'redis-bull-queues',
             'websocket-server',
             'smtp-mail-server',
-            'telegram-bot-api',
             'sja-desktop-notifier',
         ],
         // Strict Forward Flow (Left to Right Only)
@@ -221,7 +208,6 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             { from: 'ticketing-engine', to: 'redis-bull-queues', status: 'healthy' },
             { from: 'ticketing-engine', to: 'websocket-server', status: 'healthy' },
             { from: 'redis-bull-queues', to: 'smtp-mail-server', status: 'healthy' },
-            { from: 'redis-bull-queues', to: 'telegram-bot-api', status: 'healthy' },
             { from: 'redis-bull-queues', to: 'sja-desktop-notifier', status: 'healthy' },
         ],
         nodeMetrics: {
@@ -232,7 +218,6 @@ export const MOCK_TRACES: EndToEndTrace[] = [
             'redis-bull-queues': { statusCode: 200, execTimePercent: 4, latencyMs: 5, status: 'healthy' },
             'websocket-server': { statusCode: 200, execTimePercent: 2, latencyMs: 3, status: 'healthy' },
             'smtp-mail-server': { statusCode: 200, execTimePercent: 4, latencyMs: 6, status: 'healthy' },
-            'telegram-bot-api': { statusCode: 200, execTimePercent: 4, latencyMs: 6, status: 'healthy' },
             'sja-desktop-notifier': { statusCode: 200, execTimePercent: 2, latencyMs: 14, status: 'healthy' },
         },
         events: [
