@@ -112,4 +112,17 @@ describe('TvBoardGateway', () => {
 
         expect(tvBoardService.getBoardData).toHaveBeenCalledTimes(2);
     });
+
+    it('refreshes the dev hub board when a ticket of another site changes', async () => {
+        tvBoardService.getBoardData.mockResolvedValue({ siteCode: 'SPJ', showsDevTickets: true, open: [], inProgress: [] });
+        await connectTv(gateway, 'tv-spj', 'site-spj');
+        tvBoardService.getBoardData.mockResolvedValue({ siteCode: 'SMG', showsDevTickets: false, open: [], inProgress: [] });
+        await connectTv(gateway, 'tv-smg', 'site-smg');
+        mockServer.to.mockClear();
+
+        await gateway.handleTicketChanged({ siteId: 'site-krw' });
+
+        expect(mockServer.to).toHaveBeenCalledWith('tv:site-spj');
+        expect(mockServer.to).not.toHaveBeenCalledWith('tv:site-smg');
+    });
 });

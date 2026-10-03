@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Ticket, TicketStatus, TicketType, HandlingTeam, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
@@ -32,6 +33,8 @@ export class TicketForwardService {
         private readonly eventsGateway: EventsGateway,
         private readonly workloadService: WorkloadService,
         private readonly slaClock: SlaClockService,
+        @Optional()
+        private readonly eventEmitter?: EventEmitter2,
     ) {}
 
     async forwardTicket(
@@ -118,6 +121,8 @@ export class TicketForwardService {
         this.eventsGateway.server
             .to(`site:${(saved as any).siteId}`)
             .emit('ticket:updated', { ticketId });
+        // The card moves between the site board and the dev hub board.
+        this.eventEmitter?.emit('tv-board.ticket-changed', { siteId: saved.siteId });
 
         this.logger.log(
             `Ticket ${ticket.ticketNumber || ticketId} forwarded ${previousTeam} -> ${dto.targetTeam} by ${actor.fullName} (${actor.userId})`,
