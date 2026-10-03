@@ -37,6 +37,7 @@ export interface TvBoardData {
     siteCode: string;
     /** Dev-team hub board: also shows dev tickets from every site. */
     showsDevTickets?: boolean;
+    theme?: 'light' | 'dark';
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
     waitingVendorCount: number;

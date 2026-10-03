@@ -35,14 +35,14 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
         >
             {/* Left: title, then division · requester · department */}
             <div className="min-w-0">
-                <h3 className="truncate text-[1.65rem] font-semibold leading-[1.25] tracking-[-0.01em] text-[#1D1D1F]" title={title}>
+                <h3 className="truncate text-[1.65rem] font-semibold leading-[1.25] tracking-[-0.01em] text-[var(--tv-text)]" title={title}>
                     {title}
                 </h3>
                 <div className="mt-[0.3rem] flex min-w-0 items-center gap-[0.5rem] text-[1.1rem] leading-none">
                     {foreignSite && (
                         <span
                             data-testid="tv-board-origin-site"
-                            className="shrink-0 rounded-[0.4rem] bg-[#1D1D1F] px-[0.45rem] py-[0.2rem] text-[0.9rem] font-bold tracking-wide text-white"
+                            className="shrink-0 rounded-[0.4rem] bg-[var(--tv-inverse-bg)] px-[0.45rem] py-[0.2rem] text-[0.9rem] font-bold tracking-wide text-[var(--tv-inverse-text)]"
                         >
                             {foreignSite}
                         </span>
@@ -51,12 +51,12 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
                     <span className="shrink-0 font-medium" style={{ color: division.color }}>
                         {divisionKey === 'ORACLE_DEV' ? 'ORACLE / K2' : division.shortLabel}
                     </span>
-                    <span className="shrink-0 text-[#C7C7CC]" aria-hidden="true">·</span>
-                    <span className="truncate text-[#424245]" title={card.requesterName}>
+                    <span className="shrink-0 text-[var(--tv-separator)]" aria-hidden="true">·</span>
+                    <span className="truncate text-[var(--tv-text-body)]" title={card.requesterName}>
                         {card.requesterName}
                     </span>
                     {card.requesterDepartment && (
-                        <span data-testid="tv-board-department" className="max-w-[40%] shrink truncate text-[#86868B]">
+                        <span data-testid="tv-board-department" className="max-w-[40%] shrink truncate text-[var(--tv-text-tertiary)]">
                             {card.requesterDepartment}
                         </span>
                     )}
@@ -67,10 +67,10 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
             <div className="min-w-0 text-right">
                 {card.assignedToName ? (
                     <div className="flex min-w-0 items-center justify-end gap-[0.55rem]">
-                        <span className="flex h-[2rem] w-[2rem] shrink-0 items-center justify-center rounded-full bg-[#E8E8ED] text-[0.8rem] font-bold text-[#1D1D1F]">
+                        <span className="flex h-[2rem] w-[2rem] shrink-0 items-center justify-center rounded-full bg-[var(--tv-avatar)] text-[0.8rem] font-bold text-[var(--tv-text)]">
                             {getInitials(card.assignedToName)}
                         </span>
-                        <span className="truncate text-[1.2rem] font-bold text-[#1D1D1F]" title={card.assignedToName}>
+                        <span className="truncate text-[1.2rem] font-bold text-[var(--tv-text)]" title={card.assignedToName}>
                             {card.assignedToName}
                         </span>
                     </div>
@@ -80,7 +80,7 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
                 {sla && (
                     <div
                         className="mt-[0.3rem] text-[1rem] font-medium tabular-nums leading-none"
-                        style={{ color: sla.overdue ? APPLE_RED : '#86868B' }}
+                        style={{ color: sla.overdue ? APPLE_RED : 'var(--tv-text-tertiary)' }}
                         title={card.slaTarget ? `Target SLA: ${formatSlaDeadline(card.slaTarget)}` : undefined}
                     >
                         {sla.label}
