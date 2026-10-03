@@ -18,12 +18,13 @@ const CLOCK_TICK_MS = 1_000;
 
 // Background slideshow — teknik foundation.html (full-bleed di belakang card, tanpa panel samping).
 const PLANTS = [
-    { src: '/login-plants/sidoarjo-plant.png', alt: 'Sidoarjo Plant' },
-    { src: '/login-plants/sukodono-plant.png', alt: 'Sukodono Plant' },
-    { src: '/login-plants/semarang-plant.png', alt: 'Semarang Plant' },
-    { src: '/login-plants/karawang-plant.png', alt: 'Karawang Plant' },
-    { src: '/login-plants/marketing-office.jpeg', alt: 'Marketing Office' },
+    { src: '/login-plants/sidoarjo-plant.webp', alt: 'Sidoarjo Plant' },
+    { src: '/login-plants/sukodono-plant.webp', alt: 'Sukodono Plant' },
+    { src: '/login-plants/semarang-plant.webp', alt: 'Semarang Plant' },
+    { src: '/login-plants/karawang-plant.webp', alt: 'Karawang Plant' },
+    { src: '/login-plants/marketing-office.webp', alt: 'Marketing Office' },
 ] as const;
+const SLIDE_INTERVAL_MS = 5200;
 
 function getNextPath(search: string): string | null {
     try {
@@ -66,6 +67,8 @@ export const BentoLoginPage = () => {
     }, [location.search]);
 
     const [active, setActive] = useState(0);
+    // Slide tertinggi yang sudah pernah tampil — slide sesudahnya belum dirender agar tidak ikut diunduh
+    const [furthestSlide, setFurthestSlide] = useState(0);
     const [reducedMotion, setReducedMotion] = useState(false);
 
     useEffect(() => {
@@ -77,13 +80,14 @@ export const BentoLoginPage = () => {
         return () => mq.removeEventListener?.('change', onChange);
     }, []);
 
-    // Preload semua plant agar crossfade pertama tidak kedip
+    // Preload hanya slide berikutnya agar crossfade tidak kedip, tanpa mengunduh semua di awal
     useEffect(() => {
-        PLANTS.forEach((p) => {
-            const img = new Image();
-            img.src = p.src;
-        });
+        setFurthestSlide((f) => Math.max(f, active));
+        const img = new Image();
+        img.src = PLANTS[(active + 1) % PLANTS.length].src;
+    }, [active]);
 
+    useEffect(() => {
         // Pre-warm destination chunks in background without blocking
         const prefetch = () => {
             import('../../../components/layout/BentoLayout');
@@ -106,7 +110,7 @@ export const BentoLoginPage = () => {
 
     // Auto-rotate selalu jalan — reducedMotion hanya matikan zoom, bukan stop ganti gambar
     useEffect(() => {
-        const id = setInterval(() => setActive((i) => (i + 1) % PLANTS.length), 5200);
+        const id = setInterval(() => setActive((i) => (i + 1) % PLANTS.length), SLIDE_INTERVAL_MS);
         return () => clearInterval(id);
     }, []);
 
@@ -332,6 +336,7 @@ export const BentoLoginPage = () => {
             >
                 {PLANTS.map((p, i) => {
                     const isActive = i === active;
+                    if (i > furthestSlide + 1) return null;
                     return (
                         <img
                             key={p.src}
@@ -399,13 +404,13 @@ export const BentoLoginPage = () => {
                     {/* Corporate Umbrella Branding Pill (Kapal Api Group | PT Santos Jaya Abadi) */}
                     <div className="bg-white rounded-2xl border border-slate-200/90 py-3.5 px-5 sm:px-6 shadow-xs mb-6 flex items-center justify-between sm:justify-around gap-4 sm:gap-6 select-none">
                         <img
-                            src="/logos/kapal-api-group.png"
+                            src="/logos/kapal-api-group.webp"
                             alt="Kapal Api Group"
                             className="h-11 sm:h-13 w-auto object-contain max-h-[52px]"
                         />
                         <div className="w-px h-9 sm:h-11 bg-slate-300 shrink-0" aria-hidden="true" />
                         <img
-                            src="/logos/sja-logo.png"
+                            src="/logos/sja-logo.webp"
                             alt="PT Santos Jaya Abadi"
                             className="h-11 sm:h-13 w-auto object-contain max-h-[52px]"
                         />
@@ -413,7 +418,7 @@ export const BentoLoginPage = () => {
 
                     <div className="flex flex-col items-center justify-center mb-6">
                         <img
-                            src="/idesk-logo.png"
+                            src="/idesk-logo.webp"
                             alt="iDesk"
                             className="w-28 sm:w-32 h-auto object-contain transition-transform duration-200 hover:scale-[1.02]"
                         />

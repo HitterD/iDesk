@@ -312,7 +312,7 @@ export const BentoTvBoardPage: React.FC = () => {
     if (!data) {
         return (
             <div className="flex h-[100dvh] overflow-hidden flex-col items-center justify-center gap-5 text-[var(--tv-text-secondary)]" style={themeStyle}>
-                <img src="/idesk-logo.png" alt="iDesk" className="h-12 w-auto object-contain" />
+                <img src="/idesk-logo.webp" alt="iDesk" className="h-12 w-auto object-contain" />
                 <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-[#007AFF] border-t-transparent" />
                 <p className="text-lg font-medium">
                     {isPollFailing ? 'Menghubungkan ke TV Monitoring Board...' : 'Memuat TV Monitoring Board...'}
@@ -337,7 +337,7 @@ export const BentoTvBoardPage: React.FC = () => {
                 {/* Top bar: site | clock */}
                 <header className="flex items-center justify-between gap-6">
                     <div className="flex min-w-0 items-center gap-5">
-                        <img src="/idesk-logo.png" alt="iDesk Logo" className="h-12 w-auto shrink-0 object-contain" />
+                        <img src="/idesk-logo.webp" alt="iDesk Logo" className="h-12 w-auto shrink-0 object-contain" />
                         <span className="h-10 w-px shrink-0 bg-[var(--tv-hairline)]" aria-hidden="true" />
                         <div className="min-w-0">
                             <div className="flex items-baseline gap-3">
