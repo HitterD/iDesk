@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Ticket, TICKET_DONE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { DateRange, ReportResult } from './agent-performance.report';
+import { ReportTeam, applyTeamFilter } from '../utils/report-team-scope.util';
 
 export interface VolumeDataPoint {
     date: string;
@@ -44,10 +45,11 @@ export class TicketVolumeReport {
      * @param dateRange - Start and end dates (inclusive on start, exclusive-ish on end depending on caller)
      * @param options - Optional filters
      * @param options.siteId - Filter tickets to a specific site (required for scheduled reports site isolation)
+     * @param options.team - Only tickets handled by this team
      */
     async generate(
         dateRange: DateRange,
-        options?: { siteId?: string }
+        options?: { siteId?: string; team?: ReportTeam }
     ): Promise<ReportResult<TicketVolumeData>> {
         // Build query with optional site filter
         const qb = this.ticketRepo
@@ -61,6 +63,7 @@ export class TicketVolumeReport {
         if (options?.siteId) {
             qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
         }
+        applyTeamFilter(qb, 'ticket', options?.team);
 
         const tickets = await qb.getMany();
 

@@ -23,6 +23,8 @@ export type ManagerReportPayload = {
     period: string;
     generatedAt: Date;
     sites: string[];
+    /** Team label; absent on older payloads. */
+    team?: string;
     sections: string[];
     ticketStats?: {
         total: number;
@@ -81,7 +83,7 @@ export class ManagerReportExcelBuilder {
     async buildAndStream(res: Response, report: ManagerReportPayload, filename?: string): Promise<void> {
         const workbook = createStyledWorkbook();
         const selected = new Set(report.sections);
-        const sitesScope = report.sites && report.sites.length > 0 ? report.sites.join(', ') : 'Semua Site';
+        const sitesScope = `${report.sites && report.sites.length > 0 ? report.sites.join(', ') : 'Semua Site'}${report.team ? ` — ${report.team}` : ''}`;
 
         // ══════════════════════════════════════════════════════════
         // SHEET 1: EXECUTIVE DASHBOARD / SUMMARY
@@ -396,7 +398,7 @@ export class ManagerReportExcelBuilder {
 
         sheet.mergeCells(2, 1, 2, 4);
         const periodCell = sheet.getCell(2, 1);
-        periodCell.value = `Periode: ${report.period}   |   Sites: ${report.sites.join(', ') || 'Semua Site'}`;
+        periodCell.value = `Periode: ${report.period}   |   Sites: ${report.sites.join(', ') || 'Semua Site'}${report.team ? `   |   Tim: ${report.team}` : ''}`;
         Object.assign(periodCell, { style: EXCEL_STYLES.subtitle });
         sheet.getRow(2).height = 18;
 

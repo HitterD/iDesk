@@ -30,8 +30,8 @@ import {
     ScheduledReportConfig,
     ReportType,
     ScheduleType,
-    TargetAgentCategory
 } from './types';
+import { reportTeamLabel } from '../../reportTeams';
 import { ScheduledReportModal } from './ScheduledReportModal';
 import { ScheduledExecutionHistoryModal } from './ScheduledExecutionHistoryModal';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -223,7 +223,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
         }
     };
 
-    const getReportTypeBadge = (type: ReportType, targetAgentCategory?: TargetAgentCategory) => {
+    const getReportTypeBadge = (type: ReportType) => {
         switch (type) {
             case 'MONTHLY_SUMMARY':
                 return {
@@ -233,7 +233,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                 };
             case 'AGENT_PERFORMANCE':
                 return {
-                    label: targetAgentCategory ? `Agent Perf (${targetAgentCategory})` : 'Agent Performance',
+                    label: 'Agent Performance',
                     icon: Users,
                     color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border-purple-200 dark:border-purple-800/80',
                 };
@@ -431,7 +431,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 bg-white dark:bg-slate-900">
                                 {filteredConfigs.map((cfg) => {
-                                    const typeInfo = getReportTypeBadge(cfg.reportType, cfg.targetAgentCategory);
+                                    const typeInfo = getReportTypeBadge(cfg.reportType);
                                     const TypeIcon = typeInfo.icon;
                                     const siteInfo = siteMap.get(cfg.siteId);
                                     const isTriggering = triggeringId === cfg.id;
@@ -460,6 +460,9 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                                                                 typeInfo.color
                                                             )}>
                                                                 {typeInfo.label}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                                                {reportTeamLabel(cfg.targetTeam ?? (cfg.targetAgentCategory === 'REGULAR' ? 'OPS_SUPPORT' : cfg.targetAgentCategory === 'ORACLE' ? 'ORACLE_DEV' : null))}
                                                             </span>
                                                         </div>
                                                     </div>

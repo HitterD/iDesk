@@ -23,6 +23,9 @@ import {
 import { AgentPerformanceReport, DateRange } from './agent-performance.report';
 import { TicketVolumeReport } from './ticket-volume.report';
 import { ReportsService } from '../reports.service';
+import { ReportTeam, rolesForTeam, teamLabel, ALL_TEAM_AGENT_ROLES } from '../utils/report-team-scope.util';
+import { TICKET_CROSS_SITE_ROLES } from '../../../shared/core/utils/site-scope.util';
+import { HandlingTeam } from '../../ticketing/entities/ticket.entity';
 import {
   createStyledWorkbook,
   drawCorporateExcelHeader,
@@ -44,7 +47,23 @@ export const AGENT_ROLES_REGULAR: UserRole[] = [
 
 export const AGENT_ROLES_ORACLE: UserRole[] = [UserRole.AGENT_ORACLE];
 
-export const ALL_AGENT_ROLES: UserRole[] = [...AGENT_ROLES_REGULAR, ...AGENT_ROLES_ORACLE];
+export const ALL_AGENT_ROLES: UserRole[] = [...ALL_TEAM_AGENT_ROLES];
+
+/**
+ * Team a config covers. `targetTeam` wins; older configs only carry the
+ * legacy agent category (REGULAR → IT Support, ORACLE → Oracle/K2).
+ */
+export function effectiveTeam(config: Pick<ScheduledReportConfig, 'targetTeam' | 'targetAgentCategory'>): ReportTeam | undefined {
+  if (config.targetTeam) return config.targetTeam;
+  if (config.targetAgentCategory === TargetAgentCategory.REGULAR) return HandlingTeam.OPS_SUPPORT;
+  if (config.targetAgentCategory === TargetAgentCategory.ORACLE) return HandlingTeam.ORACLE_DEV;
+  return undefined;
+}
+
+/** Dev agents handle tickets from every site, so they may receive any site's report. */
+export function isCrossSiteRecipientRole(role: UserRole | string): boolean {
+  return TICKET_CROSS_SITE_ROLES.includes(role as UserRole);
+}
 
 /**
  * DynamicScheduledReportsService
@@ -308,6 +327,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
           },
           reportType: config.reportType,
           targetAgentCategory: config.targetAgentCategory,
+          targetTeam: effectiveTeam(config) ?? null,
         },
       });
       await this.executionRepo.save(execution);
@@ -341,24 +361,11 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
    * Filter users to only those who should receive this report.
    */
   private filterValidRecipients(users: User[], config: ScheduledReportConfig): User[] {
+    const allowedRoles = rolesForTeam(effectiveTeam(config)) as string[];
     return users.filter((u) => {
       if (!u.isActive) return false;
-      if (u.siteId !== config.siteId) return false;
-
-      const isAgentRole = (ALL_AGENT_ROLES as string[]).includes(u.role as string);
-      if (!isAgentRole) return false;
-
-      if (config.reportType === ReportType.AGENT_PERFORMANCE && config.targetAgentCategory) {
-        if (config.targetAgentCategory === TargetAgentCategory.REGULAR) {
-          return (AGENT_ROLES_REGULAR as string[]).includes(u.role as string);
-        }
-        if (config.targetAgentCategory === TargetAgentCategory.ORACLE) {
-          return u.role === UserRole.AGENT_ORACLE;
-        }
-        // ALL → any agent role
-      }
-
-      return true;
+      if (!allowedRoles.includes(u.role as string)) return false;
+      return u.siteId === config.siteId || isCrossSiteRecipientRole(u.role);
     });
   }
 
@@ -370,46 +377,38 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     dateRange: DateRange,
   ): Promise<{ buffer: Buffer; filename: string; subject: string; body: string }> {
     const periodLabel = `${dateRange.startDate.toLocaleDateString('id-ID')} - ${dateRange.endDate.toLocaleDateString('id-ID')}`;
+    const team = effectiveTeam(config);
+    const scope = { siteId: config.siteId, team };
+    const teamText = teamLabel(team);
 
     if (config.reportType === ReportType.TICKET_VOLUME) {
-      const volume = await this.ticketVolumeReport.generate(dateRange, { siteId: config.siteId });
+      const volume = await this.ticketVolumeReport.generate(dateRange, scope);
       const buffer = await this.buildVolumeExcel(volume.data, dateRange);
       const filename = `ticket-volume-${config.siteId}-${Date.now()}.xlsx`;
       return {
         buffer,
         filename,
-        subject: `Laporan Volume Tiket - ${periodLabel}`,
-        body: `Terlampir laporan volume tiket untuk periode ${periodLabel} (site: ${config.siteId}).`,
+        subject: `Laporan Volume Tiket ${teamText} - ${periodLabel}`,
+        body: `Terlampir laporan volume tiket ${teamText} untuk periode ${periodLabel} (site: ${config.siteId}).`,
       };
     }
 
     if (config.reportType === ReportType.AGENT_PERFORMANCE) {
-      const category = (config.targetAgentCategory as any) || 'ALL';
-      const perf = await this.agentPerformanceReport.generate(dateRange, {
-        siteId: config.siteId,
-        agentCategory: category === 'ALL' ? undefined : category,
-      });
+      const perf = await this.agentPerformanceReport.generate(dateRange, scope);
       const buffer = await this.buildPerformanceExcel(perf.data, dateRange);
       const filename = `agent-performance-${config.siteId}-${Date.now()}.xlsx`;
       return {
         buffer,
         filename,
-        subject: `Laporan Performa Agent - ${periodLabel}`,
-        body: `Terlampir laporan performa agent untuk periode ${periodLabel} (site: ${config.siteId}).`,
+        subject: `Laporan Performa Agent ${teamText} - ${periodLabel}`,
+        body: `Terlampir laporan performa agent ${teamText} untuk periode ${periodLabel} (site: ${config.siteId}).`,
       };
     }
 
     // MONTHLY_SUMMARY → combined volume + performance (for the computed range)
     const [volume, perf] = await Promise.all([
-      this.ticketVolumeReport.generate(dateRange, { siteId: config.siteId }),
-      this.agentPerformanceReport.generate(dateRange, {
-        siteId: config.siteId,
-        agentCategory: config.targetAgentCategory === TargetAgentCategory.REGULAR
-          ? 'REGULAR'
-          : config.targetAgentCategory === TargetAgentCategory.ORACLE
-          ? 'ORACLE'
-          : undefined,
-      }),
+      this.ticketVolumeReport.generate(dateRange, scope),
+      this.agentPerformanceReport.generate(dateRange, scope),
     ]);
 
     const buffer = await this.buildCombinedExcel(volume.data, perf.data, dateRange);
@@ -417,8 +416,8 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     return {
       buffer,
       filename,
-      subject: `Laporan Ringkasan Bulanan - ${periodLabel}`,
-      body: `Terlampir laporan ringkasan (volume + performa) untuk periode ${periodLabel} (site: ${config.siteId}).`,
+      subject: `Laporan Ringkasan Bulanan ${teamText} - ${periodLabel}`,
+      body: `Terlampir laporan ringkasan ${teamText} (volume + performa) untuk periode ${periodLabel} (site: ${config.siteId}).`,
     };
   }
 

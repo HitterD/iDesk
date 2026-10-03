@@ -4,6 +4,7 @@ import { Repository, Between } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
 import { TICKET_DONE_STATUSES_SQL } from '../../ticketing/utils/ticket-status-sql.util';
+import { ReportTeam, rolesForTeam } from '../utils/report-team-scope.util';
 
 export interface AgentMetrics {
     agentId: string;
@@ -50,11 +51,11 @@ export class AgentPerformanceReport {
      * @param dateRange - Date range to generate report for
      * @param options - Optional filters
      * @param options.siteId - Filter to a specific site (strict site scoping for scheduled reports)
-     * @param options.agentCategory - Filter agents: 'REGULAR' (non-oracle), 'ORACLE', or 'ALL' (default)
+     * @param options.team - Only agents whose role belongs to this team (all agents when omitted)
      */
     async generate(
         dateRange: DateRange,
-        options?: { siteId?: string; agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL' }
+        options?: { siteId?: string; team?: ReportTeam }
     ): Promise<ReportResult<AgentMetrics[]>> {
         // Single optimized query with GROUP BY for all metrics
         const qb = this.ticketRepo
@@ -94,19 +95,9 @@ export class AgentPerformanceReport {
             qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
         }
 
-        // Apply agent category filter (REGULAR vs ORACLE vs DEV vs ALL separation)
-        if (options?.agentCategory && options.agentCategory !== 'ALL') {
-            if (options.agentCategory === 'REGULAR') {
-                qb.andWhere("user.role IN (:...regularRoles)", {
-                    regularRoles: ['AGENT', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT']
-                });
-            } else if (options.agentCategory === 'ORACLE') {
-                qb.andWhere("user.role = :oracleRole", { oracleRole: 'AGENT_ORACLE' });
-            } else if (options.agentCategory === 'DEV') {
-                qb.andWhere("user.role IN (:...devRoles)", {
-                    devRoles: ['AGENT_WEB_DEV', 'AGENT_MOBILE_DEV']
-                });
-            }
+        // Team split: an agent belongs to the team of their role
+        if (options?.team) {
+            qb.andWhere('user.role IN (:...teamRoles)', { teamRoles: rolesForTeam(options.team) });
         }
 
         const rawMetrics = await qb
@@ -129,6 +120,11 @@ export class AgentPerformanceReport {
 
         if (options?.siteId) {
             priorityQb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
+        }
+        if (options?.team) {
+            priorityQb
+                .innerJoin('ticket.assignedTo', 'user')
+                .andWhere('user.role IN (:...teamRoles)', { teamRoles: rolesForTeam(options.team) });
         }
 
         const priorityBreakdown = await priorityQb

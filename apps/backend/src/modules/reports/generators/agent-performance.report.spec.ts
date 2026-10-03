@@ -2,10 +2,12 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AgentPerformanceReport } from './agent-performance.report';
 import { User } from '../../users/entities/user.entity';
-import { Ticket } from '../../ticketing/entities/ticket.entity';
+import { HandlingTeam, Ticket } from '../../ticketing/entities/ticket.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { ALL_DEV_TEAM } from '../utils/report-team-scope.util';
 import { Repository } from 'typeorm';
 
-describe('AgentPerformanceReport (with site + category filter)', () => {
+describe('AgentPerformanceReport (with site + team filter)', () => {
   let service: AgentPerformanceReport;
   let ticketRepo: jest.Mocked<Repository<Ticket>>;
 
@@ -76,41 +78,51 @@ describe('AgentPerformanceReport (with site + category filter)', () => {
     expect(hasSiteFilter).toBe(true);
   });
 
-  it('should apply REGULAR agent role filter when agentCategory=REGULAR', async () => {
+  const teamRolesFilter = () =>
+    mockQB._calls.find((c: any) => c.method === 'andWhere' && String(c.args[0]).includes(':...teamRoles'))?.args[1]?.teamRoles;
+
+  it('limits agents to IT Support roles when team=OPS_SUPPORT', async () => {
     await service.generate(
       { startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') },
-      { agentCategory: 'REGULAR' }
+      { team: HandlingTeam.OPS_SUPPORT }
     );
 
-    const andWhereCalls = mockQB._calls.filter((c: any) => c.method === 'andWhere');
-    const hasRoleFilter = andWhereCalls.some((c: any) => {
-      const cond = typeof c.args[0] === 'string' ? c.args[0] : '';
-      return /role/i.test(cond) && (cond.includes('AGENT') || cond.includes('IN'));
-    });
-
-    // At minimum we expect a role-related filter to be attempted
-    expect(hasRoleFilter || andWhereCalls.length > 0).toBe(true);
+    expect(teamRolesFilter()).toEqual(
+      expect.arrayContaining([UserRole.AGENT, UserRole.AGENT_ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT]),
+    );
+    expect(teamRolesFilter()).not.toContain(UserRole.AGENT_ORACLE);
   });
 
-  it('should apply ORACLE role filter when agentCategory=ORACLE', async () => {
+  it('limits agents to AGENT_ORACLE when team=ORACLE_DEV', async () => {
     await service.generate(
       { startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') },
-      { agentCategory: 'ORACLE' }
+      { team: HandlingTeam.ORACLE_DEV }
     );
 
-    const andWhereCalls = mockQB._calls.filter((c: any) => c.method === 'andWhere');
-    const hasOracleFilter = andWhereCalls.some((c: any) => {
-      const cond = typeof c.args[0] === 'string' ? c.args[0] : '';
-      return /AGENT_ORACLE/i.test(cond) || (c.args[1] && JSON.stringify(c.args[1]).includes('AGENT_ORACLE'));
-    });
+    expect(teamRolesFilter()).toEqual([UserRole.AGENT_ORACLE]);
+  });
 
-    expect(hasOracleFilter || andWhereCalls.length > 0).toBe(true);
+  it('includes every dev role when team=ALL_DEV', async () => {
+    await service.generate(
+      { startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') },
+      { team: ALL_DEV_TEAM }
+    );
+
+    expect(teamRolesFilter()).toEqual(
+      expect.arrayContaining([UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV]),
+    );
+    expect(teamRolesFilter()).not.toContain(UserRole.AGENT);
+  });
+
+  it('applies no role filter without a team', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') });
+    expect(teamRolesFilter()).toBeUndefined();
   });
 
   it('should return correct report shape even when filters are applied', async () => {
     const result = await service.generate(
       { startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') },
-      { siteId: 'site-krw', agentCategory: 'REGULAR' }
+      { siteId: 'site-krw', team: HandlingTeam.OPS_SUPPORT }
     );
 
     expect(result.reportType).toBe('AGENT_PERFORMANCE');

@@ -7,7 +7,9 @@ import { User } from '../../users/entities/user.entity';
 import { CreateScheduledReportConfigDto } from '../dto/create-scheduled-report-config.dto';
 import { UpdateScheduledReportConfigDto } from '../dto/update-scheduled-report-config.dto';
 import { SiteActor, resolveSiteScope, isCrossSiteRole, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
-import { DynamicScheduledReportsService, ALL_AGENT_ROLES } from '../generators/dynamic-scheduled-reports.service';
+import { DynamicScheduledReportsService } from '../generators/dynamic-scheduled-reports.service';
+import { ReportTeam, isReportTeam, rolesForTeam } from '../utils/report-team-scope.util';
+import { TICKET_CROSS_SITE_ROLES } from '../../../shared/core/utils/site-scope.util';
 
 /**
  * CRUD service for ScheduledReportConfig.
@@ -26,13 +28,14 @@ export class ScheduledReportsCrudService {
   ) {}
 
   /**
-   * Candidate recipients for a config: active agents at one specific site.
+   * Candidate recipients for a config: active agents of the team at one
+   * specific site, plus dev agents from any site (they work cross-site).
    *
    * Mirrors the runtime rules in DynamicScheduledReportsService.filterValidRecipients
    * so the picker can never offer someone who would be silently dropped at send time.
    * Site-locked actors always get their own site; the requested site is ignored for them.
    */
-  async listRecipientCandidates(actor: SiteActor, requestedSiteId?: string) {
+  async listRecipientCandidates(actor: SiteActor, requestedSiteId?: string, team?: string) {
     const scope = resolveSiteScope(actor);
 
     if (scope.mode === 'none') {
@@ -47,11 +50,20 @@ export class ScheduledReportsCrudService {
     // Cross-site actors may ask for any site; site-locked actors are pinned above.
     assertSiteAccess(actor, targetSiteId);
 
-    return this.userRepo
+    const roles = rolesForTeam(isReportTeam(team) ? (team as ReportTeam) : undefined);
+    const crossSiteRoles = roles.filter((r) => TICKET_CROSS_SITE_ROLES.includes(r));
+
+    const qb = this.userRepo
       .createQueryBuilder('user')
       .where('user.isActive = :isActive', { isActive: true })
-      .andWhere('user.siteId = :siteId', { siteId: targetSiteId })
-      .andWhere('user.role IN (:...roles)', { roles: ALL_AGENT_ROLES })
+      .andWhere('user.role IN (:...roles)', { roles });
+    if (crossSiteRoles.length) {
+      qb.andWhere('(user.siteId = :siteId OR user.role IN (:...crossSiteRoles))', { siteId: targetSiteId, crossSiteRoles });
+    } else {
+      qb.andWhere('user.siteId = :siteId', { siteId: targetSiteId });
+    }
+
+    return qb
       .andWhere('user.email NOT LIKE :deletedPrefix', { deletedPrefix: 'deleted_%' })
       .select(['user.id', 'user.fullName', 'user.email', 'user.role', 'user.siteId'])
       .orderBy('user.fullName', 'ASC')
@@ -97,6 +109,7 @@ export class ScheduledReportsCrudService {
       siteId: effectiveSiteId,
       recipientUserIds: dto.recipientUserIds,
       targetAgentCategory: dto.targetAgentCategory ?? null,
+      targetTeam: dto.targetTeam ?? null,
       createdById,
       isActive: true,
     });
@@ -135,6 +148,7 @@ export class ScheduledReportsCrudService {
       siteId: dto.siteId ?? existing.siteId,
       recipientUserIds: dto.recipientUserIds ?? existing.recipientUserIds,
       targetAgentCategory: dto.targetAgentCategory !== undefined ? dto.targetAgentCategory : existing.targetAgentCategory,
+      targetTeam: dto.targetTeam !== undefined ? dto.targetTeam : existing.targetTeam,
       isActive: dto.isActive !== undefined ? dto.isActive : existing.isActive,
     });
 

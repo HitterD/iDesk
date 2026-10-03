@@ -45,7 +45,7 @@ const AGENT_DEFAULT_PAGES: readonly PageKey[] = [
     ...USER_DEFAULT_PAGES, 'zoom_calendar', 'reports', 'renewal',
 ];
 const DEVELOPER_AGENT_DEFAULT_PAGES: readonly PageKey[] = [
-    'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications',
+    'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports',
 ];
 const MANAGER_DEFAULT_PAGES: readonly PageKey[] = [...AGENT_DEFAULT_PAGES, 'workloads'];
 

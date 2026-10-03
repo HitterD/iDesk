@@ -21,6 +21,7 @@ const DistributionChart = lazy(() => import('../components/ReportsCharts').then(
 const PeriodComparison = lazy(() => import('../components/ReportsCharts').then(m => ({ default: m.PeriodComparison })));
 import { PDFPreviewModal, usePDFPreview } from '../components/PDFPreviewModal';
 import { ScheduledReportsTab } from '../components/scheduled/ScheduledReportsTab';
+import { REPORT_TEAMS, ReportTeam, lockedTeamForRole, reportTeamLabel, teamQueryParam, ALL_TEAMS_LABEL } from '../reportTeams';
 
 // Types
 interface MonthlyStats {
@@ -308,8 +309,13 @@ export const BentoReportsPage: React.FC = () => {
         [currentYear]
     );
 
-    // Agent Category Filter state ('ALL' | 'ORACLE' | 'REGULAR' | 'DEV')
-    const [agentCategory, setAgentCategory] = useState<'ALL' | 'ORACLE' | 'REGULAR' | 'DEV'>('ALL');
+    // Team scope — applies to every tab and export. Agents are locked to their
+    // own team (enforced server-side too); ADMIN/MANAGER may pick any team.
+    const { user: authUser } = useAuth();
+    const lockedTeam = lockedTeamForRole(authUser?.role);
+    const [selectedTeam, setSelectedTeam] = useState<ReportTeam | null>(null);
+    const team = lockedTeam ?? selectedTeam;
+    const teamParam = teamQueryParam(team);
 
     // Monthly Stats Query
     const {
@@ -317,9 +323,9 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: monthlyLoading,
         error: monthlyError,
     } = useQuery<MonthlyStats>({
-        queryKey: ['reports', 'monthly', month, year],
+        queryKey: ['reports', 'monthly', month, year, team],
         queryFn: async () => {
-            const response = await api.get(`/reports/monthly?month=${month}&year=${year}`);
+            const response = await api.get(`/reports/monthly?month=${month}&year=${year}${teamParam}`);
             return response.data;
         },
         enabled: activeTab === 'monthly',
@@ -333,10 +339,9 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: agentLoading,
         error: agentError,
     } = useQuery<{ data: AgentMetrics[] }>({
-        queryKey: ['reports', 'agent-performance', startDate, endDate, agentCategory],
+        queryKey: ['reports', 'agent-performance', startDate, endDate, team],
         queryFn: async () => {
-            const categoryParam = agentCategory !== 'ALL' ? `&agentCategory=${agentCategory}` : '';
-            const response = await api.get(`/reports/agent-performance?startDate=${startDate}&endDate=${endDate}${categoryParam}`);
+            const response = await api.get(`/reports/agent-performance?startDate=${startDate}&endDate=${endDate}${teamParam}`);
             return response.data;
         },
         enabled: activeTab === 'agent',
@@ -352,9 +357,9 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: volumeLoading,
         error: volumeError,
     } = useQuery<{ data: TicketVolumeData }>({
-        queryKey: ['reports', 'ticket-volume', startDate, endDate],
+        queryKey: ['reports', 'ticket-volume', startDate, endDate, team],
         queryFn: async () => {
-            const response = await api.get(`/reports/ticket-volume?startDate=${startDate}&endDate=${endDate}`);
+            const response = await api.get(`/reports/ticket-volume?startDate=${startDate}&endDate=${endDate}${teamParam}`);
             return response.data;
         },
         enabled: activeTab === 'volume',
@@ -364,7 +369,6 @@ export const BentoReportsPage: React.FC = () => {
 
     const volumeData = volumeDataResponse?.data || null;
 
-    const { user: authUser } = useAuth();
     const canManageScheduled = ['ADMIN', 'MANAGER'].includes(authUser?.role || '');
 
     // Download handler with progress indicator
@@ -401,49 +405,47 @@ export const BentoReportsPage: React.FC = () => {
     };
 
     const handleExportMonthlyExcel = () => {
-        downloadFile(`/reports/export/excel?month=${month}&year=${year}`, `monthly-report-${month}-${year}.xlsx`, 'Monthly Excel Report');
+        downloadFile(`/reports/export/excel?month=${month}&year=${year}${teamParam}`, `monthly-report-${month}-${year}.xlsx`, 'Monthly Excel Report');
     };
 
     const handleExportMonthlyPDF = () => {
-        downloadFile(`/reports/export/pdf/monthly?month=${month}&year=${year}`, `monthly-report-${month}-${year}.pdf`, 'Monthly PDF Report');
+        downloadFile(`/reports/export/pdf/monthly?month=${month}&year=${year}${teamParam}`, `monthly-report-${month}-${year}.pdf`, 'Monthly PDF Report');
     };
 
     const handlePreviewMonthlyPDF = () => {
         pdfPreview.openPreview(
-            `/reports/export/pdf/monthly?month=${month}&year=${year}`,
+            `/reports/export/pdf/monthly?month=${month}&year=${year}${teamParam}`,
             `monthly-report-${month}-${year}.pdf`,
             'Monthly Summary Report'
         );
     };
 
     const handleExportAgentPDF = () => {
-        const categoryParam = agentCategory !== 'ALL' ? `&agentCategory=${agentCategory}` : '';
-        downloadFile(`/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}${categoryParam}`, `agent-performance-${startDate}-to-${endDate}.pdf`, 'Agent Performance PDF');
+        downloadFile(`/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}${teamParam}`, `agent-performance-${startDate}-to-${endDate}.pdf`, 'Agent Performance PDF');
     };
 
     const handlePreviewAgentPDF = () => {
-        const categoryParam = agentCategory !== 'ALL' ? `&agentCategory=${agentCategory}` : '';
         pdfPreview.openPreview(
-            `/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}${categoryParam}`,
+            `/reports/export/pdf/agent-performance?startDate=${startDate}&endDate=${endDate}${teamParam}`,
             `agent-performance-${startDate}-to-${endDate}.pdf`,
             'Agent Performance Report'
         );
     };
 
     const handleExportVolumePDF = () => {
-        downloadFile(`/reports/export/pdf/ticket-volume?startDate=${startDate}&endDate=${endDate}`, `ticket-volume-${startDate}-to-${endDate}.pdf`, 'Ticket Volume PDF');
+        downloadFile(`/reports/export/pdf/ticket-volume?startDate=${startDate}&endDate=${endDate}${teamParam}`, `ticket-volume-${startDate}-to-${endDate}.pdf`, 'Ticket Volume PDF');
     };
 
     const handlePreviewVolumePDF = () => {
         pdfPreview.openPreview(
-            `/reports/export/pdf/ticket-volume?startDate=${startDate}&endDate=${endDate}`,
+            `/reports/export/pdf/ticket-volume?startDate=${startDate}&endDate=${endDate}${teamParam}`,
             `ticket-volume-${startDate}-to-${endDate}.pdf`,
             'Ticket Volume Report'
         );
     };
 
     const handleExportCustomExcel = () => {
-        downloadFile(`/reports/export/excel/custom?startDate=${startDate}&endDate=${endDate}`, `comprehensive-report-${startDate}-to-${endDate}.xlsx`, 'Comprehensive Excel Report');
+        downloadFile(`/reports/export/excel/custom?startDate=${startDate}&endDate=${endDate}${teamParam}`, `comprehensive-report-${startDate}-to-${endDate}.xlsx`, 'Comprehensive Excel Report');
     };
 
     // Show error if any query failed
@@ -470,6 +472,30 @@ export const BentoReportsPage: React.FC = () => {
                         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Reports & Analytics</h1>
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Analyze performance, track metrics, and export data</p>
                     </div>
+                    {lockedTeam ? (
+                        <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-[hsl(var(--border))]">
+                            Tim: {reportTeamLabel(lockedTeam)}
+                        </span>
+                    ) : (
+                        <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-[hsl(var(--border))]" role="group" aria-label="Pilih tim">
+                            {[null, ...REPORT_TEAMS].map((t) => (
+                                <button
+                                    key={t ?? 'ALL'}
+                                    type="button"
+                                    onClick={() => setSelectedTeam(t)}
+                                    aria-pressed={selectedTeam === t}
+                                    className={cn(
+                                        "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150",
+                                        selectedTeam === t
+                                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-bold"
+                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50"
+                                    )}
+                                >
+                                    {t ? reportTeamLabel(t) : ALL_TEAMS_LABEL}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Tabs */}
@@ -628,7 +654,7 @@ export const BentoReportsPage: React.FC = () => {
                 {/* Agent Performance Tab */}
                 {activeTab === 'agent' && (
                     <div className="space-y-6">
-                        {/* Filter Bar: Date Range + Agent Category Pills + Action Buttons */}
+                        {/* Filter Bar: Date Range + Action Buttons (team picked in header) */}
                         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
                             <div className="flex flex-wrap items-center gap-3">
                                 <DateRangePicker
@@ -637,28 +663,6 @@ export const BentoReportsPage: React.FC = () => {
                                     onStartDateChange={setStartDate}
                                     onEndDateChange={setEndDate}
                                 />
-                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-[hsl(var(--border))]">
-                                    {[
-                                        { id: 'ALL', label: 'Semua Teknisi' },
-                                        { id: 'ORACLE', label: 'Oracle Support' },
-                                        { id: 'REGULAR', label: 'Operational' },
-                                        { id: 'DEV', label: 'Web & Mobile' },
-                                    ].map((cat) => (
-                                        <button
-                                            key={cat.id}
-                                            type="button"
-                                            onClick={() => setAgentCategory(cat.id as any)}
-                                            className={cn(
-                                                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150",
-                                                agentCategory === cat.id
-                                                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-bold"
-                                                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50"
-                                            )}
-                                        >
-                                            {cat.label}
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <button
