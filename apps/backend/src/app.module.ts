@@ -78,6 +78,7 @@ import { AccessRequestModule } from './modules/access-request/access-request.mod
 
 // New modules for Phase 3
 import { WorkloadModule } from './modules/workload/workload.module';
+import { AgentDashboardModule } from './modules/agent-dashboard/agent-dashboard.module';
 
 // New modules for Phase 4
 import { SoundModule } from './modules/sound/sound.module';
@@ -224,6 +225,7 @@ import { validateAuthEnvironment } from './config/auth.config';
 
         AccessRequestModule, // Phase 2: Ticket Types
         WorkloadModule, // Phase 3: Auto-Assignment
+        AgentDashboardModule, // Per-agent personal dashboard
         SoundModule, // Phase 4: Sound Notifications
         SynologyModule, // Phase 4: Synology Backup
         DataWipeModule, // Danger zone: wipe transactional data for go-live

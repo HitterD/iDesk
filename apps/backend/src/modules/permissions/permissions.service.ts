@@ -38,6 +38,7 @@ const USER_PAGES: PageDefinition[] = [
 // Pages available for AGENT role (16 pages - includes admin-only pages for ADMIN)
 const AGENT_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['AGENT', 'ADMIN'] },
+    { key: 'my_dashboard', name: 'Dashboard Saya', icon: 'UserRound', route: '/dashboard/me', roles: ['AGENT'] },
     { key: 'tickets', name: 'All Tickets', icon: 'Ticket', route: '/tickets', roles: ['AGENT', 'ADMIN'] },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['AGENT', 'ADMIN'] },
     { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['AGENT', 'ADMIN'] },
@@ -74,6 +75,7 @@ const MANAGER_PAGES: PageDefinition[] = [
 ];
 
 const ORACLE_PAGES: PageDefinition[] = [
+    { key: 'my_dashboard', name: 'Dashboard Saya', icon: 'UserRound', route: '/dashboard/me', roles: ['AGENT'] },
     { key: 'oracle_k2_tickets', name: 'Oracle K2 Request', icon: 'Database', route: '/tickets/oracle-k2', roles: ['AGENT'] },
     { key: 'web_dev_tickets', name: 'Web Developer Request', icon: 'Code2', route: '/tickets/web-developer', roles: ['AGENT'] },
     { key: 'mobile_dev_tickets', name: 'Mobile Developer Request', icon: 'Smartphone', route: '/tickets/mobile-developer', roles: ['AGENT'] },
@@ -211,6 +213,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             dashboard: true,
             tickets: true,
             zoom_calendar: true,
@@ -257,6 +260,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             dashboard: true,
             tickets: true,
             zoom_calendar: true,
@@ -296,6 +300,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             web_dev_tickets: true,
             mobile_dev_tickets: true,
@@ -320,6 +325,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             web_dev_tickets: true,
             mobile_dev_tickets: true,
@@ -344,6 +350,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             web_dev_tickets: true,
             mobile_dev_tickets: true,

@@ -144,6 +144,12 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
         icon: Ticket,
         resources: [
             {
+                key: 'my_dashboard',
+                label: 'Dashboard Saya',
+                description: 'Personal agent dashboard: own tickets, SLA, trend, rating and workload',
+                icon: LayoutDashboard,
+            },
+            {
                 key: 'dashboard',
                 label: 'Dashboard Overview',
                 description: 'Main metrics, SLA statistics, ticket volume, and live feeds',

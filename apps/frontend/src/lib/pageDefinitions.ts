@@ -22,6 +22,7 @@ export const USER_PAGES: PageDefinition[] = [
 
 // Pages available for AGENT role (16 pages including admin-only)
 export const AGENT_PAGES: PageDefinition[] = [
+    { key: 'my_dashboard', name: 'Dashboard Saya', icon: 'UserRound', route: '/dashboard/me' },
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard' },
     { key: 'tickets', name: 'IT Support Tickets', icon: 'Ticket', route: '/tickets' },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests' },

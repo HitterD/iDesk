@@ -83,7 +83,9 @@ describe('BentoSidebar', () => {
     it('renders dashboard, navigation groups, and pinned settings', async () => {
         renderSidebar('/dashboard');
 
-        expect(screen.getByText('Dashboard')).toBeInTheDocument();
+        expect(screen.getByText('Dashboard Tim')).toBeInTheDocument();
+        // ADMIN is not an agent, so no personal dashboard entry
+        expect(screen.queryByText('Dashboard Saya')).not.toBeInTheDocument();
         expect(screen.getByText('Request Center')).toBeInTheDocument();
         expect(screen.getByText('Resources')).toBeInTheDocument();
         expect(screen.getByText('Management')).toBeInTheDocument();

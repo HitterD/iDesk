@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Mail, Building, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, User, Mail, Building, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { SITE_COLORS, getRoleConfig, getRoleLabel, type UserRoleKey } from './agent-management/agent-types';
 import { scopeOfRole } from '@/lib/constants/service-scope';
+import { agentDashboardPath, isAgentRole } from '@/lib/roleHome';
+import { useAuth } from '@/stores/useAuth';
+
+/** Roles allowed to open another agent's dashboard (backend also enforces manager scope). */
+const AGENT_DASHBOARD_VIEWER_ROLES = ['ADMIN', 'MANAGER'];
 
 interface Site {
     id: string;
@@ -92,6 +98,9 @@ const getAvatarColor = (name: string): string => {
 
 export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'tickets'>('overview');
+    const navigate = useNavigate();
+    const viewerRole = useAuth((s) => s.user?.role);
+    const canViewDashboard = !!agent && isAgentRole(agent.role) && AGENT_DASHBOARD_VIEWER_ROLES.includes(viewerRole ?? '');
 
     // Fetch recent tickets for this agent
     const { data: recentTickets = [] } = useQuery<RecentTicket[]>({
@@ -400,10 +409,20 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             )}
                         </div>
 
+                        {canViewDashboard && (
+                            <button
+                                onClick={() => { onClose(); navigate(agentDashboardPath(agent.id)); }}
+                                className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-colors"
+                            >
+                                <LayoutDashboard className="w-4 h-4" />
+                                Lihat Dashboard
+                            </button>
+                        )}
+
                         {/* Close Button */}
                         <button
                             onClick={onClose}
-                            className="mt-6 w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            className={cn(canViewDashboard ? 'mt-3' : 'mt-6', 'w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors')}
                         >
                             Close
                         </button>
