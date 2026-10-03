@@ -23,7 +23,7 @@ export const Logo: React.FC<LogoProps> = ({
   animated = false
 }) => {
   const isIconVariant = variant === 'icon';
-  const logoSrc = isIconVariant ? '/idesk-icon.png' : '/idesk-logo.png';
+  const logoSrc = isIconVariant ? '/idesk-icon.png' : '/idesk-logo.webp';
   const logoAlt = isIconVariant ? 'iDesk Icon' : 'iDesk Logo';
 
   return (
