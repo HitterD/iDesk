@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { TicketModule } from '../entities/ticket-module.entity';
 import { CreateTicketModuleDto, UpdateTicketModuleDto } from '../dto/ticket-module.dto';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 
 @Injectable()
 export class TicketModulesService {
@@ -84,6 +85,7 @@ export class TicketModulesService {
             sortOrder: dto.sortOrder ?? (count + 1),
             isActive: dto.isActive ?? true,
             isSystem: false,
+            scope: dto.scope ?? ServiceScope.ICT,
             handlingTeams: dto.handlingTeams && dto.handlingTeams.length > 0 ? dto.handlingTeams : [],
             categories: dto.categories && dto.categories.length > 0 ? dto.categories : [],
             ticketTypes: dto.ticketTypes && dto.ticketTypes.length > 0 ? dto.ticketTypes : [],
@@ -124,6 +126,7 @@ export class TicketModulesService {
         if (dto.color !== undefined) module.color = dto.color;
         if (dto.sortOrder !== undefined) module.sortOrder = dto.sortOrder;
         if (dto.isActive !== undefined) module.isActive = dto.isActive;
+        if (dto.scope !== undefined) module.scope = dto.scope;
         if (dto.handlingTeams !== undefined) module.handlingTeams = dto.handlingTeams;
         if (dto.categories !== undefined) module.categories = dto.categories;
         if (dto.ticketTypes !== undefined) module.ticketTypes = dto.ticketTypes;

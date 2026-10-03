@@ -12,6 +12,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
+import { ServiceScope, canHandleScope } from '../../shared/core/utils/service-scope.util';
 import {
     AssignmentPolicy,
     ModuleAssignmentPolicyService,
@@ -476,13 +477,15 @@ export class WorkloadService {
      */
     private async findCandidateAgents(siteId: string, policy?: AssignmentPolicy): Promise<User[]> {
         const adminRoles = [UserRole.ADMIN, UserRole.AGENT_ADMIN];
+        // Never hand a ticket to someone from another department scope (ICT / HC).
+        const scope = policy?.module?.scope ?? ServiceScope.ICT;
 
         if (policy && policy.userIds.length > 0) {
             const users = await this.userRepo.find({
                 where: { id: In(policy.userIds), isActive: true },
             });
             // Strictly exclude admin roles from auto-assign even if explicitly listed in module userIds
-            return users.filter(u => !adminRoles.includes(u.role as UserRole));
+            return users.filter(u => !adminRoles.includes(u.role as UserRole) && canHandleScope(u.role, scope));
         }
 
         const rawRoles = policy?.roles?.length
@@ -490,7 +493,7 @@ export class WorkloadService {
             : [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT];
 
         // Strictly exclude admin roles from auto-assign candidate roles
-        const roles = rawRoles.filter(r => !adminRoles.includes(r));
+        const roles = rawRoles.filter(r => !adminRoles.includes(r) && canHandleScope(r, scope));
         if (roles.length === 0) {
             return [];
         }

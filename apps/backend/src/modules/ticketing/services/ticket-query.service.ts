@@ -8,6 +8,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
 import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
+import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
 import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
 
@@ -85,6 +86,7 @@ export class TicketQueryService {
         const qb = this.ticketRepo.createQueryBuilder('ticket');
         applyOracleFilter(qb, role);
         applySiteFilter(qb, role, userSiteId);
+        applyServiceScopeFilter(qb, role);
         if (excludeCategory) {
             const excludedCategories = excludeCategory.split(',').map((cat) => cat.trim());
             if (excludedCategories.length > 0) {
@@ -163,6 +165,7 @@ export class TicketQueryService {
             });
         }
 
+        applyServiceScopeFilter(query, role);
         const rawTickets = await query.getMany();
         const sla = await this.slaSnapshotFor(rawTickets);
         return rawTickets.map((ticket) => ({
@@ -240,6 +243,7 @@ export class TicketQueryService {
             // Site isolation: cross-site roles may narrow by site, everyone else is
             // pinned to their own — and fail closed when they have none.
             applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+            applyServiceScopeFilter(qb, role);
         }
 
         // Client My Tickets includes every ticket owned by or shared with the requester.
@@ -428,6 +432,7 @@ export class TicketQueryService {
 
         // Site isolation (matches findAllPaginated behaviour)
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(qb, role);
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });
@@ -537,6 +542,7 @@ export class TicketQueryService {
             );
 
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(qb, role);
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });
@@ -645,6 +651,7 @@ export class TicketQueryService {
             );
 
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(qb, role);
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });
@@ -1042,6 +1049,7 @@ export class TicketQueryService {
 
         // Cross-site filter if applicable
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(qb, role);
 
         if (status) qb.andWhere('ticket.status = :status', { status });
         if (priority) qb.andWhere('ticket.priority = :priority', { priority });

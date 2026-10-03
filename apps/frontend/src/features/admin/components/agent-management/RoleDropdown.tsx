@@ -4,6 +4,7 @@ import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
 import { ROLE_CONFIG, ROLE_ORDER, getRoleConfig, getRoleLabel } from './agent-types';
+import { scopeOfRole } from '@/lib/constants/service-scope';
 
 const DROPDOWN_H = 320;
 const DROPDOWN_W = 220;
@@ -140,6 +141,7 @@ export const RoleDropdown: React.FC<RoleDropdownProps> = ({
                                 const isSelected = roleKey === user.role;
                                 const conf = ROLE_CONFIG[roleKey];
                                 const IconComp = conf.icon;
+                                const scope = scopeOfRole(roleKey);
 
                                 return (
                                     <button
@@ -160,8 +162,13 @@ export const RoleDropdown: React.FC<RoleDropdownProps> = ({
                                                 <IconComp className="w-3.5 h-3.5" aria-hidden="true" />
                                             </div>
                                             <div className="min-w-0">
-                                                <div className="font-semibold text-slate-900 dark:text-white leading-tight">
+                                                <div className="font-semibold text-slate-900 dark:text-white leading-tight flex items-center gap-1.5">
                                                     {conf.label}
+                                                    {scope && (
+                                                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                                            {scope}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs text-slate-400 dark:text-slate-500 truncate">
                                                     {conf.description}

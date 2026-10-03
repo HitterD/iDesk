@@ -21,7 +21,7 @@ const DistributionChart = lazy(() => import('../components/ReportsCharts').then(
 const PeriodComparison = lazy(() => import('../components/ReportsCharts').then(m => ({ default: m.PeriodComparison })));
 import { PDFPreviewModal, usePDFPreview } from '../components/PDFPreviewModal';
 import { ScheduledReportsTab } from '../components/scheduled/ScheduledReportsTab';
-import { REPORT_TEAMS, ReportTeam, lockedTeamForRole, reportTeamLabel, teamQueryParam, ALL_TEAMS_LABEL } from '../reportTeams';
+import { REPORT_TEAMS, ReportTeam, lockedTeamForRole, reportTeamLabel, teamQueryParam, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '../reportTeams';
 
 // Types
 interface MonthlyStats {
@@ -474,10 +474,11 @@ export const BentoReportsPage: React.FC = () => {
                     </div>
                     {lockedTeam ? (
                         <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-[hsl(var(--border))]">
-                            Tim: {reportTeamLabel(lockedTeam)}
+                            {REPORT_TEAMS_SCOPE_TITLE}: {reportTeamLabel(lockedTeam)}
                         </span>
                     ) : (
                         <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-[hsl(var(--border))]" role="group" aria-label="Pilih tim">
+                            <span className="px-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{REPORT_TEAMS_SCOPE_TITLE}</span>
                             {[null, ...REPORT_TEAMS].map((t) => (
                                 <button
                                     key={t ?? 'ALL'}

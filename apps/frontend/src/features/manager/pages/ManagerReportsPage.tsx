@@ -29,7 +29,7 @@ import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL } from '@/features/reports/reportTeams';
+import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '@/features/reports/reportTeams';
 
 type ReportType = 'consolidated' | 'per-site' | 'comparison';
 type ExportFormat = 'pdf' | 'excel';
@@ -241,7 +241,7 @@ export const ManagerReportsPage = () => {
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Users className="w-5 h-5 text-primary" />
-                                Pilih Tim
+                                Pilih {REPORT_TEAMS_SCOPE_TITLE}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
