@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { HandlingTeam, TicketType } from './ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 
 @Entity('ticket_modules')
 export class TicketModule {
@@ -38,6 +39,10 @@ export class TicketModule {
 
     @Column({ type: 'boolean', default: false })
     isSystem: boolean;
+
+    /** Department that services this module's tickets (ICT today, HC later). */
+    @Column({ type: 'varchar', length: 10, default: ServiceScope.ICT })
+    scope: ServiceScope;
 
     @Column({
         type: 'varchar',

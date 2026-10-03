@@ -29,7 +29,7 @@ import {
     RecipientUser,
     SiteOption
 } from './types';
-import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL } from '../../reportTeams';
+import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '../../reportTeams';
 
 const SUPPORT_ROLES = ['AGENT', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT'];
 
@@ -402,7 +402,7 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
                                 {/* Team scope (all report types) */}
                                 <div className="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
                                     <label className="block text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                                        Tim:
+                                        {REPORT_TEAMS_SCOPE_TITLE}:
                                     </label>
                                     <div className="grid grid-cols-3 gap-1.5">
                                         {[null, ...REPORT_TEAMS].map((t) => (

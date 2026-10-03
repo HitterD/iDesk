@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { SITE_COLORS, getRoleConfig, getRoleLabel, type UserRoleKey } from './agent-management/agent-types';
+import { scopeOfRole } from '@/lib/constants/service-scope';
 
 interface Site {
     id: string;
@@ -151,6 +152,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     const roleConfig = getRoleConfig(agent.role);
     const RoleIcon = roleConfig.icon;
+    const serviceScope = scopeOfRole(agent.role);
 
     const statCards = [
         { label: 'Open', value: agent.openTickets || 0, icon: Ticket, color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
@@ -253,6 +255,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                 <RoleIcon className="w-3 h-3" aria-hidden="true" />
                                 {getRoleLabel(agent.role)}
                             </span>
+                            {serviceScope && (
+                                <span className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" title="Lingkup departemen">
+                                    {serviceScope}
+                                </span>
+                            )}
                             {agent.jobTitle && (
                                 <span className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-1">
                                     <Briefcase className="w-3 h-3" />

@@ -1,7 +1,8 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsInt, IsArray, IsUUID, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsInt, IsArray, IsUUID, IsEnum, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HandlingTeam, TicketType } from '../entities/ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 
 export class CreateTicketModuleDto {
     @ApiProperty({ description: 'Display name of the module', example: 'Network & Infrastructure' })
@@ -39,6 +40,11 @@ export class CreateTicketModuleDto {
     @IsBoolean()
     @IsOptional()
     isActive?: boolean;
+
+    @ApiPropertyOptional({ description: 'Department scope servicing this module', enum: ServiceScope, default: ServiceScope.ICT })
+    @IsEnum(ServiceScope)
+    @IsOptional()
+    scope?: ServiceScope;
 
     @ApiPropertyOptional({ description: 'Target handling teams', enum: HandlingTeam, isArray: true })
     @IsArray()
@@ -116,6 +122,11 @@ export class UpdateTicketModuleDto {
     @IsBoolean()
     @IsOptional()
     isActive?: boolean;
+
+    @ApiPropertyOptional({ description: 'Department scope servicing this module', enum: ServiceScope })
+    @IsEnum(ServiceScope)
+    @IsOptional()
+    scope?: ServiceScope;
 
     @ApiPropertyOptional({ description: 'Target handling teams' })
     @IsArray()

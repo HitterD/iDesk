@@ -3,6 +3,8 @@
  * Removes usage of 'any' types throughout the application
  */
 
+import type { ServiceScope } from '@/lib/constants/service-scope';
+
 export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
@@ -181,6 +183,8 @@ export interface TicketModule {
     assigneeUserIds?: string[];
     /** Enable workload auto-assign for tickets landing in this module. */
     autoAssignEnabled?: boolean;
+    /** Department that services this module's tickets (ICT / HC). */
+    scope?: ServiceScope;
     createdAt?: string;
     updatedAt?: string;
 }

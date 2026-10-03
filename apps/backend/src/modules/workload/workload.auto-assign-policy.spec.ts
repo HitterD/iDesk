@@ -160,6 +160,22 @@ describe('WorkloadService — per-module auto-assign policy', () => {
         });
     });
 
+    it('never auto-assigns across department scope: an HC module gets no ICT agents', async () => {
+        assignmentPolicy.resolvePolicy.mockResolvedValue(
+            policy({
+                autoAssignEnabled: true,
+                userIds: ['ops-1'],
+                module: { name: 'HC Requests', scope: 'HC' },
+            }),
+        );
+        userRepo.find.mockResolvedValue([
+            { id: 'ops-1', fullName: 'Beny', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', isActive: true },
+        ]);
+
+        await expect(service.autoAssignTicket('t1')).rejects.toThrow('No available agents for this ticket module');
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
     it('does not increment workload or write to DB when target agent is ADMIN or AGENT_ADMIN', async () => {
         userRepo.findOne = jest.fn().mockResolvedValue({
             id: 'admin-1',
