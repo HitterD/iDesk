@@ -29,6 +29,7 @@ import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL } from '@/features/reports/reportTeams';
 
 type ReportType = 'consolidated' | 'per-site' | 'comparison';
 type ExportFormat = 'pdf' | 'excel';
@@ -83,6 +84,7 @@ const REPORT_SECTIONS: ReportSection[] = [
 export const ManagerReportsPage = () => {
     const [reportType, setReportType] = useState<ReportType>('consolidated');
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
+    const [team, setTeam] = useState<ReportTeam | null>(null);
     const [datePreset, setDatePreset] = useState<DatePreset>('month');
     const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
     const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
@@ -133,6 +135,7 @@ export const ManagerReportsPage = () => {
             const response = await api.post('/manager/reports/generate', {
                 reportType,
                 siteIds: selectedSites,
+                ...(team ? { team } : {}),
                 dateFrom: format(dateFrom, 'yyyy-MM-dd'),
                 dateTo: format(dateTo, 'yyyy-MM-dd'),
                 sections: selectedSections,
@@ -227,6 +230,34 @@ export const ManagerReportsPage = () => {
                                     >
                                         <div className="font-bold text-sm">{type.label}</div>
                                         <div className="text-xs text-muted-foreground mt-1">{type.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Team Selection */}
+                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                        <CardHeader>
+                            <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                                <Users className="w-5 h-5 text-primary" />
+                                Pilih Tim
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-2" role="group" aria-label="Pilih tim">
+                                {[null, ...REPORT_TEAMS].map((t) => (
+                                    <button
+                                        key={t ?? 'ALL'}
+                                        type="button"
+                                        onClick={() => setTeam(t)}
+                                        aria-pressed={team === t}
+                                        className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold transition-all duration-150 ${team === t
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-border/80 hover:border-primary/40 bg-background text-foreground'
+                                            }`}
+                                    >
+                                        {t ? reportTeamLabel(t) : ALL_TEAMS_LABEL}
                                     </button>
                                 ))}
                             </div>

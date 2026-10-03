@@ -137,7 +137,7 @@ describe('ScheduledReports site isolation', () => {
 
     it.each(SITE_LOCKED_ROLES)('pins %s to their own site and ignores the requested site', async (role) => {
       const qb = setupUserQb();
-      await service.listRecipientCandidates(makeActor(role, SITE_SPJ), SITE_SMG);
+      await service.listRecipientCandidates(makeActor(role, SITE_SPJ), SITE_SMG, 'OPS_SUPPORT');
 
       expect(qb.andWhere).toHaveBeenCalledWith('user.siteId = :siteId', { siteId: SITE_SPJ });
       const siteCalls = (qb.andWhere as jest.Mock).mock.calls.filter((c: any[]) => c[0] === 'user.siteId = :siteId');
@@ -162,9 +162,27 @@ describe('ScheduledReports site isolation', () => {
 
     it.each(CROSS_SITE_ROLES)('%s can list recipients for any named site', async (role) => {
       const qb = setupUserQb();
-      await service.listRecipientCandidates(makeActor(role, null), SITE_SMG);
+      await service.listRecipientCandidates(makeActor(role, null), SITE_SMG, 'OPS_SUPPORT');
 
       expect(qb.andWhere).toHaveBeenCalledWith('user.siteId = :siteId', { siteId: SITE_SMG });
+    });
+
+    it('includes dev agents from any site (they work cross-site)', async () => {
+      const qb = setupUserQb();
+      await service.listRecipientCandidates(makeActor(UserRole.ADMIN, null), SITE_SPJ);
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(user.siteId = :siteId OR user.role IN (:...crossSiteRoles))',
+        { siteId: SITE_SPJ, crossSiteRoles: [UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV] },
+      );
+    });
+
+    it('narrows candidates to the requested team', async () => {
+      const qb = setupUserQb();
+      await service.listRecipientCandidates(makeActor(UserRole.ADMIN, null), SITE_SPJ, 'WEB_DEV');
+
+      const roleCall = (qb.andWhere as jest.Mock).mock.calls.find((c: any[]) => c[0] === 'user.role IN (:...roles)');
+      expect(roleCall[1].roles).toEqual([UserRole.AGENT_WEB_DEV]);
     });
 
     it('never offers non-agent roles', async () => {
@@ -176,6 +194,7 @@ describe('ScheduledReports site isolation', () => {
       expect(roleCall[1].roles).not.toContain(UserRole.USER);
       expect(roleCall[1].roles).not.toContain(UserRole.ADMIN);
       expect(roleCall[1].roles).toContain(UserRole.AGENT_ORACLE);
+      expect(roleCall[1].roles).toContain(UserRole.AGENT_MOBILE_DEV);
     });
 
     it('only offers active users', async () => {

@@ -63,6 +63,7 @@ const mockConfigs = [
         site: { id: 'site-1', code: 'SPI', name: 'Sepanjang' },
         recipientUserIds: ['user-1', 'user-2'],
         targetAgentCategory: null,
+        targetTeam: null,
         isActive: true,
         lastRunAt: '2026-08-20T08:00:00.000Z',
         createdAt: '2026-08-01T00:00:00.000Z',

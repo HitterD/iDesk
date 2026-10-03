@@ -81,12 +81,13 @@ export class ScheduledReportsController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'List eligible recipients (active agents) for a site' })
   @ApiQuery({ name: 'siteId', required: false, description: 'Required for cross-site roles; ignored for site-locked actors' })
-  async listRecipients(@Req() req: any, @Query('siteId') siteId?: string) {
+  @ApiQuery({ name: 'team', required: false, description: 'Only agents of this report team' })
+  async listRecipients(@Req() req: any, @Query('siteId') siteId?: string, @Query('team') team?: string) {
     const actor: SiteActor = {
       role: req.user.role,
       siteId: req.user.siteId ?? null,
     };
-    const data = await this.crud.listRecipientCandidates(actor, siteId);
+    const data = await this.crud.listRecipientCandidates(actor, siteId, team);
     return { success: true, data };
   }
 

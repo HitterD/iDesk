@@ -331,6 +331,7 @@ export class PDFGeneratorService {
         report: {
             period: string;
             sites: string[];
+            team?: string;
             sections: string[];
             ticketStats?: { total: number; byPriority: Record<string, number>; byStatus: Record<string, number>; byCategory?: Record<string, number>; created: number; resolved: number };
             agentPerformance?: Array<{ agentName: string; siteCode: string; totalAssigned: number; resolved: number; avgResolutionHours: number; slaCompliance: number }>;
@@ -345,9 +346,10 @@ export class PDFGeneratorService {
         const doc = new PDFDocument({ margin: 36, size: 'A4', bufferPages: true });
         doc.pipe(res);
 
-        const scopeLabel = report.sites && report.sites.length > 0
+        const siteScope = report.sites && report.sites.length > 0
             ? `Site: ${report.sites.join(', ')}`
             : 'Seluruh Site Operasional';
+        const scopeLabel = report.team ? `${siteScope} — ${report.team}` : siteScope;
 
         // Corporate Header
         this.drawCorporateHeader(doc, {
