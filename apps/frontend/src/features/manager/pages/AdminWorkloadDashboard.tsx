@@ -24,6 +24,7 @@ import { PriorityWeightsDialog } from '../components/PriorityWeightsDialog';
 import { AgentPersonalWorkloadCard } from '../components/AgentPersonalWorkloadCard';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { useAuth } from '@/stores/useAuth';
+import { agentDashboardPath } from '@/lib/roleHome';
 import { formatDistanceToNow, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { RefreshCw, Users, Shield, Zap } from 'lucide-react';
@@ -37,6 +38,8 @@ export const AdminWorkloadDashboard: React.FC = () => {
 
     const isAdmin = user?.role === 'ADMIN';
     const isManager = user?.role === 'MANAGER';
+    /** ADMIN syncs and opens dashboards; MANAGER only opens dashboards. */
+    const showActions = isAdmin || isManager;
     const isAgentOps = user?.role === 'AGENT_OPERATIONAL_SUPPORT' || user?.role === 'AGENT' || user?.role === 'AGENT_ADMIN';
 
     const [agents, setAgents] = useState<AgentWorkloadDto[]>([]);
@@ -455,7 +458,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                     <TableHead className="w-[180px] text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider h-11">
                                         Penugasan Terakhir
                                     </TableHead>
-                                    {isAdmin && (
+                                    {showActions && (
                                         <TableHead className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider h-11 pr-6">
                                             Aksi
                                         </TableHead>
@@ -465,7 +468,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
                             <TableBody>
                                 {loading && agents.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={isAdmin ? 7 : 6} className="h-64 text-center text-sm text-slate-500">
+                                        <TableCell colSpan={showActions ? 7 : 6} className="h-64 text-center text-sm text-slate-500">
                                             <div className="flex flex-col items-center justify-center gap-2">
                                                 <RefreshCw className="w-5 h-5 animate-spin text-primary opacity-60" />
                                                 <span>Memuat data beban kerja...</span>
@@ -474,7 +477,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                     </TableRow>
                                 ) : filteredAgents.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={isAdmin ? 7 : 6} className="h-56 text-center text-slate-500">
+                                        <TableCell colSpan={showActions ? 7 : 6} className="h-56 text-center text-slate-500">
                                             <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
                                                 <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
                                                     <Users className="w-6 h-6" />
@@ -677,17 +680,24 @@ export const AdminWorkloadDashboard: React.FC = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Actions (ADMIN Only) */}
-                                                {isAdmin && (
-                                                    <TableCell className="py-3.5 pr-6 text-right">
+                                                {/* Actions: dashboard (ADMIN/MANAGER), sync (ADMIN only) */}
+                                                {showActions && (
+                                                    <TableCell className="py-3.5 pr-6 text-right space-x-2 whitespace-nowrap">
                                                         <button
+                                                            onClick={() => navigate(agentDashboardPath(agent.agentId))}
+                                                            title="Lihat dashboard agen"
+                                                            className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white px-2.5 py-1 rounded-lg border border-[hsl(var(--border))] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs"
+                                                        >
+                                                            Dashboard
+                                                        </button>
+                                                        {isAdmin && <button
                                                             onClick={() => handleRecalculate(agent.agentId)}
                                                             disabled={recalculating === agent.agentId}
                                                             title="Sinkronisasi ulang beban agen dari tiket aktif"
                                                             className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 px-2.5 py-1 rounded-lg border border-[hsl(var(--border))] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs"
                                                         >
                                                             {recalculating === agent.agentId ? '…' : 'Sync'}
-                                                        </button>
+                                                        </button>}
                                                     </TableCell>
                                                 )}
                                             </TableRow>

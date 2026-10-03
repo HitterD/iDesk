@@ -14,6 +14,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 let mockPageAccess: Record<string, boolean> = {
+    my_dashboard: true,
     oracle_k2_tickets: true,
     notifications: true,
 };
@@ -63,6 +64,7 @@ const LocationDisplay = () => {
 describe('Oracle K2 Route & Redirection Access', () => {
     beforeEach(() => {
         mockPageAccess = {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             notifications: true,
         };
@@ -89,7 +91,7 @@ describe('Oracle K2 Route & Redirection Access', () => {
         expect(screen.getByTestId('location-display')).toHaveTextContent('/tickets/oracle-k2');
     });
 
-    it('redirects AGENT_ORACLE from root (/) to /tickets/oracle-k2', async () => {
+    it('redirects AGENT_ORACLE from root (/) to their own dashboard', async () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>
@@ -101,11 +103,11 @@ describe('Oracle K2 Route & Redirection Access', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByTestId('location-display')).toHaveTextContent('/tickets/oracle-k2');
+            expect(screen.getByTestId('location-display')).toHaveTextContent('/dashboard/me');
         }, { timeout: 4000 });
     });
 
-    it('redirects AGENT_ORACLE from /dashboard to /tickets/oracle-k2', async () => {
+    it('redirects AGENT_ORACLE from /dashboard to their own dashboard', async () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>
@@ -117,11 +119,11 @@ describe('Oracle K2 Route & Redirection Access', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByTestId('location-display')).toHaveTextContent('/tickets/oracle-k2');
+            expect(screen.getByTestId('location-display')).toHaveTextContent('/dashboard/me');
         }, { timeout: 4000 });
     });
 
-    it('redirects AGENT_ORACLE from /tickets/list to /tickets/oracle-k2', async () => {
+    it('redirects AGENT_ORACLE from /tickets/list to their own dashboard', async () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>
@@ -133,11 +135,11 @@ describe('Oracle K2 Route & Redirection Access', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByTestId('location-display')).toHaveTextContent('/tickets/oracle-k2');
+            expect(screen.getByTestId('location-display')).toHaveTextContent('/dashboard/me');
         }, { timeout: 4000 });
     });
 
-    it('redirects AGENT_ORACLE from /kanban to /tickets/oracle-k2', async () => {
+    it('redirects AGENT_ORACLE from /kanban to their own dashboard', async () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>
@@ -149,7 +151,7 @@ describe('Oracle K2 Route & Redirection Access', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByTestId('location-display')).toHaveTextContent('/tickets/oracle-k2');
+            expect(screen.getByTestId('location-display')).toHaveTextContent('/dashboard/me');
         }, { timeout: 4000 });
     });
 });

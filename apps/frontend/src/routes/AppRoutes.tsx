@@ -16,6 +16,7 @@ const BentoLayout = lazy(() => import('../components/layout/BentoLayout').then(m
 const ClientLayout = lazy(() => import('../components/layout/ClientLayout').then(m => ({ default: m.ClientLayout })));
 
 const BentoDashboardPage = lazy(() => import('../features/dashboard/pages/BentoDashboardPage').then(m => ({ default: m.BentoDashboardPage })));
+const AgentDashboardPage = lazy(() => import('../features/dashboard/agent/AgentDashboardPage').then(m => ({ default: m.AgentDashboardPage })));
 
 // Lazy loaded pages (code splitting for all feature modules)
 const BentoTicketKanban = lazy(() => import('../features/ticket-board/components/BentoTicketKanban').then(m => ({ default: m.BentoTicketKanban })));
@@ -87,9 +88,10 @@ const PageLoader = () => (
 
 import { useAuth } from '../stores/useAuth';
 import { useSessionRestore } from '../hooks/useSessionRestore';
+import { getRoleHome } from '../lib/roleHome';
 
 // Smart redirect component that routes users to their role-appropriate home page
-// Prevents MANAGER/USER from being sent to /dashboard (ADMIN/AGENT portal)
+// Prevents MANAGER/USER/dev agents from being sent to pages they cannot open
 const RoleBasedRedirect = () => {
     const { isAuthenticated, user } = useAuth();
 
@@ -97,20 +99,7 @@ const RoleBasedRedirect = () => {
         return <Navigate to="/login" replace />; // Default fallback for unauthenticated sessions
     }
 
-    const userRole = user.role;
-    if (userRole === 'MANAGER') {
-        return <Navigate to="/manager/dashboard" replace />;
-    } else if (userRole === 'USER') {
-        return <Navigate to="/client/my-tickets" replace />;
-    } else if (userRole === 'AGENT_ORACLE') {
-        return <Navigate to="/tickets/oracle-k2" replace />;
-    } else if (userRole === 'AGENT_WEB_DEV') {
-        return <Navigate to="/tickets/web-developer" replace />;
-    } else if (userRole === 'AGENT_MOBILE_DEV') {
-        return <Navigate to="/tickets/mobile-developer" replace />;
-    }
-    // ADMIN and AGENT go to admin/agent portal
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getRoleHome(user.role)} replace />;
 };
 
 // E-Form email links use the portal-agnostic `/eform/:id`; resolve it to the
@@ -191,6 +180,8 @@ export default function AppRoutes() {
                     }
                 >
                     <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" requiredPageAccess="dashboard" />} />
+                    <Route path="dashboard/me" element={<LazyRoute component={AgentDashboardPage} featureName="Dashboard Saya" requiredPageAccess="my_dashboard" />} />
+                    <Route path="dashboard/agent/:id" element={<LazyRoute component={AgentDashboardPage} featureName="Dashboard Agent" allowedRoles={['ADMIN', 'MANAGER']} />} />
 
                     <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" requiredPageAccess="tickets" />} />
                     <Route path="tickets" element={<Navigate to="/tickets/list" replace />} />
