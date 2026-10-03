@@ -5,7 +5,13 @@ import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
 import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
+import { REPORT_TEAMS, ReportScope, resolveReportScope } from './utils/report-team-scope.util';
 
+/**
+ * Every endpoint accepts `team` and `siteId`. They are resolved against the
+ * caller: agents are pinned to their own team (and support agents to their
+ * own site); ADMIN/MANAGER may pick any team and site.
+ */
 @ApiTags('Reports')
 @ApiBearerAuth()
 @Controller('reports')
@@ -13,6 +19,18 @@ import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 @PageAccess('reports')
 export class ReportsController {
     constructor(private readonly reportsService: ReportsService) { }
+
+    private scopeFor(req: any, team?: string, siteId?: string): ReportScope {
+        return resolveReportScope(
+            { role: req.user?.role, siteId: req.user?.siteId ?? null },
+            team,
+            siteId,
+        );
+    }
+
+    private userIdOf(req: any): string | undefined {
+        return req.user?.id || req.user?.userId;
+    }
 
     // ==========================================
     // JSON Reports (Data)
@@ -22,29 +40,35 @@ export class ReportsController {
     @ApiOperation({ summary: 'Get monthly ticket statistics' })
     @ApiQuery({ name: 'month', type: Number, example: 11 })
     @ApiQuery({ name: 'year', type: Number, example: 2024 })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async getMonthlyStats(
+        @Req() req: any,
         @Query('month') month: number,
         @Query('year') year: number,
         @Query('siteId') siteId?: string,
+        @Query('team') team?: string,
     ) {
-        return this.reportsService.getMonthlyStats(Number(month), Number(year), siteId);
+        return this.reportsService.getMonthlyStats(Number(month), Number(year), this.scopeFor(req, team, siteId));
     }
 
     @Get('agent-performance')
     @ApiOperation({ summary: 'Get agent performance metrics for date range' })
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async getAgentPerformance(
+        @Req() req: any,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Query('siteId') siteId?: string,
-        @Query('agentCategory') agentCategory?: 'REGULAR' | 'ORACLE' | 'ALL',
+        @Query('team') team?: string,
     ) {
         return this.reportsService.getAgentPerformance(
             new Date(startDate),
             new Date(endDate),
-            siteId,
-            agentCategory,
+            this.scopeFor(req, team, siteId),
         );
     }
 
@@ -53,15 +77,18 @@ export class ReportsController {
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
     @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async getTicketVolume(
+        @Req() req: any,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Query('siteId') siteId?: string,
+        @Query('team') team?: string,
     ) {
         return this.reportsService.getTicketVolume(
             new Date(startDate),
             new Date(endDate),
-            siteId,
+            this.scopeFor(req, team, siteId),
         );
     }
 
@@ -73,30 +100,41 @@ export class ReportsController {
     @ApiOperation({ summary: 'Download monthly report as Excel' })
     @ApiQuery({ name: 'month', type: Number, example: 11 })
     @ApiQuery({ name: 'year', type: Number, example: 2024 })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async exportExcel(
         @Res() res: Response,
         @Query('month') month: number,
         @Query('year') year: number,
         @Req() req: any,
+        @Query('siteId') siteId?: string,
+        @Query('team') team?: string,
     ) {
-        return this.reportsService.generateExcelReport(res, Number(month), Number(year), req.user?.id || req.user?.userId);
+        const scope = this.scopeFor(req, team, siteId);
+        return this.reportsService.generateExcelReport(res, Number(month), Number(year), this.userIdOf(req), scope);
     }
 
     @Get('export/excel/custom')
     @ApiOperation({ summary: 'Download comprehensive Excel report for custom date range' })
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async exportCustomExcel(
         @Res() res: Response,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Req() req: any,
+        @Query('siteId') siteId?: string,
+        @Query('team') team?: string,
     ) {
+        const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateCustomRangeExcel(
             res,
             new Date(startDate),
             new Date(endDate),
-            req.user?.id || req.user?.userId,
+            this.userIdOf(req),
+            scope,
         );
     }
 
@@ -109,22 +147,22 @@ export class ReportsController {
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
     @ApiQuery({ name: 'siteId', type: String, required: false })
-    @ApiQuery({ name: 'agentCategory', enum: ['REGULAR', 'ORACLE', 'DEV', 'ALL'], required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async exportAgentPerformancePDF(
         @Res() res: Response,
         @Req() req: any,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Query('siteId') siteId?: string,
-        @Query('agentCategory') agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL',
+        @Query('team') team?: string,
     ) {
+        const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateAgentPerformancePDF(
             res,
             new Date(startDate),
             new Date(endDate),
-            req.user?.id || req.user?.userId,
-            siteId,
-            agentCategory,
+            this.userIdOf(req),
+            scope,
         );
     }
 
@@ -132,17 +170,23 @@ export class ReportsController {
     @ApiOperation({ summary: 'Download ticket volume report as PDF' })
     @ApiQuery({ name: 'startDate', type: String, example: '2024-01-01' })
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async exportTicketVolumePDF(
         @Res() res: Response,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Req() req: any,
+        @Query('siteId') siteId?: string,
+        @Query('team') team?: string,
     ) {
+        const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateTicketVolumePDF(
             res,
             new Date(startDate),
             new Date(endDate),
-            req.user?.id || req.user?.userId,
+            this.userIdOf(req),
+            scope,
         );
     }
 
@@ -150,12 +194,17 @@ export class ReportsController {
     @ApiOperation({ summary: 'Download monthly summary as PDF' })
     @ApiQuery({ name: 'month', type: Number, example: 11 })
     @ApiQuery({ name: 'year', type: Number, example: 2024 })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
     async exportMonthlySummaryPDF(
         @Res() res: Response,
         @Query('month') month: number,
         @Query('year') year: number,
         @Req() req: any,
+        @Query('siteId') siteId?: string,
+        @Query('team') team?: string,
     ) {
-        return this.reportsService.generateMonthlySummaryPDF(res, Number(month), Number(year), req.user?.id || req.user?.userId);
+        const scope = this.scopeFor(req, team, siteId);
+        return this.reportsService.generateMonthlySummaryPDF(res, Number(month), Number(year), this.userIdOf(req), scope);
     }
 }

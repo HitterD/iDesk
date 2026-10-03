@@ -560,9 +560,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
             AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
             AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
-            AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications'],
-            AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
-            AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
+            AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
+            AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
+            AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications', 'reports'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
             ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };

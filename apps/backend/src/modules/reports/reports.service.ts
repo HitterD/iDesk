@@ -27,6 +27,7 @@ import {
     applyFullBorders,
 } from './utils/excel-styles.util';
 import { generateExecutiveInsights } from './utils/executive-insights.util';
+import { ReportScope, applyTeamFilter, teamLabel } from './utils/report-team-scope.util';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 
@@ -52,10 +53,11 @@ export class ReportsService {
      *
      * @param month - Month number (1-12)
      * @param year - Year (e.g., 2026)
-     * @param siteId - Optional site filter for site-scoped scheduled reports
+     * @param scope - Optional site and team filters
      */
-    async getMonthlyStats(month: number, year: number, siteId?: string) {
-        const cacheKey = `reports:monthly:${year}-${month}:${siteId || 'all'}`;
+    async getMonthlyStats(month: number, year: number, scope: ReportScope = {}) {
+        const { siteId, team } = scope;
+        const cacheKey = `reports:monthly:${year}-${month}:${siteId || 'all'}:${team || 'all'}`;
 
         return this.cacheService.getOrSet(cacheKey, async () => {
             const startDate = new Date(year, month - 1, 1);
@@ -73,6 +75,7 @@ export class ReportsService {
             if (siteId) {
                 qb.andWhere('ticket.siteId = :siteId', { siteId });
             }
+            applyTeamFilter(qb, 'ticket', team);
 
             const stats = await qb.getRawOne();
 
@@ -93,7 +96,8 @@ export class ReportsService {
     /**
      * Generate Monthly Report Excel (Executive Dashboard + Ticket Details)
      */
-    async generateExcelReport(res: Response, month: number, year: number, userId?: string, siteId?: string) {
+    async generateExcelReport(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}) {
+        const { siteId, team } = scope;
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0, 23, 59, 59);
         const monthName = MONTH_NAMES[month - 1] || `Bulan ${month}`;
@@ -108,9 +112,10 @@ export class ReportsService {
         if (siteId) {
             qb.andWhere('ticket.siteId = :siteId', { siteId });
         }
+        applyTeamFilter(qb, 'ticket', team);
 
         const tickets = await qb.getMany();
-        const stats = await this.getMonthlyStats(month, year, siteId);
+        const stats = await this.getMonthlyStats(month, year, scope);
         const total = stats.totalTickets;
         const resolved = stats.resolvedTickets;
         const open = stats.openTickets;
@@ -143,7 +148,7 @@ export class ReportsService {
             summarySheet,
             `LAPORAN EKSEKUTIF BULANAN (MONTHLY REPORT) — ${monthName.toUpperCase()} ${year}`,
             `${monthName} ${year}`,
-            siteId ? `Site Filtered (${siteId})` : 'PT Santos Jaya Abadi — All Sites',
+            this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
             'F'
         );
 
@@ -294,31 +299,33 @@ export class ReportsService {
         res.end();
     }
 
-    async getAgentPerformance(startDate: Date, endDate: Date, siteId?: string, agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL') {
-        return this.agentPerformanceReport.generate(
-            { startDate, endDate },
-            { siteId, agentCategory }
-        );
+    async getAgentPerformance(startDate: Date, endDate: Date, scope: ReportScope = {}) {
+        return this.agentPerformanceReport.generate({ startDate, endDate }, scope);
     }
 
     /**
      * Get ticket volume report for a date range
      */
-    async getTicketVolume(startDate: Date, endDate: Date, siteId?: string) {
-        return this.ticketVolumeReport.generate({ startDate, endDate }, { siteId });
+    async getTicketVolume(startDate: Date, endDate: Date, scope: ReportScope = {}) {
+        return this.ticketVolumeReport.generate({ startDate, endDate }, scope);
+    }
+
+    /** Header label for exports: "<site> — <team>". */
+    private scopeLabel(scope: ReportScope, allSitesLabel = 'Semua Site'): string {
+        return `${scope.siteId ? `Site ${scope.siteId}` : allSitesLabel} — ${teamLabel(scope.team)}`;
     }
 
     /**
      * Generate Agent Performance PDF
      */
-    async generateAgentPerformancePDF(res: Response, startDate: Date, endDate: Date, userId?: string, siteId?: string, agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL') {
-        const report = await this.agentPerformanceReport.generate({ startDate, endDate }, { siteId, agentCategory });
-        const categoryLabel = agentCategory === 'ORACLE' ? 'Divisi Oracle Support' : agentCategory === 'DEV' ? 'Divisi Web & Mobile Dev' : agentCategory === 'REGULAR' ? 'Divisi Operational Support' : 'Semua Divisi Teknisi';
+    async generateAgentPerformancePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
+        const report = await this.agentPerformanceReport.generate({ startDate, endDate }, scope);
+        const categoryLabel = teamLabel(scope.team);
 
         await this.pdfGenerator.generateAgentPerformancePDF(res, report.data, {
             title: 'Laporan Kinerja Teknisi (Agent Performance)',
             dateRange: { startDate, endDate },
-            siteName: `${siteId || 'Semua Site'} — ${categoryLabel}`,
+            siteName: this.scopeLabel(scope),
         });
 
         if (userId) {
@@ -335,12 +342,12 @@ export class ReportsService {
     /**
      * Generate PDF for Ticket Volume
      */
-    async generateTicketVolumePDF(res: Response, startDate: Date, endDate: Date, userId?: string, siteId?: string) {
-        const report = await this.ticketVolumeReport.generate({ startDate, endDate }, { siteId });
+    async generateTicketVolumePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
+        const report = await this.ticketVolumeReport.generate({ startDate, endDate }, scope);
         await this.pdfGenerator.generateTicketVolumePDF(res, report.data, {
             title: 'Laporan Volume & Distribusi Tiket',
             dateRange: { startDate, endDate },
-            siteName: siteId || 'Semua Site',
+            siteName: this.scopeLabel(scope),
         });
 
         if (userId) {
@@ -349,7 +356,7 @@ export class ReportsService {
                 action: AuditAction.REPORT_GENERATE,
                 entityType: 'Report',
                 entityId: 'TicketVolume-PDF',
-                description: `Generated Ticket Volume PDF Report`,
+                description: `Generated Ticket Volume PDF Report (${teamLabel(scope.team)})`,
             });
         }
     }
@@ -357,14 +364,14 @@ export class ReportsService {
     /**
      * Generate Monthly Summary PDF
      */
-    async generateMonthlySummaryPDF(res: Response, month: number, year: number, userId?: string, siteId?: string) {
-        const stats = await this.getMonthlyStats(month, year, siteId);
+    async generateMonthlySummaryPDF(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}) {
+        const stats = await this.getMonthlyStats(month, year, scope);
         const monthName = MONTH_NAMES[month - 1] || `Bulan ${month}`;
 
         await this.pdfGenerator.generateMonthlySummaryPDF(res, stats, {
             title: 'Laporan Ringkasan Bulanan (Monthly Summary)',
             subtitle: `${monthName} ${year}`,
-            siteName: siteId || 'Seluruh Site PT Santos Jaya Abadi',
+            siteName: this.scopeLabel(scope, 'Seluruh Site PT Santos Jaya Abadi'),
         });
 
         if (userId) {
@@ -382,10 +389,10 @@ export class ReportsService {
      * Generate Custom Date Range Comprehensive Excel Report
      * Executive Dashboard + Multi-Sheet Breakdown
      */
-    async generateCustomRangeExcel(res: Response, startDate: Date, endDate: Date, userId?: string) {
+    async generateCustomRangeExcel(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
         const [performanceReport, volumeReport] = await Promise.all([
-            this.agentPerformanceReport.generate({ startDate, endDate }),
-            this.ticketVolumeReport.generate({ startDate, endDate }),
+            this.agentPerformanceReport.generate({ startDate, endDate }, scope),
+            this.ticketVolumeReport.generate({ startDate, endDate }, scope),
         ]);
 
         const workbook = createStyledWorkbook();
@@ -416,7 +423,7 @@ export class ReportsService {
             dashSheet,
             'LAPORAN KOMPREHENSIF LAYANAN IT (COMPREHENSIVE REPORT)',
             periodText,
-            'PT Santos Jaya Abadi — All Sites',
+            this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
             'F'
         );
 

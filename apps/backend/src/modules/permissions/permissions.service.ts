@@ -300,6 +300,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             web_dev_tickets: true,
             mobile_dev_tickets: true,
             notifications: true,
+            reports: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -308,6 +309,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
         },
     },
 
@@ -322,6 +324,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             web_dev_tickets: true,
             mobile_dev_tickets: true,
             notifications: true,
+            reports: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -330,6 +333,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
         },
     },
 
@@ -344,6 +348,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             web_dev_tickets: true,
             mobile_dev_tickets: true,
             notifications: true,
+            reports: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -352,6 +357,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
         },
     },
 

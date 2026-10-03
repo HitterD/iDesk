@@ -4,9 +4,9 @@ import { Repository, Between, In, MoreThanOrEqual } from 'typeorm';
 import { Ticket, TicketStatus, TicketPriority, TICKET_DONE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { Site } from '../sites/entities/site.entity';
-import { UserRole } from '../users/enums/user-role.enum';
 import { ReportQueryDto, ReportType, ReportPeriod, ManagerReportSection } from './dto';
 import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
+import { ReportTeam, applyTeamFilter, rolesForTeam, teamLabel, teamWhere } from '../reports/utils/report-team-scope.util';
 
 interface TicketStats {
     total: number;
@@ -56,6 +56,8 @@ export interface ManagerReport {
     period: string;
     generatedAt: Date;
     sites: string[];
+    /** Team label the report covers ('Semua Tim' when unscoped). */
+    team: string;
     sections: ManagerReportSection[];
     ticketStats?: TicketStats;
     agentPerformance?: AgentPerformance[];
@@ -105,6 +107,7 @@ export class ManagerReportsService {
 
         const siteIds = sites.map(s => s.id);
         const requestedSections = query.sections;
+        const team = query.team;
 
         const wantSummary = !requestedSections || requestedSections.includes('summary');
         const wantTickets = (requestedSections?.includes('tickets') ?? true) || wantSummary; // Q8: butuh data utk summary
@@ -118,16 +121,17 @@ export class ManagerReportsService {
             period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
             generatedAt: new Date(),
             sites: sites.map(s => s.code),
+            team: teamLabel(team),
             sections: requestedSections ?? ['summary', 'tickets', 'sla'],
         };
 
         // Jalankan section yang dibutuhkan secara paralel (Q15 — hindari serial round-trip).
         const [ticketStats, agentPerformance, slaMetrics, trends, criticalTickets] = await Promise.all([
-            wantTickets ? this.getTicketStats(siteIds, startDate, endDate) : Promise.resolve(undefined),
-            wantAgents ? this.getAgentPerformance(siteIds, startDate, endDate) : Promise.resolve(undefined),
-            wantSla ? this.getSlaMetrics(siteIds, startDate, endDate) : Promise.resolve(undefined),
-            wantTrends ? this.getTrendsForRange(siteIds, startDate, endDate) : Promise.resolve(undefined),
-            wantCritical ? this.getCriticalTickets(siteIds, startDate, endDate) : Promise.resolve(undefined),
+            wantTickets ? this.getTicketStats(siteIds, startDate, endDate, team) : Promise.resolve(undefined),
+            wantAgents ? this.getAgentPerformance(siteIds, startDate, endDate, team) : Promise.resolve(undefined),
+            wantSla ? this.getSlaMetrics(siteIds, startDate, endDate, team) : Promise.resolve(undefined),
+            wantTrends ? this.getTrendsForRange(siteIds, startDate, endDate, team) : Promise.resolve(undefined),
+            wantCritical ? this.getCriticalTickets(siteIds, startDate, endDate, team) : Promise.resolve(undefined),
         ]);
 
         if (wantTickets && ticketStats) report.ticketStats = ticketStats;
@@ -149,7 +153,7 @@ export class ManagerReportsService {
 
         // Per-site comparison jika diminta
         if (query.reportType === ReportType.COMPARISON || query.reportType === ReportType.PER_SITE) {
-            report.siteComparison = await this.getSiteComparison(sites, startDate, endDate);
+            report.siteComparison = await this.getSiteComparison(sites, startDate, endDate, team);
         }
 
         return report;
@@ -184,9 +188,10 @@ export class ManagerReportsService {
         return { startDate, endDate };
     }
 
-    private async getTicketStats(siteIds: string[], startDate: Date, endDate: Date): Promise<TicketStats> {
+    private async getTicketStats(siteIds: string[], startDate: Date, endDate: Date, team?: ReportTeam): Promise<TicketStats> {
         const whereClause = {
             ...(siteIds.length ? { siteId: In(siteIds) } : {}),
+            ...teamWhere(team),
             createdAt: Between(startDate, endDate),
         };
 
@@ -214,6 +219,7 @@ export class ManagerReportsService {
         const resolved = await this.ticketRepo.count({
             where: {
                 ...(siteIds.length ? { siteId: In(siteIds) } : {}),
+                ...teamWhere(team),
                 resolvedAt: Between(startDate, endDate),
             },
         });
@@ -228,10 +234,11 @@ export class ManagerReportsService {
         };
     }
 
-    private async getAgentPerformance(siteIds: string[], startDate: Date, endDate: Date): Promise<AgentPerformance[]> {
+    private async getAgentPerformance(siteIds: string[], startDate: Date, endDate: Date, team?: ReportTeam): Promise<AgentPerformance[]> {
+        // Every agent role of the team (previously only plain AGENT was counted).
         const agents = await this.userRepo.find({
             where: {
-                role: UserRole.AGENT,
+                role: In([...rolesForTeam(team)]),
                 isActive: true,
                 ...(siteIds.length ? { siteId: In(siteIds) } : {}),
             },
@@ -309,10 +316,11 @@ export class ManagerReportsService {
         return performances.sort((a, b) => b.resolved - a.resolved);
     }
 
-    private async getSlaMetrics(siteIds: string[], startDate: Date, endDate: Date): Promise<SlaMetrics> {
+    private async getSlaMetrics(siteIds: string[], startDate: Date, endDate: Date, team?: ReportTeam): Promise<SlaMetrics> {
         const resolvedTickets = await this.ticketRepo.find({
             where: {
                 ...(siteIds.length ? { siteId: In(siteIds) } : {}),
+                ...teamWhere(team),
                 resolvedAt: Between(startDate, endDate),
             },
         });
@@ -358,14 +366,14 @@ export class ManagerReportsService {
         };
     }
 
-    private async getSiteComparison(sites: Site[], startDate: Date, endDate: Date) {
+    private async getSiteComparison(sites: Site[], startDate: Date, endDate: Date, team?: ReportTeam) {
         // Q15: paralel — versi lama serial per site dan bisa lewat timeout request.
         const results = await Promise.all(
             sites.map(async (site) => ({
                 siteCode: site.code,
                 siteName: site.name,
-                ticketStats: await this.getTicketStats([site.id], startDate, endDate),
-                slaMetrics: await this.getSlaMetrics([site.id], startDate, endDate),
+                ticketStats: await this.getTicketStats([site.id], startDate, endDate, team),
+                slaMetrics: await this.getSlaMetrics([site.id], startDate, endDate, team),
             })),
         );
 
@@ -377,16 +385,19 @@ export class ManagerReportsService {
      * getTrendData() di manager-dashboard.service hardcode 7 hari terakhir —
      * tidak dipakai ulang di sini supaya periode laporan akurat.
      */
-    private async getTrendsForRange(siteIds: string[], startDate: Date, endDate: Date): Promise<TrendPoint[]> {
+    private async getTrendsForRange(siteIds: string[], startDate: Date, endDate: Date, team?: ReportTeam): Promise<TrendPoint[]> {
         if (siteIds.length === 0) return [];
 
-        const rows = await this.ticketRepo.createQueryBuilder('t')
+        const qb = this.ticketRepo.createQueryBuilder('t')
             .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" IS NOT NULL)`, 'resolved')
             .where('t."siteId" IN (:...ids)', { ids: siteIds })
             .andWhere('t."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate })
-            .setParameters({ resolvedStatuses: TICKET_DONE_STATUSES })
+            .setParameters({ resolvedStatuses: TICKET_DONE_STATUSES });
+        applyTeamFilter(qb, 't', team);
+
+        const rows = await qb
             .groupBy(`date_trunc('day', t."createdAt")`)
             .orderBy(`date_trunc('day', t."createdAt")`, 'ASC')
             .getRawMany<{ day: string; created: string; resolved: string }>();
@@ -399,10 +410,11 @@ export class ManagerReportsService {
     }
 
     /** Q7: tiket kritis dalam rentang permintaan (dashboard pakai take-10 tanpa filter tanggal). */
-    private async getCriticalTickets(siteIds: string[], startDate: Date, endDate: Date): Promise<CriticalTicketRow[]> {
+    private async getCriticalTickets(siteIds: string[], startDate: Date, endDate: Date, team?: ReportTeam): Promise<CriticalTicketRow[]> {
         const tickets = await this.ticketRepo.find({
             where: {
                 ...(siteIds.length ? { siteId: In(siteIds) } : {}),
+                ...teamWhere(team),
                 priority: TicketPriority.CRITICAL,
                 createdAt: Between(startDate, endDate),
             },

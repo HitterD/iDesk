@@ -18,9 +18,9 @@ describe('getRoleDefaultPageAccess', () => {
         expect(access.zoom_calendar).toBeUndefined();
     });
 
-    it('limits developer agents to their request queues', () => {
+    it('limits developer agents to their request queues and team reports', () => {
         expect(Object.keys(getRoleDefaultPageAccess('AGENT_ORACLE')).sort()).toEqual(
-            ['mobile_dev_tickets', 'notifications', 'oracle_k2_tickets', 'web_dev_tickets'],
+            ['mobile_dev_tickets', 'notifications', 'oracle_k2_tickets', 'reports', 'web_dev_tickets'],
         );
     });
 
