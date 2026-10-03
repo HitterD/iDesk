@@ -17,6 +17,8 @@ export interface TvBoardCard {
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'WEB_DEV' | 'MOBILE_DEV' | string;
     category?: string | null;
     ticketType?: string | null;
+    /** Origin site code; absent from older servers. */
+    siteCode?: string | null;
 }
 
 export interface TvBoardRingtones {
@@ -33,6 +35,8 @@ export interface TvBoardRingtones {
 export interface TvBoardData {
     siteName: string;
     siteCode: string;
+    /** Dev-team hub board: also shows dev tickets from every site. */
+    showsDevTickets?: boolean;
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
     waitingVendorCount: number;

@@ -68,11 +68,13 @@ function TvBoardColumnContent({
     now,
     ColumnIcon,
     emptyMessage,
+    boardSiteCode,
 }: {
     items: TvBoardCard[];
     now: Date;
     ColumnIcon: React.ElementType;
     emptyMessage: string;
+    boardSiteCode?: string;
 }) {
     const sorted = useMemo(() => sortByUrgency(items), [items]);
     const scrollRef = useColumnAutoScroll<HTMLDivElement>(items);
@@ -90,7 +92,7 @@ function TvBoardColumnContent({
                     className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 >
                     <ul className="divide-y divide-[#E8E8ED]">
-                        {sorted.map((card) => <TvBoardTicketRow key={card.id} card={card} now={now} />)}
+                        {sorted.map((card) => <TvBoardTicketRow key={card.id} card={card} now={now} boardSiteCode={boardSiteCode} />)}
                     </ul>
                 </div>
             )}
@@ -330,7 +332,7 @@ export const BentoTvBoardPage: React.FC = () => {
                                 {data.siteCode && <span className="text-xl font-semibold text-[#86868B]">{data.siteCode}</span>}
                             </div>
                             <div className="mt-0.5 flex items-center gap-4 text-lg text-[#6E6E73]">
-                                <span>TV Monitoring Board</span>
+                                <span>{data.showsDevTickets ? 'TV Monitoring Board · Hub Tim Dev semua site' : 'TV Monitoring Board'}</span>
                                 <LiveStatus state={connectionState} />
                             </div>
                         </div>
@@ -431,6 +433,7 @@ export const BentoTvBoardPage: React.FC = () => {
                                     now={now}
                                     ColumnIcon={ColumnIcon}
                                     emptyMessage={column.emptyMessage}
+                                    boardSiteCode={data.siteCode}
                                 />
                             </section>
                         );

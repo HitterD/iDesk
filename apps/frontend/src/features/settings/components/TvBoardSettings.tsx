@@ -18,6 +18,7 @@ interface Site {
     ringtoneInProgress: string | null;
     ringtoneClosing: string | null;
     closingTime: string | null;
+    tvShowsDevTickets?: boolean;
 }
 
 type RingtoneSlot = 
@@ -207,6 +208,19 @@ export function TvBoardSettings() {
         }
     };
 
+    const handleShowsDevTickets = async (siteId: string, tvShowsDevTickets: boolean) => {
+        setBusyId(siteId);
+        try {
+            const res = await api.patch(`/sites/${siteId}`, { tvShowsDevTickets });
+            replaceSite(res.data);
+            toast.success(tvShowsDevTickets ? 'Board menampilkan tiket tim Dev semua site' : 'Board hanya menampilkan tiket Support site ini');
+        } catch {
+            toast.error('Gagal menyimpan pengaturan board');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
     if (loading) {
         return <p className="text-slate-400">Memuat...</p>;
     }
@@ -260,6 +274,22 @@ export function TvBoardSettings() {
                             )}
                         </div>
                     </div>
+
+                    <label className="mt-4 flex items-start gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(site.tvShowsDevTickets)}
+                            disabled={busyId === site.id}
+                            onChange={(e) => handleShowsDevTickets(site.id, e.target.checked)}
+                            className="mt-0.5 h-4 w-4 accent-blue-600"
+                        />
+                        <span>
+                            <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">Site ini menampilkan tiket tim Dev semua site</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                Tiket Oracle/K2, Web Dev, dan Mobile Dev dari semua site muncul di board ini (beserta label site asal). Board site lain hanya menampilkan tiket Support miliknya.
+                            </span>
+                        </span>
+                    </label>
 
                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
                         <div className="flex items-center justify-between mb-1">
