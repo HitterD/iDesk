@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsBoolean, Length, IsIP, Matches } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, Length, IsIP, Matches, IsIn } from 'class-validator';
+import { TV_THEMES, TvTheme } from '../entities/site.entity';
 
 export class CreateSiteDto {
     @IsString()
@@ -40,4 +41,8 @@ export class CreateSiteDto {
     @IsOptional()
     @IsBoolean()
     tvShowsDevTickets?: boolean;
+
+    @IsOptional()
+    @IsIn(TV_THEMES)
+    tvTheme?: TvTheme;
 }

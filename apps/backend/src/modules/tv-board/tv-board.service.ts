@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
-import { Site } from '../sites/entities/site.entity';
+import { Site, TvTheme } from '../sites/entities/site.entity';
 import { Ticket, TicketStatus, TicketType, HandlingTeam } from '../ticketing/entities/ticket.entity';
 import { resolveInitialHandlingTeam } from '../ticketing/utils/oracle-ticket-access.util';
 import { SlaConfig } from '../ticketing/entities/sla-config.entity';
@@ -43,6 +43,7 @@ export interface TvBoardData {
     siteCode: string;
     /** This board is the dev-team hub (shows dev tickets from every site). */
     showsDevTickets: boolean;
+    theme: TvTheme;
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
     waitingVendorCount: number;
@@ -140,6 +141,7 @@ export class TvBoardService {
             siteName: site.name,
             siteCode: site.code,
             showsDevTickets: Boolean(site.tvShowsDevTickets),
+            theme: site.tvTheme === 'dark' ? 'dark' : 'light',
             open: tickets.filter((t) => t.status === TicketStatus.TODO).map(toCard),
             inProgress: tickets.filter((t) => t.status === TicketStatus.IN_PROGRESS).map(toCard),
             waitingVendorCount,

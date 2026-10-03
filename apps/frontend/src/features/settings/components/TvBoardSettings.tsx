@@ -19,6 +19,7 @@ interface Site {
     ringtoneClosing: string | null;
     closingTime: string | null;
     tvShowsDevTickets?: boolean;
+    tvTheme?: 'light' | 'dark';
 }
 
 type RingtoneSlot = 
@@ -221,6 +222,19 @@ export function TvBoardSettings() {
         }
     };
 
+    const handleTheme = async (siteId: string, tvTheme: 'light' | 'dark') => {
+        setBusyId(siteId);
+        try {
+            const res = await api.patch(`/sites/${siteId}`, { tvTheme });
+            replaceSite(res.data);
+            toast.success(tvTheme === 'dark' ? 'Tema board: Gelap' : 'Tema board: Terang');
+        } catch {
+            toast.error('Gagal menyimpan tema board');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
     if (loading) {
         return <p className="text-slate-400">Memuat...</p>;
     }
@@ -289,6 +303,21 @@ export function TvBoardSettings() {
                                 Tiket Oracle/K2, Web Dev, dan Mobile Dev dari semua site muncul di board ini (beserta label site asal). Board site lain hanya menampilkan tiket Support miliknya.
                             </span>
                         </span>
+                    </label>
+
+                    <label className="mt-3 flex items-center gap-3">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Tema tampilan</span>
+                        <select
+                            data-testid={`tv-theme-${site.id}`}
+                            value={site.tvTheme ?? 'light'}
+                            disabled={busyId === site.id}
+                            onChange={(e) => handleTheme(site.id, e.target.value as 'light' | 'dark')}
+                            className="rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm text-slate-700 dark:text-slate-200"
+                        >
+                            <option value="light">Terang (Light)</option>
+                            <option value="dark">Gelap (Dark)</option>
+                        </select>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Default untuk layar TV; tiap layar bisa mengganti sendiri lewat tombol di board.</span>
                     </label>
 
                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2.5">

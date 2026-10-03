@@ -198,6 +198,14 @@ describe('TvBoardService', () => {
         });
     });
 
+    it('passes the site TV theme through to the board', async () => {
+        siteRepo.findOne.mockResolvedValue({ id: 'spj', name: 'Sepanjang', code: 'SPJ', tvTheme: 'dark' });
+
+        const data = await service.getBoardData('spj');
+
+        expect(data.theme).toBe('dark');
+    });
+
     describe('dev hub routing', () => {
         const devTeams = In([HandlingTeam.ORACLE_DEV, HandlingTeam.WEB_DEV, HandlingTeam.MOBILE_DEV]);
 
@@ -222,6 +230,7 @@ describe('TvBoardService', () => {
             const data = await service.getBoardData('spj');
 
             expect(data.showsDevTickets).toBe(true);
+            expect(data.theme).toBe('light');
             expect(ticketRepo.find.mock.calls[0][0].where).toEqual([
                 { siteId: 'spj', status: TicketStatus.TODO, handlingTeam: HandlingTeam.OPS_SUPPORT },
                 { status: TicketStatus.TODO, handlingTeam: devTeams },

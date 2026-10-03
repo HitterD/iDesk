@@ -8,6 +8,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn(),
+        patch: vi.fn(),
         delete: vi.fn(),
     },
 }));
@@ -32,6 +33,19 @@ describe('TvBoardSettings', () => {
         expect(await screen.findAllByText('Kustom umum')).toHaveLength(3);
         expect(screen.getByText('Kustom')).toBeInTheDocument();
         expect(screen.getByText('Bawaan: Chime Assigned')).toBeInTheDocument();
+    });
+
+    it('saves the board theme from the select', async () => {
+        (api.get as any).mockResolvedValue({ data: [site] });
+        (api.patch as any).mockResolvedValue({ data: { ...site, tvTheme: 'dark' } });
+        render(<TvBoardSettings />);
+
+        const select = await screen.findByTestId('tv-theme-s1');
+        expect(select).toHaveValue('light');
+        fireEvent.change(select, { target: { value: 'dark' } });
+
+        await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/sites/s1', { tvTheme: 'dark' }));
+        await waitFor(() => expect(screen.getByTestId('tv-theme-s1')).toHaveValue('dark'));
     });
 
     it('clears the legacy slot when deleting an inherited sound', async () => {
