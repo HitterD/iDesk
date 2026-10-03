@@ -9,10 +9,10 @@ import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS, RATE_LIMIT_W
 import { useTheme } from '@/hooks/useTheme';
 import { restoreSession } from '@/hooks/useSessionRestore';
 import api from '../../../lib/api';
+import { getRoleHome } from '@/lib/roleHome';
 import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
 import { ForgotPasswordDialog } from '../components/ForgotPasswordDialog';
 
-const DASHBOARD_ROLES = new Set(['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT']);
 const ATTEMPT_WARNING_THRESHOLD = 3;
 const CLOCK_TICK_MS = 1_000;
 
@@ -119,12 +119,7 @@ export const BentoLoginPage = () => {
             navigate(nextPath, { replace: true });
             return;
         }
-        if (role === 'AGENT_ORACLE') navigate('/tickets/oracle-k2');
-        else if (role === 'AGENT_WEB_DEV') navigate('/tickets/web-developer');
-        else if (role === 'AGENT_MOBILE_DEV') navigate('/tickets/mobile-developer');
-        else if (DASHBOARD_ROLES.has(role)) navigate('/dashboard');
-        else if (role === 'MANAGER') navigate('/manager/dashboard');
-        else navigate('/client/my-tickets');
+        navigate(getRoleHome(role));
     }, [navigate, nextPath]);
 
     // Handle stale session cleanup or auto-redirect if already validly authenticated / restorable

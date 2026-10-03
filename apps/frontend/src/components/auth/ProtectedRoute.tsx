@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/useAuth';
 import { useHasPermission, useHasPageAccess } from '@/hooks/usePermissions';
 import { ShieldAlert } from 'lucide-react';
+import { getRoleHome } from '@/lib/roleHome';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -14,15 +15,6 @@ interface ProtectedRouteProps {
     /** V9: Page access key from preset (e.g., 'renewal', 'reports') */
     requiredPageAccess?: string;
 }
-
-// Redirect to role-appropriate home when page access is denied
-// Prevents /unauthorized for preset-based denials (hide, don't block)
-const getRoleHome = (role: string): string => {
-    if (role === 'MANAGER') return '/manager/dashboard';
-    if (role === 'USER') return '/client/my-tickets';
-    if (role === 'AGENT_ORACLE') return '/tickets/oracle-k2';
-    return '/dashboard'; // AGENT / fallback
-};
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     children,
@@ -86,9 +78,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             );
         }
 
-        // Page access denied - redirect to role-aware home
+        // Page access denied - redirect to role-aware home (hide, don't block),
+        // unless the denied page IS that home: then redirecting would loop.
         if (!hasPageAccess) {
-            return <Navigate to={getRoleHome(user.role)} replace />;
+            const home = getRoleHome(user.role);
+            return <Navigate to={location.pathname === home ? '/unauthorized' : home} replace />;
         }
 
         // Has page access - allow through (skip role check)

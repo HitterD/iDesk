@@ -6,6 +6,7 @@
 // Valid page keys that can be used in pageAccess
 export const VALID_PAGE_KEYS = [
     'dashboard',
+    'my_dashboard',
     'tickets',
     'zoom_calendar',
     'knowledge_base',
@@ -42,12 +43,15 @@ const USER_DEFAULT_PAGES: readonly PageKey[] = [
     'dashboard', 'tickets', 'knowledge_base', 'notifications', 'hardware_requests', 'eform_access',
 ];
 const AGENT_DEFAULT_PAGES: readonly PageKey[] = [
-    ...USER_DEFAULT_PAGES, 'zoom_calendar', 'reports', 'renewal',
+    ...USER_DEFAULT_PAGES, 'my_dashboard', 'zoom_calendar', 'reports', 'renewal',
 ];
 const DEVELOPER_AGENT_DEFAULT_PAGES: readonly PageKey[] = [
-    'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports',
+    'my_dashboard', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports',
 ];
-const MANAGER_DEFAULT_PAGES: readonly PageKey[] = [...AGENT_DEFAULT_PAGES, 'workloads'];
+/** Managers get the agent pages minus the personal agent dashboard, plus workloads. */
+const MANAGER_DEFAULT_PAGES: readonly PageKey[] = [
+    ...AGENT_DEFAULT_PAGES.filter((page) => page !== 'my_dashboard'), 'workloads',
+];
 
 const DEFAULT_PAGES_BY_ROLE: Record<string, readonly PageKey[]> = {
     USER: USER_DEFAULT_PAGES,

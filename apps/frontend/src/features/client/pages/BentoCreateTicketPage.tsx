@@ -762,12 +762,12 @@ export const BentoCreateTicketPage: React.FC = () => {
 
         const roleDefaults: Record<string, string[]> = {
             USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications'],
-            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
-            AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
-            AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
-            AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
+            AGENT: ['my_dashboard', 'dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_OPERATIONAL_SUPPORT: ['my_dashboard', 'dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_ADMIN: ['my_dashboard', 'dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal'],
+            AGENT_ORACLE: ['my_dashboard', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
+            AGENT_WEB_DEV: ['my_dashboard', 'web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications'],
+            AGENT_MOBILE_DEV: ['my_dashboard', 'mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads'],
             ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };

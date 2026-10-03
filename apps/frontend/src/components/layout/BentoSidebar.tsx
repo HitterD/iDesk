@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
+    UserRound,
     Ticket,
     Settings,
     Users,
@@ -29,6 +30,7 @@ import {
     Trash2,
     LucideIcon
 } from 'lucide-react';
+import { isAgentRole } from '@/lib/roleHome';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -464,9 +466,16 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         // Core items
         { 
             type: 'item', 
+            key: 'my_dashboard', 
+            icon: UserRound, 
+            label: 'Dashboard Saya', 
+            path: '/dashboard/me' 
+        },
+        { 
+            type: 'item', 
             key: 'dashboard', 
             icon: LayoutDashboard, 
-            label: 'Dashboard', 
+            label: isManager ? 'Dashboard' : 'Dashboard Tim', 
             path: isManager ? '/manager/dashboard' : '/dashboard' 
         },
 
@@ -546,6 +555,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
     // Page access check - uses pageAccess from applied preset
     const canAccessPage = (pageKey: string): boolean => {
+        // Personal dashboard exists only for agents (the API rejects everyone else)
+        if (pageKey === 'my_dashboard' && !isAgentRole(user?.role)) return false;
+
         // ADMIN always has full access
         if (user?.role === 'ADMIN') return true;
 
@@ -557,12 +569,12 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         // Fallback: role-based defaults
         const roleDefaults: Record<string, string[]> = {
             USER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications'],
-            AGENT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
-            AGENT_OPERATIONAL_SUPPORT: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
-            AGENT_ADMIN: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
-            AGENT_ORACLE: ['oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
-            AGENT_WEB_DEV: ['web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
-            AGENT_MOBILE_DEV: ['mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications', 'reports'],
+            AGENT: ['my_dashboard', 'dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_OPERATIONAL_SUPPORT: ['my_dashboard', 'dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_ADMIN: ['my_dashboard', 'dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads'],
+            AGENT_ORACLE: ['my_dashboard', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
+            AGENT_WEB_DEV: ['my_dashboard', 'web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
+            AGENT_MOBILE_DEV: ['my_dashboard', 'mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications', 'reports'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
             ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
