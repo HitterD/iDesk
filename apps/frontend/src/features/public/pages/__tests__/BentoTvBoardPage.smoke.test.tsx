@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { vi, describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, afterEach } from 'vitest';
 import { BentoTvBoardPage } from '../BentoTvBoardPage';
 
 vi.mock('@/lib/api', () => ({
@@ -247,6 +247,43 @@ describe('BentoTvBoardPage', () => {
         const labels = screen.getAllByTestId('tv-board-origin-site');
         expect(labels).toHaveLength(1);
         expect(labels[0]).toHaveTextContent('SMG');
+    });
+
+    describe('theme', () => {
+        afterEach(() => window.localStorage.clear());
+
+        it('follows the admin default when the screen has no override', async () => {
+            const api = (await import('@/lib/api')).default;
+            const lightBoard = await (api.get as any).getMockImplementation()();
+            (api.get as any).mockResolvedValueOnce({ data: { ...lightBoard.data, theme: 'dark' } });
+            renderBoard();
+            await screen.findByText('Sampoerna Jaya');
+
+            expect(screen.getByTestId('tv-board-root')).toHaveAttribute('data-theme', 'dark');
+        });
+
+        it('toggles to dark and remembers the choice for this board link', async () => {
+            renderBoard();
+            await screen.findByText('Sampoerna Jaya');
+            expect(screen.getByTestId('tv-board-root')).toHaveAttribute('data-theme', 'light');
+
+            fireEvent.click(screen.getByTestId('tv-board-theme-toggle'));
+
+            expect(screen.getByTestId('tv-board-root')).toHaveAttribute('data-theme', 'dark');
+            expect(window.localStorage.getItem('tv-board-theme:abc-token')).toBe('dark');
+        });
+
+        it('clears the override when toggling back to the admin default', async () => {
+            window.localStorage.setItem('tv-board-theme:abc-token', 'dark');
+            renderBoard();
+            await screen.findByText('Sampoerna Jaya');
+            expect(screen.getByTestId('tv-board-root')).toHaveAttribute('data-theme', 'dark');
+
+            fireEvent.click(screen.getByTestId('tv-board-theme-toggle'));
+
+            expect(screen.getByTestId('tv-board-root')).toHaveAttribute('data-theme', 'light');
+            expect(window.localStorage.getItem('tv-board-theme:abc-token')).toBeNull();
+        });
     });
 
     it('retains board data when background poll fails after initial load', async () => {
