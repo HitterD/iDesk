@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, ForbiddenException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual, LessThan, In } from 'typeorm';
+import { Repository, MoreThanOrEqual, LessThan, In, Not, IsNull } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PriorityWeight } from './entities/priority-weight.entity';
 import { AgentDailyWorkload } from './entities/agent-daily-workload.entity';
@@ -16,6 +16,23 @@ import {
     AssignmentPolicy,
     ModuleAssignmentPolicyService,
 } from '../ticketing/services/module-assignment-policy.service';
+import { BusinessHoursService } from '../sla-config/business-hours.service';
+import { BusinessSchedule, DEFAULT_TIMEZONE, localDateKey, startOfLocalDay } from '../sla-config/business-hours.calc';
+import { FALLBACK_SCHEDULE, countsTowardsWorkload, installActivationAt } from './install-day.util';
+
+/** Workload days and crons follow WIB, not the server's UTC clock. */
+const WORKLOAD_TIMEZONE = DEFAULT_TIMEZONE;
+/** Install days can slip past weekends/long holidays before they open. */
+const INSTALL_ACTIVATION_LOOKBACK_DAYS = 14;
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Workload day of `at` as a UTC-midnight Date of its WIB calendar date, so the
+ * `date` column stores the WIB day regardless of the server timezone.
+ */
+export function workloadDay(at: Date = new Date()): Date {
+    return new Date(`${localDateKey(at, WORKLOAD_TIMEZONE)}T00:00:00.000Z`);
+}
 
 @Injectable()
 export class WorkloadService {
@@ -40,7 +57,25 @@ export class WorkloadService {
         private readonly userRepo: Repository<User>,
         private readonly eventEmitter: EventEmitter2,
         private readonly assignmentPolicy: ModuleAssignmentPolicyService,
+        @Optional()
+        private readonly businessHours?: BusinessHoursService,
     ) { }
+
+    private async getSchedule(): Promise<BusinessSchedule> {
+        return this.businessHours ? this.businessHours.getSchedule() : FALLBACK_SCHEDULE;
+    }
+
+    /**
+     * Points a ticket currently weighs on its assignee. A hardware-installation
+     * ticket weighs nothing until the opening time of its install day (H).
+     */
+    async workloadPointsFor(
+        ticket: Pick<Ticket, 'priority'> & Partial<Pick<Ticket, 'isHardwareInstallation' | 'scheduledDate'>>,
+        now: Date = new Date(),
+    ): Promise<number> {
+        if (!countsTowardsWorkload(ticket, await this.getSchedule(), now)) return 0;
+        return this.getPriorityWeight(ticket.priority);
+    }
 
     // ==========================================
     // Priority Weight Management
@@ -91,8 +126,7 @@ export class WorkloadService {
             throw new ForbiddenException('Access to this resource is forbidden');
         }
 
-        const workDate = date || new Date();
-        workDate.setHours(0, 0, 0, 0);
+        const workDate = workloadDay(date);
 
         let workload = await this.workloadRepo.findOne({
             where: { agentId, siteId: targetSiteId, workDate },
@@ -155,8 +189,7 @@ export class WorkloadService {
             throw new ForbiddenException('Access to this resource is forbidden');
         }
 
-        const workDate = date || new Date();
-        workDate.setHours(0, 0, 0, 0);
+        const workDate = workloadDay(date);
 
         // Admin roles are strictly excluded from workload tracking
         const agent = typeof this.userRepo?.findOne === 'function'
@@ -239,8 +272,7 @@ export class WorkloadService {
             return [];
         }
 
-        const workDate = date || new Date();
-        workDate.setHours(0, 0, 0, 0);
+        const workDate = workloadDay(date);
 
         // Build user query filter
         const userWhere: any = {
@@ -357,7 +389,7 @@ export class WorkloadService {
             return this.workloadRepo.create({
                 agentId,
                 siteId: targetSiteId,
-                workDate: new Date(),
+                workDate: workloadDay(),
                 totalPoints: 0,
                 activeTickets: 0,
                 resolvedTickets: 0,
@@ -365,8 +397,9 @@ export class WorkloadService {
             });
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const now = new Date();
+        const today = workloadDay(now);
+        const startOfToday = startOfLocalDay(now, WORKLOAD_TIMEZONE);
 
         // Get all active tickets assigned to this agent for this site
         const activeTickets = await this.ticketRepo.find({
@@ -381,10 +414,12 @@ export class WorkloadService {
         const openTickets = activeTickets.filter(t => !TICKET_INACTIVE_STATUSES.includes(t.status));
 
         // Calculate total points — prefetch all weights once instead of one query per ticket.
-        const weights = await this.priorityWeightRepo.find();
+        // Installation tickets only count from the opening of their install day.
+        const [weights, schedule] = await Promise.all([this.priorityWeightRepo.find(), this.getSchedule()]);
         const weightByPriority = new Map(weights.map(w => [w.priority, w.points]));
         let totalPoints = 0;
         for (const ticket of openTickets) {
+            if (!countsTowardsWorkload(ticket, schedule, now)) continue;
             totalPoints += weightByPriority.get(ticket.priority) ?? this.DEFAULT_WEIGHTS[ticket.priority] ?? 2;
         }
 
@@ -394,7 +429,7 @@ export class WorkloadService {
                 assignedToId: agentId,
                 siteId: targetSiteId,
                 status: In(TICKET_DONE_STATUSES),
-                resolvedAt: MoreThanOrEqual(today),
+                resolvedAt: MoreThanOrEqual(startOfToday),
             },
         });
 
@@ -480,8 +515,7 @@ export class WorkloadService {
         excludeAgentIds: string[] = [],
         policy?: AssignmentPolicy,
     ): Promise<User | null> {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = workloadDay();
 
         const agents = await this.findCandidateAgents(siteId, policy);
 
@@ -597,7 +631,7 @@ export class WorkloadService {
         // Update agent's workload using a trusted internal actor derived from the ticket's site.
         // Atomic increment — a concurrent auto-assignment to the same agent must not
         // lose this increment (PROD-20).
-        const priorityPoints = await this.getPriorityWeight(ticket.priority);
+        const priorityPoints = await this.workloadPointsFor(ticket);
         const internalActor: SiteActor = actor ?? { role: UserRole.ADMIN, siteId: ticket.siteId ?? null };
         const workload = await this.incrementAgentWorkload(
             internalActor,
@@ -640,7 +674,8 @@ export class WorkloadService {
             return;
         }
 
-        const priorityPoints = await this.getPriorityWeight(ticket.priority);
+        // Only the points the ticket currently weighs (0 before an install day).
+        const priorityPoints = await this.workloadPointsFor(ticket);
         // Internal trusted path: use ticket's site as source of truth
         const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
         const workload = await this.getAgentWorkload(internalActor, ticket.assignedToId, ticket.siteId);
@@ -671,8 +706,7 @@ export class WorkloadService {
         totalActiveTickets: number;
         averagePoints: number;
     }> {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = workloadDay();
 
         const qb = this.workloadRepo.createQueryBuilder('w')
             .leftJoinAndSelect('w.agent', 'agent')
@@ -718,14 +752,11 @@ export class WorkloadService {
      * Daily workload reset - runs at midnight every day
      * Archives previous day's data and recalculates current workloads
      */
-    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, { timeZone: WORKLOAD_TIMEZONE, name: 'workload-daily-reset' })
     async dailyWorkloadReset(): Promise<void> {
         this.logger.log('🔄 Starting daily workload reset...');
 
         try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
             // Get all active agents
             const agents = await this.userRepo.find({
                 where: {
@@ -755,6 +786,51 @@ export class WorkloadService {
             this.logger.log('✅ Daily workload reset completed');
         } catch (error) {
             this.logger.error('❌ Daily workload reset failed:', error);
+        }
+    }
+
+    /**
+     * Installation tickets start weighing on their technician at the opening
+     * of the install day. Recalculation is idempotent, so every assignee whose
+     * install ticket opened earlier today is refreshed on each run — a missed
+     * run (restart, downtime) is caught up by the next one.
+     */
+    @Cron('*/15 * * * *', { timeZone: WORKLOAD_TIMEZONE, name: 'workload-install-day-activation' })
+    async activateInstallDayWorkloads(now: Date = new Date()): Promise<number> {
+        try {
+            const schedule = await this.getSchedule();
+            const startOfToday = startOfLocalDay(now, WORKLOAD_TIMEZONE);
+            const tickets = await this.ticketRepo.find({
+                where: {
+                    isHardwareInstallation: true,
+                    assignedToId: Not(IsNull()),
+                    status: Not(In(TICKET_INACTIVE_STATUSES)),
+                    scheduledDate: MoreThanOrEqual(new Date(startOfToday.getTime() - INSTALL_ACTIVATION_LOOKBACK_DAYS * MS_PER_DAY)),
+                },
+                select: ['id', 'assignedToId', 'siteId', 'isHardwareInstallation', 'scheduledDate'],
+            });
+
+            const assignees = new Map<string, string>();
+            for (const ticket of tickets) {
+                const activation = installActivationAt(ticket, schedule);
+                if (!activation || !ticket.assignedToId || !ticket.siteId) continue;
+                if (activation >= startOfToday && activation <= now) {
+                    assignees.set(`${ticket.assignedToId}:${ticket.siteId}`, ticket.assignedToId);
+                }
+            }
+
+            for (const [key, agentId] of assignees) {
+                const siteId = key.slice(agentId.length + 1);
+                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId };
+                await this.recalculateAgentWorkload(internalActor, agentId, siteId);
+            }
+            if (assignees.size > 0) {
+                this.logger.log(`Install-day workload activated for ${assignees.size} technician(s)`);
+            }
+            return assignees.size;
+        } catch (error) {
+            this.logger.error('Install-day workload activation failed:', error);
+            return 0;
         }
     }
 }

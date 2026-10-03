@@ -163,6 +163,24 @@ export function businessMinutesBetween(start: Date, end: Date, schedule: Busines
     return Math.round(total / MS_PER_MINUTE);
 }
 
+/** UTC instant of local midnight of the day containing `at`. */
+export function startOfLocalDay(at: Date, timezone: string = DEFAULT_TIMEZONE): Date {
+    return new Date(localDayOf(at.getTime(), timezone || DEFAULT_TIMEZONE).midnight);
+}
+
+/** Local calendar date ('YYYY-MM-DD') of `at`. */
+export function localDateKey(at: Date, timezone: string = DEFAULT_TIMEZONE): string {
+    return localDayOf(at.getTime(), timezone || DEFAULT_TIMEZONE).key;
+}
+
+/**
+ * Opening time of the local day of `at`, or of the next working day when that
+ * day is a weekend/holiday.
+ */
+export function openingOfBusinessDay(at: Date, schedule: BusinessSchedule): Date {
+    return nextBusinessStart(startOfLocalDay(at, tzOf(schedule)), schedule);
+}
+
 /** Closing time of the first working day strictly after the local day of `at`. */
 export function endOfNextBusinessDay(at: Date, schedule: BusinessSchedule): Date {
     const tz = tzOf(schedule);
