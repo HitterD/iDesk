@@ -355,7 +355,10 @@ export const BentoTicketDetailPage: React.FC = () => {
     if (!ticket) return <div className="p-8 text-center text-rose-500 font-medium">Ticket not found</div>;
 
     const isClosed = isTerminalStatus(ticket.status);
-    const canExtendSla = !isClosed && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
+    // Filed by me but handled by another team: view & chat only.
+    const isRequesterView = ticket.viewerAccess === 'requester';
+    const canAct = !isClosed && !isRequesterView;
+    const canExtendSla = canAct && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
     const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
     const handleToggleSidebar = () => {
@@ -371,13 +374,13 @@ export const BentoTicketDetailPage: React.FC = () => {
             {/* ── Top Header with SLA + Quick Actions ── */}
             <TicketHeader
                 ticket={ticket}
-                onCancel={!isClosed ? handleCancelTicket : undefined}
+                onCancel={canAct ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
-                onResolve={!isClosed ? handleResolveTicket : undefined}
+                onResolve={canAct ? handleResolveTicket : undefined}
                 isResolving={isResolving}
-                onForward={!isClosed ? () => setForwardOpen(true) : undefined}
+                onForward={canAct ? () => setForwardOpen(true) : undefined}
                 onExtendSla={canExtendSla ? () => setExtendSlaOpen(true) : undefined}
-                onSetReminder={!isClosed ? () => setReminderOpen(true) : undefined}
+                onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
             />
@@ -532,9 +535,9 @@ export const BentoTicketDetailPage: React.FC = () => {
                                     onPriorityChange={(v) => handleFieldChange('priority', v)}
                                     onCategoryChange={(v) => handleFieldChange('category', v)}
                                     onDeviceChange={(v) => handleFieldChange('device', v)}
-                                    onForward={handleForwardTicket}
+                                    onForward={canAct ? handleForwardTicket : undefined}
                                     onExtendSla={canExtendSla ? () => setExtendSlaOpen(true) : undefined}
-                                    onSetReminder={!isClosed ? () => setReminderOpen(true) : undefined}
+                                    onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                                 />
                             </div>
                         ) : (
@@ -558,9 +561,9 @@ export const BentoTicketDetailPage: React.FC = () => {
                             onPriorityChange={(v) => handleFieldChange('priority', v)}
                             onCategoryChange={(v) => handleFieldChange('category', v)}
                             onDeviceChange={(v) => handleFieldChange('device', v)}
-                            onForward={handleForwardTicket}
+                            onForward={canAct ? handleForwardTicket : undefined}
                             onExtendSla={canExtendSla ? () => setExtendSlaOpen(true) : undefined}
-                            onSetReminder={!isClosed ? () => setReminderOpen(true) : undefined}
+                            onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                         />
                     </aside>
                 )}

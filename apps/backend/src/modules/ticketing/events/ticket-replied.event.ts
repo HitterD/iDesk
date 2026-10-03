@@ -16,5 +16,7 @@ export class TicketRepliedEvent {
         public readonly senderName: string,
         public readonly senderRole: string,
         public readonly mentionedUserIds: string[],
+        /** Staff who filed the ticket for the requester; notified like the requester. */
+        public readonly ticketCreatorId?: string,
     ) { }
 }

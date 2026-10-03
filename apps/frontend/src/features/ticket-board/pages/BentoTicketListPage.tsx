@@ -4,6 +4,7 @@ import {
     Columns3,
     TableProperties,
     UserCheck,
+    FilePen,
     Search,
     AlertTriangle,
     CheckCircle2,
@@ -120,6 +121,8 @@ export const BentoTicketListPage: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 20;
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
+    // Tickets I filed (for myself or on behalf of someone), from any team.
+    const showCreatedByMe = searchParams.get('filter') === 'created_by_me';
 
     // Sorting state
     const [sortBy, setSortBy] = useState<SortField>('createdAt');
@@ -172,7 +175,7 @@ export const BentoTicketListPage: React.FC = () => {
     // Reset to page 1 when filters change (before the query)
     useEffect(() => {
         setCurrentPage(1);
-    }, [debouncedSearch, statusFilter, priorityFilter, showAssignedToMe, selectedSites]);
+    }, [debouncedSearch, statusFilter, priorityFilter, showAssignedToMe, showCreatedByMe, selectedSites]);
 
     // Server-side paginated tickets query
     const { data: paginatedData, isLoading, isFetching } = useQuery<PaginatedResponse>({
@@ -184,6 +187,7 @@ export const BentoTicketListPage: React.FC = () => {
             search: debouncedSearch || undefined,
             siteIds: selectedSites.length > 0 ? selectedSites : undefined,
             assignedToMe: showAssignedToMe || undefined,
+            createdByMe: showCreatedByMe || undefined,
             sortBy: sortBy || 'createdAt',
             sortOrder: sortOrder || 'DESC',
         }],
@@ -200,6 +204,7 @@ export const BentoTicketListPage: React.FC = () => {
             }
             if (sortBy) params.append('sortBy', sortBy);
             params.append('sortOrder', sortOrder);
+            if (showCreatedByMe) params.append('createdByMe', 'true');
             const res = await api.get(`/tickets/paginated?${params.toString()}`);
             return res.data;
         },
@@ -457,11 +462,11 @@ export const BentoTicketListPage: React.FC = () => {
     }, [paginationInfo]);
 
     const currentView = searchParams.get('view') === 'kanban' ? 'kanban' : 'table';
-    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0);
     const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
     const showSiteColumn = isCrossSiteRole(user?.role);
 
-    if (user?.role === 'AGENT_ORACLE') {
+    if (user?.role === 'AGENT_ORACLE' && !showCreatedByMe) {
         return <Navigate to="/tickets/oracle-k2" replace />;
     }
 
@@ -532,6 +537,23 @@ export const BentoTicketListPage: React.FC = () => {
                         >
                             <UserCheck className="w-4 h-4" />
                             <span>My Tasks</span>
+                        </button>
+                    )}
+
+                    {/* Created By Me Filter */}
+                    {canEdit && (
+                        <button
+                            onClick={() => setSearchParams(showCreatedByMe ? {} : { filter: 'created_by_me' })}
+                            aria-pressed={showCreatedByMe}
+                            className={cn(
+                                "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
+                                showCreatedByMe
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-card border-border hover:bg-muted/50 text-foreground'
+                            )}
+                        >
+                            <FilePen className="w-4 h-4" />
+                            <span>Tiket yang saya buat</span>
                         </button>
                     )}
 

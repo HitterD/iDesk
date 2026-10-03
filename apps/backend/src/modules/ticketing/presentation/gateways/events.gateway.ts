@@ -16,7 +16,8 @@ import { RateLimiter } from '../../../../shared/core/utils/rate-limiter';
 import { UserRole } from '../../../users/enums/user-role.enum';
 import { isUUID } from 'class-validator';
 import { TicketRepository } from '../../repositories/ticket.repository';
-import { assertTicketRoleAccess } from '../../services/ticket-oracle-access';
+import { resolveTicketViewerAccess, TicketViewerAccess } from '../../services/ticket-oracle-access';
+import { isTicketRequesterSide } from '../../utils/oracle-ticket-access.util';
 import { extractClientIp } from '../../../../shared/security/client-ip';
 import { buildWsCorsOrigin } from '../../../../shared/security/ws-origin';
 import { isCrossSiteRole } from '../../utils/site-access.util';
@@ -223,31 +224,18 @@ export class EventsGateway
         if (!isUUID(ticketId)) return { status: 'error', message: 'Invalid ticket ID format' };
         // Throttled before the DB round-trip: this handler is the only one that queries.
         if (!this.checkMessageRateLimit(client)) return { status: 'error', message: 'Rate limited' };
-        const ticket = await this.ticketRepository.findById(ticketId, ['user', 'assignedTo']);
+        const ticket = await this.ticketRepository.findById(ticketId, ['participants']);
         if (!ticket) return { status: 'error', message: 'Not found' };
-        if (role === UserRole.USER && ticket.userId !== userId) return { status: 'error', message: 'Forbidden' };
+        if (role === UserRole.USER && !isTicketRequesterSide(userId, ticket)) return { status: 'error', message: 'Forbidden' };
+        let access: TicketViewerAccess;
         try {
-            assertTicketRoleAccess(ticket, role);
+            access = resolveTicketViewerAccess(ticket, { id: userId, role, siteId: (client.data.siteId as string | null) ?? null });
         } catch {
             return { status: 'error', message: 'Forbidden' };
         }
-        // Site isolation for the ticket room.
-        {
-            const userSiteId = (client.data.siteId as string | null) ?? null;
-            const ticketSiteId = (ticket as any).siteId ?? null;
-            const CROSS = [
-                UserRole.ADMIN,
-                UserRole.MANAGER,
-                UserRole.AGENT_ORACLE,
-                UserRole.AGENT_WEB_DEV,
-                UserRole.AGENT_MOBILE_DEV,
-            ] as string[];
-            if (!CROSS.includes(role as string)) {
-                if (!userSiteId || ticketSiteId !== userSiteId) return { status: 'error', message: 'Forbidden' };
-            }
-        }
         client.join(`ticket:${ticketId}`);
-        if (role !== UserRole.USER) client.join(ticketStaffRoom(ticketId));
+        // Internal notes go to the staff room: handlers only.
+        if (access === 'handler') client.join(ticketStaffRoom(ticketId));
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
 

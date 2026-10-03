@@ -116,6 +116,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
     const isClosed = isTerminalStatus(ticket.status);
+    // Requester-side viewers (e.g. the agent who filed it) can't change properties.
+    const isLocked = isClosed || ticket.viewerAccess === 'requester';
     const [copiedEmail, setCopiedEmail] = useState(false);
     const [agentPickerOpen, setAgentPickerOpen] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
@@ -128,7 +130,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         Boolean(user?.role?.startsWith('AGENT_')) ||
         user?.role === 'MANAGER' ||
         ticket.assignedTo?.id === user?.id;
-    const canManageParticipants = isStaff;
+    const canManageParticipants = isStaff && ticket.viewerAccess !== 'requester';
     const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
         ticket.handlingTeam === 'MOBILE_DEV' ||
         ticket.handlingTeam === 'WEB_DEV' ||
@@ -385,7 +387,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     )}
 
                     {/* Actions: Perpanjang SLA & Atur Pengingat */}
-                    {!isClosed && (
+                    {!isLocked && (
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                 {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
@@ -545,13 +547,13 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         <PopoverTrigger asChild>
                             <button
                                 type="button"
-                                disabled={isClosed || saving.assignee}
+                                disabled={isLocked || saving.assignee}
                                 className={cn(
                                     "w-full min-h-[44px] px-3 py-2 text-left rounded-xl transition-all border shadow-2xs cursor-pointer flex items-center justify-between gap-2.5",
                                     assignedAgent
                                         ? "bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 text-foreground"
                                         : "bg-slate-50/40 dark:bg-slate-900/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 border-dashed border-slate-300 dark:border-slate-700 text-muted-foreground",
-                                    (isClosed || saving.assignee) && "opacity-60 cursor-not-allowed"
+                                    (isLocked || saving.assignee) && "opacity-60 cursor-not-allowed"
                                 )}
                             >
                                 {assignedAgent ? (
@@ -596,7 +598,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 {/* Status */}
                 <PropertyRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
-                    <Select value={localStatus} onValueChange={handleStatusSelectChange} disabled={isClosed || saving.status}>
+                    <Select value={localStatus} onValueChange={handleStatusSelectChange} disabled={isLocked || saving.status}>
                         <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0", currentStatusConfig.color)}>
@@ -638,7 +640,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             Hardware Installation
                         </div>
                     ) : (
-                        <Select value={localPriority} onValueChange={handlePriorityChange} disabled={isClosed || saving.priority}>
+                        <Select value={localPriority} onValueChange={handlePriorityChange} disabled={isLocked || saving.priority}>
                             <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                                 <div className="flex items-center justify-between w-full min-w-0 pr-1">
                                     <div className="flex items-center gap-2 truncate">
@@ -689,7 +691,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 {/* Category */}
                 <PropertyRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
-                    <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
+                    <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isLocked || saving.category}>
                         <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                             <div className="flex items-center gap-2 truncate">
                                 <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -710,7 +712,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                 {/* Device */}
                 <PropertyRow icon={Monitor} label="Device / Hardware" saving={saving.device} saved={saved.device}>
-                    <Select value={localDevice || 'none'} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
+                    <Select value={localDevice || 'none'} onValueChange={handleDeviceChange} disabled={isLocked || saving.device}>
                         <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
                             <div className="flex items-center gap-2 truncate">
                                 <Monitor className="w-3.5 h-3.5 text-primary shrink-0" />

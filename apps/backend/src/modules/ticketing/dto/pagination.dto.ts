@@ -1,4 +1,4 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsIn, IsDateString } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString, IsIn, IsDateString, IsBoolean } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -88,6 +88,12 @@ export class PaginationDto {
     })
     @IsString({ each: true })
     siteIds?: string[];
+
+    @ApiPropertyOptional({ description: 'Only tickets the caller requested or filed, on any team or site' })
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    createdByMe?: boolean;
 }
 
 export interface PaginatedResult<T> {

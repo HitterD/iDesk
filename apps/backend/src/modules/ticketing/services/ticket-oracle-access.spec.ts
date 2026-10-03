@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket, TicketType, HandlingTeam } from '../entities/ticket.entity';
-import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { assertTicketRoleAccess, resolveTicketViewerAccess } from './ticket-oracle-access';
 
 const oracleTicket = { category: 'ORACLE_REQUEST', handlingTeam: HandlingTeam.ORACLE_DEV, ticketType: TicketType.SERVICE } as Pick<Ticket, 'category' | 'ticketType' | 'handlingTeam'>;
 const webDevTicket = { category: 'WEB_DEV_REQUEST', handlingTeam: HandlingTeam.WEB_DEV, ticketType: TicketType.WEB_DEV_REQUEST } as Pick<Ticket, 'category' | 'ticketType' | 'handlingTeam'>;
@@ -44,5 +44,33 @@ describe('assertTicketRoleAccess', () => {
             return;
         }
         expect(() => assertTicketRoleAccess(ticket, role)).not.toThrow();
+    });
+});
+
+describe('resolveTicketViewerAccess', () => {
+    const devTicket = { handlingTeam: HandlingTeam.ORACLE_DEV, siteId: 'site-smg', userId: 'agent-smg', createdById: null, participants: [] };
+    const filedTicket = { ...devTicket, userId: 'user-1', createdById: 'agent-smg' };
+    const opsOtherSite = { handlingTeam: HandlingTeam.OPS_SUPPORT, siteId: 'site-krw', userId: 'agent-smg', createdById: null, participants: [] };
+
+    it('handling team gets handler access', () => {
+        expect(resolveTicketViewerAccess(devTicket, { id: 'dev-1', role: UserRole.AGENT_ORACLE, siteId: 'site-spj' })).toBe('handler');
+        expect(resolveTicketViewerAccess(opsOtherSite, { id: 'ops-krw', role: UserRole.AGENT, siteId: 'site-krw' })).toBe('handler');
+    });
+
+    it('a support agent keeps requester access to a ticket they requested or filed after it moved team/site', () => {
+        expect(resolveTicketViewerAccess(devTicket, { id: 'agent-smg', role: UserRole.AGENT, siteId: 'site-smg' })).toBe('requester');
+        expect(resolveTicketViewerAccess(filedTicket, { id: 'agent-smg', role: UserRole.AGENT, siteId: 'site-smg' })).toBe('requester');
+        expect(resolveTicketViewerAccess(opsOtherSite, { id: 'agent-smg', role: UserRole.AGENT, siteId: 'site-smg' })).toBe('requester');
+    });
+
+    it('other staff outside the team or site are still denied', () => {
+        expect(() => resolveTicketViewerAccess(devTicket, { id: 'other', role: UserRole.AGENT, siteId: 'site-smg' }))
+            .toThrow(ForbiddenException);
+        expect(() => resolveTicketViewerAccess(opsOtherSite, { id: 'other', role: UserRole.AGENT, siteId: 'site-smg' }))
+            .toThrow(ForbiddenException);
+    });
+
+    it('USER is always the requester side', () => {
+        expect(resolveTicketViewerAccess(filedTicket, { id: 'user-1', role: UserRole.USER, siteId: 'site-smg' })).toBe('requester');
     });
 });
