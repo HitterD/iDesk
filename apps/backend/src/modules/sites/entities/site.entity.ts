@@ -62,6 +62,10 @@ export class Site {
     @Column({ type: 'varchar', length: 5, nullable: true })
     closingTime: string | null;
 
+    /** TV board hub for the dev teams: also shows Oracle/Web/Mobile Dev tickets from every site. */
+    @Column({ default: false })
+    tvShowsDevTickets: boolean;
+
     @CreateDateColumn()
     createdAt: Date;
 

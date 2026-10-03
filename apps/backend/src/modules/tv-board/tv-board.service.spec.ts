@@ -3,7 +3,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { TvBoardService } from './tv-board.service';
 import { Site } from '../sites/entities/site.entity';
-import { Ticket, TicketStatus, TicketPriority, TicketType } from '../ticketing/entities/ticket.entity';
+import { In } from 'typeorm';
+import { Ticket, TicketStatus, TicketPriority, TicketType, HandlingTeam } from '../ticketing/entities/ticket.entity';
 import { SlaConfig } from '../ticketing/entities/sla-config.entity';
 import { BusinessHoursService } from '../sla-config/business-hours.service';
 import { ROUND_THE_CLOCK } from '../ticketing/services/sla-clock.testing';
@@ -194,6 +195,51 @@ describe('TvBoardService', () => {
         it('throws NotFoundException when site does not exist', async () => {
             siteRepo.findOne.mockResolvedValue(null);
             await expect(service.getBoardData('missing')).rejects.toThrow(NotFoundException);
+        });
+    });
+
+    describe('dev hub routing', () => {
+        const devTeams = In([HandlingTeam.ORACLE_DEV, HandlingTeam.WEB_DEV, HandlingTeam.MOBILE_DEV]);
+
+        it('a regular site board shows only its own Support tickets', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'smg', name: 'Semarang', code: 'SMG', tvShowsDevTickets: false });
+
+            const data = await service.getBoardData('smg');
+
+            expect(data.showsDevTickets).toBe(false);
+            expect(ticketRepo.find.mock.calls[0][0].where).toEqual([
+                { siteId: 'smg', status: TicketStatus.TODO, handlingTeam: HandlingTeam.OPS_SUPPORT },
+                { siteId: 'smg', status: TicketStatus.IN_PROGRESS, handlingTeam: HandlingTeam.OPS_SUPPORT },
+            ]);
+            expect(ticketRepo.count.mock.calls[0][0].where).toEqual([
+                { siteId: 'smg', status: TicketStatus.WAITING_VENDOR, handlingTeam: HandlingTeam.OPS_SUPPORT },
+            ]);
+        });
+
+        it('the hub board adds dev tickets from every site', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'spj', name: 'Sepanjang', code: 'SPJ', tvShowsDevTickets: true });
+
+            const data = await service.getBoardData('spj');
+
+            expect(data.showsDevTickets).toBe(true);
+            expect(ticketRepo.find.mock.calls[0][0].where).toEqual([
+                { siteId: 'spj', status: TicketStatus.TODO, handlingTeam: HandlingTeam.OPS_SUPPORT },
+                { status: TicketStatus.TODO, handlingTeam: devTeams },
+                { siteId: 'spj', status: TicketStatus.IN_PROGRESS, handlingTeam: HandlingTeam.OPS_SUPPORT },
+                { status: TicketStatus.IN_PROGRESS, handlingTeam: devTeams },
+            ]);
+        });
+
+        it('labels each card with its origin site code', async () => {
+            siteRepo.findOne.mockResolvedValue({ id: 'spj', name: 'Sepanjang', code: 'SPJ', tvShowsDevTickets: true });
+            ticketRepo.find.mockResolvedValue([
+                { id: 't1', status: TicketStatus.TODO, description: 'K2 form', handlingTeam: HandlingTeam.ORACLE_DEV, site: { code: 'SMG' }, user: { fullName: 'Ani' } },
+            ]);
+
+            const data = await service.getBoardData('spj');
+
+            expect(data.open[0]).toMatchObject({ id: 't1', siteCode: 'SMG', handlingTeam: HandlingTeam.ORACLE_DEV });
+            expect(ticketRepo.find.mock.calls[0][0].relations).toContain('site');
         });
     });
 });

@@ -36,4 +36,8 @@ export class CreateSiteDto {
     @IsOptional()
     @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'closingTime harus format HH:mm, contoh 17:00' })
     closingTime?: string | null;
+
+    @IsOptional()
+    @IsBoolean()
+    tvShowsDevTickets?: boolean;
 }

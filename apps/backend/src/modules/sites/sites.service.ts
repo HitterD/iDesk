@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
@@ -43,6 +44,8 @@ export class SitesService {
         @InjectRepository(Ticket)
         private readonly ticketRepo: Repository<Ticket>,
         private readonly cacheService: CacheService,
+        @Optional()
+        private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     async findAll(): Promise<Site[]> {
@@ -132,6 +135,8 @@ export class SitesService {
         }
 
         await this.invalidateActiveCache();
+        // Board settings (e.g. dev-hub flag) changed: let open TV screens re-render.
+        this.eventEmitter?.emit('tv-board.ticket-changed', { siteId: saved.id });
         return saved;
     }
 

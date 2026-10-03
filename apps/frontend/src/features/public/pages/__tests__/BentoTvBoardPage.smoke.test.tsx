@@ -10,11 +10,11 @@ vi.mock('@/lib/api', () => ({
                 siteName: 'Sampoerna Jaya',
                 siteCode: 'SPJ',
                 open: [
-                    { id: 't1', description: 'Akses Oracle gagal', requesterName: 'Budi', requesterDepartment: 'FIN', assignedToName: null, priority: 'MEDIUM', slaTarget: null, isOverdue: false, isOracleRequest: true },
+                    { id: 't1', description: 'Akses Oracle gagal', requesterName: 'Budi', requesterDepartment: 'FIN', assignedToName: null, priority: 'MEDIUM', slaTarget: null, isOverdue: false, isOracleRequest: true, siteCode: 'SMG' },
                     { id: 't2', description: 'Printer rusak', requesterName: 'Cici', requesterDepartment: null, assignedToName: 'Agen B', priority: 'CRITICAL', slaTarget: '2026-07-25T00:00:00.000Z', isOverdue: true, isOracleRequest: false },
                 ],
                 inProgress: [
-                    { id: 't3', description: 'Jaringan lambat', requesterName: 'Muhammad Bagas Saputra Wijaya', requesterDepartment: 'IT', assignedToName: 'Agen A', priority: 'HIGH', slaTarget: null, isOverdue: false, isOracleRequest: false },
+                    { id: 't3', description: 'Jaringan lambat', requesterName: 'Muhammad Bagas Saputra Wijaya', requesterDepartment: 'IT', assignedToName: 'Agen A', priority: 'HIGH', slaTarget: null, isOverdue: false, isOracleRequest: false, siteCode: 'SPJ' },
                 ],
                 waitingVendorCount: 2,
                 ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null },
@@ -238,6 +238,15 @@ describe('BentoTvBoardPage', () => {
 
         expect(await screen.findByText('Menghubungkan ke TV Monitoring Board...')).toBeInTheDocument();
         expect(screen.queryByText(/Link tidak valid/i)).toBeNull();
+    });
+
+    it('labels only cards from another site with their origin site', async () => {
+        renderBoard();
+        await screen.findByText('Akses Oracle gagal');
+
+        const labels = screen.getAllByTestId('tv-board-origin-site');
+        expect(labels).toHaveLength(1);
+        expect(labels[0]).toHaveTextContent('SMG');
     });
 
     it('retains board data when background poll fails after initial load', async () => {

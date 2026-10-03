@@ -18,12 +18,14 @@ function getInitials(name: string): string {
  * One Reminders-style list row: title + requester on the left, PIC + SLA in a fixed right column
  * so every row aligns. Sized in rem so it scales with the board's root font size.
  */
-export function TvBoardTicketRow({ card, now }: { card: TvBoardCard; now: Date }) {
+export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCard; now: Date; boardSiteCode?: string }) {
     const divisionKey = resolveCardDivision(card);
     const division = DIVISION_CONFIGS[divisionKey];
     const slaClock = useSlaClock(false);
     const sla = formatSlaStatus(card.slaTarget, card.isOverdue, now, { priority: card.priority, info: slaClock });
     const title = card.title || card.description;
+    // On the dev hub board, tickets from other sites carry their origin site.
+    const foreignSite = card.siteCode && boardSiteCode && card.siteCode !== boardSiteCode ? card.siteCode : null;
 
     return (
         <li
@@ -37,6 +39,14 @@ export function TvBoardTicketRow({ card, now }: { card: TvBoardCard; now: Date }
                     {title}
                 </h3>
                 <div className="mt-[0.3rem] flex min-w-0 items-center gap-[0.5rem] text-[1.1rem] leading-none">
+                    {foreignSite && (
+                        <span
+                            data-testid="tv-board-origin-site"
+                            className="shrink-0 rounded-[0.4rem] bg-[#1D1D1F] px-[0.45rem] py-[0.2rem] text-[0.9rem] font-bold tracking-wide text-white"
+                        >
+                            {foreignSite}
+                        </span>
+                    )}
                     <span className="h-[0.6rem] w-[0.6rem] shrink-0 rounded-full" style={{ backgroundColor: division.color }} aria-hidden="true" />
                     <span className="shrink-0 font-medium" style={{ color: division.color }}>
                         {divisionKey === 'ORACLE_DEV' ? 'ORACLE / K2' : division.shortLabel}

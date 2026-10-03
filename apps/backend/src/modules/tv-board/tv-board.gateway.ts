@@ -27,6 +27,8 @@ export class TvBoardGateway {
     @WebSocketServer() server: Server;
     private logger = new Logger('TvBoardGateway');
     private socketSiteMap: Map<string, string> = new Map();
+    /** Dev-hub boards: any site's ticket change (incl. a forward) can move a card on or off them. */
+    private readonly hubSiteIds = new Set<string>();
     /** Sites whose board is being recomputed; a burst of ticket events collapses into at most one extra run. */
     private readonly refreshing = new Map<string, { rerun: boolean; done: Promise<void> }>();
 
@@ -45,6 +47,7 @@ export class TvBoardGateway {
             this.logger.log(`TV client ${client.id} joined tv:${siteId}`);
 
             const boardData = await this.tvBoardService.getBoardData(siteId);
+            this.trackHub(siteId, boardData.showsDevTickets);
             client.emit('tv-board:update', boardData);
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -78,9 +81,14 @@ export class TvBoardGateway {
             }
         }
 
-        if (siteId && this.hasViewers(siteId)) {
-            await this.refreshSite(siteId);
-        }
+        const targets = new Set<string>(this.hubSiteIds);
+        if (siteId) targets.add(siteId);
+        await Promise.all([...targets].filter((id) => this.hasViewers(id)).map((id) => this.refreshSite(id)));
+    }
+
+    private trackHub(siteId: string, showsDevTickets: boolean | undefined): void {
+        if (showsDevTickets) this.hubSiteIds.add(siteId);
+        else this.hubSiteIds.delete(siteId);
     }
 
     private hasViewers(siteId: string): boolean {
@@ -103,6 +111,7 @@ export class TvBoardGateway {
                 do {
                     state.rerun = false;
                     const boardData = await this.tvBoardService.getBoardData(siteId);
+                    this.trackHub(siteId, boardData.showsDevTickets);
                     this.server.to(`tv:${siteId}`).emit('tv-board:update', boardData);
                 } while (state.rerun);
             } catch (err) {
