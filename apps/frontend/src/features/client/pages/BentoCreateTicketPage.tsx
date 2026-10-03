@@ -42,6 +42,7 @@ import {
     validateAttachmentFile,
 } from '@/lib/file-validation';
 import { PriorityHoverTip } from '@/components/ui/PriorityHoverTip';
+import { RequesterSelector } from '../components/RequesterSelector';
 
 interface TicketDraft {
     title: string;
@@ -331,6 +332,9 @@ export const BentoCreateTicketPage: React.FC = () => {
     const { user } = useAuth();
     const { data: myPermissions } = useMyPermissions();
     const [isLoading, setIsLoading] = useState(false);
+    const isStaff = Boolean(user?.role && user.role !== 'USER');
+    // null = the ticket is for the staff member themself.
+    const [requesterId, setRequesterId] = useState<string | null>(null);
 
     const initialType = getInitialTicketType(searchParams.get('type'));
     const [ticketType, setTicketType] = useState<TicketType>(initialType);
@@ -696,6 +700,10 @@ export const BentoCreateTicketPage: React.FC = () => {
                 formDataToSend.append('criticalReason', formData.criticalReason);
             }
 
+            if (isStaff && requesterId) {
+                formDataToSend.append('requesterId', requesterId);
+            }
+
             files.forEach((file) => {
                 formDataToSend.append('files', file);
             });
@@ -721,28 +729,11 @@ export const BentoCreateTicketPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['tickets', 'mobile-dev'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
-            if (ticketType === 'oracle-request') {
-                if (user?.role === 'ADMIN' || user?.role === 'AGENT_ORACLE') {
-                    navigate('/tickets/oracle-k2');
-                } else {
-                    navigate('/client/my-tickets');
-                }
-            } else if (ticketType === 'web-dev-request') {
-                if (user?.role === 'ADMIN' || user?.role === 'AGENT_ORACLE') {
-                    navigate('/tickets/web-developer');
-                } else {
-                    navigate('/client/my-tickets');
-                }
-            } else if (ticketType === 'mobile-dev-request') {
-                if (user?.role === 'ADMIN' || user?.role === 'AGENT_ORACLE') {
-                    navigate('/tickets/mobile-developer');
-                } else {
-                    navigate('/client/my-tickets');
-                }
-            } else if (user?.role === 'AGENT_ORACLE') {
-                navigate('/tickets/oracle-k2');
-            } else if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-                navigate(createdTicketId ? `/tickets/${createdTicketId}` : '/tickets/list');
+            // Staff land on the agent detail page (they keep requester-level
+            // access even when the ticket belongs to another team); /client/*
+            // is USER-only.
+            if (isStaff) {
+                navigate(createdTicketId ? `/tickets/${createdTicketId}` : '/tickets/list?filter=created_by_me');
             } else {
                 navigate(createdTicketId ? `/client/tickets/${createdTicketId}` : '/client/my-tickets');
             }
@@ -1299,6 +1290,8 @@ export const BentoCreateTicketPage: React.FC = () => {
                         </div>
                     )}
 
+                    {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
+
                     {/* Subject / Title */}
                     <div>
                         <div className="flex justify-between items-center mb-1.5">
@@ -1430,6 +1423,8 @@ export const BentoCreateTicketPage: React.FC = () => {
                         </div>
                     )}
 
+                    {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
+
                     {/* Subject / Title */}
                     <div>
                         <div className="flex justify-between items-center mb-1.5">
@@ -1560,6 +1555,8 @@ export const BentoCreateTicketPage: React.FC = () => {
                             <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
                         </div>
                     )}
+
+                    {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
 
                     {/* Subject / Title */}
                     <div>
@@ -1694,6 +1691,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
                     {/* LEFT COLUMN - Subject & Integrated Rich Composer (6 cols) */}
                     <div className="lg:col-span-6 space-y-5">
+                        {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
                         <div>
                             <div className="flex justify-between items-center mb-1.5">
                                 <label htmlFor="service-ticket-title" className="text-xs font-bold text-foreground flex items-center gap-1.5 tracking-wide">

@@ -108,22 +108,81 @@ describe('TicketMessagingService Oracle scope', () => {
         });
     });
 
-    it('marks ticket as read for agent and user', async () => {
-        const ticketRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
-        const service = new TicketMessagingService(
-            ticketRepo as never,
-            {} as never,
-            {} as never,
-            {} as never,
-            {} as never,
-            {} as never,
-            {} as never, createTestSlaClock(),
-        );
+    describe('reply from the requester side', () => {
+        const build = (role: UserRole) => {
+            const ticket = {
+                id: 't-1', siteId: 'site-smg', userId: 'agent-smg', status: TicketStatus.TODO,
+                handlingTeam: 'ORACLE_DEV', ticketType: TicketType.ORACLE_REQUEST, category: 'ORACLE_REQUEST',
+                participants: [], user: { id: 'agent-smg' }, firstResponseAt: null,
+            };
+            const manager = {
+                findOne: jest.fn()
+                    .mockResolvedValueOnce(ticket)
+                    .mockResolvedValueOnce({ id: 'agent-smg', role, siteId: 'site-smg' }),
+                create: jest.fn((_entity, data) => data),
+                save: jest.fn((_entity, data) => Promise.resolve(data)),
+            };
+            const dataSource = { transaction: jest.fn((callback) => callback(manager)) };
+            const eventsGateway = {
+                notifyNewMessage: jest.fn(),
+                emitToTicketAudience: jest.fn(),
+                server: { to: jest.fn(() => ({ emit: jest.fn() })) },
+            };
+            const service = new TicketMessagingService(
+                {} as never, {} as never, {} as never, {} as never,
+                dataSource as never, eventsGateway as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            return { service, ticket };
+        };
 
-        await service.markAsRead('t-1', 'u-1', UserRole.AGENT);
-        expect(ticketRepo.update).toHaveBeenCalledWith('t-1', expect.objectContaining({ agentLastReadAt: expect.any(Date) }));
+        it('a support agent chatting on their forwarded dev ticket acts as requester (no first response, no start)', async () => {
+            const { service, ticket } = build(UserRole.AGENT);
 
-        await service.markAsRead('t-1', 'u-1', UserRole.USER);
-        expect(ticketRepo.update).toHaveBeenCalledWith('t-1', expect.objectContaining({ userLastReadAt: expect.any(Date) }));
+            await service.replyToTicket('t-1', 'agent-smg', 'any update?');
+
+            expect(ticket.firstResponseAt).toBeNull();
+            expect(ticket.status).toBe(TicketStatus.TODO);
+            expect((ticket as Record<string, unknown>).lastMessageSenderRole).toBe(UserRole.USER);
+        });
+
+        it('rejects an internal note from the requester side', async () => {
+            const { service } = build(UserRole.AGENT);
+
+            await expect(service.replyToTicket('t-1', 'agent-smg', 'note', [], [], true))
+                .rejects.toBeInstanceOf(ForbiddenException);
+        });
+    });
+
+    describe('markAsRead', () => {
+        const build = (ticket: Record<string, unknown>) => {
+            const ticketRepo = {
+                update: jest.fn().mockResolvedValue({ affected: 1 }),
+                findOne: jest.fn().mockResolvedValue(ticket),
+            };
+            const service = new TicketMessagingService(
+                ticketRepo as never, {} as never, {} as never, {} as never,
+                {} as never, {} as never, {} as never, createTestSlaClock(),
+            );
+            return { service, ticketRepo };
+        };
+        const opsTicket = { id: 't-1', userId: 'owner', createdById: null, handlingTeam: 'OPS_SUPPORT', siteId: 'site-1' };
+
+        it('marks the agent side for a handling agent and the user side for a USER', async () => {
+            const { service, ticketRepo } = build(opsTicket);
+
+            await service.markAsRead('t-1', 'u-1', UserRole.AGENT, 'site-1');
+            expect(ticketRepo.update).toHaveBeenLastCalledWith('t-1', { agentLastReadAt: expect.any(Date) });
+
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+            expect(ticketRepo.update).toHaveBeenLastCalledWith('t-1', { userLastReadAt: expect.any(Date) });
+        });
+
+        it('a support agent who filed a dev ticket reads only the requester side', async () => {
+            const { service, ticketRepo } = build({ ...opsTicket, createdById: 'agent-smg', handlingTeam: 'ORACLE_DEV' });
+
+            await service.markAsRead('t-1', 'agent-smg', UserRole.AGENT, 'site-1');
+
+            expect(ticketRepo.update).toHaveBeenLastCalledWith('t-1', { userLastReadAt: expect.any(Date) });
+        });
     });
 });

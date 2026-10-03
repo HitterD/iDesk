@@ -183,6 +183,14 @@ export class Ticket {
     @Column({ type: 'varchar', nullable: true })
     assignedToId: string | null;
 
+    /** Who filed the ticket when it differs from the requester (an agent filing on someone's behalf). */
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'createdById' })
+    createdBy: User | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    createdById: string | null;
+
     @Column({ type: 'int', default: 0 })
     totalPausedMinutes: number;
 

@@ -6,8 +6,8 @@ import { TicketModule } from '../entities/ticket-module.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
-import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
-import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
+import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
+import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
 import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
 
@@ -193,6 +193,7 @@ export class TicketQueryService {
             ticketType?: string;
             startDate?: string;
             endDate?: string;
+            createdByMe?: boolean; // Requested/filed by the caller, across teams and sites
         } = {}
     ) {
         const {
@@ -211,6 +212,7 @@ export class TicketQueryService {
             ticketType,
             startDate,
             endDate,
+            createdByMe,
         } = options;
 
         const qb = this.ticketRepo
@@ -220,10 +222,13 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
             .leftJoinAndSelect('ticket.site', 'site');
 
-        // Client My Tickets includes every ticket owned by the requester.
-        // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
-        // developer requests (Oracle, Web Dev, Mobile Dev).
-        if (role !== UserRole.USER) {
+        // "Tiket yang saya buat": requester-side access follows the ticket to any
+        // team or site, so the team/site scoping below does not apply.
+        if (createdByMe) {
+            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :userId)', { userId });
+        } else if (role !== UserRole.USER) {
+            // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
+            // developer requests (Oracle, Web Dev, Mobile Dev).
             qb.andWhere(
                 '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)',
                 { opsTeam: HandlingTeam.OPS_SUPPORT },
@@ -232,9 +237,12 @@ export class TicketQueryService {
                 '(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)',
                 { devTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST] }
             );
+            // Site isolation: cross-site roles may narrow by site, everyone else is
+            // pinned to their own — and fail closed when they have none.
+            applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
         }
 
-        // Role-based filtering
+        // Client My Tickets includes every ticket owned by or shared with the requester.
         if (role === UserRole.USER) {
             qb.andWhere('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
 
@@ -244,10 +252,6 @@ export class TicketQueryService {
                     excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION']
                 });
             }
-        } else {
-            // Site isolation: cross-site roles may narrow by site, everyone else is
-            // pinned to their own — and fail closed when they have none.
-            applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
         }
 
         // Status filter
@@ -352,8 +356,10 @@ export class TicketQueryService {
           ...ticket,
           slaTarget: ensureSlaTarget(ticket, sla),
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
-          hasUnreadChat: computeHasUnreadChat(ticket, role),
+          // In "created by me" the caller reads as the requester side.
+          hasUnreadChat: computeHasUnreadChat(ticket, createdByMe ? UserRole.USER : role),
           isParticipant: role === UserRole.USER && ticket.userId !== userId,
+          isFiledByMe: ticket.createdById === userId,
         }));
 
         return {
@@ -725,12 +731,11 @@ export class TicketQueryService {
             throw new NotFoundException('Ticket not found');
         }
 
+        let viewerAccess: TicketViewerAccess | undefined;
         if (user) {
-            validateTicketAccess(user, ticket);
-            const isOwner = ticket.userId === user.id;
-            const isParticipant = ticket.participants?.some((p: any) => p.userId === user.id);
-            if (!isOwner && !isParticipant) {
-                validateTicketSiteAccess(user.role as UserRole, user.siteId ?? null, (ticket as any).siteId ?? null);
+            viewerAccess = resolveTicketViewerAccess(ticket, user);
+            if (viewerAccess === 'requester') {
+                ticket.messages = (ticket.messages ?? []).filter((m) => !m.isInternal);
             }
         }
 
@@ -751,7 +756,7 @@ export class TicketQueryService {
             }
         }
 
-        return { ...ticket, slaTarget };
+        return { ...ticket, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(

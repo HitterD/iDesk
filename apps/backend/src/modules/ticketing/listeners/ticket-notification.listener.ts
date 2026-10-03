@@ -169,6 +169,16 @@ export class TicketNotificationListener {
                     }
                 }
 
+                // Staff who filed it on the requester's behalf follow its progress too.
+                if (ticket.createdById && ticket.createdById !== event.userId && ticket.createdById !== ticket.user.id) {
+                    await this.notificationService.notifyTicketUpdated(
+                        ticket.createdById,
+                        ticket.id,
+                        ticketNumber,
+                        changes.join(', '),
+                    );
+                }
+
                 if (ticket.status === TicketStatus.RESOLVED) {
                     // Auto-resolve: emit refresh ke semua pihak yang terlibat
                     if (ticket.user?.id) {
@@ -360,6 +370,22 @@ export class TicketNotificationListener {
             if (!isInternalNote && event.ticketOwnerId && event.senderId !== event.ticketOwnerId) {
                 await this.notificationService.notifyTicketReply(
                     event.ticketOwnerId,
+                    event.ticketId,
+                    event.ticketNumber,
+                    event.senderName,
+                    contentSnippet,
+                );
+            }
+
+            // Rule A2: the staff member who filed it on the requester's behalf, same terms.
+            if (
+                !isInternalNote &&
+                event.ticketCreatorId &&
+                event.ticketCreatorId !== event.senderId &&
+                event.ticketCreatorId !== event.ticketOwnerId
+            ) {
+                await this.notificationService.notifyTicketReply(
+                    event.ticketCreatorId,
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,

@@ -8,8 +8,8 @@ import { Ticket } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { ACCESS_COOKIE_NAME } from '../../auth/presentation/cookie-options';
-import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
-import { canAccessTicketSite } from '../utils/site-access.util';
+import { isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
+import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
 
 /** Directory under the upload root that holds ticket chat attachments. */
 export const TICKET_UPLOAD_DIR = 'tickets';
@@ -83,15 +83,13 @@ export class TicketAttachmentAccessService {
         const messages = await this.findMessagesWithFile(parsed.fileName);
         if (messages.length === 0) return this.authorizeOrphan(viewer, parsed.dir);
 
-        const visible = messages.filter((m) => !m.isInternal || viewer.role !== UserRole.USER);
-        if (visible.length === 0) return { ok: false, status: 403 };
-
         let found = false;
-        for (const message of visible) {
+        for (const message of messages) {
             const ticket = await this.loadTicket(message.ticketId);
             if (!ticket) continue;
             found = true;
-            if (this.canView(viewer, ticket)) {
+            const access = this.accessOf(viewer, ticket);
+            if (access === 'handler' || (access === 'requester' && !message.isInternal)) {
                 return { ok: true, downloadName: this.originalName(message, parsed.fileName) };
             }
         }
@@ -105,7 +103,7 @@ export class TicketAttachmentAccessService {
         }
         const ticket = await this.loadTicket(dir);
         if (!ticket) return { ok: false, status: 404 };
-        return this.canView(viewer, ticket) ? { ok: true, downloadName: null } : { ok: false, status: 403 };
+        return this.accessOf(viewer, ticket) ? { ok: true, downloadName: null } : { ok: false, status: 403 };
     }
 
     private async findMessagesWithFile(fileName: string): Promise<MatchedMessage[]> {
@@ -123,13 +121,14 @@ export class TicketAttachmentAccessService {
         return this.ticketRepo.findOne({ where: { id }, relations: ['participants'] });
     }
 
-    private canView(viewer: AttachmentViewer, ticket: Ticket): boolean {
-        if (!canAccessTicketObject(viewer, ticket)) return false;
-        const isOwner = ticket.userId === viewer.id;
-        const isParticipant = ticket.participants?.some((p) => p.userId === viewer.id) ?? false;
-        if (isOwner || isParticipant) return true;
-        // Requesters only see their own tickets (as in the `join:ticket` socket check).
-        return viewer.role !== UserRole.USER && canAccessTicketSite(viewer.role, viewer.siteId, ticket.siteId);
+    /** Requesters only reach their own or joined tickets (as in the `join:ticket` socket check). */
+    private accessOf(viewer: AttachmentViewer, ticket: Ticket): TicketViewerAccess | null {
+        if (viewer.role === UserRole.USER && !isTicketRequesterSide(viewer.id, ticket)) return null;
+        try {
+            return resolveTicketViewerAccess(ticket, viewer);
+        } catch {
+            return null;
+        }
     }
 
     private originalName(message: MatchedMessage, fileName: string): string | null {
