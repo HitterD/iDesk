@@ -93,3 +93,17 @@ export function validateTicketAccess(user: { id?: string; role: UserRole | strin
         throw new ForbiddenException('Access to this ticket is forbidden');
     }
 }
+
+/**
+ * The requester side of a ticket: its requester, whoever filed it on their behalf,
+ * and invited participants. They keep read/chat access wherever the ticket is
+ * routed (another team or site), but never get handler rights from it.
+ */
+export function isTicketRequesterSide(
+    userId: string | null | undefined,
+    ticket: Pick<Partial<Ticket>, 'userId' | 'createdById' | 'participants'>,
+): boolean {
+    if (!userId) return false;
+    if (ticket.userId === userId || ticket.createdById === userId) return true;
+    return ticket.participants?.some((p) => p.userId === userId) ?? false;
+}

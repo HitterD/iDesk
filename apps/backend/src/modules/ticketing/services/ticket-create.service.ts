@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -6,6 +6,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
 import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { CacheService, CacheInvalidationService } from '../../../shared/core/cache';
@@ -16,7 +17,6 @@ import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
 import { generateNextTicketNumber } from '../utils/ticket-number-generator';
-import { assertTicketRoleAccess } from './ticket-oracle-access';
 import { SlaClockService } from './sla-clock.service';
 
 @Injectable()
@@ -41,6 +41,22 @@ export class TicketCreateService {
         private readonly slaClock: SlaClockService,
     ) { }
 
+    /** The requester: the caller, or (staff only) the active user they file for. */
+    private async resolveRequester(creator: User, requesterId?: string): Promise<User> {
+        if (!requesterId || requesterId === creator.id) return creator;
+        if (creator.role === UserRole.USER) {
+            throw new ForbiddenException('Only staff can file tickets on behalf of another user');
+        }
+        const requester = await this.userRepo.findOne({
+            where: { id: requesterId },
+            relations: ['department'],
+        });
+        if (!requester || !requester.isActive) {
+            throw new BadRequestException('Requester not found or inactive');
+        }
+        return requester;
+    }
+
     async createTicket(
         userId: string,
         createTicketDto: CreateTicketDto,
@@ -48,23 +64,20 @@ export class TicketCreateService {
         attachmentInfo: AttachmentInfo[] = [],
     ): Promise<Ticket> {
         try {
-            const user = await this.userRepo.findOne({
+            const creator = await this.userRepo.findOne({
                 where: { id: userId },
                 relations: ['department']
             });
-            if (!user) {
+            if (!creator) {
                 throw new NotFoundException('User not found');
             }
+            // Anyone may submit to any team (handling stays with that team);
+            // the filer keeps requester-level access via userId/createdById.
+            const user = await this.resolveRequester(creator, createTicketDto.requesterId);
             const handlingTeam = resolveInitialHandlingTeam(
                 createTicketDto.category,
                 createTicketDto.ticketType,
             );
-
-            assertTicketRoleAccess({
-                category: createTicketDto.category || 'GENERAL',
-                ticketType: createTicketDto.ticketType || TicketType.SERVICE,
-                handlingTeam,
-            }, user.role);
 
             const ticket = this.ticketRepo.create({
                 title: createTicketDto.title,
@@ -77,8 +90,9 @@ export class TicketCreateService {
                 device: createTicketDto.device,
                 software: createTicketDto.software,
                 user,
+                createdById: creator.id === user.id ? null : creator.id,
                 status: TicketStatus.TODO,
-                siteId: user.siteId, // Auto-assign user's site
+                siteId: user.siteId, // Auto-assign the requester's site
                 criticalReason: createTicketDto.criticalReason || null,
             } as DeepPartial<Ticket>);
 
@@ -131,7 +145,7 @@ export class TicketCreateService {
                 const message = this.messageRepo.create({
                     content: createTicketDto.description,
                     ticket: savedTicket,
-                    senderId: user.id,
+                    senderId: creator.id,
                     attachments: files,
                     attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 });

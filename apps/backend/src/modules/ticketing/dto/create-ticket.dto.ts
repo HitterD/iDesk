@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString, IsOptional, MaxLength, MinLength, IsBoolean, IsDateString, Matches } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, IsOptional, MaxLength, MinLength, IsBoolean, IsDateString, Matches, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketPriority, TicketSource, TicketType } from '../entities/ticket.entity';
@@ -104,5 +104,13 @@ export class CreateTicketDto {
     @MaxLength(500)
     @Sanitize()
     criticalReason?: string;
+
+    // === Filing on behalf of another user (staff only) ===
+
+    @ApiPropertyOptional({ description: 'Requester when staff files the ticket for another user; defaults to the caller' })
+    @IsUUID()
+    @IsOptional()
+    @Transform(({ value }) => value || undefined)
+    requesterId?: string;
 }
 

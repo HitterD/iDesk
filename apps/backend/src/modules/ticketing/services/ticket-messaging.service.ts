@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, forwardRef, Optional, Logger } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -9,8 +9,9 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
-import { assertTicketRoleAccess } from './ticket-oracle-access';
-import { validateTicketSiteAccess } from '../utils/site-access.util';
+import { resolveTicketViewerAccess } from './ticket-oracle-access';
+import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
+import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
 
@@ -45,20 +46,17 @@ export class TicketMessagingService {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
-            select: ['id', 'category', 'ticketType', 'siteId', 'userId'],
+            select: ['id', 'category', 'ticketType', 'handlingTeam', 'siteId', 'userId', 'createdById'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
-        if (userRole) assertTicketRoleAccess(ticket, userRole);
-        const isOwner = userId ? ticket.userId === userId : false;
-        const isParticipant = userId ? ticket.participants?.some(p => p.userId === userId) : false;
-        if (userRole && !isOwner && !isParticipant) {
-            validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
-        }
+        const access = userRole
+            ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
+            : 'handler';
 
         return this.messageRepo.find({
             where: {
                 ticketId,
-                ...(userRole === UserRole.USER ? { isInternal: false } : {}),
+                ...(access === 'requester' ? { isInternal: false } : {}),
             },
             relations: ['sender'],
             order: { createdAt: 'ASC' },
@@ -84,15 +82,12 @@ export class TicketMessagingService {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
-            select: ['id', 'category', 'ticketType', 'siteId', 'userId'],
+            select: ['id', 'category', 'ticketType', 'handlingTeam', 'siteId', 'userId', 'createdById'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
-        if (userRole) assertTicketRoleAccess(ticket, userRole);
-        const isOwner = userId ? ticket.userId === userId : false;
-        const isParticipant = userId ? ticket.participants?.some(p => p.userId === userId) : false;
-        if (userRole && !isOwner && !isParticipant) {
-            validateTicketSiteAccess(userRole as UserRole, userSiteId, (ticket as any).siteId ?? null);
-        }
+        const access = userRole
+            ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
+            : 'handler';
 
         const skip = (page - 1) * limit;
 
@@ -102,8 +97,8 @@ export class TicketMessagingService {
             .leftJoinAndSelect('msg.sender', 'sender')
             .where('msg.ticketId = :ticketId', { ticketId });
 
-        // Filter internal messages for customers
-        if (userRole === UserRole.USER) {
+        // Filter internal messages for the requester side
+        if (access === 'requester') {
             qb.andWhere('msg.isInternal = :isInternal', { isInternal: false });
         }
 
@@ -145,7 +140,7 @@ export class TicketMessagingService {
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'assignedTo', 'participants'],
@@ -161,12 +156,13 @@ export class TicketMessagingService {
             if (!user) {
                 throw new NotFoundException('User not found');
             }
-            assertTicketRoleAccess(ticket, user.role);
-            const isOwner = ticket.userId === userId;
-            const isParticipant = ticket.participants?.some(p => p.userId === userId);
-            if (!isOwner && !isParticipant) {
-                validateTicketSiteAccess(user.role as any, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+            const access = resolveTicketViewerAccess(ticket, user);
+            // The requester side chats like a requester: no internal notes and no
+            // handler effects (first response, start of work), even when staff.
+            if (access === 'requester' && isInternal) {
+                throw new ForbiddenException('Only the handling team can add internal notes');
             }
+            const isHandler = access === 'handler';
 
             // Create Message
             const message = manager.create(TicketMessage, {
@@ -181,8 +177,8 @@ export class TicketMessagingService {
             const savedMessage = await manager.save(TicketMessage, message);
 
             // === Track First Response Time ===
-            const isAgentOrAdmin = user.role === UserRole.AGENT || user.role === UserRole.ADMIN;
-            const isFirstAgentReply = !ticket.firstResponseAt && SLA_RESPONDER_ROLES.includes(user.role);
+            const isAgentOrAdmin = isHandler && (user.role === UserRole.AGENT || user.role === UserRole.ADMIN);
+            const isFirstAgentReply = isHandler && !ticket.firstResponseAt && SLA_RESPONDER_ROLES.includes(user.role);
 
             if (isFirstAgentReply) {
                 ticket.firstResponseAt = new Date();
@@ -210,7 +206,9 @@ export class TicketMessagingService {
             // === Update Unread Tracking ===
             const now = new Date();
             ticket.lastMessageAt = now;
-            ticket.lastMessageSenderRole = user.role;
+            // Unread tracking is two-sided: a requester-side staff reply counts as the user side.
+            const senderSideRole = isHandler ? user.role : UserRole.USER;
+            ticket.lastMessageSenderRole = senderSideRole;
             if (isAgentOrAdmin) {
                 ticket.agentLastReadAt = now;
             } else {
@@ -220,7 +218,7 @@ export class TicketMessagingService {
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork };
+            return { savedMessage, ticket, user, startedWork, senderSideRole };
         });
 
         // The reply moved the ticket from Open to In Progress; TV boards must show it.
@@ -258,8 +256,9 @@ export class TicketMessagingService {
                 savedMessage,
                 user.id,
                 user.fullName,
-                user.role,
+                senderSideRole,
                 mentionedUserIds,
+                ticket.createdById ?? undefined,
             ),
         );
 
@@ -269,12 +268,25 @@ export class TicketMessagingService {
     /**
      * Mark a ticket as read for the current viewing user or agent
      */
-    async markAsRead(ticketId: string, userId: string, role?: string, _userSiteId: string | null = null): Promise<void> {
-        const isAgentSide = role && role !== UserRole.USER;
+    async markAsRead(ticketId: string, userId: string, role?: string, userSiteId: string | null = null): Promise<void> {
         const now = new Date();
-        const updateData = isAgentSide
-            ? { agentLastReadAt: now }
-            : { userLastReadAt: now };
+        if (!role || role === UserRole.USER) {
+            await this.ticketRepo.update(ticketId, { userLastReadAt: now });
+            return;
+        }
+        // Staff who requested/filed the ticket read the requester side; they clear
+        // the team's unread marker only when they also handle the ticket.
+        const ticket = await this.ticketRepo.findOne({
+            where: { id: ticketId },
+            select: ['id', 'userId', 'createdById', 'handlingTeam', 'category', 'ticketType', 'siteId'],
+        });
+        if (!ticket) return;
+        const isRequesterStaff = ticket.userId === userId || ticket.createdById === userId;
+        const isHandler = canAccessTicketObject({ role }, ticket) && canAccessTicketSite(role as UserRole, userSiteId, ticket.siteId);
+        const updateData = {
+            ...(isHandler || !isRequesterStaff ? { agentLastReadAt: now } : {}),
+            ...(isRequesterStaff ? { userLastReadAt: now } : {}),
+        };
 
         await this.ticketRepo.update(ticketId, updateData);
     }

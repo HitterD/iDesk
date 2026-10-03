@@ -36,6 +36,8 @@ export interface TicketDetail {
     createdAt: string;
     updatedAt: string;
     slaTarget?: string;
+    /** 'requester' = I filed it but don't handle it: view/chat only. */
+    viewerAccess?: 'handler' | 'requester';
     slaStartedAt?: string;
     /** Business minutes left while the SLA clock is held (waiting vendor, resolved). */
     slaRemainingMinutes?: number | null;

@@ -214,7 +214,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
     const MAX_MESSAGE_LENGTH = 5000;
     const isStaff = Boolean(user?.role && user.role !== 'USER');
-    const canAddInternalNote = user?.role === 'ADMIN' || user?.role === 'AGENT';
+    const canAddInternalNote = (user?.role === 'ADMIN' || user?.role === 'AGENT') && ticket.viewerAccess !== 'requester';
     const placeholderText = isInternal
         ? "Write an internal note for staff…"
         : isStaff
