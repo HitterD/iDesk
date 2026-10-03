@@ -13,6 +13,8 @@ export const REPORT_TEAM_LABELS: Record<ReportTeam, string> = {
     ALL_DEV: 'Semua Tim Dev',
 };
 export const ALL_TEAMS_LABEL = 'Semua Tim';
+/** Every report team today belongs to the ICT department scope. */
+export const REPORT_TEAMS_SCOPE_TITLE = 'Tim ICT';
 
 const ROLE_TEAM: Record<string, ReportTeam> = {
     AGENT: 'OPS_SUPPORT',

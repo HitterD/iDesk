@@ -4,6 +4,7 @@ import { AgentTableSkeleton, ErrorState } from './AgentTableSkeletons';
 import { UnifiedUserTable } from './UnifiedUserTable';
 import { RoleSection } from './RoleSection';
 import { ROLE_ORDER, type PermissionPreset, type UserRoleKey } from './agent-types';
+import { SERVICE_SCOPE_LABELS, groupRolesByScope } from '@/lib/constants/service-scope';
 
 interface UsersByRoleSectionProps {
     isLoading: boolean;
@@ -129,22 +130,35 @@ export function UsersByRoleSection({
                 />
             ) : (
                 <div className="space-y-2">
-                    {/* Most-privileged first here; ROLE_ORDER is authored least-first for pickers. */}
-                    {[...ROLE_ORDER].reverse().map(role => (
-                        <RoleSection
-                            key={role}
-                            role={role}
-                            users={usersByRole[role] ?? []}
-                            onEdit={onEdit}
-                            onDelete={onDelete}
-                            onResetPassword={onResetPassword}
-                            selectedIds={selectedUserIds}
-                            onToggleSelection={onToggleSelection}
-                            presets={presets}
-                            onApplyPreset={onApplyPreset}
-                            applyingPresetUserId={applyingPresetUserId}
-                        />
-                    ))}
+                    {/* Most-privileged first here; ROLE_ORDER is authored least-first for pickers.
+                        Staff roles sit under their department scope header (ICT now, HC later). */}
+                    {groupRolesByScope([...ROLE_ORDER].reverse()).map(group => {
+                        const sections = group.roles.map(role => (
+                            <RoleSection
+                                key={role}
+                                role={role}
+                                users={usersByRole[role] ?? []}
+                                onEdit={onEdit}
+                                onDelete={onDelete}
+                                onResetPassword={onResetPassword}
+                                selectedIds={selectedUserIds}
+                                onToggleSelection={onToggleSelection}
+                                presets={presets}
+                                onApplyPreset={onApplyPreset}
+                                applyingPresetUserId={applyingPresetUserId}
+                            />
+                        ));
+                        const hasUsers = group.roles.some(role => (usersByRole[role]?.length ?? 0) > 0);
+                        if (!group.scope || !hasUsers) return sections;
+                        return (
+                            <section key={`scope-${group.scope}`} aria-label={`Lingkup ${group.scope}`} className="space-y-2">
+                                <h3 className="px-1 pt-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Lingkup {SERVICE_SCOPE_LABELS[group.scope]}
+                                </h3>
+                                {sections}
+                            </section>
+                        );
+                    })}
                 </div>
             )}
         </>

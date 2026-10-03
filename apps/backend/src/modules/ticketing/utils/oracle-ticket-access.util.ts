@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket, TicketType, HandlingTeam } from '../entities/ticket.entity';
+import { canHandleScope, scopeOfTicket } from '../../../shared/core/utils/service-scope.util';
 
 export function isMobileDevCategory(category?: string | null, ticketType?: string | null): boolean {
     if (ticketType === TicketType.MOBILE_DEV_REQUEST || ticketType === 'MOBILE_DEV_REQUEST') return true;
@@ -58,7 +59,11 @@ export function isOracleRole(role?: string | null): boolean {
 }
 
 export function canAccessTicketObject(user: { id?: string; role: UserRole | string }, ticket: Partial<Ticket>): boolean {
-    if (user.role === UserRole.ADMIN || user.role === UserRole.USER || user.role === UserRole.MANAGER) return true;
+    if (user.role === UserRole.ADMIN || user.role === UserRole.USER) return true;
+
+    // Staff only handle tickets of their own department scope (ICT / HC).
+    if (!canHandleScope(user.role, scopeOfTicket(ticket))) return false;
+    if (user.role === UserRole.MANAGER) return true;
 
     const team = ticket.handlingTeam ?? HandlingTeam.OPS_SUPPORT;
 

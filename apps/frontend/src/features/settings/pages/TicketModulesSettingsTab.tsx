@@ -36,6 +36,7 @@ import {
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
 import { ModuleAssigneePicker } from '@/features/settings/components/ModuleAssigneePicker';
+import { DEFAULT_SERVICE_SCOPE, SERVICE_SCOPES, SERVICE_SCOPE_LABELS, type ServiceScope } from '@/lib/constants/service-scope';
 
 export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
     Ticket,
@@ -159,6 +160,7 @@ export const TicketModulesSettingsTab: React.FC = () => {
     const [icon, setIcon] = useState('Ticket');
     const [color, setColor] = useState('blue');
     const [isActive, setIsActive] = useState(true);
+    const [scope, setScope] = useState<ServiceScope>(DEFAULT_SERVICE_SCOPE);
     const [handlingTeams, setHandlingTeams] = useState<string[]>(['OPS_SUPPORT']);
     const [allowedRoles, setAllowedRoles] = useState<string[]>([
         'ADMIN', 'AGENT_ORACLE', 'AGENT_MOBILE_DEV', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT', 'MANAGER'
@@ -206,6 +208,7 @@ export const TicketModulesSettingsTab: React.FC = () => {
                 icon,
                 color,
                 isActive,
+                scope,
                 handlingTeams,
                 allowedRoles,
                 assigneeRoles,
@@ -277,6 +280,7 @@ export const TicketModulesSettingsTab: React.FC = () => {
         setIcon(mod.icon || 'Ticket');
         setColor(mod.color || 'blue');
         setIsActive(mod.isActive);
+        setScope(mod.scope ?? DEFAULT_SERVICE_SCOPE);
         setHandlingTeams(mod.handlingTeams || []);
         setAllowedRoles(mod.allowedRoles || []);
         setAssigneeRoles(mod.assigneeRoles || ['ADMIN', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV']);
@@ -294,6 +298,7 @@ export const TicketModulesSettingsTab: React.FC = () => {
         setIcon('Ticket');
         setColor('blue');
         setIsActive(true);
+        setScope(DEFAULT_SERVICE_SCOPE);
         setHandlingTeams(['OPS_SUPPORT']);
         setAllowedRoles(['ADMIN', 'AGENT_ORACLE', 'AGENT_MOBILE_DEV', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT', 'MANAGER']);
         setAssigneeRoles(['ADMIN', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV']);
@@ -407,6 +412,9 @@ export const TicketModulesSettingsTab: React.FC = () => {
                                                             Sistem
                                                         </span>
                                                     )}
+                                                    <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" title="Lingkup departemen">
+                                                        {mod.scope ?? DEFAULT_SERVICE_SCOPE}
+                                                    </span>
                                                     {mod.autoAssignEnabled && (
                                                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60">
                                                             Auto-assign
@@ -630,6 +638,26 @@ export const TicketModulesSettingsTab: React.FC = () => {
                                     onChange={(e) => setDescription(e.target.value)}
                                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                 />
+                            </div>
+
+                            {/* Department scope: only staff of this scope see / receive its tickets */}
+                            <div>
+                                <label htmlFor="module-scope" className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                                    Lingkup Departemen
+                                </label>
+                                <select
+                                    id="module-scope"
+                                    value={scope}
+                                    onChange={(e) => setScope(e.target.value as ServiceScope)}
+                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                    {SERVICE_SCOPES.map((s) => (
+                                        <option key={s} value={s}>{SERVICE_SCOPE_LABELS[s]}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-slate-400 mt-1.5">
+                                    Hanya agent dari lingkup ini yang dapat di-assign (manual &amp; auto) ke tiket modul ini.
+                                </p>
                             </div>
 
                             {/* Icon Picker */}
