@@ -103,6 +103,19 @@ describe('TicketQueryService site isolation', () => {
                 { siteIds: ['site-spj', 'site-smg'] },
             );
         });
+
+        // userId is uuid but createdById is varchar: one shared bind parameter
+        // makes Postgres fail with "operator does not exist: character varying = uuid".
+        it('binds requester and filer to separate parameters in "created by me"', async () => {
+            await service.findAllPaginated('user-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-spj', {
+                createdByMe: true,
+            });
+
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+                '(ticket.userId = :userId OR ticket."createdById" = :filerId)',
+                { userId: 'user-1', filerId: 'user-1' },
+            );
+        });
     });
 
     describe('unpaginated list', () => {

@@ -228,7 +228,9 @@ export class TicketQueryService {
         // "Tiket yang saya buat": requester-side access follows the ticket to any
         // team or site, so the team/site scoping below does not apply.
         if (createdByMe) {
-            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :userId)', { userId });
+            // Separate params: userId is uuid, createdById is varchar, and one shared
+            // bind param gets a single inferred type -> "character varying = uuid".
+            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :filerId)', { userId, filerId: userId });
         } else if (role !== UserRole.USER) {
             // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
             // developer requests (Oracle, Web Dev, Mobile Dev).
