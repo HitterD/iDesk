@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Brackets } from 'typeorm';
+import { Repository, Brackets, SelectQueryBuilder } from 'typeorm';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { Article, ArticleVisibility } from '../knowledge-base/entities/article.entity';
 import { HardwareRequest } from '../hardware-request/domain/entities/hardware-request.entity';
 import { SavedSearch } from './entities/saved-search.entity';
 import { CacheService } from '../../shared/core/cache';
+import { UserRole } from '../users/enums/user-role.enum';
+import { resolveSiteScope, scopeKey } from '../../shared/core/utils/site-scope.util';
+import { applySiteFilter, isCrossSiteRole as isTicketCrossSiteRole } from '../ticketing/utils/site-access.util';
+import { applyServiceScopeFilter } from '../../shared/core/utils/service-scope.util';
 import { 
     SearchFilterDto, 
     SearchQueryDto, 
@@ -19,6 +23,20 @@ import {
     ArticleSearchResult,
     SearchSuggestionDto,
 } from './dto/search-result.dto';
+
+/** Who is searching: every query is limited to what this caller may see. */
+export interface SearchActor {
+    userId: string;
+    role: UserRole;
+    siteId: string | null;
+}
+
+/** Cache partition: requesters see only their own rows, staff share per role + site. */
+function actorCacheKey(actor: SearchActor): string {
+    if (actor.role === UserRole.USER) return `user:${actor.userId}`;
+    const site = isTicketCrossSiteRole(actor.role) ? 'all' : scopeKey(actor);
+    return `${actor.role}:${site}`;
+}
 
 @Injectable()
 export class SearchService {
@@ -43,13 +61,14 @@ export class SearchService {
      */
     async search(
         dto: SearchQueryDto,
-        visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC],
+        visibilities: ArticleVisibility[],
+        actor: SearchActor,
     ): Promise<SearchResultDto> {
         const startTime = Date.now();
         const { q: query, limit = 20, page = 1, ...filters } = dto;
         
         // Generate cache key
-        const cacheKey = `search:${JSON.stringify(dto)}:${visibilities.join(',')}`;
+        const cacheKey = `search:${JSON.stringify(dto)}:${visibilities.join(',')}:${actorCacheKey(actor)}`;
         
         // Check cache
         const cached = await this.cacheService.getAsync<SearchResultDto>(cacheKey);
@@ -78,7 +97,7 @@ export class SearchService {
 
         if (scopes.includes('tickets')) {
             searchPromises.push(
-                this.searchTickets(query, filters, limit + 1, offset).then(r => {
+                this.searchTickets(query, filters, limit + 1, offset, actor).then(r => {
                     results.tickets = r.slice(0, limit);
                     results.totalCount += r.length;
                     if (r.length > limit) results.hasMore = true;
@@ -88,7 +107,7 @@ export class SearchService {
 
         if (scopes.includes('users')) {
             searchPromises.push(
-                this.searchUsers(query, filters, limit + 1, offset).then(r => {
+                this.searchUsers(query, filters, limit + 1, offset, actor).then(r => {
                     results.users = r.slice(0, limit);
                     results.totalCount += r.length;
                     if (r.length > limit) results.hasMore = true;
@@ -108,7 +127,7 @@ export class SearchService {
 
         if (scopes.includes('hardware-requests')) {
             searchPromises.push(
-                this.searchHardwareRequests(query, filters, limit + 1, offset).then(r => {
+                this.searchHardwareRequests(query, filters, limit + 1, offset, actor).then(r => {
                     results.hardwareRequests = r.slice(0, limit);
                     results.totalCount += r.length;
                     if (r.length > limit) results.hasMore = true;
@@ -135,12 +154,14 @@ export class SearchService {
         query: string | undefined, 
         filters: SearchFilterDto, 
         limit: number,
-        offset: number
+        offset: number,
+        actor: SearchActor,
     ): Promise<TicketSearchResult[]> {
         const qb = this.ticketRepo.createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('ticket.assignedTo', 'agent')
             .leftJoinAndSelect('user.department', 'department');
+        this.applyTicketAccess(qb, actor);
 
         // Full-text search using ILIKE for basic search (PostgreSQL FTS can be added later)
         if (query && query.trim()) {
@@ -205,6 +226,38 @@ export class SearchService {
         }));
     }
 
+    /** Same visibility as the ticket lists: requesters see their own/joined tickets, staff their site + scope. */
+    private applyTicketAccess(qb: SelectQueryBuilder<Ticket>, actor: SearchActor): void {
+        if (actor.role === UserRole.USER) {
+            qb.andWhere(
+                '(ticket.userId = :searchUserId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :searchUserId))',
+                { searchUserId: actor.userId },
+            );
+            return;
+        }
+        applySiteFilter(qb, actor.role, actor.siteId);
+        applyServiceScopeFilter(qb, actor.role);
+    }
+
+    /** Site isolation for non-ticket entities (fail-closed when a site-locked actor has no site). */
+    private applySiteScope(qb: SelectQueryBuilder<any>, alias: string, actor: SearchActor): void {
+        const scope = resolveSiteScope(actor);
+        if (scope.mode === 'all') return;
+        if (scope.mode === 'none') {
+            qb.andWhere('1 = 0');
+            return;
+        }
+        qb.andWhere(`${alias}.siteId = :searchSiteId`, { searchSiteId: scope.siteId });
+    }
+
+    private applyHardwareAccess(qb: SelectQueryBuilder<HardwareRequest>, actor: SearchActor): void {
+        if (actor.role === UserRole.USER) {
+            qb.andWhere('hw.requesterId = :searchUserId', { searchUserId: actor.userId });
+            return;
+        }
+        this.applySiteScope(qb, 'hw', actor);
+    }
+
     /**
      * Search users
      */
@@ -212,10 +265,14 @@ export class SearchService {
         query: string | undefined, 
         filters: SearchFilterDto, 
         limit: number,
-        offset: number
+        offset: number,
+        actor: SearchActor,
     ): Promise<UserSearchResult[]> {
+        // Requesters never browse the staff/user directory.
+        if (actor.role === UserRole.USER) return [];
         const qb = this.userRepo.createQueryBuilder('user')
             .leftJoinAndSelect('user.department', 'department');
+        this.applySiteScope(qb, 'user', actor);
 
         if (query && query.trim()) {
             const searchTerm = `%${query.trim().toLowerCase()}%`;
@@ -303,10 +360,12 @@ export class SearchService {
         query: string | undefined, 
         filters: SearchFilterDto, 
         limit: number,
-        offset: number
+        offset: number,
+        actor: SearchActor,
     ): Promise<any[]> {
         const qb = this.hardwareRequestRepo.createQueryBuilder('hw')
             .leftJoinAndSelect('hw.requester', 'requester');
+        this.applyHardwareAccess(qb, actor);
 
         if (query && query.trim()) {
             const searchTerm = `%${query.trim().toLowerCase()}%`;
@@ -343,12 +402,13 @@ export class SearchService {
      */
     async getSuggestions(
         query: string,
-        limit = 10,
-        visibilities: ArticleVisibility[] = [ArticleVisibility.PUBLIC],
+        limit: number,
+        visibilities: ArticleVisibility[],
+        actor: SearchActor,
     ): Promise<SearchSuggestionDto[]> {
         if (!query || query.length < 2) return [];
 
-        const cacheKey = `suggestions:${query.toLowerCase()}:${visibilities.join(',')}`;
+        const cacheKey = `suggestions:${query.toLowerCase()}:${visibilities.join(',')}:${actorCacheKey(actor)}`;
         const cached = await this.cacheService.getAsync<SearchSuggestionDto[]>(cacheKey);
         if (cached) return cached;
 
@@ -356,13 +416,15 @@ export class SearchService {
         const suggestions: SearchSuggestionDto[] = [];
 
         // Ticket numbers and titles
-        const tickets = await this.ticketRepo
+        const ticketQb = this.ticketRepo
             .createQueryBuilder('ticket')
             .select(['ticket.id', 'ticket.ticketNumber', 'ticket.title'])
-            .where('LOWER(ticket.ticketNumber) LIKE :search', { search: searchTerm })
-            .orWhere('LOWER(ticket.title) LIKE :search', { search: searchTerm })
-            .take(5)
-            .getMany();
+            .where(new Brackets(b => {
+                b.where('LOWER(ticket.ticketNumber) LIKE :search', { search: searchTerm })
+                 .orWhere('LOWER(ticket.title) LIKE :search', { search: searchTerm });
+            }));
+        this.applyTicketAccess(ticketQb, actor);
+        const tickets = await ticketQb.take(5).getMany();
 
         tickets.forEach(t => {
             suggestions.push({
@@ -373,12 +435,12 @@ export class SearchService {
         });
 
         // User names
-        const users = await this.userRepo
+        const userQb = this.userRepo
             .createQueryBuilder('user')
             .select(['user.id', 'user.fullName', 'user.email'])
-            .where('LOWER(user.fullName) LIKE :search', { search: searchTerm })
-            .take(3)
-            .getMany();
+            .where('LOWER(user.fullName) LIKE :search', { search: searchTerm });
+        this.applySiteScope(userQb, 'user', actor);
+        const users = actor.role === UserRole.USER ? [] : await userQb.take(3).getMany();
 
         users.forEach(u => {
             suggestions.push({
@@ -407,12 +469,14 @@ export class SearchService {
         });
 
         // Hardware Requests
-        const hwRequests = await this.hardwareRequestRepo
+        const hwQb = this.hardwareRequestRepo
             .createQueryBuilder('hw')
-            .where('LOWER(hw.requestNumber) LIKE :search', { search: searchTerm })
-            .orWhere('LOWER(hw.justification) LIKE :search', { search: searchTerm })
-            .take(3)
-            .getMany();
+            .where(new Brackets(b => {
+                b.where('LOWER(hw.requestNumber) LIKE :search', { search: searchTerm })
+                 .orWhere('LOWER(hw.justification) LIKE :search', { search: searchTerm });
+            }));
+        this.applyHardwareAccess(hwQb, actor);
+        const hwRequests = await hwQb.take(3).getMany();
 
         hwRequests.forEach(r => {
             suggestions.push({

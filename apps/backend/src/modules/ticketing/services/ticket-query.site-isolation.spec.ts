@@ -140,6 +140,30 @@ describe('TicketQueryService site isolation', () => {
         });
     });
 
+    describe('developer queue on the unpaginated list', () => {
+        const DEV_TEAM_ONLY = '(ticket."handlingTeam" = :oracleTeam)';
+
+        it('ignores ?queue=oracle for a requester and keeps them on their own tickets', async () => {
+            await service.findAll('user-1', UserRole.USER, 'site-spj', 'oracle');
+
+            expect(mockQueryBuilder.where).not.toHaveBeenCalledWith(DEV_TEAM_ONLY, expect.anything());
+            expect(mockQueryBuilder.where).toHaveBeenCalledWith(expect.stringContaining('ticket.userId = :userId'), { userId: 'user-1' });
+        });
+
+        it('ignores ?queue=oracle for a site-locked ops agent', async () => {
+            await service.findAll('agent-1', UserRole.AGENT, 'site-spj', 'oracle');
+
+            expect(mockQueryBuilder.where).not.toHaveBeenCalledWith(DEV_TEAM_ONLY, expect.anything());
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OWN_SITE, { userSiteId: 'site-spj' });
+        });
+
+        it('still serves the oracle queue to developer roles', async () => {
+            await service.findAll('dev-1', UserRole.AGENT_ORACLE, null, 'oracle');
+
+            expect(mockQueryBuilder.where).toHaveBeenCalledWith(DEV_TEAM_ONLY, expect.anything());
+        });
+    });
+
     describe('Oracle queue', () => {
         it('still pins a site-locked caller to their own site', async () => {
             await service.findAllPaginatedOracle('user-1', UserRole.AGENT_ADMIN, 'site-spj');

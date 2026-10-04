@@ -15,6 +15,16 @@ import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
 
+/** Roles that may open the developer queues (mirrors the frontend route guards). */
+const DEV_QUEUE_ROLES: readonly UserRole[] = [UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV, UserRole.ADMIN];
+const DEV_QUEUES = ['oracle', 'web-dev', 'mobile-dev'];
+
+/** A dev queue asked for by any other role is ignored, so the caller gets their normal role-scoped list. */
+export function effectiveQueue(queue: string | undefined, role: UserRole): string | undefined {
+    if (queue && DEV_QUEUES.includes(queue) && !DEV_QUEUE_ROLES.includes(role)) return undefined;
+    return queue;
+}
+
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
 }
@@ -110,6 +120,7 @@ export class TicketQueryService {
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
 
+        queue = effectiveQueue(queue, role);
         if (queue === 'oracle') {
             query.where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
             query.andWhere(
