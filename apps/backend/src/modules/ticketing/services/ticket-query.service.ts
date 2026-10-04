@@ -11,6 +11,8 @@ import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
 import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
 import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
+import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
@@ -30,6 +32,8 @@ export function effectiveQueue(queue: string | undefined, role: UserRole): strin
  * edits), so it only stands in for legacy rows that predate `resolvedAt`.
  */
 const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
+const CREATED_WIB_DATE = wibDateSql('ticket."createdAt"');
+const MS_PER_DAY = 86_400_000;
 
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
@@ -801,13 +805,12 @@ export class TicketQueryService {
     }
 
     private async computeDashboardStats(role: UserRole, userSiteId: string | null, excludeCategory?: string, chartDays: number = 7) {
+        // Day/week/month boundaries in WIB (the process runs in UTC, so local Date math would start days at 07:00 WIB).
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const thisWeekStart = new Date(today);
-        thisWeekStart.setDate(today.getDate() - today.getDay());
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const lastDaysStart = new Date(today);
-        lastDaysStart.setDate(today.getDate() - (chartDays - 1));
+        const today = wibStartOfToday(now);
+        const thisWeekStart = wibStartOfWeek(now);
+        const thisMonthStart = wibStartOfMonth(now);
+        const lastDaysStart = new Date(today.getTime() - (chartDays - 1) * MS_PER_DAY);
 
         // Use QueryBuilder for efficient aggregations
         const qb = this.createFilteredTicketQb(role, userSiteId, excludeCategory);
@@ -880,30 +883,30 @@ export class TicketQueryService {
 
         // 5. Last N days - single query with date grouping
         const dailyStats = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
-            .select(`DATE(ticket."createdAt")`, 'date')
+            .select(`to_char(${CREATED_WIB_DATE}, 'YYYY-MM-DD')`, 'date')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .andWhere(`ticket."createdAt" >= :start`, { start: lastDaysStart })
-            .groupBy(`DATE(ticket."createdAt")`)
-            .orderBy(`DATE(ticket."createdAt")`, 'ASC')
+            .groupBy(CREATED_WIB_DATE)
+            .orderBy(CREATED_WIB_DATE, 'ASC')
             .getRawMany();
 
         // Build last N days array
         const dailyActivityData: { date: string; created: number; resolved: number }[] = [];
         const dailyMap = new Map(dailyStats.map(d => [
-            new Date(d.date).toDateString(),
+            d.date as string,
             { created: parseInt(d.created) || 0, resolved: parseInt(d.resolved) || 0 }
         ]));
 
         for (let i = (chartDays - 1); i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(today.getDate() - i);
-            const stats = dailyMap.get(date.toDateString()) || { created: 0, resolved: 0 };
+            // Noon WIB of that day: safe to format in any zone without slipping a day.
+            const date = new Date(today.getTime() - i * MS_PER_DAY + MS_PER_DAY / 2);
+            const stats = dailyMap.get(localDateKey(date)) || { created: 0, resolved: 0 };
             
             // For longer ranges, format date as 'D MMM' instead of weekday
             const formatStr = chartDays > 7 
-                ? date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) 
-                : date.toLocaleDateString('en-US', { weekday: 'short' });
+                ? date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: DEFAULT_TIMEZONE }) 
+                : date.toLocaleDateString('en-US', { weekday: 'short', timeZone: DEFAULT_TIMEZONE });
                 
             dailyActivityData.push({
                 date: formatStr,

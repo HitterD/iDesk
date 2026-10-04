@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, ILike } from 'typeorm';
 import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
@@ -168,7 +169,7 @@ export class AuditService {
      */
     async getStats(): Promise<AuditStats> {
         const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayStart = wibStartOfToday(now);
         const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 

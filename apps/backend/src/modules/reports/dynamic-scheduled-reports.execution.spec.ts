@@ -1,7 +1,7 @@
 // apps/backend/src/modules/reports/dynamic-scheduled-reports.execution.spec.ts
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
-import { DynamicScheduledReportsService } from './generators/dynamic-scheduled-reports.service';
+import { DynamicScheduledReportsService, computeReportDateRange } from './generators/dynamic-scheduled-reports.service';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import {
   ScheduledReportConfig,
@@ -259,4 +259,27 @@ describe('DynamicScheduledReportsService execution', () => {
     expect(ticketVolumeReport.generate).not.toHaveBeenCalled();
     expect(executionRepo.save).not.toHaveBeenCalled();
   });
+});
+
+describe('computeReportDateRange (WIB)', () => {
+    // 06:00 WIB on Thu Oct 8 2026 = 23:00 UTC Oct 7: "yesterday" must still be Oct 7 WIB.
+    const NOW = new Date('2026-10-07T23:00:00.000Z');
+
+    it('DAILY covers the whole previous WIB day', () => {
+        const { startDate, endDate } = computeReportDateRange(ScheduleType.DAILY, NOW);
+        expect(startDate.toISOString()).toBe('2026-10-06T17:00:00.000Z');
+        expect(endDate.toISOString()).toBe('2026-10-07T16:59:59.999Z');
+    });
+
+    it('WEEKLY covers the 7 WIB days before today', () => {
+        const { startDate, endDate } = computeReportDateRange(ScheduleType.WEEKLY, NOW);
+        expect(startDate.toISOString()).toBe('2026-09-30T17:00:00.000Z');
+        expect(endDate.toISOString()).toBe('2026-10-07T16:59:59.999Z');
+    });
+
+    it('MONTHLY covers the previous WIB calendar month', () => {
+        const { startDate, endDate } = computeReportDateRange(ScheduleType.MONTHLY, NOW);
+        expect(startDate.toISOString()).toBe('2026-08-31T17:00:00.000Z');
+        expect(endDate.toISOString()).toBe('2026-09-30T16:59:59.999Z');
+    });
 });

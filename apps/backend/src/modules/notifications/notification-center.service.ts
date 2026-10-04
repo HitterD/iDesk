@@ -760,12 +760,12 @@ export class NotificationCenterService implements OnModuleInit {
         await this.processDigests(DigestFrequency.HOURLY);
     }
 
-    @Cron('0 9 * * *') // Every day at 9 AM
+    @Cron('0 9 * * *', { timeZone: 'Asia/Jakarta' }) // Every day at 09:00 WIB
     async processDailyDigests(): Promise<void> {
         await this.processDigests(DigestFrequency.DAILY);
     }
 
-    @Cron('0 9 * * 1') // Every Monday at 9 AM
+    @Cron('0 9 * * 1', { timeZone: 'Asia/Jakarta' }) // Every Monday at 09:00 WIB
     async processWeeklyDigests(): Promise<void> {
         await this.processDigests(DigestFrequency.WEEKLY);
     }
