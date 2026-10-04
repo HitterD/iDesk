@@ -30,6 +30,7 @@ import { generateExecutiveInsights } from './utils/executive-insights.util';
 import { ReportScope, applyTeamFilter, teamLabel } from './utils/report-team-scope.util';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { wibMonthRange } from '../../shared/core/utils/wib-date.util';
 
 @Injectable()
 export class ReportsService {
@@ -60,8 +61,7 @@ export class ReportsService {
         const cacheKey = `reports:monthly:${year}-${month}:${siteId || 'all'}:${team || 'all'}`;
 
         return this.cacheService.getOrSet(cacheKey, async () => {
-            const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 0, 23, 59, 59);
+            const { startDate, endDate } = wibMonthRange(year, month);
 
             // Single optimized query with SQL aggregations
             const qb = this.ticketRepo
@@ -69,7 +69,7 @@ export class ReportsService {
                 .select('COUNT(*)', 'totalTickets')
                 .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolvedTickets')
                 .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'openTickets')
-                .addSelect(`AVG(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
+                .addSelect(`AVG(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN EXTRACT(EPOCH FROM (COALESCE(ticket."resolvedAt", ticket."updatedAt") - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
                 .where('ticket."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate });
 
             if (siteId) {
@@ -98,8 +98,7 @@ export class ReportsService {
      */
     async generateExcelReport(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}) {
         const { siteId, team } = scope;
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59);
+        const { startDate, endDate } = wibMonthRange(year, month);
         const monthName = MONTH_NAMES[month - 1] || `Bulan ${month}`;
 
         const qb = this.ticketRepo

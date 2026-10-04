@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { wibStartOfToday } from '../../../shared/core/utils/wib-date.util';
+import { localDateKey } from '../../sla-config/business-hours.calc';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Ticket, TICKET_DONE_STATUSES } from '../../ticketing/entities/ticket.entity';
@@ -32,6 +34,8 @@ export interface TicketVolumeData {
  * Ticket Volume Report Generator
  * Generates volume statistics for tickets over a date range
  */
+const MS_PER_DAY = 86_400_000;
+
 @Injectable()
 export class TicketVolumeReport {
     constructor(
@@ -52,8 +56,11 @@ export class TicketVolumeReport {
         options?: { siteId?: string; team?: ReportTeam }
     ): Promise<ReportResult<TicketVolumeData>> {
         // Build query with optional site filter
+        // Only the columns we aggregate: loading full entities pulled every description
+        // (text) of the whole range into memory.
         const qb = this.ticketRepo
             .createQueryBuilder('ticket')
+            .select(['ticket.id', 'ticket.createdAt', 'ticket.status', 'ticket.priority', 'ticket.category', 'ticket.source'])
             .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
                 startDate: dateRange.startDate,
                 endDate: dateRange.endDate,
@@ -120,17 +127,14 @@ export class TicketVolumeReport {
         const daily: VolumeDataPoint[] = [];
         const dailyMap = new Map<string, { created: number; resolved: number; pending: number }>();
 
-        // Initialize all days in range
-        const currentDate = new Date(dateRange.startDate);
-        while (currentDate <= dateRange.endDate) {
-            const dateKey = currentDate.toISOString().split('T')[0];
-            dailyMap.set(dateKey, { created: 0, resolved: 0, pending: 0 });
-            currentDate.setDate(currentDate.getDate() + 1);
+        // Initialize all WIB days in range (UTC keys put 00:00-07:00 WIB on the previous day)
+        for (let at = wibStartOfToday(dateRange.startDate).getTime(); at <= dateRange.endDate.getTime(); at += MS_PER_DAY) {
+            dailyMap.set(localDateKey(new Date(at)), { created: 0, resolved: 0, pending: 0 });
         }
 
         // Count tickets per day
         for (const ticket of tickets) {
-            const createdDate = new Date(ticket.createdAt).toISOString().split('T')[0];
+            const createdDate = localDateKey(new Date(ticket.createdAt));
             const day = dailyMap.get(createdDate);
             if (day) {
                 day.created++;

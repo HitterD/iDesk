@@ -402,17 +402,16 @@ export class WorkloadService {
         const today = workloadDay(now);
         const startOfToday = startOfLocalDay(now, WORKLOAD_TIMEZONE);
 
-        // Get all active tickets assigned to this agent for this site
-        const activeTickets = await this.ticketRepo.find({
+        // Open tickets only, filtered in SQL. The old `status >= 'TODO'` matched every
+        // status (TODO is the first enum value), loading the agent's whole history.
+        const openTickets = await this.ticketRepo.find({
+            select: ['id', 'priority', 'status', 'isHardwareInstallation', 'scheduledDate'],
             where: {
                 assignedToId: agentId,
                 siteId: targetSiteId,
-                status: MoreThanOrEqual(TicketStatus.TODO) as any,
+                status: Not(In(TICKET_INACTIVE_STATUSES)),
             },
         });
-
-        // Filter out resolved/closed/cancelled
-        const openTickets = activeTickets.filter(t => !TICKET_INACTIVE_STATUSES.includes(t.status));
 
         // Calculate total points — prefetch all weights once instead of one query per ticket.
         // Installation tickets only count from the opening of their install day.

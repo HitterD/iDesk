@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { wibDateSql, wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Ticket, TicketStatus, TicketPriority, TICKET_DONE_STATUSES } from '../ticketing/entities/ticket.entity';
@@ -74,8 +75,7 @@ export class ManagerDashboardService {
     }
 
     private async computeDashboardStats(query: DashboardQueryDto): Promise<ManagerDashboardStats> {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = wibStartOfToday();
 
         const sites = query.siteIds?.length
             ? await this.siteRepo.find({ where: { id: In(query.siteIds) } })
@@ -214,8 +214,7 @@ export class ManagerDashboardService {
     }
 
     private async getTopAgents(siteIds: string[]): Promise<AgentStats[]> {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = wibStartOfToday();
         const openStatuses = [TicketStatus.TODO, TicketStatus.IN_PROGRESS];
         const resolvedStatuses = TICKET_DONE_STATUSES;
 
@@ -261,16 +260,14 @@ export class ManagerDashboardService {
 
     private async getTrendData(siteIds: string[], days: number): Promise<TrendData[]> {
         if (siteIds.length === 0) return [];
-        const end = new Date();
-        end.setHours(0, 0, 0, 0);
-        const start = new Date(end);
-        start.setDate(start.getDate() - (days - 1));
+        const end = wibStartOfToday();
+        const start = new Date(end.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
 
         // P1 perf: was 2 counts × N sites × 7 days. Now one grouped query
         // using date_trunc('day', ...) so PG aggregates per (day, site) row.
         const rows: Array<{ day: string; siteId: string; created: string; resolved: string }> =
             await this.ticketRepo.createQueryBuilder('t')
-                .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
+                .select(`to_char(${wibDateSql('t."createdAt"')}, 'YYYY-MM-DD')`, 'day')
                 .addSelect('t.siteId', 'siteId')
                 .addSelect('COUNT(*)', 'created')
                 .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" IS NOT NULL)`, 'resolved')
@@ -278,7 +275,7 @@ export class ManagerDashboardService {
                 .andWhere('t."createdAt" >= :start', { start })
                 .andWhere('t."createdAt" < :endPlus', { endPlus: new Date(end.getTime() + 24 * 60 * 60 * 1000) })
                 .setParameters({ resolvedStatuses: TICKET_DONE_STATUSES })
-                .groupBy(`date_trunc('day', t."createdAt")`)
+                .groupBy(wibDateSql('t."createdAt"'))
                 .addGroupBy('t.siteId')
                 .getRawMany();
 

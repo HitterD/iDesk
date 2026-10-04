@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as os from 'os';
 import { SynologyService } from './synology.service';
 import {
     CreateBackupConfigDto,
@@ -29,6 +31,9 @@ import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
+
+/** Largest database dump accepted for restore uploads (2 GiB). */
+const MAX_RESTORE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
 
 @ApiTags('Synology Backup')
 @ApiBearerAuth()
@@ -154,7 +159,11 @@ export class SynologyController {
     @Post('restore/upload')
     @ApiOperation({ summary: 'Restore database from uploaded .sql or .sql.gz file' })
     @ApiConsumes('multipart/form-data')
-    @UseInterceptors(FileInterceptor('file'))
+    // Stream the dump to disk: the default memory storage held the whole file in RAM.
+    @UseInterceptors(FileInterceptor('file', {
+        storage: diskStorage({ destination: os.tmpdir() }),
+        limits: { fileSize: MAX_RESTORE_UPLOAD_BYTES, files: 1 },
+    }))
     restoreFromUpload(
         @UploadedFile() file: Express.Multer.File,
         @Body() dto: RestoreUploadDto,

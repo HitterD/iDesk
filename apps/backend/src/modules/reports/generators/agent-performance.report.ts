@@ -67,7 +67,7 @@ export class AgentPerformanceReport {
             .addSelect(`
                 AVG(CASE
                     WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL})
-                    THEN EXTRACT(EPOCH FROM (ticket.updatedAt - ticket.createdAt)) / 60
+                    THEN EXTRACT(EPOCH FROM (COALESCE(ticket.resolvedAt, ticket.updatedAt) - ticket.createdAt)) / 60
                     ELSE NULL
                 END)
             `, 'avgResolutionTimeMinutes')
@@ -78,8 +78,10 @@ export class AgentPerformanceReport {
             // `ticket.slatarget` → 42703 "column does not exist".
             .addSelect(`
                 SUM(CASE
-                    WHEN ticket.slaTarget IS NOT NULL
-                         AND ticket.updatedAt > ticket.slaTarget THEN 1
+                    WHEN ticket.slaTarget IS NOT NULL AND ticket.status IN (${TICKET_DONE_STATUSES_SQL})
+                         AND COALESCE(ticket.resolvedAt, ticket.updatedAt) > ticket.slaTarget THEN 1
+                    WHEN ticket.slaTarget IS NOT NULL AND ticket.status NOT IN (${TICKET_DONE_STATUSES_SQL})
+                         AND NOW() > ticket.slaTarget THEN 1
                     ELSE 0
                 END)
             `, 'slaBreached')

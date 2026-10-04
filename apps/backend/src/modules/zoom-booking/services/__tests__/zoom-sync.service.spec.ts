@@ -77,8 +77,8 @@ describe('ZoomSyncService.syncAccount and syncAllAccounts', () => {
             ],
         });
 
-        // Existing booking has identical attributes
-        mockBookingRepo.findOne.mockResolvedValue({
+        // Existing booking has identical attributes (loaded in one batch by occurrence key)
+        mockBookingRepo.find.mockResolvedValue([{
             id: 'existing-id',
             title: 'Weekly Team Sync',
             description: 'External meeting scheduled directly via Zoom',
@@ -89,7 +89,7 @@ describe('ZoomSyncService.syncAccount and syncAllAccounts', () => {
             zoomAccountId: mockAccount.id,
             isExternal: true,
             externalZoomMeetingId: `12345678_${dateStr}_${timeStr.slice(0, 5)}`,
-        });
+        }]);
 
         const updatedCount = await syncService.syncAllAccounts();
 
@@ -128,7 +128,7 @@ describe('ZoomSyncService.syncAccount and syncAllAccounts', () => {
             isExternal: true,
             externalZoomMeetingId: `12345678_${dateStr}_${timeStr.slice(0, 5)}`,
         };
-        mockBookingRepo.findOne.mockResolvedValue(existingRecord);
+        mockBookingRepo.find.mockResolvedValue([existingRecord]);
 
         const updatedCount = await syncService.syncAllAccounts();
 
@@ -156,7 +156,7 @@ describe('ZoomSyncService.syncAccount and syncAllAccounts', () => {
             ],
         });
 
-        mockBookingRepo.findOne.mockResolvedValue(null);
+        mockBookingRepo.find.mockResolvedValue([]);
 
         const updatedCount = await syncService.syncAllAccounts();
 
@@ -186,5 +186,30 @@ describe('ZoomSyncService.syncAccount and syncAllAccounts', () => {
         expect(updatedCount).toBe(2);
         expect(mockBookingRepo.delete).toHaveBeenCalledTimes(2);
         expect(mockEventEmitter.emit).toHaveBeenCalledWith('zoom.sync.completed', { updatedCount: 2 });
+    });
+
+    // Stored keys are `<id>_<date>_<HH:mm>`; the webhook used to look up the bare id and found nothing.
+    it('removes every stored occurrence of a meeting deleted in Zoom', async () => {
+        mockBookingRepo.find.mockResolvedValue([{ id: 'b1' }, { id: 'b2' }]);
+
+        await syncService.handleWebhookMeetingDeleted({ object: { id: 84154272370 } });
+
+        const where = mockBookingRepo.find.mock.calls[0][0].where;
+        expect(where[0]).toEqual({ externalZoomMeetingId: '84154272370' });
+        expect(where[1].externalZoomMeetingId.value).toBe('84154272370\\_%'); // `_` escaped, not a LIKE wildcard
+        expect(mockBookingRepo.delete).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips a cron run while the previous one is still going', async () => {
+        let release: () => void = () => undefined;
+        const spy = jest.spyOn(syncService, 'syncAllAccounts').mockImplementation(() => new Promise((r) => { release = () => r(0); }));
+        jest.spyOn(syncService, 'syncRecentRecordings').mockResolvedValue(0 as any);
+
+        const first = syncService.handleCronSync();
+        await syncService.handleCronSync();
+        release();
+        await first;
+
+        expect(spy).toHaveBeenCalledTimes(1);
     });
 });

@@ -12,6 +12,8 @@ type TicketSocketData = Partial<Ticket> & { id: string };
 
 /** How often a ticket page refetches while the socket is down, so missed messages still show up. */
 export const TICKET_OFFLINE_POLL_MS = 15000;
+/** Window in which the message + notification events for one reply share a single resync. */
+export const TICKET_RESYNC_DEBOUNCE_MS = 500;
 
 interface UseTicketSocketOptions {
     ticketId: string | undefined;
@@ -56,6 +58,21 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         joinTicketRoom();
         socket.on('connect', handleReconnect);
 
+        // One new message arrives as both `ticket:newMessage` and a `notification:*` event:
+        // coalesce their background resync into a single refetch of the ticket.
+        let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleTicketResync = (includeMessages: boolean) => {
+            if (includeMessages) resyncMessages = true;
+            if (resyncTimer) return;
+            resyncTimer = setTimeout(() => {
+                resyncTimer = null;
+                queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
+                if (resyncMessages) queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId], refetchType: 'active' });
+                resyncMessages = false;
+            }, TICKET_RESYNC_DEBOUNCE_MS);
+        };
+        let resyncMessages = false;
+
         // Listen for new messages
         const handleNewMessage = (data: { ticketId: string; message: Message }) => {
             if (data.ticketId === ticketId) {
@@ -86,8 +103,8 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                     return [...oldMessages, data.message];
                 });
 
-                // Fail-safe: invalidate query in background to ensure all relations/SLA/unread state are synced
-                queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
+                // Fail-safe: resync in background so relations/SLA/unread state catch up (debounced).
+                scheduleTicketResync(false);
 
                 // Call custom handler if provided
                 onNewMessageRef.current?.(data.message);
@@ -167,8 +184,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                 Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
                 typingTimersRef.current = {};
                 setTypingUsers({});
-                queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
-                queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId], refetchType: 'active' });
+                scheduleTicketResync(true);
             }
         };
 
@@ -197,6 +213,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                 socket.off(`notification:${user.id}`, handleNotificationSync);
             }
             socket.off('notification:new', handleNotificationSync);
+            if (resyncTimer) clearTimeout(resyncTimer);
 
             // Clear typing timeouts and the names they guard; a name left without its timer never expires.
             Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
@@ -280,8 +297,13 @@ export const useTicketListSocket = (options?: {
 
         const handleNewMessage = (data: any) => {
             const ticketId = data.ticketId || data.message?.ticketId;
-            scheduleInvalidate(TICKETS_KEY);
-            if (ticketId) {
+            // Unknown ticket: fall back to a refetch. Otherwise the cache patch below is enough;
+            // invalidating would refetch every mounted ticket list just to show an unread dot.
+            if (!ticketId) {
+                scheduleInvalidate(TICKETS_KEY);
+                return;
+            }
+            {
                 queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
                     if (!oldData) return oldData;
                     if (oldData.data && Array.isArray(oldData.data)) {

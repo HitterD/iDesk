@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
 import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 import { REPORT_TEAMS, ReportScope, resolveReportScope } from './utils/report-team-scope.util';
+import { wibEndOfDate, wibStartOfDate } from '../../shared/core/utils/wib-date.util';
 
 /**
  * Every endpoint accepts `team` and `siteId`. They are resolved against the
@@ -66,8 +67,8 @@ export class ReportsController {
         @Query('team') team?: string,
     ) {
         return this.reportsService.getAgentPerformance(
-            new Date(startDate),
-            new Date(endDate),
+            wibStartOfDate(startDate),
+            wibEndOfDate(endDate),
             this.scopeFor(req, team, siteId),
         );
     }
@@ -86,8 +87,8 @@ export class ReportsController {
         @Query('team') team?: string,
     ) {
         return this.reportsService.getTicketVolume(
-            new Date(startDate),
-            new Date(endDate),
+            wibStartOfDate(startDate),
+            wibEndOfDate(endDate),
             this.scopeFor(req, team, siteId),
         );
     }
@@ -131,8 +132,8 @@ export class ReportsController {
         const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateCustomRangeExcel(
             res,
-            new Date(startDate),
-            new Date(endDate),
+            wibStartOfDate(startDate),
+            wibEndOfDate(endDate),
             this.userIdOf(req),
             scope,
         );
@@ -159,8 +160,8 @@ export class ReportsController {
         const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateAgentPerformancePDF(
             res,
-            new Date(startDate),
-            new Date(endDate),
+            wibStartOfDate(startDate),
+            wibEndOfDate(endDate),
             this.userIdOf(req),
             scope,
         );
@@ -183,8 +184,8 @@ export class ReportsController {
         const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateTicketVolumePDF(
             res,
-            new Date(startDate),
-            new Date(endDate),
+            wibStartOfDate(startDate),
+            wibEndOfDate(endDate),
             this.userIdOf(req),
             scope,
         );

@@ -11,9 +11,39 @@ import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
 import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
 import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
+import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
+
+/** Roles that may open the developer queues (mirrors the frontend route guards). */
+const DEV_QUEUE_ROLES: readonly UserRole[] = [UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV, UserRole.ADMIN];
+const DEV_QUEUES = ['oracle', 'web-dev', 'mobile-dev'];
+
+/** A dev queue asked for by any other role is ignored, so the caller gets their normal role-scoped list. */
+export function effectiveQueue(queue: string | undefined, role: UserRole): string | undefined {
+    if (queue && DEV_QUEUES.includes(queue) && !DEV_QUEUE_ROLES.includes(role)) return undefined;
+    return queue;
+}
+
+/**
+ * When a ticket was resolved. `updatedAt` moves on any later write (auto-close,
+ * edits), so it only stands in for legacy rows that predate `resolvedAt`.
+ */
+const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
+const CREATED_WIB_DATE = wibDateSql('ticket."createdAt"');
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Prefix tsquery from free text (`printer lt 2` -> `printer:* & lt:* & 2:*`). Tokens are
+ * reduced to letters/digits first: raw input like `a(b` is a tsquery syntax error (500).
+ * Returns an always-false query when nothing searchable is left.
+ */
+export function toPrefixTsQuery(text: string): string {
+    const tokens = text.split(/\s+/).map((t) => t.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+    return tokens.length ? tokens.map((t) => `${t}:*`).join(' & ') : '!_';
+}
 
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
@@ -110,6 +140,7 @@ export class TicketQueryService {
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
 
+        queue = effectiveQueue(queue, role);
         if (queue === 'oracle') {
             query.where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
             query.andWhere(
@@ -197,6 +228,7 @@ export class TicketQueryService {
             startDate?: string;
             endDate?: string;
             createdByMe?: boolean; // Requested/filed by the caller, across teams and sites
+            assignedToMe?: boolean; // Assigned to the caller (filtered server-side so paging and totals stay right)
         } = {}
     ) {
         const {
@@ -216,6 +248,7 @@ export class TicketQueryService {
             startDate,
             endDate,
             createdByMe,
+            assignedToMe,
         } = options;
 
         const qb = this.ticketRepo
@@ -246,6 +279,10 @@ export class TicketQueryService {
             // pinned to their own — and fail closed when they have none.
             applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
             applyServiceScopeFilter(qb, role);
+        }
+
+        if (assignedToMe) {
+            qb.andWhere('ticket.assignedToId = :assigneeId', { assigneeId: userId });
         }
 
         // Client My Tickets includes every ticket owned by or shared with the requester.
@@ -748,7 +785,10 @@ export class TicketQueryService {
             }
         }
 
-        // Use stored SLA Target if available, otherwise calculate it (for backwards compatibility)
+        // Use stored SLA Target if available, otherwise calculate it for display only.
+        // Never persist from this read path: saving the loaded entity would also cascade the
+        // (requester-filtered) messages relation, and a stored target on a ticket whose SLA clock
+        // has not started makes it count as overdue.
         let slaTarget = ticket.slaTarget;
         if (!slaTarget && ticket.priority) {
             const slaConfig = await this.slaConfigRepo.findOne({ where: { priority: ticket.priority } });
@@ -758,10 +798,6 @@ export class TicketQueryService {
                 slaTarget = this.slaClock
                     ? await this.slaClock.targetFor(ticket.priority, createdAt, slaConfig.resolutionTimeMinutes)
                     : new Date(createdAt.getTime() + (slaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
-
-                // Save calculated SLA target to ticket for future reference
-                ticket.slaTarget = slaTarget;
-                await this.ticketRepo.save(ticket);
             }
         }
 
@@ -785,13 +821,12 @@ export class TicketQueryService {
     }
 
     private async computeDashboardStats(role: UserRole, userSiteId: string | null, excludeCategory?: string, chartDays: number = 7) {
+        // Day/week/month boundaries in WIB (the process runs in UTC, so local Date math would start days at 07:00 WIB).
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const thisWeekStart = new Date(today);
-        thisWeekStart.setDate(today.getDate() - today.getDay());
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const lastDaysStart = new Date(today);
-        lastDaysStart.setDate(today.getDate() - (chartDays - 1));
+        const today = wibStartOfToday(now);
+        const thisWeekStart = wibStartOfWeek(now);
+        const thisMonthStart = wibStartOfMonth(now);
+        const lastDaysStart = new Date(today.getTime() - (chartDays - 1) * MS_PER_DAY);
 
         // Use QueryBuilder for efficient aggregations
         const qb = this.createFilteredTicketQb(role, userSiteId, excludeCategory);
@@ -803,7 +838,8 @@ export class TicketQueryService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
-            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            // WAITING_VENDOR pauses the SLA clock (as in SlaCheckerService), so it is never overdue here.
+            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -851,8 +887,8 @@ export class TicketQueryService {
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
-            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ${RESOLVED_AT_SQL} >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ${RESOLVED_AT_SQL} >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
             .setParameters({ today, thisWeek: thisWeekStart, thisMonth: thisMonthStart })
             .getRawOne();
 
@@ -864,30 +900,30 @@ export class TicketQueryService {
 
         // 5. Last N days - single query with date grouping
         const dailyStats = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
-            .select(`DATE(ticket."createdAt")`, 'date')
+            .select(`to_char(${CREATED_WIB_DATE}, 'YYYY-MM-DD')`, 'date')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .andWhere(`ticket."createdAt" >= :start`, { start: lastDaysStart })
-            .groupBy(`DATE(ticket."createdAt")`)
-            .orderBy(`DATE(ticket."createdAt")`, 'ASC')
+            .groupBy(CREATED_WIB_DATE)
+            .orderBy(CREATED_WIB_DATE, 'ASC')
             .getRawMany();
 
         // Build last N days array
         const dailyActivityData: { date: string; created: number; resolved: number }[] = [];
         const dailyMap = new Map(dailyStats.map(d => [
-            new Date(d.date).toDateString(),
+            d.date as string,
             { created: parseInt(d.created) || 0, resolved: parseInt(d.resolved) || 0 }
         ]));
 
         for (let i = (chartDays - 1); i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(today.getDate() - i);
-            const stats = dailyMap.get(date.toDateString()) || { created: 0, resolved: 0 };
+            // Noon WIB of that day: safe to format in any zone without slipping a day.
+            const date = new Date(today.getTime() - i * MS_PER_DAY + MS_PER_DAY / 2);
+            const stats = dailyMap.get(localDateKey(date)) || { created: 0, resolved: 0 };
             
             // For longer ranges, format date as 'D MMM' instead of weekday
             const formatStr = chartDays > 7 
-                ? date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) 
-                : date.toLocaleDateString('en-US', { weekday: 'short' });
+                ? date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: DEFAULT_TIMEZONE }) 
+                : date.toLocaleDateString('en-US', { weekday: 'short', timeZone: DEFAULT_TIMEZONE });
                 
             dailyActivityData.push({
                 date: formatStr,
@@ -942,7 +978,7 @@ export class TicketQueryService {
 
         // 8. Average resolution time - SQL calculation
         const avgTimeResult = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
-            .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
+            .select(`AVG(EXTRACT(EPOCH FROM (${RESOLVED_AT_SQL} - ticket."createdAt")) / 60)`, 'avgMinutes')
             .andWhere(`ticket.status IN (${TICKET_DONE_STATUSES_SQL})`)
             .getRawOne();
 
@@ -1070,7 +1106,7 @@ export class TicketQueryService {
             if (searchTerm.includes('-') || /^[A-Z0-9#-]+$/i.test(searchTerm)) {
                 qb.andWhere('ticket.ticketNumber ILIKE :exactSearch', { exactSearch: `%${searchTerm}%` });
             } else {
-                const formattedQuery = searchTerm.split(/\s+/).filter(Boolean).map(t => `${t}:*`).join(' & ');
+                const formattedQuery = toPrefixTsQuery(searchTerm);
                 qb.andWhere(
                     `(to_tsvector('simple', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ to_tsquery('simple', :ftsQuery) OR ticket.ticketNumber ILIKE :fuzzySearch OR user.fullName ILIKE :fuzzySearch)`,
                     { ftsQuery: formattedQuery, fuzzySearch: `%${searchTerm}%` }
@@ -1113,6 +1149,7 @@ export class TicketQueryService {
             statsQb.andWhere('ticket.category IN (:...cats)', { cats: module.categories });
         }
         applySiteFilter(statsQb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(statsQb, role); // same scope as the list, or the counts do not match it
 
         const [totalCount, openCount, inProgressCount, resolvedCount] = await Promise.all([
             statsQb.clone().getCount(),

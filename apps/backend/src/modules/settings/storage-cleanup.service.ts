@@ -75,7 +75,7 @@ export class StorageCleanupService {
     }
 
     // Run daily at 2 AM
-    @Cron('0 2 * * *')
+    @Cron('0 2 * * *', { timeZone: 'Asia/Jakarta' })
     async runScheduledCleanup(): Promise<void> {
         const settings = await this.settingsService.getStorageSettings();
 

@@ -20,10 +20,16 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { allowedVisibilities } from '../knowledge-base/kb-visibility.util';
-import { SearchService } from './search.service';
+import { SearchActor, SearchService } from './search.service';
 import { SearchQueryDto, SearchFilterDto } from './dto/search-filter.dto';
 import { SearchResultDto, SearchSuggestionDto } from './dto/search-result.dto';
 import { SavedSearch } from './entities/saved-search.entity';
+
+const actorOf = (req: any): SearchActor => ({
+    userId: req.user.userId,
+    role: req.user.role,
+    siteId: req.user.siteId ?? null,
+});
 
 class SaveSearchDto {
     name: string;
@@ -49,7 +55,7 @@ export class SearchController {
     @ApiQuery({ name: 'limit', required: false, type: Number })
     @ApiQuery({ name: 'page', required: false, type: Number })
     async search(@Req() req: any, @Query() query: SearchQueryDto): Promise<SearchResultDto> {
-        return this.searchService.search(query, allowedVisibilities(req.user?.role));
+        return this.searchService.search(query, allowedVisibilities(req.user?.role), actorOf(req));
     }
 
     @Get('tickets')
@@ -59,7 +65,7 @@ export class SearchController {
         return this.searchService.search({
             ...query,
             scope: ['tickets'],
-        }, allowedVisibilities(req.user?.role));
+        }, allowedVisibilities(req.user?.role), actorOf(req));
     }
 
     @Get('users')
@@ -69,7 +75,7 @@ export class SearchController {
         return this.searchService.search({
             ...query,
             scope: ['users'],
-        }, allowedVisibilities(req.user?.role));
+        }, allowedVisibilities(req.user?.role), actorOf(req));
     }
 
     @Get('articles')
@@ -79,7 +85,7 @@ export class SearchController {
         return this.searchService.search({
             ...query,
             scope: ['articles'],
-        }, allowedVisibilities(req.user?.role));
+        }, allowedVisibilities(req.user?.role), actorOf(req));
     }
 
     @Get('suggestions')
@@ -87,7 +93,7 @@ export class SearchController {
     @ApiResponse({ status: 200, description: 'Search suggestions', type: [SearchSuggestionDto] })
     @ApiQuery({ name: 'q', required: true, description: 'Partial query for suggestions' })
     async getSuggestions(@Req() req: any, @Query('q') query: string): Promise<SearchSuggestionDto[]> {
-        return this.searchService.getSuggestions(query, 10, allowedVisibilities(req.user?.role));
+        return this.searchService.getSuggestions(query, 10, allowedVisibilities(req.user?.role), actorOf(req));
     }
 
     @Get('popular')

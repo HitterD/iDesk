@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { SOCKET_URL } from '@/lib/socket';
 
 let socket: Socket | null = null;
 function getSocket() {
     if (!socket) {
-        socket = io(`${import.meta.env.VITE_WS_URL}/ws/hardware-requests`, {
+        // VITE_WS_URL is not a build arg, so it was "undefined" in production builds.
+        socket = io(`${SOCKET_URL}/ws/hardware-requests`, {
             withCredentials: true, transports: ['websocket'],
         });
     }

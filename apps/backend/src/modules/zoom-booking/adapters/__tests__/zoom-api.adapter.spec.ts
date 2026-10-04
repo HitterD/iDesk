@@ -171,4 +171,18 @@ describe('ZoomApiAdapter', () => {
             expect(requestSpy).toHaveBeenCalledTimes(1);
         });
     });
+
+    // A host with >100 upcoming meetings: page 2+ was dropped and the sync then deleted them as stale.
+    describe('listMeetings', () => {
+        it('follows next_page_token until every page is read', async () => {
+            const requestSpy = jest.spyOn(adapter as any, 'request')
+                .mockResolvedValueOnce({ meetings: [{ id: 1 }], next_page_token: 'p2' })
+                .mockResolvedValueOnce({ meetings: [{ id: 2 }], next_page_token: '' });
+
+            const result = await adapter.listMeetings('host@example.com', 'upcoming');
+
+            expect(result.meetings.map((m: any) => m.id)).toEqual([1, 2]);
+            expect(requestSpy.mock.calls[1][1]).toContain('next_page_token=p2');
+        });
+    });
 });

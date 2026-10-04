@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { wibStartOfMonth, wibStartOfToday } from '../../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { SchedulerRegistry } from '@nestjs/schedule';
@@ -73,6 +74,28 @@ export function isCrossSiteRecipientRole(role: UserRole | string): boolean {
  * - Registers/unregisters on create/update/toggle/remove
  * - Executes: generate (with site + category filters) → validate recipients → email per agent → log execution
  */
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Period a scheduled report covers, on WIB calendar days (jobs fire in Asia/Jakarta,
+ * but the process clock is UTC, so local Date math would shift every window by 7h):
+ * DAILY = yesterday, WEEKLY = the 7 days before today, MONTHLY = previous month.
+ */
+export function computeReportDateRange(schedule: ScheduleType, now: Date): DateRange {
+  const today = wibStartOfToday(now);
+  if (schedule === ScheduleType.DAILY) {
+    return { startDate: new Date(today.getTime() - MS_PER_DAY), endDate: new Date(today.getTime() - 1) };
+  }
+  if (schedule === ScheduleType.WEEKLY) {
+    return { startDate: new Date(today.getTime() - 7 * MS_PER_DAY), endDate: new Date(today.getTime() - 1) };
+  }
+  if (schedule === ScheduleType.MONTHLY) {
+    const thisMonth = wibStartOfMonth(now);
+    return { startDate: wibStartOfMonth(new Date(thisMonth.getTime() - 1)), endDate: new Date(thisMonth.getTime() - 1) };
+  }
+  throw new Error(`Unsupported schedule: ${schedule}`);
+}
+
 @Injectable()
 export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DynamicScheduledReportsService.name);
@@ -151,38 +174,8 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     throw new Error(`Unsupported schedule: ${schedule}`);
   }
 
-  /**
-   * Compute the date range that the report should cover for a given schedule.
-   * This mirrors the intent of the old hardcoded schedules but is now per-config.
-   */
   private computeDateRange(schedule: ScheduleType): DateRange {
-    const now = new Date();
-
-    if (schedule === ScheduleType.DAILY) {
-      const start = new Date(now);
-      start.setDate(start.getDate() - 1);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setHours(23, 59, 59, 999);
-      return { startDate: start, endDate: end };
-    }
-
-    if (schedule === ScheduleType.WEEKLY) {
-      const end = new Date(now);
-      end.setHours(0, 0, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 7);
-      return { startDate: start, endDate: end };
-    }
-
-    if (schedule === ScheduleType.MONTHLY) {
-      // Previous calendar month
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      return { startDate: start, endDate: end };
-    }
-
-    throw new Error(`Unsupported schedule: ${schedule}`);
+    return computeReportDateRange(schedule, new Date());
   }
 
   /**

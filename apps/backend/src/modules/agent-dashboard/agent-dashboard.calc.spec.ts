@@ -64,6 +64,16 @@ describe('agent dashboard calc', () => {
         expect(stats.activeTickets[0].isOverdue).toBe(true);
     });
 
+    // WAITING_VENDOR pauses the SLA clock, so a target that slipped past while paused is not overdue.
+    it('does not count a waiting-vendor ticket with a past SLA target as overdue', () => {
+        const now = wib('2026-10-07T10:00:00');
+        const paused = ticket({ status: TicketStatus.WAITING_VENDOR, slaTarget: wib('2026-10-06T09:00:00') });
+        const stats = computeAgentTicketStats([paused], dashboardWindows(now, 30), 30);
+
+        expect(stats.overdue).toBe(0);
+        expect(stats.activeTickets[0].isOverdue).toBe(false);
+    });
+
     it('computes SLA compliance and average resolve time from tickets resolved in the period', () => {
         const now = wib('2026-10-07T10:00:00');
         const created = wib('2026-10-06T08:00:00');

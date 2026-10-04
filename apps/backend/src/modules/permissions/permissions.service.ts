@@ -7,7 +7,7 @@ import { PermissionPreset, PermissionSet, PageAccess, PresetTargetRole } from '.
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { FeaturePermissionDto } from './dto/update-permissions.dto';
-import { CacheService, CacheKeys } from '../../shared/core/cache/cache.service';
+import { CacheService } from '../../shared/core/cache/cache.service';
 import { PermissionsGateway } from './permissions.gateway';
 import { getRoleDefaultPageAccess, isValidPageKey } from '../../shared/core/types/page-access.types';
 
@@ -740,6 +740,7 @@ export class PermissionsService implements OnModuleInit {
             updated++;
         }
 
+        await this.invalidatePermissionCache(userId);
         return { updated };
     }
 
@@ -788,7 +789,7 @@ export class PermissionsService implements OnModuleInit {
         await this.userRepo.save(user);
 
         // Invalidate page access cache for this user
-        await this.cacheService.delAsync(CacheKeys.pageAccess(userId));
+        await this.invalidatePermissionCache(userId);
 
         // FI-8: Notify user via WebSocket for real-time update
         this.permissionsGateway.notifyPresetChange(userId, preset.id, preset.name);
@@ -813,7 +814,7 @@ export class PermissionsService implements OnModuleInit {
         user.appliedPresetName = null;
         await this.userRepo.save(user);
 
-        await this.cacheService.delAsync(CacheKeys.pageAccess(userId));
+        await this.invalidatePermissionCache(userId);
         this.permissionsGateway.notifyPresetChange(userId, '', '');
 
         this.logger.log(`Removed applied preset from user ${userId}`);
@@ -1040,8 +1041,8 @@ export class PermissionsService implements OnModuleInit {
         });
 
         for (const user of usersWithPreset) {
-            // Invalidate page access cache
-            await this.cacheService.delAsync(CacheKeys.pageAccess(user.id));
+            // Invalidate page-access and per-feature permission caches
+            await this.invalidatePermissionCache(user.id);
 
             // Notify user via WebSocket for real-time update
             this.permissionsGateway.notifyPresetChange(user.id, preset.id, preset.name);

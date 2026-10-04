@@ -4,6 +4,7 @@ import { NotificationService, NOTIFICATIONS_READ_EVENT } from './notification.se
 import { Notification, NotificationType, NotificationCategory } from './entities/notification.entity';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
+import { IsNull } from 'typeorm';
 
 describe('NotificationService - Deduplication', () => {
     let service: NotificationService;
@@ -151,5 +152,21 @@ describe('NotificationService - markReadByTarget', () => {
 
         expect(await service.markReadByTarget('user-1', {})).toBe(0);
         expect(query.execute).not.toHaveBeenCalled();
+    });
+});
+
+describe('NotificationService - critical acknowledgement filter', () => {
+    // TypeORM drops `undefined` where-values, which used to turn "unacknowledged" into "all".
+    it('queries only unacknowledged critical notifications, with a cap', async () => {
+        const repo = { find: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) };
+        const service = new NotificationService(repo as any, {} as any, {} as any);
+
+        await service.findUnacknowledgedCritical('user-1');
+        await service.countUnacknowledgedCritical('user-1');
+
+        const findArgs = repo.find.mock.calls[0][0];
+        expect(findArgs.where).toEqual({ userId: 'user-1', requiresAcknowledge: true, acknowledgedAt: IsNull() });
+        expect(findArgs.take).toBeGreaterThan(0);
+        expect(repo.count.mock.calls[0][0].where.acknowledgedAt).toEqual(IsNull());
     });
 });
