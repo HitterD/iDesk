@@ -11,7 +11,7 @@ import { In, Not, QueryFailedError, Repository } from 'typeorm';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
 import { randomBytes } from 'crypto';
-import { Ticket, TicketSource, TICKET_INACTIVE_STATUSES } from '../../ticketing/entities/ticket.entity';
+import { Ticket, TicketSource, TicketType, TICKET_INACTIVE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { User } from '../../users/entities/user.entity';
 import { TicketCreateService } from '../../ticketing/services/ticket-create.service';
 import { CreateTicketDto } from '../../ticketing/dto/create-ticket.dto';
@@ -22,6 +22,8 @@ import { IpopCatalogService } from './ipop-catalog.service';
 import { IPOP_MAX_ATTACHMENT_BYTES, IpopAttachmentDto, IpopCreateTicketDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
 
 export const IPOP_SOURCE = 'IPOP';
+/** Ticket types a requester never sees in iDesk "My Tickets"; iPop mirrors that view. */
+const HIDDEN_FROM_REQUESTER: TicketType[] = [TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION];
 const MAX_LIST = 100;
 const PG_UNIQUE_VIOLATION = '23505';
 
@@ -30,6 +32,10 @@ export interface IpopTicketView {
     ticketId: string;
     ticketNumber: string;
     externalRef: string | null;
+    /** Where the ticket was filed: through iPop, or directly in iDesk. */
+    origin: 'IPOP' | 'IDESK';
+    /** Owner of the ticket, so iPop can attach iDesk-filed tickets to the right user. */
+    requester: { nik: string | null; name: string | null };
     status: string;
     priority: string;
     module: string;
@@ -110,11 +116,8 @@ export class IpopTicketService {
     }
 
     async getByNumber(ticketNumber: string): Promise<IpopTicketView> {
-        const ticket = await this.ticketRepo.findOne({
-            where: { ticketNumber, externalSource: IPOP_SOURCE },
-            relations: ['assignedTo'],
-        });
-        if (!ticket) throw new NotFoundException(`No iPop ticket ${ticketNumber}`);
+        const ticket = await this.ticketRepo.findOne({ where: { ticketNumber }, relations: VIEW_RELATIONS });
+        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to iPop`);
         return this.toView(ticket);
     }
 
@@ -128,13 +131,14 @@ export class IpopTicketService {
         }
         const user = await this.userRepo.findOne({ where: { employeeId: query.nik }, select: ['id'] });
         if (!user) return [];
+        // Every ticket of this requester (filed in iPop or in iDesk), as in iDesk "My Tickets".
         const tickets = await this.ticketRepo.find({
             where: {
                 userId: user.id,
-                externalSource: IPOP_SOURCE,
+                ticketType: Not(In(HIDDEN_FROM_REQUESTER)),
                 ...(query.state === 'open' ? { status: Not(In(TICKET_INACTIVE_STATUSES)) } : {}),
             },
-            relations: ['assignedTo'],
+            relations: VIEW_RELATIONS,
             order: { createdAt: 'DESC' },
             take: MAX_LIST,
         });
@@ -148,6 +152,8 @@ export class IpopTicketService {
             ticketId: ticket.id,
             ticketNumber: ticket.ticketNumber,
             externalRef: ticket.externalRef ?? null,
+            origin: ticket.externalSource === IPOP_SOURCE ? 'IPOP' : 'IDESK',
+            requester: { nik: ticket.user?.employeeId ?? null, name: ticket.user?.fullName ?? null },
             status: ticket.status,
             priority: ticket.priority,
             module: moduleSlugOf(ticket),
@@ -164,13 +170,13 @@ export class IpopTicketService {
     }
 
     loadTicket(id: string): Promise<Ticket | null> {
-        return this.ticketRepo.findOne({ where: { id }, relations: ['assignedTo'] });
+        return this.ticketRepo.findOne({ where: { id }, relations: VIEW_RELATIONS });
     }
 
     private findByRef(externalRef: string): Promise<Ticket | null> {
         return this.ticketRepo.findOne({
             where: { externalSource: IPOP_SOURCE, externalRef },
-            relations: ['assignedTo'],
+            relations: VIEW_RELATIONS,
         });
     }
 
@@ -226,6 +232,19 @@ export class IpopTicketService {
     private async discard(files: AttachmentInfo[]): Promise<void> {
         await Promise.all(files.map((f) => unlink(join(UPLOAD_ROOT, f.path.replace(/^\/uploads\//, ''))).catch(() => undefined)));
     }
+}
+
+const VIEW_RELATIONS = ['assignedTo', 'user'];
+
+/**
+ * Tickets iPop may read and be notified about: filed through iPop, or filed in iDesk for
+ * a requester with a NIK (the link to the iPop user), excluding types the requester does
+ * not see in iDesk either.
+ */
+export function isIpopVisible(ticket: Pick<Ticket, 'externalSource' | 'ticketType'> & { user?: { employeeId?: string | null } | null }): boolean {
+    if (ticket.externalSource === IPOP_SOURCE) return true;
+    if (HIDDEN_FROM_REQUESTER.includes(ticket.ticketType as TicketType)) return false;
+    return !!ticket.user?.employeeId;
 }
 
 const MODULE_BY_TEAM: Readonly<Record<string, string>> = {

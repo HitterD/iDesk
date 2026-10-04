@@ -8,8 +8,8 @@ process.env.UPLOAD_DIR = TMP_UPLOADS;
 afterAll(() => rmSync(TMP_UPLOADS, { recursive: true, force: true }));
 
 import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
-import { IpopTicketService } from '../ipop-ticket.service';
+import { In, Not, QueryFailedError } from 'typeorm';
+import { IpopTicketService, isIpopVisible } from '../ipop-ticket.service';
 import { TicketPriority, TicketSource, TicketStatus, TicketType, HandlingTeam } from '../../../ticketing/entities/ticket.entity';
 
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
@@ -127,16 +127,47 @@ describe('IpopTicketService.create', () => {
 });
 
 describe('IpopTicketService.find', () => {
-    it('only returns tickets filed through iPop', async () => {
+    // Tickets filed directly in iDesk are linked by the requester's NIK, like "My Tickets".
+    it('returns all requester-visible tickets of the NIK, wherever they were filed', async () => {
         const { service, ticketRepo, userRepo } = build();
         userRepo.findOne.mockResolvedValue({ id: 'u-1' });
 
         await service.find({ nik: '00000024', state: 'open' });
 
-        expect(ticketRepo.find.mock.calls[0][0].where).toMatchObject({ userId: 'u-1', externalSource: 'IPOP' });
+        const where = ticketRepo.find.mock.calls[0][0].where;
+        expect(where.userId).toBe('u-1');
+        expect(where).not.toHaveProperty('externalSource');
+        expect(where.ticketType).toEqual(Not(In([TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION])));
     });
 
     it('requires externalRef or nik', async () => {
         await expect(build().service.find({})).rejects.toThrow(BadRequestException);
+    });
+});
+
+describe('iPop visibility of iDesk-filed tickets', () => {
+    it('includes iDesk tickets whose requester has a NIK, and marks their origin', () => {
+        const { service } = build();
+        const view = service.toView(ticket({ externalSource: null, externalRef: null, user: { employeeId: '00000024', fullName: 'Budi' } }) as any);
+
+        expect(view).toMatchObject({ origin: 'IDESK', externalRef: null, requester: { nik: '00000024', name: 'Budi' } });
+        expect(isIpopVisible({ externalSource: null, ticketType: TicketType.SERVICE, user: { employeeId: '00000024' } } as any)).toBe(true);
+    });
+
+    it('excludes requesters without a NIK and types hidden from "My Tickets"', () => {
+        expect(isIpopVisible({ externalSource: null, ticketType: TicketType.SERVICE, user: { employeeId: null } } as any)).toBe(false);
+        expect(isIpopVisible({ externalSource: null, ticketType: TicketType.ICT_BUDGET, user: { employeeId: '1' } } as any)).toBe(false);
+        expect(isIpopVisible({ externalSource: null, ticketType: TicketType.HARDWARE_INSTALLATION, user: { employeeId: '1' } } as any)).toBe(false);
+    });
+
+    it('always includes tickets filed through iPop', () => {
+        expect(isIpopVisible({ externalSource: 'IPOP', ticketType: TicketType.SERVICE, user: null } as any)).toBe(true);
+    });
+
+    it('looks up a ticket number only when iPop may see it', async () => {
+        const { service, ticketRepo } = build();
+        ticketRepo.findOne.mockReset().mockResolvedValue(ticket({ externalSource: null, user: { employeeId: null } }));
+
+        await expect(service.getByNumber('GEN-0001')).rejects.toThrow(/not|No ticket/i);
     });
 });
