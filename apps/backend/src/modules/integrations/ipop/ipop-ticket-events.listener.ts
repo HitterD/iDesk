@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { WebhookOutbox } from './entities/webhook-outbox.entity';
-import { IPOP_SOURCE, IpopTicketService, IpopTicketView } from './ipop-ticket.service';
+import { IpopTicketService, IpopTicketView, isIpopVisible } from './ipop-ticket.service';
 import { IPOP_TARGET, IpopWebhookEvent, IpopWebhookService } from './ipop-webhook.service';
 
 /** Status-specific events; every other status change goes out as `ticket.status_changed`. */
@@ -78,7 +78,7 @@ export class IpopTicketEventsListener {
         return (row?.payload?.ticket as IpopTicketView | undefined) ?? null;
     }
 
-    /** Only iPop tickets, only when the webhook is configured; never breaks the iDesk flow. */
+    /** Only tickets iPop may see (iPop-filed, or a requester with a NIK); never breaks the iDesk flow. */
     private safely(ticketId: string, run: (view: IpopTicketView) => Promise<void>): Promise<void> {
         if (!this.webhooks.isEnabled()) return Promise.resolve();
         const next = (this.queues.get(ticketId) ?? Promise.resolve()).then(() => this.handle(ticketId, run));
@@ -91,7 +91,7 @@ export class IpopTicketEventsListener {
     private async handle(ticketId: string, run: (view: IpopTicketView) => Promise<void>): Promise<void> {
         try {
             const ticket = await this.tickets.loadTicket(ticketId);
-            if (!ticket || ticket.externalSource !== IPOP_SOURCE) return;
+            if (!ticket || !isIpopVisible(ticket)) return;
             await run(this.tickets.toView(ticket));
         } catch (error) {
             this.logger.error(`Could not queue iPop webhook for ticket ${ticketId}: ${(error as Error).message}`);

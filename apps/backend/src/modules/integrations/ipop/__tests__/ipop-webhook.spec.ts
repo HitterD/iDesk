@@ -119,13 +119,26 @@ describe('IpopTicketEventsListener ordering', () => {
         expect(sent.map((s) => s.event)).toEqual(['ticket.created', 'ticket.assigned']);
     });
 
-    it('ignores tickets that were not filed through iPop', async () => {
+    it('ignores iDesk tickets whose requester has no NIK (no iPop user to link)', async () => {
         const webhooks = { isEnabled: () => true, enqueue: jest.fn() };
-        const tickets = { loadTicket: jest.fn(async () => ({ id: 't-2', externalSource: null })), toView: jest.fn() };
+        const tickets = { loadTicket: jest.fn(async () => ({ id: 't-2', externalSource: null, ticketType: 'SERVICE', user: { employeeId: null } })), toView: jest.fn() };
         const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, { findOne: jest.fn() } as any);
 
         await listener.onCreated({ ticketId: 't-2' });
 
         expect(webhooks.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('notifies iPop about a ticket filed directly in iDesk by a user with a NIK', async () => {
+        const webhooks = { isEnabled: () => true, enqueue: jest.fn() };
+        const tickets = {
+            loadTicket: jest.fn(async () => ({ id: 't-3', externalSource: null, ticketType: 'SERVICE', user: { employeeId: '00000024' } })),
+            toView: jest.fn(() => view({ ticketId: 't-3', origin: 'IDESK', externalRef: null })),
+        };
+        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, { findOne: jest.fn(async () => null) } as any);
+
+        await listener.onCreated({ ticketId: 't-3' });
+
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.created', expect.objectContaining({ origin: 'IDESK' }));
     });
 });

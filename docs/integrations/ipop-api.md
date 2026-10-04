@@ -4,6 +4,11 @@ iPop (`https://ipop.santos.co.id`) creates iDesk tickets and shows their progres
 Chat, attachments after creation and internal notes stay in iDesk; every ticket carries
 a link to open it there.
 
+iPop also sees tickets the user filed **directly in iDesk**. They are linked by the
+requester's NIK (shared with iPop through HRIS) and appear with `origin: "IDESK"` and
+`externalRef: null`. Requesters without a NIK, and ticket types hidden from the requester's
+"My Tickets" in iDesk (ICT budget, automatic hardware-installation tickets), are not shared.
+
 - Base URL: `https://idesk.santos.co.id/api/v1/integrations/ipop`
 - Format: JSON (UTF-8) in both directions
 - Rate limit: 120 requests per minute
@@ -109,15 +114,19 @@ Responses:
 
 ## 4. Ticket progress
 
-`GET /tickets/{ticketNumber}`, `GET /tickets?externalRef=...` and
-`GET /tickets?nik=...&state=open|all` (newest first, max 100).
-Only tickets created through iPop are visible.
+- `GET /tickets/{ticketNumber}`: any ticket iPop may see (iPop- or iDesk-filed).
+- `GET /tickets?externalRef=...`: tickets filed through iPop only.
+- `GET /tickets?nik=...&state=open|all`: all tickets of that requester, iPop- and iDesk-filed
+  (newest first, max 100). Use it for the initial sync when a user opens their ticket page:
+  tickets that existed before the integration went live are not pushed by webhook.
 
 ```json
 {
   "ticketId": "bb4ed960-03e1-4428-8f64-136f60340381",
   "ticketNumber": "041026-INS-0001",
   "externalRef": "IPOP-REQ-2026-000123",
+  "origin": "IPOP",
+  "requester": { "nik": "00000024", "name": "Budi" },
   "status": "IN_PROGRESS",
   "priority": "HIGH",
   "module": "it-support",
@@ -154,6 +163,8 @@ trusting the body, and answer `2xx` quickly.
 
 Events: `ticket.created`, `ticket.assigned` (`previousAssignee`), `ticket.status_changed`,
 `ticket.resolved`, `ticket.closed` (all three with `previousStatus`).
+They are sent for iDesk-filed tickets too (`ticket.origin = "IDESK"`): match those to the iPop
+user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `externalRef`).
 
 - Delivery is at-least-once: use `id` to ignore duplicates.
 - A non-2xx answer or a timeout (10 s) is retried after 1 min, 5 min, 30 min and 2 h, then dropped.
@@ -179,7 +190,8 @@ app.MapPost("/api/idesk/webhook", async (HttpRequest req, IConfiguration cfg) =>
         return Results.Unauthorized();
 
     var evt = JsonSerializer.Deserialize<JsonElement>(body);
-    // TODO: skip if evt.id was already processed; update the iPop record by ticket.externalRef.
+    // TODO: skip if evt.id was already processed; find the iPop record by ticket.externalRef
+    // (origin IPOP) or by ticket.ticketId + ticket.requester.nik (origin IDESK).
     return Results.Ok();
 });
 ```
