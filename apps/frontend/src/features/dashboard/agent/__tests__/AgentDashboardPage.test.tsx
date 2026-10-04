@@ -58,6 +58,9 @@ describe('AgentDashboardPage', () => {
         renderAt('/dashboard/me');
 
         expect(await screen.findByText('Dashboard Saya')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Selamat (pagi|siang|sore|malam), Dev/);
+        expect(screen.getByText('Ada 4 tiket aktif, 1 di antaranya lewat SLA.')).toBeInTheDocument();
+        expect(screen.getByText(/Agent Web Dev · Lingkup ICT/)).toBeInTheDocument();
         expect(api.get).toHaveBeenCalledWith('/agent-dashboard/me', { params: { days: 30 } });
         expect(screen.getByText('Umur Tiket Aktif')).toBeInTheDocument();
         expect(screen.getByText('Fix login')).toBeInTheDocument();
@@ -76,11 +79,13 @@ describe('AgentDashboardPage', () => {
         renderAt('/dashboard/agent/a-2');
 
         expect(await screen.findByText('Dashboard Support Two')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Support Two');
         expect(api.get).toHaveBeenCalledWith('/agent-dashboard/agents/a-2', { params: { days: 30 } });
         expect(screen.getByText('Workload & Instalasi')).toBeInTheDocument();
         expect(screen.queryByText('Umur Tiket Aktif')).not.toBeInTheDocument();
         expect(screen.queryByText('MyRatingCard')).not.toBeInTheDocument();
-        expect(screen.getByText('Rating & Appraisal')).toBeInTheDocument();
+        expect(screen.getByText('Rating')).toBeInTheDocument();
+        expect(screen.getByText('dari 2 penilaian')).toBeInTheDocument();
     });
 
     it('shows a retry state when the API returns no dashboard', async () => {

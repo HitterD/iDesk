@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Star, MessageSquareQuote } from 'lucide-react';
 import api from '@/lib/api';
 import { formatRelativeTime } from '@/lib/utils/dateFormat';
+import { cn } from '@/lib/utils';
 
 const RATING_LEVELS = ['5', '4', '3', '2', '1'] as const;
 const MAX_RECENT_COMMENTS = 5;
@@ -15,7 +16,7 @@ export interface MyRatingsResponse {
 }
 
 /** Agent dashboard card: own average rating, distribution and anonymous recent feedback. */
-export const MyRatingCard: React.FC = () => {
+export const MyRatingCard: React.FC<{ className?: string }> = ({ className }) => {
     const { data, isLoading, isError } = useQuery<MyRatingsResponse>({
         queryKey: ['agent-ratings', 'me'],
         queryFn: async () => (await api.get('/agent-ratings/me', { skipToast: true })).data,
@@ -26,7 +27,7 @@ export const MyRatingCard: React.FC = () => {
     const comments = (data?.recent ?? []).filter((r) => r.comment).slice(0, MAX_RECENT_COMMENTS);
 
     return (
-        <section aria-label="Rating Saya" className="bg-card border border-border rounded-2xl p-6 flex flex-col min-h-0">
+        <section aria-label="Rating Saya" className={cn('bg-card border border-border rounded-2xl p-6 flex flex-col min-h-0', className)}>
             <h2 className="font-bold text-foreground text-lg tracking-tight mb-4">Rating Saya</h2>
 
             {isLoading ? (

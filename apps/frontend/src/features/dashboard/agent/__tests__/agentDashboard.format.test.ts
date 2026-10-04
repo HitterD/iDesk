@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDuration, formatWibDateTime, shortDateLabel } from '../agentDashboard.format';
+import { firstName, formatDuration, formatSlaRelative, formatWibDateTime, shortDateLabel, wibGreeting } from '../agentDashboard.format';
 
 describe('agent dashboard format', () => {
     it('formats resolve durations', () => {
@@ -17,5 +17,28 @@ describe('agent dashboard format', () => {
 
     it('shortens chart dates', () => {
         expect(shortDateLabel('2026-10-07')).toBe('07/10');
+    });
+});
+
+describe('relative SLA and greeting', () => {
+    const NOW = new Date('2026-10-04T03:00:00.000Z'); // 10:00 WIB
+
+    it('describes SLA distance in plain Indonesian', () => {
+        expect(formatSlaRelative('2026-10-01T03:00:00.000Z', NOW)).toEqual({ text: 'Lewat 3 hari', overdue: true });
+        expect(formatSlaRelative('2026-10-04T02:15:00.000Z', NOW)).toEqual({ text: 'Lewat 45 menit', overdue: true });
+        expect(formatSlaRelative('2026-10-04T05:00:00.000Z', NOW)).toEqual({ text: 'Sisa 2 jam', overdue: false });
+        expect(formatSlaRelative('2026-10-04T03:00:30.000Z', NOW)).toEqual({ text: 'Sisa < 1 menit', overdue: false });
+    });
+
+    it('greets by WIB time of day', () => {
+        expect(wibGreeting(new Date('2026-10-03T23:00:00.000Z'))).toBe('Selamat pagi'); // 06:00 WIB
+        expect(wibGreeting(new Date('2026-10-04T06:00:00.000Z'))).toBe('Selamat siang'); // 13:00
+        expect(wibGreeting(new Date('2026-10-04T09:00:00.000Z'))).toBe('Selamat sore'); // 16:00
+        expect(wibGreeting(new Date('2026-10-04T13:00:00.000Z'))).toBe('Selamat malam'); // 20:00
+    });
+
+    it('uses the first name only', () => {
+        expect(firstName('RM BAGASTYO ANGGORO INDRASTOTO')).toBe('Bagastyo');
+        expect(firstName('Dev One')).toBe('Dev');
     });
 });

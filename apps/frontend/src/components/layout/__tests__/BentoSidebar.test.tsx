@@ -14,10 +14,9 @@ vi.mock('@/lib/api', () => ({
     },
 }));
 
+const authUser = vi.hoisted(() => ({ current: { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' } }));
 vi.mock('@/stores/useAuth', () => ({
-    useAuth: () => ({
-        user: { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' },
-    }),
+    useAuth: () => ({ user: authUser.current }),
     performLogout: vi.fn(),
 }));
 
@@ -31,6 +30,7 @@ vi.mock('@/hooks/usePermissions', () => ({
     useMyPermissions: () => ({
         data: {
             pageAccess: {
+                my_dashboard: true,
                 dashboard: true,
                 tickets: true,
                 oracle_k2_tickets: true,
@@ -68,6 +68,7 @@ describe('BentoSidebar', () => {
             defaultOptions: { queries: { retry: false } },
         });
         localStorage.clear();
+        authUser.current = { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' };
     });
 
     const renderSidebar = (initialPath = '/dashboard') => {
@@ -92,6 +93,14 @@ describe('BentoSidebar', () => {
         expect(screen.getByText('Administration')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
         expect(screen.getByText('Bagas Developer')).toBeInTheDocument();
+    });
+
+    it('highlights only Dashboard Saya on /dashboard/me, not Dashboard Tim too', async () => {
+        authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT_OPERATIONAL_SUPPORT' };
+        renderSidebar('/dashboard/me');
+
+        expect(screen.getByRole('link', { name: 'Dashboard Saya' })).toHaveAttribute('aria-current', 'page');
+        expect(screen.getByRole('link', { name: 'Dashboard Tim' })).not.toHaveAttribute('aria-current');
     });
 
     it('displays notification badges correctly without rendering 0 text', async () => {
