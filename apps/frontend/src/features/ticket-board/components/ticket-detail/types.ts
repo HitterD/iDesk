@@ -32,6 +32,8 @@ export interface TicketDetail {
     ticketType?: string;
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV' | string;
     device?: string;
+    /** WEB, EMAIL or IPOP (filed through the iPop integration). */
+    source?: string;
     criticalReason?: string;
     createdAt: string;
     updatedAt: string;

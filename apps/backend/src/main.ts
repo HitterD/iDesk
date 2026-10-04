@@ -24,6 +24,9 @@ function validateEnvironment(): void {
     validateAuthEnvironment(process.env);
 }
 
+/** 5 attachments x 10 MB, base64-encoded (+33%), plus the ticket fields. */
+const IPOP_JSON_LIMIT = '70mb';
+
 async function bootstrap() {
     validateEnvironment();
     const logger = new Logger('Bootstrap');
@@ -112,6 +115,14 @@ async function bootstrap() {
         noSniff: true,
         xssFilter: true,
         referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }));
+
+    // iPop integration: keep the exact request bytes for the HMAC check, and allow the
+    // base64 attachments it sends inline (registered first so the global parser skips it).
+    // Both prefixes: the /api -> /v1 rewrite below runs after this parser.
+    app.use(['/v1/integrations/ipop', '/api/v1/integrations/ipop'], express.json({
+        limit: IPOP_JSON_LIMIT,
+        verify: (req: any, _res, buf) => { req.rawBody = Buffer.from(buf); },
     }));
 
     // Body size limits - DoS protection (P0: defaults allow 100KB JSON, unlimited urlencoded)
