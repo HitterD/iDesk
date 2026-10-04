@@ -94,6 +94,12 @@ export class PaginationDto {
     @Transform(({ value }) => value === true || value === 'true')
     @IsBoolean()
     createdByMe?: boolean;
+
+    @ApiPropertyOptional({ description: 'Only tickets assigned to the caller (within their normal list scope)' })
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    assignedToMe?: boolean;
 }
 
 export interface PaginatedResult<T> {

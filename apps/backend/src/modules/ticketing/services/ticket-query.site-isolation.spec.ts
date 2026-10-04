@@ -104,6 +104,14 @@ describe('TicketQueryService site isolation', () => {
             );
         });
 
+        // "My Tasks" used to filter one 20-row page in the browser, so totals/pages were wrong.
+        it('filters "assigned to me" on the server, inside the normal site scope', async () => {
+            await service.findAllPaginated('agent-1', UserRole.AGENT, 'site-spj', { assignedToMe: true });
+
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.assignedToId = :assigneeId', { assigneeId: 'agent-1' });
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OWN_SITE, { userSiteId: 'site-spj' });
+        });
+
         // userId is uuid but createdById is varchar: one shared bind parameter
         // makes Postgres fail with "operator does not exist: character varying = uuid".
         it('binds requester and filer to separate parameters in "created by me"', async () => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { downloadBlob } from '@/lib/utils/downloadBlob';
 import { Search, Filter, CalendarClock, RefreshCw, Upload, FileText, ChevronLeft, ChevronRight, Download, Calendar, LayoutGrid, Table2, ChevronDown, CheckCircle2 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -163,10 +164,7 @@ export const RenewalDashboardPage = () => {
         ].join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `contracts_export_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
+        downloadBlob(blob, `contracts_export_${new Date().toISOString().split('T')[0]}.csv`);
         toast.success(`Exported ${contracts.length} contracts`);
     };
 
@@ -456,10 +454,7 @@ export const RenewalDashboardPage = () => {
                     ].join('\n');
 
                     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `selected_contracts_${new Date().toISOString().split('T')[0]}.csv`;
-                    link.click();
+                    downloadBlob(blob, `selected_contracts_${new Date().toISOString().split('T')[0]}.csv`);
                     toast.success(`Exported ${selectedContracts.length} selected contracts`);
                     setSelectedIds(new Set());
                 }}

@@ -218,6 +218,7 @@ export class TicketQueryService {
             startDate?: string;
             endDate?: string;
             createdByMe?: boolean; // Requested/filed by the caller, across teams and sites
+            assignedToMe?: boolean; // Assigned to the caller (filtered server-side so paging and totals stay right)
         } = {}
     ) {
         const {
@@ -237,6 +238,7 @@ export class TicketQueryService {
             startDate,
             endDate,
             createdByMe,
+            assignedToMe,
         } = options;
 
         const qb = this.ticketRepo
@@ -267,6 +269,10 @@ export class TicketQueryService {
             // pinned to their own — and fail closed when they have none.
             applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
             applyServiceScopeFilter(qb, role);
+        }
+
+        if (assignedToMe) {
+            qb.andWhere('ticket.assignedToId = :assigneeId', { assigneeId: userId });
         }
 
         // Client My Tickets includes every ticket owned by or shared with the requester.

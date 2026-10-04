@@ -36,7 +36,7 @@ const fire = (event: string, payload?: any) => {
     });
 };
 
-const { useTicketSocket, useTicketListSocket, LIST_INVALIDATE_DEBOUNCE_MS } = await import('../useTicketSocket');
+const { useTicketSocket, useTicketListSocket, LIST_INVALIDATE_DEBOUNCE_MS, TICKET_RESYNC_DEBOUNCE_MS } = await import('../useTicketSocket');
 
 describe('useTicketSocket', () => {
     let queryClient: QueryClient;
@@ -218,10 +218,28 @@ describe('useTicketSocket', () => {
         // Typing indicator cleared
         expect(result.current.typingUsers).toEqual({});
 
-        // Active ticket query invalidated for fail-safe background sync
+        // Active ticket query invalidated for fail-safe background sync (debounced)
+        act(() => {
+            vi.advanceTimersByTime(TICKET_RESYNC_DEBOUNCE_MS);
+        });
         expect(invalidateSpy).toHaveBeenCalledWith(
             expect.objectContaining({ queryKey: ['ticket', 'ticket-1'] })
         );
+    });
+
+    it('refetches the ticket once when a reply arrives as both a message and a notification', () => {
+        const wrapper = createWrapper();
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        fire('ticket:newMessage', { ticketId: 'ticket-1', message: { id: 'm-9', content: 'hi' } });
+        fire('notification:agent-123', { type: 'TICKET_REPLY', ticketId: 'ticket-1' });
+        act(() => {
+            vi.advanceTimersByTime(TICKET_RESYNC_DEBOUNCE_MS);
+        });
+
+        const ticketRefetches = invalidateSpy.mock.calls.filter(([arg]: any) => arg?.queryKey?.[0] === 'ticket');
+        expect(ticketRefetches).toHaveLength(1);
     });
     it('keeps the room joined when the caller passes a new inline callback each render', () => {
         const { rerender } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1', onNewMessage: () => {} }), {
