@@ -46,6 +46,8 @@ export enum TicketSource {
     TELEGRAM = 'TELEGRAM',
     WEB = 'WEB',
     EMAIL = 'EMAIL',
+    /** Filed by the iPop app through the integration API. */
+    IPOP = 'IPOP',
 }
 
 export enum TicketType {
@@ -123,6 +125,14 @@ export class Ticket {
         default: TicketSource.WEB,
     })
     source: TicketSource;
+
+    /** External system that filed the ticket (e.g. 'IPOP'); with externalRef it makes creation idempotent. */
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    externalSource: string | null;
+
+    /** The caller's own id for this ticket (unique per externalSource). */
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    externalRef: string | null;
 
     @CreateDateColumn()
     createdAt: Date;

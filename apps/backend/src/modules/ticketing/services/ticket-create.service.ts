@@ -19,6 +19,12 @@ import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
 import { generateNextTicketNumber } from '../utils/ticket-number-generator';
 import { SlaClockService } from './sla-clock.service';
 
+/** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
+export interface ExternalTicketRef {
+    source: string;
+    ref: string;
+}
+
 @Injectable()
 export class TicketCreateService {
     private readonly logger = new Logger(TicketCreateService.name);
@@ -62,6 +68,7 @@ export class TicketCreateService {
         createTicketDto: CreateTicketDto,
         files: string[] = [],
         attachmentInfo: AttachmentInfo[] = [],
+        external?: ExternalTicketRef,
     ): Promise<Ticket> {
         try {
             const creator = await this.userRepo.findOne({
@@ -94,6 +101,8 @@ export class TicketCreateService {
                 status: TicketStatus.TODO,
                 siteId: user.siteId, // Auto-assign the requester's site
                 criticalReason: createTicketDto.criticalReason || null,
+                externalSource: external?.source ?? null,
+                externalRef: external?.ref ?? null,
             } as DeepPartial<Ticket>);
 
             const date = new Date();

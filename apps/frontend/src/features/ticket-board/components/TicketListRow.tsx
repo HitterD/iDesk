@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     AlertTriangle,
@@ -42,7 +43,7 @@ export interface TicketRowData {
     category: string;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
-    source: 'WEB' | 'TELEGRAM' | 'EMAIL';
+    source: 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP';
     isOverdue: boolean;
     slaTarget?: string;
     scheduledDate?: string;
@@ -219,6 +220,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 shrink-0 whitespace-nowrap">
                             #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                         </span>
+                        <ExternalSourceBadge source={ticket.source} />
 
                         {/* Site Badge */}
                         {ticket.site && (
@@ -416,6 +418,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 shrink-0 whitespace-nowrap">
                                     #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                 </span>
+                                <ExternalSourceBadge source={ticket.source} />
                                 {ticket.isHardwareInstallation && (
                                     ticket.ictBudgetRequestId ? (
                                         <button
