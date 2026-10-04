@@ -7,7 +7,7 @@
 
 export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
-export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
+export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP';
 
 // ============ User Types ============
 

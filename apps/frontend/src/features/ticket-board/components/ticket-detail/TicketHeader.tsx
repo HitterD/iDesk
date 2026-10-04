@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { cn } from '@/lib/utils';
 import {
     ArrowLeft,
@@ -421,6 +422,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                     <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-colors" />
                                 )}
                             </button>
+                            <ExternalSourceBadge source={ticket.source} className="py-1.5 rounded-xl" />
 
                             <span className={cn(
                                 "px-2.5 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs select-none",

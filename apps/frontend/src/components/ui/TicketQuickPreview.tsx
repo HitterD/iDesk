@@ -83,6 +83,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; icon?: Rea
 const SOURCE_CONFIG: Record<string, { label: string; icon: React.ElementType }> = {
     WEB: { label: 'Web Portal', icon: Globe },
     EMAIL: { label: 'Email Support', icon: Mail },
+    IPOP: { label: 'via iPop', icon: Globe },
 };
 
 export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({

@@ -8,7 +8,7 @@ import type { Request } from 'express';
 import { ATTACHMENT_EXTENSIONS, validateFileMagicBytes } from '../../../../shared/core/validators/magic-bytes.validator';
 import type { AttachmentInfo } from '../../entities/ticket-message.entity';
 
-const UPLOAD_ROOT = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+export const UPLOAD_ROOT = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
 /** Mirrored by frontend `FILE_SIZE_LIMITS.ATTACHMENT`; nginx client_max_body_size must fit MAX_FILES of these. */
 export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 export const MAX_ATTACHMENT_FILES = 5;
