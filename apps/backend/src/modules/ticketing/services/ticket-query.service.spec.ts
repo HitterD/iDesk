@@ -93,3 +93,26 @@ describe('TicketQueryService', () => {
         );
     });
 });
+
+describe('TicketQueryService.findOne', () => {
+    // A GET must not write: saving here cascaded the requester-filtered messages
+    // (internal notes -> ticketId NULL -> 500) and stamped an SLA target on tickets
+    // whose clock had not started.
+    it('computes a missing SLA target for display without saving the ticket', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date('2026-10-01T00:00:00Z'), totalPausedMinutes: 0,
+            slaTarget: null, userId: 'req-1', siteId: 's-1', handlingTeam: 'OPS_SUPPORT',
+            messages: [{ id: 'm1', isInternal: false }, { id: 'm2', isInternal: true }],
+            participants: [], user: { id: 'req-1' },
+        };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket), save: jest.fn() };
+        const slaConfigRepo = { findOne: jest.fn().mockResolvedValue({ resolutionTimeMinutes: 60 }) };
+        const service = new TicketQueryService(ticketRepo as any, slaConfigRepo as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+        expect(result.slaTarget).toEqual(new Date('2026-10-01T01:00:00Z'));
+        expect(result.messages.map((m: any) => m.id)).toEqual(['m1']);
+    });
+});

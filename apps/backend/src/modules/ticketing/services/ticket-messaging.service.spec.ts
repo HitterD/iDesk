@@ -155,34 +155,54 @@ describe('TicketMessagingService Oracle scope', () => {
 
     describe('markAsRead', () => {
         const build = (ticket: Record<string, unknown>) => {
+            const set = jest.fn();
+            const qb: any = {
+                update: jest.fn(() => qb),
+                set: jest.fn((v) => { set(v); return qb; }),
+                where: jest.fn(() => qb),
+                execute: jest.fn().mockResolvedValue({ affected: 1 }),
+            };
             const ticketRepo = {
-                update: jest.fn().mockResolvedValue({ affected: 1 }),
+                createQueryBuilder: jest.fn(() => qb),
                 findOne: jest.fn().mockResolvedValue(ticket),
             };
             const service = new TicketMessagingService(
                 ticketRepo as never, {} as never, {} as never, {} as never,
                 {} as never, {} as never, {} as never, createTestSlaClock(),
             );
-            return { service, ticketRepo };
+            return { service, ticketRepo, set };
         };
         const opsTicket = { id: 't-1', userId: 'owner', createdById: null, handlingTeam: 'OPS_SUPPORT', siteId: 'site-1' };
 
         it('marks the agent side for a handling agent and the user side for a USER', async () => {
-            const { service, ticketRepo } = build(opsTicket);
+            const { service, set } = build(opsTicket);
 
             await service.markAsRead('t-1', 'u-1', UserRole.AGENT, 'site-1');
-            expect(ticketRepo.update).toHaveBeenLastCalledWith('t-1', { agentLastReadAt: expect.any(Date) });
+            expect(set).toHaveBeenLastCalledWith(expect.objectContaining({ agentLastReadAt: expect.any(Date) }));
+            expect(set.mock.lastCall[0]).not.toHaveProperty('userLastReadAt');
 
             await service.markAsRead('t-1', 'owner', UserRole.USER);
-            expect(ticketRepo.update).toHaveBeenLastCalledWith('t-1', { userLastReadAt: expect.any(Date) });
+            expect(set).toHaveBeenLastCalledWith(expect.objectContaining({ userLastReadAt: expect.any(Date) }));
         });
 
         it('a support agent who filed a dev ticket reads only the requester side', async () => {
-            const { service, ticketRepo } = build({ ...opsTicket, createdById: 'agent-smg', handlingTeam: 'ORACLE_DEV' });
+            const { service, set } = build({ ...opsTicket, createdById: 'agent-smg', handlingTeam: 'ORACLE_DEV' });
 
             await service.markAsRead('t-1', 'agent-smg', UserRole.AGENT, 'site-1');
 
-            expect(ticketRepo.update).toHaveBeenLastCalledWith('t-1', { userLastReadAt: expect.any(Date) });
+            expect(set).toHaveBeenLastCalledWith(expect.objectContaining({ userLastReadAt: expect.any(Date) }));
+            expect(set.mock.lastCall[0]).not.toHaveProperty('agentLastReadAt');
+        });
+
+        // Reading must not look like activity: keep updatedAt and version as they are.
+        it('keeps updatedAt and version unchanged when marking as read', async () => {
+            const { service, set } = build(opsTicket);
+
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+
+            const values = set.mock.lastCall[0];
+            expect(values.updatedAt()).toBe('"updatedAt"');
+            expect(values.version()).toBe('"version"');
         });
     });
 });

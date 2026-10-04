@@ -25,6 +25,12 @@ export function effectiveQueue(queue: string | undefined, role: UserRole): strin
     return queue;
 }
 
+/**
+ * When a ticket was resolved. `updatedAt` moves on any later write (auto-close,
+ * edits), so it only stands in for legacy rows that predate `resolvedAt`.
+ */
+const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
+
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
 }
@@ -759,7 +765,10 @@ export class TicketQueryService {
             }
         }
 
-        // Use stored SLA Target if available, otherwise calculate it (for backwards compatibility)
+        // Use stored SLA Target if available, otherwise calculate it for display only.
+        // Never persist from this read path: saving the loaded entity would also cascade the
+        // (requester-filtered) messages relation, and a stored target on a ticket whose SLA clock
+        // has not started makes it count as overdue.
         let slaTarget = ticket.slaTarget;
         if (!slaTarget && ticket.priority) {
             const slaConfig = await this.slaConfigRepo.findOne({ where: { priority: ticket.priority } });
@@ -769,10 +778,6 @@ export class TicketQueryService {
                 slaTarget = this.slaClock
                     ? await this.slaClock.targetFor(ticket.priority, createdAt, slaConfig.resolutionTimeMinutes)
                     : new Date(createdAt.getTime() + (slaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
-
-                // Save calculated SLA target to ticket for future reference
-                ticket.slaTarget = slaTarget;
-                await this.ticketRepo.save(ticket);
             }
         }
 
@@ -862,8 +867,8 @@ export class TicketQueryService {
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
-            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ${RESOLVED_AT_SQL} >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ${RESOLVED_AT_SQL} >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
             .setParameters({ today, thisWeek: thisWeekStart, thisMonth: thisMonthStart })
             .getRawOne();
 
@@ -953,7 +958,7 @@ export class TicketQueryService {
 
         // 8. Average resolution time - SQL calculation
         const avgTimeResult = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
-            .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
+            .select(`AVG(EXTRACT(EPOCH FROM (${RESOLVED_AT_SQL} - ticket."createdAt")) / 60)`, 'avgMinutes')
             .andWhere(`ticket.status IN (${TICKET_DONE_STATUSES_SQL})`)
             .getRawOne();
 

@@ -26,6 +26,10 @@ export interface HrisDisableSummary {
 }
 
 const MAX_PAGES = 500;
+/** Abort the departed sweep if it would disable more than this share of active HRIS users at once. */
+const MAX_DISABLE_RATIO = 0.2;
+/** Below this many linked users the ratio guard is too coarse to be meaningful. */
+const MIN_USERS_FOR_RATIO_GUARD = 10;
 
 @Injectable()
 export class HrisSyncService {
@@ -170,14 +174,26 @@ export class HrisSyncService {
             return summary;
         }
 
-        const departedUsers = await this.userRepo
+        const linkedUsers = await this.userRepo
             .createQueryBuilder('user')
             .where('user.employeeId IS NOT NULL')
             .andWhere('user.isActive = :isActive', { isActive: true })
             .getMany();
+        const departedUsers = linkedUsers.filter((user) => !activeNiks.has(user.employeeId));
+
+        // Fail closed: a Gateway glitch must not look like a mass resignation.
+        if (
+            linkedUsers.length >= MIN_USERS_FOR_RATIO_GUARD &&
+            departedUsers.length > linkedUsers.length * MAX_DISABLE_RATIO
+        ) {
+            summary.errors.push(
+                `aborted: ${departedUsers.length}/${linkedUsers.length} users would be disabled (limit ${MAX_DISABLE_RATIO * 100}%)`,
+            );
+            this.logger.error(`HRIS departed sweep aborted: ${summary.errors[0]}`);
+            return summary;
+        }
 
         for (const user of departedUsers) {
-            if (activeNiks.has(user.employeeId)) continue;
             try {
                 if (!user.appliedPresetId) {
                     const presetId = await this.permissionsService.resolveDefaultPresetId(user.role as UserRole);
@@ -219,6 +235,15 @@ export class HrisSyncService {
             }
         }
 
+        // An empty or truncated roster is a Gateway problem, not a mass departure.
+        if (niks.size === 0) {
+            summary.errors.push('aborted: Gateway returned no active employees');
+            return null;
+        }
+        if (fetched < total) {
+            summary.errors.push(`aborted: roster truncated (${fetched}/${total})`);
+            return null;
+        }
         return niks;
     }
 

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, IsNull } from 'typeorm';
 import { Notification, NotificationType, NotificationCategory } from './entities/notification.entity';
 import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
@@ -16,6 +16,9 @@ export interface NotificationReadTarget {
     referenceId?: string;
     category?: NotificationCategory;
 }
+
+/** Upper bound for the critical banner list; the count endpoint reports the real total. */
+const MAX_CRITICAL_BANNER = 50;
 
 @Injectable()
 export class NotificationService {
@@ -312,9 +315,10 @@ export class NotificationService {
             where: {
                 userId,
                 requiresAcknowledge: true,
-                acknowledgedAt: undefined,
+                acknowledgedAt: IsNull(),
             },
             order: { createdAt: 'DESC' },
+            take: MAX_CRITICAL_BANNER,
         });
     }
 
@@ -353,7 +357,7 @@ export class NotificationService {
             where: {
                 userId,
                 requiresAcknowledge: true,
-                acknowledgedAt: undefined,
+                acknowledgedAt: IsNull(),
             },
         });
     }
