@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Like, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { ZoomBooking, ZoomAccount, ZoomMeeting } from '../entities';
@@ -8,9 +8,21 @@ import { ZoomApiAdapter, ZoomMeetingListItem } from '../adapters/zoom-api.adapte
 import { BookingStatus } from '../enums/booking-status.enum';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
+/** Stored key for one occurrence: `<meetingId>_<WIB date>_<HH:mm>` (must match what sync writes). */
+export function externalOccurrenceKey(meetingId: string | number, startTime: string): string {
+    const start = new Date(startTime);
+    const dateStr = start.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    const timeStr = start.toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' });
+    return `${meetingId}_${dateStr}_${timeStr.slice(0, 5)}`;
+}
+
+/** Recording lookups per sync run (one Zoom API call each). */
+const RECORDING_SYNC_BATCH = 30;
+
 @Injectable()
 export class ZoomSyncService {
     private readonly logger = new Logger(ZoomSyncService.name);
+    private syncRunning = false;
 
     constructor(
         @InjectRepository(ZoomBooking)
@@ -26,12 +38,20 @@ export class ZoomSyncService {
 
     @Cron(CronExpression.EVERY_5_MINUTES)
     async handleCronSync() {
+        // A slow Zoom API (retries on 429) must not stack a second run on top of this one.
+        if (this.syncRunning) {
+            this.logger.debug('Zoom sync skipped - previous run still in progress');
+            return;
+        }
+        this.syncRunning = true;
         this.logger.log('Starting automated 5-minute Zoom background sync...');
         try {
             await this.syncAllAccounts();
             await this.syncRecentRecordings();
         } catch (error) {
             this.logger.error('Error during scheduled Zoom sync', error);
+        } finally {
+            this.syncRunning = false;
         }
     }
 
@@ -70,6 +90,13 @@ export class ZoomSyncService {
             const response = await this.zoomApi.listMeetings(account.email, 'upcoming');
             const externalMeetingKeys: string[] = [];
 
+            // One IN query for every occurrence key instead of a lookup per meeting (same match as before).
+            const occurrenceKeys = (response.meetings || []).map((m) => externalOccurrenceKey(m.id, m.start_time));
+            const storedExternal = occurrenceKeys.length
+                ? await this.bookingRepo.find({ where: { externalZoomMeetingId: In(occurrenceKeys) } })
+                : [];
+            const externalByKey = new Map(storedExternal.map((b) => [b.externalZoomMeetingId, b]));
+
             for (const meeting of (response.meetings || [])) {
                 try {
                     const startDateTime = new Date(meeting.start_time);
@@ -80,9 +107,7 @@ export class ZoomSyncService {
                     const externalKey = `${meeting.id}_${dateStr}_${timeStr.slice(0, 5)}`;
                     externalMeetingKeys.push(externalKey);
 
-                    const existingExternal = await this.bookingRepo.findOne({
-                        where: { externalZoomMeetingId: externalKey },
-                    });
+                    const existingExternal = externalByKey.get(externalKey) ?? null;
 
                     if (existingExternal) {
                         const updated = await this.upsertExternalMeeting(existingExternal, meeting, account, externalKey, dateStr, timeStr);
@@ -278,8 +303,12 @@ export class ZoomSyncService {
         const meetingData = payload.object;
         const zoomMeetingIdStr = meetingData.id.toString();
         
+        // Keys are per occurrence (`<id>_<date>_<HH:mm>`); older rows still hold the bare id.
         const existingExternal = await this.bookingRepo.find({
-            where: { externalZoomMeetingId: zoomMeetingIdStr },
+            where: [
+                { externalZoomMeetingId: zoomMeetingIdStr },
+                { externalZoomMeetingId: Like(`${zoomMeetingIdStr}\\_%`) },
+            ],
         });
 
         if (existingExternal && existingExternal.length > 0) {
@@ -352,11 +381,17 @@ export class ZoomSyncService {
             targetDate.setDate(targetDate.getDate() - daysBack);
             const dateStr = targetDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 
+            // Only meetings that have already happened can have a recording: bound the range
+            // at today (WIB) and cap the batch, so future bookings are not polled every 5 min.
+            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
             const pendingMeetings = await this.meetingRepo.createQueryBuilder('meeting')
                 .innerJoinAndSelect('meeting.booking', 'booking')
                 .where('meeting.recordingUrl IS NULL')
                 .andWhere('booking.bookingDate >= :dateStr', { dateStr })
+                .andWhere('booking.bookingDate <= :todayStr', { todayStr })
                 .andWhere('booking.status != :cancelled', { cancelled: BookingStatus.CANCELLED })
+                .orderBy('booking.bookingDate', 'DESC')
+                .take(RECORDING_SYNC_BATCH)
                 .getMany();
 
             let syncedCount = 0;

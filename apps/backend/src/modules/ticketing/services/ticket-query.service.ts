@@ -35,6 +35,16 @@ const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
 const CREATED_WIB_DATE = wibDateSql('ticket."createdAt"');
 const MS_PER_DAY = 86_400_000;
 
+/**
+ * Prefix tsquery from free text (`printer lt 2` -> `printer:* & lt:* & 2:*`). Tokens are
+ * reduced to letters/digits first: raw input like `a(b` is a tsquery syntax error (500).
+ * Returns an always-false query when nothing searchable is left.
+ */
+export function toPrefixTsQuery(text: string): string {
+    const tokens = text.split(/\s+/).map((t) => t.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+    return tokens.length ? tokens.map((t) => `${t}:*`).join(' & ') : '!_';
+}
+
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
 }
@@ -828,7 +838,8 @@ export class TicketQueryService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
-            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            // WAITING_VENDOR pauses the SLA clock (as in SlaCheckerService), so it is never overdue here.
+            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -1095,7 +1106,7 @@ export class TicketQueryService {
             if (searchTerm.includes('-') || /^[A-Z0-9#-]+$/i.test(searchTerm)) {
                 qb.andWhere('ticket.ticketNumber ILIKE :exactSearch', { exactSearch: `%${searchTerm}%` });
             } else {
-                const formattedQuery = searchTerm.split(/\s+/).filter(Boolean).map(t => `${t}:*`).join(' & ');
+                const formattedQuery = toPrefixTsQuery(searchTerm);
                 qb.andWhere(
                     `(to_tsvector('simple', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ to_tsquery('simple', :ftsQuery) OR ticket.ticketNumber ILIKE :fuzzySearch OR user.fullName ILIKE :fuzzySearch)`,
                     { ftsQuery: formattedQuery, fuzzySearch: `%${searchTerm}%` }
@@ -1138,6 +1149,7 @@ export class TicketQueryService {
             statsQb.andWhere('ticket.category IN (:...cats)', { cats: module.categories });
         }
         applySiteFilter(statsQb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(statsQb, role); // same scope as the list, or the counts do not match it
 
         const [totalCount, openCount, inProgressCount, resolvedCount] = await Promise.all([
             statsQb.clone().getCount(),

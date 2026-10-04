@@ -77,6 +77,21 @@ export interface MergedCalendarDay {
 }
 
 // Force reload trigger - Dec 18, 2025 18:55
+/** WIB wall-clock now: booking dates/times are stored as WIB, the process clock is UTC. */
+export function wibNow(at: Date = new Date()): { dateStr: string; timeStr: string; minutes: number } {
+    const dateStr = at.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    const timeStr = at.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const [h, m] = timeStr.split(':').map(Number);
+    return { dateStr, timeStr, minutes: h * 60 + m };
+}
+
+/** 'YYYY-MM-DD' + n calendar days, as 'YYYY-MM-DD'. */
+export function addDaysToDateStr(dateStr: string, days: number): string {
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class ZoomBookingService {
     private readonly logger = new Logger(ZoomBookingService.name);
@@ -137,9 +152,7 @@ export class ZoomBookingService {
      */
     async getMyUpcomingBookings(userId: string, limit: number = 5): Promise<ZoomBooking[]> {
         try {
-            const now = new Date();
-            const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
-            const nowTimeStr = now.toTimeString().substring(0, 5); // HH:mm
+            const { dateStr: todayStr, timeStr: nowTimeStr } = wibNow(); // booking times are WIB wall clock
 
             const bookings = await this.bookingRepo.createQueryBuilder('booking')
                 .leftJoinAndSelect('booking.zoomAccount', 'zoomAccount')
@@ -529,16 +542,13 @@ export class ZoomBookingService {
     ): Promise<ZoomBooking> {
         const dateStr = dto.bookingDate;
         const bookingDate = new Date(dateStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = wibNow().dateStr;
 
-        if (bookingDate < today) {
+        if (dateStr < todayStr) {
             throw new BadRequestException(`Tanggal ${dateStr} sudah lewat.`);
         }
 
-        const maxDate = new Date(today);
-        maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
-        if (bookingDate > maxDate) {
+        if (dateStr > addDaysToDateStr(todayStr, settings.advanceBookingDays)) {
             throw new BadRequestException(`Tanggal ${dateStr} melebihi batas maksimal ${settings.advanceBookingDays} hari.`);
         }
 
@@ -935,16 +945,13 @@ export class ZoomBookingService {
         }
 
         const bookingDate = new Date(bookingDateStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = wibNow().dateStr;
 
-        if (bookingDate < today) {
+        if (bookingDateStr < todayStr) {
             return { available: false, reason: `Tanggal ${bookingDateStr} sudah lewat.` };
         }
 
-        const maxDate = new Date(today);
-        maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
-        if (bookingDate > maxDate) {
+        if (bookingDateStr > addDaysToDateStr(todayStr, settings.advanceBookingDays)) {
             return {
                 available: false,
                 reason: `Tanggal ${bookingDateStr} melebihi batas maksimal ${settings.advanceBookingDays} hari.`,
@@ -1033,21 +1040,12 @@ export class ZoomBookingService {
         const settings = await this.getSettings();
         const durationNum = Number(durationMinutes) || 60;
 
-        const bookingDate = new Date(`${bookingDateStr}T00:00:00`);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const isPast = bookingDate < today;
-        const now = new Date();
-        const isToday = bookingDate.getFullYear() === now.getFullYear() &&
-            bookingDate.getMonth() === now.getMonth() &&
-            bookingDate.getDate() === now.getDate();
-        const currentMinutesNow = now.getHours() * 60 + now.getMinutes();
-
-        const maxDate = new Date(today);
-        maxDate.setDate(maxDate.getDate() + settings.advanceBookingDays);
-        const isFutureExceeded = bookingDate > maxDate;
-        const isWorkingDay = settings.workingDays.includes(bookingDate.getDay());
+        // Booking dates/times are WIB wall clock; the process clock is UTC.
+        const { dateStr: todayStr, minutes: currentMinutesNow } = wibNow();
+        const isPast = bookingDateStr < todayStr;
+        const isToday = bookingDateStr === todayStr;
+        const isFutureExceeded = bookingDateStr > addDaysToDateStr(todayStr, settings.advanceBookingDays);
+        const isWorkingDay = settings.workingDays.includes(new Date(`${bookingDateStr}T00:00:00Z`).getUTCDay());
         const isBlocked = settings.blockedDates.includes(bookingDateStr);
 
         const allAccounts = await this.accountRepo.find({ where: { isActive: true } });
@@ -1320,6 +1318,23 @@ export class ZoomBookingService {
         let meeting: ZoomMeeting;
 
         try {
+            // Serialize bookings per account+day, then re-check the slot: the account was picked
+            // outside this transaction (and seconds earlier, before the Zoom API call), so two
+            // concurrent requests could both claim it. The unique slot index no longer exists.
+            await queryRunner.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`zoom-slot:${accountId}:${dateStr}`]);
+            if (!isDoubleBooking) {
+                const txConflict = await queryRunner.manager
+                    .createQueryBuilder(ZoomBooking, 'booking')
+                    .where('booking.zoomAccountId = :accountId', { accountId })
+                    .andWhere('booking.bookingDate = :date', { date: dateStr })
+                    .andWhere('booking.status IN (:...statuses)', { statuses: [BookingStatus.PENDING, BookingStatus.CONFIRMED] })
+                    .andWhere('(booking.startTime < :endTime AND booking.endTime > :startTime)', { startTime: dto.startTime, endTime })
+                    .getCount();
+                if (txConflict > 0) {
+                    throw new ConflictException(`Slot ${dateStr} ${dto.startTime} baru saja dipesan. Silakan pilih jadwal lain atau coba lagi.`);
+                }
+            }
+
             // Re-verify daily limit inside transaction to avoid race conditions (ADMIN role is exempt)
             if (user.role !== UserRole.ADMIN) {
                 const txDailyCount = await queryRunner.manager.count(ZoomBooking, {

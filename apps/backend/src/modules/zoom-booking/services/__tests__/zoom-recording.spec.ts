@@ -95,6 +95,8 @@ describe('ZoomSyncService.handleWebhookRecordingCompleted', () => {
     it('syncRecentRecordings polls Zoom API and updates meetings with available recordings', async () => {
         const mockQueryBuilder: any = {
             innerJoinAndSelect: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            take: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),
             andWhere: jest.fn().mockReturnThis(),
             getMany: jest.fn().mockResolvedValue([
@@ -135,6 +137,8 @@ describe('ZoomSyncService.handleWebhookRecordingCompleted', () => {
     it('syncRecentRecordings stops loop immediately when scope becomes unavailable on first meeting', async () => {
         const mockQueryBuilder: any = {
             innerJoinAndSelect: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            take: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),
             andWhere: jest.fn().mockReturnThis(),
             getMany: jest.fn().mockResolvedValue([

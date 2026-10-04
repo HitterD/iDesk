@@ -337,7 +337,6 @@ export class EventsGateway
     // Notify admins about important events
     notifyAdmins(event: string, data: any) {
         this.server.to('admin:notifications').emit(event, data);
-        this.server.emit(event, data); // Also broadcast globally for all admins
     }
 
     // Notify about knowledge base article views & engagement in real-time

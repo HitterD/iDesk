@@ -83,7 +83,7 @@ export class HardwareRequestCommandService {
                 }
             }
 
-            const requestNumber = await this.numberer.generate();
+            const requestNumber = await this.numberer.generate(new Date(), mgr);
             const entity = requestRepo.create({
                 requestNumber,
                 requesterId: userId,
@@ -333,8 +333,16 @@ export class HardwareRequestCommandService {
         });
     }
 
+    /**
+     * Loads a request for a state transition, row-locked for the rest of the transaction:
+     * two concurrent approve/review/reject calls otherwise both pass the status check
+     * and double-log + double-notify. Lock first (FOR UPDATE cannot sit on the nullable
+     * side of the items join), then read with relations.
+     */
     private async loadRequestOrThrow(mgr: any, id: string): Promise<HardwareRequest> {
         const repo = mgr.getRepository(HardwareRequest);
+        const locked = await repo.findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!locked) throw new HardwareRequestNotFoundError(id);
         const found = await repo.findOne({ where: { id }, relations: { items: true } });
         if (!found) throw new HardwareRequestNotFoundError(id);
         return found;

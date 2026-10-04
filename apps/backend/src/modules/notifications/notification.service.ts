@@ -19,6 +19,8 @@ export interface NotificationReadTarget {
 
 /** Upper bound for the critical banner list; the count endpoint reports the real total. */
 const MAX_CRITICAL_BANNER = 50;
+/** Upper bound for the unread list; the unread count endpoint reports the real total. */
+const MAX_UNREAD_LIST = 100;
 
 @Injectable()
 export class NotificationService {
@@ -268,6 +270,7 @@ export class NotificationService {
         return this.notificationRepo.find({
             where: { userId, isRead: false },
             order: { createdAt: 'DESC' },
+            take: MAX_UNREAD_LIST,
         });
     }
 

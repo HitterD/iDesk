@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { wibEndOfDate, wibStartOfDate, wibStartOfToday } from '../../shared/core/utils/wib-date.util';
+import { wibDateSql, wibEndOfDate, wibStartOfDate, wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, MoreThanOrEqual } from 'typeorm';
 import { Ticket, TicketStatus, TicketPriority, TICKET_DONE_STATUSES } from '../ticketing/entities/ticket.entity';
@@ -11,6 +11,8 @@ import { ReportTeam, applyTeamFilter, rolesForTeam, teamLabel, teamWhere } from 
 
 const MS_PER_DAY = 86_400_000;
 const MONTH_LOOKBACK_DAYS = 30;
+/** A report table, not an export: newest critical tickets only. */
+const MAX_CRITICAL_ROWS = 200;
 
 interface TicketStats {
     total: number;
@@ -389,7 +391,7 @@ export class ManagerReportsService {
         if (siteIds.length === 0) return [];
 
         const qb = this.ticketRepo.createQueryBuilder('t')
-            .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
+            .select(`to_char(${wibDateSql('t."createdAt"')}, 'YYYY-MM-DD')`, 'day')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" IS NOT NULL)`, 'resolved')
             .where('t."siteId" IN (:...ids)', { ids: siteIds })
@@ -398,8 +400,8 @@ export class ManagerReportsService {
         applyTeamFilter(qb, 't', team);
 
         const rows = await qb
-            .groupBy(`date_trunc('day', t."createdAt")`)
-            .orderBy(`date_trunc('day', t."createdAt")`, 'ASC')
+            .groupBy(wibDateSql('t."createdAt"'))
+            .orderBy(wibDateSql('t."createdAt"'), 'ASC')
             .getRawMany<{ day: string; created: string; resolved: string }>();
 
         return rows.map(r => ({
@@ -420,6 +422,7 @@ export class ManagerReportsService {
             },
             relations: ['assignedTo'],
             order: { createdAt: 'DESC' },
+            take: MAX_CRITICAL_ROWS,
         });
 
         return tickets.map(t => ({

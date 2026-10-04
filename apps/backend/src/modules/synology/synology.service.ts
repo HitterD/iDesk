@@ -1566,9 +1566,19 @@ export class SynologyService {
 
         const tempDir = './backups/temp';
         await fs.mkdir(path.resolve(tempDir), { recursive: true });
-        const tempFilePath = `${tempDir}/upload_${Date.now()}_${file.originalname}`;
+        // basename(): the client-supplied name must not be able to point outside tempDir.
+        const safeName = path.basename(file.originalname || 'upload.sql').replace(/[^\w.-]/g, '_');
+        const tempFilePath = `${tempDir}/upload_${Date.now()}_${safeName}`;
 
-        await fs.writeFile(path.resolve(tempFilePath), file.buffer || (await fs.readFile(file.path)));
+        if (file.path) {
+            // Disk upload: move it instead of reading the whole dump into memory.
+            await fs.rename(file.path, path.resolve(tempFilePath)).catch(async () => {
+                await fs.copyFile(file.path, path.resolve(tempFilePath));
+                await fs.unlink(file.path).catch(() => undefined);
+            });
+        } else {
+            await fs.writeFile(path.resolve(tempFilePath), file.buffer);
+        }
 
         // 1. Create snapshot if any active config exists
         if (createSnapshot) {

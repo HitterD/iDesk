@@ -30,6 +30,9 @@ interface IncidentRecord {
     timestamp: string;
 }
 
+/** The devices probe runs on the live health tick; never let it pile up. */
+const SJA_DEVICES_TIMEOUT_MS = 2_000;
+
 @Injectable()
 export class HealthService {
     private readonly logger = new Logger(HealthService.name);
@@ -328,7 +331,7 @@ export class HealthService {
                 let activeDevices = 1;
                 let onlineSockets = 1;
                 try {
-                    const devRes = await fetch(`${sjaUrl}/v1/devices`);
+                    const devRes = await fetch(`${sjaUrl}/v1/devices`, { signal: AbortSignal.timeout(SJA_DEVICES_TIMEOUT_MS) });
                     if (devRes.ok) {
                         const devices = await devRes.json();
                         activeDevices = Array.isArray(devices) ? devices.filter((d: any) => d.status === 'ACTIVE').length : 1;

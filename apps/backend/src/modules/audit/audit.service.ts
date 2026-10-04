@@ -40,6 +40,9 @@ export interface AuditStats {
     topActions: { action: string; count: number }[];
 }
 
+/** Most recent audit entries returned for a single entity's history panel. */
+const MAX_ENTITY_HISTORY = 500;
+
 @Injectable()
 export class AuditService {
     private readonly logger = new Logger(AuditService.name);
@@ -323,6 +326,7 @@ export class AuditService {
             where: { entityType, entityId },
             relations: ['user'],
             order: { createdAt: 'DESC' },
+            take: MAX_ENTITY_HISTORY,
         });
     }
 

@@ -1,4 +1,4 @@
-import { TicketQueryService } from './ticket-query.service';
+import { TicketQueryService, toPrefixTsQuery } from './ticket-query.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 
 const OPS_SUPPORT_ONLY =
@@ -114,5 +114,18 @@ describe('TicketQueryService.findOne', () => {
         expect(ticketRepo.save).not.toHaveBeenCalled();
         expect(result.slaTarget).toEqual(new Date('2026-10-01T01:00:00Z'));
         expect(result.messages.map((m: any) => m.id)).toEqual(['m1']);
+    });
+});
+
+describe('toPrefixTsQuery', () => {
+    // Raw input went straight into to_tsquery: "a(b" -> syntax error -> 500.
+    it('strips tsquery syntax so user input can never break the query', () => {
+        expect(toPrefixTsQuery('a(b')).toBe('ab:*');
+        expect(toPrefixTsQuery("printer & lt:2 | 'x'")).toBe('printer:* & lt2:* & x:*');
+        expect(toPrefixTsQuery('laptop rusak')).toBe('laptop:* & rusak:*');
+    });
+
+    it('returns a never-matching query when nothing searchable remains', () => {
+        expect(toPrefixTsQuery('() & |')).toBe('!_');
     });
 });
