@@ -50,6 +50,8 @@ interface NavItem {
     icon: LucideIcon;
     label: string;
     path: string;
+    /** Match the path exactly, so `/dashboard` is not active on `/dashboard/me`. */
+    end?: boolean;
 }
 
 interface NavGroup {
@@ -287,6 +289,7 @@ const StandaloneNavLink: React.FC<{
                         <div className="relative flex justify-center py-0.5">
                             <NavLink
                                 to={entry.path}
+                                end={entry.end}
                                 aria-label={entry.label}
                                 className={({ isActive }) =>
                                     cn(
@@ -328,6 +331,7 @@ const StandaloneNavLink: React.FC<{
     return (
         <NavLink
             to={entry.path}
+            end={entry.end}
             aria-label={entry.label}
             className={({ isActive }) =>
                 cn(
@@ -476,7 +480,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             key: 'dashboard', 
             icon: LayoutDashboard, 
             label: isManager ? 'Dashboard' : 'Dashboard Tim', 
-            path: isManager ? '/manager/dashboard' : '/dashboard' 
+            path: isManager ? '/manager/dashboard' : '/dashboard',
+            end: true,
         },
 
         // Request Center group
@@ -601,7 +606,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         for (const entry of NAVIGATION_CONFIG) {
             if (entry.type === 'item') {
                 if (canAccessPage(entry.key)) {
-                    nav.push({ key: entry.key, icon: entry.icon, label: entry.label, path: entry.path });
+                    nav.push({ key: entry.key, icon: entry.icon, label: entry.label, path: entry.path, end: 'end' in entry ? entry.end : undefined });
                 }
             } else if (entry.type === 'group') {
                 if ('adminOnly' in entry && entry.adminOnly && user?.role !== 'ADMIN') {

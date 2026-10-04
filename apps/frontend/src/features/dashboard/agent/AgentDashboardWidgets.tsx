@@ -1,182 +1,222 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, Star, Award, Wrench } from 'lucide-react';
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from 'recharts';
+import { Award, CalendarClock, CheckCircle2, ChevronRight, PartyPopper, Star, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants';
-import { formatDuration, formatWibDateTime, shortDateLabel } from './agentDashboard.format';
+import { formatDuration, formatSlaRelative, formatWibDateTime } from './agentDashboard.format';
 import type { AgentDashboardData, AgentTicketStats, InstallItem } from './agentDashboard.types';
 
 const SLA_GOOD_PERCENT = 90;
 const SLA_WARN_PERCENT = 70;
-const CHART_HEIGHT_PX = 240;
-const ASSIGNED_COLOR = '#60a5fa';
-const RESOLVED_COLOR = '#10b981';
+const RING_SIZE_PX = 64;
+const RING_STROKE_PX = 7;
+const ATTENTION_LIMIT = 6;
 
-const CARD = 'bg-card border border-border rounded-2xl p-5';
-const CARD_TITLE = 'font-bold text-foreground text-base tracking-tight mb-4';
-const LABEL = 'text-xs font-semibold text-muted-foreground uppercase tracking-wider';
+/** Soft, borderless surface (Apple-style); a hairline ring keeps it visible in dark mode. */
+export const SURFACE = 'bg-card rounded-3xl shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.10)] ring-1 ring-black/[0.03] dark:ring-white/[0.06]';
+export const SECTION_TITLE = 'text-[17px] font-semibold text-foreground tracking-tight';
+const EYEBROW = 'text-[13px] font-medium text-muted-foreground';
+const BIG_NUMBER = 'text-[34px] leading-none font-semibold tracking-tight tabular-nums';
 
-const EmptyText: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <p className="text-sm text-muted-foreground py-4 text-center">{children}</p>
-);
-
-export const StatCard: React.FC<{ label: string; value: React.ReactNode; hint?: string; tone?: 'danger' | 'success' }> = ({ label, value, hint, tone }) => (
-    <div className={CARD}>
-        <p className={LABEL}>{label}</p>
-        <p className={cn(
-            'text-3xl font-extrabold tracking-tight leading-none mt-2',
-            tone === 'danger' ? 'text-destructive' : tone === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground',
-        )}>{value}</p>
-        {hint && <p className="text-xs text-muted-foreground mt-2">{hint}</p>}
+export const EmptyNote: React.FC<{ icon?: React.ReactNode; children: React.ReactNode }> = ({ icon, children }) => (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+        {icon}
+        <p className="text-sm text-muted-foreground max-w-xs">{children}</p>
     </div>
 );
 
-export const StatGrid: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard label="Aktif" value={stats.active} hint={`${stats.todo} open, ${stats.waitingVendor} waiting vendor`} />
-        <StatCard label="In Progress" value={stats.inProgress} />
-        <StatCard label="Overdue" value={stats.overdue} tone={stats.overdue > 0 ? 'danger' : undefined} hint="Lewat target SLA" />
-        <StatCard label="Selesai Hari Ini" value={stats.resolvedToday} tone="success" />
-        <StatCard label="Selesai Minggu Ini" value={stats.resolvedThisWeek} />
-        <StatCard label="Selesai Bulan Ini" value={stats.resolvedThisMonth} />
-    </div>
-);
+const slaTone = (sla: number | null) =>
+    sla === null ? 'text-muted-foreground/30' : sla >= SLA_GOOD_PERCENT ? 'text-emerald-500' : sla >= SLA_WARN_PERCENT ? 'text-amber-500' : 'text-rose-500';
 
-export const PerformanceCard: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => {
-    const sla = stats.slaCompliance;
-    const slaColor = sla === null ? 'bg-muted' : sla >= SLA_GOOD_PERCENT ? 'bg-emerald-500' : sla >= SLA_WARN_PERCENT ? 'bg-amber-500' : 'bg-destructive';
+const SlaRing: React.FC<{ value: number | null }> = ({ value }) => {
+    const r = (RING_SIZE_PX - RING_STROKE_PX) / 2;
+    const circumference = 2 * Math.PI * r;
+    const offset = circumference * (1 - (value ?? 0) / 100);
     return (
-        <div className={cn(CARD, 'flex flex-col gap-4')}>
-            <h2 className={CARD_TITLE}>Performa {stats.periodDays} Hari</h2>
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <p className={LABEL}>SLA Compliance</p>
-                    <span className="text-sm font-extrabold text-foreground">{sla === null ? '-' : `${sla}%`}</span>
-                </div>
-                <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
-                    <div className={cn('h-full rounded-full transition-all', slaColor)} style={{ width: `${sla ?? 0}%` }} />
-                </div>
-            </div>
-            <div className="border-t border-border/60" />
-            <div className="flex items-center justify-between">
-                <p className={LABEL}>Rata-rata Penyelesaian</p>
-                <span className="text-xl font-extrabold text-foreground">{formatDuration(stats.avgResolveMinutes)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-                <p className={LABEL}>Total Selesai</p>
-                <span className="text-xl font-extrabold text-foreground">{stats.resolvedInPeriod}</span>
-            </div>
-        </div>
+        <svg width={RING_SIZE_PX} height={RING_SIZE_PX} className="-rotate-90 shrink-0" aria-hidden="true">
+            <circle cx="50%" cy="50%" r={r} fill="none" strokeWidth={RING_STROKE_PX} className="stroke-muted" />
+            <circle
+                cx="50%" cy="50%" r={r} fill="none" strokeWidth={RING_STROKE_PX} strokeLinecap="round"
+                stroke="currentColor" strokeDasharray={circumference} strokeDashoffset={offset}
+                className={cn('transition-[stroke-dashoffset] duration-700', slaTone(value))}
+            />
+        </svg>
     );
 };
 
-export const TrendChart: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => (
-    <div className={CARD}>
-        <h2 className={CARD_TITLE}>Ditugaskan vs Diselesaikan ({stats.periodDays} hari)</h2>
-        <div style={{ height: CHART_HEIGHT_PX }}>
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.trend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tickFormatter={shortDateLabel} tick={{ fontSize: 11 }} minTickGap={12} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip labelFormatter={(d) => shortDateLabel(String(d))} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="assigned" name="Ditugaskan" fill={ASSIGNED_COLOR} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="resolved" name="Diselesaikan" fill={RESOLVED_COLOR} radius={[3, 3, 0, 0]} />
-                </BarChart>
-            </ResponsiveContainer>
+const Tile: React.FC<{ label: string; children: React.ReactNode; className?: string }> = ({ label, children, className }) => (
+    <div className={cn(SURFACE, 'p-5 flex flex-col gap-3 min-h-[132px]', className)}>
+        <p className={EYEBROW}>{label}</p>
+        {children}
+    </div>
+);
+
+const Chip: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <span className="text-xs text-muted-foreground bg-foreground/[0.06] rounded-full px-2 py-0.5 tabular-nums">{children}</span>
+);
+
+/** Four summary tiles: active, overdue, resolved, SLA. */
+export const SummaryTiles: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Tile label="Tiket aktif">
+            <p className={cn(BIG_NUMBER, 'text-foreground')}>{stats.active}</p>
+            <div className="flex flex-wrap gap-1.5">
+                <Chip>{stats.todo} open</Chip>
+                <Chip>{stats.inProgress} dikerjakan</Chip>
+                {stats.waitingVendor > 0 && <Chip>{stats.waitingVendor} tunggu vendor</Chip>}
+            </div>
+        </Tile>
+        <Tile
+            label="Lewat SLA"
+            className={stats.overdue > 0 ? 'bg-rose-50 dark:bg-rose-500/10' : 'bg-emerald-50 dark:bg-emerald-500/10'}
+        >
+            <p className={cn(BIG_NUMBER, stats.overdue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
+                {stats.overdue}
+            </p>
+            <p className="text-xs text-muted-foreground">
+                {stats.overdue > 0 ? 'Segera tindak lanjuti tiket ini' : 'Semua tiket masih tepat waktu'}
+            </p>
+        </Tile>
+        <Tile label="Selesai hari ini">
+            <p className={cn(BIG_NUMBER, 'text-foreground')}>{stats.resolvedToday}</p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+                {stats.resolvedThisWeek} minggu ini · {stats.resolvedThisMonth} bulan ini
+            </p>
+        </Tile>
+        <Tile label={`Kepatuhan SLA · ${stats.periodDays} hari`}>
+            <div className="flex items-center gap-4">
+                <SlaRing value={stats.slaCompliance} />
+                {stats.slaCompliance === null ? (
+                    <p className="text-xs text-muted-foreground">Belum ada tiket selesai untuk dihitung</p>
+                ) : (
+                    <p className={cn(BIG_NUMBER, 'text-foreground')}>{stats.slaCompliance}<span className="text-xl">%</span></p>
+                )}
+            </div>
+        </Tile>
+    </div>
+);
+
+const SlaBadge: React.FC<{ slaTarget: string | null }> = ({ slaTarget }) => {
+    if (!slaTarget) return <span className="text-xs text-muted-foreground">Tanpa SLA</span>;
+    const { text, overdue } = formatSlaRelative(slaTarget);
+    return (
+        <span
+            title={`Target SLA ${formatWibDateTime(slaTarget)} WIB`}
+            className={cn(
+                'text-xs font-medium whitespace-nowrap rounded-full px-2.5 py-1 tabular-nums',
+                overdue ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' : 'bg-foreground/[0.06] text-muted-foreground',
+            )}
+        >{text}</span>
+    );
+};
+
+/** Active tickets, nearest SLA first: what to work on next. */
+export const AttentionList: React.FC<{ stats: AgentTicketStats; viewAllHref?: string }> = ({ stats, viewAllHref }) => {
+    const tickets = stats.activeTickets.slice(0, ATTENTION_LIMIT);
+    return (
+        <section className={cn(SURFACE, 'p-5 md:p-6')} aria-label="Perlu perhatian">
+            <div className="flex items-center justify-between mb-2">
+                <h2 className={SECTION_TITLE}>Perlu perhatian</h2>
+                {viewAllHref && stats.active > 0 && (
+                    <Link to={viewAllHref} className="text-sm font-medium text-primary hover:underline flex items-center gap-0.5">
+                        Lihat semua <ChevronRight className="w-4 h-4" />
+                    </Link>
+                )}
+            </div>
+            {tickets.length === 0 ? (
+                <EmptyNote icon={<PartyPopper className="w-8 h-8 text-emerald-500" />}>Tidak ada tiket aktif. Semua beres!</EmptyNote>
+            ) : (
+                <ul className="divide-y divide-border/50">
+                    {tickets.map((t) => (
+                        <li key={t.id}>
+                            <Link to={`/tickets/${t.id}`} className="group flex items-center gap-3 py-3 -mx-2 px-2 rounded-xl hover:bg-muted/50 transition-colors">
+                                <span className={cn('w-2 h-2 rounded-full shrink-0', PRIORITY_CONFIG[t.priority]?.dot ?? 'bg-slate-400')} title={PRIORITY_CONFIG[t.priority]?.label} />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {t.ticketNumber ?? '-'} · {STATUS_CONFIG[t.status]?.label ?? t.status}
+                                    </p>
+                                </div>
+                                <SlaBadge slaTarget={t.slaTarget} />
+                                <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground shrink-0" />
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+};
+
+const MetricRow: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode; hint?: string }> = ({ icon, label, value, hint }) => (
+    <div className="flex items-center gap-3 py-3">
+        <span className="w-9 h-9 rounded-xl bg-foreground/[0.06] flex items-center justify-center text-muted-foreground shrink-0">{icon}</span>
+        <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground">{label}</p>
+            {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
         </div>
+        <span className="text-lg font-semibold text-foreground tabular-nums">{value}</span>
     </div>
 );
 
-export const ActiveTicketList: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => (
-    <div className={CARD}>
-        <h2 className={CARD_TITLE}>Tiket Aktif (SLA Terdekat)</h2>
-        {stats.activeTickets.length === 0 ? (
-            <EmptyText>Tidak ada tiket aktif.</EmptyText>
-        ) : (
-            <ul className="divide-y divide-border/60">
-                {stats.activeTickets.map((t) => (
-                    <li key={t.id}>
-                        <Link to={`/tickets/${t.id}`} className="flex items-center gap-3 py-2.5 hover:bg-secondary/40 rounded-lg px-2 -mx-2">
-                            <span className={cn('w-2 h-2 rounded-full shrink-0', PRIORITY_CONFIG[t.priority]?.dot ?? 'bg-slate-400')} />
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-foreground truncate">{t.title}</p>
-                                <p className="text-xs text-muted-foreground">
-                                    {t.ticketNumber ?? '-'} · {STATUS_CONFIG[t.status]?.label ?? t.status}
-                                </p>
-                            </div>
-                            <span className={cn('text-xs font-semibold whitespace-nowrap', t.isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
-                                {t.slaTarget ? `${t.isOverdue ? 'Lewat ' : ''}${formatWibDateTime(t.slaTarget)}` : 'Tanpa SLA'}
-                            </span>
-                        </Link>
-                    </li>
-                ))}
-            </ul>
-        )}
-    </div>
-);
-
-export const AppraisalRow: React.FC<{ points: number }> = ({ points }) => (
-    <div className="flex items-center justify-between">
-        <p className={cn(LABEL, 'flex items-center gap-1.5')}><Award className="w-4 h-4" /> Poin Appraisal</p>
-        <span className="text-xl font-extrabold text-foreground">{points}</span>
-    </div>
-);
-
-/** Rating summary for ADMIN/MANAGER viewing another agent (MyRatingCard only serves the signed-in agent). */
-export const RatingSummaryCard: React.FC<{ data: AgentDashboardData }> = ({ data }) => (
-    <div className={cn(CARD, 'flex flex-col gap-4')}>
-        <h2 className={CARD_TITLE}>Rating & Appraisal</h2>
-        <div className="flex items-center gap-3">
-            <Star className="w-6 h-6 fill-amber-400 text-amber-400" />
-            <span className="text-3xl font-extrabold text-foreground">{data.rating.average?.toFixed(1) ?? '-'}</span>
-            <span className="text-sm text-muted-foreground">dari {data.rating.count} rating</span>
-        </div>
-        <AppraisalRow points={data.agent.appraisalPoints} />
-    </div>
-);
+/** Period performance: resolve time, total resolved, appraisal (+ rating when viewing someone else). */
+export const PerformanceCard: React.FC<{ data: AgentDashboardData; showRating: boolean }> = ({ data, showRating }) => {
+    const { stats } = data;
+    return (
+        <section className={cn(SURFACE, 'p-5 md:p-6')} aria-label={showRating ? 'Rating & Appraisal' : 'Performa'}>
+            <h2 className={SECTION_TITLE}>Performa {stats.periodDays} hari</h2>
+            <div className="divide-y divide-border/50 mt-1">
+                <MetricRow
+                    icon={<CheckCircle2 className="w-4 h-4" />}
+                    label="Total selesai"
+                    value={stats.resolvedInPeriod}
+                />
+                <MetricRow
+                    icon={<CalendarClock className="w-4 h-4" />}
+                    label="Rata-rata penyelesaian"
+                    value={stats.avgResolveMinutes === null ? '—' : formatDuration(stats.avgResolveMinutes)}
+                    hint={stats.avgResolveMinutes === null ? 'Belum ada tiket selesai' : undefined}
+                />
+                <MetricRow icon={<Award className="w-4 h-4" />} label="Poin appraisal" value={data.agent.appraisalPoints} />
+                {showRating && (
+                    <MetricRow
+                        icon={<Star className="w-4 h-4 fill-amber-400 text-amber-400" />}
+                        label="Rating"
+                        value={data.rating.average?.toFixed(1) ?? '—'}
+                        hint={data.rating.count > 0 ? `dari ${data.rating.count} penilaian` : 'Belum ada penilaian'}
+                    />
+                )}
+            </div>
+        </section>
+    );
+};
 
 const InstallRow: React.FC<{ item: InstallItem }> = ({ item }) => (
     <li>
-        <Link to={`/tickets/${item.id}`} className="flex items-center gap-3 py-2 hover:bg-secondary/40 rounded-lg px-2 -mx-2">
+        <Link to={`/tickets/${item.id}`} className="flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-xl hover:bg-muted/50">
             <span className={cn(
-                'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full',
-                item.day === 'today' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+                item.day === 'today' ? 'bg-primary/10 text-primary' : 'bg-foreground/[0.06] text-muted-foreground',
             )}>{item.day === 'today' ? 'Hari ini' : 'Besok'}</span>
             <span className="text-sm text-foreground truncate flex-1">{item.title}</span>
-            <span className="text-xs text-muted-foreground">{item.scheduledTime ?? '-'}</span>
+            <span className="text-xs text-muted-foreground tabular-nums">{item.scheduledTime ?? '—'}</span>
         </Link>
     </li>
 );
 
 export const SupportCard: React.FC<{ support: NonNullable<AgentDashboardData['support']> }> = ({ support }) => (
-    <div className={cn(CARD, 'flex flex-col gap-4')}>
-        <h2 className={CARD_TITLE}>Workload & Instalasi</h2>
-        <div className="flex items-center justify-between">
-            <p className={cn(LABEL, 'flex items-center gap-1.5')}><Wrench className="w-4 h-4" /> Poin Workload Hari Ini</p>
-            <span className="text-xl font-extrabold text-foreground">{support.workloadPointsToday}</span>
-        </div>
-        <div className="border-t border-border/60" />
-        <p className={cn(LABEL, 'flex items-center gap-1.5')}><CalendarClock className="w-4 h-4" /> Instalasi Hari Ini & Besok</p>
+    <section className={cn(SURFACE, 'p-5 md:p-6')} aria-label="Workload & Instalasi">
+        <h2 className={SECTION_TITLE}>Workload & Instalasi</h2>
+        <MetricRow icon={<Wrench className="w-4 h-4" />} label="Poin workload hari ini" value={support.workloadPointsToday} />
+        <p className={cn(EYEBROW, 'mt-2')}>Jadwal instalasi hari ini & besok</p>
         {support.installs.length === 0 ? (
-            <EmptyText>Tidak ada jadwal instalasi.</EmptyText>
+            <EmptyNote>Tidak ada jadwal instalasi.</EmptyNote>
         ) : (
-            <ul className="divide-y divide-border/60">
+            <ul className="divide-y divide-border/50 mt-1">
                 {support.installs.map((i) => <InstallRow key={i.id} item={i} />)}
             </ul>
         )}
-    </div>
+    </section>
 );
 
 const AGING_BUCKETS: { key: keyof AgentTicketStats['aging']; label: string }[] = [
@@ -188,11 +228,18 @@ const AGING_BUCKETS: { key: keyof AgentTicketStats['aging']; label: string }[] =
 
 const BarRow: React.FC<{ label: string; count: number; max: number; className?: string }> = ({ label, count, max, className }) => (
     <div className="flex items-center gap-3">
-        <span className="text-xs text-muted-foreground w-28 truncate" title={label}>{label}</span>
-        <div className="flex-1 bg-muted h-2 rounded-full overflow-hidden">
+        <span className="text-xs text-muted-foreground w-24 truncate" title={label}>{label}</span>
+        <div className="flex-1 bg-muted h-1.5 rounded-full overflow-hidden">
             <div className={cn('h-full rounded-full', className ?? 'bg-primary')} style={{ width: `${max ? (count / max) * 100 : 0}%` }} />
         </div>
-        <span className="text-xs font-bold text-foreground w-6 text-right">{count}</span>
+        <span className="text-xs font-semibold text-foreground w-6 text-right tabular-nums">{count}</span>
+    </div>
+);
+
+const BreakdownColumn: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <div className="flex flex-col gap-2.5">
+        <h3 className="text-sm font-semibold text-foreground mb-1">{title}</h3>
+        {children}
     </div>
 );
 
@@ -202,25 +249,22 @@ export const DevBreakdownCard: React.FC<{ stats: AgentTicketStats }> = ({ stats 
     const maxCategory = Math.max(0, ...stats.byCategory.map((c) => c.count));
     const maxAging = Math.max(0, ...AGING_BUCKETS.map((b) => stats.aging[b.key]));
     return (
-        <div className={cn(CARD, 'grid grid-cols-1 md:grid-cols-3 gap-6')}>
-            <div className="flex flex-col gap-2">
-                <h2 className={CARD_TITLE}>Per Status</h2>
-                {statusRows.length === 0 ? <EmptyText>-</EmptyText> : statusRows.map(([status, n]) => (
+        <section className={cn(SURFACE, 'p-5 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-6')} aria-label="Rincian tiket">
+            <BreakdownColumn title="Per status">
+                {statusRows.length === 0 ? <EmptyNote>Belum ada tiket.</EmptyNote> : statusRows.map(([status, n]) => (
                     <BarRow key={status} label={STATUS_CONFIG[status]?.label ?? status} count={n} max={maxStatus} className={STATUS_CONFIG[status]?.columnColor} />
                 ))}
-            </div>
-            <div className="flex flex-col gap-2">
-                <h2 className={CARD_TITLE}>Per Modul</h2>
-                {stats.byCategory.length === 0 ? <EmptyText>-</EmptyText> : stats.byCategory.map((c) => (
+            </BreakdownColumn>
+            <BreakdownColumn title="Per modul">
+                {stats.byCategory.length === 0 ? <EmptyNote>Belum ada tiket.</EmptyNote> : stats.byCategory.map((c) => (
                     <BarRow key={c.category} label={c.category} count={c.count} max={maxCategory} />
                 ))}
-            </div>
-            <div className="flex flex-col gap-2">
-                <h2 className={CARD_TITLE}>Umur Tiket Aktif</h2>
+            </BreakdownColumn>
+            <BreakdownColumn title="Umur Tiket Aktif">
                 {AGING_BUCKETS.map((b) => (
-                    <BarRow key={b.key} label={b.label} count={stats.aging[b.key]} max={maxAging} className={b.key === 'gt14' ? 'bg-destructive' : undefined} />
+                    <BarRow key={b.key} label={b.label} count={stats.aging[b.key]} max={maxAging} className={b.key === 'gt14' ? 'bg-rose-500' : undefined} />
                 ))}
-            </div>
-        </div>
+            </BreakdownColumn>
+        </section>
     );
 };
