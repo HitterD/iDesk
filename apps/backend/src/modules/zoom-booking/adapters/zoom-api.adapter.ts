@@ -87,11 +87,15 @@ export interface ZoomMeetingListItem {
     agenda?: string;
 }
 
+/** Safety bound: 20 x 100 meetings per host is far beyond real usage. */
+const MAX_MEETING_PAGES = 20;
+
 export interface ZoomMeetingListResponse {
     page_count: number;
     page_number: number;
     page_size: number;
     total_records: number;
+    next_page_token?: string;
     meetings: ZoomMeetingListItem[];
 }
 
@@ -355,8 +359,22 @@ export class ZoomApiAdapter implements OnModuleInit {
     /**
      * List meetings for a user
      */
+    /**
+     * All meetings of a host, following `next_page_token` (Zoom returns 100 per page). Callers
+     * that delete "stale" rows must see every page, or meetings past page 1 look deleted.
+     */
     async listMeetings(hostEmail: string, type: 'scheduled' | 'upcoming' | 'upcoming_meetings' = 'scheduled'): Promise<ZoomMeetingListResponse> {
-        return this.request<ZoomMeetingListResponse>('GET', `/users/${encodeURIComponent(hostEmail)}/meetings?type=${type}&page_size=100`);
+        const base = `/users/${encodeURIComponent(hostEmail)}/meetings?type=${type}&page_size=100`;
+        const first = await this.request<ZoomMeetingListResponse>('GET', base);
+        const meetings = [...(first.meetings || [])];
+        let token = first.next_page_token;
+        for (let page = 1; token && page < MAX_MEETING_PAGES; page++) {
+            const next = await this.request<ZoomMeetingListResponse>('GET', `${base}&next_page_token=${encodeURIComponent(token)}`);
+            meetings.push(...(next.meetings || []));
+            token = next.next_page_token;
+        }
+        if (token) throw new Error(`Zoom meeting list for ${hostEmail} exceeds ${MAX_MEETING_PAGES} pages`);
+        return { ...first, meetings, next_page_token: undefined };
     }
 
     /**

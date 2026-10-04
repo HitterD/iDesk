@@ -205,11 +205,12 @@ export const BentoTicketListPage: React.FC = () => {
             if (sortBy) params.append('sortBy', sortBy);
             params.append('sortOrder', sortOrder);
             if (showCreatedByMe) params.append('createdByMe', 'true');
+            if (showAssignedToMe) params.append('assignedToMe', 'true');
             const res = await api.get(`/tickets/paginated?${params.toString()}`);
             return res.data;
         },
         placeholderData: (previousData) => previousData, // Keep previous data while fetching
-        refetchInterval: 60000, // Auto-poll every 60s as fallback
+        refetchInterval: isConnected ? false : 60000, // fallback poll only while the socket is down
     });
 
     // Fetch dashboard stats separately (for stat cards - doesn't need to refetch on pagination)
@@ -264,15 +265,8 @@ export const BentoTicketListPage: React.FC = () => {
     const tickets = paginatedData?.data || [];
     const paginationMeta = paginatedData?.meta;
 
-    // Client-side filter for "My Tasks" (assigned to me)
-    const filteredTickets = useMemo(() => {
-        let result = tickets;
-
-        if (showAssignedToMe) {
-            result = result.filter((t) => t.assignedTo?.id === user?.id);
-        }
-        return result;
-    }, [tickets, showAssignedToMe, user?.id]);
+    // "My Tasks" is filtered by the server, so paging and totals match what is shown.
+    const filteredTickets = tickets;
 
     // Pagination info from server
     const paginationInfo = useMemo(() => {

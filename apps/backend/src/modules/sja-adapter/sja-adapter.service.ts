@@ -7,6 +7,8 @@ import { User } from '../users/entities/user.entity';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { signSjaRequest, SJA_APP_ID_ENV, SJA_APP_SECRET_ENV } from './sja-request-signer';
 
+const SJA_DISPATCH_TIMEOUT_MS = 3_000;
+
 @Injectable()
 export class SjaAdapterService {
   private readonly logger = new Logger(SjaAdapterService.name);
@@ -118,6 +120,8 @@ export class SjaAdapterService {
         method: 'POST',
         headers: signed.headers,
         body: signed.body,
+        // Awaited on the notification path: a blackholed SJA host must not stall it for minutes.
+        signal: AbortSignal.timeout(SJA_DISPATCH_TIMEOUT_MS),
       });
       if (resp.ok) {
         this.logger.log(`Instant SJA toast dispatch SUCCESS: [${sjaEvent.eventType}] for ${sjaEvent.employeeId} on #${finalTicketNumber}`);

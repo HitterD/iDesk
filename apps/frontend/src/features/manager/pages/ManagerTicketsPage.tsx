@@ -174,7 +174,7 @@ export const ManagerTicketsPage: React.FC = () => {
             return res.data;
         },
         placeholderData: (prev) => prev,
-        refetchInterval: 45000, // 45s fallback poll
+        refetchInterval: isConnected ? false : 45000, // fallback poll only while the socket is down
     });
 
     // Fetch Stats

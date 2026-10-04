@@ -104,6 +104,14 @@ describe('TicketQueryService site isolation', () => {
             );
         });
 
+        // "My Tasks" used to filter one 20-row page in the browser, so totals/pages were wrong.
+        it('filters "assigned to me" on the server, inside the normal site scope', async () => {
+            await service.findAllPaginated('agent-1', UserRole.AGENT, 'site-spj', { assignedToMe: true });
+
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.assignedToId = :assigneeId', { assigneeId: 'agent-1' });
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OWN_SITE, { userSiteId: 'site-spj' });
+        });
+
         // userId is uuid but createdById is varchar: one shared bind parameter
         // makes Postgres fail with "operator does not exist: character varying = uuid".
         it('binds requester and filer to separate parameters in "created by me"', async () => {
@@ -137,6 +145,30 @@ describe('TicketQueryService site isolation', () => {
             await service.findAll('user-1', UserRole.ADMIN, null);
 
             expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(MATCH_NOTHING);
+        });
+    });
+
+    describe('developer queue on the unpaginated list', () => {
+        const DEV_TEAM_ONLY = '(ticket."handlingTeam" = :oracleTeam)';
+
+        it('ignores ?queue=oracle for a requester and keeps them on their own tickets', async () => {
+            await service.findAll('user-1', UserRole.USER, 'site-spj', 'oracle');
+
+            expect(mockQueryBuilder.where).not.toHaveBeenCalledWith(DEV_TEAM_ONLY, expect.anything());
+            expect(mockQueryBuilder.where).toHaveBeenCalledWith(expect.stringContaining('ticket.userId = :userId'), { userId: 'user-1' });
+        });
+
+        it('ignores ?queue=oracle for a site-locked ops agent', async () => {
+            await service.findAll('agent-1', UserRole.AGENT, 'site-spj', 'oracle');
+
+            expect(mockQueryBuilder.where).not.toHaveBeenCalledWith(DEV_TEAM_ONLY, expect.anything());
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OWN_SITE, { userSiteId: 'site-spj' });
+        });
+
+        it('still serves the oracle queue to developer roles', async () => {
+            await service.findAll('dev-1', UserRole.AGENT_ORACLE, null, 'oracle');
+
+            expect(mockQueryBuilder.where).toHaveBeenCalledWith(DEV_TEAM_ONLY, expect.anything());
         });
     });
 

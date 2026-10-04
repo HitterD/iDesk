@@ -271,7 +271,7 @@ export class TicketMessagingService {
     async markAsRead(ticketId: string, userId: string, role?: string, userSiteId: string | null = null): Promise<void> {
         const now = new Date();
         if (!role || role === UserRole.USER) {
-            await this.ticketRepo.update(ticketId, { userLastReadAt: now });
+            await this.touchReadMarkers(ticketId, { userLastReadAt: now });
             return;
         }
         // Staff who requested/filed the ticket read the requester side; they clear
@@ -288,6 +288,21 @@ export class TicketMessagingService {
             ...(isRequesterStaff ? { userLastReadAt: now } : {}),
         };
 
-        await this.ticketRepo.update(ticketId, updateData);
+        await this.touchReadMarkers(ticketId, updateData);
+    }
+
+    /**
+     * Reading a ticket is not a change to it: `repo.update()` would also bump the
+     * @UpdateDateColumn (dashboards/reports treat `updatedAt` as activity time) and the
+     * @VersionColumn (spurious optimistic-lock conflicts for whoever is editing it).
+     */
+    private async touchReadMarkers(ticketId: string, markers: Partial<Pick<Ticket, 'userLastReadAt' | 'agentLastReadAt'>>): Promise<void> {
+        if (Object.keys(markers).length === 0) return;
+        await this.ticketRepo
+            .createQueryBuilder()
+            .update(Ticket)
+            .set({ ...markers, updatedAt: () => '"updatedAt"', version: () => '"version"' })
+            .where('id = :ticketId', { ticketId })
+            .execute();
     }
 }

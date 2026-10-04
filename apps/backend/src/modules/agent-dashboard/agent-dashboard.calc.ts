@@ -148,7 +148,8 @@ export function computeAgentTicketStats(
     tz = AGENT_DASHBOARD_TIMEZONE,
 ): AgentTicketStats {
     const active = tickets.filter(isActive);
-    const overdueOf = (t: DashboardTicket) => !!t.slaTarget && t.slaTarget < w.now;
+    // WAITING_VENDOR freezes the SLA clock (sla-checker skips it too), so its stale target is not "overdue".
+    const overdueOf = (t: DashboardTicket) => t.status !== TicketStatus.WAITING_VENDOR && !!t.slaTarget && t.slaTarget < w.now;
     const resolvedSince = (from: Date) => tickets.filter((t) => (resolvedTime(t) ?? 0) >= from);
     const resolvedInPeriod = resolvedSince(w.periodStart);
 

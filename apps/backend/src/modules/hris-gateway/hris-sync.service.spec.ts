@@ -199,7 +199,7 @@ describe('HrisSyncService.disableDepartedEmployees', () => {
     });
 
     it('disables (never deletes) a local user whose NIK is gone from the Gateway', async () => {
-        gateway.getEmployeesPage.mockResolvedValueOnce({ total: 0, data: [] });
+        gateway.getEmployeesPage.mockResolvedValueOnce({ total: 1, data: [{ nik_hris: '00000099', tgl_keluar: null }] });
         qb.getMany.mockResolvedValue([activeUser()]);
 
         const summary = await service.disableDepartedEmployees();
@@ -223,8 +223,11 @@ describe('HrisSyncService.disableDepartedEmployees', () => {
 
     it('treats tgl_keluar (resigned) as departed even if NIK still returned', async () => {
         gateway.getEmployeesPage.mockResolvedValueOnce({
-            total: 1,
-            data: [{ nik_hris: '00000024', tgl_keluar: '2025-01-01T00:00:00.000Z' }],
+            total: 2,
+            data: [
+                { nik_hris: '00000024', tgl_keluar: '2025-01-01T00:00:00.000Z' },
+                { nik_hris: '00000099', tgl_keluar: null },
+            ],
         });
         qb.getMany.mockResolvedValue([activeUser()]);
 
@@ -235,7 +238,7 @@ describe('HrisSyncService.disableDepartedEmployees', () => {
     });
 
     it('backfills appliedPresetId before disabling so preset is never left empty', async () => {
-        gateway.getEmployeesPage.mockResolvedValueOnce({ total: 0, data: [] });
+        gateway.getEmployeesPage.mockResolvedValueOnce({ total: 1, data: [{ nik_hris: '00000099', tgl_keluar: null }] });
         qb.getMany.mockResolvedValue([activeUser({ appliedPresetId: null as any })]);
         permissionsService.resolveDefaultPresetId.mockResolvedValue('preset-user');
 
@@ -253,5 +256,39 @@ describe('HrisSyncService.disableDepartedEmployees', () => {
 
         expect(summary).toEqual({ disabled: 0, errors: ['page 1: fetch failed'] });
         expect(userRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('aborts instead of disabling everyone when the Gateway returns an empty roster', async () => {
+        gateway.getEmployeesPage.mockResolvedValueOnce({ total: 0, data: [] });
+        qb.getMany.mockResolvedValue([activeUser()]);
+
+        const summary = await service.disableDepartedEmployees();
+
+        expect(userRepo.update).not.toHaveBeenCalled();
+        expect(summary.errors[0]).toMatch(/no active employees/);
+    });
+
+    it('aborts when the roster is truncated (fewer rows than the reported total)', async () => {
+        gateway.getEmployeesPage
+            .mockResolvedValueOnce({ total: 3, data: [{ nik_hris: '00000099', tgl_keluar: null }] })
+            .mockResolvedValueOnce({ total: 3, data: [] });
+        qb.getMany.mockResolvedValue([activeUser()]);
+
+        const summary = await service.disableDepartedEmployees();
+
+        expect(userRepo.update).not.toHaveBeenCalled();
+        expect(summary.errors[0]).toMatch(/truncated/);
+    });
+
+    it('aborts when more than 20% of linked users would be disabled at once', async () => {
+        gateway.getEmployeesPage.mockResolvedValueOnce({ total: 1, data: [{ nik_hris: 'keep-0', tgl_keluar: null }] });
+        qb.getMany.mockResolvedValue(
+            Array.from({ length: 10 }, (_, i) => activeUser({ id: `u-${i}`, employeeId: `keep-${i}` })),
+        );
+
+        const summary = await service.disableDepartedEmployees();
+
+        expect(userRepo.update).not.toHaveBeenCalled();
+        expect(summary.errors[0]).toMatch(/aborted: 9\/10/);
     });
 });

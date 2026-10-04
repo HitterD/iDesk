@@ -2,6 +2,15 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+const POLL_CONNECTED_MS = 1_000;
+const POLL_MAX_BACKOFF_MS = 60_000;
+const PROBE_TIMEOUT_MS = 1_200;
+
+/** Next delay: fast while the notifier answers, doubling up to a cap while it does not. */
+export function nextPollDelay(currentMs: number, reachable: boolean): number {
+    return reachable ? POLL_CONNECTED_MS : Math.min(currentMs * 2, POLL_MAX_BACKOFF_MS);
+}
+
 /**
  * Hook to automatically synchronize and direct the currently open iDesk web page
  * when the user clicks "Buka & Tindak Lanjuti di iDesk Web" from the SJA Notifier
@@ -13,16 +22,30 @@ export const useDesktopNotifierSync = () => {
 
     useEffect(() => {
         let isCancelled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let delay = POLL_CONNECTED_MS;
 
-        const checkPendingRedirect = async () => {
+        // Most users never run the desktop notifier: back off instead of a refused request every second.
+        const schedule = (reachable: boolean) => {
+            if (isCancelled) return;
+            delay = nextPollDelay(delay, reachable);
+            if (document.hidden) return; // resumed by visibilitychange
+            timer = setTimeout(tick, delay);
+        };
+
+        const tick = async () => {
+            schedule(await checkPendingRedirect());
+        };
+
+        const checkPendingRedirect = async (): Promise<boolean> => {
             try {
                 const res = await fetch('http://127.0.0.1:19876/pending-redirect?consume=true', {
                     method: 'GET',
                     headers: { 'Accept': 'application/json' },
-                    signal: AbortSignal.timeout(1200)
+                    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS)
                 });
 
-                if (!res.ok || isCancelled) return;
+                if (!res.ok || isCancelled) return true;
 
                 const data = await res.json();
                 if (data?.hasRedirect && data?.redirectUrl && data.timestamp > lastTimestampRef.current) {
@@ -43,7 +66,7 @@ export const useDesktopNotifierSync = () => {
                                 duration: 3500
                             });
                             navigate(internalPath);
-                            return;
+                            return true;
                         }
                     } catch {
                         // fallback to external href
@@ -51,15 +74,25 @@ export const useDesktopNotifierSync = () => {
 
                     window.location.href = targetUrl;
                 }
+                return true;
             } catch {
-                // Silently ignore if desktop app is not active
+                // Desktop app not running (or not reachable)
+                return false;
             }
         };
 
-        const interval = setInterval(checkPendingRedirect, 1000);
+        const onVisibilityChange = () => {
+            if (document.hidden || isCancelled) return;
+            clearTimeout(timer);
+            void tick();
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        void tick();
         return () => {
             isCancelled = true;
-            clearInterval(interval);
+            clearTimeout(timer);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
         };
     }, [navigate]);
 };

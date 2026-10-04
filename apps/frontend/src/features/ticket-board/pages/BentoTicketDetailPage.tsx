@@ -270,6 +270,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         }
 
         // Optimistic update
+        const previewUrls = files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [];
         const optimisticMessage = {
             id: `temp-${Date.now()}`,
             content,
@@ -280,7 +281,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                 id: currentUser.id,
                 fullName: currentUser.fullName,
             },
-            attachments: files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [],
+            attachments: previewUrls,
         };
 
         queryClient.setQueryData(['ticket', id], (oldData: TicketDetail | undefined) => {
@@ -311,11 +312,14 @@ export const BentoTicketDetailPage: React.FC = () => {
             if (!isInternal) {
                 toast.success('Message sent');
             }
-            queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            await queryClient.invalidateQueries({ queryKey: ['ticket', id] });
         } catch (error) {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             toast.error(getApiErrorMessage(error, 'Gagal mengirim pesan'));
             throw error;
+        } finally {
+            // The optimistic previews are replaced by server URLs once the ticket refetches.
+            previewUrls.forEach((url) => URL.revokeObjectURL(url));
         }
     };
 

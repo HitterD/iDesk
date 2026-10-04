@@ -19,9 +19,22 @@ import * as crypto from 'crypto';
 import * as https from 'https';
 import * as querystring from 'querystring';
 
+/** Backup schedules are entered as WIB wall-clock HH:mm. */
+const SCHEDULE_TIMEZONE = 'Asia/Jakarta';
+const MS_PER_MINUTE = 60_000;
+
+/** Hour/minute of `at` on the WIB clock (the process itself runs in UTC). */
+export function wibClock(at: Date): { hour: number; minute: number } {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: SCHEDULE_TIMEZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at);
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    return { hour: get('hour'), minute: get('minute') };
+}
+
 @Injectable()
 export class SynologyService {
     private readonly logger = new Logger(SynologyService.name);
+    /** Guards the per-minute tick so a slow backup never overlaps the next check. */
+    private scheduledBackupRunning = false;
     private readonly encryptionKey: string;
 
     constructor(
@@ -1144,12 +1157,22 @@ export class SynologyService {
     // Scheduled Backups
     // ==========================================
 
-    @Cron(CronExpression.EVERY_HOUR)
+    // Every minute, matching the configured HH:mm in WIB exactly. The old hourly tick
+    // only ever saw minute ~0 (so a 02:30 schedule never ran) and read UTC hours.
+    @Cron(CronExpression.EVERY_MINUTE, { timeZone: SCHEDULE_TIMEZONE, name: 'synology-scheduled-backups' })
     async checkScheduledBackups(): Promise<void> {
+        if (this.scheduledBackupRunning) return;
+        this.scheduledBackupRunning = true;
+        try {
+            await this.runDueBackups(new Date());
+        } finally {
+            this.scheduledBackupRunning = false;
+        }
+    }
+
+    async runDueBackups(now: Date): Promise<void> {
         const configs = await this.configRepo.find({ where: { isActive: true } });
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
+        const { hour: currentHour, minute: currentMinute } = wibClock(now);
 
         for (const config of configs) {
             if (config.scheduleCron) {
@@ -1158,8 +1181,10 @@ export class SynologyService {
                 if (parts.length >= 2) {
                     const schedMinute = parseInt(parts[0], 10);
                     const schedHour = parseInt(parts[1], 10);
+                    const alreadyRanThisMinute = config.lastBackupAt
+                        && now.getTime() - new Date(config.lastBackupAt).getTime() < MS_PER_MINUTE;
 
-                    if (schedHour === currentHour && Math.abs(schedMinute - currentMinute) < 5) {
+                    if (schedHour === currentHour && schedMinute === currentMinute && !alreadyRanThisMinute) {
                         this.logger.log(`Executing scheduled backup: ${config.name}`);
                         try {
                             await this.executeBackup(config.id, false);
@@ -1176,7 +1201,7 @@ export class SynologyService {
     // Cleanup Old Backups
     // ==========================================
 
-    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, { timeZone: SCHEDULE_TIMEZONE })
     async cleanupOldBackups(): Promise<void> {
         const configs = await this.configRepo.find();
 
@@ -1541,9 +1566,19 @@ export class SynologyService {
 
         const tempDir = './backups/temp';
         await fs.mkdir(path.resolve(tempDir), { recursive: true });
-        const tempFilePath = `${tempDir}/upload_${Date.now()}_${file.originalname}`;
+        // basename(): the client-supplied name must not be able to point outside tempDir.
+        const safeName = path.basename(file.originalname || 'upload.sql').replace(/[^\w.-]/g, '_');
+        const tempFilePath = `${tempDir}/upload_${Date.now()}_${safeName}`;
 
-        await fs.writeFile(path.resolve(tempFilePath), file.buffer || (await fs.readFile(file.path)));
+        if (file.path) {
+            // Disk upload: move it instead of reading the whole dump into memory.
+            await fs.rename(file.path, path.resolve(tempFilePath)).catch(async () => {
+                await fs.copyFile(file.path, path.resolve(tempFilePath));
+                await fs.unlink(file.path).catch(() => undefined);
+            });
+        } else {
+            await fs.writeFile(path.resolve(tempFilePath), file.buffer);
+        }
 
         // 1. Create snapshot if any active config exists
         if (createSnapshot) {

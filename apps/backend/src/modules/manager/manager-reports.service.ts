@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { wibDateSql, wibEndOfDate, wibStartOfDate, wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, MoreThanOrEqual } from 'typeorm';
 import { Ticket, TicketStatus, TicketPriority, TICKET_DONE_STATUSES } from '../ticketing/entities/ticket.entity';
@@ -7,6 +8,11 @@ import { Site } from '../sites/entities/site.entity';
 import { ReportQueryDto, ReportType, ReportPeriod, ManagerReportSection } from './dto';
 import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 import { ReportTeam, applyTeamFilter, rolesForTeam, teamLabel, teamWhere } from '../reports/utils/report-team-scope.util';
+
+const MS_PER_DAY = 86_400_000;
+const MONTH_LOOKBACK_DAYS = 30;
+/** A report table, not an export: newest critical tickets only. */
+const MAX_CRITICAL_ROWS = 200;
 
 interface TicketStats {
     total: number;
@@ -160,30 +166,26 @@ export class ManagerReportsService {
     }
 
     private getDateRange(query: ReportQueryDto): { startDate: Date; endDate: Date } {
-        let startDate: Date;
-        let endDate = new Date();
-
+        // Whole WIB days: the process clock is UTC, so setHours() would cut at 07:00 WIB.
         if (query.startDate && query.endDate) {
-            startDate = new Date(query.startDate);
-            endDate = new Date(query.endDate);
-        } else {
-            startDate = new Date();
-            switch (query.period) {
-                case ReportPeriod.DAILY:
-                    startDate.setDate(startDate.getDate() - 1);
-                    break;
-                case ReportPeriod.WEEKLY:
-                    startDate.setDate(startDate.getDate() - 7);
-                    break;
-                case ReportPeriod.MONTHLY:
-                default:
-                    startDate.setMonth(startDate.getMonth() - 1);
-                    break;
-            }
+            return { startDate: wibStartOfDate(query.startDate), endDate: wibEndOfDate(query.endDate) };
         }
 
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(23, 59, 59, 999);
+        const today = wibStartOfToday();
+        const endDate = new Date(today.getTime() + MS_PER_DAY - 1);
+        let startDate: Date;
+        switch (query.period) {
+            case ReportPeriod.DAILY:
+                startDate = new Date(today.getTime() - MS_PER_DAY);
+                break;
+            case ReportPeriod.WEEKLY:
+                startDate = new Date(today.getTime() - 7 * MS_PER_DAY);
+                break;
+            case ReportPeriod.MONTHLY:
+            default:
+                startDate = new Date(today.getTime() - MONTH_LOOKBACK_DAYS * MS_PER_DAY);
+                break;
+        }
 
         return { startDate, endDate };
     }
@@ -389,7 +391,7 @@ export class ManagerReportsService {
         if (siteIds.length === 0) return [];
 
         const qb = this.ticketRepo.createQueryBuilder('t')
-            .select(`to_char(date_trunc('day', t."createdAt"), 'YYYY-MM-DD')`, 'day')
+            .select(`to_char(${wibDateSql('t."createdAt"')}, 'YYYY-MM-DD')`, 'day')
             .addSelect('COUNT(*)', 'created')
             .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses) AND t."resolvedAt" IS NOT NULL)`, 'resolved')
             .where('t."siteId" IN (:...ids)', { ids: siteIds })
@@ -398,8 +400,8 @@ export class ManagerReportsService {
         applyTeamFilter(qb, 't', team);
 
         const rows = await qb
-            .groupBy(`date_trunc('day', t."createdAt")`)
-            .orderBy(`date_trunc('day', t."createdAt")`, 'ASC')
+            .groupBy(wibDateSql('t."createdAt"'))
+            .orderBy(wibDateSql('t."createdAt"'), 'ASC')
             .getRawMany<{ day: string; created: string; resolved: string }>();
 
         return rows.map(r => ({
@@ -420,6 +422,7 @@ export class ManagerReportsService {
             },
             relations: ['assignedTo'],
             order: { createdAt: 'DESC' },
+            take: MAX_CRITICAL_ROWS,
         });
 
         return tickets.map(t => ({

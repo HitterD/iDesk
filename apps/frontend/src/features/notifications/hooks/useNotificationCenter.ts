@@ -17,7 +17,7 @@ export const useNotificationCenter = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    const { socket } = useSocket();
+    const { socket, isConnected } = useSocket();
     const { playSound, enabled: soundEnabled, toggleSound } = useSoundNotification();
     const userRole = (user?.role || 'ADMIN') as UserRole;
 
@@ -66,7 +66,9 @@ export const useNotificationCenter = () => {
             return res.data;
         },
         enabled: !!user,
-        refetchInterval: 30000,
+        staleTime: 30000,
+        // Socket acknowledgements invalidate this key; poll only while the socket is down.
+        refetchInterval: isConnected ? false : 30000,
     });
 
     const acknowledgeMutation = useMutation({

@@ -234,6 +234,7 @@ export class TicketsController {
         );
     }
 
+    // Staff only: the aggregate is site-wide, and recentTickets names other requesters.
     @Get('dashboard/stats')
     @Roles(
         UserRole.ADMIN,
@@ -244,7 +245,6 @@ export class TicketsController {
         UserRole.AGENT_WEB_DEV,
         UserRole.AGENT_MOBILE_DEV,
         UserRole.MANAGER,
-        UserRole.USER,
     )
     @ApiOperation({ summary: 'Get dashboard statistics' })
     @ApiResponse({ status: 200, description: 'Return dashboard statistics.' })

@@ -12,6 +12,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
  * ActionExecutor Service
  * Executes workflow actions on tickets
  */
+const WEBHOOK_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class ActionExecutorService {
     private readonly logger = new Logger(ActionExecutorService.name);
@@ -335,6 +337,7 @@ export class ActionExecutorService {
                     ...config.webhookHeaders,
                 },
                 body,
+                signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
             });
 
             this.logger.log(`Workflow: Webhook sent to ${config.webhookUrl}, status: ${response.status}`);

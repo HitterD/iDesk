@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useSocket } from '@/lib/socket';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -715,6 +716,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
 
+    // The parent page's ticket socket invalidates ['tickets']; poll only while it is down.
+    const { isConnected } = useSocket();
     const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
         queryKey: ['tickets', 'kanban', effectiveQueue],
         queryFn: async () => {
@@ -723,7 +726,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             });
             return res.data;
         },
-        refetchInterval: 30000,
+        refetchInterval: isConnected ? false : 30000,
     });
 
     const isAdmin = isCrossSiteRole(user?.role);

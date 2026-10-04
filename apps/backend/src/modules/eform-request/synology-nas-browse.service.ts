@@ -264,7 +264,7 @@ export class SynologyNasBrowseService implements OnModuleInit {
   /**
    * Cron Job harian: update cache folder Synology setiap pukul 01:00 AM
    */
-  @Cron('0 1 * * *')
+  @Cron('0 1 * * *', { timeZone: 'Asia/Jakarta' })
   async handleDailyCacheSync() {
     this.logger.log('Running daily scheduled Synology NAS folder cache sync...');
     for (const server of SYNOLOGY_SERVERS_CONFIG) {
