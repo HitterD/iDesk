@@ -12,6 +12,7 @@ import { Repository, Between, In, LessThanOrEqual, MoreThanOrEqual, DataSource, 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { ZoomBooking, ZoomAccount, ZoomMeeting, ZoomParticipant, ZoomSettings, ZoomAuditLog } from '../entities';
+import { withOpenBookingWindow } from './booking-window';
 import { BookingStatus } from '../enums/booking-status.enum';
 import { CreateBookingDto, CancelBookingDto, SendReminderDto } from '../dto';
 import { ZoomApiAdapter } from '../adapters/zoom-api.adapter';
@@ -132,9 +133,9 @@ export class ZoomBookingService {
         const settings = await this.settingsRepo.findOne({ where: {} });
         if (!settings) {
             const newSettings = this.settingsRepo.create({} as Partial<ZoomSettings>);
-            return this.settingsRepo.save(newSettings);
+            return withOpenBookingWindow(await this.settingsRepo.save(newSettings));
         }
-        return settings;
+        return withOpenBookingWindow(settings);
     }
 
     /**
