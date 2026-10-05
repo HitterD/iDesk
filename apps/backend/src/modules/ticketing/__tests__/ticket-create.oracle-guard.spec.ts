@@ -1,4 +1,3 @@
-import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketCreateService } from '../services/ticket-create.service';
 import { createTestSlaClock } from '../services/sla-clock.testing';
@@ -100,14 +99,16 @@ describe('Ticket Creation Oracle Guard', () => {
         expect(ticket.category).toBe('Oracle');
     });
 
-    it('rejects AGENT_ORACLE creation outside Oracle/K2 category', async () => {
-        await expect(
-            service.createTicket('oracle-1', {
-                title: 'Standard issue',
-                description: 'Standard ticket description',
-                category: 'GENERAL',
-            } as any),
-        ).rejects.toBeInstanceOf(ForbiddenException);
+    // Since 877661d4 any agent may file a ticket for another team; the ticket is
+    // still handled by that team (routing by category), not by the filer.
+    it('lets AGENT_ORACLE file a General ticket, routed to Ops Support', async () => {
+        const ticket = await service.createTicket('oracle-1', {
+            title: 'Standard issue',
+            description: 'Standard ticket description',
+            category: 'GENERAL',
+        } as any);
+
+        expect(ticket.handlingTeam).toBe('OPS_SUPPORT');
     });
 
     it('emits ticket.created and logs audit AFTER the transaction commits, not inside it', async () => {
