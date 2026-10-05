@@ -122,8 +122,8 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
     private extractUniqueViolationMessage(detail?: string): string {
         if (!detail) return 'A record with this value already exists';
 
-        // Pattern: Key (column_name)=(value) already exists
-        const match = detail.match(/Key \((\w+)\)=\((.+)\) already exists/);
+        // Pattern: Key (column_name)=(value) already exists; mixed-case columns are quoted
+        const match = detail.match(/Key \("?(\w+)"?\)=\((.+)\) already exists/);
         if (match) {
             const [, fieldName, value] = match;
             const readableField = this.toReadableFieldName(fieldName);
@@ -134,10 +134,11 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
     }
 
     /**
-     * Convert snake_case field name to readable format
+     * Convert snake_case or camelCase field name to readable format
      */
     private toReadableFieldName(fieldName: string): string {
         return fieldName
+            .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
             .split('_')
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');

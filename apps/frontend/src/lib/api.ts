@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
 import { getErrorMessage, getErrorMessageFromStatus, resolveNetworkOrServerError } from './errorMessages';
+import { shouldRetryRequest } from './retryPolicy';
 
 declare module 'axios' {
     export interface AxiosRequestConfig {
@@ -27,11 +28,7 @@ const HTTP_PAYLOAD_TOO_LARGE = 413;
 axiosRetry(api, {
     retries: 3,
     retryDelay: axiosRetry.exponentialDelay,
-    // Never retry 429: retrying a rate-limited request only extends the lockout.
-    retryCondition: (error: AxiosError) =>
-        error.response?.status !== HTTP_TOO_MANY_REQUESTS &&
-        (axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-            error.response?.status === 503),
+    retryCondition: shouldRetryRequest,
     onRetry: (retryCount, error) => {
         if (import.meta.env.DEV) {
             console.warn(`Retry attempt ${retryCount} for ${error.config?.url}`);

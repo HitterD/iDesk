@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpStatus, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PasswordResetService, FORGOT_PASSWORD_MESSAGES } from './password-reset.service';
 import { UsersService } from '../../users/users.service';
 import { SessionService } from './session.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
+import { CacheService } from '../../../shared/core/cache/cache.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { User } from '../../users/entities/user.entity';
 import { validatePasswordPolicy } from './password-policy';
@@ -15,6 +16,7 @@ describe('PasswordResetService', () => {
     let usersService: { findByEmail: jest.Mock; findByEmployeeId: jest.Mock; updatePassword: jest.Mock; update: jest.Mock };
     let sessionService: { invalidateUser: jest.Mock };
     let mailDispatch: { sendNow: jest.Mock };
+    let cache: { getAsync: jest.Mock; setAsync: jest.Mock; delAsync: jest.Mock };
 
     const regularUser = {
         id: 'user-1',
@@ -34,11 +36,13 @@ describe('PasswordResetService', () => {
         };
         sessionService = { invalidateUser: jest.fn() };
         mailDispatch = { sendNow: jest.fn().mockResolvedValue({ success: true }) };
+        cache = { getAsync: jest.fn().mockResolvedValue(null), setAsync: jest.fn(), delAsync: jest.fn() };
         (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-temp');
         service = new PasswordResetService(
             usersService as unknown as UsersService,
             sessionService as unknown as SessionService,
             mailDispatch as unknown as MailDispatchService,
+            cache as unknown as CacheService,
         );
     });
 
@@ -117,13 +121,56 @@ describe('PasswordResetService', () => {
         });
     });
 
-    it('keeps the old password when the email cannot be sent', async () => {
-        usersService.findByEmployeeId.mockResolvedValue(regularUser);
-        mailDispatch.sendNow.mockResolvedValue({ success: false, error: 'SMTP down' });
+    describe('delivery', () => {
+        beforeEach(() => usersService.findByEmployeeId.mockResolvedValue(regularUser));
 
-        await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
-            .rejects.toThrow(ServiceUnavailableException);
-        expect(usersService.updatePassword).not.toHaveBeenCalled();
-        expect(sessionService.invalidateUser).not.toHaveBeenCalled();
+        // The emailed password must already be the stored one: mailing first meant an SMTP
+        // timeout after delivery left the user holding a password that was never saved.
+        it('saves the password before sending the email that carries it', async () => {
+            const order: string[] = [];
+            usersService.updatePassword.mockImplementation(async () => { order.push('save'); });
+            mailDispatch.sendNow.mockImplementation(async () => { order.push('mail'); return { success: true }; });
+
+            await service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' });
+
+            expect(order).toEqual(['save', 'mail']);
+        });
+
+        it('reports a failed email and lets the user retry immediately', async () => {
+            mailDispatch.sendNow.mockResolvedValue({ success: false, error: 'SMTP down' });
+
+            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
+                .rejects.toThrow(new ServiceUnavailableException(FORGOT_PASSWORD_MESSAGES.SEND_FAILED));
+            expect(cache.delAsync).toHaveBeenCalledWith('auth:forgot-password:cooldown:user-1');
+        });
+
+        // Nothing is mailed until every step succeeded, so no delivered email can hold a
+        // password that a later failure (and the client's resend) made stale.
+        it('sends nothing and allows an immediate retry when session invalidation fails', async () => {
+            sessionService.invalidateUser.mockRejectedValue(new Error('Redis down'));
+
+            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' })).rejects.toThrow('Redis down');
+            expect(mailDispatch.sendNow).not.toHaveBeenCalled();
+            expect(cache.delAsync).toHaveBeenCalledWith('auth:forgot-password:cooldown:user-1');
+        });
+    });
+
+    describe('cooldown', () => {
+        beforeEach(() => usersService.findByEmployeeId.mockResolvedValue(regularUser));
+
+        it('starts a per-user cooldown before resetting', async () => {
+            await service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' });
+
+            expect(cache.setAsync).toHaveBeenCalledWith('auth:forgot-password:cooldown:user-1', true, 60);
+        });
+
+        it('refuses a repeat request inside the cooldown without touching the password', async () => {
+            cache.getAsync.mockResolvedValue(true);
+
+            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
+                .rejects.toMatchObject({ status: HttpStatus.TOO_MANY_REQUESTS, message: FORGOT_PASSWORD_MESSAGES.COOLDOWN });
+            expect(usersService.updatePassword).not.toHaveBeenCalled();
+            expect(mailDispatch.sendNow).not.toHaveBeenCalled();
+        });
     });
 });

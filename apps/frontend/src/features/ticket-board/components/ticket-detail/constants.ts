@@ -25,6 +25,20 @@ export const PRIORITY_CONFIG: Record<string, { label: string; shortLabel?: strin
     CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', color: 'text-red-600', dot: 'bg-red-500 animate-pulse' },
 };
 
+const MINUTES_PER_HOUR = 60;
+
+/**
+ * Priority choices come from PRIORITY_CONFIG, not from SLA configs: agents cannot read
+ * /sla-config (admin/manager only), so options built from it left the dropdown empty.
+ */
+export const buildPriorityOptions = (
+    slaConfigs: { priority: string; resolutionTimeMinutes: number }[],
+): { value: string; slaHours: number | null }[] =>
+    Object.keys(PRIORITY_CONFIG).map((value) => {
+        const sla = slaConfigs.find((s) => s.priority === value);
+        return { value, slaHours: sla ? Math.round(sla.resolutionTimeMinutes / MINUTES_PER_HOUR) : null };
+    });
+
 export const STATUS_OPTIONS = [
     { value: 'TODO', label: 'Open' },
     { value: 'IN_PROGRESS', label: 'In Progress' },
