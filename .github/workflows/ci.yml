@@ -42,7 +42,11 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.json
       - name: Unit tests
-        run: npx jest --runInBand
+        # ~180 suites in one process exhaust the default heap (OOM on the runner):
+        # raise it and recycle the worker when it grows.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npx jest --runInBand --logHeapUsage --workerIdleMemoryLimit=1536MB
       # SQL that mocked repositories cannot check, run on a real Postgres. These specs
       # build their own TEMP tables, so they need no migrated schema. (The full
       # migration chain cannot start from an empty database: the base tables predate it.)
