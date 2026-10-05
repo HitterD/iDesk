@@ -24,6 +24,20 @@ describe('RequestNumberService', () => {
         expect(await service.generate(new Date('2026-01-01Z'))).toBe('HR-2026-10000');
     });
 
+    // An untyped $2 made Postgres pick substring(text FROM regex): '9' or NULL instead of the
+    // sequence, so MAX stuck at 9 and every new request reused HR-YYYY-0010.
+    it('casts the substring start to int so Postgres reads it as a position, not a regex', async () => {
+        const mgr = managerWith('5');
+        const service = new RequestNumberService({} as any);
+
+        await service.generate(now, mgr as any);
+
+        const sql: string = mgr.query.mock.calls[1][0];
+        const untypedFrom = sql.match(/FROM \$2(?!::int)/g);
+        expect(untypedFrom).toBeNull();
+        expect(sql).toContain('FROM $2::int');
+    });
+
     // Two drafts at once used to read the same count and collide on the unique number.
     it('takes a per-year advisory lock inside the caller transaction before reading', async () => {
         const mgr = managerWith('5');
