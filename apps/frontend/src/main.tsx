@@ -7,6 +7,9 @@ import './micro-animations.css'
 import './consistency.css'
 import './select-styles.css'
 import { ThemeProvider } from './components/theme-provider'
+import { installAppUpdateRecovery } from './lib/appUpdate'
+
+installAppUpdateRecovery()
 
 if (import.meta.env.DEV) {
     import('@axe-core/react').then(({ default: axe }) => axe(React, ReactDOM, 1000));
