@@ -39,6 +39,7 @@ describe('auth user mappers', () => {
             avatarUrl: null,
             jobTitle: 'Agent',
             phoneNumber: null,
+            guidebookAcknowledgedAt: null,
         });
         expect(mapped).not.toHaveProperty('password');
         expect(mapped).not.toHaveProperty('hashedRefreshToken');
