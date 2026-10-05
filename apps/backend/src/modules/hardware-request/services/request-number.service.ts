@@ -29,9 +29,9 @@ export class RequestNumberService {
             await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${NUMBERING_LOCK_KEY}:${year}`]);
         }
         const rows: { maxSeq: string | null }[] = await runner.query(
-            `SELECT MAX(CAST(SUBSTRING("requestNumber" FROM $2) AS INTEGER)) AS "maxSeq"
+            `SELECT MAX(CAST(SUBSTRING("requestNumber" FROM $2::int) AS INTEGER)) AS "maxSeq"
                FROM hardware_requests
-              WHERE "requestNumber" LIKE $1 AND SUBSTRING("requestNumber" FROM $2) ~ '^[0-9]+$'`,
+              WHERE "requestNumber" LIKE $1 AND SUBSTRING("requestNumber" FROM $2::int) ~ '^[0-9]+$'`,
             [`${prefix}%`, prefix.length + 1],
         );
         const next = Number(rows[0]?.maxSeq ?? 0) + 1;
