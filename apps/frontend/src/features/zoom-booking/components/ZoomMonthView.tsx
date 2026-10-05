@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import type { CalendarDay, CalendarSlot, ZoomAccount } from '../types';
 import { ZoomMonthDayPopover } from './ZoomMonthDayPopover';
 import { Plus } from 'lucide-react';
-import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
+import { useZoomSettings, isWorkingDay, ALL_WEEKDAYS } from '../hooks/useZoomSettings';
 import { softBackground } from '../utils/accountColors';
 
 const DAY_NAMES = [
@@ -133,7 +133,7 @@ export function ZoomMonthView({
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const days = useMemo(() => getDaysGrid(currentDate), [currentDate]);
     const { data: zoomSettings } = useZoomSettings();
-    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
+    const workingDays = zoomSettings?.workingDays ?? ALL_WEEKDAYS;
 
     const accountsMap = useMemo(() => {
         const map = new Map<string, ZoomAccount>();

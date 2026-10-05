@@ -16,7 +16,7 @@ import {
     ZoomOverflowPopover,
     type OverflowBooking,
 } from './ZoomOverflowPopover';
-import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
+import { useZoomSettings, isWorkingDay, ALL_WEEKDAYS } from '../hooks/useZoomSettings';
 
 const TIME_COL_WIDTH = 64;
 const ACCOUNT_COL_MIN_WIDTH = 190;
@@ -82,7 +82,7 @@ export function ZoomDayView({
     const today = isToday(currentDate);
 
     const { data: zoomSettings } = useZoomSettings();
-    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
+    const workingDays = zoomSettings?.workingDays ?? ALL_WEEKDAYS;
     const isWeekend = !isWorkingDay(currentDate, workingDays);
 
     const isMultiAccountGrid = !forceSingleAccountMode && accounts.length > 1;
