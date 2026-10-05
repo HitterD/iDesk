@@ -50,7 +50,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from './types';
-import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG, isTerminalStatus } from './constants';
+import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG, isTerminalStatus, buildPriorityOptions } from './constants';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { AgentSelectList, type Agent } from '../AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from '../ReassignConfirmDialog';
@@ -270,8 +270,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const currentStatusConfig = STATUS_CONFIG[localStatus] || STATUS_CONFIG.TODO;
     const StatusIcon = currentStatusConfig.icon;
     const currentPriorityConfig = PRIORITY_CONFIG[localPriority] || PRIORITY_CONFIG.MEDIUM;
-    const currentSla = slaConfigs.find(s => s.priority === localPriority);
-    const currentSlaHours = currentSla ? Math.round(currentSla.resolutionTimeMinutes / 60) : null;
+    const priorityOptions = useMemo(() => buildPriorityOptions(slaConfigs), [slaConfigs]);
+    const currentSlaHours = priorityOptions.find(o => o.value === localPriority)?.slaHours ?? null;
 
     // Active Scheduled Reminders Query
     const { data: reminders = [] } = useQuery<any[]>({
@@ -655,18 +655,20 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                 </div>
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[200px]">
-                                {slaConfigs.map((sla) => {
-                                    const pCfg = PRIORITY_CONFIG[sla.priority] || PRIORITY_CONFIG.MEDIUM;
+                                {priorityOptions.map((opt) => {
+                                    const pCfg = PRIORITY_CONFIG[opt.value];
                                     return (
-                                        <SelectItem key={sla.id} value={sla.priority} className="text-xs rounded-lg py-2 cursor-pointer font-medium">
+                                        <SelectItem key={opt.value} value={opt.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">
                                             <div className="flex items-center justify-between w-full gap-3">
                                                 <div className="flex items-center gap-2">
                                                     <span className={cn("w-2 h-2 rounded-full shrink-0", pCfg.dot)} />
                                                     <span className="font-semibold">{pCfg.label}</span>
                                                 </div>
-                                                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                                    {Math.round(sla.resolutionTimeMinutes / 60)}h SLA
-                                                </span>
+                                                {opt.slaHours !== null && (
+                                                    <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                        {opt.slaHours}h SLA
+                                                    </span>
+                                                )}
                                             </div>
                                         </SelectItem>
                                     );
