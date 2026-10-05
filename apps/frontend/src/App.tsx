@@ -6,6 +6,12 @@ import { ScreenReaderProvider } from './components/ui/ScreenReaderAnnounce';
 import { LazyMotion } from 'framer-motion';
 import { queryClient } from './lib/queryClient';
 import AppRoutes from './routes/AppRoutes';
+import { useReloadOnAppUpdate } from './hooks/useReloadOnAppUpdate';
+
+function AppUpdateWatcher() {
+    useReloadOnAppUpdate();
+    return null;
+}
 
 // Lazy load Framer Motion features to drastically reduce main bundle size
 const loadFramerFeatures = () => import('./lib/animations').then(res => res.default);
@@ -16,6 +22,7 @@ function App() {
             <ScreenReaderProvider>
                 <LazyMotion features={loadFramerFeatures}>
                     <Router>
+                        <AppUpdateWatcher />
                         <ErrorBoundary>
                             <Toaster />
                             <AppRoutes />
