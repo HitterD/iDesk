@@ -148,7 +148,7 @@ describe('ClientTicketDetailPage', () => {
         currentStatus = 'CLOSED';
         renderPage();
         expect(await screen.findByText('Tiket sudah ditutup. Buat tiket baru jika masih ada kendala.')).toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('Type your reply to IT Support…')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Balas ke IT Support…')).not.toBeInTheDocument();
         expect(screen.queryByText('Cancel Ticket')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Tandai Selesai' })).not.toBeInTheDocument();
         expect(await screen.findByText('Beri Penilaian Layanan')).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe('ClientTicketDetailPage', () => {
         expect(screen.getAllByText('Activity Logs').length).toBeGreaterThan(0);
 
         // Chat genesis report & messages
-        expect(screen.getByText('Original Issue Report')).toBeInTheDocument();
+        expect(screen.getByText('Laporan awal')).toBeInTheDocument();
         expect(screen.getAllByText(/Gagal login berkali-kali/i).length).toBeGreaterThan(0);
 
         // Assigned Agent in Bento Sidebar
@@ -191,8 +191,8 @@ describe('ClientTicketDetailPage', () => {
         expect(screen.getByText('yudi.arta@kapalapi.co.id')).toBeInTheDocument();
 
         // Bento Ticket Properties & Participants
-        expect(screen.getByText('Anggota Tiket')).toBeInTheDocument();
-        expect(screen.getByText('Ticket Properties')).toBeInTheDocument();
-        expect(screen.getByText('SLA & Tracking')).toBeInTheDocument();
+        expect(screen.getByText('Anggota tiket')).toBeInTheDocument();
+        expect(screen.getByText('Properti tiket')).toBeInTheDocument();
+        expect(screen.getByText('SLA')).toBeInTheDocument();
     });
 });

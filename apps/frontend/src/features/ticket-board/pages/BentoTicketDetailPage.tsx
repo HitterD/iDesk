@@ -554,7 +554,7 @@ export const BentoTicketDetailPage: React.FC = () => {
 
                 {/* RIGHT: Desktop Ticket Inspector & Properties Sidebar (>= lg only) */}
                 {isSidebarOpen && (
-                    <aside className="hidden lg:flex w-80 lg:w-88 shrink-0 flex-col bg-slate-100/70 dark:bg-slate-900/70 border-l border-slate-200/90 dark:border-slate-800 overflow-y-auto custom-scrollbar">
+                    <aside className="hidden lg:flex w-80 xl:w-96 shrink-0 flex-col bg-slate-50 dark:bg-slate-950 border-l border-slate-200/70 dark:border-slate-800 overflow-y-auto custom-scrollbar">
                         <TicketSidebar
                             ticket={ticket}
                             agents={agents}

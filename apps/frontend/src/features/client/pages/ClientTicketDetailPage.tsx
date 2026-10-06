@@ -40,6 +40,9 @@ import { ImageLightbox } from '../../ticket-board/components/ticket-detail/Image
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
+import { SidebarCard, InfoRow, sidebarPanelClass } from '../../ticket-board/components/ticket-detail/SidebarCard';
+import { SlaProgress } from '../../ticket-board/components/ticket-detail/SlaProgress';
+import { toDisplayName } from '../../ticket-board/components/ticket-detail/messageThread';
 import { KbSuggestionDialog } from '../../ticket-board/components/KbSuggestionDialog';
 import {
     STATUS_CONFIG,
@@ -240,8 +243,8 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
             )}
 
             <header className={cn(
-                "px-3.5 py-2.5 sm:px-6 sm:py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 transition-all",
-                isTerminal && 'bg-slate-50/50 dark:bg-slate-900/50'
+                "px-3.5 py-2.5 sm:px-6 sm:py-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/80 transition-all",
+                isTerminal && 'bg-slate-50/90 dark:bg-slate-900/80'
             )}>
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-4">
                 {/* Left: Back button + Badges + Title */}
@@ -249,7 +252,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                     <button
                         type="button"
                         onClick={handleBack}
-                        className="mt-0.5 p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
+                        className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/10 transition-colors shrink-0 cursor-pointer"
                         title="Kembali"
                     >
                         <ArrowLeft className="w-4 h-4" />
@@ -261,7 +264,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                             <button
                                 type="button"
                                 onClick={handleCopyNumber}
-                                className="group inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                className="group inline-flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-full text-xs font-mono font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                                 title="Click to copy ticket number"
                             >
                                 <span>#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
@@ -272,55 +275,20 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                                 )}
                             </button>
 
-                            <span className={cn(
-                                "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs",
-                                statusConfig.color
-                            )}>
-                                <StatusIcon className="w-3.5 h-3.5" />
-                                {statusConfig.label}
-                            </span>
-
-                            <span className={cn(
-                                "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700",
-                                priorityConfig.color
-                            )}>
-                                <span className={cn("w-2 h-2 rounded-full", priorityConfig.dot)} />
-                                {priorityConfig.label}
-                            </span>
-
                             {/* Compact SLA badge for mobile directly inline */}
                             <span title={slaTooltip} className={cn(
-                                "sm:hidden px-2 py-0.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 border shadow-2xs",
+                                "sm:hidden px-2 py-0.5 rounded-full text-[11px] font-medium inline-flex items-center gap-1",
                                 slaColors.bg,
-                                slaColors.text,
-                                slaColors.border
+                                slaColors.text
                             )}>
                                 <SlaIcon className={cn("w-3 h-3", slaStatus === 'overdue' && "animate-pulse")} />
                                 <span>SLA: {resolutionTime}</span>
                             </span>
 
-                            {ticket.category && (
-                                <span className="hidden sm:inline-flex px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
-                                    {ticket.category.replace(/_/g, ' ')}
-                                </span>
-                            )}
-
-                            {ticket.device && (
-                                <span className="hidden sm:inline-flex px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">
-                                    {ticket.device}
-                                </span>
-                            )}
-
-                            {ticket.participants && ticket.participants.length > 0 && (
-                                <span className="hidden sm:inline-flex px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary/30 items-center gap-1.5 shadow-2xs">
-                                    <Users className="w-3.5 h-3.5 text-primary" />
-                                    <span>{1 + ticket.participants.length} Anggota</span>
-                                </span>
-                            )}
                         </div>
 
                         {/* Ticket Title */}
-                        <h1 className="text-sm sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words pt-0.5">
+                        <h1 className="text-base sm:text-[22px] font-semibold text-slate-900 dark:text-white tracking-[-0.01em] leading-tight break-words pt-0.5">
                             {ticket.title}
                         </h1>
                     </div>
@@ -357,10 +325,9 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                 <div className="hidden sm:flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
                     {/* SLA Resolution Pill */}
                     <div title={slaTooltip} className={cn(
-                        "px-3 py-1.5 rounded-xl border inline-flex items-center gap-2 text-xs font-bold shadow-2xs transition-all",
+                        "h-8 px-3 rounded-full inline-flex items-center gap-2 text-xs font-semibold tabular-nums transition-colors",
                         slaColors.bg,
-                        slaColors.text,
-                        slaColors.border
+                        slaColors.text
                     )}>
                         <SlaIcon className={cn("w-3.5 h-3.5", slaStatus === 'overdue' && "animate-pulse")} />
                         <span>SLA: {resolutionTime}</span>
@@ -371,10 +338,10 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                     {/* Cancel or Resolved Indicator */}
                     {isTerminal ? (
                         <div className={cn(
-                            "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs border",
+                            "inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full font-semibold text-[13px]",
                             isResolved
-                                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50"
-                                : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50"
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
+                                : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400"
                         )}>
                             {isResolved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                             <span>{terminalLabel}</span>
@@ -383,7 +350,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/50 text-xs font-semibold transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[13px] font-medium transition-colors cursor-pointer"
                         >
                             <XCircle className="w-3.5 h-3.5" />
                             <span>Cancel Ticket</span>
@@ -394,7 +361,7 @@ const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({
                     <button
                         type="button"
                         onClick={onToggleSidebar}
-                        className="hidden lg:flex p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                        className="hidden lg:inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         title={isSidebarOpen ? "Hide Ticket Properties" : "Show Ticket Properties"}
                     >
                         {isSidebarOpen ? (
@@ -441,26 +408,19 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
     };
 
     return (
-        <div className="p-4 space-y-4 select-none">
-            {/* 1. Assigned Agent Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Assigned Agent
-                    </span>
-                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-
+        <div className={cn(sidebarPanelClass, "select-none")}>
+            {/* 1. Assigned Agent */}
+            <SidebarCard title="Teknisi" icon={UserCheck} bodyClassName="space-y-2">
                 {assignedAgent ? (
-                    <div className="space-y-3">
+                    <>
                         <div className="flex items-center gap-3">
                             <div className="relative shrink-0">
-                                <UserAvatar user={assignedAgent} size="md" className="w-11 h-11 rounded-2xl shadow-xs" />
+                                <UserAvatar user={assignedAgent} size="md" className="w-10 h-10 rounded-full" />
                                 <PresenceDot userId={assignedAgent.id} userName={assignedAgent.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                                    {assignedAgent.fullName}
+                                <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                                    {toDisplayName(assignedAgent.fullName)}
                                 </h4>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     IT Support Specialist
@@ -469,45 +429,37 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                         </div>
 
                         {assignedAgent.email && (
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-slate-400">Email</span>
-                                    <div className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[170px]">
+                            <div>
+                                <InfoRow label="Email">
+                                    <span className="inline-flex max-w-full items-center gap-1">
                                         <span className="truncate">{assignedAgent.email}</span>
                                         <button
                                             type="button"
                                             onClick={handleCopyEmail}
                                             className="p-0.5 hover:text-primary transition-colors shrink-0 cursor-pointer"
-                                            title="Copy Agent Email"
+                                            title="Salin email teknisi"
+                                            aria-label="Salin email teknisi"
                                         >
-                                            {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-slate-400" />}
+                                            {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
                                         </button>
-                                    </div>
-                                </div>
-
+                                    </span>
+                                </InfoRow>
                                 {assignedAgent.site?.name && (
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-400 flex items-center gap-1.5">
-                                            <MapPin className="w-3.5 h-3.5" /> Branch / Site
-                                        </span>
-                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
-                                            {assignedAgent.site.name}
-                                        </span>
-                                    </div>
+                                    <InfoRow label="Site" icon={MapPin}>{assignedAgent.site.name}</InfoRow>
                                 )}
                             </div>
                         )}
-                    </div>
+                    </>
                 ) : (
-                    <div className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-1">
-                        <div className="w-8 h-8 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-slate-500 mx-auto flex items-center justify-center">
+                    <div className="py-2 text-center space-y-1">
+                        <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
                             <UserX className="w-4 h-4" />
                         </div>
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Menunggu Teknisi</p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Tiket Anda dalam antrean penugasan tim IT Support</p>
+                        <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Menunggu teknisi</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Tiket Anda dalam antrean penugasan tim IT Support</p>
                     </div>
                 )}
-            </div>
+            </SidebarCard>
 
             {/* 1.5. Ticket Participants (All Tickets / Multi-user Group) */}
             <TicketParticipantsSection
@@ -519,125 +471,69 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
                 isClosed={isClosed}
             />
 
-            {/* 2. Ticket Properties Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3.5">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Ticket Properties
-                    </span>
-                    <Activity className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-
-                <div className="space-y-3 text-xs">
-                    {/* Status */}
-                    <div className="space-y-1.5">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Activity className="w-3.5 h-3.5 text-slate-400" /> Status
+            {/* 2. Ticket properties (read-only for requesters) */}
+            <SidebarCard title="Properti tiket" icon={SlidersHorizontal} bodyClassName="space-y-2">
+                <div>
+                    <InfoRow label="Status" icon={Activity}>
+                        <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold", statusConfig.color)}>
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {statusConfig.label}
                         </span>
-                        <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center justify-between">
-                            <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold", statusConfig.color)}>
-                                <StatusIcon className="w-3.5 h-3.5" />
-                                {statusConfig.label}
-                            </span>
-                            <span className="text-[11px] font-mono text-slate-400">#{ticket.status}</span>
-                        </div>
-                    </div>
-
-                    {/* Priority */}
-                    <div className="space-y-1.5">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 text-slate-400" /> Priority
+                    </InfoRow>
+                    <InfoRow label="Prioritas" icon={AlertCircle}>
+                        <span className="inline-flex items-center gap-1.5">
+                            <span className={cn("w-2 h-2 rounded-full shrink-0", priorityConfig.dot)} />
+                            {priorityConfig.label}
                         </span>
-                        <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", priorityConfig.dot)} />
-                                <span className="font-bold text-slate-900 dark:text-white">{priorityConfig.label}</span>
-                            </div>
-                        </div>
-
-                        {ticket.priority === 'CRITICAL' && ticket.criticalReason && (
-                            <div className="mt-2.5 p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-xs">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
-                                    <AlertCircle className="w-3 h-3 text-rose-500" />
-                                    Catatan Alasan Blocker (Critical):
-                                </p>
-                                <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
-                                    {ticket.criticalReason}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Category */}
+                    </InfoRow>
                     {ticket.category && (
-                        <div className="space-y-1.5">
-                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <Tag className="w-3.5 h-3.5 text-slate-400" /> Category
-                            </span>
-                            <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                                <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
-                                <span>{ticket.category.replace(/_/g, ' ')}</span>
-                            </div>
-                        </div>
+                        <InfoRow label="Kategori" icon={Tag}>{ticket.category.replace(/_/g, ' ')}</InfoRow>
                     )}
-
-                    {/* Device / Hardware */}
                     {ticket.device && (
-                        <div className="space-y-1.5">
-                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <Monitor className="w-3.5 h-3.5 text-slate-400" /> Device / Asset
-                            </span>
-                            <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                                <Monitor className="w-3.5 h-3.5 text-primary shrink-0" />
-                                <span>{ticket.device}</span>
-                            </div>
-                        </div>
+                        <InfoRow label="Perangkat" icon={Monitor}>{ticket.device}</InfoRow>
                     )}
                 </div>
-            </div>
 
-            {/* 3. SLA & Tracking Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        SLA & Tracking
-                    </span>
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-
-                <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-slate-400">Created At</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {formatDateTimeID(ticket.createdAt)}
-                        </span>
+                {ticket.priority === 'CRITICAL' && ticket.criticalReason && (
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-xs">
+                        <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            Alasan blocker (critical)
+                        </p>
+                        <p className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                            {ticket.criticalReason}
+                        </p>
                     </div>
+                )}
+            </SidebarCard>
 
-                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-slate-400">Last Activity</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {formatRelativeTime(ticket.updatedAt)}
-                        </span>
-                    </div>
-
-                    {ticket.slaTarget && (
-                        <div className="flex items-center justify-between py-1">
-                            <span className="text-slate-400">SLA Target</span>
-                            <span className="font-semibold text-primary">
-                                {formatDateTimeID(ticket.slaTarget)}
-                            </span>
-                        </div>
-                    )}
+            {/* 3. SLA & Tracking */}
+            <SidebarCard title="SLA" icon={Clock} bodyClassName="space-y-3">
+                <SlaProgress
+                    status={ticket.status}
+                    priority={ticket.priority}
+                    createdAt={ticket.createdAt}
+                    slaStartedAt={ticket.slaStartedAt}
+                    slaTarget={ticket.slaTarget}
+                />
+                <div>
+                <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                {ticket.slaTarget && (
+                    <InfoRow label="Target SLA">
+                        <span className="font-semibold text-primary">{formatDateTimeID(ticket.slaTarget)}</span>
+                    </InfoRow>
+                )}
                 </div>
-            </div>
+            </SidebarCard>
 
             {/* 4. Hardware Installation Schedule (if applicable) */}
             {ticket.isHardwareInstallation && (
-                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 shadow-2xs space-y-3">
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 ring-1 ring-amber-200/70 dark:ring-amber-900/50 space-y-3">
                     <div className="flex items-center gap-1.5 pb-2 border-b border-amber-200/60 dark:border-amber-900/40">
                         <Wrench className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                            Hardware Installation
+                        <span className="text-[13px] font-semibold text-amber-700 dark:text-amber-400">
+                            Instalasi hardware
                         </span>
                     </div>
 
@@ -651,13 +547,13 @@ const ClientTicketSidebar: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => 
 
                         <div className="grid grid-cols-2 gap-2 pt-1">
                             <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Date</span>
+                                <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tanggal</span>
                                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                                     {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                 </span>
                             </div>
                             <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Time</span>
+                                <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Jam</span>
                                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                                     {ticket.scheduledTime || '-'}
                                 </span>
@@ -811,7 +707,7 @@ export const ClientTicketDetailPage: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 rounded-none sm:rounded-2xl border-0 sm:border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
+        <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 border-t border-slate-200/70 dark:border-slate-800 animate-in fade-in duration-200">
             {/* ── Top Header with SLA + Quick Badges ── */}
             <ClientTicketHeader
                 ticket={ticket}
@@ -969,7 +865,7 @@ export const ClientTicketDetailPage: React.FC = () => {
 
                 {/* RIGHT: Desktop Ticket Inspector & Properties Sidebar (>= lg only) */}
                 {isSidebarOpen && (
-                    <aside className="hidden lg:flex w-80 lg:w-88 shrink-0 flex-col bg-slate-50/70 dark:bg-slate-900/50 overflow-y-auto custom-scrollbar">
+                    <aside className="hidden lg:flex w-80 xl:w-96 shrink-0 flex-col bg-slate-50 dark:bg-slate-950 border-l border-slate-200/70 dark:border-slate-800 overflow-y-auto custom-scrollbar">
                         <ClientTicketSidebar ticket={ticket} />
                     </aside>
                 )}

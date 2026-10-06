@@ -299,12 +299,15 @@ interface CannedResponsePickerProps {
   onSelect: (content: string) => void;
   variables?: TicketVariables;
   className?: string;
+  /** Icon-only trigger, for placing the picker inside a composer. */
+  compact?: boolean;
 }
 
 export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
   onSelect,
   variables,
   className,
+  compact = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -396,19 +399,29 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
             type="button"
             aria-label="Buka template quick reply"
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer border select-none",
-              isOpen
-                ? "bg-blue-600/10 border-blue-500/30 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800",
+              compact
+                ? "inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors cursor-pointer select-none"
+                : "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer border select-none",
+              compact
+                ? (isOpen ? "bg-primary/10 text-primary" : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800")
+                : isOpen
+                  ? "bg-blue-600/10 border-blue-500/30 text-blue-600 dark:text-blue-400 shadow-xs"
+                  : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800",
               className
             )}
             title="Quick reply templates (Ketik / di chat)"
           >
-            <Zap className={cn("w-3.5 h-3.5 transition-colors", isOpen ? "text-blue-600 dark:text-blue-400" : "text-amber-500")} aria-hidden="true" />
-            <span>Quick Reply</span>
-            <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-mono font-medium rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-              /
-            </kbd>
+            {compact ? (
+              <Zap className="w-[18px] h-[18px]" aria-hidden="true" />
+            ) : (
+              <>
+                <Zap className={cn("w-3.5 h-3.5 transition-colors", isOpen ? "text-blue-600 dark:text-blue-400" : "text-amber-500")} aria-hidden="true" />
+                <span>Quick Reply</span>
+                <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-mono font-medium rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                  /
+                </kbd>
+              </>
+            )}
           </button>
         </PopoverTrigger>
 

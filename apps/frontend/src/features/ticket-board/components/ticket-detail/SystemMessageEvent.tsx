@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
+import { formatMessageTime, toDisplayName } from './messageThread';
 
 interface SystemMessageEventProps {
     content: string;
@@ -121,35 +122,35 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
         return (
             <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
-                <div className="w-full max-w-lg bg-gradient-to-b from-emerald-50/80 via-white to-emerald-50/30 dark:from-slate-900/95 dark:via-slate-900 dark:to-emerald-950/20 rounded-2xl border border-emerald-300/90 dark:border-emerald-800/70 shadow-lg hover:shadow-xl transition-all duration-200 overflow-hidden">
+                <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] overflow-hidden text-left">
                     {/* Header Banner */}
-                    <div className="bg-emerald-500/10 dark:bg-emerald-950/50 px-4 py-3 border-b border-emerald-200/80 dark:border-emerald-800/60 flex items-center justify-between">
+                    <div className="px-4 pt-3.5 pb-2 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
                                 <CheckCircle2 className="w-4.5 h-4.5" />
                             </div>
                             <div>
-                                <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide flex items-center gap-1.5">
+                                <h4 className="text-[13px] font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                                     Tiket Dinyatakan Selesai (Resolved)
                                 </h4>
-                                <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                     Pekerjaan &amp; solusi perbaikan telah diselesaikan
                                 </p>
                             </div>
                         </div>
-                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 rounded-full border border-emerald-200/80 dark:border-emerald-800/60">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
                             {formatRelativeTime(createdAt)}
                         </span>
                     </div>
 
                     {/* Content Details */}
-                    <div className="p-3.5 sm:p-4 space-y-3 text-xs text-slate-700 dark:text-slate-200">
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/70 shadow-2xs">
-                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1.5">
+                    <div className="px-4 pb-3.5 space-y-3 text-xs text-slate-700 dark:text-slate-200">
+                        <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/25">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                                 <span>Tindakan &amp; Penjelasan Solusi:</span>
                             </div>
-                            <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-100 font-medium">
+                            <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-100">
                                 {solutionText || 'Tiket telah diselesaikan sesuai instruksi.'}
                             </p>
                         </div>
@@ -157,7 +158,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         {/* Attachments / Bukti Foto */}
                         {attachments && attachments.length > 0 && (
                             <div className="space-y-1.5 pt-1">
-                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
                                     <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
                                     <span>Bukti Foto / Lampiran Penyelesaian ({attachments.length}):</span>
                                 </div>
@@ -167,7 +168,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                                         return (
                                             <div
                                                 key={idx}
-                                                className="group relative rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer shadow-2xs hover:shadow-md transition-all h-24"
+                                                className="group relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer transition-all h-24"
                                                 onClick={() => onImageClick && onImageClick(url)}
                                             >
                                                 {isPdf ? (
@@ -197,16 +198,16 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-4 py-2.5 bg-slate-50/90 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
                         {actorMatch ? (
                             <div className="flex items-center gap-1.5">
                                 <UserIcon className="w-3 h-3 text-emerald-600" />
-                                <span>Diselesaikan oleh <strong className="text-slate-800 dark:text-slate-200">{actorMatch[1].trim()}</strong></span>
+                                <span>Diselesaikan oleh <strong className="font-medium text-slate-800 dark:text-slate-200">{toDisplayName(actorMatch[1].trim())}</strong></span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>Status Tiket: <strong>RESOLVED</strong></span>
+                                <span>Status tiket: <strong className="font-medium">Resolved</strong></span>
                             </div>
                         )}
                         <span>{formatDateTimeID(createdAt)}</span>
@@ -242,20 +243,20 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
         return (
             <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
-                <div className="w-full max-w-lg bg-white dark:bg-[#1c1c1e] rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs hover:shadow-sm transition-all duration-200 overflow-hidden text-left">
+                <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] overflow-hidden text-left">
                     {/* Header (Apple Sheet Style) */}
-                    <div className="px-4 py-2.5 bg-slate-50/60 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-center justify-between gap-3">
+                    <div className="px-4 pt-3.5 pb-1 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                                 <Clock className="w-3.5 h-3.5" />
                             </div>
                             <div className="min-w-0">
-                                <h4 className="text-xs font-semibold text-slate-900 dark:text-white tracking-tight">
+                                <h4 className="text-[13px] font-semibold text-slate-900 dark:text-white">
                                     Target SLA Diperpanjang
                                 </h4>
                             </div>
                         </div>
-                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 shrink-0">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
                             {formatRelativeTime(createdAt)}
                         </span>
                     </div>
@@ -265,10 +266,10 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         {/* Target Deadline Baru & Kategori */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {deadline && (
-                                <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                                <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] flex items-start gap-2">
                                     <Calendar className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                                     <div className="min-w-0">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
                                             Target Baru
                                         </span>
                                         <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
@@ -279,10 +280,10 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                             )}
 
                             {category && (
-                                <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                                <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] flex items-start gap-2">
                                     <AlertCircle className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                                     <div className="min-w-0">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
                                             Kategori Kendala
                                         </span>
                                         <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate block">
@@ -295,8 +296,8 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                         {/* Penjelasan Alasan */}
                         {explanation && (
-                            <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-white/[0.02] border border-slate-200/50 dark:border-white/5 space-y-1">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                            <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] space-y-1">
+                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
                                     Rincian Kendala
                                 </span>
                                 <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
@@ -307,12 +308,12 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-4 py-2 bg-slate-50/50 dark:bg-white/[0.02] border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                    <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-400 dark:text-slate-500">
                         {actor ? (
                             <div className="flex items-center gap-1.5 min-w-0">
                                 <UserIcon className="w-3 h-3 text-slate-400 shrink-0" />
                                 <span className="truncate">
-                                    Diperpanjang oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{actor}</strong>
+                                    Diperpanjang oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong>
                                 </span>
                             </div>
                         ) : (
@@ -342,29 +343,29 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
         return (
             <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
-                <div className="w-full max-w-lg bg-gradient-to-b from-orange-50/70 via-white to-orange-50/30 dark:from-slate-900/90 dark:via-slate-900 dark:to-orange-950/20 rounded-2xl border border-orange-200/90 dark:border-orange-800/60 shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden">
+                <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] overflow-hidden text-left">
                     {/* Header Banner */}
-                    <div className="bg-orange-500/10 dark:bg-orange-950/40 px-4 py-2.5 border-b border-orange-200/80 dark:border-orange-800/50 flex items-center justify-between">
+                    <div className="px-4 pt-3.5 pb-1 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center shadow-xs">
+                            <div className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0">
                                 <Store className="w-4 h-4" />
                             </div>
                             <div>
-                                <h4 className="text-xs font-bold text-orange-900 dark:text-orange-200 uppercase tracking-wide">
+                                <h4 className="text-[13px] font-semibold text-slate-900 dark:text-white">
                                     Status: Menunggu Kunjungan Vendor
                                 </h4>
-                                <p className="text-[11px] text-orange-700/80 dark:text-orange-400">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                     Tiket diteruskan ke jadwal penanganan vendor luar
                                 </p>
                             </div>
                         </div>
-                        <span className="text-[10px] text-orange-700 dark:text-orange-400 font-medium px-2 py-0.5 bg-orange-100/80 dark:bg-orange-900/50 rounded-full">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
                             {formatRelativeTime(createdAt)}
                         </span>
                     </div>
 
                     {/* Content Details */}
-                    <div className="p-3.5 sm:p-4 space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                    <div className="px-4 pt-2 pb-3.5 space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
                         {descriptionMatch && (
                             <div className="flex items-start gap-2 text-slate-600 dark:text-slate-400 pb-1">
                                 <Info className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
@@ -374,20 +375,20 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                             {scheduleMatch && (
-                                <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60">
+                                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04]">
                                     <Calendar className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                                     <div>
-                                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Jadwal Vendor</div>
+                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Jadwal Vendor</div>
                                         <div className="font-semibold text-slate-800 dark:text-slate-100">{scheduleMatch[1].trim()}</div>
                                     </div>
                                 </div>
                             )}
 
                             {visitMatch && (
-                                <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60">
+                                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04]">
                                     <Hourglass className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                                     <div>
-                                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Perkiraan Kunjungan</div>
+                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Perkiraan Kunjungan</div>
                                         <div className="font-bold text-orange-600 dark:text-orange-400">{visitMatch[1].trim()}</div>
                                     </div>
                                 </div>
@@ -402,7 +403,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         )}
 
                         {isSlaPaused && (
-                            <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300/60 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 font-medium text-[11px]">
+                            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 font-medium text-xs">
                                 <Pause className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                                 <span>Perhitungan waktu SLA di-pause sementara menunggu kehadiran vendor.</span>
                             </div>
@@ -410,11 +411,11 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     </div>
 
                     {/* Card Footer */}
-                    <div className="px-4 py-2 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
                         {actorMatch ? (
                             <div className="flex items-center gap-1.5">
                                 <UserIcon className="w-3 h-3 text-slate-400" />
-                                <span>Diubah oleh <strong className="text-slate-700 dark:text-slate-200">{actorMatch[1].trim()}</strong></span>
+                                <span>Diubah oleh <strong className="font-medium text-slate-700 dark:text-slate-200">{toDisplayName(actorMatch[1].trim())}</strong></span>
                             </div>
                         ) : (
                             <span>Notifikasi Sistem</span>
@@ -441,15 +442,15 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const ToIcon = toConfig.icon;
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs hover:shadow-xs transition-all">
+            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                     <ToIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                     <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Status:</span>
 
                     {/* From Badge */}
                     <span className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border",
-                        fromConfig.bg, fromConfig.text, fromConfig.border
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium opacity-70",
+                        fromConfig.bg, fromConfig.text
                     )}>
                         <span className={cn("w-1.5 h-1.5 rounded-full", fromConfig.dot)} />
                         {fromConfig.label}
@@ -459,23 +460,23 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                     {/* To Badge */}
                     <span className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs",
-                        toConfig.bg, toConfig.text, toConfig.border
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold",
+                        toConfig.bg, toConfig.text
                     )}>
-                        <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", toConfig.dot)} />
+                        <span className={cn("w-1.5 h-1.5 rounded-full", toConfig.dot)} />
                         {toConfig.label}
                     </span>
                 </div>
 
                 {/* Subtitle / Actor Info */}
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
+                    <span>{formatMessageTime(createdAt)}</span>
                 </div>
             </div>
         );
@@ -491,28 +492,28 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const actor = assignMatch[3]?.trim();
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 text-purple-900 dark:text-purple-200 text-xs shadow-2xs">
+            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                     <UserCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                     <span>Penugasan Teknisi:</span>
                     {from && from.toLowerCase() !== 'none' && from.toLowerCase() !== 'unassigned' && (
                         <>
-                            <span className="line-through text-purple-400 dark:text-purple-500 text-[11px]">{from}</span>
-                            <ArrowRight className="w-3 h-3 text-purple-400 shrink-0" />
+                            <span className="line-through text-slate-400 dark:text-slate-500 text-[11px]">{from}</span>
+                            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
                         </>
                     )}
-                    <span className="font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-700/60 shadow-2xs">
+                    <span className="font-semibold text-purple-700 dark:text-purple-300">
                         {to}
                     </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
+                    <span>{formatMessageTime(createdAt)}</span>
                 </div>
             </div>
         );
@@ -529,26 +530,26 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const toCfg = PRIORITY_MAP[toP] || { label: toP, bg: 'bg-amber-100 dark:bg-amber-950/60', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-800' };
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs shadow-2xs">
+            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                     <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span className="font-medium text-slate-500 dark:text-slate-400">Prioritas:</span>
-                    <span className={cn("px-1.5 py-0.5 rounded text-[11px] font-semibold border", fromCfg.bg, fromCfg.text, fromCfg.border)}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium opacity-70", fromCfg.bg, fromCfg.text)}>
                         {fromCfg.label}
                     </span>
                     <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className={cn("px-1.5 py-0.5 rounded text-[11px] font-bold border shadow-2xs", toCfg.bg, toCfg.text, toCfg.border)}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-semibold", toCfg.bg, toCfg.text)}>
                         {toCfg.label}
                     </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
+                    <span>{formatMessageTime(createdAt)}</span>
                 </div>
             </div>
         );
@@ -561,22 +562,22 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const actor = forwardMatch[2]?.trim();
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs shadow-2xs">
+            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                     <Share2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                     <span>Tiket Diteruskan ke:</span>
-                    <span className="font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-700/60 shadow-2xs">
+                    <span className="font-semibold text-indigo-700 dark:text-indigo-300">
                         {target}
                     </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
+                    <span>{formatMessageTime(createdAt)}</span>
                 </div>
             </div>
         );
@@ -586,8 +587,8 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
     if (content.includes('\n')) {
         return (
             <div className={cn("w-full flex justify-center my-3 px-2", className)}>
-                <div className="w-full max-w-md bg-slate-50 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-3.5 shadow-2xs text-xs text-slate-700 dark:text-slate-300">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06)] text-[13px] text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="font-semibold flex items-center gap-1.5">
                             <Info className="w-3.5 h-3.5 text-primary" />
                             Notifikasi Sistem
@@ -606,7 +607,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
     return (
         <div className={cn("flex justify-center my-2 px-2", className)}>
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 text-xs font-medium text-slate-700 dark:text-slate-300 shadow-2xs">
+            <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                 {isAdd ? (
                     <UserPlus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 ) : isRemove ? (
@@ -615,8 +616,8 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     <Info className="w-3.5 h-3.5 text-primary shrink-0" />
                 )}
                 <span>{cleanContent}</span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
-                    · {formatRelativeTime(createdAt)}
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">
+                    · {formatMessageTime(createdAt)}
                 </span>
             </div>
         </div>
