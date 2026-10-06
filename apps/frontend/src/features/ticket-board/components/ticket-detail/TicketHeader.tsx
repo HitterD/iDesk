@@ -14,15 +14,13 @@ import {
     Check,
     PanelRightOpen,
     PanelRightClose,
-    Users,
     ArrowLeftRight,
     ArrowRight,
-    Tag,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
-import { STATUS_CONFIG, PRIORITY_CONFIG, isTerminalStatus } from './constants';
+import { STATUS_CONFIG, isTerminalStatus } from './constants';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
@@ -178,19 +176,6 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             await onResolve(resolutionNote, files);
             setShowResolveConfirm(false);
         }
-    };
-
-    const statusConfig = STATUS_CONFIG[ticket.status] || {
-        label: ticket.status,
-        color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-        icon: CheckCircle2,
-    };
-    const StatusIcon = statusConfig.icon;
-
-    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || {
-        label: ticket.priority,
-        color: 'text-slate-600',
-        dot: 'bg-slate-400',
     };
 
     const isTerminal = isTerminalStatus(ticket.status);
@@ -354,15 +339,6 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     const slaColors = getSlaColors();
     const SlaIcon = slaColors.icon;
 
-    // Format Category to Title Case
-    const formattedCategory = useMemo(() => {
-        if (!ticket.category) return null;
-        return ticket.category
-            .toLowerCase()
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-    }, [ticket.category]);
-
     const mergedParentTicketNumber = useMemo(() => {
         if (!ticket.description) return null;
         const match = ticket.description.match(/\[MERGED INTO #([^\]]+)\]/);
@@ -391,8 +367,8 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             )}
 
             <header className={cn(
-                "px-3.5 py-3 sm:px-6 sm:py-4 bg-slate-50/90 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 transition-all",
-                isTerminal && 'bg-slate-100/80 dark:bg-slate-900/80'
+                "px-3.5 py-3 sm:px-6 sm:py-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/80 transition-all",
+                isTerminal && 'bg-slate-50/90 dark:bg-slate-900/80'
             )}>
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
                     <div className="flex flex-col gap-2 min-w-0 flex-1">
@@ -400,19 +376,19 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                             <button
                                 type="button"
                                 onClick={handleBack}
-                                className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-primary/10 text-slate-700 dark:text-slate-200 hover:text-primary border border-slate-200/90 dark:border-slate-700 hover:border-primary/30 text-xs font-bold transition-all shadow-2xs active:scale-[0.97] cursor-pointer shrink-0"
+                                className="group -ml-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-1 text-[13px] font-medium text-primary hover:bg-primary/10 transition-colors active:scale-[0.97] cursor-pointer shrink-0"
                                 title={targetInfo.label}
                             >
-                                <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-primary group-hover:-translate-x-0.5 transition-transform shrink-0" />
+                                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform shrink-0" />
                                 <span>{targetInfo.label}</span>
                             </button>
 
-                            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" aria-hidden="true" />
+                            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
 
                             <button
                                 type="button"
                                 onClick={handleCopyNumber}
-                                className="group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all border border-slate-200/90 dark:border-slate-700/80 cursor-pointer shadow-2xs active:scale-[0.98]"
+                                className="group inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-mono font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer active:scale-[0.98]"
                                 title="Klik untuk salin nomor tiket"
                             >
                                 <span>#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
@@ -422,40 +398,11 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                     <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-colors" />
                                 )}
                             </button>
-                            <ExternalSourceBadge source={ticket.source} className="py-1.5 rounded-xl" />
+                            <ExternalSourceBadge source={ticket.source} className="py-1 rounded-full" />
 
-                            <span className={cn(
-                                "px-2.5 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs select-none",
-                                statusConfig.color
-                            )}>
-                                <StatusIcon className="w-3.5 h-3.5" />
-                                {statusConfig.label}
-                            </span>
-
-                            <span className={cn(
-                                "px-2.5 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 shadow-2xs select-none",
-                                priorityConfig.color
-                            )}>
-                                <span className={cn("w-2 h-2 rounded-full", priorityConfig.dot)} />
-                                {priorityConfig.label}
-                            </span>
-
-                            {formattedCategory && (
-                                <span className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/90 dark:border-slate-700/80 inline-flex items-center gap-1.5 shadow-2xs select-none">
-                                    <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                    <span>{formattedCategory}</span>
-                                </span>
-                            )}
-
-                            {ticket.participants && ticket.participants.length > 0 && (
-                                <span className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary/30 inline-flex items-center gap-1.5 shadow-2xs select-none">
-                                    <Users className="w-3.5 h-3.5 text-primary" />
-                                    <span>{1 + ticket.participants.length} Anggota</span>
-                                </span>
-                            )}
                         </div>
 
-                        <h1 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                        <h1 className="text-lg sm:text-[22px] font-semibold text-slate-900 dark:text-white tracking-[-0.01em] leading-tight break-words">
                             {ticket.title}
                         </h1>
                     </div>
@@ -463,20 +410,19 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                     <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0 self-start lg:self-center">
                         <div
                             className={cn(
-                                "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border shadow-2xs select-none text-xs transition-colors",
-                                slaColors.border
+                                "inline-flex items-center gap-2 h-8 px-3 rounded-full bg-slate-100 dark:bg-slate-800 select-none text-xs transition-colors",
                             )}
                             title={slaTooltip}
                         >
-                            <div className={cn("flex items-center gap-1.5 font-bold transition-colors", slaColors.text)}>
+                            <div className={cn("flex items-center gap-1.5 font-semibold tabular-nums transition-colors", slaColors.text)}>
                                 <SlaIcon className={cn("w-3.5 h-3.5 shrink-0", slaStatus === 'overdue' && "animate-pulse")} />
                                 <span>{resolutionTime}</span>
                             </div>
                             {firstResponse && (
                                 <>
-                                    <span className="text-slate-300 dark:text-slate-600 font-bold select-none">·</span>
+                                    <span className="text-slate-300 dark:text-slate-600 select-none">·</span>
                                     <div
-                                        className={cn("flex items-center gap-1.5 font-semibold", firstResponse.color)}
+                                        className={cn("flex items-center gap-1.5 font-medium tabular-nums", firstResponse.color)}
                                         title={firstResponse.tooltip}
                                     >
                                         <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -493,10 +439,10 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                         <button
                                             type="button"
                                             onClick={onForward}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-xs font-semibold shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+                                            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
                                             title="Teruskan tiket ke tim lain"
                                         >
-                                            <ArrowLeftRight className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                                            <ArrowLeftRight className="w-3.5 h-3.5" />
                                             <span>Teruskan</span>
                                         </button>
                                     )}
@@ -506,10 +452,10 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                             type="button"
                                             onClick={() => setShowCancelConfirm(true)}
                                             disabled={isCancelling}
-                                            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-rose-50/90 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-200/90 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800/80 text-xs font-semibold shadow-2xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                                            className="group inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-50"
                                             title="Batalkan tiket ini"
                                         >
-                                            <XCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors" />
+                                            <XCircle className="w-3.5 h-3.5" />
                                             <span>Cancel Ticket</span>
                                         </button>
                                     )}
@@ -518,7 +464,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => setShowResolveConfirm(true)}
-                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-emerald-500/20 active:scale-[0.98] transition-all cursor-pointer"
+                                            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
                                             title="Tandai tiket telah selesai (Resolved)"
                                         >
                                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -533,10 +479,10 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                     type="button"
                                     onClick={onToggleSidebar}
                                     className={cn(
-                                        "p-1.5 rounded-xl border transition-all shadow-2xs active:scale-[0.98] cursor-pointer",
+                                        "inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors active:scale-[0.98] cursor-pointer",
                                         isSidebarOpen
-                                            ? "bg-slate-200/80 dark:bg-slate-700/80 text-slate-900 dark:text-white border-slate-300 dark:border-slate-600"
-                                            : "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200/90 dark:border-slate-700"
+                                            ? "bg-slate-200/80 dark:bg-slate-700/80 text-slate-900 dark:text-white"
+                                            : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                                     )}
                                     title={isSidebarOpen ? "Sembunyikan Panel Properti Tiket" : "Tampilkan Panel Properti Tiket"}
                                 >

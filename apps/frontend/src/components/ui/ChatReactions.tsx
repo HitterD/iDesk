@@ -28,6 +28,8 @@ interface MessageReactionsProps {
     onRemoveReaction: (emoji: string) => void;
     className?: string;
     align?: 'left' | 'right' | 'auto';
+    /** Extra classes for the add-reaction button wrapper, e.g. to reveal it only on hover. */
+    addButtonClassName?: string;
 }
 
 export const MessageReactions: React.FC<MessageReactionsProps> = ({
@@ -36,6 +38,7 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
     onRemoveReaction,
     className,
     align = 'auto',
+    addButtonClassName,
 }) => {
     const [showPicker, setShowPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
@@ -83,7 +86,7 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
             ))}
 
             {/* Add reaction button */}
-            <div className="relative inline-flex items-center" ref={pickerRef}>
+            <div className={cn("relative inline-flex items-center", showPicker ? "opacity-100" : addButtonClassName)} ref={pickerRef}>
                 <button
                     type="button"
                     onClick={() => setShowPicker(!showPicker)}

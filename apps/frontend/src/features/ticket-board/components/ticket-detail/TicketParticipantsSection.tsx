@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
+import { toDisplayName } from './messageThread';
 import type { TicketParticipant } from './types';
 
 interface TicketParticipantsSectionProps {
@@ -151,19 +151,19 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
     const totalCount = 1 + participants.length;
 
     return (
-        <div className="bg-white dark:bg-slate-800/95 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs space-y-3">
+        <section className="rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/[0.05] dark:bg-slate-900 dark:ring-white/[0.06]">
             {/* Section Header */}
-            <div className="flex items-center justify-between">
+            <div className="mb-2 flex min-h-6 items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <Users className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                        Anggota Tiket
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Users className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
-                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-bold h-4">
+                    <h3 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                        Anggota tiket
+                    </h3>
+                    <span className="text-[13px] tabular-nums text-slate-400 dark:text-slate-500">
                         {totalCount}
-                    </Badge>
+                    </span>
                 </div>
 
                 {/* Add Participant Button / Popover */}
@@ -172,10 +172,10 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                         <PopoverTrigger asChild>
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors cursor-pointer border border-primary/20"
+                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer"
                             >
                                 <UserPlus className="w-3.5 h-3.5" />
-                                <span>+ Tambah</span>
+                                <span>Tambah</span>
                             </button>
                         </PopoverTrigger>
                         <PopoverContent
@@ -248,7 +248,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                                         />
                                                         <div className="min-w-0 flex-1">
                                                             <p className="font-semibold truncate">{u.fullName}</p>
-                                                            <p className="text-[10px] text-muted-foreground truncate">
+                                                            <p className="text-xs text-muted-foreground truncate">
                                                                 {u.department?.name || u.email}
                                                             </p>
                                                         </div>
@@ -304,9 +304,9 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
             </div>
 
             {/* Participants List */}
-            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5 custom-scrollbar">
+            <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
                 {/* 1. Ticket Creator */}
-                <div className="flex items-center justify-between p-2 rounded-lg bg-card border border-slate-200/70 dark:border-slate-700/60 shadow-2xs">
+                <div className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <UserAvatar
                             user={{
@@ -318,12 +318,12 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                         />
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                                <p className="text-xs font-bold text-foreground truncate">{creator.fullName}</p>
-                                <span className="px-1.5 py-0.2 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[9px] font-bold rounded-full">
-                                    Creator
+                                <p className="text-[13px] font-semibold text-foreground truncate">{toDisplayName(creator.fullName)}</p>
+                                <span className="px-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[11px] font-medium rounded-full">
+                                    Pembuat
                                 </span>
                             </div>
-                            <p className="text-[10px] text-muted-foreground truncate">
+                            <p className="text-xs text-muted-foreground truncate">
                                 {creator.department?.name || creator.email || 'Requester'}
                             </p>
                         </div>
@@ -340,7 +340,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                     return (
                         <div
                             key={p.id}
-                            className="group flex items-center justify-between p-2 rounded-lg bg-card border border-slate-200/70 dark:border-slate-700/60 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+                            className="group flex items-center justify-between py-1.5"
                         >
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 <UserAvatar
@@ -353,12 +353,12 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                 />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
-                                        <p className="text-xs font-bold text-foreground truncate">{displayName}</p>
-                                        <span className="px-1.5 py-0.2 bg-primary/10 text-primary border border-primary/20 text-[9px] font-bold rounded-full">
-                                            Joined
+                                        <p className="text-[13px] font-semibold text-foreground truncate">{toDisplayName(displayName)}</p>
+                                        <span className="px-1.5 bg-primary/10 text-primary text-[11px] font-medium rounded-full">
+                                            Anggota
                                         </span>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground truncate">
+                                    <p className="text-xs text-muted-foreground truncate">
                                         {deptName || 'Partisipan'}
                                     </p>
                                 </div>
@@ -384,6 +384,6 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                     );
                 })}
             </div>
-        </div>
+        </section>
     );
 };
