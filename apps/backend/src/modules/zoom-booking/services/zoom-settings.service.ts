@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 
 import { ZoomSettings } from '../entities/zoom-settings.entity';
 import { UpdateZoomSettingsDto } from '../dto/zoom-settings.dto';
+import { withOpenBookingWindow } from './booking-window';
 
 @Injectable()
 export class ZoomSettingsService {
@@ -121,7 +122,7 @@ export class ZoomSettingsService {
         advanceBookingDays: number;
         allowedDurations: number[];
     }> {
-        const settings = await this.getSettings();
+        const settings = withOpenBookingWindow(await this.getSettings());
         return {
             slotStartTime: settings.slotStartTime,
             slotEndTime: settings.slotEndTime,

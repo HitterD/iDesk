@@ -99,8 +99,8 @@ export function BookingModal({
     const timeOptions = useMemo(() => {
         if (settings) {
             return generateTimeOptions(
-                settings.slotStartTime || '08:00',
-                settings.slotEndTime || '18:00',
+                settings.slotStartTime || '00:00',
+                settings.slotEndTime || '23:59',
                 settings.slotIntervalMinutes || 30
             );
         }

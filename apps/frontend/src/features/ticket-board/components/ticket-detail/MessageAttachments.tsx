@@ -86,7 +86,7 @@ const FileAttachment: React.FC<{
     const cardClass = cn(
         'w-full max-w-[280px] flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors',
         isRequester
-            ? 'bg-slate-900/10 hover:bg-slate-900/20 border-slate-900/10'
+            ? 'bg-slate-100 hover:bg-slate-200/70 border-transparent dark:bg-slate-700/50 dark:hover:bg-slate-700'
             : 'bg-white/10 hover:bg-white/20 border-white/10',
     );
     const body = (
@@ -131,7 +131,7 @@ export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({ attachme
     const infoByPath = new Map((attachmentInfo ?? []).map((info) => [info.path, info]));
 
     return (
-        <div className="mt-2 pt-2 border-t border-black/10 space-y-2">
+        <div className="mt-1.5 first:mt-0.5 space-y-1.5">
             {validAttachments.map((url, idx) => {
                 const fullUrl = getAttachmentUrl(url);
                 if (!fullUrl) return null; // Skip empty URLs

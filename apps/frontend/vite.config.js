@@ -7,6 +7,25 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 import http from 'http'
+import fs from 'fs'
+
+// Unique per build; the running tab compares it with dist/version.json to detect a deploy.
+const BUILD_ID = process.env.VITE_BUILD_ID || `${Date.now().toString(36)}`
+
+/** Writes dist/version.json so open tabs can tell a newer build has been deployed. */
+const buildVersionFile = () => {
+    let outDir = 'dist'
+    return {
+        name: 'idesk-build-version',
+        apply: 'build',
+        configResolved(config) {
+            outDir = path.resolve(config.root, config.build.outDir)
+        },
+        closeBundle() {
+            fs.writeFileSync(path.join(outDir, 'version.json'), JSON.stringify({ buildId: BUILD_ID }))
+        },
+    }
+}
 
 const httpAgent = new http.Agent({
     keepAlive: true,
@@ -17,10 +36,15 @@ const httpAgent = new http.Agent({
 })
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
     plugins: [
         react(),
+        buildVersionFile(),
     ],
+    define: {
+        // Empty on the dev server, which never renames chunks under an open tab.
+        'import.meta.env.VITE_BUILD_ID': JSON.stringify(command === 'build' ? BUILD_ID : ''),
+    },
     server: {
         host: '0.0.0.0',
         port: 4050,
@@ -139,4 +163,4 @@ export default defineConfig({
         chunkSizeWarningLimit: 500,
         sourcemap: process.env.NODE_ENV !== 'production',
     },
-})
+}))

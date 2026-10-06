@@ -224,6 +224,36 @@ describe('SimpleBookingForm', () => {
         expect(screen.getAllByText(/\(1 jam\)/i).length).toBeGreaterThanOrEqual(1);
     });
 
+    // Slot rows are fetched per sub-slot (30 min). Rows computed for the selected 8h duration
+    // flagged 16:00 as "exceeds operating hours" (16:00+8h > 23:59), locking every end time from 17:00.
+    it('computeEndTimeOptions lets a long meeting end at 17:00 when every 30-min sub-slot is free', () => {
+        const slots = Array.from({ length: 30 }, (_, i) => {
+            const mins = 8 * 60 + i * 30;
+            const time = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+            return { time, available: true, availableAccountsCount: 10, totalAccountsCount: 10 };
+        });
+
+        const opts = computeEndTimeOptions(
+            '08:00',
+            '2026-10-07',
+            { slotEndTime: '23:59', slotIntervalMinutes: 30 },
+            [60, 480, 540, 600],
+            slots,
+        );
+
+        expect(opts.find((o) => o.value === '16:00')?.isUnavailable).toBe(false);
+        expect(opts.find((o) => o.value === '17:00')?.isUnavailable).toBe(false);
+        expect(opts.find((o) => o.value === '18:00')?.isUnavailable).toBe(false);
+    });
+
+    it('requests sub-slot availability at the 30-minute interval, independent of the chosen duration', () => {
+        render(<SimpleBookingForm />);
+        fireEvent.click(screen.getByRole('button', { name: 'Tanggal' }));
+
+        const calls = vi.mocked(hooks.useDaySlotsAvailability).mock.calls;
+        expect(calls.some(([, dur]) => dur === 30)).toBe(true);
+    });
+
     it('computeEndTimeOptions correctly flags full slots and cascades blocker to all subsequent options', () => {
         const slots = [
             { time: '13:00', available: true, availableAccountsCount: 1, totalAccountsCount: 10 },

@@ -16,7 +16,7 @@ import {
     ZoomOverflowPopover,
     type OverflowBooking,
 } from './ZoomOverflowPopover';
-import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
+import { useZoomSettings, isWorkingDay, ALL_WEEKDAYS } from '../hooks/useZoomSettings';
 
 interface ZoomWeekViewProps {
     currentDate: Date;
@@ -86,7 +86,7 @@ export function ZoomWeekView({
     );
 
     const { data: zoomSettings } = useZoomSettings();
-    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
+    const workingDays = zoomSettings?.workingDays ?? ALL_WEEKDAYS;
 
     // Compute weekly meeting metrics
     const { totalWeekMeetings, myWeekMeetingCount } = useMemo(() => {

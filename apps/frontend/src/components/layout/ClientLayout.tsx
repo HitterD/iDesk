@@ -223,7 +223,7 @@ export const ClientLayout: React.FC = () => {
                         initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-                        className="w-full h-full p-0 sm:py-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 flex flex-col overflow-hidden max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto"
+                        className="w-full h-full flex flex-col overflow-hidden"
                     >
                         <FeatureErrorBoundary featureName="Client Portal">
                             <Outlet />

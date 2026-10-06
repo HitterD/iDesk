@@ -220,8 +220,8 @@ export function ZoomCalendarPage() {
     const timeLabels = useMemo(() => {
         if (settings) {
             return generateTimeLabels(
-                settings.slotStartTime || '08:00',
-                settings.slotEndTime || '18:00',
+                settings.slotStartTime || '00:00',
+                settings.slotEndTime || '23:59',
                 settings.slotIntervalMinutes || 30
             );
         }

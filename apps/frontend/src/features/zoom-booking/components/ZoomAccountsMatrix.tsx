@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ZoomAccount } from '../types';
 import type { MergedCalendarDay } from '../hooks/useZoomBooking';
-import { useZoomSettings, isWorkingDay } from '../hooks/useZoomSettings';
+import { useZoomSettings, isWorkingDay, ALL_WEEKDAYS } from '../hooks/useZoomSettings';
 
 interface AccountDayBooking {
     id: string;
@@ -95,7 +95,7 @@ export function ZoomAccountsMatrix({
         [currentDate],
     );
     const { data: zoomSettings } = useZoomSettings();
-    const workingDays = zoomSettings?.workingDays ?? [1, 2, 3, 4, 5];
+    const workingDays = zoomSettings?.workingDays ?? ALL_WEEKDAYS;
 
     const [accountSearch, setAccountSearch] = useState('');
     const [filter, setFilter] = useState<MatrixFilter>('all');

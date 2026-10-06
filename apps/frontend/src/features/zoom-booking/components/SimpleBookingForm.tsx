@@ -22,6 +22,8 @@ import { ZoomEndTimeSelect, type EndTimeOption } from './ZoomEndTimeSelect';
 import { ZoomParticipantPicker } from './ZoomParticipantPicker';
 
 
+const DEFAULT_SLOT_INTERVAL_MINUTES = 30;
+
 function calculateEndTime(startTime: string, durationMinutes: number): string {
     if (!startTime) return '';
     const [h, m] = startTime.split(':').map(Number);
@@ -75,7 +77,7 @@ export function computeEndTimeOptions(
     if (isNaN(sh) || isNaN(sm)) return [];
 
     const startMins = sh * 60 + sm;
-    const endH = Number(settings?.slotEndTime?.split(':')[0] || '18');
+    const endH = Number(settings?.slotEndTime?.split(':')[0] || '24');
     const endM = Number(settings?.slotEndTime?.split(':')[1] || '00');
     const closingMins = (endH === 0 && endM === 0) ? 24 * 60 : (endH * 60 + endM);
 
@@ -252,6 +254,11 @@ export function SimpleBookingForm({
     const createBooking = useCreateBooking();
     const availability = useCheckAvailability(bookingDate || undefined, startTime || undefined, duration);
     const daySlotsQuery = useDaySlotsAvailability(bookingDate || undefined, duration);
+    // End-time options walk the range in sub-slots, so each row must cover exactly one
+    // sub-slot. Rows for the chosen duration flagged late sub-slots as past closing time
+    // (e.g. 16:00 + 8h) and locked every end time from 17:00 on.
+    const subSlotMinutes = settings?.slotIntervalMinutes || DEFAULT_SLOT_INTERVAL_MINUTES;
+    const subSlotsQuery = useDaySlotsAvailability(bookingDate || undefined, subSlotMinutes);
 
     // Current slot details
     const currentSlot = useMemo(() => {
@@ -271,8 +278,8 @@ export function SimpleBookingForm({
 
     // Build time options based on real-time availability from settings & daySlotsQuery
     const timeOptions: TimeSlotOption[] = useMemo(() => {
-        const startH = Number(settings?.slotStartTime?.split(':')[0] || '08');
-        const endH = Number(settings?.slotEndTime?.split(':')[0] || '18');
+        const startH = Number(settings?.slotStartTime?.split(':')[0] || '00');
+        const endH = Number(settings?.slotEndTime?.split(':')[0] || '24');
         const interval = settings?.slotIntervalMinutes || 30;
 
         if (!bookingDate) {
@@ -339,9 +346,9 @@ export function SimpleBookingForm({
             bookingDate,
             settings,
             durationOptions,
-            daySlotsQuery.data?.slots
+            subSlotsQuery.data?.slots
         );
-    }, [startTime, bookingDate, settings, durationOptions, daySlotsQuery.data]);
+    }, [startTime, bookingDate, settings, durationOptions, subSlotsQuery.data]);
 
     const handleStartTimeChange = (newStart: string) => {
         setStartTime(newStart);
@@ -355,7 +362,7 @@ export function SimpleBookingForm({
             bookingDate,
             settings,
             durationOptions,
-            daySlotsQuery.data?.slots
+            subSlotsQuery.data?.slots
         );
 
         // Try candidate with active duration or default +60 mins
