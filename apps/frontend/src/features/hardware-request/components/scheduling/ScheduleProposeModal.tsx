@@ -40,6 +40,7 @@ import { useScheduleSelection } from '../../hooks/useScheduleSelection';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { HardwareRequestItem, SlotProposal } from '../../types';
+import { buildSlotRange } from '../../utils/schedule-slot.util';
 
 interface ScheduleProposeModalProps {
   open: boolean;
@@ -157,9 +158,7 @@ export function ScheduleProposeModal({
         return toast.error('Lengkapi tanggal dan jam untuk semua slot jadwal');
       }
 
-      const dateStr = s.date.toISOString().split('T')[0];
-      const startDateTime = new Date(`${dateStr}T${s.time}:00`);
-      const endDateTime = new Date(startDateTime.getTime() + s.durationHours * 60 * 60 * 1000);
+      const { start: startDateTime, end: endDateTime } = buildSlotRange(s.date, s.time, s.durationHours);
 
       if (startDateTime <= new Date()) {
         return toast.error('Jadwal instalasi harus di waktu masa mendatang');

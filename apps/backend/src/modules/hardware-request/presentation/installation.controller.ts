@@ -193,8 +193,8 @@ export class InstallationController {
     }
 
     private async guardOwnerOrIct(requestId: string, user: { userId: string; role: string }) {
-        const role = (user.role as string)?.toUpperCase();
-        if (role === 'ICT_STAFF' || role === 'ADMIN' || role === 'MANAGER' || role === 'AGENT') return;
+        // Same role mapping as HardwareRoleGuard, so AGENT_OPERATIONAL_SUPPORT / AGENT_ADMIN count as ICT.
+        if (pickRole(user) === HardwareRole.ICT_STAFF) return;
         const siteId = (user as any).siteId ?? null;
         const userRole = (user as any).userRole as UserRole;
         const req = await this.queryService.getById({ id: user.userId, role: HardwareRole.USER, siteId, userRole }, requestId);
