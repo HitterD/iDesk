@@ -8,6 +8,9 @@ export interface OracleK2TicketsParams {
     sortBy: string;
     sortOrder: 'ASC' | 'DESC';
     search: string;
+    /** Server-side "Tiket yang saya buat" / "My Tasks" filters, so paging and totals stay right. */
+    createdByMe?: boolean;
+    assignedToMe?: boolean;
 }
 
 export interface OracleK2TicketsResponse {
@@ -30,6 +33,8 @@ async function fetchOracleK2Tickets(params: OracleK2TicketsParams): Promise<Orac
             sortBy: params.sortBy,
             sortOrder: params.sortOrder,
             search: params.search || undefined,
+            createdByMe: params.createdByMe || undefined,
+            assignedToMe: params.assignedToMe || undefined,
         },
     });
     return response.data;
@@ -37,7 +42,7 @@ async function fetchOracleK2Tickets(params: OracleK2TicketsParams): Promise<Orac
 
 export function useOracleK2Tickets(params: OracleK2TicketsParams) {
     return useQuery({
-        queryKey: ['tickets', 'oracle-k2', params.page, params.limit, params.sortBy, params.sortOrder, params.search],
+        queryKey: ['tickets', 'oracle-k2', params.page, params.limit, params.sortBy, params.sortOrder, params.search, params.createdByMe ?? false, params.assignedToMe ?? false],
         queryFn: () => fetchOracleK2Tickets(params),
         placeholderData: keepPreviousData,
         staleTime: 30_000,
