@@ -25,6 +25,7 @@ import { ScheduleProposeModal } from '../scheduling/ScheduleProposeModal';
 import { SlotPickerModal } from '../scheduling/SlotPickerModal';
 import type { HardwareRequest, InstallationSchedule } from '../../types';
 import { cn } from '@/lib/utils';
+import { pickActiveSchedule, installSubState } from '../../utils/active-schedule.util';
 
 interface ActionPanelProps {
     r: HardwareRequest;
@@ -52,11 +53,9 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
         ? (r.items ?? [])
         : arrivedItems;
     const awaitingUserSchedule = r.schedules?.find((s) => s.status === 'PROPOSED_AWAITING_USER');
-    const activeSchedule = (r.schedules && r.schedules.length > 0)
-        ? [...r.schedules].reverse().find((s) => s.status !== 'CANCELLED') || r.schedules[r.schedules.length - 1]
-        : r.installationSchedule;
-    const hasConfirmedSchedule = activeSchedule && ['CONFIRMED', 'IN_PROGRESS', 'DONE'].includes(activeSchedule.status);
-    const hasProposedSchedule = activeSchedule && activeSchedule.status === 'PROPOSED_AWAITING_USER';
+    const activeSchedule = pickActiveSchedule(r);
+    const installState = installSubState(activeSchedule);
+    const hasConfirmedSchedule = installState === 'ready-to-complete' || installState === 'done';
 
     const handleOpenPropose = onProposeSchedule || (() => setProposeOpen(true));
     const handleOpenPicker = (sched: InstallationSchedule) => {
@@ -244,7 +243,7 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                             {r.status === 'INSTALLATION' && (
                                 <>
                                     {/* Sub-state 3A: No schedule proposed yet */}
-                                    {(!activeSchedule || activeSchedule.status === 'CANCELLED') ? (
+                                    {installState === 'needs-proposal' ? (
                                         <div className="space-y-3 rounded-xl bg-primary/5 border border-primary/20 p-4 shadow-2xs">
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -267,7 +266,7 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                                 <span>Atur & Usulkan Jadwal ke User</span>
                                             </button>
                                         </div>
-                                    ) : hasProposedSchedule ? (
+                                    ) : installState === 'awaiting-user' ? (
                                         /* Sub-state 3B: Schedule proposed, awaiting user selection */
                                         <div className="space-y-3 rounded-xl bg-amber-500/5 border border-amber-500/20 p-4 shadow-2xs">
                                             <div className="flex items-center justify-between">
@@ -291,7 +290,33 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                                 <span>Ubah Pilihan Slot Waktu</span>
                                             </button>
                                         </div>
-                                    ) : (
+                                    ) : installState === 'reschedule-requested' ? (
+                                        /* Sub-state 3B': requester asked to move the slot — propose new ones */
+                                        <div className="space-y-3 rounded-xl bg-amber-500/5 border border-amber-500/20 p-4 shadow-2xs">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                                    <AlertCircle className="size-3.5 text-amber-600 dark:text-amber-400" />
+                                                    <span>User Minta Jadwal Ulang</span>
+                                                </span>
+                                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-200">
+                                                    Perlu Jadwal Baru
+                                                </span>
+                                            </div>
+                                            {activeSchedule?.rescheduleReason && (
+                                                <p className="text-xs text-foreground/80 leading-relaxed">
+                                                    Alasan: “{activeSchedule.rescheduleReason}”
+                                                </p>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={handleOpenPropose}
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <CalendarClock className="size-4" />
+                                                <span>Usulkan Jadwal Baru</span>
+                                            </button>
+                                        </div>
+                                    ) : installState === 'ready-to-complete' ? (
                                         /* Sub-state 3C: Schedule confirmed/in-progress — Staff can finish installation */
                                         <div className="space-y-3 rounded-xl bg-primary/5 border border-primary/20 p-4 shadow-2xs">
                                             <div className="flex items-center justify-between">
@@ -320,7 +345,7 @@ export function ActionPanel({ r, onProposeSchedule, onSelectSlot }: ActionPanelP
                                                 <span>{m.completeInstallMut.isPending ? 'Memproses...' : 'Selesaikan Pemasangan & Kirim ke User'}</span>
                                             </button>
                                         </div>
-                                    )}
+                                    ) : null}
                                 </>
                             )}
 

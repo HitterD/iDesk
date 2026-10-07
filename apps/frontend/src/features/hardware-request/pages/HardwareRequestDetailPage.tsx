@@ -20,6 +20,7 @@ import { SlotPickerModal } from '../components/scheduling/SlotPickerModal';
 import { RescheduleRequestModal } from '../components/scheduling/RescheduleRequestModal';
 import { ScheduleProposeModal } from '../components/scheduling/ScheduleProposeModal';
 import type { InstallationSchedule } from '../types';
+import { pickActiveSchedule } from '../utils/active-schedule.util';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 export default function HardwareRequestDetailPage() {
@@ -57,9 +58,7 @@ export default function HardwareRequestDetailPage() {
     const isStaff = role === 'ICT_STAFF';
     const caps = capsFor({ id: userId, role }, r);
 
-    const activeSchedule = (r.schedules && r.schedules.length > 0)
-        ? [...r.schedules].reverse().find((s) => s.status !== 'CANCELLED') || r.schedules[r.schedules.length - 1]
-        : r.installationSchedule;
+    const activeSchedule = pickActiveSchedule(r);
 
     const arrivedItems = (r.items ?? []).filter((i) => i.deliveryStatus === 'ARRIVED');
 
@@ -154,7 +153,9 @@ export default function HardwareRequestDetailPage() {
                             schedule={activeSchedule}
                             isStaff={isStaff}
                             onSelectSlot={(s: InstallationSchedule) => setPickerSched(s)}
-                            onReschedule={(s: InstallationSchedule) => setRescheduleSched(s)}
+                            // ICT moves the slot by proposing new ones (the old slot is retired
+                            // server-side); requesters file a reschedule request instead.
+                            onReschedule={(s: InstallationSchedule) => (isStaff ? setProposeOpen(true) : setRescheduleSched(s))}
                             onProposeNewSlots={() => setProposeOpen(true)}
                         />
                     )}

@@ -39,6 +39,7 @@ import { InstallAutoConfirmCron } from './listeners/install-auto-confirm.cron';
 import { HardwareRequestGateway } from './realtime/hardware-request.gateway';
 import { WsAuthGuard } from './realtime/ws-auth.guard';
 import { HardwareScheduleTicketListener } from './listeners/hardware-schedule-ticket.listener';
+import { HardwareTicketStatusSyncListener } from './listeners/hardware-ticket-status-sync.listener';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { User } from '../users/entities/user.entity';
@@ -92,6 +93,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         InAppNotifierListener,
         EmailNotifierListener,
         HardwareScheduleTicketListener,
+        HardwareTicketStatusSyncListener,
         AgingReminderCron,
         InstallAutoConfirmCron,
         HardwareRequestGateway,

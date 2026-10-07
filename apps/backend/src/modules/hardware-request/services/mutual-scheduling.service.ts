@@ -22,6 +22,18 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 
 const MAX_RESCHEDULE = 3;
+/** Schedules a fresh proposal supersedes. */
+const REPLACEABLE_STATUSES: InstallStatus[] = [
+  InstallStatus.PROPOSED,
+  InstallStatus.PROPOSED_AWAITING_USER,
+  InstallStatus.RESCHEDULE_REQUESTED,
+  InstallStatus.CONFIRMED,
+];
+/** Schedules a requester or ICT can still ask to move. */
+const RESCHEDULABLE_STATUSES: InstallStatus[] = [
+  InstallStatus.PROPOSED_AWAITING_USER,
+  InstallStatus.CONFIRMED,
+];
 
 @Injectable()
 export class MutualSchedulingService {
@@ -83,6 +95,23 @@ export class MutualSchedulingService {
         if (end <= start) throw new BadRequestException('slot end must be after start');
       }
 
+      // A new proposal replaces whatever this request had scheduled (pending
+      // proposal, reschedule request or a confirmed slot), so retire those first;
+      // otherwise they block their own slot in the conflict check below and stay
+      // "active" next to the new proposal.
+      const existingSchedules = await schedRepo.find({
+        where: { requestId },
+        order: { createdAt: 'DESC' },
+      });
+      let prevRescheduleCount = 0;
+      for (const prev of existingSchedules) {
+        if (REPLACEABLE_STATUSES.includes(prev.status)) {
+          prevRescheduleCount = Math.max(prevRescheduleCount, prev.rescheduleCount || 0);
+          prev.status = InstallStatus.RESCHEDULED;
+          await schedRepo.save(prev);
+        }
+      }
+
       // P1 fix: pre-load the technician's busy slots once for the entire
       // candidate window, then filter in memory. Was an N×M per-candidate
       // findOne loop inside a separate validation step. Now one query.
@@ -94,32 +123,15 @@ export class MutualSchedulingService {
           status: In([InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS]),
           scheduledStart: Between(earliest, latest),
         },
-        select: ['scheduledStart', 'scheduledEnd'],
+        select: ['requestId', 'scheduledStart', 'scheduledEnd'],
       });
       const hasConflict = (start: Date, end: Date) =>
-        busy.some(b => !(end <= b.scheduledStart! || start >= b.scheduledEnd!));
+        busy.some(b => b.requestId !== requestId && !(end <= b.scheduledStart! || start >= b.scheduledEnd!));
       for (const slot of dto.slots) {
         const start = new Date(slot.start);
         const end = new Date(slot.end);
         if (hasConflict(start, end)) {
           throw new BadRequestException(`technician has a conflicting slot for ${start.toISOString()}`);
-        }
-      }
-
-      // Archive any previous active schedules and retain reschedule count
-      const existingSchedules = await schedRepo.find({
-        where: { requestId },
-        order: { createdAt: 'DESC' },
-      });
-      let prevRescheduleCount = 0;
-      for (const prev of existingSchedules) {
-        if (
-          prev.status === InstallStatus.RESCHEDULE_REQUESTED ||
-          prev.status === InstallStatus.PROPOSED_AWAITING_USER
-        ) {
-          prevRescheduleCount = Math.max(prevRescheduleCount, prev.rescheduleCount || 0);
-          prev.status = InstallStatus.RESCHEDULED;
-          await schedRepo.save(prev);
         }
       }
 
@@ -230,19 +242,17 @@ export class MutualSchedulingService {
         assertSiteAccess(siteActor, sched.request?.siteId ?? (sched as any).request?.siteId);
       }
 
-      const newCount = sched.rescheduleCount + 1;
+      if (!RESCHEDULABLE_STATUSES.includes(sched.status)) {
+        throw new BadRequestException(`cannot reschedule a ${sched.status} schedule`);
+      }
+
+      const newCount = (sched.rescheduleCount || 0) + 1;
       if (newCount > MAX_RESCHEDULE) {
-        const cancelled = {
-          ...sched,
-          status: InstallStatus.CANCELLED,
-          rescheduleReason: dto.reason,
-          rescheduleCount: newCount,
-        } as InstallationSchedule;
-        await schedRepo.save(cancelled);
-        this.emitter.emit(HardwareEvents.ScheduleCancelled, {
-          requestId, scheduleId, technicianId: sched.technicianId,
-        });
-        return cancelled;
+        // Refuse instead of cancelling: a silent cancel left the request in
+        // INSTALLATION with no usable schedule.
+        throw new BadRequestException(
+          `Batas jadwal ulang (${MAX_RESCHEDULE}x) tercapai. Hubungi tim ICT untuk menjadwalkan ulang.`,
+        );
       }
 
       const updated = {
