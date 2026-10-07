@@ -13,6 +13,7 @@ import {
     AlertTriangle,
     Flame,
     UserCheck,
+    FilePen,
     Code2,
     Columns3,
     TableProperties,
@@ -60,6 +61,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
+    const showCreatedByMe = searchParams.get('filter') === 'created_by_me';
 
     // Sorting state
     const [sortBy, setSortBy] = useState<SortField>('createdAt');
@@ -80,7 +82,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [debouncedSearch, statusFilter, priorityFilter, selectedSites]);
+    }, [debouncedSearch, statusFilter, priorityFilter, selectedSites, showAssignedToMe, showCreatedByMe]);
 
     const { data, isLoading, isError, refetch, isFetching } = useWebDevTickets({
         page: currentPage,
@@ -88,6 +90,8 @@ export const BentoWebDevTicketsPage: React.FC = () => {
         sortBy,
         sortOrder,
         search: debouncedSearch,
+        createdByMe: showCreatedByMe,
+        assignedToMe: showAssignedToMe,
     });
 
     const { isConnected } = useTicketListSocket({
@@ -130,9 +134,6 @@ export const BentoWebDevTicketsPage: React.FC = () => {
     // Apply client-side filters
     const filteredTickets: Ticket[] = useMemo(() => {
         let result = tickets;
-        if (showAssignedToMe) {
-            result = result.filter((t) => t.assignedTo?.id === user?.id);
-        }
         if (statusFilter) {
             result = result.filter((t) => t.status === statusFilter);
         }
@@ -143,7 +144,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
             result = result.filter((t) => t.site?.id && selectedSites.includes(t.site.id));
         }
         return result;
-    }, [tickets, showAssignedToMe, user?.id, statusFilter, priorityFilter, selectedSites]);
+    }, [tickets, statusFilter, priorityFilter, selectedSites]);
 
     // Map Ticket → TicketRowData shape (reused by VirtualizedTicketList)
     const rowData: TicketRowData[] = useMemo(
@@ -184,7 +185,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
         [filteredTickets]
     );
 
-    const hasActiveFilters = Boolean(searchInput || statusFilter || priorityFilter || showAssignedToMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchInput || statusFilter || priorityFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0);
 
     const clearFilters = () => {
         setSearchInput('');
@@ -448,6 +449,23 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                             >
                                 <UserCheck className="w-4 h-4" />
                                 <span>My Tasks</span>
+                            </button>
+                        )}
+
+                        {/* Created By Me Filter */}
+                        {canEdit && (
+                            <button
+                                onClick={() => setSearchParams(showCreatedByMe ? {} : { filter: 'created_by_me' })}
+                                aria-pressed={showCreatedByMe}
+                                className={cn(
+                                    "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
+                                    showCreatedByMe
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-card border-border hover:bg-muted/50 text-foreground'
+                                )}
+                            >
+                                <FilePen className="w-4 h-4" />
+                                <span>Tiket yang saya buat</span>
                             </button>
                         )}
 

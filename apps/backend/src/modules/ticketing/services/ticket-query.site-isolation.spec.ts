@@ -126,6 +126,38 @@ describe('TicketQueryService site isolation', () => {
         });
     });
 
+    describe.each([
+        ['findAllPaginatedOracle', 'oracleTeam'],
+        ['findAllPaginatedWebDev', 'webDevTeam'],
+        ['findAllPaginatedMobileDev', 'mobileDevTeam'],
+    ])('%s (developer queues)', (method) => {
+        const CREATED_BY_ME = '(ticket.userId = :userId OR ticket."createdById" = :filerId)';
+        const calls = () => mockQueryBuilder.andWhere.mock.calls.map((c: any[]) => c[0]);
+
+        it('"created by me" keeps the team filter but skips site scoping', async () => {
+            await service[method]('agent-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-spj', { createdByMe: true });
+
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(CREATED_BY_ME, { userId: 'agent-1', filerId: 'agent-1' });
+            expect(mockQueryBuilder.where).toHaveBeenCalled(); // team filter
+            expect(calls()).not.toContain(OWN_SITE);
+            expect(calls()).not.toContain(MATCH_NOTHING);
+        });
+
+        it('filters "assigned to me" on the server, inside the normal site scope', async () => {
+            await service[method]('agent-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-spj', { assignedToMe: true });
+
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.assignedToId = :assigneeId', { assigneeId: 'agent-1' });
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OWN_SITE, { userSiteId: 'site-spj' });
+        });
+
+        it('applies site scoping as before without either filter', async () => {
+            await service[method]('agent-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-spj');
+
+            expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OWN_SITE, { userSiteId: 'site-spj' });
+            expect(calls()).not.toContain(CREATED_BY_ME);
+        });
+    });
+
     describe('unpaginated list', () => {
         it('pins a site-locked agent to their own site', async () => {
             await service.findAll('user-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-spj');
