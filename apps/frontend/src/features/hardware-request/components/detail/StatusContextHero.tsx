@@ -17,6 +17,7 @@ import { StatusBadge } from '../common/StatusBadge';
 import { STATUS_META, getStatusMeta } from '../../utils/status.util';
 import { fmtDate } from '../../utils/format.util';
 import { REQUEST_PIPELINE, type HardwareRequest, type RequestStatus } from '../../types';
+import { pickActiveSchedule } from '../../utils/active-schedule.util';
 
 interface StatusExplanation {
     title: string;
@@ -87,9 +88,7 @@ export function StatusContextHero({ r }: { r: HardwareRequest }) {
     const isInstallationOnly = String(r.justification || '').includes('[PENJADWALAN PEMASANGAN]');
     const isNonBudget = String(r.justification || '').includes('[NON-BUDGET]');
 
-    const activeSchedule = (r.schedules && r.schedules.length > 0)
-        ? [...r.schedules].reverse().find((s) => s.status !== 'CANCELLED') || r.schedules[r.schedules.length - 1]
-        : r.installationSchedule;
+    const activeSchedule = pickActiveSchedule(r);
     const hasConfirmedSchedule = activeSchedule && ['CONFIRMED', 'IN_PROGRESS', 'DONE'].includes(activeSchedule.status);
     const hasProposedSchedule = activeSchedule && activeSchedule.status === 'PROPOSED_AWAITING_USER';
 

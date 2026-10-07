@@ -173,7 +173,7 @@ export function InstallationScheduleCard({
                                     className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-card hover:bg-muted border border-border text-foreground transition-all shadow-2xs cursor-pointer shrink-0"
                                 >
                                     <RotateCcw className="size-3.5 text-muted-foreground" />
-                                    <span>Ajukan Jadwal Ulang</span>
+                                    <span>{isStaff ? 'Usulkan Jadwal Baru' : 'Ajukan Jadwal Ulang'}</span>
                                 </button>
                             )}
                         </div>

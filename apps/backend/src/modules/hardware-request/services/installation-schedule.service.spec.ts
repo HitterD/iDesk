@@ -189,5 +189,37 @@ describe('InstallationScheduleService', () => {
             expect(res.status).toBe(InstallStatus.DONE);
             expect(res.completedAt).toBeDefined();
         });
+
+        it('CONFIRMED → DONE and keeps the scheduled technician', async () => {
+            scheduleRepo.findOne.mockResolvedValue({
+                id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED, technicianId: 'tech-a',
+            });
+
+            const res = await svc.completeInstallation('r1', { id: 'admin-1', role: 'ICT_STAFF' });
+
+            expect(res.status).toBe(InstallStatus.DONE);
+            expect(res.technicianId).toBe('tech-a');
+        });
+
+        it('only looks at confirmed or in-progress schedules', async () => {
+            scheduleRepo.findOne.mockResolvedValue({ id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED });
+
+            await svc.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' });
+
+            expect(scheduleRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({
+                where: expect.objectContaining({ requestId: 'r1' }),
+            }));
+            const where = scheduleRepo.findOne.mock.calls[0][0].where;
+            expect(where.status.value).toEqual([InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS]);
+        });
+
+        it('refuses when there is no confirmed schedule (e.g. user asked to reschedule)', async () => {
+            scheduleRepo.findOne.mockResolvedValue(null);
+
+            await expect(svc.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' }))
+                .rejects.toThrow(/jadwal terkonfirmasi/i);
+            expect(scheduleRepo.save).not.toHaveBeenCalled();
+            expect(scheduleRepo.create).not.toHaveBeenCalled();
+        });
     });
 });

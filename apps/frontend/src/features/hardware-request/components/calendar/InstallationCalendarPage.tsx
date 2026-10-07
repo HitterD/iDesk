@@ -21,6 +21,9 @@ import { fetchMyTodaySchedules, fetchUnscheduledRequests } from '../../api/insta
 import type { CalendarEventData } from '../../types/calendar.types';
 import { cn } from '@/lib/utils';
 
+/** Drag-to-reschedule is off until it goes through the slot-proposal flow. */
+const CALENDAR_DRAG_ENABLED = false;
+
 type TodaySchedule = { id: string; requestId: string; scheduledAt: string; siteName: string; requestNumber: string };
 type UnscheduledRequest = { id: string; requestNumber: string; siteName: string; createdAt?: string };
 
@@ -238,7 +241,9 @@ export function InstallationCalendarPage() {
         title: e.requestNumber,
         start: e.scheduledAt,
         end: e.endsAt ?? undefined,
-        editable: isIctStaff,
+        // Dragging used the legacy reschedule endpoint, which always rejected the payload.
+        // Move a slot from the request detail page ("Usulkan Jadwal Baru") instead.
+        editable: CALENDAR_DRAG_ENABLED && isIctStaff,
         extendedProps: e,
       })),
     [events, isIctStaff]
@@ -401,7 +406,7 @@ export function InstallationCalendarPage() {
             eventContent={(info) => <EventChipMedium event={info.event.extendedProps as CalendarEventData} />}
             eventClick={(info) => openDrawer(info.event.start ?? new Date(), info.event.id)}
             dateClick={(info) => openDrawer(info.date, null)}
-            editable={isIctStaff}
+            editable={CALENDAR_DRAG_ENABLED && isIctStaff}
             eventDrop={(info) => {
               const e = info.event.extendedProps as CalendarEventData;
               setPendingReschedule({

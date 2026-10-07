@@ -79,6 +79,53 @@ describe('MutualSchedulingService', () => {
       }));
     });
 
+    describe('re-proposing for the same request', () => {
+      const arrange = (existing: any[], busy: any[] = existing) => {
+        mockDataSource._reqRepo.findOne.mockResolvedValue({ id: 'r1', requesterId: 'u1', status: RequestStatus.INSTALLATION });
+        mockDataSource._itemRepo.findBy.mockResolvedValue([{ id: 'i1', requestId: 'r1', deliveryStatus: 'ARRIVED' }]);
+        mockDataSource._schedRepo.find.mockImplementation(async ({ where }: any) =>
+          where.technicianId ? busy : existing);
+      };
+
+      it('does not count this request\'s own confirmed slot as a conflict', async () => {
+        const slot = futureSlot(48);
+        const confirmed = {
+          id: 'old', requestId: 'r1', status: InstallStatus.CONFIRMED, rescheduleCount: 0,
+          scheduledStart: new Date(slot.start), scheduledEnd: new Date(slot.end),
+        };
+        arrange([confirmed]);
+
+        const result = await service.proposeSchedule('r1', { itemIds: ['i1'], technicianId: 't1', slots: [slot] }, { id: 'ict-1' });
+
+        expect(result.status).toBe(InstallStatus.PROPOSED_AWAITING_USER);
+      });
+
+      it('retires the previously confirmed schedule so only the new proposal is active', async () => {
+        const confirmed = {
+          id: 'old', requestId: 'r1', status: InstallStatus.CONFIRMED, rescheduleCount: 1,
+          scheduledStart: new Date(futureSlot(24).start), scheduledEnd: new Date(futureSlot(24).end),
+        };
+        arrange([confirmed], []);
+
+        const result = await service.proposeSchedule('r1', { itemIds: ['i1'], technicianId: 't1', slots: [futureSlot(72)] }, { id: 'ict-1' });
+
+        expect(mockDataSource._schedRepo.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'old', status: InstallStatus.RESCHEDULED }));
+        expect(result.rescheduleCount).toBe(1);
+      });
+
+      it('still blocks a slot taken by another request', async () => {
+        const slot = futureSlot(48);
+        const otherRequest = {
+          id: 'other', requestId: 'r2', status: InstallStatus.CONFIRMED,
+          scheduledStart: new Date(slot.start), scheduledEnd: new Date(slot.end),
+        };
+        arrange([], [otherRequest]);
+
+        await expect(service.proposeSchedule('r1', { itemIds: ['i1'], technicianId: 't1', slots: [slot] }, { id: 'ict-1' }))
+          .rejects.toThrow(/conflicting slot/i);
+      });
+    });
+
     it('rejects if any item not ARRIVED', async () => {
       mockDataSource._reqRepo.findOne.mockResolvedValue({ id: 'r1', status: RequestStatus.AWAITING_DELIVERY });
       mockDataSource._itemRepo.findBy.mockResolvedValue([
@@ -139,16 +186,26 @@ describe('MutualSchedulingService', () => {
       expect(mockEmitter.emit).toHaveBeenCalledWith('schedule.reschedule-requested', expect.any(Object));
     });
 
-    it('auto-cancels when count would exceed 3', async () => {
+    it('rejects a 4th reschedule and leaves the schedule as it was', async () => {
       mockDataSource._schedRepo.findOne.mockResolvedValue({
-        id: 'sch-1', status: InstallStatus.PROPOSED_AWAITING_USER,
+        id: 'sch-1', status: InstallStatus.CONFIRMED,
         rescheduleCount: 3, requestId: 'r1',
       });
 
-      const result = await service.requestReschedule('r1', 'sch-1', { reason: 'busy again' }, { id: 'u1' });
-
-      expect(result.status).toBe(InstallStatus.CANCELLED);
-      expect(mockEmitter.emit).toHaveBeenCalledWith('schedule.cancelled', expect.any(Object));
+      await expect(service.requestReschedule('r1', 'sch-1', { reason: 'busy again' }, { id: 'u1' }))
+        .rejects.toThrow(/batas jadwal ulang/i);
+      expect(mockDataSource._schedRepo.save).not.toHaveBeenCalled();
+      expect(mockEmitter.emit).not.toHaveBeenCalled();
     });
+
+    it.each([InstallStatus.DONE, InstallStatus.CANCELLED, InstallStatus.RESCHEDULED, InstallStatus.IN_PROGRESS])(
+      'rejects a reschedule of a %s schedule',
+      async (status) => {
+        mockDataSource._schedRepo.findOne.mockResolvedValue({ id: 'sch-1', status, rescheduleCount: 0, requestId: 'r1' });
+
+        await expect(service.requestReschedule('r1', 'sch-1', { reason: 'x' }, { id: 'u1' }))
+          .rejects.toThrow(/cannot reschedule/i);
+      },
+    );
   });
 });

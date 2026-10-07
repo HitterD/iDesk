@@ -9,6 +9,7 @@ import {
     HR_EVT, HrSubmitted, HrApproved, HrRejected, HrCancelled,
     HrProcurementDone, HrScheduleProposed, HrScheduleConfirmed, HrScheduleRescheduled,
     HrInstallStarted, HrInstallCompleted, HrCommented,
+    HardwareEvents, ScheduleProposedPayload, ScheduleConfirmedPayload, ScheduleRescheduleRequestedPayload,
 } from '../domain/events/hardware-request.events';
 
 const link = (id: string) => `/hardware-requests/${id}`;
@@ -159,6 +160,45 @@ export class InAppNotifierListener {
             referenceId: `${e.requestId}_sched_${e.newId}_rescheduled`,
             requiresAcknowledge: true,
         })));
+    }
+
+    // Mutual-scheduling (v2) emits its own event names; without these handlers slot
+    // proposals and reschedule requests reached nobody.
+    @OnEvent(HardwareEvents.ScheduleProposed)
+    async onSlotsProposed(e: ScheduleProposedPayload) {
+        await this.push(e.ownerId, {
+            title: 'Pilih jadwal pemasangan',
+            message: 'Tim ICT mengusulkan slot waktu pemasangan. Mohon pilih yang sesuai.',
+            type: NotificationType.HARDWARE_REQUEST_SCHEDULE_PROPOSED,
+            link: link(e.requestId),
+            referenceId: `${e.requestId}_sched_${e.scheduleId}_proposed`,
+            requiresAcknowledge: true,
+        });
+    }
+
+    @OnEvent(HardwareEvents.ScheduleConfirmed)
+    async onSlotConfirmed(e: ScheduleConfirmedPayload) {
+        const r = await this.q.findById(e.requestId);
+        const recipients = [r?.requesterId, e.technicianId].filter((u): u is string => !!u);
+        await Promise.all(recipients.map(u => this.push(u, {
+            title: 'Jadwal instalasi terkonfirmasi',
+            message: 'Siap dilaksanakan',
+            type: NotificationType.HARDWARE_REQUEST_SCHEDULE_CONFIRMED,
+            link: link(e.requestId),
+            referenceId: `${e.requestId}_sched_${e.scheduleId}_confirmed`,
+        })));
+    }
+
+    @OnEvent(HardwareEvents.ScheduleRescheduleRequested)
+    async onRescheduleRequested(e: ScheduleRescheduleRequestedPayload) {
+        await this.push(e.technicianId, {
+            title: 'User minta jadwal ulang',
+            message: e.reason ? `Alasan: ${e.reason}` : 'Mohon usulkan jadwal baru',
+            type: NotificationType.HARDWARE_REQUEST_SCHEDULE_RESCHEDULED,
+            link: link(e.requestId),
+            referenceId: `${e.requestId}_sched_${e.scheduleId}_reschedule_${e.rescheduleCount}`,
+            requiresAcknowledge: true,
+        });
     }
 
     @OnEvent(HR_EVT.INSTALL_STARTED)
