@@ -418,6 +418,30 @@ export class TicketQueryService {
         };
     }
 
+    /**
+     * Scoping shared by the developer queues (Oracle/K2, Web Dev, Mobile Dev); the team
+     * filter is applied by each caller. "Created by me" skips site and service scoping,
+     * like the IT Support list: the caller's own tickets are always visible to them.
+     */
+    private applyDevQueueScope(
+        qb: import('typeorm').SelectQueryBuilder<Ticket>,
+        userId: string,
+        role: UserRole,
+        userSiteId: string | null,
+        options: { siteId?: string; siteIds?: string[]; createdByMe?: boolean; assignedToMe?: boolean },
+    ): void {
+        if (options.createdByMe) {
+            // Separate params: userId is uuid, createdById is varchar.
+            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :filerId)', { userId, filerId: userId });
+        } else {
+            applySiteFilter(qb, role, userSiteId, { siteId: options.siteId, siteIds: options.siteIds });
+            applyServiceScopeFilter(qb, role);
+        }
+        if (options.assignedToMe) {
+            qb.andWhere('ticket.assignedToId = :assigneeId', { assigneeId: userId });
+        }
+    }
+
     async findAllPaginatedOracle(
         userId: string,
         role: UserRole,
@@ -434,6 +458,8 @@ export class TicketQueryService {
             siteIds?: string[];
             startDate?: string;
             endDate?: string;
+            createdByMe?: boolean;
+            assignedToMe?: boolean;
         } = {},
     ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
         const {
@@ -470,8 +496,7 @@ export class TicketQueryService {
             );
 
         // Site isolation (matches findAllPaginated behaviour)
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
-        applyServiceScopeFilter(qb, role);
+        this.applyDevQueueScope(qb, userId, role, userSiteId, options);
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });
@@ -548,6 +573,8 @@ export class TicketQueryService {
             siteIds?: string[];
             startDate?: string;
             endDate?: string;
+            createdByMe?: boolean;
+            assignedToMe?: boolean;
         } = {},
     ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
         const {
@@ -580,8 +607,7 @@ export class TicketQueryService {
                 },
             );
 
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
-        applyServiceScopeFilter(qb, role);
+        this.applyDevQueueScope(qb, userId, role, userSiteId, options);
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });
@@ -657,6 +683,8 @@ export class TicketQueryService {
             siteIds?: string[];
             startDate?: string;
             endDate?: string;
+            createdByMe?: boolean;
+            assignedToMe?: boolean;
         } = {},
     ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
         const {
@@ -689,8 +717,7 @@ export class TicketQueryService {
                 },
             );
 
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
-        applyServiceScopeFilter(qb, role);
+        this.applyDevQueueScope(qb, userId, role, userSiteId, options);
 
         if (status) {
             qb.andWhere('ticket.status = :status', { status });

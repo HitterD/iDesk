@@ -8,6 +8,9 @@ export interface WebDevTicketsParams {
     sortBy: string;
     sortOrder: 'ASC' | 'DESC';
     search: string;
+    /** Server-side "Tiket yang saya buat" / "My Tasks" filters, so paging and totals stay right. */
+    createdByMe?: boolean;
+    assignedToMe?: boolean;
 }
 
 export interface WebDevTicketsResponse {
@@ -30,6 +33,8 @@ async function fetchWebDevTickets(params: WebDevTicketsParams): Promise<WebDevTi
             sortBy: params.sortBy,
             sortOrder: params.sortOrder,
             search: params.search || undefined,
+            createdByMe: params.createdByMe || undefined,
+            assignedToMe: params.assignedToMe || undefined,
         },
     });
     return response.data;
@@ -37,7 +42,7 @@ async function fetchWebDevTickets(params: WebDevTicketsParams): Promise<WebDevTi
 
 export function useWebDevTickets(params: WebDevTicketsParams) {
     return useQuery({
-        queryKey: ['tickets', 'web-dev', params.page, params.limit, params.sortBy, params.sortOrder, params.search],
+        queryKey: ['tickets', 'web-dev', params.page, params.limit, params.sortBy, params.sortOrder, params.search, params.createdByMe ?? false, params.assignedToMe ?? false],
         queryFn: () => fetchWebDevTickets(params),
         placeholderData: keepPreviousData,
         staleTime: 30_000,
