@@ -3,10 +3,13 @@ import { toast } from 'sonner';
 import axiosRetry from 'axios-retry';
 import { getErrorMessage, getErrorMessageFromStatus, resolveNetworkOrServerError } from './errorMessages';
 import { shouldRetryRequest } from './retryPolicy';
+import { singleFlightRefresh, SessionCoordinationUnavailableError } from './sessionCoordinator';
 
 declare module 'axios' {
     export interface AxiosRequestConfig {
         skipToast?: boolean;
+        sessionGeneration?: number;
+        skipSessionRefresh?: boolean;
     }
 }
 
@@ -39,6 +42,7 @@ axiosRetry(api, {
 // === Request Interceptor with Dev Logging ===
 api.interceptors.request.use(
     (config) => {
+        config.sessionGeneration ??= authHandlers.generation?.();
         // Generate and attach request ID for error correlation
         const requestId = generateRequestId();
         config.headers['X-Request-ID'] = requestId;
@@ -63,7 +67,7 @@ api.interceptors.request.use(
         if (import.meta.env.DEV) {
             console.group(`${config.method?.toUpperCase()} ${config.url} [${requestId}]`);
             if (config.params) console.log('Params:', config.params);
-            if (config.data && !(config.data instanceof FormData)) console.log('Data:', config.data);
+            if (config.data && !(config.data instanceof FormData) && !config.url?.includes('/auth/')) console.log('Data:', config.data);
             console.groupEnd();
         }
 
@@ -88,25 +92,14 @@ function getCsrfTokenFromCookie(): string | null {
     return null;
 }
 
-// State for handling concurrent refresh requests
-let isRefreshing = false;
-let failedQueue: Array<{ resolve: (value?: unknown) => void; reject: (reason?: any) => void }> = [];
-
-const processQueue = (error: AxiosError | null) => {
-    failedQueue.forEach((prom) => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve();
-        }
-    });
-    failedQueue = [];
-};
-
 export interface AuthHandlers {
     logout?: () => void;
     setExpiresAt?: (expiresAt: string | null) => void;
     isAuthenticated?: () => boolean;
+    generation?: () => number;
+    syncStorage?: () => void;
+    applyRefresh?: (data: any) => void;
+    session?: () => { user: unknown; expiresAt: string | null; sessionId: string | null; isAuthenticated: boolean; refreshRevision: number };
 }
 
 let authHandlers: AuthHandlers = {};
@@ -114,6 +107,22 @@ let authHandlers: AuthHandlers = {};
 export const registerAuthHandlers = (handlers: AuthHandlers): void => {
     authHandlers = { ...authHandlers, ...handlers };
 };
+
+export function refreshSession(): Promise<import('axios').AxiosResponse> {
+    const generation = authHandlers.generation?.() ?? 0;
+    const initial = authHandlers.session?.();
+    return singleFlightRefresh(generation, async () => {
+        authHandlers.syncStorage?.();
+        const current = authHandlers.session?.();
+        if (generation !== (authHandlers.generation?.() ?? 0)) throw new Error('Session changed');
+        if (initial?.isAuthenticated && current && current.refreshRevision > initial.refreshRevision) {
+            return { data: { user: current.user, expiresAt: current.expiresAt } } as import('axios').AxiosResponse;
+        }
+        const response = await api.post('/auth/refresh');
+        if (generation === (authHandlers.generation?.() ?? 0)) authHandlers.applyRefresh?.(response.data);
+        return response;
+    });
+}
 
 let hasRedirectedToLogin = false;
 
@@ -152,7 +161,8 @@ api.interceptors.response.use(
         }
         // Keep local session expiry in sync when backend rotates tokens.
         const expiresAt: unknown = (response.data as Record<string, unknown> | undefined)?.expiresAt;
-        if (typeof expiresAt === 'string' && response.config?.url?.includes('/auth/')) {
+        if (typeof expiresAt === 'string' && response.config?.url?.includes('/auth/') &&
+            response.config.sessionGeneration === authHandlers.generation?.()) {
             const iso = Date.parse(expiresAt) ? expiresAt : null;
             if (iso) authHandlers.setExpiresAt?.(iso);
         }
@@ -176,42 +186,33 @@ api.interceptors.response.use(
 
         if (response) {
             // Single 401 handler: try refresh once, otherwise force logout (no duplicate block).
-            if (response.status === 401 && !isLoginRequest && !isRefreshRequest && !isLogoutRequest && isCurrentlyAuthenticated) {
+            if (response.status === 401 && !isLoginRequest && !isRefreshRequest && !isLogoutRequest && isCurrentlyAuthenticated && !originalRequest?.skipSessionRefresh) {
+                const generation = originalRequest.sessionGeneration;
+                const isCurrent = () => generation === authHandlers.generation?.();
+                if (!isCurrent()) return Promise.reject(error);
                 if (originalRequest._retry) {
                     forceLogout();
                     return Promise.reject(error);
                 }
-                if (isRefreshing) {
-                    return new Promise(function(resolve, reject) {
-                        failedQueue.push({ resolve, reject });
-                    }).then(() => {
-                        return api(originalRequest);
-                    }).catch(err => {
-                        return Promise.reject(err);
-                    });
-                }
-
                 originalRequest._retry = true;
-                isRefreshing = true;
 
                 try {
-                    const refreshRes = await api.post('/auth/refresh');
+                    const refreshRes = await refreshSession();
+                    if (!isCurrent()) return Promise.reject(error);
                     const nextExpiresAt: unknown = (refreshRes.data as Record<string, unknown> | undefined)?.expiresAt;
                     if (typeof nextExpiresAt === 'string') {
                         const iso = Date.parse(nextExpiresAt) ? nextExpiresAt : null;
                         if (iso) authHandlers.setExpiresAt?.(iso);
                     }
-                    processQueue(null);
                     return api(originalRequest);
                 } catch (refreshError) {
-                    processQueue(refreshError as AxiosError);
                     // A rate-limited refresh says nothing about the session; keep the user signed in.
-                    if ((refreshError as AxiosError).response?.status !== HTTP_TOO_MANY_REQUESTS) {
+                    if ((refreshError as AxiosError).response?.status === 401 && isCurrent()) {
                         forceLogout();
+                    } else if (isCurrent()) {
+                        toast.error(refreshError instanceof SessionCoordinationUnavailableError ? refreshError.message : 'Pembaruan sesi gagal sementara. Periksa koneksi dan coba lagi.');
                     }
                     return Promise.reject(refreshError);
-                } finally {
-                    isRefreshing = false;
                 }
             }
 

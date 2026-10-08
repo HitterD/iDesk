@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../stores/useAuth';
-import api from '../lib/api';
+import { refreshSession } from '../lib/api';
 import { getErrorMessage } from '../lib/errorMessages';
 
 const WARNING_LEAD_MS = 5 * 60 * 1000;
@@ -36,8 +36,8 @@ function forceExpiredRedirect(): void {
 
 /**
  * Proactive session timeout.
- * - Schedules a hard redirect at `expiresAt` so idle tabs still fall back to /login without needing a 401 trigger.
- * - Fires a warning at T-5m and attempts a silent `POST /auth/refresh`; api interceptor syncs the new expiresAt on success.
+ * - Attempts coordinated refresh at expiry and T-5m; only a current-generation 401 redirects.
+ * - Transient failures preserve the session and show an error; visibility/interval polls retry.
  * - Re-arms whenever `expiresAt` changes (login/refresh) and on visibility/interval polls.
  */
 export function useSessionTimeout(): void {
@@ -66,14 +66,17 @@ export function useSessionTimeout(): void {
         const state = useAuth.getState();
         if (!state.isAuthenticated) return;
         try {
-            const res = await api.post('/auth/refresh');
+            const res = await refreshSession();
+            if (useAuth.getState().generation !== state.generation) return;
             const nextExpiresAt: unknown = (res.data as Record<string, unknown> | undefined)?.expiresAt;
             if (typeof nextExpiresAt === 'string' && Date.parse(nextExpiresAt)) {
                 state.setExpiresAt(nextExpiresAt);
             }
-        } catch {
-            // Refresh token invalid or expired: now safely redirect to login
-            forceExpiredRedirect();
+        } catch (error: unknown) {
+            if (useAuth.getState().generation !== state.generation) return;
+            const status = (error as { response?: { status?: number } })?.response?.status;
+            if (status === 401) forceExpiredRedirect();
+            else toast.error('Pembaruan sesi gagal sementara. Periksa koneksi dan coba lagi.');
         }
     }, []);
 

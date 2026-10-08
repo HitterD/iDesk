@@ -9,6 +9,7 @@ import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS, RATE_LIMIT_W
 import { useTheme } from '@/hooks/useTheme';
 import { restoreSession } from '@/hooks/useSessionRestore';
 import api from '../../../lib/api';
+import { coordinateSession, SessionCoordinationUnavailableError } from '@/lib/sessionCoordinator';
 import { getRoleHome } from '@/lib/roleHome';
 import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
 import { ForgotPasswordDialog } from '../components/ForgotPasswordDialog';
@@ -128,10 +129,7 @@ export const BentoLoginPage = () => {
         const getState = (useAuth as any)?.getState;
         if (typeof getState !== 'function') return;
 
-        if (expiredNotice) {
-            getState()?.logout?.();
-            return;
-        }
+        if (expiredNotice) return;
 
         const authState = getState();
         if (authState?.isAuthenticated && authState?.user && !authState?.isSessionExpired?.()) {
@@ -244,14 +242,17 @@ export const BentoLoginPage = () => {
         if (rateLimitSeconds > 0) return;
         setIsLoading(true);
         try {
-            const res = await api.post('/auth/login', { email, password, rememberMe });
+            const res = await coordinateSession(async () => {
+                const response = await api.post('/auth/login', { email, password, rememberMe });
+                login(response.data.user, response.data.expiresAt ?? null);
+                return response;
+            });
             const { user, expiresAt } = res.data as { user: Parameters<typeof login>[0]; expiresAt?: string };
             setFailedAttempts(0);
             setLoginError(null);
             const key = getStorageKey(email);
             if (key) { try { localStorage.removeItem(key); } catch {} }
 
-            login(user, typeof expiresAt === 'string' ? expiresAt : null);
 
             // Auto-sync ke SJA Desktop Notifier jika aplikasi berjalan di PC lokal (port 18399)
             try {
@@ -287,6 +288,10 @@ export const BentoLoginPage = () => {
                 }, 380);
             }
         } catch (err: unknown) {
+            if (err instanceof SessionCoordinationUnavailableError) {
+                setLoginError({ type: 'error', message: 'Koordinasi sesi tidak tersedia', details: err.message });
+                return;
+            }
             const newAttemptCount = failedAttempts + 1;
             const error = getErrorFromResponse(err, failedAttempts);
             if (axios.isAxiosError(err) && err.response?.status === 429) {
