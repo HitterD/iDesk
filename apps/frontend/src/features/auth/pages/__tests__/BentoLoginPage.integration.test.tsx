@@ -17,6 +17,9 @@ const mockApi = api as unknown as { post: ReturnType<typeof vi.fn> };
 
 describe('BentoLoginPage integration', () => {
   beforeEach(() => {
+    Object.defineProperty(navigator, 'locks', { value: {
+      request: async (_name: string, _options: unknown, callback: () => unknown) => callback(),
+    }, configurable: true });
     mockApi.post.mockReset();
     mockApi.post.mockImplementation((url: string) => {
       if (url === '/auth/refresh') {

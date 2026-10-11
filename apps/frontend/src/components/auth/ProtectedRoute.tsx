@@ -4,6 +4,7 @@ import { useAuth } from '../../stores/useAuth';
 import { useHasPermission, useHasPageAccess } from '@/hooks/usePermissions';
 import { ShieldAlert } from 'lucide-react';
 import { getRoleHome } from '@/lib/roleHome';
+import { restoreSession } from '@/hooks/useSessionRestore';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -23,7 +24,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     permissionAction = 'view',
     requiredPageAccess,
 }) => {
-    const { isAuthenticated, user, isSessionExpired } = useAuth();
+    const { isAuthenticated, user, restoreError, sessionRejected, isRestoringSession } = useAuth();
     const location = useLocation();
 
     // Check feature permission if specified
@@ -37,9 +38,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         requiredPageAccess || ''
     );
 
+    if (isRestoringSession) return <p role="status">Memulihkan sesi...</p>;
+
+    if (restoreError) {
+        return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4">
+            <p>{restoreError}</p>
+            <button onClick={() => { void restoreSession(); }} className="px-4 py-2 bg-primary text-white rounded-xl">Coba lagi</button>
+        </div>;
+    }
+
     // Not logged in - token is in HttpOnly cookie, we check auth state
     if (!isAuthenticated || !user) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
+        return <Navigate to={sessionRejected ? '/login?reason=expired' : '/login'} state={{ from: location }} replace />;
     }
 
     // ADMIN bypasses all checks
