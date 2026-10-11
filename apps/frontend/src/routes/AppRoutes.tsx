@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { FeatureErrorBoundary } from '../components/ui/FeatureErrorBoundary';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
@@ -116,6 +116,21 @@ const EformLinkRedirect = () => {
     return <Navigate to={`${prefix}/eform-access/${id}`} replace />;
 };
 
+// iPop calendar entries link to the portal-agnostic `/zoom-booking/:id`; open that
+// booking in the Zoom calendar of the recipient's own portal.
+const ZoomBookingLinkRedirect = () => {
+    const { isAuthenticated, user } = useAuth();
+    const { id } = useParams<{ id: string }>();
+    const location = useLocation();
+
+    if (!isAuthenticated || !user) {
+        return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+    }
+
+    const prefix = user.role === 'USER' ? '/client' : user.role === 'MANAGER' ? '/manager' : '';
+    return <Navigate to={`${prefix}/zoom-calendar?booking=${encodeURIComponent(id ?? '')}`} replace />;
+};
+
 interface LazyRouteProps {
     component: React.LazyExoticComponent<any> | React.ComponentType<any>;
     featureName: string;
@@ -165,6 +180,7 @@ export default function AppRoutes() {
                 <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
                 <Route path="/devices/activate" element={<Suspense fallback={<PageLoader />}><DeviceActivationPage /></Suspense>} />
                 <Route path="/eform/:id" element={<EformLinkRedirect />} />
+                <Route path="/zoom-booking/:id" element={<ZoomBookingLinkRedirect />} />
 
                 {/* Root Route - Global role-based redirect for all authenticated users */}
                 <Route path="/" element={<RoleBasedRedirect />} />
