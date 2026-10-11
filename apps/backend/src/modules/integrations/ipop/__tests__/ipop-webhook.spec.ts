@@ -85,6 +85,20 @@ describe('IpopTicketEventsListener.reportChanges', () => {
         expect(webhooks.enqueue).toHaveBeenCalledWith(event, expect.objectContaining({ status }), { previousStatus: 'TODO' });
     });
 
+    it('reports a moved installation visit', async () => {
+        const before = { start: '2026-10-13T02:00:00.000Z', end: '2026-10-13T03:00:00.000Z', hardwareType: 'PC' };
+        const after = { ...before, start: '2026-10-14T02:00:00.000Z', end: '2026-10-14T03:00:00.000Z' };
+        const { listener, webhooks } = build(view({ visit: before }));
+        await listener.reportChanges(view({ visit: after }));
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.visit_changed', expect.objectContaining({ visit: after }), { previousVisit: before });
+    });
+
+    it('does not treat snapshots from before visits existed as a move', async () => {
+        const { listener, webhooks } = build(view());
+        await listener.reportChanges(view({ visit: { start: 'a', end: 'b', hardwareType: null } }));
+        expect(webhooks.enqueue).not.toHaveBeenCalled();
+    });
+
     it('stays silent when nothing iPop tracks has changed (e.g. a priority edit)', async () => {
         const { listener, webhooks } = build(view());
         await listener.reportChanges(view({ priority: 'HIGH' }));

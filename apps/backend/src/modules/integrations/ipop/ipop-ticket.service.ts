@@ -12,6 +12,8 @@ import { mkdir, unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
 import { randomBytes } from 'crypto';
 import { Ticket, TicketSource, TicketType, TICKET_INACTIVE_STATUSES } from '../../ticketing/entities/ticket.entity';
+import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { User } from '../../users/entities/user.entity';
 import { TicketCreateService } from '../../ticketing/services/ticket-create.service';
 import { CreateTicketDto } from '../../ticketing/dto/create-ticket.dto';
@@ -27,7 +29,7 @@ const HIDDEN_FROM_REQUESTER: TicketType[] = [TicketType.ICT_BUDGET, TicketType.H
 const MAX_LIST = 100;
 const PG_UNIQUE_VIOLATION = '23505';
 
-/** What iPop may see of a ticket: progress only, never chat, attachments or internal notes. */
+/** What iPop may see of a ticket: progress only. The public chat has its own endpoint; internal notes never leave iDesk. */
 export interface IpopTicketView {
     ticketId: string;
     ticketNumber: string;
@@ -43,11 +45,36 @@ export interface IpopTicketView {
     title: string;
     assignee: { name: string } | null;
     slaTarget: string | null;
+    /** ICT visit of a hardware-installation ticket (UTC), so iPop can put it on the requester's calendar. */
+    visit: IpopVisit | null;
     createdAt: string;
     updatedAt: string;
     resolvedAt: string | null;
     closedAt: string | null;
     url: string;
+}
+
+export interface IpopVisit {
+    start: string;
+    end: string;
+    hardwareType: string | null;
+}
+
+/** One public chat message of a ticket, as plain text. */
+export interface IpopMessageView {
+    id: string;
+    sender: { name: string | null };
+    /** True when the requester wrote it (their own side of the conversation). */
+    fromRequester: boolean;
+    content: string;
+    attachments: { name: string }[];
+    createdAt: string;
+}
+
+export interface IpopMessagesView {
+    ticketNumber: string;
+    url: string;
+    messages: IpopMessageView[];
 }
 
 export interface IpopCreateResult {
@@ -62,6 +89,7 @@ export class IpopTicketService {
     constructor(
         @InjectRepository(Ticket) private readonly ticketRepo: Repository<Ticket>,
         @InjectRepository(User) private readonly userRepo: Repository<User>,
+        @InjectRepository(TicketMessage) private readonly messageRepo: Repository<TicketMessage>,
         private readonly catalog: IpopCatalogService,
         private readonly ticketCreate: TicketCreateService,
         private readonly config: ConfigService,
@@ -121,6 +149,33 @@ export class IpopTicketService {
         return this.toView(ticket);
     }
 
+    /**
+     * The public conversation of a ticket, oldest first (the latest MAX_MESSAGES). Internal
+     * notes and system messages never leave iDesk; files are listed by name and opened in iDesk.
+     */
+    async getMessages(ticketNumber: string): Promise<IpopMessagesView> {
+        const ticket = await this.ticketRepo.findOne({ where: { ticketNumber }, relations: VIEW_RELATIONS });
+        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to iPop`);
+        const rows = await this.messageRepo.find({
+            where: { ticketId: ticket.id, isInternal: false, isSystemMessage: false },
+            relations: ['sender'],
+            order: { createdAt: 'DESC' },
+            take: MAX_MESSAGES,
+        });
+        return {
+            ticketNumber: ticket.ticketNumber,
+            url: this.toView(ticket).url,
+            messages: rows.reverse().map((m) => ({
+                id: m.id,
+                sender: { name: m.sender?.fullName ?? null },
+                fromRequester: !!m.senderId && m.senderId === ticket.userId,
+                content: plainText(m.content),
+                attachments: attachmentNames(m),
+                createdAt: new Date(m.createdAt).toISOString(),
+            })),
+        };
+    }
+
     async find(query: IpopTicketQueryDto): Promise<IpopTicketView[]> {
         if (query.externalRef) {
             const ticket = await this.findByRef(query.externalRef);
@@ -161,6 +216,7 @@ export class IpopTicketService {
             title: ticket.title,
             assignee: ticket.assignedTo ? { name: ticket.assignedTo.fullName } : null,
             slaTarget: ticket.slaTarget ? new Date(ticket.slaTarget).toISOString() : null,
+            visit: visitOf(ticket),
             createdAt: new Date(ticket.createdAt).toISOString(),
             updatedAt: new Date(ticket.updatedAt).toISOString(),
             resolvedAt: ticket.resolvedAt ? new Date(ticket.resolvedAt).toISOString() : null,
@@ -235,6 +291,44 @@ export class IpopTicketService {
 }
 
 const VIEW_RELATIONS = ['assignedTo', 'user'];
+const MAX_MESSAGES = 200;
+/** iDesk books installation slots in WIB (UTC+7, no DST). */
+const WIB_OFFSET_MS = 7 * 3_600_000;
+const DEFAULT_VISIT_MS = 3_600_000;
+const HTML_ENTITIES: Readonly<Record<string, string>> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+
+/**
+ * Start/end of the ICT visit: the local date of `scheduledDate` plus the first time in
+ * `scheduledTime` ("09:00", or "09.00 - 11.00" for request-driven installs, whose second
+ * time is the end). One hour when no end is given.
+ */
+export function visitOf(ticket: Pick<Ticket, 'isHardwareInstallation' | 'scheduledDate' | 'scheduledTime' | 'hardwareType'>): IpopVisit | null {
+    if (!ticket.isHardwareInstallation || !ticket.scheduledDate) return null;
+    const times = [...(ticket.scheduledTime ?? '').matchAll(/(\d{1,2})[:.](\d{2})/g)].map((m) => Number(m[1]) * 60 + Number(m[2]));
+    if (times.length === 0) return null;
+    const midnight = Date.parse(`${localDateKey(new Date(ticket.scheduledDate), DEFAULT_TIMEZONE)}T00:00:00Z`) - WIB_OFFSET_MS;
+    const start = midnight + times[0] * 60_000;
+    const end = times[1] > times[0] ? midnight + times[1] * 60_000 : start + DEFAULT_VISIT_MS;
+    return { start: new Date(start).toISOString(), end: new Date(end).toISOString(), hardwareType: ticket.hardwareType ?? null };
+}
+
+/** Chat markup to plain text, keeping paragraph and line breaks. */
+export function plainText(content: string | null | undefined): string {
+    return (content ?? '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (_m, name: string) => HTML_ENTITIES[name])
+        .replace(/[ \t]+/g, ' ')
+        .replace(/ *\n */g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function attachmentNames(m: Pick<TicketMessage, 'attachments' | 'attachmentInfo'>): { name: string }[] {
+    if (m.attachmentInfo?.length) return m.attachmentInfo.map((a) => ({ name: a.name }));
+    return (m.attachments ?? []).map((p) => ({ name: p.split('/').pop() || 'file' }));
+}
 
 /**
  * Tickets iPop may read and be notified about: filed through iPop, or filed in iDesk for

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
+import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { TicketModule } from '../../ticketing/entities/ticket-module.entity';
 import { TicketAttribute } from '../../ticketing/entities/ticket-attribute.entity';
 import { User } from '../../users/entities/user.entity';
@@ -18,7 +19,7 @@ import { IpopController } from './ipop.controller';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Ticket, TicketModule, TicketAttribute, User, ZoomBooking, WebhookOutbox]),
+        TypeOrmModule.forFeature([Ticket, TicketMessage, TicketModule, TicketAttribute, User, ZoomBooking, WebhookOutbox]),
         TicketingModule,
     ],
     controllers: [IpopController],

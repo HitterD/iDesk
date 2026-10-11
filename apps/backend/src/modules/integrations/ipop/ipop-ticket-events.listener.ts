@@ -97,6 +97,10 @@ export class IpopTicketEventsListener {
         if (previousStatus && view.status !== previousStatus) {
             await this.webhooks.enqueue(STATUS_EVENT[view.status] ?? 'ticket.status_changed', view, { previousStatus });
         }
+        // Snapshots sent before `visit` existed have no such key: don't report those as moves.
+        if (last && 'visit' in last && !sameVisit(last.visit, view.visit)) {
+            await this.webhooks.enqueue('ticket.visit_changed', view, { previousVisit: last.visit });
+        }
     }
 
     private async lastSent(ticketId: string): Promise<IpopTicketView | null> {
@@ -126,6 +130,10 @@ export class IpopTicketEventsListener {
             this.logger.error(`Could not queue iPop webhook for ticket ${ticketId}: ${(error as Error).message}`);
         }
     }
+}
+
+function sameVisit(a: IpopTicketView['visit'] | undefined, b: IpopTicketView['visit']): boolean {
+    return (a?.start ?? null) === (b?.start ?? null) && (a?.end ?? null) === (b?.end ?? null);
 }
 
 /** Plain-text preview of a chat message: markup stripped, cut to IPOP_PREVIEW_LENGTH. */

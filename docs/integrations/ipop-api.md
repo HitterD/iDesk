@@ -1,9 +1,10 @@
 # iDesk API for iPop
 
 iPop (`https://ipop.santos.co.id`) creates iDesk tickets and shows their progress.
-Chat, attachments after creation and internal notes stay in iDesk; every ticket carries
-a link to open it there. iPop is told when a new chat message arrives (a short preview,
-see section 5.1) so it can notify the user, but replying always happens in iDesk.
+iPop is told when a new chat message arrives (a short preview, section 5.1) and can read
+the public conversation (section 4.1), but replying, adding attachments and reopening
+always happen in iDesk; every ticket carries a link to open it there. Internal notes
+never leave iDesk.
 
 iPop also sees tickets the user filed **directly in iDesk**. They are linked by the
 requester's NIK (shared with iPop through HRIS) and appear with `origin: "IDESK"` and
@@ -136,6 +137,7 @@ Responses:
   "title": "Wifi lantai 2 mati",
   "assignee": { "name": "Agent Name" },
   "slaTarget": "2026-10-04T09:00:00.000Z",
+  "visit": null,
   "createdAt": "2026-10-04T01:00:00.000Z",
   "updatedAt": "2026-10-04T02:10:00.000Z",
   "resolvedAt": null,
@@ -146,6 +148,46 @@ Responses:
 
 `status`: `TODO` (open) -> `IN_PROGRESS` -> `WAITING_VENDOR` -> `RESOLVED` (waiting for the
 requester to confirm in iDesk) -> `CLOSED` (final). `CANCELLED` is final too.
+
+`visit`: the ICT visit of a hardware-installation ticket, `null` for every other ticket or
+while no slot is set. Times are UTC; iDesk books slots in WIB. One hour unless the slot has
+an end (installs from a hardware request, e.g. `09.00 - 11.00`).
+
+```json
+"visit": { "start": "2026-10-13T02:00:00.000Z", "end": "2026-10-13T03:00:00.000Z", "hardwareType": "PRINTER" }
+```
+
+Put it on the requester's calendar (`requester.nik`), keyed by `ticketId`. When the visit is
+rescheduled iDesk sends `ticket.visit_changed` (section 5); when the ticket is cancelled or
+closed, remove it or mark it done.
+
+### 4.1 `GET /tickets/{ticketNumber}/messages`
+
+The public conversation of a ticket iPop may see, oldest first (the latest 200), as plain
+text. Internal notes and system messages are never included. Attachments are listed by
+name only; opening them, replying and adding files happen in iDesk (`url`).
+
+```json
+{
+  "ticketNumber": "041026-INS-0001",
+  "url": "https://idesk.santos.co.id/client/tickets/bb4ed960-03e1-4428-8f64-136f60340381",
+  "messages": [
+    { "id": "1a2b....", "sender": { "name": "Budi" }, "fromRequester": true,
+      "content": "Tidak bisa konek sejak pagi, sudah restart laptop.", "attachments": [],
+      "createdAt": "2026-10-11T01:02:00.000Z" },
+    { "id": "5c1e....", "sender": { "name": "Agent Name" }, "fromRequester": false,
+      "content": "Sudah saya cek.
+Mohon restart laptop Anda lalu coba lagi.",
+      "attachments": [ { "name": "reset-wifi.pdf" } ], "createdAt": "2026-10-11T03:00:00.000Z" }
+  ]
+}
+```
+
+- `content` keeps line breaks (`
+`); markup is removed.
+- `fromRequester`: the requester's own messages (show them on "my" side of the chat).
+- Senders are given by name only, never by NIK.
+- `404` when the ticket does not exist or is not shared with iPop.
 
 ## 5. Webhook (iDesk -> iPop)
 
@@ -165,7 +207,8 @@ trusting the body, and answer `2xx` quickly.
 
 Events: `ticket.created`, `ticket.assigned` (`previousAssignee`), `ticket.status_changed`,
 `ticket.resolved`, `ticket.closed` (all three with `previousStatus`), `ticket.message_created`
-(`message`, section 5.1).
+(`message`, section 5.1), `ticket.visit_changed` (`previousVisit`; the installation visit was
+moved, see `visit` in section 4).
 They are sent for iDesk-filed tickets too (`ticket.origin = "IDESK"`): match those to the iPop
 user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `externalRef`).
 
@@ -197,8 +240,8 @@ the IT agent, also replies sent by email). Never sent for internal notes, system
 ```
 
 - `preview`: plain text (markup removed), at most 100 characters; longer messages end with `…`.
-  A message with only attachments has `preview` = `"📎 2 lampiran"`. The full message and
-  the attachments are only available in iDesk.
+  A message with only attachments has `preview` = `"📎 2 lampiran"`. The full text is
+  available through section 4.1; the attachments themselves only in iDesk.
 - Recipient: the iPop user with NIK `ticket.requester.nik`.
 - If a reply also moved the ticket (e.g. `TODO` -> `IN_PROGRESS`), the `ticket.status_changed`
   event for it is sent **before** `ticket.message_created`.
@@ -206,17 +249,19 @@ the IT agent, also replies sent by email). Never sent for internal notes, system
   (keyed by `ticket.ticketId`) and update it with the latest `preview` and a counter, instead
   of stacking a notification per message.
 
-**What the user sees in iPop (recommended):**
+**What the user sees in iPop:**
 
 ```
-💬 Balasan baru di tiket 041026-INS-0001
+💬 New reply on 041026-INS-0001   (3)
 Wifi lantai 2 mati
 Agent Name: "Sudah saya cek, mohon restart laptop Anda lalu coba lagi"
-[ Balas di iDesk ]
+[ Open chat ]  [ Reply in iDesk ]
 ```
 
-- `[ Balas di iDesk ]` opens `ticket.url` in a new tab. iPop has no reply box: replying,
-  reading the whole conversation and opening attachments all happen in iDesk.
+- `[ Open chat ]` (and clicking the notification) opens the ticket in iPop on its read-only
+  Messages section, filled from section 4.1.
+- `[ Reply in iDesk ]` opens `ticket.url` in a new tab. iPop has no reply box: replying,
+  adding files and opening attachments happen in iDesk.
 - If the user is not logged in to iDesk, iDesk shows its login page and returns to the
   ticket afterwards.
 - Mark the notification as read when it is clicked. iDesk does not report read status back.
