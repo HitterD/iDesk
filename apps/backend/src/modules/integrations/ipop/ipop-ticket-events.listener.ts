@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
+import type { TicketRepliedEvent } from '../../ticketing/events/ticket-replied.event';
 import { WebhookOutbox } from './entities/webhook-outbox.entity';
 import { IpopTicketService, IpopTicketView, isIpopVisible } from './ipop-ticket.service';
 import { IPOP_TARGET, IpopWebhookEvent, IpopWebhookService } from './ipop-webhook.service';
@@ -14,6 +15,10 @@ const STATUS_EVENT: Partial<Record<string, IpopWebhookEvent>> = {
 };
 
 type TicketIdPayload = { ticketId?: string; ticket?: { id?: string } };
+
+/** Length of the chat preview iPop shows; the full message stays in iDesk. */
+export const IPOP_PREVIEW_LENGTH = 100;
+const HTML_ENTITIES: Readonly<Record<string, string>> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
 
 /**
  * Turns iDesk ticket events into iPop callbacks. Status and assignee are compared with
@@ -47,12 +52,36 @@ export class IpopTicketEventsListener {
     @OnEvent('ticket.assigned', { async: true })
     @OnEvent('ticket.auto-assigned', { async: true })
     @OnEvent('ticket.cancelled', { async: true })
-    @OnEvent('ticket.replied', { async: true }) // an agent reply moves TODO -> IN_PROGRESS
     @OnEvent('ticket.merged', { async: true })
     async onChanged(event: TicketIdPayload): Promise<void> {
         const ticketId = event?.ticketId ?? event?.ticket?.id;
         if (!ticketId) return;
         await this.safely(ticketId, (view) => this.reportChanges(view));
+    }
+
+    /**
+     * A reply can move TODO -> IN_PROGRESS (reported first), and a public message from
+     * anyone but the requester becomes a chat notification. Internal notes and system
+     * messages never leave iDesk.
+     */
+    @OnEvent('ticket.replied', { async: true })
+    async onReplied(event: TicketRepliedEvent): Promise<void> {
+        const { message } = event;
+        const notify = !message.isInternal && !message.isSystemMessage && event.senderId !== event.ticketOwnerId;
+        await this.safely(event.ticketId, async (view) => {
+            await this.reportChanges(view);
+            if (!notify) return;
+            const attachmentCount = message.attachments?.length ?? 0;
+            await this.webhooks.enqueue('ticket.message_created', view, {
+                message: {
+                    id: message.id,
+                    sender: { name: event.senderName },
+                    preview: chatPreview(message.content, attachmentCount),
+                    attachmentCount,
+                    createdAt: new Date(message.createdAt).toISOString(),
+                },
+            });
+        });
     }
 
     /** Emits only what differs from the last snapshot iPop received. */
@@ -97,4 +126,15 @@ export class IpopTicketEventsListener {
             this.logger.error(`Could not queue iPop webhook for ticket ${ticketId}: ${(error as Error).message}`);
         }
     }
+}
+
+/** Plain-text preview of a chat message: markup stripped, cut to IPOP_PREVIEW_LENGTH. */
+export function chatPreview(content: string | null | undefined, attachmentCount: number): string {
+    const text = (content ?? '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (_m, name: string) => HTML_ENTITIES[name])
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!text) return attachmentCount > 0 ? `📎 ${attachmentCount} lampiran` : '';
+    return text.length > IPOP_PREVIEW_LENGTH ? `${text.slice(0, IPOP_PREVIEW_LENGTH - 1)}…` : text;
 }
