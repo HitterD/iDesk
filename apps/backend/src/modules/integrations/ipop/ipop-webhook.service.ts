@@ -15,7 +15,8 @@ export type IpopWebhookEvent =
     | 'ticket.assigned'
     | 'ticket.status_changed'
     | 'ticket.resolved'
-    | 'ticket.closed';
+    | 'ticket.closed'
+    | 'ticket.message_created';
 
 /** Wait before attempt n+1 after n failures: 1m, 5m, 30m, 2h; then the row is FAILED. */
 export const IPOP_RETRY_DELAYS_MS = [60_000, 300_000, 1_800_000, 7_200_000];

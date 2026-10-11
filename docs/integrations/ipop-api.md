@@ -2,7 +2,8 @@
 
 iPop (`https://ipop.santos.co.id`) creates iDesk tickets and shows their progress.
 Chat, attachments after creation and internal notes stay in iDesk; every ticket carries
-a link to open it there.
+a link to open it there. iPop is told when a new chat message arrives (a short preview,
+see section 5.1) so it can notify the user, but replying always happens in iDesk.
 
 iPop also sees tickets the user filed **directly in iDesk**. They are linked by the
 requester's NIK (shared with iPop through HRIS) and appear with `origin: "IDESK"` and
@@ -162,7 +163,8 @@ trusting the body, and answer `2xx` quickly.
 ```
 
 Events: `ticket.created`, `ticket.assigned` (`previousAssignee`), `ticket.status_changed`,
-`ticket.resolved`, `ticket.closed` (all three with `previousStatus`).
+`ticket.resolved`, `ticket.closed` (all three with `previousStatus`), `ticket.message_created`
+(`message`, section 5.1).
 They are sent for iDesk-filed tickets too (`ticket.origin = "IDESK"`): match those to the iPop
 user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `externalRef`).
 
@@ -170,6 +172,53 @@ user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `ext
 - A non-2xx answer or a timeout (10 s) is retried after 1 min, 5 min, 30 min and 2 h, then dropped.
   Use section 4 to resync.
 - For one ticket, events are sent in the order they happened.
+
+### 5.1 New chat message: `ticket.message_created`
+
+Sent when someone **other than the requester** posts a public message on the ticket (usually
+the IT agent, also replies sent by email). Never sent for internal notes, system messages
+(status changes have their own events) or the requester's own messages.
+
+```json
+{
+  "id": "9b2d7c44-....",
+  "event": "ticket.message_created",
+  "occurredAt": "2026-10-11T03:00:01.000Z",
+  "message": {
+    "id": "5c1e0f7a-....",
+    "sender": { "name": "Agent Name" },
+    "preview": "Sudah saya cek, mohon restart laptop Anda lalu coba lagi",
+    "attachmentCount": 0,
+    "createdAt": "2026-10-11T03:00:00.000Z"
+  },
+  "ticket": { "...": "same shape as section 4" }
+}
+```
+
+- `preview`: plain text (markup removed), at most 100 characters; longer messages end with `…`.
+  A message with only attachments has `preview` = `"📎 2 lampiran"`. The full message and
+  the attachments are only available in iDesk.
+- Recipient: the iPop user with NIK `ticket.requester.nik`.
+- If a reply also moved the ticket (e.g. `TODO` -> `IN_PROGRESS`), the `ticket.status_changed`
+  event for it is sent **before** `ticket.message_created`.
+- Several messages in a row produce one event each. Show **one notification per ticket**
+  (keyed by `ticket.ticketId`) and update it with the latest `preview` and a counter, instead
+  of stacking a notification per message.
+
+**What the user sees in iPop (recommended):**
+
+```
+💬 Balasan baru di tiket 041026-INS-0001
+Wifi lantai 2 mati
+Agent Name: "Sudah saya cek, mohon restart laptop Anda lalu coba lagi"
+[ Balas di iDesk ]
+```
+
+- `[ Balas di iDesk ]` opens `ticket.url` in a new tab. iPop has no reply box: replying,
+  reading the whole conversation and opening attachments all happen in iDesk.
+- If the user is not logged in to iDesk, iDesk shows its login page and returns to the
+  ticket afterwards.
+- Mark the notification as read when it is clicked. iDesk does not report read status back.
 
 ### C# (.NET) webhook receiver
 
@@ -192,6 +241,14 @@ app.MapPost("/api/idesk/webhook", async (HttpRequest req, IConfiguration cfg) =>
     var evt = JsonSerializer.Deserialize<JsonElement>(body);
     // TODO: skip if evt.id was already processed; find the iPop record by ticket.externalRef
     // (origin IPOP) or by ticket.ticketId + ticket.requester.nik (origin IDESK).
+    if (evt.GetProperty("event").GetString() == "ticket.message_created")
+    {
+        var ticket = evt.GetProperty("ticket");
+        var msg = evt.GetProperty("message");
+        // TODO: upsert the notification for (requester NIK, ticketId): title from
+        // ticket.ticketNumber + ticket.title, body from msg.sender.name + msg.preview,
+        // link = ticket.url (opens iDesk), unread counter + 1.
+    }
     return Results.Ok();
 });
 ```
