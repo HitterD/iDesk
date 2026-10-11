@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { ProtectedRoute } from '../ProtectedRoute';
 import { useAuth } from '../../../stores/useAuth';
 
@@ -41,6 +41,20 @@ describe('ProtectedRoute', () => {
 
         expect(screen.getByText('Login Page')).toBeInTheDocument();
         expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    });
+
+    it('passes the requested page as ?next= so a deep link (e.g. from iPop) lands there after login', () => {
+        const LoginProbe = () => <div>{useLocation().search}</div>;
+        render(
+            <MemoryRouter initialEntries={['/client/tickets/abc?tab=chat']}>
+                <Routes>
+                    <Route path="/client/tickets/:id" element={<ProtectedRoute><div>Ticket</div></ProtectedRoute>} />
+                    <Route path="/login" element={<LoginProbe />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText(`?next=${encodeURIComponent('/client/tickets/abc?tab=chat')}`)).toBeInTheDocument();
     });
 
     it('renders children when user is authenticated with allowed role', () => {

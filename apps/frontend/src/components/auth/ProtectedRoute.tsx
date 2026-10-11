@@ -49,7 +49,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Not logged in - token is in HttpOnly cookie, we check auth state
     if (!isAuthenticated || !user) {
-        return <Navigate to={sessionRejected ? '/login?reason=expired' : '/login'} state={{ from: location }} replace />;
+        // ?next= is what the login page reads to return here (deep links from email/iPop).
+        const next = `next=${encodeURIComponent(location.pathname + location.search)}`;
+        return <Navigate to={sessionRejected ? `/login?reason=expired&${next}` : `/login?${next}`} state={{ from: location }} replace />;
     }
 
     // ADMIN bypasses all checks
