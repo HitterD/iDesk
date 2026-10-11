@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -6,6 +6,8 @@ import { IpopAuthGuard } from './ipop-auth.guard';
 import { IpopCatalogService, IpopModuleInfo } from './ipop-catalog.service';
 import { IpopTicketService, IpopTicketView } from './ipop-ticket.service';
 import { IpopCreateTicketDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
+import { IpopZoomBookingService, IpopZoomBookingView } from './ipop-zoom-booking.service';
+import { IpopZoomBookingQueryDto } from './dto/ipop-zoom-booking.dto';
 import { IPOP_HEADERS } from './ipop-signature';
 
 /** Per iPop client: generous for a server, tight enough to stop a runaway loop. */
@@ -14,6 +16,7 @@ const IPOP_RATE_LIMIT = { limit: 120, ttl: 60_000 };
 /**
  * Server-to-server API for the iPop app (ipop.santos.co.id): create tickets in the
  * queue the user picked and read their progress. Chat and details stay in iDesk.
+ * Zoom bookings are exposed read-only so iPop can fill its users' calendars.
  * See docs/integrations/ipop-api.md.
  */
 @ApiTags('Integrations: iPop')
@@ -27,6 +30,7 @@ export class IpopController {
     constructor(
         private readonly catalog: IpopCatalogService,
         private readonly tickets: IpopTicketService,
+        private readonly zoomBookings: IpopZoomBookingService,
     ) {}
 
     @Get('modules')
@@ -57,5 +61,17 @@ export class IpopController {
     @ApiOperation({ summary: 'Progress of one iPop ticket' })
     get(@Param('ticketNumber') ticketNumber: string): Promise<IpopTicketView> {
         return this.tickets.getByNumber(ticketNumber);
+    }
+
+    @Get('zoom-bookings')
+    @ApiOperation({ summary: 'Zoom meetings of a user (booked or invited) in a date range, for the iPop calendar' })
+    findZoomBookings(@Query() query: IpopZoomBookingQueryDto): Promise<IpopZoomBookingView[]> {
+        return this.zoomBookings.find(query);
+    }
+
+    @Get('zoom-bookings/:id')
+    @ApiOperation({ summary: 'One Zoom booking as a calendar entry' })
+    getZoomBooking(@Param('id', ParseUUIDPipe) id: string): Promise<IpopZoomBookingView> {
+        return this.zoomBookings.getById(id);
     }
 }

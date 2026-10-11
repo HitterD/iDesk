@@ -15,7 +15,10 @@ export type IpopWebhookEvent =
     | 'ticket.assigned'
     | 'ticket.status_changed'
     | 'ticket.resolved'
-    | 'ticket.closed';
+    | 'ticket.closed'
+    | 'zoom_booking.created'
+    | 'zoom_booking.updated'
+    | 'zoom_booking.cancelled';
 
 /** Wait before attempt n+1 after n failures: 1m, 5m, 30m, 2h; then the row is FAILED. */
 export const IPOP_RETRY_DELAYS_MS = [60_000, 300_000, 1_800_000, 7_200_000];
@@ -42,17 +45,25 @@ export class IpopWebhookService {
     }
 
     async enqueue(event: IpopWebhookEvent, ticket: IpopTicketView, extra: Record<string, unknown> = {}): Promise<void> {
+        await this.insert(event, ticket.ticketId, { ticket, ...extra });
+    }
+
+    /** Zoom booking callbacks: not tied to a ticket, the booking travels in the body. */
+    async enqueueZoomBooking(event: IpopWebhookEvent, booking: object): Promise<void> {
+        await this.insert(event, null, { booking });
+    }
+
+    private async insert(event: IpopWebhookEvent, ticketId: string | null, body: Record<string, unknown>): Promise<void> {
         if (!this.isEnabled()) return;
         await this.outboxRepo.save(this.outboxRepo.create({
             target: IPOP_TARGET,
             event,
-            ticketId: ticket.ticketId,
+            ticketId,
             payload: {
                 id: randomUUID(), // delivery id: lets iPop drop duplicates after a retry
                 event,
                 occurredAt: new Date().toISOString(),
-                ticket,
-                ...extra,
+                ...body,
             },
             status: WebhookOutboxStatus.PENDING,
             nextAttemptAt: new Date(),
@@ -106,7 +117,7 @@ export class IpopWebhookService {
                 nextAttemptAt: new Date(now.getTime() + (delay ?? 0)),
             });
             if (delay === undefined) {
-                this.logger.error(`iPop webhook ${row.event} for ticket ${row.ticketId} failed after ${attempts} attempts: ${message}`);
+                this.logger.error(`iPop webhook ${row.event} (outbox ${row.id}) failed after ${attempts} attempts: ${message}`);
             }
         }
     }
