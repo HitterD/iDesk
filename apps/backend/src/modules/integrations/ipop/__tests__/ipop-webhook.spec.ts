@@ -142,3 +142,72 @@ describe('IpopTicketEventsListener ordering', () => {
         expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.created', expect.objectContaining({ origin: 'IDESK' }));
     });
 });
+
+describe('IpopTicketEventsListener.onReplied (chat notification)', () => {
+    const replied = (over: Record<string, unknown> = {}, message: Record<string, unknown> = {}) => ({
+        ticketId: 't-1',
+        ticketOwnerId: 'u-requester',
+        senderId: 'u-agent',
+        senderName: 'Agent A',
+        message: {
+            id: 'm-1', content: '<p>Sudah saya cek, <b>mohon</b> restart laptop&nbsp;Anda</p>',
+            attachments: [], isInternal: false, isSystemMessage: false,
+            createdAt: new Date('2026-10-11T03:00:00Z'), ...message,
+        },
+        ...over,
+    }) as any;
+    const build = () => {
+        const webhooks = { isEnabled: () => true, enqueue: jest.fn() };
+        const tickets = {
+            loadTicket: jest.fn(async () => ({ id: 't-1', externalSource: 'IPOP' })),
+            toView: jest.fn(() => view()),
+        };
+        const outbox = { findOne: jest.fn(async () => ({ payload: { ticket: view() } })) };
+        return { listener: new IpopTicketEventsListener(tickets as any, webhooks as any, outbox as any), webhooks };
+    };
+
+    it('sends a plain-text preview of a public agent reply', async () => {
+        const { listener, webhooks } = build();
+        await listener.onReplied(replied());
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.message_created', expect.anything(), {
+            message: {
+                id: 'm-1',
+                sender: { name: 'Agent A' },
+                preview: 'Sudah saya cek, mohon restart laptop Anda',
+                attachmentCount: 0,
+                createdAt: '2026-10-11T03:00:00.000Z',
+            },
+        });
+    });
+
+    it('cuts long messages to 100 characters', async () => {
+        const { listener, webhooks } = build();
+        await listener.onReplied(replied({}, { content: 'a'.repeat(150) }));
+        const preview = webhooks.enqueue.mock.calls[0][2].message.preview;
+        expect(preview).toBe(`${'a'.repeat(99)}…`);
+    });
+
+    it('describes an attachment-only message', async () => {
+        const { listener, webhooks } = build();
+        await listener.onReplied(replied({}, { content: '', attachments: ['/a.png', '/b.pdf'] }));
+        expect(webhooks.enqueue.mock.calls[0][2].message).toMatchObject({ preview: '📎 2 lampiran', attachmentCount: 2 });
+    });
+
+    it.each([
+        ['an internal note', replied({}, { isInternal: true })],
+        ['a system message', replied({}, { isSystemMessage: true })],
+        ["the requester's own message", replied({ senderId: 'u-requester' })],
+    ])('never sends %s', async (_label, event) => {
+        const { listener, webhooks } = build();
+        await listener.onReplied(event);
+        expect(webhooks.enqueue).not.toHaveBeenCalledWith('ticket.message_created', expect.anything(), expect.anything());
+    });
+
+    it('reports the status change of the reply before the message', async () => {
+        const { listener, webhooks } = build();
+        const tickets = (listener as any).tickets;
+        tickets.toView.mockReturnValue(view({ status: 'IN_PROGRESS' }));
+        await listener.onReplied(replied());
+        expect(webhooks.enqueue.mock.calls.map((c: any[]) => c[0])).toEqual(['ticket.status_changed', 'ticket.message_created']);
+    });
+});
